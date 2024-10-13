@@ -1,0 +1,149 @@
+plugins {
+    id 'java'
+    id 'maven-publish'
+    id 'com.gradleup.shadow' version '8.3.3'
+}
+
+tasks.compileJava.options.encoding = 'UTF-8'
+tasks.compileJava.targetCompatibility = JavaVersion.VERSION_21
+tasks.compileJava.sourceCompatibility = JavaVersion.VERSION_21
+
+group = 'com.swiftlicious'
+version = '1.0-ALPHA'
+description = 'Hellblock'
+
+def mainPackage = 'com.swiftlicious.hellblock'
+
+repositories {
+	mavenCentral()
+    maven { url = 'https://maven.aliyun.com/repository/public/' }
+    maven { url = 'https://repo.papermc.io/repository/maven-public/' }
+    maven { url = 'https://repo.dmulloy2.net/repository/public/' }
+    maven { url = 'https://repo.extendedclip.com/content/repositories/placeholderapi/' }
+    maven { url = 'https://repo.codemc.io/repository/maven-public/' }
+    maven { url = 'https://repo.codemc.org/repository/maven-public/' }
+    maven { url = 'https://maven.enginehub.org/repo/' }
+    maven { url = 'https://jitpack.io/' }
+    maven { url = 'https://mvn.lumine.io/repository/maven-public/' }
+    maven { url = 'https://repo.minebench.de/' }
+    maven { url = 'https://repo.xenondevs.xyz/releases/' }
+    maven { url = 'https://oss.sonatype.org/content/groups/public/' }
+    maven { url = 'https://s01.oss.sonatype.org/content/repositories/snapshots/' }
+    maven { url = 'https://repo.onarandombox.com/content/groups/public/' }
+}
+
+dependencies {
+    // server
+    compileOnly 'io.papermc.paper:paper-api:1.21.1-R0.1-SNAPSHOT'
+    compileOnly 'dev.folia:folia-api:1.20.1-R0.1-SNAPSHOT'
+
+    // packet
+    compileOnly 'com.comphenix.protocol:ProtocolLib:5.3.0-SNAPSHOT'
+
+    // bStats
+    implementation 'org.bstats:bstats-bukkit:3.1.0'
+
+    // papi
+    compileOnly 'me.clip:placeholderapi:2.11.6'
+
+    // Gson
+    compileOnly 'com.google.code.gson:gson:2.10.1'
+
+    // Lombok
+    compileOnly 'org.projectlombok:lombok:1.18.34'
+	annotationProcessor 'org.projectlombok:lombok:1.18.34'
+	
+	// mythic mobs
+    compileOnly 'io.lumine:Mythic-Dist:5.6.1'
+    
+    // multiverse world support
+    compileOnly 'com.onarandombox.multiversecore:Multiverse-Core:4.3.2-SNAPSHOT'
+
+    // worldedit & worldguard
+    compileOnly('com.sk89q.worldedit:worldedit-bukkit:7.3.7-SNAPSHOT') {
+    	exclude group: 'org.bukkit'
+    }
+    compileOnly 'com.sk89q.worldguard:worldguard-core:7.0.13-SNAPSHOT'
+    compileOnly 'com.sk89q.worldguard:worldguard-bukkit:7.0.13-SNAPSHOT'
+
+    // database
+    compileOnly 'org.xerial:sqlite-jdbc:3.46.1.3'
+    compileOnly 'com.h2database:h2:2.3.232'
+    compileOnly 'org.mongodb:mongodb-driver-sync:5.2.0'
+    compileOnly 'com.zaxxer:HikariCP:6.0.0'
+    compileOnly 'redis.clients:jedis:5.1.5'
+
+    // others
+    compileOnly('com.github.MilkBowl:VaultAPI:1.7') {
+    	exclude group: 'org.bukkit'
+    }
+    implementation 'xyz.xenondevs.invui:invui:1.38'
+    compileOnly 'com.github.Zrips:Jobs:v5.2.2.3'
+    
+    compileOnly(files('libs/AdvancedEnchantments-api.jar'))
+    
+    // exp4j
+    implementation 'net.objecthunter:exp4j:0.4.8'
+
+    // config
+    implementation 'dev.dejvokep:boosted-yaml:1.3.6'
+
+    // command
+    implementation 'dev.jorel:commandapi-bukkit-shade:9.5.3'
+
+    // adventure
+    implementation 'net.kyori:adventure-api:4.18.0-SNAPSHOT'
+    implementation 'net.kyori:adventure-platform-bukkit:4.3.5-SNAPSHOT'
+    implementation 'net.kyori:adventure-text-minimessage:4.18.0-SNAPSHOT'
+
+    // nbt
+    implementation 'de.tr7zw:item-nbt-api:2.13.2'
+
+    // custom block data
+    implementation 'com.jeff-media:custom-block-data:2.2.3'
+    
+    // xmaterial
+    implementation('com.github.cryptomorin:XSeries:11.3.0') { transitive = false }
+}
+
+tasks {
+    shadowJar {
+    	archiveBaseName.set(project.name)
+    	archiveClassifier.set('')
+   	 	archiveVersion.set('')
+        archiveFileName.set(project.name + '-' + project.version + '.jar')
+
+        relocate 'org.apache.commons.pool2', mainPackage + '.libraries.commonspool2'
+        relocate 'com.mysql', mainPackage + '.libraries.mysql'
+        relocate 'org.mariadb', mainPackage + '.libraries.mariadb'
+        relocate 'com.zaxxer.hikari', mainPackage + '.libraries.hikari'
+        relocate 'redis.clients.jedis', mainPackage + '.libraries.jedis'
+        relocate 'com.mongodb', mainPackage + '.libraries.mongodb'
+        relocate 'org.bson', mainPackage + '.libraries.bson'
+        relocate 'net.objecthunter.exp4j', mainPackage + '.libraries.exp4j'
+        relocate 'de.tr7zw.changeme', mainPackage + '.libraries.changeme'
+        relocate 'net.kyori', mainPackage + '.libraries.adventureapi'
+        relocate 'dev.jorel.commandapi', mainPackage + '.libraries.commandapi'
+        relocate 'dev.dejvokep.boostedyaml', mainPackage + '.libraries.boostedyaml'
+        relocate 'org.bstats', mainPackage + '.libraries.bstats'
+        relocate 'com.jeff_media.customblockdata', mainPackage + '.libraries.customblockdata'
+        relocate 'com.cryptomorin.xseries', mainPackage + '.libraries.xseries'
+        
+		manifest {
+			attributes['paperweight-mappings-namespace'] = 'spigot'
+		}
+    }
+
+    build {
+        dependsOn shadowJar
+    }   
+}
+
+processResources {
+	def props = ['version': version]
+    inputs.properties props
+    filteringCharset = 'UTF-8'
+    filesMatching('*plugin.yml') {
+    	expand props
+    }
+}

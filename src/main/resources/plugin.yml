@@ -1,0 +1,32 @@
+main: com.swiftlicious.hellblock.HellblockPlugin
+name: Hellblock
+version: '${version}'
+api-version: 1.13
+description: Skyblock in the nether!
+website: https://github.com/Swiftlicious01?tab=repositories
+authors: [ Swiftlicious ]
+depend:
+- ProtocolLib
+softdepend:
+- WorldEdit
+- WorldGuard
+- PlaceholderAPI
+- Vault
+- MythicMobs
+- Jobs
+- AdvancedEnchantments
+- Multiverse-Core
+
+permissions:
+  hellblock.user:
+    description: Main permission
+    default: true
+  hellblock.coop:
+    description: Coop permission
+    default: true
+  hellblock.admin:
+    description: Admin permission
+    default: op
+  hellblock.updates:
+    description: Get latest update messages
+    default: op
