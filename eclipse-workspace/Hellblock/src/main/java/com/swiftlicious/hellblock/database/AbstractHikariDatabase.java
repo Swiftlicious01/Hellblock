@@ -1,0 +1,150 @@
+package com.swiftlicious.hellblock.database;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Properties;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+
+import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.file.YamlConfiguration;
+
+import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.playerdata.EarningData;
+import com.swiftlicious.hellblock.playerdata.PlayerData;
+import com.swiftlicious.hellblock.utils.LogUtils;
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
+
+/**
+ * An abstract base class for SQL databases using the HikariCP connection pool,
+ * which handles player data storage.
+ */
+public abstract class AbstractHikariDatabase extends AbstractSQLDatabase implements LegacyDataStorageInterface {
+
+	private HikariDataSource dataSource;
+	private final String driverClass;
+	private final String sqlBrand;
+
+	public AbstractHikariDatabase(HellblockPlugin plugin) {
+		super(plugin);
+		this.driverClass = getStorageType() == StorageType.MariaDB ? "org.mariadb.jdbc.Driver"
+				: "com.mysql.cj.jdbc.Driver";
+		this.sqlBrand = getStorageType() == StorageType.MariaDB ? "MariaDB" : "MySQL";
+		try {
+			Class.forName(this.driverClass);
+		} catch (ClassNotFoundException e1) {
+			if (getStorageType() == StorageType.MariaDB) {
+				LogUtils.warn("No MariaDB driver is found");
+			} else if (getStorageType() == StorageType.MySQL) {
+				try {
+					Class.forName("com.mysql.jdbc.Driver");
+				} catch (ClassNotFoundException e2) {
+					LogUtils.warn("No MySQL driver is found");
+				}
+			}
+		}
+	}
+
+	/**
+	 * Initialize the database connection pool and create tables if they don't
+	 * exist.
+	 */
+	@Override
+	public void initialize() {
+		YamlConfiguration config = HellblockPlugin.getInstance().getConfig("database.yml");
+		ConfigurationSection section = config.getConfigurationSection(sqlBrand);
+
+		if (section == null) {
+			LogUtils.warn(
+					"Failed to load database config. It seems that your config is broken. Please regenerate a new one.");
+			return;
+		}
+
+		super.tablePrefix = section.getString("table-prefix", "hellblock");
+		HikariConfig hikariConfig = new HikariConfig();
+		hikariConfig.setUsername(section.getString("user", "root"));
+		hikariConfig.setPassword(section.getString("password", "pa55w0rd"));
+		hikariConfig.setJdbcUrl(String.format("jdbc:%s://%s:%s/%s%s", sqlBrand.toLowerCase(Locale.ENGLISH),
+				section.getString("host", "localhost"), section.getString("port", "3306"),
+				section.getString("database", "minecraft"), section.getString("connection-parameters")));
+		hikariConfig.setDriverClassName(driverClass);
+		hikariConfig.setMaximumPoolSize(section.getInt("Pool-Settings.max-pool-size", 10));
+		hikariConfig.setMinimumIdle(section.getInt("Pool-Settings.min-idle", 10));
+		hikariConfig.setMaxLifetime(section.getLong("Pool-Settings.max-lifetime", 180000L));
+		hikariConfig.setConnectionTimeout(section.getLong("Pool-Settings.time-out", 20000L));
+		hikariConfig.setPoolName("HellblockHikariPool");
+		try {
+			hikariConfig.setKeepaliveTime(section.getLong("Pool-Settings.keep-alive-time", 60000L));
+		} catch (NoSuchMethodError ignored) {
+		}
+
+		final Properties properties = new Properties();
+		properties.putAll(Map.of("cachePrepStmts", "true", "prepStmtCacheSize", "250", "prepStmtCacheSqlLimit", "2048",
+				"useServerPrepStmts", "true", "useLocalSessionState", "true", "useLocalTransactionState", "true"));
+		properties.putAll(Map.of("rewriteBatchedStatements", "true", "cacheResultSetMetadata", "true",
+				"cacheServerConfiguration", "true", "elideSetAutoCommits", "true", "maintainTimeStats", "false"));
+		hikariConfig.setDataSourceProperties(properties);
+		dataSource = new HikariDataSource(hikariConfig);
+		super.createTableIfNotExist();
+	}
+
+	/**
+	 * Disable the database by closing the connection pool.
+	 */
+	@Override
+	public void disable() {
+		if (dataSource != null && !dataSource.isClosed())
+			dataSource.close();
+	}
+
+	/**
+	 * Get a connection to the SQL database from the connection pool.
+	 *
+	 * @return A database connection.
+	 * @throws SQLException If there is an error establishing a connection.
+	 */
+	@Override
+	public Connection getConnection() throws SQLException {
+		return dataSource.getConnection();
+	}
+
+	/**
+	 * Retrieve legacy player data from the SQL database.
+	 *
+	 * @param uuid The UUID of the player.
+	 * @return A CompletableFuture containing the optional legacy player data.
+	 */
+	@Override
+	public CompletableFuture<Optional<PlayerData>> getLegacyPlayerData(UUID uuid) {
+		var future = new CompletableFuture<Optional<PlayerData>>();
+		HellblockPlugin.getInstance().getScheduler().runTaskAsync(() -> {
+			try (Connection connection = getConnection()) {
+				var builder = PlayerData.builder().setName("");
+
+				PreparedStatement statement = connection
+						.prepareStatement(String.format(SqlConstants.SQL_SELECT_BY_UUID, getTableName("selldata")));
+				statement.setString(1, uuid.toString());
+				ResultSet rs = statement.executeQuery();
+				if (rs.next()) {
+					int date = rs.getInt("date");
+					double money = rs.getInt("money");
+					builder.setEarningData(new EarningData(money, date));
+				} else {
+					builder.setEarningData(EarningData.empty());
+				}
+
+				future.complete(Optional.of(builder.build()));
+			} catch (SQLException e) {
+				LogUtils.warn("Failed to get " + uuid + "'s data.", e);
+				future.completeExceptionally(e);
+			}
+		});
+		return future;
+	}
+}

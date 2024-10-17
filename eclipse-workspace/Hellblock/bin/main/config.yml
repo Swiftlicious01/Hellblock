@@ -1,0 +1,605 @@
+# HELLBLOCK CONFIGURATION #
+
+# Developer: @Swiftlicious
+config-version: '1'
+
+# Debug
+debug: false
+
+# BStats
+metrics: true
+
+# Check updates
+update-checker: true
+
+general:
+  world: hellworld
+  spawnSize: 50
+  netherCMD: '/spawn'
+hellblock:
+  can-transfer-islands: true
+  party-size: 4
+  schematic: yourschematicname
+  useClassicShape: false
+  height: 150
+  distance: 110
+  worldguardProtect: true
+  protectionRange: 105
+  allowPvP: DENY
+  starter-chest: 
+    '1':
+      material: BROWN_MUSHROOM
+      amount: 1
+      slot: 3
+    '2':
+      material: OAK_SIGN
+      amount: 1
+      slot: 4
+    '3':
+      material: RED_MUSHROOM
+      amount: 1
+      slot: 5
+    '4':
+      material: OAK_SAPLING
+      amount: 1
+      slot: 9
+    '5':
+      material: LAVA_BUCKET
+      amount: 1
+      slot: 12
+    '6':
+      material: BUCKET
+      amount: 1
+      slot: 13
+    '7':
+      material: LAVA_BUCKET
+      amount: 1
+      slot: 14
+    '8':
+      material: GRASS_BLOCK
+      amount: 1
+      slot: 18
+    '9':
+      material: BONE
+      amount: 1
+      slot: 21
+    '10':
+      material: NETHER_WART
+      amount: 1
+      slot: 22
+    '11':
+      material: BONE
+      amount: 1
+      slot: 23
+
+brewing:
+  nether-bottle:
+    enable: true
+    potion:
+      name: '<red>Nether Bottle'
+      color: 'RED'
+      lore:
+        - '<dark_red>Potion but Nethery'
+        
+tools:
+  netherrack:
+    enable: true
+    pickaxe:
+      name: '<red>Nether Pickaxe'
+      lore:
+        - '<dark_red>Pickaxe but Nethery'
+      enchantments:
+        - EFFICIENCY:1
+        - UNBREAKING:1
+    axe:
+      name: '<red>Nether Axe'
+      lore:
+        - '<dark_red>Axe but Nethery'
+      enchantments:
+        - EFFICIENCY:1
+        - UNBREAKING:1
+    shovel:
+      name: '<red>Nether Shovel'
+      lore:
+        - '<dark_red>Shovel but Nethery'
+      enchantments:
+        - EFFICIENCY:1
+        - UNBREAKING:1
+    hoe:
+      name: '<red>Nether Hoe'
+      lore:
+        - '<dark_red>Hoe but Nethery'
+      enchantments:
+        - EFFICIENCY:1
+        - UNBREAKING:1
+    sword:
+      name: '<red>Nether Sword'
+      lore:
+        - '<dark_red>Sword but Nethery'
+      enchantments:
+        - SHARPNESS:1
+        - UNBREAKING:1
+  glowstone:
+    enable: true
+    night-vision: true
+    pickaxe:
+      name: '<yellow>Glowstone Pickaxe'
+      lore:
+        - '<dark_red>Pickaxe but Nethery'
+      enchantments:
+        - EFFICIENCY:1
+        - UNBREAKING:1
+    axe:
+      name: '<yellow>Glowstone Axe'
+      lore:
+        - '<dark_red>Axe but Nethery'
+      enchantments:
+        - EFFICIENCY:1
+        - UNBREAKING:1
+    shovel:
+      name: '<yellow>Glowstone Shovel'
+      lore:
+        - '<dark_red>Shovel but Nethery'
+      enchantments:
+        - EFFICIENCY:1
+        - UNBREAKING:1
+    hoe:
+      name: '<yellow>Glowstone Hoe'
+      lore:
+        - '<dark_red>Hoe but Nethery'
+      enchantments:
+        - EFFICIENCY:1
+        - UNBREAKING:1
+    sword:
+      name: '<yellow>Glowstone Sword'
+      lore:
+        - '<dark_red>Sword but Nethery'
+      enchantments:
+        - SHARPNESS:1
+        - UNBREAKING:1
+  quartz:
+    enable: true
+    pickaxe:
+      name: '<gray>Quartz Pickaxe'
+      lore:
+        - '<dark_red>Pickaxe but Nethery'
+      enchantments:
+        - EFFICIENCY:1
+        - UNBREAKING:1
+    axe:
+      name: '<gray>Quartz Axe'
+      lore:
+        - '<dark_red>Axe but Nethery'
+      enchantments:
+        - EFFICIENCY:1
+        - UNBREAKING:1
+    shovel:
+      name: '<gray>Quartz Shovel'
+      lore:
+        - '<dark_red>Shovel but Nethery'
+      enchantments:
+        - EFFICIENCY:1
+        - UNBREAKING:1
+    hoe:
+      name: '<gray>Quartz Hoe'
+      lore:
+        - '<dark_red>Hoe but Nethery'
+      enchantments:
+        - EFFICIENCY:1
+        - UNBREAKING:1
+    sword:
+      name: '<gray>Quartz Sword'
+      lore:
+        - '<dark_red>Sword but Nethery'
+      enchantments:
+        - SHARPNESS:1
+        - UNBREAKING:1
+  netherstar:
+    enable: true
+    pickaxe:
+      name: '<aqua>Nether Star Pickaxe'
+      lore:
+        - '<dark_red>Pickaxe but Nethery'
+      enchantments: 
+        - EFFICIENCY:1
+        - UNBREAKING:1
+    axe:
+      name: '<aqua>Nether Star Axe'
+      lore:
+        - '<dark_red>Axe but Nethery'
+      enchantments:
+        - EFFICIENCY:1
+        - UNBREAKING:1
+    shovel:
+      name: '<aqua>Nether Star Shovel'
+      lore:
+        - '<dark_red>Shovel but Nethery'
+      enchantments:
+        - EFFICIENCY:1
+        - UNBREAKING:1
+    hoe:
+      name: '<aqua>Nether Star Hoe'
+      lore:
+        - '<dark_red>Hoe but Nethery'
+      enchantments:
+        - EFFICIENCY:1
+        - UNBREAKING:1
+    sword:
+      name: '<aqua>Nether Star Sword'
+      lore:
+        - '<dark_red>Sword but Nethery'
+      enchantments:
+        - SHARPNESS:1
+        - UNBREAKING:1
+armor:
+  netherrack:
+    enable: true
+    helmet:
+      name: '<red>Nether Helmet'
+      lore: 
+        - '<dark_red>Helmet but Nethery'
+      enchantments: 
+        - PROTECTION:3
+        - FIRE_PROTECTION:1
+    chestplate:
+      name: '<red>Nether Chest Plate'
+      lore: 
+        - '<dark_red>Chest Plate but Nethery'
+      enchantments: 
+        - PROTECTION:3
+        - FIRE_PROTECTION:1
+    leggings:
+      name: '<red>Nether Leggings'
+      lore: 
+        - '<dark_red>Leggings but Nethery'
+      enchantments: 
+        - PROTECTION:3
+        - FIRE_PROTECTION:1
+    boots:
+      name: '<red>Nether Boots'
+      lore: 
+        - '<dark_red>Boots but Nethery'
+      enchantments: 
+        - PROTECTION:3
+        - FIRE_PROTECTION:1
+  glowstone:
+    enable: true
+    night-vision: true
+    helmet:
+      name: '<yellow>Glowstone Helmet'
+      lore: 
+        - '<dark_red>Helmet but Nethery'
+      enchantments: 
+        - PROTECTION:3
+        - FIRE_PROTECTION:1
+    chestplate:
+      name: '<yellow>Glowstone Chest Plate'
+      lore: 
+        - '<dark_red>Chest Plate but Nethery'
+      enchantments: 
+        - PROTECTION:3
+        - FIRE_PROTECTION:1
+    leggings:
+      name: '<yellow>Glowstone Leggings'
+      lore: 
+        - '<dark_red>Leggings but Nethery'
+      enchantments: 
+        - PROTECTION:3
+        - FIRE_PROTECTION:1
+    boots:
+      name: '<yellow>Glowstone Boots'
+      lore: 
+        - '<dark_red>Boots but Nethery'
+      enchantments: 
+        - PROTECTION:3
+        - FIRE_PROTECTION:1
+  quartz:
+    enable: true
+    helmet:
+      name: '<gray>Quartz Helmet'
+      lore: 
+        - '<dark_red>Helmet but Nethery'
+      enchantments: 
+        - PROTECTION:3
+        - FIRE_PROTECTION:1
+    chestplate:
+      name: '<gray>Quartz Chest Plate'
+      lore: 
+        - '<dark_red>Chest Plate but Nethery'
+      enchantments: 
+        - PROTECTION:3
+        - FIRE_PROTECTION:1
+    leggings:
+      name: '<gray>Quartz Leggings'
+      lore: 
+        - '<dark_red>Leggings but Nethery'
+      enchantments: 
+        - PROTECTION:3
+        - FIRE_PROTECTION:1
+    boots:
+      name: '<gray>Quartz Boots'
+      lore: 
+        - '<dark_red>Boots but Nethery'
+      enchantments: 
+        - PROTECTION:3
+        - FIRE_PROTECTION:1
+  netherstar:
+    enable: true
+    helmet:
+      name: '<aqua>Nether Star Helmet'
+      lore: 
+        - '<dark_red>Helmet but Nethery'
+      enchantments: 
+        - PROTECTION:3
+        - FIRE_PROTECTION:1
+    chestplate:
+      name: '<aqua>Nether Star Chest Plate'
+      lore: 
+        - '<dark_red>Chest Plate but Nethery'
+      enchantments: 
+        - PROTECTION:3
+        - FIRE_PROTECTION:1
+    leggings:
+      name: '<aqua>Nether Star Leggings'
+      lore: 
+        - '<dark_red>Leggings but Nethery'
+      enchantments: 
+        - PROTECTION:3
+        - FIRE_PROTECTION:1
+    boots:
+      name: '<aqua>Nether Star Boots'
+      lore: 
+        - '<dark_red>Boots but Nethery'
+      enchantments: 
+        - PROTECTION:3
+        - FIRE_PROTECTION:1
+ 
+infinite-lava-options:
+  # At which height (block - not line of sight!) is the lava unlimited
+  height: 60
+  sources:
+    # Different sources -> See the schematics below
+    three: true
+    two: true
+    other: false
+    big: false
+    lava-fall: true
+    plus: true
+    T: true
+    ring: true
+  
+lava-rain-options:
+  # How far from the player should the lava particles fall (setting this value too high may cause lag !)
+  radius: 16
+  # Chance to make fire appear on the ground when the lava is falling
+  fireChance: 1
+  # Every how many ticks should the task repeat (20 ticks is 1 second)
+  taskDelay: 3
+
+generator-options:
+  playerSearchRadius: 4.0
+  automation:
+    pistons: false
+  generationModes:
+    '0':
+      blocks:
+        - LAVA
+        - LAVA
+      displayName: Netherrack generator
+      fallback: NETHERRACK
+      particleEffect: LARGE_SMOKE
+      generationSound: ENTITY_EXPERIENCE_ORB_PICKUP
+      canGenerateWhileLavaRaining: true
+
+# mechanism settings
+mechanism:
+  # Specifies the conditions required for the plugin mechanism to work.
+  # Here, the type is !world, which implies the plugin won't work in
+  # the world named 'blacklist_world'.
+  mechanism-requirements:
+    world_requirement:
+      type: '!world'
+      value:
+        - blacklist_world
+      # Configures global effects. This is useful if you want to give all the players certain effects based on certain conditions
+      global-effects:
+        effect_1:
+          type: conditional
+          effects:
+            effect_1:
+              type: wait-time-multiplier
+              value: 0.85
+
+      # Configures global events for hook/bait/rod/loot
+      # which would help you reduce duplicated lines
+      global-events:
+        hook: {}
+        bait: {}
+        loot:
+          new_size_record:
+            conditional_size_record_action:
+              type: conditional
+              value:
+                conditions:
+                  has-stats: true
+                actions:
+                  actionbar_action:
+                    type: actionbar
+                    value: '<#FFD700>[New Record]</#FFD700> <#FFFFF0>You caught a(n) {nick} which is <#FFA500>{size}cm</#FFA500> long!</#FFFFF0>'
+                  sound_action:
+                    type: sound
+                    value:
+                      key: "minecraft:block.note_block.cow_bell"
+                      source: 'player'
+                      volume: 1
+                      pitch: 1
+                  delayed_sound:
+                    type: delay
+                    value:
+                      delay: 2
+                      actions:
+                        sound_action:
+                          type: sound
+                          value:
+                            key: "minecraft:block.note_block.bell"
+                            source: 'player'
+                            volume: 1
+                            pitch: 1
+          success:
+            conditional_size_info_action:
+              type: conditional
+              value:
+                conditions:
+                  has-size: true
+                  has-stats: true
+                actions:
+                  actionbar_action:
+                    type: actionbar
+                    value: '<gray>You caught a(n) {nick} which is <#F5F5F5>{size}cm</#F5F5F5> long!</gray> <#C0C0C0>(Best record: {record}cm)</#C0C0C0>'
+            title_action:
+              type: random-title
+              value:
+                titles:
+                  - '<green>GG!</green>'
+                  - '<green>Good Job!</green>'
+                subtitles:
+                  - 'You caught a(n) {nick}'
+                  - 'Whoa! Nice catch!'
+                  - 'Oh {nick} here we go!'
+                  - 'Let''s see what it is!'
+                fade-in: 20
+                stay: 30
+                fade-out: 10
+              chance: 1.0
+          failure:
+            title_action:
+              type: random-title
+              value:
+                titles:
+                  - '<red>Be concentrated!</red>'
+                  - '<red>What a pity!</red>'
+                  - '<red>Try next time!</red>'
+                  - '<red>Bad luck</red>'
+                subtitles:
+                  - 'The fish escaped...'
+                fade-in: 20
+                stay: 30
+                fade-out: 10
+              chance: 1.0
+        rod:
+          land:
+            priority_action:
+              type: priority
+              value:
+                priority_1:
+                  conditions:
+                    lava-fishing: true
+                  actions:
+                    fake_item_action:
+                      type: fake-item
+                      value:
+                        duration: 35
+                        position: other
+                        item: util:lava_effect
+
+      # Global properties which would help you reduce duplicated lines
+      global-loot-property:
+        show-in-fishfinder: true
+
+      # Fishing wait time
+      # This section would take effect if you set "override-vanilla" to true
+      # That also means vanilla mechanics for example lure enchantment
+      # would no longer take effect, so you have to configurate its effect
+      # in enchantment effects.
+      fishing-wait-time:
+        # override vanilla mechanic
+        override-vanilla: false
+
+      # Lava fishing settings
+      # To modify vanilla fishing time, you should edit paper-world-defaults.yml where there's a section called fishing-time-range
+      lava-fishing:
+        # ticks
+        min-wait-time: 100
+        max-wait-time: 600
+
+      # Size settings
+      size:
+        # Some effects would increase/decrease size so the option decides whether they could ignore the limit
+        restricted-size-range: true
+
+      # If a player could get multiple loots from fishing, should the loots spawn at the same time or have delays for each (tick)
+      multiple-loot-spawn-delay: 4
+
+# Other settings
+other-settings:
+ 
+    # It's recommended to use MiniMessage format. If you insist on using legacy color code "&", enable the support below.
+    # Disable this would improve performance
+    legacy-color-code-support: true
+
+    # Thread pool settings
+    thread-pool-settings:
+      # The size of the core Thread pool, that is, the size of the Thread pool when there is no task to execute
+      # Increase the size of corePoolSize when you are running a large server with many players fishing at the same time
+      corePoolSize: 10
+      # The maximum number of threads allowed to be created in the Thread pool. The current number of threads in the Thread pool will not exceed this value
+      maximumPoolSize: 10
+      # If a thread is idle for more than this attribute value, it will exit due to timeout
+      keepAliveTime: 30
+
+    # Event priority: MONITOR HIGHEST HIGH NORMAL LOW LOWEST
+    event-priority: NORMAL
+
+    # Save the data from cache to file periodically to minimize the data loss if server crashes
+    # -1 to disable
+    data-saving-interval: 600
+
+    # Log the consumption of time on data saving
+    log-data-saving: true
+
+    # Lock player's data if a player is playing on a server that connected to database
+    # If you can ensure low database link latency and fast processing, you can consider disabling this option to improve performance
+    lock-data: true
+
+    # Requires PlaceholderAPI to work
+    placeholder-register:
+      '{record}': '%fishingstats_size-record_{loot}%'
+      # Requires server expansion
+      '{date}': '%server_time_yyyy-MM-dd-HH:mm:ss%'
+      # Requires player expansion
+      '{yaw}': '%player_yaw%'
+
+    # LavaFishing supports using items/blocks from other plugins
+    # If items share the same id, they would inherit the effects
+    # Check the wiki for examples
+    item-detection-order:
+      - LavaFishing
+      - vanilla
+    block-detection-order:
+      - vanilla
+
+    # Custom durability format
+    custom-durability-format:
+      - ''
+      - '<gray>Durability</gray><white>: {dur} <gray>/</gray> {max}</white>'
+
+    # Offset characters' unicodes
+    # Never edit this unless you know what you are doing
+    offset-characters:
+      font: hellblock:offset_chars
+      '1': 
+      '2': 
+      '4': 
+      '8': 
+      '16': 
+      '32': 
+      '64': 
+      '128': 
+      '-1': 
+      '-2': 
+      '-4': 
+      '-8': 
+      '-16': 
+      '-32': 
+      '-64': 
+      '-128': 

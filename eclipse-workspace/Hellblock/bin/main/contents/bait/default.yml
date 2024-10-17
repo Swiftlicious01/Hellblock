@@ -1,0 +1,95 @@
+# Note: These are the default configurations of the plugin 
+# and do not necessarily mean that players can have a good
+# gaming experience. We hope that you will create 
+# customized configurations based on your own ideas, 
+# allowing players to experience the uniqueness of your server.
+
+# use Vanilla items as bait
+BOOK:
+  tag: false
+  material: book
+  requirements:
+    requirement_1:
+      type: rod
+      value:
+        - magical_rod
+      not-met-actions:
+        action_message:
+          type: message
+          value:
+            - 'This bait can only be used on <#7B68EE>Magical Fishing Rod'
+
+simple_bait:
+  material: paper
+  display:
+    name: '<b><#00BFFF>Simple lures'
+    lore:
+      - ''
+      - '<#7FFFD4>Description:'
+      - '<gray>Made from natural ingredients, it attracts'
+      - '<gray>fish in a calm and steady manner. It''s the'
+      - '<gray>go-to choice for those who prefer a '
+      - '<gray>straightforward and reliable fishing experience.'
+      - ''
+      - '<#FFD700>Effects:'
+      - '<gray> - Reduce fishing difficulty'
+      - ''
+  custom-model-data: 50001
+  effects:
+    effect_1:
+      type: difficulty
+      value: -10
+
+magnetic_bait:
+  material: paper
+  display:
+    name: '<b><red>Magn<blue>etic <gray>lures'
+    lore:
+      - ''
+      - '<#7FFFD4>Description:'
+      - '<gray>Its radiant shimmer and unique energy pulse'
+      - '<gray>prove irresistible to curious fish, drawing'
+      - '<gray>them in with unprecedented speed. This is '
+      - '<gray>not just a bait, it''s a spectacle that fish'
+      - '<gray>can''t help but investigate.'
+      - ''
+      - '<#FFD700>Effects:'
+      - '<gray> - Reduce wait time'
+      - '<gray> - More time for fishing'
+      - ''
+  custom-model-data: 50002
+  effects:
+    effect_1:
+      type: wait-time-multiplier
+      value: 0.9
+    effect_2:
+      type: group-mod
+      value: 2
+
+wild_bait:
+  material: paper
+  display:
+    name: '<b><#2E8B57>Wild lures'
+    lore:
+      - ''
+      - '<#7FFFD4>Description:'
+      - '<gray>Crafted for the fearless angler, the Wild '
+      - '<gray>Attraction Bait is an infusion of potent '
+      - '<gray>natural ingredients, exuding an irresistible'
+      - '<gray>aroma for large aquatic beasts.'
+      - ''
+      - '<#FFD700>Effects:'
+      - '<gray> - Increase fishing difficulty'
+      - '<gray> - Increase the size of fish caught'
+      - ''
+  custom-model-data: 50003
+  effects:
+    effect_1:
+      type: difficulty
+      value: +20
+    effect_2:
+      type: size-multiplier
+      value: 1.5
+    effect_3:
+      type: group-mod
+      value: -2

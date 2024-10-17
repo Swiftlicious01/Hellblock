@@ -1,0 +1,175 @@
+plugins {
+    id 'java'
+    id 'idea'
+    id 'com.gradleup.shadow' version '8.3.3'
+}
+
+version = '1.0-ALPHA'
+
+allprojects {
+    apply plugin: 'java'
+    apply plugin: 'idea'
+    apply plugin: 'com.gradleup.shadow'
+
+    idea {
+        module {
+            downloadJavadoc = true
+            downloadSources = true
+        }
+    }
+
+    repositories {
+        mavenCentral()
+        maven { url = 'https://maven.aliyun.com/repository/public/' }
+        maven { url = 'https://repo.papermc.io/repository/maven-public/' }
+        maven { url = 'https://repo.dmulloy2.net/repository/public/' }
+        maven { url = 'https://repo.codemc.io/repository/maven-public/' }
+        maven { url = 'https://maven.enginehub.org/repo/' }
+        maven { url = 'https://jitpack.io/' }
+        maven { url = 'https://mvn.lumine.io/repository/maven-public/' }
+        maven { url = 'https://repo.minebench.de/' }
+        maven { url = 'https://repo.xenondevs.xyz/releases/' }
+        maven { url = 'https://oss.sonatype.org/content/groups/public/' }
+        maven { url = 'https://s01.oss.sonatype.org/content/repositories/snapshots/' }
+        maven { url = 'https://repo.onarandombox.com/content/groups/public/' }
+        // placeholderapi
+        maven {
+            url 'https://repo.extendedclip.com/content/repositories/placeholderapi/'
+            content {
+                includeGroup 'me.clip'
+            }
+        }
+    }
+
+    dependencies {
+        // server
+        compileOnly 'io.papermc.paper:paper-api:1.21.1-R0.1-SNAPSHOT'
+        compileOnly 'dev.folia:folia-api:1.20.1-R0.1-SNAPSHOT'
+
+        // packet
+        compileOnly 'com.comphenix.protocol:ProtocolLib:5.3.0-SNAPSHOT'
+
+        // bStats
+        compileOnly 'org.bstats:bstats-bukkit:3.1.0'
+
+        // papi
+        compileOnly 'me.clip:placeholderapi:2.11.6'
+
+        // Gson
+        compileOnly 'com.google.code.gson:gson:2.10.1'
+
+        // Lombok
+        compileOnly 'org.projectlombok:lombok:1.18.34'
+        annotationProcessor 'org.projectlombok:lombok:1.18.34'
+  
+        // mythic mobs
+        compileOnly 'io.lumine:Mythic-Dist:5.6.1'
+    
+        // multiverse world support
+        compileOnly 'com.onarandombox.multiversecore:Multiverse-Core:4.3.2-SNAPSHOT'
+
+        // worldedit & worldguard
+        compileOnly('com.sk89q.worldedit:worldedit-bukkit:7.3.7-SNAPSHOT') {
+            exclude group: 'org.bukkit'
+        }
+        compileOnly 'com.sk89q.worldguard:worldguard-core:7.0.13-SNAPSHOT'
+        compileOnly 'com.sk89q.worldguard:worldguard-bukkit:7.0.13-SNAPSHOT'
+
+        // database
+        compileOnly 'org.xerial:sqlite-jdbc:3.46.1.3'
+        compileOnly 'com.h2database:h2:2.3.232'
+        compileOnly 'org.mongodb:mongodb-driver-sync:5.2.0'
+        compileOnly 'com.zaxxer:HikariCP:6.0.0'
+        compileOnly 'redis.clients:jedis:5.1.5'
+
+        // vault support
+        compileOnly('com.github.MilkBowl:VaultAPI:1.7') {
+            exclude group: 'org.bukkit'
+        }
+    
+        // jobs
+        compileOnly 'com.github.Zrips:Jobs:v5.2.2.3'
+    
+        // libs
+        compileOnly(files('libs/AdvancedEnchantments-api.jar'))
+
+        // inventory setup
+        compileOnly 'xyz.xenondevs.invui:invui:1.38'
+        
+        // exp4j
+        implementation 'net.objecthunter:exp4j:0.4.8'
+    
+        // config
+        implementation 'dev.dejvokep:boosted-yaml:1.3.6'
+
+        // command
+        implementation 'dev.jorel:commandapi-bukkit-shade:9.5.3'
+
+        // nbt
+        implementation 'com.saicone.rtag:rtag:1.5.7'
+        implementation 'com.saicone.rtag:rtag-item:1.5.7'
+        
+        implementation 'com.jeff-media:armor-equip-event:1.0.3'
+    }
+
+    compileJava {
+        options.encoding = 'UTF-8'
+    }
+
+    java {
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
+    }
+
+    jar {
+        dependsOn (shadowJar)
+    }
+
+    shadowJar {
+        manifest {
+            attributes 'Paperweight-Mappings-Namespace': 'spigot'
+        }
+        archiveClassifier.set('')
+        
+        relocate 'org.apache.commons.pool2', 'com.swiftlicious.hellblock.lib.commonspool2'
+        relocate 'com.mysql', 'com.swiftlicious.hellblock.lib.mysql'
+        relocate 'org.mariadb', 'com.swiftlicious.hellblock.lib.mariadb'
+        relocate 'com.zaxxer.hikari', 'com.swiftlicious.hellblock.lib.hikari'
+        relocate 'redis.clients.jedis', 'com.swiftlicious.hellblock.lib.jedis'
+        relocate 'com.mongodb', 'com.swiftlicious.hellblock.lib.mongodb'
+        relocate 'org.bson', 'com.swiftlicious.hellblock.lib.bson'
+        relocate 'net.objecthunter', 'com.swiftlicious.hellblock.lib.exp4j'
+        relocate 'com.saicone.rtag', 'com.swiftlicious.hellblock.lib.rtag'
+        relocate 'dev.jorel.commandapi', 'com.swiftlicious.hellblock.lib.commandapi'
+        relocate 'dev.dejvokep.boostedyaml', 'com.swiftlicious.hellblock.lib.boostedyaml'
+        relocate 'org.bstats', 'com.swiftlicious.hellblock.lib.bstats'
+        relocate 'com.jeff_media.armorequipevent', 'com.swiftlicious.hellblock.lib.armorequipevent'
+    }
+}
+
+subprojects {
+    dependencies {
+        implementation rootProject
+    }
+
+    shadowJar {
+        archiveBaseName.set(rootProject.name + '-' + project.name)
+        destinationDirectory.set(file(rootProject.layout.buildDirectory.dir('libs')))
+    }
+}
+
+processResources {
+    duplicatesStrategy = DuplicatesStrategy.INCLUDE
+    from(sourceSets.main.resources.srcDirs) {
+        include 'plugin.yml'
+        include 'paper-plugin.yml'
+        expand(project.properties)
+    }
+    
+    def props = ['version': version]
+    inputs.properties props
+    filteringCharset = 'UTF-8'
+    filesMatching('*plugin.yml') {
+       expand props
+    }
+}
