@@ -1,0 +1,94 @@
+package com.swiftlicious.hellblock.gui.hellblock;
+
+import java.io.File;
+import java.util.ArrayDeque;
+import java.util.Deque;
+
+import org.bukkit.Material;
+import org.bukkit.entity.Player;
+import org.bukkit.event.inventory.ClickType;
+import org.bukkit.event.inventory.InventoryClickEvent;
+import org.jetbrains.annotations.NotNull;
+
+import com.google.common.io.Files;
+import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.generation.IslandOptions;
+import com.swiftlicious.hellblock.gui.icon.BackGroundItem;
+import com.swiftlicious.hellblock.gui.icon.ScrollUpItem;
+import com.swiftlicious.hellblock.gui.icon.ScrollDownItem;
+import com.swiftlicious.hellblock.utils.wrappers.ShadedAdventureComponentWrapper;
+
+import xyz.xenondevs.invui.gui.Gui;
+import xyz.xenondevs.invui.gui.ScrollGui;
+import xyz.xenondevs.invui.gui.structure.Markers;
+import xyz.xenondevs.invui.item.Item;
+import xyz.xenondevs.invui.item.ItemProvider;
+import xyz.xenondevs.invui.item.builder.ItemBuilder;
+import xyz.xenondevs.invui.item.impl.AbstractItem;
+import xyz.xenondevs.invui.window.Window;
+
+public class SchematicMenu {
+
+	public SchematicMenu(Player player) {
+		File[] files = HellblockPlugin.getInstance().getHellblockHandler().getSchematics();
+		Deque<Item> items = new ArrayDeque<>();
+		if (files != null) {
+			for (File file : files) {
+				if (file.isFile() && file.getName().endsWith(".schematic")) {
+					items.addFirst(new SchematicItem(file));
+				}
+			}
+		}
+
+		Gui gui = ScrollGui.items()
+				.setStructure("x x x x x x x x u", "x x x x x x x x #", "x x x x x x x x #", "x x x x x x x x #",
+						"x x x x x x x x d")
+				.addIngredient('c', Markers.CONTENT_LIST_SLOT_HORIZONTAL).addIngredient('#', new BackGroundItem())
+				.addIngredient('u', new ScrollUpItem()).addIngredient('d', new ScrollDownItem())
+				.setContent(items.stream().toList()).build();
+
+		Window window = Window
+				.single().setViewer(player).setTitle(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
+						.getAdventureManager().getComponentFromMiniMessage("<red>Hellblock Island Schematics")))
+				.setGui(gui).build();
+
+		window.open();
+	}
+
+	public static class SchematicItem extends AbstractItem {
+
+		private final File file;
+
+		public SchematicItem(File file) {
+			this.file = file;
+		}
+
+		@Override
+		public ItemProvider getItemProvider() {
+			return new ItemBuilder(Material.PAPER)
+					.setDisplayName(
+							new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+									.getComponentFromMiniMessage(String.format("<yellow>%s",
+											Files.getNameWithoutExtension(file.getName())))))
+					.addLoreLines(
+							new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+									.getComponentFromMiniMessage(String.format(
+											"<gold>Click to generate your hellblock island as the %s schematic!",
+											Files.getNameWithoutExtension(file.getName())))));
+		}
+
+		@Override
+		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
+				@NotNull InventoryClickEvent event) {
+			if (HellblockPlugin.getInstance().getHellblockHandler().getIslandOptions()
+					.contains(Files.getNameWithoutExtension(file.getName()))) {
+				HellblockPlugin.getInstance().getHellblockHandler().createHellblock(player, IslandOptions.SCHEMATIC,
+						file.getName());
+			} else {
+				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+						String.format("<red>The schematic %s hellblock island type is not available to generate!",
+								Files.getNameWithoutExtension(file.getName())));
+			}
+		}
+	}
+}

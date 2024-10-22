@@ -1,0 +1,70 @@
+package com.swiftlicious.hellblock.playerdata;
+
+import java.util.UUID;
+
+import org.bukkit.Bukkit;
+import org.bukkit.OfflinePlayer;
+import org.bukkit.entity.Player;
+
+import com.swiftlicious.hellblock.HellblockPlugin;
+
+/**
+ * Implementation of the OfflineUser interface for representing offline player
+ * data.
+ */
+public class OfflineUser implements OfflineUserInterface {
+
+	private final UUID uuid;
+	private final String name;
+	private final EarningData earningData;
+	public static OfflineUser LOCKED_USER = new OfflineUser(UUID.randomUUID(), "-locked-",
+			PlayerData.empty());
+
+	/**
+	 * Constructor to create an OfflineUser instance.
+	 *
+	 * @param uuid       The UUID of the player.
+	 * @param name       The name of the player.
+	 * @param playerData The player's data, including bag contents, earnings, and
+	 *                   statistics.
+	 */
+	public OfflineUser(UUID uuid, String name, PlayerData playerData) {
+		this.name = name;
+		this.uuid = uuid;
+		@SuppressWarnings("unused")
+		OfflinePlayer offlinePlayer = Bukkit.getOfflinePlayer(uuid);
+		this.earningData = playerData.getEarningData();
+		int date = HellblockPlugin.getInstance().getMarketManager().getDate();
+		if (earningData.date != date) {
+			earningData.date = date;
+			earningData.earnings = 0d;
+		}
+	}
+
+	@Override
+	public String getName() {
+		return name;
+	}
+
+	@Override
+	public UUID getUUID() {
+		return uuid;
+	}
+
+	@Override
+	public EarningData getEarningData() {
+		return earningData;
+	}
+
+	@Override
+	public boolean isOnline() {
+		Player player = Bukkit.getPlayer(uuid);
+		return player != null && player.isOnline();
+	}
+
+	@Override
+	public PlayerData getPlayerData() {
+		// Create a new PlayerData instance based on the stored information
+		return PlayerData.builder().setEarningData(earningData).build();
+	}
+}

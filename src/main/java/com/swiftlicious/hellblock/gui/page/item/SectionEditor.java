@@ -1,0 +1,59 @@
+package com.swiftlicious.hellblock.gui.page.item;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.entity.Player;
+
+import com.swiftlicious.hellblock.gui.icon.property.item.AmountItem;
+import com.swiftlicious.hellblock.gui.icon.property.item.CMDItem;
+import com.swiftlicious.hellblock.gui.icon.property.item.DisplayNameItem;
+import com.swiftlicious.hellblock.gui.icon.property.item.DurabilityItem;
+import com.swiftlicious.hellblock.gui.icon.property.item.EnchantmentItem;
+import com.swiftlicious.hellblock.gui.icon.property.item.Head64Item;
+import com.swiftlicious.hellblock.gui.icon.property.item.LoreItem;
+import com.swiftlicious.hellblock.gui.icon.property.item.MaterialItem;
+import com.swiftlicious.hellblock.gui.icon.property.item.PreventGrabItem;
+import com.swiftlicious.hellblock.gui.icon.property.item.PriceItem;
+import com.swiftlicious.hellblock.gui.icon.property.item.RandomDurabilityItem;
+import com.swiftlicious.hellblock.gui.icon.property.item.SizeItem;
+import com.swiftlicious.hellblock.gui.icon.property.item.StackableItem;
+import com.swiftlicious.hellblock.gui.icon.property.item.StoredEnchantmentItem;
+import com.swiftlicious.hellblock.gui.icon.property.item.TagItem;
+import com.swiftlicious.hellblock.gui.icon.property.item.UnbreakableItem;
+import com.swiftlicious.hellblock.gui.icon.property.loot.NickItem;
+import com.swiftlicious.hellblock.gui.icon.property.loot.ShowInFinderItem;
+
+import xyz.xenondevs.invui.item.Item;
+
+public class SectionEditor extends AbstractSectionEditor {
+
+    public SectionEditor(Player player, String key, ItemSelector itemSelector, ConfigurationSection section) {
+        super(player, itemSelector, section, key);
+    }
+
+    @Override
+    public List<Item> getItemList() {
+        ArrayList<Item> items = new ArrayList<>();
+        items.add(new MaterialItem(this));
+        items.add(new NickItem(this));
+        items.add(new DisplayNameItem(this));
+        items.add(new LoreItem(this));
+        items.add(new CMDItem(this));
+        items.add(new AmountItem(this));
+        items.add(new TagItem(this));
+        items.add(new UnbreakableItem(this));
+        items.add(new DurabilityItem(this));
+        items.add(new RandomDurabilityItem(this));
+        items.add(new StackableItem(this));
+        items.add(new PreventGrabItem(this));
+        items.add(new PriceItem(this));
+        items.add(new ShowInFinderItem(this));
+        items.add(new SizeItem(this));
+        items.add(new Head64Item(this));
+        items.add(new EnchantmentItem(this));
+        items.add(new StoredEnchantmentItem(this));
+        return items;
+    }
+}
