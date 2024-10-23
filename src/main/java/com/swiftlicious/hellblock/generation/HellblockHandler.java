@@ -210,6 +210,7 @@ public class HellblockHandler {
 					}
 				}
 				pi.setHellblockParty(new ArrayList<>());
+				pi.saveHellblockPlayer();
 				break;
 			}
 

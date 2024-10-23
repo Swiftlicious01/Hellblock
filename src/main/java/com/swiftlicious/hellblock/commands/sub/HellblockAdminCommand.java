@@ -95,7 +95,8 @@ public class HellblockAdminCommand {
 			World world = HellblockPlugin.getInstance().getHellblockHandler().getHellblockWorld();
 			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
 				com.sk89q.worldedit.world.World weWorld = BukkitAdapter.adapt(world);
-				if (HellblockPlugin.getInstance().getWorldGuardHandler().getWorldGuardPlatform().getRegionContainer().get(weWorld).hasRegion("Spawn")) {
+				if (HellblockPlugin.getInstance().getWorldGuardHandler().getWorldGuardPlatform().getRegionContainer()
+						.get(weWorld).hasRegion("Spawn")) {
 					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 							"<red>The spawn area has already been generated!");
 					return;

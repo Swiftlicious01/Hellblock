@@ -46,7 +46,7 @@ public class HellblockUserCommand {
 										HellblockPlugin.getInstance().getFormattedCooldown(pi.getResetCooldown())));
 						return;
 					}
-
+					
 					HellblockPlugin.getInstance().getHellblockHandler().resetHellblock(player.getUniqueId(), false);
 					new IslandChoiceMenu(player);
 				});

@@ -109,12 +109,18 @@ public class CoopMenu {
 			}
 			return new ItemBuilder(Material.STRUCTURE_VOID)
 					.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
-							.getAdventureManager().getComponentFromMiniMessage("<green>Spot empty for new player!")));
+							.getAdventureManager().getComponentFromMiniMessage("<dark_green>Empty Slot")))
+					.addLoreLines(
+							new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+									.getComponentFromMiniMessage("<green>Click to invite a new member!")));
 		}
 
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
+			if (event.getCurrentItem() != null && event.getCurrentItem().getType() == Material.STRUCTURE_VOID) {
+				new InvitationMenu(player);
+			}
 		}
 	}
 }

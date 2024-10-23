@@ -4,7 +4,6 @@ import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
-import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.NotNull;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
@@ -22,11 +21,10 @@ public class HellblockMenu {
 
 	public HellblockMenu(Player player) {
 
-		Gui gui = Gui.normal().setStructure("# c t p b u u r #").addIngredient('x', new ItemStack(Material.AIR))
-				.addIngredient('c', new CreateIslandItem()).addIngredient('t', new TeleportIslandItem())
-				.addIngredient('p', new ViewPartyMembersItem()).addIngredient('b', new BiomeItem())
-				.addIngredient('r', new ResetIslandItem()).addIngredient('u', new UnknownFeatureItem())
-				.addIngredient('#', new BackGroundItem()).build();
+		Gui gui = Gui.normal().setStructure("# c t p b u u r #").addIngredient('c', new CreateIslandItem())
+				.addIngredient('t', new TeleportIslandItem()).addIngredient('p', new ViewPartyMembersItem())
+				.addIngredient('b', new BiomeItem()).addIngredient('r', new ResetIslandItem())
+				.addIngredient('u', new UnknownFeatureItem()).addIngredient('#', new BackGroundItem()).build();
 
 		Window window = Window.single().setViewer(player).setTitle(new ShadedAdventureComponentWrapper(
 				HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage("<red>Hellblock Menu")))
