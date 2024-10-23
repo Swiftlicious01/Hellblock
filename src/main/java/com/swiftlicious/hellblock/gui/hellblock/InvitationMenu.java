@@ -75,9 +75,7 @@ public class InvitationMenu {
 					confirmIcon.notifyWindows();
 					updateMenu(s);
 				})
-				.setUpperGui(upperGui)
-				.setLowerGui(gui)
-				.build();
+				.setUpperGui(upperGui).setLowerGui(gui).build();
 
 		window.open();
 	}

@@ -94,7 +94,7 @@ allprojects {
         compileOnly(files('libs/AdvancedEnchantments-api.jar'))
 
         // inventory setup
-        compileOnly 'xyz.xenondevs.invui:invui:1.38'
+        compileOnly 'xyz.xenondevs.invui:invui:1.39'
         
         // exp4j
         implementation 'net.objecthunter:exp4j:0.4.8'

@@ -16,7 +16,7 @@ public class HellblockPluginLoader implements PluginLoader {
 		MavenLibraryResolver resolver = new MavenLibraryResolver();
 		resolver.addRepository(
 				new RemoteRepository.Builder("xenondevs", "default", "https://repo.xenondevs.xyz/releases/").build());
-		resolver.addDependency(new Dependency(new DefaultArtifact("xyz.xenondevs.invui:invui:pom:1.38"), null));
+		resolver.addDependency(new Dependency(new DefaultArtifact("xyz.xenondevs.invui:invui:pom:1.39"), null));
 		pluginClasspathBuilder.addLibrary(resolver);
 	}
 

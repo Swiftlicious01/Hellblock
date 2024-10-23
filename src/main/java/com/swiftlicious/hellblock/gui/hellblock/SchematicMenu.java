@@ -34,7 +34,10 @@ public class SchematicMenu {
 		Deque<Item> items = new ArrayDeque<>();
 		if (files != null) {
 			for (File file : files) {
-				if (file.isFile() && file.getName().endsWith(".schematic")) {
+				if (file.isFile()
+						&& HellblockPlugin.getInstance().getHellblockHandler().getIslandOptions()
+								.contains(Files.getNameWithoutExtension(file.getName()))
+						&& file.getName().endsWith(".schematic")) {
 					items.addFirst(new SchematicItem(file));
 				}
 			}
