@@ -135,7 +135,7 @@ public class BiomeHandler {
 				}
 
 				locations.forEach(loc -> instance.sendPackets(player, getChunkUnloadPacket(loc.getChunk()),
-						getChunkMapPacket(loc.getChunk())));
+						getChunkLoadPacket(loc.getChunk())));
 
 				hbPlayer.setHellblockBiome(biome);
 				hbPlayer.setBiomeCooldown(Duration.ofDays(1).toHours());
@@ -182,10 +182,9 @@ public class BiomeHandler {
 		return unloadPacket;
 	}
 
-	private PacketContainer getChunkMapPacket(Chunk chunk) {
+	private PacketContainer getChunkLoadPacket(Chunk chunk) {
 		PacketContainer mapPacket = new PacketContainer(PacketType.Play.Server.MAP_CHUNK);
-		mapPacket.getIntegers().write(0, chunk.getX());
-		mapPacket.getIntegers().write(1, chunk.getZ());
+		
 		return mapPacket;
 	}
 }
