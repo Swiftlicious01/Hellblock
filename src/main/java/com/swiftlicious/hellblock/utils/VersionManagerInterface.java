@@ -1,5 +1,6 @@
 package com.swiftlicious.hellblock.utils;
 
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 public interface VersionManagerInterface {
@@ -15,4 +16,6 @@ public interface VersionManagerInterface {
 	String getPluginVersion();
 
 	String getServerVersion();
+
+	List<String> getSupportedVersions();
 }

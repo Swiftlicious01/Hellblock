@@ -5,6 +5,8 @@ import java.util.List;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.block.Block;
+import org.bukkit.block.BlockFace;
 
 public class LocationUtils {
 
@@ -29,7 +31,32 @@ public class LocationUtils {
 	}
 
 	public static List<String> readableLocation(Location location) {
-		List<String> readableLocation = Arrays.asList(location.getWorld().getName(), String.valueOf(location.getX()), String.valueOf(location.getY()), String.valueOf(location.getZ()));
+		List<String> readableLocation = Arrays.asList(location.getWorld().getName(), String.valueOf(location.getX()),
+				String.valueOf(location.getY()), String.valueOf(location.getZ()));
 		return readableLocation;
 	}
+
+	/**
+	 * Checks if a location is safe (solid ground with 2 breathable blocks)
+	 *
+	 * @param location Location to check
+	 * @return True if location is safe
+	 */
+	@SuppressWarnings("deprecation")
+	public static boolean isSafeLocation(Location location) {
+		Block feet = location.getBlock();
+		if (!feet.getType().isTransparent() && !feet.getLocation().add(0, 1, 0).getBlock().getType().isTransparent()) {
+			return false; // not transparent (will suffocate)
+		}
+		Block head = feet.getRelative(BlockFace.UP);
+		if (!head.getType().isTransparent()) {
+			return false; // not transparent (will suffocate)
+		}
+		Block ground = feet.getRelative(BlockFace.DOWN);
+		if (!ground.getType().isSolid()) {
+			return false; // not solid
+		}
+		return true;
+	}
+
 }

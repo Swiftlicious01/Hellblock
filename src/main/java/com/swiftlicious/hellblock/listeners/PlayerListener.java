@@ -1,5 +1,7 @@
 package com.swiftlicious.hellblock.listeners;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -11,6 +13,7 @@ import org.bukkit.PortalType;
 import org.bukkit.Tag;
 import org.bukkit.World.Environment;
 import org.bukkit.block.Block;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Event.Result;
@@ -35,6 +38,8 @@ import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.gui.hellblock.IslandChoiceMenu;
 import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
 import com.swiftlicious.hellblock.scheduler.CancellableTask;
+import com.swiftlicious.hellblock.utils.LocationUtils;
+import com.swiftlicious.hellblock.utils.LogUtils;
 
 public class PlayerListener implements Listener {
 
@@ -66,14 +71,33 @@ public class PlayerListener implements Listener {
 			if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
 				return;
 
-			if (instance.getWorldGuardHandler().isRegionProtected(player.getLocation())) {
-				// if raining give player a bit of protection
-				if (HellblockPlugin.getInstance().getLavaRain().getLavaRainTask() != null
-						&& HellblockPlugin.getInstance().getLavaRain().getLavaRainTask().isLavaRaining()
-						&& HellblockPlugin.getInstance().getLavaRain().getHighestBlock(player.getLocation()) != null
-						&& !HellblockPlugin.getInstance().getLavaRain().getHighestBlock(player.getLocation())
-								.isEmpty()) {
-					player.setNoDamageTicks(5 * 20);
+			if (!LocationUtils.isSafeLocation(player.getLocation())) {
+				if (pi.getHomeLocation() != null) {
+					player.teleportAsync(pi.getHomeLocation());
+				} else {
+					player.performCommand(instance.getHellblockHandler().getNetherCMD());
+				}
+			}
+
+			// if raining give player a bit of protection
+			if (instance.getLavaRain().getLavaRainTask() != null
+					&& instance.getLavaRain().getLavaRainTask().isLavaRaining()
+					&& instance.getLavaRain().getHighestBlock(player.getLocation()) != null
+					&& !instance.getLavaRain().getHighestBlock(player.getLocation()).isEmpty()) {
+				player.setNoDamageTicks(5 * 20);
+			}
+
+			File playerFile = new File(
+					instance.getHellblockHandler().getPlayersDirectory() + File.separator + id + ".yml");
+			YamlConfiguration playerConfig = YamlConfiguration.loadConfiguration(playerFile);
+			if (playerConfig.getBoolean("player.in-unsafe-island")) {
+				playerConfig.set("player.in-unsafe-island", null);
+				instance.getAdventureManager().sendMessageWithPrefix(player,
+						"<red>You logged out in an unsafe hellblock environment because it was reset or deleted.");
+				try {
+					playerConfig.save(playerFile);
+				} catch (IOException ex) {
+					LogUtils.severe(String.format("Unable to save player file for %s!", id), ex);
 				}
 			}
 

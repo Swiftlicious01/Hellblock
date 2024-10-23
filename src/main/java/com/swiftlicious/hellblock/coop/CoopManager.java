@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
@@ -370,5 +371,38 @@ public class CoopManager {
 				return;
 			}
 		}
+	}
+
+	public List<UUID> getVisitors(@NonNull UUID id) {
+		List<UUID> visitors = new ArrayList<>();
+		if (instance.getHellblockHandler().isWorldguardProtect()) {
+			RegionContainer container = instance.getWorldGuardHandler().getWorldGuardPlatform().getRegionContainer();
+			World world = BukkitAdapter.adapt(instance.getHellblockHandler().getHellblockWorld());
+			RegionManager regions = container.get(world);
+			if (regions == null) {
+				LogUtils.severe(
+						String.format("Could not load WorldGuard regions for hellblock world: %s", world.getName()));
+				return new ArrayList<>();
+			}
+			ProtectedRegion region = regions.getRegion((Bukkit.getPlayer(id) != null ? Bukkit.getPlayer(id).getName()
+					: Bukkit.getOfflinePlayer(id).hasPlayedBefore() && Bukkit.getOfflinePlayer(id).getName() != null
+							? Bukkit.getOfflinePlayer(id).getName()
+							: "?")
+					+ "Hellblock");
+			if (region != null && !region.getId().equals("?Hellblock")) {
+				instance.getHellblockHandler().getActivePlayers().values().forEach(player -> {
+					Player onlinePlayer = player.getPlayer();
+					if (onlinePlayer != null && onlinePlayer.isOnline()) {
+						if (region.contains(onlinePlayer.getLocation().getBlockX(),
+								onlinePlayer.getLocation().getBlockY(), onlinePlayer.getLocation().getBlockZ())) {
+							visitors.add(onlinePlayer.getUniqueId());
+						}
+					}
+				});
+			}
+		} else {
+			// TODO: using plugin protection
+		}
+		return visitors;
 	}
 }

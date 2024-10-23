@@ -3,7 +3,9 @@ package com.swiftlicious.hellblock.api.compatibility;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.UUID;
 
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
@@ -20,7 +22,7 @@ import com.sk89q.worldguard.protection.managers.RegionManager;
 import com.sk89q.worldguard.protection.regions.ProtectedCuboidRegion;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import com.sk89q.worldguard.protection.regions.RegionContainer;
-
+import com.sk89q.worldguard.protection.regions.RegionQuery;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
 import com.swiftlicious.hellblock.utils.LogUtils;
@@ -44,7 +46,7 @@ public class WorldGuardHook {
 		try {
 			HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(player);
 			ProtectedRegion region = null;
-			RegionContainer regionContainer = getWorldGuardPlatform().getRegionContainer();
+			RegionContainer regionContainer = this.worldGuardPlatform.getRegionContainer();
 			RegionManager regionManager = regionContainer
 					.get(BukkitAdapter.adapt(instance.getHellblockHandler().getHellblockWorld()));
 			if (regionManager == null) {
@@ -98,7 +100,32 @@ public class WorldGuardHook {
 		} catch (Exception var7) {
 			LogUtils.severe(String.format("Unable to protect %s's hellblock!", player.getName()), var7);
 		}
+	}
 
+	public void unprotectHellblock(UUID id, boolean force) {
+		HellblockPlayer pi;
+		if (instance.getHellblockHandler().getActivePlayers().get(id) != null) {
+			pi = instance.getHellblockHandler().getActivePlayers().get(id);
+		} else {
+			pi = new HellblockPlayer(id);
+		}
+		RegionContainer regionContainer = this.worldGuardPlatform.getRegionContainer();
+		RegionManager regionManager = regionContainer
+				.get(BukkitAdapter.adapt(instance.getHellblockHandler().getHellblockWorld()));
+		if (regionManager == null) {
+			LogUtils.severe(String.format("Could not get the WorldGuard region manager for the world: %s",
+					instance.getHellblockHandler().getWorldName()));
+			return;
+		}
+		if (pi.getPlayer() == null && !force) {
+			LogUtils.severe("Could not find the player restarting their hellblock at this time.");
+			return;
+		}
+		regionManager.removeRegion(String.format("%sHellblock",
+				(!force ? pi.getPlayer().getName()
+						: Bukkit.getOfflinePlayer(id).hasPlayedBefore() && Bukkit.getOfflinePlayer(id).getName() != null
+								? Bukkit.getOfflinePlayer(id).getName()
+								: "?")));
 	}
 
 	public BlockVector3 getProtectionVectorLeft(Location loc) {
@@ -114,11 +141,10 @@ public class WorldGuardHook {
 	}
 
 	public boolean isRegionProtected(Location location) {
-		com.sk89q.worldedit.util.Location loc = com.sk89q.worldedit.bukkit.BukkitAdapter.adapt(location);
-		com.sk89q.worldguard.protection.regions.RegionContainer container = this.worldGuardPlatform
-				.getRegionContainer();
-		com.sk89q.worldguard.protection.regions.RegionQuery query = container.createQuery();
-		com.sk89q.worldguard.protection.ApplicableRegionSet set = query.getApplicableRegions(loc);
+		com.sk89q.worldedit.util.Location loc = BukkitAdapter.adapt(location);
+		RegionContainer container = this.worldGuardPlatform.getRegionContainer();
+		RegionQuery query = container.createQuery();
+		ApplicableRegionSet set = query.getApplicableRegions(loc);
 		if (set.size() != 0)
 			return true;
 		return false;
@@ -126,8 +152,7 @@ public class WorldGuardHook {
 
 	public List<Location> getRegionBlocks(Player player) {
 		World world = instance.getHellblockHandler().getHellblockWorld();
-		RegionManager regionManager = this.worldGuardPlatform.getRegionContainer()
-				.get(BukkitAdapter.adapt(world));
+		RegionManager regionManager = this.worldGuardPlatform.getRegionContainer().get(BukkitAdapter.adapt(world));
 		ProtectedRegion region = regionManager.getRegion(String.format("%sHellblock", player.getName()));
 
 		Location min = BukkitAdapter.adapt(world, region.getMinimumPoint());
@@ -142,23 +167,6 @@ public class WorldGuardHook {
 			}
 		}
 		return locations;
-	}
-
-	public void unprotectHellblock(Player player) {
-		HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(player);
-		RegionContainer regionContainer = getWorldGuardPlatform().getRegionContainer();
-		RegionManager regionManager = regionContainer
-				.get(BukkitAdapter.adapt(instance.getHellblockHandler().getHellblockWorld()));
-		if (regionManager == null) {
-			LogUtils.severe(String.format("Could not get the WorldGuard region manager for the world: %s",
-					instance.getHellblockHandler().getWorldName()));
-			return;
-		}
-		if (pi.getPlayer() == null) {
-			LogUtils.severe("Could not find the player restarting their hellblock at this time.");
-			return;
-		}
-		regionManager.removeRegion(String.format("%sHellblock", pi.getPlayer().getName()));
 	}
 
 	public void protectSpawn() {

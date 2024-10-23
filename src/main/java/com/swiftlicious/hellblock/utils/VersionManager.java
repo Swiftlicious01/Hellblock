@@ -6,6 +6,7 @@ import java.io.InputStreamReader;
 import java.net.URI;
 import java.net.URL;
 import java.net.URLConnection;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 import org.bukkit.Bukkit;
@@ -24,6 +25,7 @@ public class VersionManager implements VersionManagerInterface {
 	private boolean isPaper = false;
 	private boolean isFolia = false;
 	private String pluginVersion = "";
+	private List<String> supportedVersions;
 
 	public VersionManager(HellblockPlugin plugin) {
 		this.instance = plugin;
@@ -53,6 +55,7 @@ public class VersionManager implements VersionManagerInterface {
 			}
 		}
 
+		this.supportedVersions = List.of("1.20.5", "1.21.1", "1.21.2");
 		// Get the plugin version
 		this.pluginVersion = plugin.getPluginMeta().getVersion();
 	}
@@ -80,6 +83,11 @@ public class VersionManager implements VersionManagerInterface {
 	@Override
 	public String getServerVersion() {
 		return serverVersion;
+	}
+
+	@Override
+	public List<String> getSupportedVersions() {
+		return supportedVersions;
 	}
 
 	// Method to asynchronously check for plugin updates

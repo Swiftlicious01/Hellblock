@@ -2,6 +2,7 @@ package com.swiftlicious.hellblock.generation;
 
 import java.io.File;
 import java.io.IOException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -24,6 +25,7 @@ import com.onarandombox.MultiverseCore.api.MVWorldManager;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
+import com.swiftlicious.hellblock.utils.LogUtils;
 
 import lombok.Getter;
 import lombok.NonNull;
@@ -118,6 +120,112 @@ public class HellblockHandler {
 
 	public void createHellblock(Player player, IslandOptions islandChoice) {
 		createHellblock(player, islandChoice, null);
+	}
+
+	public void resetHellblock(UUID id, boolean forceReset) {
+		HellblockPlayer pi;
+		if (getActivePlayers().get(id) != null) {
+			pi = getActivePlayers().get(id);
+		} else {
+			pi = new HellblockPlayer(id);
+		}
+		int z_operate;
+		Location loc = pi.getHellblockLocation();
+		double y = loc.getY();
+		z_operate = (int) loc.getX() - getDistance();
+
+		while (true) {
+			if (z_operate > (int) loc.getX() + getDistance()) {
+				instance.getWorldGuardHandler().unprotectHellblock(id, forceReset);
+				pi.setHellblock(false, null);
+				pi.setHellblockOwner(null);
+				pi.setHellblockBiome(null);
+				pi.setBiomeCooldown(0L);
+				pi.setUsedSchematic(null);
+				pi.setIslandChoice(null);
+				pi.setResetCooldown(!forceReset ? Duration.ofDays(1).toHours() : 0L);
+				List<UUID> visitors = instance.getCoopManager().getVisitors(id);
+				for (UUID uuid : visitors) {
+					Player visitor = Bukkit.getPlayer(uuid);
+					if (visitor != null && visitor.isOnline()) {
+						visitor.performCommand(getNetherCMD());
+					} else {
+						File visitorFile = new File(getPlayersDirectory() + File.separator + uuid + ".yml");
+						YamlConfiguration visitorConfig = YamlConfiguration.loadConfiguration(visitorFile);
+						visitorConfig.set("player.in-unsafe-island", true);
+						try {
+							visitorConfig.save(visitorFile);
+						} catch (IOException ex) {
+							LogUtils.severe(String.format("Unable to save visitor file for %s!", uuid), ex);
+						}
+					}
+				}
+				List<UUID> party = pi.getHellblockParty();
+				if (party != null && !party.isEmpty()) {
+					for (UUID uuid : party) {
+						Player member = Bukkit.getPlayer(uuid);
+						if (member != null && member.isOnline()) {
+							HellblockPlayer hbMember = getActivePlayer(member);
+							hbMember.setHellblock(false, null);
+							hbMember.setHellblockOwner(null);
+							hbMember.setHellblockBiome(null);
+							hbMember.setBiomeCooldown(0L);
+							hbMember.setResetCooldown(0L);
+							hbMember.setIslandChoice(null);
+							hbMember.setUsedSchematic(null);
+							hbMember.setHellblockParty(new ArrayList<>());
+							hbMember.saveHellblockPlayer();
+							member.performCommand(getNetherCMD());
+							if (!forceReset) {
+								Player player = Bukkit.getPlayer(id);
+								if (player != null) {
+									instance.getAdventureManager().sendMessageWithPrefix(member, String.format(
+											"<red>Your hellblock owner <dark_red>%s <red>has reset the island, so you have been removed.",
+											player.getName()));
+								}
+							} else {
+								instance.getAdventureManager().sendMessageWithPrefix(member,
+										"<red>The hellblock party you were a part of has been forcefully deleted.");
+							}
+						} else {
+							File memberFile = new File(getPlayersDirectory() + File.separator + uuid + ".yml");
+							YamlConfiguration memberConfig = YamlConfiguration.loadConfiguration(memberFile);
+							memberConfig.set("player.hasHellblock", false);
+							memberConfig.set("player.hellblock", null);
+							memberConfig.set("player.home", null);
+							memberConfig.set("player.owner", null);
+							memberConfig.set("player.biome", null);
+							memberConfig.set("player.party", null);
+							memberConfig.set("player.reset-cooldown", null);
+							memberConfig.set("player.biome-cooldown", null);
+							memberConfig.set("player.island-choice", null);
+							memberConfig.set("player.island-choice.schematic", null);
+							memberConfig.set("player.in-unsafe-island", true);
+							try {
+								memberConfig.save(memberFile);
+							} catch (IOException ex) {
+								LogUtils.severe(String.format("Unable to save member file for %s!", uuid), ex);
+							}
+						}
+					}
+				}
+				pi.setHellblockParty(new ArrayList<>());
+				break;
+			}
+
+			for (int x_operate = (int) loc.getZ() - getDistance(); x_operate <= (int) loc.getZ()
+					+ getDistance(); ++x_operate) {
+				if (loc.getWorld() == null)
+					continue;
+				Block block = loc.getWorld().getBlockAt(x_operate, (int) y, z_operate);
+				if (block.getType() != Material.AIR) {
+					block.setType(Material.AIR);
+					block.getState().update();
+				}
+			}
+
+			++z_operate;
+		}
 	}
 
 	public boolean hellblockInSpawn(Location location) {

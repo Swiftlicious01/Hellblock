@@ -7,15 +7,11 @@ import java.util.List;
 import java.util.UUID;
 
 import org.bukkit.Bukkit;
-import org.bukkit.Chunk;
 import org.bukkit.Location;
 import org.bukkit.block.Biome;
 import org.bukkit.block.Block;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
-
-import com.comphenix.protocol.PacketType;
-import com.comphenix.protocol.events.PacketContainer;
 
 import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldedit.world.World;
@@ -116,26 +112,27 @@ public class BiomeHandler {
 					return;
 				}
 
-				if (!instance.getWorldGuardHandler().isRegionProtected(player.getLocation())) {
+				if (!region.contains(player.getLocation().getBlockX(), player.getLocation().getBlockY(),
+						player.getLocation().getBlockZ())) {
 					instance.getAdventureManager().sendMessageWithPrefix(player,
 							"<red>You must be on your hellblock to change the biome!");
 					return;
 				}
 
 				List<Location> locations = instance.getWorldGuardHandler().getRegionBlocks(player);
-				for (Location loc : locations) {
-					Block block = loc.getBlock();
-					if (block.getBiome().getKey().getKey().equalsIgnoreCase(biome.toString().toLowerCase())) {
-						instance.getAdventureManager().sendMessageWithPrefix(player, String.format(
-								"<red>Your hellblock biome is already set to <dark_red>%s<red>!", biome.getName()));
-						return;
-					}
-					block.setBiome(Biome.valueOf(biome.toString().toUpperCase()));
-					block.getState().update();
+				if (hbPlayer.getHomeLocation().getBlock().getBiome().getKey().getKey()
+						.equalsIgnoreCase(biome.toString().toLowerCase())) {
+					instance.getAdventureManager().sendMessageWithPrefix(player, String
+							.format("<red>Your hellblock biome is already set to <dark_red>%s<red>!", biome.getName()));
+					return;
 				}
 
-				locations.forEach(loc -> instance.sendPackets(player, getChunkUnloadPacket(loc.getChunk()),
-						getChunkLoadPacket(loc.getChunk())));
+				for (Location loc : locations) {
+					Block block = loc.getBlock();
+					block.setBiome(Biome.valueOf(biome.toString().toUpperCase()));
+					loc.getChunk().unload(true);
+					loc.getChunk().load(false);
+				}
 
 				hbPlayer.setHellblockBiome(biome);
 				hbPlayer.setBiomeCooldown(Duration.ofDays(1).toHours());
@@ -173,18 +170,5 @@ public class BiomeHandler {
 				// TODO: using plugin protection
 			}
 		}
-	}
-
-	private PacketContainer getChunkUnloadPacket(Chunk chunk) {
-		PacketContainer unloadPacket = new PacketContainer(PacketType.Play.Server.UNLOAD_CHUNK);
-		unloadPacket.getIntegers().write(0, chunk.getX());
-		unloadPacket.getIntegers().write(1, chunk.getZ());
-		return unloadPacket;
-	}
-
-	private PacketContainer getChunkLoadPacket(Chunk chunk) {
-		PacketContainer mapPacket = new PacketContainer(PacketType.Play.Server.MAP_CHUNK);
-		
-		return mapPacket;
 	}
 }

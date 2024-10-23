@@ -56,9 +56,10 @@ public class CoopMenu {
 						.setDisplayName(
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 										.getComponentFromMiniMessage(String.format("<aqua>%s",
-												(Bukkit.getOfflinePlayer(owner).getName() != null
-														? Bukkit.getOfflinePlayer(owner).getName()
-														: "Unknown")))))
+												(Bukkit.getOfflinePlayer(owner).hasPlayedBefore()
+														&& Bukkit.getOfflinePlayer(owner).getName() != null
+																? Bukkit.getOfflinePlayer(owner).getName()
+																: "Unknown")))))
 						.addLoreLines(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
 								.getAdventureManager().getComponentFromMiniMessage("<yellow>Role: <gold>Owner")));
 			} catch (MojangApiException | IOException e) {
@@ -93,9 +94,10 @@ public class CoopMenu {
 							.setDisplayName(new ShadedAdventureComponentWrapper(
 									HellblockPlugin.getInstance().getAdventureManager()
 											.getComponentFromMiniMessage(String.format("<aqua>%s",
-													(Bukkit.getOfflinePlayer(uuid).getName() != null
-															? Bukkit.getOfflinePlayer(uuid).getName()
-															: "Unknown")))))
+													(Bukkit.getOfflinePlayer(uuid).hasPlayedBefore()
+															&& Bukkit.getOfflinePlayer(uuid).getName() != null
+																	? Bukkit.getOfflinePlayer(uuid).getName()
+																	: "Unknown")))))
 							.addLoreLines(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
 									.getAdventureManager().getComponentFromMiniMessage("<yellow>Role: <gold>Member")));
 				} catch (MojangApiException | IOException e) {

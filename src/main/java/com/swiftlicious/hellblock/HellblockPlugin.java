@@ -169,8 +169,8 @@ public class HellblockPlugin extends JavaPlugin {
 		this.versionManager = new VersionManager(this);
 
 		// TODO: possible backwards support
-		if (!this.versionManager.getServerVersion().equals("1.21.1")) {
-			LogUtils.severe("Hellblock currently only works on v1.21.1 servers. Disabling plugin...");
+		if (!this.versionManager.getSupportedVersions().contains(this.versionManager.getServerVersion())) {
+			LogUtils.severe("Hellblock currently only works on v1.20.5+ servers. Disabling plugin...");
 			Bukkit.getPluginManager().disablePlugin(this);
 			return;
 		}

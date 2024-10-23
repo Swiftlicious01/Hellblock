@@ -6,6 +6,7 @@ import java.util.stream.Collectors;
 import org.bukkit.Location;
 import org.bukkit.World;
 
+import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
 import com.swiftlicious.hellblock.playerdata.UUIDFetcher;
@@ -21,7 +22,7 @@ public class HellblockAdminCommand {
 
 	public CommandAPICommand getAdminCommand() {
 		return new CommandAPICommand("admin").withPermission(CommandPermission.OP).withPermission("hellblock.admin")
-				.withSubcommands(genSpawnCommand("genspawn"), teleportCommand("goto"));
+				.withSubcommands(genSpawnCommand("genspawn"), teleportCommand("goto"), deleteCommand("delete"));
 	}
 
 	private CommandAPICommand teleportCommand(String namespace) {
@@ -42,6 +43,37 @@ public class HellblockAdminCommand {
 
 					if (ti.hasHellblock()) {
 						player.teleportAsync(ti.getHomeLocation());
+						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+								String.format("<red>You have been teleported to <dark_red>%s<red>'s hellblock!", user));
+						return;
+					}
+
+					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+							"<red>That player does not have a hellblock!");
+					return;
+				});
+	}
+
+	private CommandAPICommand deleteCommand(String namespace) {
+		return new CommandAPICommand(namespace)
+				.withArguments(new StringArgument("player").replaceSuggestions(ArgumentSuggestions
+						.stringCollection(collection -> HellblockPlugin.getInstance().getHellblockHandler()
+								.getActivePlayers().values().stream().filter(hbPlayer -> hbPlayer.getPlayer() != null)
+								.map(hbPlayer -> hbPlayer.getPlayer().getName()).collect(Collectors.toList()))))
+				.executesPlayer((player, args) -> {
+					String user = (String) args.getOrDefault("player", player);
+					UUID id = UUIDFetcher.getUUID(user);
+					HellblockPlayer ti = null;
+					if (HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers().containsKey(id)) {
+						ti = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers().get(id);
+					} else {
+						ti = new HellblockPlayer(id);
+					}
+
+					if (ti.hasHellblock()) {
+						HellblockPlugin.getInstance().getHellblockHandler().resetHellblock(id, true);
+						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+								String.format("<red>You have forcefully deleted <dark_red>%s<red>'s hellblock!", user));
 						return;
 					}
 
@@ -61,6 +93,16 @@ public class HellblockAdminCommand {
 			}
 
 			World world = HellblockPlugin.getInstance().getHellblockHandler().getHellblockWorld();
+			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
+				com.sk89q.worldedit.world.World weWorld = BukkitAdapter.adapt(world);
+				if (HellblockPlugin.getInstance().getWorldGuardHandler().getWorldGuardPlatform().getRegionContainer().get(weWorld).hasRegion("Spawn")) {
+					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+							"<red>The spawn area has already been generated!");
+					return;
+				}
+			} else {
+				// TODO: plugin protection
+			}
 			HellblockPlugin.getInstance().getHellblockHandler().generateSpawn();
 
 			player.teleportAsync(new Location(world, 0.0D,
