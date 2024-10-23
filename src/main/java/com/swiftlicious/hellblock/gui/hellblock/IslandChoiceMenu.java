@@ -51,6 +51,7 @@ public class IslandChoiceMenu {
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
 			HellblockPlugin.getInstance().getHellblockHandler().createHellblock(player, IslandOptions.DEFAULT);
+			event.getInventory().close();
 		}
 	}
 
@@ -70,6 +71,7 @@ public class IslandChoiceMenu {
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
 			HellblockPlugin.getInstance().getHellblockHandler().createHellblock(player, IslandOptions.CLASSIC);
+			event.getInventory().close();
 		}
 	}
 

@@ -97,8 +97,17 @@ public class HellblockHandler {
 				active.saveHellblockPlayer();
 			}
 			for (File offline : this.getPlayersDirectory().listFiles()) {
+				if (!offline.isFile())
+					continue;
 				String uuid = Files.getNameWithoutExtension(offline.getName());
-				if (getActivePlayers().keySet().contains(UUID.fromString(uuid)))
+				UUID id = null;
+				try {
+					id = UUID.fromString(uuid);
+				} catch (IllegalArgumentException ignored) {
+					// ignored
+					continue;
+				}
+				if (id != null && getActivePlayers().keySet().contains(id))
 					continue;
 				YamlConfiguration offlineFile = YamlConfiguration.loadConfiguration(offline);
 				if (offlineFile.getLong("player.reset-cooldown") > 0) {
@@ -139,11 +148,11 @@ public class HellblockHandler {
 			// TODO: island protection
 		}
 		pi.setHellblockBiome(HellBiome.NETHER_WASTES);
-		instance.getBiomeHandler().changeHellblockBiome(pi, pi.getHellblockBiome());
 		pi.setBiomeCooldown(0L);
 		pi.setLockedStatus(false);
 		pi.setHellblockOwner(player.getUniqueId());
 		pi.setHellblockParty(new ArrayList<>());
+		instance.getBiomeHandler().changeHellblockBiome(pi, pi.getHellblockBiome());
 
 		player.teleportAsync(pi.getHomeLocation());
 		instance.debug(String.format("Creating new hellblock for %s", player.getName()));
@@ -365,7 +374,7 @@ public class HellblockHandler {
 		}
 
 		// in case somehow the id becomes null?
-		this.activePlayers.replace(id, new HellblockPlayer(id));
+		this.activePlayers.put(id, new HellblockPlayer(id));
 		return this.activePlayers.get(id);
 	}
 
@@ -375,7 +384,7 @@ public class HellblockHandler {
 		}
 
 		// in case somehow the id becomes null?
-		this.activePlayers.replace(playerUUID, new HellblockPlayer(playerUUID));
+		this.activePlayers.put(playerUUID, new HellblockPlayer(playerUUID));
 		return this.activePlayers.get(playerUUID);
 	}
 

@@ -69,7 +69,7 @@ allprojects {
         compileOnly 'com.onarandombox.multiversecore:Multiverse-Core:4.3.2-SNAPSHOT'
 
         // worldedit & worldguard
-        compileOnly('com.sk89q.worldedit:worldedit-bukkit:7.3.7-SNAPSHOT') {
+        compileOnly('com.sk89q.worldedit:worldedit-bukkit:7.3.8-SNAPSHOT') {
             exclude group: 'org.bukkit'
         }
         compileOnly 'com.sk89q.worldguard:worldguard-core:7.0.13-SNAPSHOT'

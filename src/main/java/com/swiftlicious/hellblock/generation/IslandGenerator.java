@@ -31,6 +31,7 @@ import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.jetbrains.annotations.Nullable;
 
+import com.google.common.io.Files;
 import com.saicone.rtag.RtagItem;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.listeners.GlowstoneTree.GlowTree;
@@ -57,26 +58,23 @@ public class IslandGenerator {
 	}
 
 	public void generateHellblockSchematic(Location location, Player player) {
-		HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(player);
-		boolean generatedIsland = false;
-		if (instance.getHellblockHandler().getSchematics().length > 0
-				&& instance.getWorldEditHandler().getWorldEdit() != null) {
+		if (instance.getWorldEditHandler().getWorldEdit() != null
+				&& instance.getHellblockHandler().getSchematics().length > 0) {
+			boolean generatedIsland = false;
+			HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(player);
 			String schematic = "";
-
 			int i, x, y, z;
 			for (i = 0; i < instance.getHellblockHandler().getSchematics().length; ++i) {
+				if (!(instance.getHellblockHandler().getSchematics()[i].getName().endsWith(".schematic")
+						|| instance.getHellblockHandler().getSchematics()[i].getName().endsWith(".schem")))
+					continue;
 				if (!generatedIsland) {
-					if (instance.getHellblockHandler().getSchematics()[i].getName().lastIndexOf(46) > 0) {
-						schematic = instance.getHellblockHandler().getSchematics()[i].getName().substring(0,
-								instance.getHellblockHandler().getSchematics()[i].getName().lastIndexOf(46));
-					} else {
-						schematic = instance.getHellblockHandler().getSchematics()[i].getName();
-					}
-
+					schematic = Files
+							.getNameWithoutExtension(instance.getHellblockHandler().getSchematics()[i].getName());
 					if (player.hasPermission("hellblock.schematic." + schematic)) {
 						try {
 							if (instance.getWorldEditHandler().loadIslandSchematic(
-									instance.getHellblockHandler().getHellblockWorld(),
+									instance.getHellblockHandler().getHellblockWorld(), location,
 									instance.getHellblockHandler().getSchematics()[i])) {
 								for (x = -15; x <= 15; ++x) {
 									for (y = -15; y <= 15; ++y) {
@@ -107,17 +105,15 @@ public class IslandGenerator {
 
 			if (!generatedIsland) {
 				for (i = 0; i < instance.getHellblockHandler().getSchematics().length; ++i) {
-					if (instance.getHellblockHandler().getSchematics()[i].getName().lastIndexOf(46) > 0) {
-						schematic = instance.getHellblockHandler().getSchematics()[i].getName().substring(0,
-								instance.getHellblockHandler().getSchematics()[i].getName().lastIndexOf(46));
-					} else {
-						schematic = instance.getHellblockHandler().getSchematics()[i].getName();
-					}
-
+					if (!(instance.getHellblockHandler().getSchematics()[i].getName().endsWith(".schematic")
+							|| instance.getHellblockHandler().getSchematics()[i].getName().endsWith(".schem")))
+						continue;
+					schematic = Files
+							.getNameWithoutExtension(instance.getHellblockHandler().getSchematics()[i].getName());
 					if (instance.getHellblockHandler().getIslandOptions().contains(schematic)) {
 						try {
 							if (instance.getWorldEditHandler().loadIslandSchematic(
-									instance.getHellblockHandler().getHellblockWorld(),
+									instance.getHellblockHandler().getHellblockWorld(), location,
 									instance.getHellblockHandler().getSchematics()[i])) {
 								for (x = -15; x <= 15; ++x) {
 									for (y = -15; y <= 15; ++y) {

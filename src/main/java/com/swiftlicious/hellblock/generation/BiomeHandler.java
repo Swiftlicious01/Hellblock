@@ -3,6 +3,8 @@ package com.swiftlicious.hellblock.generation;
 import java.io.File;
 import java.io.IOException;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
@@ -121,7 +123,6 @@ public class BiomeHandler {
 					return;
 				}
 
-				List<Location> locations = instance.getWorldGuardHandler().getRegionBlocks(player);
 				if (hbPlayer.getHomeLocation().getBlock().getBiome().getKey().getKey()
 						.equalsIgnoreCase(biome.toString().toLowerCase())) {
 					instance.getAdventureManager().sendMessageWithPrefix(player, String
@@ -129,10 +130,11 @@ public class BiomeHandler {
 					return;
 				}
 
+				List<Location> locations = instance.getWorldGuardHandler().getRegionBlocks(player);
 				locations.forEach(loc -> {
 					loc.getBlock().setBiome(Biome.valueOf(biome.toString().toUpperCase()));
 					instance.sendPackets(player, getChunkUnloadPacket(loc.getChunk()),
-							getLightUpdateChunkPacket(loc.getChunk()));
+							getLightUpdateChunkPacket(player, (int) loc.getX(), (int) loc.getY(), (int) loc.getZ()));
 				});
 
 				hbPlayer.setHellblockBiome(biome);
@@ -180,10 +182,20 @@ public class BiomeHandler {
 		return unloadPacket;
 	}
 
-	public PacketContainer getLightUpdateChunkPacket(Chunk chunk) {
+	@SuppressWarnings("unused")
+	public PacketContainer getLightUpdateChunkPacket(Player player, int x, int y, int z) {
 		PacketContainer lightUpdatePacket = new PacketContainer(PacketType.Play.Server.LIGHT_UPDATE);
-		lightUpdatePacket.getIntegers().write(0, chunk.getX());
-		lightUpdatePacket.getIntegers().write(1, chunk.getZ());
+		lightUpdatePacket.getIntegers().write(player.getLocation().getChunk().getX(), x);
+		lightUpdatePacket.getIntegers().write(player.getLocation().getChunk().getZ(), y);
+		lightUpdatePacket.getBooleans().write(0, true);
+		lightUpdatePacket.getIntegers().write(2, z);
+		lightUpdatePacket.getIntegers().write(3, x);
+		lightUpdatePacket.getIntegers().write(4, y);
+		lightUpdatePacket.getIntegers().write(5, z);
+		List<byte[]> g = new ArrayList<>();
+        List<byte[]> h = new ArrayList<>();
+        lightUpdatePacket.getBlockPositionCollectionModifier().write(0, Collections.emptyList());
+        lightUpdatePacket.getBlockPositionCollectionModifier().write(1, Collections.emptyList());
 		return lightUpdatePacket;
 	}
 }

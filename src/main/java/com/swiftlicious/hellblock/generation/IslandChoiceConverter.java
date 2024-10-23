@@ -20,7 +20,7 @@ public class IslandChoiceConverter {
 		HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(player);
 		World world = location.getWorld();
 		if (world == null) {
-			LogUtils.severe("An error occurred while generating hellblock island.");
+			LogUtils.severe("An error occurred while generating this hellblock island.");
 			return;
 		}
 		double x = location.getX();

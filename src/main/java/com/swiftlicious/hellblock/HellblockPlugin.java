@@ -187,6 +187,7 @@ public class HellblockPlugin extends JavaPlugin {
 		HBConfig.load();
 		HBLocale.load();
 
+		this.scheduler = new Scheduler(this);
 		this.netherrackGenerator = new NetherrackGenerator(this);
 		this.lavaRain = new LavaRain(this);
 		this.netherFarming = new NetherFarming(this);
@@ -213,7 +214,6 @@ public class HellblockPlugin extends JavaPlugin {
 		this.entityManager = new EntityManager(this);
 		this.placeholderManager = new PlaceholderManager(this);
 		this.requirementManager = new RequirementManager(this);
-		this.scheduler = new Scheduler(this);
 		this.storageManager = new StorageManager(this);
 		this.integrationManager = new IntegrationManager(this);
 		this.hookManager = new HookManager(this);

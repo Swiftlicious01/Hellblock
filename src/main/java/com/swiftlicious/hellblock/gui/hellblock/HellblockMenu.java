@@ -23,17 +23,22 @@ public class HellblockMenu {
 
 	public HellblockMenu(Player player) {
 
-		Gui gui = Gui.normal().setStructure("# c t p b l u r #").addIngredient('c', new CreateIslandItem())
-				.addIngredient('t', new TeleportIslandItem()).addIngredient('p', new ViewPartyMembersItem())
-				.addIngredient('b', new BiomeItem()).addIngredient('l', new LockIslandItem(player.getUniqueId()))
-				.addIngredient('r', new ResetIslandItem()).addIngredient('u', new UnknownFeatureItem())
-				.addIngredient('#', new BackGroundItem()).build();
+		if (HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player).hasHellblock()) {
+			Gui gui = Gui.normal().setStructure("# c t p b l u r #").addIngredient('c', new CreateIslandItem())
+					.addIngredient('t', new TeleportIslandItem()).addIngredient('p', new ViewPartyMembersItem())
+					.addIngredient('b', new BiomeItem()).addIngredient('l', new LockIslandItem(player.getUniqueId()))
+					.addIngredient('r', new ResetIslandItem()).addIngredient('u', new UnknownFeatureItem())
+					.addIngredient('#', new BackGroundItem()).build();
 
-		Window window = Window.single().setViewer(player).setTitle(new ShadedAdventureComponentWrapper(
-				HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage("<red>Hellblock Menu")))
-				.setGui(gui).build();
+			Window window = Window
+					.single().setViewer(player).setTitle(new ShadedAdventureComponentWrapper(HellblockPlugin
+							.getInstance().getAdventureManager().getComponentFromMiniMessage("<red>Hellblock Menu")))
+					.setGui(gui).build();
 
-		window.open();
+			window.open();
+		} else {
+			new IslandChoiceMenu(player);
+		}
 	}
 
 	public static class UnknownFeatureItem extends AbstractItem {
@@ -116,7 +121,7 @@ public class HellblockMenu {
 				}
 			} else {
 				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-						"<red>You don't have a hellblock island!");
+						"<red>You don't have a hellblock!");
 			}
 		}
 	}

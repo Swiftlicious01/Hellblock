@@ -37,7 +37,7 @@ public class SchematicMenu {
 				if (file.isFile()
 						&& HellblockPlugin.getInstance().getHellblockHandler().getIslandOptions()
 								.contains(Files.getNameWithoutExtension(file.getName()))
-						&& file.getName().endsWith(".schematic")) {
+						&& (file.getName().endsWith(".schematic") || file.getName().endsWith(".schem"))) {
 					items.addFirst(new SchematicItem(file));
 				}
 			}
@@ -88,7 +88,8 @@ public class SchematicMenu {
 			if (HellblockPlugin.getInstance().getHellblockHandler().getIslandOptions()
 					.contains(Files.getNameWithoutExtension(file.getName()))) {
 				HellblockPlugin.getInstance().getHellblockHandler().createHellblock(player, IslandOptions.SCHEMATIC,
-						file.getName());
+						Files.getNameWithoutExtension(file.getName()));
+				event.getInventory().close();
 			} else {
 				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 						String.format("<red>The schematic %s hellblock island type is not available to generate!",

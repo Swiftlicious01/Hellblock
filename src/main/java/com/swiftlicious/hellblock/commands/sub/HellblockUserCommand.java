@@ -85,7 +85,7 @@ public class HellblockUserCommand {
 						}
 					} else {
 						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-								"<red>You don't have a hellblock island!");
+								"<red>You don't have a hellblock!");
 					}
 				});
 	}

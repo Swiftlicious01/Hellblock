@@ -55,13 +55,13 @@ public class InvitationMenu {
 				.addIngredient('a', new SimpleItem(new ItemBuilder(Material.NAME_TAG).setDisplayName(search)))
 				.addIngredient('#', border).addIngredient('b', confirmIcon).build();
 
-		Gui gui = PagedGui.items()
+		var gui = PagedGui.items()
 				.setStructure("x x x x x x x x x", "x x x x x x x x x", "x x x x x x x x x", "# # a # # # b # #")
 				.addIngredient('x', Markers.CONTENT_LIST_SLOT_HORIZONTAL).addIngredient('#', new BackGroundItem())
 				.addIngredient('a', new PreviousPageItem()).addIngredient('b', new NextPageItem())
 				.setContent(getItemList()).build();
 
-		AnvilWindow window = AnvilWindow
+		var window = AnvilWindow
 				.split().setViewer(player).setTitle(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
 						.getAdventureManager().getComponentFromMiniMessage("<red>Hellblock Invitations")))
 				.addRenameHandler(s -> {
@@ -74,8 +74,7 @@ public class InvitationMenu {
 					coolDown = current;
 					confirmIcon.notifyWindows();
 					updateMenu(s);
-				})
-				.setUpperGui(upperGui).setLowerGui(gui).build();
+				}).setUpperGui(upperGui).setLowerGui(gui).build();
 
 		window.open();
 	}
@@ -86,7 +85,9 @@ public class InvitationMenu {
 				.entrySet()) {
 			UUID key = entry.getKey();
 			if (entry.getValue() instanceof HellblockPlayer hbPlayer) {
-				if (!prefix.equals(SEARCH) && !key.equals(player.getUniqueId()))
+				if (!prefix.equals(SEARCH))
+					continue;
+				if (key.equals(player.getUniqueId()))
 					continue;
 				if (hbPlayer.getPlayer() == null)
 					continue;
@@ -119,8 +120,9 @@ public class InvitationMenu {
 			this.skullBuilder = skullBuilder
 					.setDisplayName(new ShadedAdventureComponentWrapper(
 							HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(key)))
-					.addLoreLines(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
-							.getAdventureManager().getComponentFromMiniMessage("<pink>Click to invite this player!")));
+					.addLoreLines(
+							new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+									.getComponentFromMiniMessage("<light_purple>Click to invite this player!")));
 			this.InvitationMenu = invitationMenu;
 		}
 
@@ -174,25 +176,23 @@ public class InvitationMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			if (clickType.isLeftClick()) {
-				if (prefix != null && prefix.matches("^[a-zA-Z0-9_]+$")
-						&& HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers().values().stream()
-								.filter(hbPlayer -> hbPlayer.getPlayer() != null
-										&& !hbPlayer.getPlayer().getName().equalsIgnoreCase(player.getName()))
-								.map(hbPlayer -> hbPlayer.getPlayer().getName()).collect(Collectors.toList())
-								.contains(prefix)) {
-					HellblockPlayer hbPlayer = HellblockPlugin.getInstance().getHellblockHandler()
-							.getActivePlayer(player.getUniqueId());
-					if (Bukkit.getPlayer(prefix) == null) {
-						LogUtils.warn(String.format("Unable to invite player %s because they returned null.", prefix));
-						return;
-					}
-					HellblockPlayer invitingPlayer = HellblockPlugin.getInstance().getHellblockHandler()
-							.getActivePlayer(Bukkit.getPlayer(prefix).getUniqueId());
-					HellblockPlugin.getInstance().getCoopManager().addMemberToHellblock(hbPlayer, invitingPlayer);
-				} else {
+			if (prefix != null && prefix.matches("^[a-zA-Z0-9_]+$")
+					&& HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers().values().stream()
+							.filter(hbPlayer -> hbPlayer.getPlayer() != null
+									&& !hbPlayer.getPlayer().getName().equalsIgnoreCase(player.getName()))
+							.map(hbPlayer -> hbPlayer.getPlayer().getName()).collect(Collectors.toList())
+							.contains(prefix)) {
+				HellblockPlayer hbPlayer = HellblockPlugin.getInstance().getHellblockHandler()
+						.getActivePlayer(player.getUniqueId());
+				if (Bukkit.getPlayer(prefix) == null) {
+					LogUtils.warn(String.format("Unable to invite player %s because they returned null.", prefix));
 					return;
 				}
+				HellblockPlayer invitingPlayer = HellblockPlugin.getInstance().getHellblockHandler()
+						.getActivePlayer(Bukkit.getPlayer(prefix).getUniqueId());
+				HellblockPlugin.getInstance().getCoopManager().addMemberToHellblock(hbPlayer, invitingPlayer);
+			} else {
+				return;
 			}
 			prefix = SEARCH;
 			new CoopMenu(player);
