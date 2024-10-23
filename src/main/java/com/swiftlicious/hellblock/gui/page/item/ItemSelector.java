@@ -134,7 +134,8 @@ public class ItemSelector implements YamlPage {
 					ItemStack build = HellblockPlugin.getInstance().getItemManager().getItemBuilder(section, type, key)
 							.build(player);
 					RtagItem tagItem = new RtagItem(build);
-					tagItem.remove("display");
+					tagItem.removeComponent("minecraft:custom_name");
+					tagItem.removeComponent("minecraft:lore");
 					ItemBuilder itemBuilder = new ItemBuilder(tagItem.getItem());
 					itemList.add(new ItemInList(key, itemBuilder, this));
 					continue;

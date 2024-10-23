@@ -26,8 +26,8 @@ public class HellblockUserCommand {
 	}
 
 	public CommandAPICommand getResetCommand() {
-		return new CommandAPICommand("reset").withPermission(CommandPermission.NONE).withPermission("hellblock.user")
-				.executesPlayer((player, args) -> {
+		return new CommandAPICommand("reset").withAliases("restart").withPermission(CommandPermission.NONE)
+				.withPermission("hellblock.user").executesPlayer((player, args) -> {
 					HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
 					if (!pi.hasHellblock()) {
 						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
@@ -46,7 +46,7 @@ public class HellblockUserCommand {
 										HellblockPlugin.getInstance().getFormattedCooldown(pi.getResetCooldown())));
 						return;
 					}
-					
+
 					HellblockPlugin.getInstance().getHellblockHandler().resetHellblock(player.getUniqueId(), false);
 					new IslandChoiceMenu(player);
 				});
@@ -65,11 +65,37 @@ public class HellblockUserCommand {
 				});
 	}
 
+	public CommandAPICommand getLockCommand() {
+		return new CommandAPICommand("lock").withAliases("unlock").withPermission(CommandPermission.NONE)
+				.withPermission("hellblock.user").executesPlayer((player, args) -> {
+					HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
+					if (pi.hasHellblock()) {
+						if (pi.getHellblockOwner() != null && !pi.getHellblockOwner().equals(player.getUniqueId())) {
+							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+									"<red>Only the owner of the hellblock island can change this!");
+							return;
+						}
+						pi.setLockedStatus(!pi.getLockedStatus());
+						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+								String.format("<red>You have just <dark_red>%s <red>your hellblock island!",
+										(pi.getLockedStatus() ? "unlocked" : "locked")));
+						if (pi.getLockedStatus()) {
+							HellblockPlugin.getInstance().getCoopManager().kickVisitorsIfLocked(player.getUniqueId());
+							HellblockPlugin.getInstance().getCoopManager().changeLockStatus(player);
+						}
+					} else {
+						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+								"<red>You don't have a hellblock island!");
+					}
+				});
+	}
+
 	public CommandAPICommand getVisitCommand() {
-		return new CommandAPICommand("visit").withPermission(CommandPermission.NONE).withPermission("hellblock.user")
-				.withArguments(new StringArgument("player").replaceSuggestions(ArgumentSuggestions
-						.stringCollection(collection -> HellblockPlugin.getInstance().getHellblockHandler()
-								.getActivePlayers().values().stream().filter(hbPlayer -> hbPlayer.getPlayer() != null)
+		return new CommandAPICommand("visit").withAliases("warp").withPermission(CommandPermission.NONE)
+				.withPermission("hellblock.user")
+				.withArguments(new StringArgument("player").replaceSuggestions(ArgumentSuggestions.stringCollection(
+						collection -> HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers().values()
+								.stream().filter(hbPlayer -> hbPlayer.getPlayer() != null && hbPlayer.getLockedStatus())
 								.map(hbPlayer -> hbPlayer.getPlayer().getName()).collect(Collectors.toList()))))
 				.executesPlayer((player, args) -> {
 					String user = (String) args.getOrDefault("player", player);
@@ -82,10 +108,27 @@ public class HellblockUserCommand {
 					}
 
 					if (ti.hasHellblock()) {
-						player.teleportAsync(ti.getHomeLocation());
-						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-								String.format("<red>You are visiting <dark_red>%s<red>'s hellblock!", user));
-						return;
+						if (!ti.getLockedStatus()) {
+							player.teleportAsync(ti.getHomeLocation());
+							// if raining give player a bit of protection
+							if (HellblockPlugin.getInstance().getLavaRain().getLavaRainTask() != null
+									&& HellblockPlugin.getInstance().getLavaRain().getLavaRainTask().isLavaRaining()
+									&& HellblockPlugin.getInstance().getLavaRain()
+											.getHighestBlock(player.getLocation()) != null
+									&& !HellblockPlugin.getInstance().getLavaRain()
+											.getHighestBlock(player.getLocation()).isEmpty()) {
+								player.setNoDamageTicks(5 * 20);
+							}
+							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+									String.format("<red>You are visiting <dark_red>%s<red>'s hellblock!", user));
+							return;
+						} else {
+							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+									String.format(
+											"<red>The player <dark_red>%s<red>'s hellblock is currently locked from having visitors!",
+											user));
+							return;
+						}
 					}
 
 					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,

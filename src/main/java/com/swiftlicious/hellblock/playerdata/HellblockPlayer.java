@@ -32,6 +32,7 @@ public class HellblockPlayer {
 	private HellBiome hellblockBiome;
 	private IslandOptions islandChoice;
 	private String schematic;
+	private boolean lockedStatus;
 	private boolean wearingGlowstoneArmor, holdingGlowstoneTool;
 	private long resetCooldown, biomeCooldown;
 	private File file;
@@ -40,7 +41,6 @@ public class HellblockPlayer {
 	public HellblockPlayer(UUID id) {
 		this.id = id;
 		this.loadHellblockPlayer();
-		this.startCountdowns();
 	}
 
 	public void loadHellblockPlayer() {
@@ -65,6 +65,7 @@ public class HellblockPlayer {
 			if (this.islandChoice == IslandOptions.SCHEMATIC) {
 				this.schematic = this.getHellblockPlayer().getString("player.island-choice.schematic");
 			}
+			this.lockedStatus = this.getHellblockPlayer().getBoolean("player.locked-island");
 			this.hellblockLocation = this.deserializeLocation("player.hellblock");
 			this.homeLocation = this.deserializeLocation("player.home");
 			this.resetCooldown = this.getHellblockPlayer().getLong("player.reset-cooldown", 0L);
@@ -95,17 +96,6 @@ public class HellblockPlayer {
 			this.hellblockOwner = null;
 			this.hellblockParty = new ArrayList<>();
 		}
-	}
-
-	public void startCountdowns() {
-		HellblockPlugin.getInstance().getScheduler().runTaskSyncTimer(() -> {
-			if (this.resetCooldown > 0) {
-				this.resetCooldown = this.resetCooldown - 1;
-			}
-			if (this.biomeCooldown > 0) {
-				this.biomeCooldown = this.biomeCooldown - 1;
-			}
-		}, null, 1 * 20L, 60 * 60 * 20L);
 	}
 
 	public @Nullable Player getPlayer() {
@@ -143,9 +133,13 @@ public class HellblockPlayer {
 	public IslandOptions getIslandChoice() {
 		return this.islandChoice;
 	}
-	
+
 	public String getUsedSchematic() {
 		return this.schematic;
+	}
+
+	public boolean getLockedStatus() {
+		return this.lockedStatus;
 	}
 
 	public void setHellblock(boolean hasHellblock, Location hellblockLocation) {
@@ -194,9 +188,13 @@ public class HellblockPlayer {
 	public void setIslandChoice(IslandOptions choice) {
 		this.islandChoice = choice;
 	}
-	
+
 	public void setUsedSchematic(String schematic) {
 		this.schematic = schematic;
+	}
+
+	public void setLockedStatus(boolean locked) {
+		this.lockedStatus = locked;
 	}
 
 	public boolean hasGlowstoneArmorEffect() {
@@ -230,6 +228,7 @@ public class HellblockPlayer {
 			if (this.islandChoice == IslandOptions.SCHEMATIC) {
 				this.getHellblockPlayer().set("player.island-choice.schematic", this.schematic);
 			}
+			this.getHellblockPlayer().set("player.locked-island", this.lockedStatus);
 			this.getHellblockPlayer().set("player.owner", this.hellblockOwner.toString());
 			this.getHellblockPlayer().set("player.reset-cooldown", this.resetCooldown);
 			this.getHellblockPlayer().set("player.biome-cooldown", this.biomeCooldown);

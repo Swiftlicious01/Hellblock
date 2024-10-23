@@ -1,5 +1,7 @@
 package com.swiftlicious.hellblock.gui.hellblock;
 
+import java.util.UUID;
+
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.ClickType;
@@ -21,10 +23,11 @@ public class HellblockMenu {
 
 	public HellblockMenu(Player player) {
 
-		Gui gui = Gui.normal().setStructure("# c t p b u u r #").addIngredient('c', new CreateIslandItem())
+		Gui gui = Gui.normal().setStructure("# c t p b l u r #").addIngredient('c', new CreateIslandItem())
 				.addIngredient('t', new TeleportIslandItem()).addIngredient('p', new ViewPartyMembersItem())
-				.addIngredient('b', new BiomeItem()).addIngredient('r', new ResetIslandItem())
-				.addIngredient('u', new UnknownFeatureItem()).addIngredient('#', new BackGroundItem()).build();
+				.addIngredient('b', new BiomeItem()).addIngredient('l', new LockIslandItem(player.getUniqueId()))
+				.addIngredient('r', new ResetIslandItem()).addIngredient('u', new UnknownFeatureItem())
+				.addIngredient('#', new BackGroundItem()).build();
 
 		Window window = Window.single().setViewer(player).setTitle(new ShadedAdventureComponentWrapper(
 				HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage("<red>Hellblock Menu")))
@@ -68,6 +71,52 @@ public class HellblockMenu {
 			} else {
 				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 						"<red>You already have a hellblock!");
+			}
+		}
+	}
+
+	public static class LockIslandItem extends AbstractItem {
+
+		private UUID playerUUID;
+
+		public LockIslandItem(UUID playerUUID) {
+			this.playerUUID = playerUUID;
+		}
+
+		@Override
+		public ItemProvider getItemProvider() {
+			return new ItemBuilder(Material.TRAPPED_CHEST)
+					.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
+							.getAdventureManager()
+							.getComponentFromMiniMessage(String.format("<green>%s your Hellblock!",
+									(HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(playerUUID)
+											.getLockedStatus() ? "Unlock" : "Lock")))))
+					.addLoreLines(new ShadedAdventureComponentWrapper(
+							HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
+									"<aqua>Click to change the visitor status of your hellblock!")));
+		}
+
+		@Override
+		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
+				@NotNull InventoryClickEvent event) {
+			HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
+			if (pi.hasHellblock()) {
+				if (pi.getHellblockOwner() != null && !pi.getHellblockOwner().equals(player.getUniqueId())) {
+					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+							"<red>Only the owner of the hellblock island can change this!");
+					return;
+				}
+				pi.setLockedStatus(!pi.getLockedStatus());
+				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+						String.format("<red>You have just <dark_red>%s <red>your hellblock island!",
+								(pi.getLockedStatus() ? "unlocked" : "locked")));
+				if (pi.getLockedStatus()) {
+					HellblockPlugin.getInstance().getCoopManager().kickVisitorsIfLocked(player.getUniqueId());
+					HellblockPlugin.getInstance().getCoopManager().changeLockStatus(player);
+				}
+			} else {
+				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+						"<red>You don't have a hellblock island!");
 			}
 		}
 	}

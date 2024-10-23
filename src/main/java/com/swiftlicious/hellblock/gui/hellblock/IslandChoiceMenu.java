@@ -25,10 +25,12 @@ public class IslandChoiceMenu {
 				.addIngredient('c', new ClassicIslandChoiceItem()).addIngredient('s', new SchematicIslandChoiceItem())
 				.addIngredient('#', new BackGroundItem()).build();
 
-		Window window = Window
-				.single().setViewer(player).setTitle(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
-						.getAdventureManager().getComponentFromMiniMessage("<red>Hellblock Island Options")))
-				.setGui(gui).build();
+		Window window = Window.single().setViewer(player)
+				.setTitle(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+						.getComponentFromMiniMessage("<red>Hellblock Island Options")))
+				.setGui(gui).setCloseable(HellblockPlugin.getInstance().getHellblockHandler()
+						.getActivePlayer(player.getUniqueId()).hasHellblock())
+				.build();
 
 		window.open();
 	}

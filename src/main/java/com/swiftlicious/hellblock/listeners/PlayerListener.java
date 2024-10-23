@@ -79,6 +79,11 @@ public class PlayerListener implements Listener {
 				}
 			}
 
+			if (instance.getCoopManager().getHellblockOwnerOfVisitingIsland(player) != null) {
+				instance.getCoopManager()
+						.kickVisitorsIfLocked(instance.getCoopManager().getHellblockOwnerOfVisitingIsland(player));
+			}
+
 			// if raining give player a bit of protection
 			if (instance.getLavaRain().getLavaRainTask() != null
 					&& instance.getLavaRain().getLavaRainTask().isLavaRaining()

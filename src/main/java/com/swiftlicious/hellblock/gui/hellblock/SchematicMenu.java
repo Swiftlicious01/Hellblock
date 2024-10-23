@@ -41,16 +41,18 @@ public class SchematicMenu {
 		}
 
 		Gui gui = ScrollGui.items()
-				.setStructure("x x x x x x x x u", "x x x x x x x x #", "x x x x x x x x #", "x x x x x x x x #",
+				.setStructure("x x x x x x x x u", "x x x x x x x x #", "x x x x x x x x b", "x x x x x x x x #",
 						"x x x x x x x x d")
-				.addIngredient('c', Markers.CONTENT_LIST_SLOT_HORIZONTAL).addIngredient('#', new BackGroundItem())
+				.addIngredient('x', Markers.CONTENT_LIST_SLOT_VERTICAL).addIngredient('#', new BackGroundItem())
 				.addIngredient('u', new ScrollUpItem()).addIngredient('d', new ScrollDownItem())
-				.setContent(items.stream().toList()).build();
+				.addIngredient('b', new BackToChoicesItem()).setContent(items.stream().toList()).build();
 
-		Window window = Window
-				.single().setViewer(player).setTitle(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
-						.getAdventureManager().getComponentFromMiniMessage("<red>Hellblock Island Schematics")))
-				.setGui(gui).build();
+		Window window = Window.single().setViewer(player)
+				.setTitle(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+						.getComponentFromMiniMessage("<red>Hellblock Island Schematics")))
+				.setGui(gui).setCloseable(HellblockPlugin.getInstance().getHellblockHandler()
+						.getActivePlayer(player.getUniqueId()).hasHellblock())
+				.build();
 
 		window.open();
 	}
@@ -89,6 +91,21 @@ public class SchematicMenu {
 						String.format("<red>The schematic %s hellblock island type is not available to generate!",
 								Files.getNameWithoutExtension(file.getName())));
 			}
+		}
+	}
+
+	public static class BackToChoicesItem extends AbstractItem {
+		@Override
+		public ItemProvider getItemProvider() {
+			return new ItemBuilder(Material.ORANGE_STAINED_GLASS_PANE)
+					.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
+							.getAdventureManager().getComponentFromMiniMessage("<gold>Return to Choices Menu")));
+		}
+
+		@Override
+		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
+				@NotNull InventoryClickEvent event) {
+			new IslandChoiceMenu(player);
 		}
 	}
 }

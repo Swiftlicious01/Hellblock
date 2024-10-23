@@ -1,7 +1,7 @@
 main: com.swiftlicious.hellblock.HellblockPlugin
 name: Hellblock
 version: '${version}'
-api-version: 1.21.1
+api-version: 1.20.5
 description: Skyblock in the nether!
 website: https://github.com/Swiftlicious01/Hellblock
 authors: [ Swiftlicious ]
@@ -27,6 +27,9 @@ permissions:
   hellblock.admin:
     description: Admin permission
     default: op
+  hellblock.bypass.lock:
+	description: Bypass locked hellblock islands whether or not they are locked
+	default: op
   hellblock.updates:
     description: Get latest update messages
     default: op

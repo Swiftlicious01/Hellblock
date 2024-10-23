@@ -384,9 +384,7 @@ public class HellblockPlugin extends JavaPlugin {
 
 	public String getFormattedCooldown(long hours) {
 		int intHours = (int) hours;
-		int minutes = (int) ((hours - intHours) * 60);
-		int seconds = (int) (((hours - intHours) * 60 - minutes) * 60);
-		String formattedTime = String.format("%sh%sm%ss", intHours, minutes, seconds);
+		String formattedTime = String.format("%sh", intHours);
 		return formattedTime;
 	}
 

@@ -173,14 +173,14 @@ public class BiomeHandler {
 		}
 	}
 
-	private PacketContainer getChunkUnloadPacket(Chunk chunk) {
+	public PacketContainer getChunkUnloadPacket(Chunk chunk) {
 		PacketContainer unloadPacket = new PacketContainer(PacketType.Play.Server.UNLOAD_CHUNK);
 		unloadPacket.getIntegers().write(0, chunk.getX());
 		unloadPacket.getIntegers().write(1, chunk.getZ());
 		return unloadPacket;
 	}
 
-	private PacketContainer getLightUpdateChunkPacket(Chunk chunk) {
+	public PacketContainer getLightUpdateChunkPacket(Chunk chunk) {
 		PacketContainer lightUpdatePacket = new PacketContainer(PacketType.Play.Server.LIGHT_UPDATE);
 		lightUpdatePacket.getIntegers().write(0, chunk.getX());
 		lightUpdatePacket.getIntegers().write(1, chunk.getZ());

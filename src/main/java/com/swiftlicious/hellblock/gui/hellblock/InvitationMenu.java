@@ -1,6 +1,10 @@
 package com.swiftlicious.hellblock.gui.hellblock;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map.Entry;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.bukkit.Bukkit;
@@ -11,12 +15,16 @@ import org.bukkit.event.inventory.InventoryClickEvent;
 import org.jetbrains.annotations.NotNull;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
-import com.swiftlicious.hellblock.config.HBLocale;
+import com.swiftlicious.hellblock.gui.icon.BackGroundItem;
+import com.swiftlicious.hellblock.gui.icon.NextPageItem;
+import com.swiftlicious.hellblock.gui.icon.PreviousPageItem;
 import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
 import com.swiftlicious.hellblock.utils.LogUtils;
 import com.swiftlicious.hellblock.utils.wrappers.ShadedAdventureComponentWrapper;
 
 import xyz.xenondevs.invui.gui.Gui;
+import xyz.xenondevs.invui.gui.PagedGui;
+import xyz.xenondevs.invui.gui.structure.Markers;
 import xyz.xenondevs.invui.item.Item;
 import xyz.xenondevs.invui.item.ItemProvider;
 import xyz.xenondevs.invui.item.builder.ItemBuilder;
@@ -35,7 +43,7 @@ public class InvitationMenu {
 
 	public InvitationMenu(Player player) {
 		this.player = player;
-		this.SEARCH = HBLocale.GUI_SEARCH;
+		this.SEARCH = "Type Name Here";
 		this.prefix = SEARCH;
 		this.updateMenu(SEARCH);
 	}
@@ -43,12 +51,18 @@ public class InvitationMenu {
 	public void updateMenu(String search) {
 		var confirmIcon = new ConfirmIcon();
 		Item border = new SimpleItem(new ItemBuilder(Material.AIR));
-		Gui gui = Gui.normal().setStructure("a # b")
+		Gui upperGui = Gui.normal().setStructure("a # b")
 				.addIngredient('a', new SimpleItem(new ItemBuilder(Material.NAME_TAG).setDisplayName(search)))
-				.addIngredient('b', confirmIcon).addIngredient('#', border).build();
+				.addIngredient('#', border).addIngredient('b', confirmIcon).build();
 
-		var window = AnvilWindow
-				.single().setViewer(player).setTitle(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
+		Gui gui = PagedGui.items()
+				.setStructure("x x x x x x x x x", "x x x x x x x x x", "x x x x x x x x x", "# # a # # # b # #")
+				.addIngredient('x', Markers.CONTENT_LIST_SLOT_HORIZONTAL).addIngredient('#', new BackGroundItem())
+				.addIngredient('a', new PreviousPageItem()).addIngredient('b', new NextPageItem())
+				.setContent(getItemList()).build();
+
+		AnvilWindow window = AnvilWindow
+				.split().setViewer(player).setTitle(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
 						.getAdventureManager().getComponentFromMiniMessage("<red>Hellblock Invitations")))
 				.addRenameHandler(s -> {
 					long current = System.currentTimeMillis();
@@ -59,9 +73,71 @@ public class InvitationMenu {
 					prefix = s;
 					coolDown = current;
 					confirmIcon.notifyWindows();
-				}).setGui(gui).build();
+					updateMenu(s);
+				})
+				.setUpperGui(upperGui)
+				.setLowerGui(gui)
+				.build();
 
 		window.open();
+	}
+
+	public List<Item> getItemList() {
+		List<Item> itemList = new ArrayList<>();
+		for (Entry<UUID, HellblockPlayer> entry : HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers()
+				.entrySet()) {
+			UUID key = entry.getKey();
+			if (entry.getValue() instanceof HellblockPlayer hbPlayer) {
+				if (!prefix.equals(SEARCH) && !key.equals(player.getUniqueId()))
+					continue;
+				if (hbPlayer.getPlayer() == null)
+					continue;
+				SkullBuilder skullBuilder = null;
+				try {
+					skullBuilder = new SkullBuilder(hbPlayer.getPlayer().getUniqueId());
+				} catch (MojangApiException | IOException ex) {
+					LogUtils.warn(String.format("Unable to retrieve skull data for the player %s", prefix), ex);
+				}
+				itemList.add(new ItemInList(hbPlayer.getPlayer().getName(), skullBuilder, this));
+				continue;
+			}
+			try {
+				itemList.add(new ItemInList("MHF_QUESTION", new SkullBuilder("MHF_QUESTION"), this));
+			} catch (MojangApiException | IOException ignored) {
+				// ignored
+			}
+		}
+		return itemList;
+	}
+
+	public static class ItemInList extends AbstractItem {
+
+		private String key;
+		private final SkullBuilder skullBuilder;
+		private final InvitationMenu InvitationMenu;
+
+		public ItemInList(String key, SkullBuilder skullBuilder, InvitationMenu invitationMenu) {
+			this.key = key;
+			this.skullBuilder = skullBuilder
+					.setDisplayName(new ShadedAdventureComponentWrapper(
+							HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(key)))
+					.addLoreLines(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
+							.getAdventureManager().getComponentFromMiniMessage("<pink>Click to invite this player!")));
+			this.InvitationMenu = invitationMenu;
+		}
+
+		@Override
+		public ItemProvider getItemProvider() {
+			return skullBuilder;
+		}
+
+		@Override
+		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
+				@NotNull InventoryClickEvent event) {
+			if (clickType.isRightClick()) {
+				this.InvitationMenu.updateMenu(key);
+			}
+		}
 	}
 
 	public class ConfirmIcon extends AbstractItem {
@@ -79,13 +155,16 @@ public class InvitationMenu {
 					builder = new SkullBuilder(prefix);
 				} catch (MojangApiException | IOException ex) {
 					LogUtils.warn(String.format("Unable to retrieve skull data for the player %s", prefix), ex);
+					try {
+						builder = new SkullBuilder("MHF_QUESTION");
+					} catch (MojangApiException | IOException ignored) {
+						// ignored
+					}
 				}
 				builder.setDisplayName(new ShadedAdventureComponentWrapper(
 						HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(prefix)));
 				builder.addLoreLines(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
-						.getAdventureManager().getComponentFromMiniMessage(HBLocale.GUI_CLICK_CONFIRM)))
-						.addLoreLines(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
-								.getAdventureManager().getComponentFromMiniMessage(HBLocale.GUI_RIGHT_CLICK_CANCEL)));
+						.getAdventureManager().getComponentFromMiniMessage("<pink>Click to invite this player!")));
 				return builder;
 			} else {
 				return new ItemBuilder(Material.BARRIER).setDisplayName(

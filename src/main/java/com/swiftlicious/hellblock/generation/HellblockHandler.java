@@ -8,12 +8,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.World.Environment;
+import org.bukkit.block.Biome;
 import org.bukkit.block.Block;
 import org.bukkit.WorldCreator;
 import org.bukkit.WorldType;
@@ -21,6 +23,7 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.generator.ChunkGenerator;
 
+import com.google.common.io.Files;
 import com.onarandombox.MultiverseCore.api.MVWorldManager;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
@@ -77,6 +80,41 @@ public class HellblockHandler {
 		this.schematicsDirectory = new File(instance.getDataFolder() + File.separator + "schematics");
 		if (!this.schematicsDirectory.exists())
 			this.schematicsDirectory.mkdirs();
+		startCountdowns();
+	}
+
+	public void startCountdowns() {
+		HellblockPlugin.getInstance().getScheduler().runTaskAsyncTimer(() -> {
+			for (HellblockPlayer active : getActivePlayers().values()) {
+				if (active == null)
+					continue;
+				if (active.getResetCooldown() > 0) {
+					active.setResetCooldown(active.getResetCooldown() - 1);
+				}
+				if (active.getBiomeCooldown() > 0) {
+					active.setBiomeCooldown(active.getBiomeCooldown() - 1);
+				}
+				active.saveHellblockPlayer();
+			}
+			for (File offline : this.getPlayersDirectory().listFiles()) {
+				String uuid = Files.getNameWithoutExtension(offline.getName());
+				if (getActivePlayers().keySet().contains(UUID.fromString(uuid)))
+					continue;
+				YamlConfiguration offlineFile = YamlConfiguration.loadConfiguration(offline);
+				if (offlineFile.getLong("player.reset-cooldown") > 0) {
+					offlineFile.set("player.reset-cooldown", offlineFile.getLong("player.reset-cooldown") - 1);
+				}
+				if (offlineFile.getLong("player.biome-cooldown") > 0) {
+					offlineFile.set("player.biome-cooldown", offlineFile.getLong("player.biome-cooldown") - 1);
+				}
+				try {
+					offlineFile.save(offline);
+				} catch (IOException ex) {
+					LogUtils.warn(String.format("Could not save the offline data file for %s", uuid), ex);
+					continue;
+				}
+			}
+		}, 0, 1, TimeUnit.HOURS);
 	}
 
 	public void createHellblock(Player player, IslandOptions islandChoice, String schematic) {
@@ -101,7 +139,9 @@ public class HellblockHandler {
 			// TODO: island protection
 		}
 		pi.setHellblockBiome(HellBiome.NETHER_WASTES);
+		instance.getBiomeHandler().changeHellblockBiome(pi, pi.getHellblockBiome());
 		pi.setBiomeCooldown(0L);
+		pi.setLockedStatus(false);
 		pi.setHellblockOwner(player.getUniqueId());
 		pi.setHellblockParty(new ArrayList<>());
 
@@ -142,6 +182,7 @@ public class HellblockHandler {
 				pi.setHellblockBiome(null);
 				pi.setBiomeCooldown(0L);
 				pi.setUsedSchematic(null);
+				pi.setLockedStatus(false);
 				pi.setIslandChoice(null);
 				pi.setResetCooldown(!forceReset ? Duration.ofDays(1).toHours() : 0L);
 				List<UUID> visitors = instance.getCoopManager().getVisitors(id);
@@ -172,6 +213,7 @@ public class HellblockHandler {
 							hbMember.setBiomeCooldown(0L);
 							hbMember.setResetCooldown(0L);
 							hbMember.setIslandChoice(null);
+							hbMember.setLockedStatus(false);
 							hbMember.setUsedSchematic(null);
 							hbMember.setHellblockParty(new ArrayList<>());
 							hbMember.saveHellblockPlayer();
@@ -196,6 +238,7 @@ public class HellblockHandler {
 							memberConfig.set("player.owner", null);
 							memberConfig.set("player.biome", null);
 							memberConfig.set("player.party", null);
+							memberConfig.set("player.locked-island", null);
 							memberConfig.set("player.reset-cooldown", null);
 							memberConfig.set("player.biome-cooldown", null);
 							memberConfig.set("player.island-choice", null);
@@ -222,6 +265,7 @@ public class HellblockHandler {
 				if (block.getType() != Material.AIR) {
 					block.setType(Material.AIR);
 					block.getState().update();
+					block.setBiome(Biome.NETHER_WASTES);
 				}
 			}
 
