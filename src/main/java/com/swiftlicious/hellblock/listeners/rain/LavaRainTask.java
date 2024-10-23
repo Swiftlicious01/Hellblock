@@ -79,6 +79,8 @@ public class LavaRainTask implements Runnable {
 				Player player;
 				do {
 					if (!players.hasNext()) {
+						setHowLongItWillLavaRainFor(
+								getHowLongItWillLavaRainFor() > 0 ? getHowLongItWillLavaRainFor() - 1 : 0);
 						return;
 					}
 

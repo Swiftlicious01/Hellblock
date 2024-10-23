@@ -7,12 +7,14 @@ import java.util.List;
 import java.util.UUID;
 
 import org.bukkit.Bukkit;
+import org.bukkit.Chunk;
 import org.bukkit.Location;
 import org.bukkit.block.Biome;
-import org.bukkit.block.Block;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 
+import com.comphenix.protocol.PacketType;
+import com.comphenix.protocol.events.PacketContainer;
 import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldedit.world.World;
 
@@ -127,12 +129,11 @@ public class BiomeHandler {
 					return;
 				}
 
-				for (Location loc : locations) {
-					Block block = loc.getBlock();
-					block.setBiome(Biome.valueOf(biome.toString().toUpperCase()));
-					loc.getChunk().unload(true);
-					loc.getChunk().load(false);
-				}
+				locations.forEach(loc -> {
+					loc.getBlock().setBiome(Biome.valueOf(biome.toString().toUpperCase()));
+					instance.sendPackets(player, getChunkUnloadPacket(loc.getChunk()),
+							getLightUpdateChunkPacket(loc.getChunk()));
+				});
 
 				hbPlayer.setHellblockBiome(biome);
 				hbPlayer.setBiomeCooldown(Duration.ofDays(1).toHours());
@@ -170,5 +171,19 @@ public class BiomeHandler {
 				// TODO: using plugin protection
 			}
 		}
+	}
+
+	private PacketContainer getChunkUnloadPacket(Chunk chunk) {
+		PacketContainer unloadPacket = new PacketContainer(PacketType.Play.Server.UNLOAD_CHUNK);
+		unloadPacket.getIntegers().write(0, chunk.getX());
+		unloadPacket.getIntegers().write(1, chunk.getZ());
+		return unloadPacket;
+	}
+
+	private PacketContainer getLightUpdateChunkPacket(Chunk chunk) {
+		PacketContainer lightUpdatePacket = new PacketContainer(PacketType.Play.Server.LIGHT_UPDATE);
+		lightUpdatePacket.getIntegers().write(0, chunk.getX());
+		lightUpdatePacket.getIntegers().write(1, chunk.getZ());
+		return lightUpdatePacket;
 	}
 }

@@ -1,11 +1,18 @@
 package com.swiftlicious.hellblock.commands.sub;
 
+import java.util.UUID;
+import java.util.stream.Collectors;
+
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.gui.hellblock.HellblockMenu;
 import com.swiftlicious.hellblock.gui.hellblock.IslandChoiceMenu;
 import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
+import com.swiftlicious.hellblock.playerdata.UUIDFetcher;
+
 import dev.jorel.commandapi.CommandAPICommand;
 import dev.jorel.commandapi.CommandPermission;
+import dev.jorel.commandapi.arguments.ArgumentSuggestions;
+import dev.jorel.commandapi.arguments.StringArgument;
 
 public class HellblockUserCommand {
 
@@ -55,6 +62,34 @@ public class HellblockUserCommand {
 						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 								"<red>You already have a hellblock!");
 					}
+				});
+	}
+
+	public CommandAPICommand getVisitCommand() {
+		return new CommandAPICommand("visit").withPermission(CommandPermission.NONE).withPermission("hellblock.user")
+				.withArguments(new StringArgument("player").replaceSuggestions(ArgumentSuggestions
+						.stringCollection(collection -> HellblockPlugin.getInstance().getHellblockHandler()
+								.getActivePlayers().values().stream().filter(hbPlayer -> hbPlayer.getPlayer() != null)
+								.map(hbPlayer -> hbPlayer.getPlayer().getName()).collect(Collectors.toList()))))
+				.executesPlayer((player, args) -> {
+					String user = (String) args.getOrDefault("player", player);
+					UUID id = UUIDFetcher.getUUID(user);
+					HellblockPlayer ti = null;
+					if (HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers().containsKey(id)) {
+						ti = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers().get(id);
+					} else {
+						ti = new HellblockPlayer(id);
+					}
+
+					if (ti.hasHellblock()) {
+						player.teleportAsync(ti.getHomeLocation());
+						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+								String.format("<red>You are visiting <dark_red>%s<red>'s hellblock!", user));
+						return;
+					}
+
+					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+							"<red>That player does not have a hellblock!");
 				});
 	}
 

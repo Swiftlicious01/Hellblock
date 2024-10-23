@@ -1,6 +1,7 @@
 package com.swiftlicious.hellblock;
 
 import java.io.File;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
@@ -382,10 +383,11 @@ public class HellblockPlugin extends JavaPlugin {
 		return instance;
 	}
 
-	public String getFormattedCooldown(long time) {
-		int minutes = (int) ((time % 3600) / 60);
-		int remainingSeconds = (int) (time);
-		String formattedTime = String.format("%d:%02d:%02d", time, minutes, remainingSeconds);
+	public String getFormattedCooldown(long hours) {
+		Duration duration = Duration.ofHours(hours);
+		long minutes = duration.toMinutes();
+		long seconds = duration.getSeconds();
+		String formattedTime = String.format("%sh%sm%ss", hours, minutes, seconds);
 		return formattedTime;
 	}
 
