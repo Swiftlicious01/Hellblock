@@ -10,6 +10,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import org.bukkit.Bukkit;
+import org.bukkit.Location;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
@@ -26,7 +27,9 @@ import com.sk89q.worldguard.protection.managers.RegionManager;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import com.sk89q.worldguard.protection.regions.RegionContainer;
 import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.generation.HellBiome;
 import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
+import com.swiftlicious.hellblock.utils.LocationUtils;
 import com.swiftlicious.hellblock.utils.LogUtils;
 
 import lombok.Getter;
@@ -67,6 +70,10 @@ public class CoopManager {
 				}
 
 				if (instance.getHellblockHandler().isWorldguardProtect()) {
+					if (instance.getWorldGuardHandler().getWorldGuardPlatform() == null) {
+						LogUtils.severe("Could not retrieve WorldGuard platform.");
+						return;
+					}
 					RegionContainer container = instance.getWorldGuardHandler().getWorldGuardPlatform()
 							.getRegionContainer();
 					World world = BukkitAdapter.adapt(instance.getHellblockHandler().getHellblockWorld());
@@ -100,6 +107,7 @@ public class CoopManager {
 					playerToAdd.setHellblockParty(hbPlayer.getHellblockParty());
 					playerToAdd.addToHellblockParty(player.getUniqueId());
 					playerToAdd.setHellblockOwner(owner.getUniqueId());
+					playerToAdd.setBannedPlayers(hbPlayer.getBannedPlayers());
 					playerToAdd.setHellblockBiome(hbPlayer.getHellblockBiome());
 					playerToAdd.setLockedStatus(hbPlayer.getLockedStatus());
 					playerToAdd.setCreationTime(hbPlayer.getCreation());
@@ -110,6 +118,12 @@ public class CoopManager {
 					playerToAdd.setUsedSchematic(hbPlayer.getUsedSchematic());
 					if (playerToAdd.getWhoTrusted().contains(owner.getUniqueId())) {
 						playerToAdd.removeTrustPermission(owner.getUniqueId());
+					}
+					if (!LocationUtils.isSafeLocation(playerToAdd.getHomeLocation())) {
+						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+								"<red>This hellblock home location was deemed not safe, resetting to bedrock location!");
+						playerToAdd.setHome(HellblockPlugin.getInstance().getHellblockHandler().locateBedrock(player.getUniqueId()));
+						HellblockPlugin.getInstance().getCoopManager().updateParty(player.getUniqueId(), "home", playerToAdd.getHomeLocation());
 					}
 					player.teleportAsync(hbPlayer.getHomeLocation());
 					// if raining give player a bit of protection
@@ -198,6 +212,10 @@ public class CoopManager {
 			}
 
 			if (instance.getHellblockHandler().isWorldguardProtect()) {
+				if (instance.getWorldGuardHandler().getWorldGuardPlatform() == null) {
+					LogUtils.severe("Could not retrieve WorldGuard platform.");
+					return;
+				}
 				RegionContainer container = instance.getWorldGuardHandler().getWorldGuardPlatform()
 						.getRegionContainer();
 				World world = BukkitAdapter.adapt(instance.getHellblockHandler().getHellblockWorld());
@@ -223,6 +241,7 @@ public class CoopManager {
 				party.remove(id);
 				ti.setHellblock(false, null, -1);
 				ti.setHellblockParty(new ArrayList<>());
+				ti.setBannedPlayers(new ArrayList<>());
 				ti.setHome(null);
 				ti.setTotalVisits(0);
 				ti.setCreationTime(0L);
@@ -295,6 +314,10 @@ public class CoopManager {
 			}
 
 			if (instance.getHellblockHandler().isWorldguardProtect()) {
+				if (instance.getWorldGuardHandler().getWorldGuardPlatform() == null) {
+					LogUtils.severe("Could not retrieve WorldGuard platform.");
+					return;
+				}
 				RegionContainer container = instance.getWorldGuardHandler().getWorldGuardPlatform()
 						.getRegionContainer();
 				World world = BukkitAdapter.adapt(instance.getHellblockHandler().getHellblockWorld());
@@ -346,6 +369,7 @@ public class CoopManager {
 				leavingPlayer.setBiomeCooldown(0L);
 				leavingPlayer.setIslandChoice(null);
 				leavingPlayer.setUsedSchematic(null);
+				leavingPlayer.setBannedPlayers(new ArrayList<>());
 				leavingPlayer.setHellblockParty(new ArrayList<>());
 				player.performCommand(instance.getHellblockHandler().getNetherCMD());
 				if (owner != null && owner.isOnline()) {
@@ -452,6 +476,10 @@ public class CoopManager {
 					return;
 				}
 				if (instance.getHellblockHandler().isWorldguardProtect()) {
+					if (instance.getWorldGuardHandler().getWorldGuardPlatform() == null) {
+						LogUtils.severe("Could not retrieve WorldGuard platform.");
+						return;
+					}
 					RegionContainer container = instance.getWorldGuardHandler().getWorldGuardPlatform()
 							.getRegionContainer();
 					World world = BukkitAdapter.adapt(instance.getHellblockHandler().getHellblockWorld());
@@ -551,6 +579,10 @@ public class CoopManager {
 	public List<UUID> getVisitors(@NonNull UUID id) {
 		List<UUID> visitors = new ArrayList<>();
 		if (instance.getHellblockHandler().isWorldguardProtect()) {
+			if (instance.getWorldGuardHandler().getWorldGuardPlatform() == null) {
+				LogUtils.severe("Could not retrieve WorldGuard platform.");
+				return new ArrayList<>();
+			}
 			RegionContainer container = instance.getWorldGuardHandler().getWorldGuardPlatform().getRegionContainer();
 			World world = BukkitAdapter.adapt(instance.getHellblockHandler().getHellblockWorld());
 			RegionManager regions = container.get(world);
@@ -583,6 +615,10 @@ public class CoopManager {
 
 	public void changeLockStatus(@NonNull Player player) {
 		if (instance.getHellblockHandler().isWorldguardProtect()) {
+			if (instance.getWorldGuardHandler().getWorldGuardPlatform() == null) {
+				LogUtils.severe("Could not retrieve WorldGuard platform.");
+				return;
+			}
 			RegionContainer container = instance.getWorldGuardHandler().getWorldGuardPlatform().getRegionContainer();
 			World world = BukkitAdapter.adapt(instance.getHellblockHandler().getHellblockWorld());
 			RegionManager regions = container.get(world);
@@ -606,6 +642,10 @@ public class CoopManager {
 
 	public @Nullable UUID getHellblockOwnerOfVisitingIsland(@NonNull Player player) {
 		if (instance.getHellblockHandler().isWorldguardProtect()) {
+			if (instance.getWorldGuardHandler().getWorldGuardPlatform() == null) {
+				LogUtils.severe("Could not retrieve WorldGuard platform.");
+				return null;
+			}
 			RegionContainer container = instance.getWorldGuardHandler().getWorldGuardPlatform().getRegionContainer();
 			World world = BukkitAdapter.adapt(instance.getHellblockHandler().getHellblockWorld());
 			RegionManager regions = container.get(world);
@@ -647,6 +687,10 @@ public class CoopManager {
 			pi = new HellblockPlayer(id);
 		}
 		if (instance.getHellblockHandler().isWorldguardProtect()) {
+			if (instance.getWorldGuardHandler().getWorldGuardPlatform() == null) {
+				LogUtils.severe("Could not retrieve WorldGuard platform.");
+				return false;
+			}
 			RegionContainer container = instance.getWorldGuardHandler().getWorldGuardPlatform().getRegionContainer();
 			World world = BukkitAdapter.adapt(instance.getHellblockHandler().getHellblockWorld());
 			RegionManager regions = container.get(world);
@@ -686,6 +730,10 @@ public class CoopManager {
 		}
 		if (pi.getLockedStatus()) {
 			if (instance.getHellblockHandler().isWorldguardProtect()) {
+				if (instance.getWorldGuardHandler().getWorldGuardPlatform() == null) {
+					LogUtils.severe("Could not retrieve WorldGuard platform.");
+					return;
+				}
 				RegionContainer container = instance.getWorldGuardHandler().getWorldGuardPlatform()
 						.getRegionContainer();
 				World world = BukkitAdapter.adapt(instance.getHellblockHandler().getHellblockWorld());
@@ -708,6 +756,15 @@ public class CoopManager {
 						if (vi.getPlayer() != null) {
 							if (!checkIfVisitorIsWelcome(vi.getPlayer(), id)) {
 								if (vi.hasHellblock()) {
+									if (!LocationUtils.isSafeLocation(vi.getHomeLocation())) {
+										HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(
+												vi.getPlayer(),
+												"<red>This hellblock home location was deemed not safe, resetting to bedrock location!");
+										vi.setHome(HellblockPlugin.getInstance().getHellblockHandler()
+												.locateBedrock(visitor));
+										HellblockPlugin.getInstance().getCoopManager().updateParty(visitor, "home",
+												vi.getHomeLocation());
+									}
 									vi.getPlayer().teleportAsync(vi.getHomeLocation());
 								} else {
 									vi.getPlayer().performCommand(instance.getHellblockHandler().getNetherCMD());
@@ -730,6 +787,10 @@ public class CoopManager {
 			return false;
 		}
 		if (instance.getHellblockHandler().isWorldguardProtect()) {
+			if (instance.getWorldGuardHandler().getWorldGuardPlatform() == null) {
+				LogUtils.severe("Could not retrieve WorldGuard platform.");
+				return false;
+			}
 			RegionContainer container = instance.getWorldGuardHandler().getWorldGuardPlatform().getRegionContainer();
 			World world = BukkitAdapter.adapt(instance.getHellblockHandler().getHellblockWorld());
 			RegionManager regions = container.get(world);
@@ -762,6 +823,10 @@ public class CoopManager {
 			return false;
 		}
 		if (instance.getHellblockHandler().isWorldguardProtect()) {
+			if (instance.getWorldGuardHandler().getWorldGuardPlatform() == null) {
+				LogUtils.severe("Could not retrieve WorldGuard platform.");
+				return false;
+			}
 			RegionContainer container = instance.getWorldGuardHandler().getWorldGuardPlatform().getRegionContainer();
 			World world = BukkitAdapter.adapt(instance.getHellblockHandler().getHellblockWorld());
 			RegionManager regions = container.get(world);
@@ -782,6 +847,168 @@ public class CoopManager {
 			}
 
 			return trusted.remove(id);
+		} else {
+			// TODO: using plugin protection
+			return false;
+		}
+	}
+
+	public <T> void updateParty(@NonNull UUID id, String type, T value) {
+		for (HellblockPlayer active : instance.getHellblockHandler().getActivePlayers().values()) {
+			if (active == null || active.getPlayer() == null)
+				continue;
+			if (active.getHellblockOwner().equals(id)) {
+				switch (type) {
+				case "lock":
+					active.setLockedStatus((boolean) value);
+					break;
+				case "home":
+					active.setHome((Location) value);
+					break;
+				case "ban":
+					active.banPlayer((UUID) value);
+					break;
+				case "unban":
+					active.unbanPlayer((UUID) value);
+					break;
+				case "biome":
+					active.setHellblockBiome((HellBiome) value);
+					break;
+				case "visit":
+					active.setTotalVisits(active.getTotalVisitors() + (int) value);
+					break;
+				}
+			}
+			active.saveHellblockPlayer();
+		}
+		for (File offline : instance.getHellblockHandler().getPlayersDirectory().listFiles()) {
+			if (!offline.isFile() || !offline.getName().endsWith(".yml"))
+				continue;
+			String fileName = Files.getNameWithoutExtension(offline.getName());
+			UUID uuid = null;
+			try {
+				uuid = UUID.fromString(fileName);
+			} catch (IllegalArgumentException ignored) {
+				// ignored
+				continue;
+			}
+			if (uuid != null && instance.getHellblockHandler().getActivePlayers().keySet().contains(uuid))
+				continue;
+			YamlConfiguration offlineFile = YamlConfiguration.loadConfiguration(offline);
+			if (offlineFile.getString("player.owner").equals(id.toString())) {
+				switch (type) {
+				case "lock":
+					offlineFile.set("player.locked-island", (boolean) value);
+					break;
+				case "home":
+					Location location = (Location) value;
+					String world = location.getWorld().getName();
+					double x = location.getX();
+					double y = location.getY();
+					double z = location.getZ();
+					float yaw = location.getYaw();
+
+					if (!(offlineFile.getString("player.home.world").equalsIgnoreCase(world)
+							|| offlineFile.getDouble("player.home.x") == x
+							|| offlineFile.getDouble("player.home.y") == y
+							|| offlineFile.getDouble("player.home.z") == z
+							|| (float) offlineFile.getDouble("player.home.yaw") == yaw)) {
+						offlineFile.set("player.home.world", world);
+						offlineFile.set("player.home.x", x);
+						offlineFile.set("player.home.y", y);
+						offlineFile.set("player.home.z", z);
+						offlineFile.set("player.home.yaw", yaw);
+					}
+					break;
+				case "ban":
+					List<String> ban = offlineFile.getStringList("player.banned-from-island");
+					if (!ban.contains(((UUID) value).toString())) {
+						ban.add(((UUID) value).toString());
+					}
+					offlineFile.set("player.banned-from-island", ban);
+					break;
+				case "unban":
+					List<String> unban = offlineFile.getStringList("player.banned-from-island");
+					if (unban.contains(((UUID) value).toString())) {
+						unban.remove(((UUID) value).toString());
+					}
+					offlineFile.set("player.banned-from-island", unban);
+					break;
+				case "biome":
+					offlineFile.set("player.biome", ((HellBiome) value).toString().toUpperCase());
+					break;
+				case "visit":
+					offlineFile.set("player.total-visits", offlineFile.getInt("player.total-visits") + (int) value);
+					break;
+				}
+			}
+			try {
+				offlineFile.save(offline);
+			} catch (IOException ex) {
+				LogUtils.warn(String.format("Could not save the offline data file for %s", uuid), ex);
+				continue;
+			}
+		}
+	}
+
+	public boolean trackBannedPlayer(@NonNull UUID id) {
+		if (instance.getHellblockHandler().isWorldguardProtect()) {
+			if (instance.getWorldGuardHandler().getWorldGuardPlatform() == null) {
+				LogUtils.severe("Could not retrieve WorldGuard platform.");
+				return false;
+			}
+			RegionContainer container = instance.getWorldGuardHandler().getWorldGuardPlatform().getRegionContainer();
+			World world = BukkitAdapter.adapt(instance.getHellblockHandler().getHellblockWorld());
+			RegionManager regions = container.get(world);
+			if (regions == null) {
+				LogUtils.severe(
+						String.format("Could not load WorldGuard regions for hellblock world: %s", world.getName()));
+				return false;
+			}
+			if (instance.getHellblockHandler().getPlayersDirectory().listFiles().length == 0)
+				return false;
+			boolean onBannedIsland = false;
+			for (File playerFile : instance.getHellblockHandler().getPlayersDirectory().listFiles()) {
+				if (!(playerFile.isFile() || playerFile.getName().endsWith(".yml")))
+					continue;
+				YamlConfiguration playerConfig = YamlConfiguration.loadConfiguration(playerFile);
+				if (!(playerConfig.contains("player.banned-from-island"))
+						|| playerConfig.getStringList("player.banned-from-island").isEmpty())
+					continue;
+				List<String> banned = playerConfig.getStringList("player.banned-from-island");
+				if (!banned.contains(id.toString()))
+					continue;
+				List<UUID> uuids = new ArrayList<>();
+				for (String uuid : banned) {
+					UUID convert = null;
+					try {
+						convert = UUID.fromString(uuid);
+					} catch (IllegalArgumentException ignored) {
+						// ignored
+					}
+					uuids.add(convert);
+				}
+				if (!uuids.contains(id))
+					continue;
+
+				String bannedFromID = Files.getNameWithoutExtension(playerFile.getName());
+				UUID bannedFromUUID = null;
+				try {
+					bannedFromUUID = UUID.fromString(bannedFromID);
+				} catch (IllegalArgumentException ignored) {
+					// ignored
+				}
+				ProtectedRegion region = regions.getRegion(String.format("%sHellblock",
+						Bukkit.getOfflinePlayer(bannedFromUUID).hasPlayedBefore()
+								&& Bukkit.getOfflinePlayer(bannedFromUUID).getName() != null
+										? Bukkit.getOfflinePlayer(bannedFromUUID).getName()
+										: "?"));
+				if (region == null || region.getId().equals("?Hellblock")) {
+					return false;
+				}
+				onBannedIsland = instance.getWorldGuardHandler().isPlayerInAnyRegion(id, region.getId());
+			}
+			return onBannedIsland;
 		} else {
 			// TODO: using plugin protection
 			return false;

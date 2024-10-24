@@ -259,6 +259,10 @@ public class NetherFarming implements Listener {
 				instance.getScheduler().runTaskAsyncLater(() -> resetRegionCache(hbPlayer), 3, TimeUnit.MINUTES);
 				return regionBlocks;
 			}
+			if (instance.getWorldGuardHandler().getWorldGuardPlatform() == null) {
+				LogUtils.severe("Could not retrieve WorldGuard platform.");
+				return null;
+			}
 			RegionContainer container = instance.getWorldGuardHandler().getWorldGuardPlatform().getRegionContainer();
 			World world = BukkitAdapter.adapt(instance.getHellblockHandler().getHellblockWorld());
 			RegionManager regions = container.get(world);

@@ -26,6 +26,7 @@ import com.swiftlicious.hellblock.utils.LogUtils;
 import dev.jorel.commandapi.CommandAPICommand;
 import dev.jorel.commandapi.CommandPermission;
 import dev.jorel.commandapi.arguments.ArgumentSuggestions;
+import dev.jorel.commandapi.arguments.IntegerArgument;
 import dev.jorel.commandapi.arguments.StringArgument;
 
 public class HellblockUserCommand {
@@ -130,6 +131,7 @@ public class HellblockUserCommand {
 							return;
 						}
 						HellblockPlugin.getInstance().getBiomeHandler().changeHellblockBiome(pi, biome, false);
+						HellblockPlugin.getInstance().getCoopManager().updateParty(player.getUniqueId(), "biome", pi.getHellblockBiome());
 					} else {
 						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 								"<red>You don't have a hellblock!");
@@ -163,6 +165,11 @@ public class HellblockUserCommand {
 					if (ti.hasHellblock()) {
 						if (!ti.getLockedStatus()
 								&& HellblockPlugin.getInstance().getCoopManager().checkIfVisitorIsWelcome(player, id)) {
+							if (!LocationUtils.isSafeLocation(ti.getHomeLocation())) {
+								HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+										"<red>This hellblock is not safe to visit right now!");
+								return;
+							}
 							player.teleportAsync(ti.getHomeLocation());
 							// if raining give player a bit of protection
 							if (HellblockPlugin.getInstance().getLavaRain().getLavaRainTask() != null
@@ -179,6 +186,7 @@ public class HellblockUserCommand {
 										|| ti.getHellblockParty().contains(player.getUniqueId())
 										|| ti.getWhoTrusted().contains(player.getUniqueId()))) {
 									ti.addTotalVisit();
+									HellblockPlugin.getInstance().getCoopManager().updateParty(id, "visit", 1);
 									visitCache.put(player.getUniqueId(), true);
 								}
 							}
@@ -208,6 +216,12 @@ public class HellblockUserCommand {
 								"<red>You don't have a hellblock!");
 					} else {
 						if (pi.getHomeLocation() != null) {
+							if (!LocationUtils.isSafeLocation(pi.getHomeLocation())) {
+								HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+										"<red>This hellblock home location was deemed not safe, resetting to bedrock location!");
+								pi.setHome(HellblockPlugin.getInstance().getHellblockHandler().locateBedrock(player.getUniqueId()));
+								HellblockPlugin.getInstance().getCoopManager().updateParty(player.getUniqueId(), "home", pi.getHomeLocation());
+							}
 							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 									"<red>Teleporting you to your hellblock!");
 							player.teleportAsync(pi.getHomeLocation());
@@ -228,6 +242,113 @@ public class HellblockUserCommand {
 				});
 	}
 
+	public CommandAPICommand getBanCommand() {
+		return new CommandAPICommand("ban").withPermission(CommandPermission.NONE).withPermission("hellblock.user")
+				.withArguments(new StringArgument("player")
+						.replaceSuggestions(ArgumentSuggestions.stringCollection(collection -> HellblockPlugin
+								.getInstance().getHellblockHandler().getActivePlayers().values().stream()
+								.filter(hbPlayer -> hbPlayer.getPlayer() != null && !hbPlayer.getLockedStatus())
+								.map(hbPlayer -> hbPlayer.getPlayer().getName()).collect(Collectors.toList()))))
+				.executesPlayer((player, args) -> {
+					HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
+					if (!pi.hasHellblock()) {
+						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+								"<red>You don't have a hellblock!");
+					} else {
+						String user = (String) args.getOrDefault("player", player);
+						UUID id = UUIDFetcher.getUUID(user);
+						if (id == null) {
+							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+									"<red>The player you are trying to ban doesn't exist!");
+							return;
+						}
+						if (id.equals(player.getUniqueId())) {
+							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+									"<red>You can't do this to yourself!");
+							return;
+						}
+						if (pi.getHellblockParty().contains(id) || pi.getWhoTrusted().contains(id)) {
+							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+									"<red>You can't use this command on a party member or trusted player!");
+							return;
+						}
+						if (pi.getBannedPlayers().contains(id)) {
+							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+									"<red>This player is already banned from your island!");
+							return;
+						}
+
+						pi.banPlayer(id);
+						HellblockPlugin.getInstance().getCoopManager().updateParty(player.getUniqueId(), "ban", id);
+						if (Bukkit.getPlayer(user) != null) {
+							if (HellblockPlugin.getInstance().getCoopManager().trackBannedPlayer(id)) {
+								HellblockPlayer ti = HellblockPlugin.getInstance().getHellblockHandler()
+										.getActivePlayer(id);
+								if (ti.hasHellblock()) {
+									if (!LocationUtils.isSafeLocation(ti.getHomeLocation())) {
+										HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(Bukkit.getPlayer(user),
+												"<red>This hellblock home location was deemed not safe, resetting to bedrock location!");
+										ti.setHome(HellblockPlugin.getInstance().getHellblockHandler().locateBedrock(id));
+										HellblockPlugin.getInstance().getCoopManager().updateParty(id, "home", ti.getHomeLocation());
+									}
+									Bukkit.getPlayer(user).teleportAsync(ti.getHomeLocation());
+								} else {
+									Bukkit.getPlayer(user).performCommand(
+											HellblockPlugin.getInstance().getHellblockHandler().getNetherCMD());
+
+								}
+							}
+						}
+						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+								String.format("<red>You've banned <dark_red>%s <red>from your hellblock!", user));
+					}
+				});
+	}
+
+	public CommandAPICommand getUnbanCommand() {
+		return new CommandAPICommand("unban").withPermission(CommandPermission.NONE).withPermission("hellblock.user")
+				.withArguments(new StringArgument("player")
+						.replaceSuggestions(ArgumentSuggestions.stringCollection(collection -> HellblockPlugin
+								.getInstance().getHellblockHandler().getActivePlayers().values().stream()
+								.filter(hbPlayer -> hbPlayer.getPlayer() != null && !hbPlayer.getLockedStatus())
+								.map(hbPlayer -> hbPlayer.getPlayer().getName()).collect(Collectors.toList()))))
+				.executesPlayer((player, args) -> {
+					HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
+					if (!pi.hasHellblock()) {
+						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+								"<red>You don't have a hellblock!");
+					} else {
+						String user = (String) args.getOrDefault("player", player);
+						UUID id = UUIDFetcher.getUUID(user);
+						if (id == null) {
+							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+									"<red>The player you are trying to unban doesn't exist!");
+							return;
+						}
+						if (id.equals(player.getUniqueId())) {
+							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+									"<red>You can't do this to yourself!");
+							return;
+						}
+						if (pi.getHellblockParty().contains(id) || pi.getWhoTrusted().contains(id)) {
+							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+									"<red>You can't use this command on a party member or trusted player!");
+							return;
+						}
+						if (!pi.getBannedPlayers().contains(id)) {
+							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+									"<red>This player is not banned from your island!");
+							return;
+						}
+
+						pi.unbanPlayer(id);
+						HellblockPlugin.getInstance().getCoopManager().updateParty(player.getUniqueId(), "unban", id);
+						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+								String.format("<red>You've unbanned <dark_red>%s <red>from your hellblock!", user));
+					}
+				});
+	}
+
 	public CommandAPICommand getInfoCommand() {
 		return new CommandAPICommand("info").withAliases("information", "data").withPermission(CommandPermission.NONE)
 				.withPermission("hellblock.user").executesPlayer((player, args) -> {
@@ -236,7 +357,7 @@ public class HellblockUserCommand {
 						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 								"<red>You don't have a hellblock!");
 					} else {
-						String partyString = "", trustedString = "";
+						String partyString = "", trustedString = "", bannedString = "";
 						for (UUID id : pi.getHellblockParty()) {
 							if (Bukkit.getOfflinePlayer(id).hasPlayedBefore()
 									&& Bukkit.getOfflinePlayer(id).getName() != null) {
@@ -247,6 +368,12 @@ public class HellblockUserCommand {
 							if (Bukkit.getOfflinePlayer(id).hasPlayedBefore()
 									&& Bukkit.getOfflinePlayer(id).getName() != null) {
 								trustedString = "<dark_red>" + Bukkit.getOfflinePlayer(id).getName() + "<red>, ";
+							}
+						}
+						for (UUID id : pi.getBannedPlayers()) {
+							if (Bukkit.getOfflinePlayer(id).hasPlayedBefore()
+									&& Bukkit.getOfflinePlayer(id).getName() != null) {
+								bannedString = "<dark_red>" + Bukkit.getOfflinePlayer(id).getName() + "<red>, ";
 							}
 						}
 						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
@@ -277,6 +404,10 @@ public class HellblockUserCommand {
 						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 								"<red>Trusted Members: <dark_red>" + (!trustedString.isEmpty()
 										? trustedString.substring(0, trustedString.length() - 2)
+										: "None"));
+						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
+								"<red>Banned Players: <dark_red>" + (!bannedString.isEmpty()
+										? bannedString.substring(0, bannedString.length() - 2)
 										: "None"));
 					}
 				});
@@ -369,6 +500,51 @@ public class HellblockUserCommand {
 							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 									"<red>Error setting your home location!");
 						}
+					}
+				});
+	}
+
+	public CommandAPICommand getHelpCommand() {
+		return new CommandAPICommand("help").withPermission(CommandPermission.NONE).withPermission("hellblock.user")
+				.withArguments(new IntegerArgument("page").replaceSuggestions(
+						ArgumentSuggestions.stringCollection(collection -> Arrays.asList("1", "2"))))
+				.executesPlayer((player, args) -> {
+					int page = (int) args.getOrDefault("page", 1);
+					HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
+							String.format("<dark_red>Hellblock Commands (Page %s):", page));
+					if (page == 1) {
+						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
+								"<red>/hellblock create: Create your island");
+						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
+								"<red>/hellblock reset: Reset your island");
+						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
+								"<red>/hellblock info: See information about your island");
+						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
+								"<red>/hellblock home: Teleport to your island home");
+						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
+								"<red>/hellblock sethome: Set the new home location of your island");
+						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
+								"<red>/hellblock lock/unlock: Change whether or not visitors can access your island");
+						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
+								"<red>/hellblock setbiome <biome>: Change the biome of your island");
+						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
+								"<red>/hellblock ban/unban <player>: Deny access to this player to your island");
+						;
+						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
+								"<red>/hellblock visit <player>: Visit another player's island");
+					} else {
+						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
+								"<red>/hellblock coop invite <player>: Invite another player to your island");
+						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
+								"<red>/hellblock coop kick <player>: Kick the player from your island");
+						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
+								"<red>/hellblock coop leave: Leave the island you're apart of");
+						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
+								"<red>/hellblock coop setowner <player>: Set the new owner of your island");
+						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
+								"<red>/hellblock coop trust <player>: Trust a player to your island without inviting them");
+						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
+								"<red>/hellblock coop untrust <player>: Untrusts a player from your island");
 					}
 				});
 	}

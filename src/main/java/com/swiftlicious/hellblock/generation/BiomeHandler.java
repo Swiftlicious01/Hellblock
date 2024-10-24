@@ -11,9 +11,6 @@ import org.bukkit.Location;
 import org.bukkit.block.Biome;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
-
-import com.comphenix.protocol.PacketType;
-import com.comphenix.protocol.events.PacketContainer;
 import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldedit.world.World;
 
@@ -24,6 +21,7 @@ import com.sk89q.worldguard.protection.regions.RegionContainer;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
+import com.swiftlicious.hellblock.utils.LocationUtils;
 import com.swiftlicious.hellblock.utils.LogUtils;
 
 import lombok.NonNull;
@@ -91,6 +89,10 @@ public class BiomeHandler {
 			}
 
 			if (instance.getHellblockHandler().isWorldguardProtect()) {
+				if (instance.getWorldGuardHandler().getWorldGuardPlatform() == null) {
+					LogUtils.severe("Could not retrieve WorldGuard platform.");
+					return;
+				}
 				RegionContainer container = instance.getWorldGuardHandler().getWorldGuardPlatform()
 						.getRegionContainer();
 				World world = BukkitAdapter.adapt(instance.getHellblockHandler().getHellblockWorld());
@@ -127,16 +129,21 @@ public class BiomeHandler {
 					return;
 				}
 
-				List<Location> locations = instance.getWorldGuardHandler().getRegionBlocks(player);
+				List<Location> locations = instance.getWorldGuardHandler().getRegionBlocks(player.getUniqueId());
 				locations.forEach(loc -> {
 					loc.getBlock().setBiome(Biome.valueOf(biome.toString().toUpperCase()));
-					instance.sendPacket(player,
-							getLightUpdateChunkPacket(player, (int) loc.getX(), (int) loc.getY(), (int) loc.getZ()));
+					loc.getBlock().getWorld().refreshChunk(loc.getBlockX(), loc.getBlockZ());
 				});
 
 				hbPlayer.setHellblockBiome(biome);
 				hbPlayer.setBiomeCooldown(forced ? 0L : Duration.ofDays(1).toHours());
 				hbPlayer.saveHellblockPlayer();
+				if (!LocationUtils.isSafeLocation(hbPlayer.getHomeLocation())) {
+					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+							"<red>This hellblock home location was deemed not safe, resetting to bedrock location!");
+					hbPlayer.setHome(HellblockPlugin.getInstance().getHellblockHandler().locateBedrock(player.getUniqueId()));
+					HellblockPlugin.getInstance().getCoopManager().updateParty(player.getUniqueId(), "home", hbPlayer.getHomeLocation());
+				}
 				player.teleportAsync(hbPlayer.getHomeLocation());
 				List<UUID> party = hbPlayer.getHellblockParty();
 				if (party != null && !party.isEmpty()) {
@@ -170,11 +177,5 @@ public class BiomeHandler {
 				// TODO: using plugin protection
 			}
 		}
-	}
-
-	public PacketContainer getLightUpdateChunkPacket(Player player, int x, int y, int z) {
-		PacketContainer lightUpdatePacket = new PacketContainer(PacketType.Play.Server.LIGHT_UPDATE);
-
-		return lightUpdatePacket;
 	}
 }

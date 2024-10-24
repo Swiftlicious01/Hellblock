@@ -31,6 +31,7 @@ public class HellblockPlayer {
 	private UUID hellblockOwner;
 	private List<UUID> hellblockParty;
 	private List<UUID> whoHasTrusted;
+	private List<UUID> bannedPlayers;
 	private Location hellblockLocation;
 	private Location homeLocation;
 	private long creationTime;
@@ -88,7 +89,7 @@ public class HellblockPlayer {
 			if (this.islandChoice == IslandOptions.SCHEMATIC) {
 				this.schematic = this.getHellblockPlayer().getString("player.island-choice.used-schematic");
 			}
-			this.lockedStatus = this.getHellblockPlayer().getBoolean("player.locked-island");
+			this.lockedStatus = this.getHellblockPlayer().getBoolean("player.locked-island", false);
 			this.hellblockLocation = this.deserializeLocation("player.hellblock");
 			this.homeLocation = this.deserializeLocation("player.home");
 			this.creationTime = this.getHellblockPlayer().getLong("player.creation-time", 0L);
@@ -120,6 +121,22 @@ public class HellblockPlayer {
 			} else {
 				this.hellblockParty = new ArrayList<>();
 			}
+			if (this.getHellblockPlayer().contains("player.banned-from-island")
+					&& !this.getHellblockPlayer().getStringList("player.banned-from-island").isEmpty()) {
+				for (String banned : this.getHellblockPlayer().getStringList("player.banned-from-island")) {
+					this.bannedPlayers = new ArrayList<>();
+					UUID uuid = null;
+					try {
+						uuid = UUID.fromString(banned);
+					} catch (IllegalArgumentException ignored) {
+						// ignored
+					}
+					if (uuid != null)
+						this.bannedPlayers.add(uuid);
+				}
+			} else {
+				this.bannedPlayers = new ArrayList<>();
+			}
 		} else {
 			this.hellblockID = -1;
 			this.hellblockBiome = null;
@@ -130,6 +147,7 @@ public class HellblockPlayer {
 			this.totalVisitors = 0;
 			this.homeLocation = null;
 			this.hellblockOwner = null;
+			this.bannedPlayers = new ArrayList<>();
 			this.hellblockParty = new ArrayList<>();
 		}
 	}
@@ -160,6 +178,10 @@ public class HellblockPlayer {
 
 	public List<UUID> getWhoTrusted() {
 		return this.whoHasTrusted;
+	}
+
+	public List<UUID> getBannedPlayers() {
+		return this.bannedPlayers;
 	}
 
 	public HellBiome getHellblockBiome() {
@@ -247,6 +269,20 @@ public class HellblockPlayer {
 		this.whoHasTrusted = trustedMembers;
 	}
 
+	public void banPlayer(UUID newMember) {
+		if (!this.bannedPlayers.contains(newMember))
+			this.bannedPlayers.add(newMember);
+	}
+
+	public void unbanPlayer(UUID oldMember) {
+		if (this.bannedPlayers.contains(oldMember))
+			this.bannedPlayers.remove(oldMember);
+	}
+
+	public void setBannedPlayers(List<UUID> trustedMembers) {
+		this.bannedPlayers = trustedMembers;
+	}
+
 	public void setHellblockBiome(HellBiome biome) {
 		this.hellblockBiome = biome;
 	}
@@ -331,6 +367,11 @@ public class HellblockPlayer {
 				List<String> partyString = this.hellblockParty.stream().filter(Objects::nonNull)
 						.map(uuid -> uuid.toString()).collect(Collectors.toList());
 				this.getHellblockPlayer().set("player.party", partyString);
+			}
+			if (!this.bannedPlayers.isEmpty()) {
+				List<String> bannedString = this.bannedPlayers.stream().filter(Objects::nonNull)
+						.map(uuid -> uuid.toString()).collect(Collectors.toList());
+				this.getHellblockPlayer().set("player.banned-from-island", bannedString);
 			}
 		}
 

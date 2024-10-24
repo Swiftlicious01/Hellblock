@@ -31,6 +31,7 @@ import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import com.sk89q.worldguard.protection.regions.RegionContainer;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
+import com.swiftlicious.hellblock.utils.LocationUtils;
 import com.swiftlicious.hellblock.utils.LogUtils;
 
 import lombok.Getter;
@@ -158,6 +159,12 @@ public class HellblockHandler {
 		pi.setHellblockOwner(player.getUniqueId());
 		pi.setHellblockParty(new ArrayList<>());
 
+		if (!LocationUtils.isSafeLocation(pi.getHomeLocation())) {
+			HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+					"<red>This hellblock home location was deemed not safe, resetting to bedrock location!");
+			pi.setHome(HellblockPlugin.getInstance().getHellblockHandler().locateBedrock(player.getUniqueId()));
+			HellblockPlugin.getInstance().getCoopManager().updateParty(player.getUniqueId(), "home", pi.getHomeLocation());
+		}
 		player.teleportAsync(pi.getHomeLocation());
 		instance.debug(String.format("Creating new hellblock for %s", player.getName()));
 		instance.getAdventureManager().sendMessageWithPrefix(player, "<red>Creating new hellblock!");
@@ -200,6 +207,7 @@ public class HellblockHandler {
 				pi.setUsedSchematic(null);
 				pi.setLockedStatus(false);
 				pi.setIslandChoice(null);
+				pi.setBannedPlayers(new ArrayList<>());
 				pi.setResetCooldown(!forceReset ? Duration.ofDays(1).toHours() : 0L);
 				List<UUID> visitors = instance.getCoopManager().getVisitors(id);
 				for (UUID uuid : visitors) {
@@ -268,6 +276,7 @@ public class HellblockHandler {
 							hbMember.setLockedStatus(false);
 							hbMember.setUsedSchematic(null);
 							hbMember.setHellblockParty(new ArrayList<>());
+							hbMember.setBannedPlayers(new ArrayList<>());
 							hbMember.saveHellblockPlayer();
 							member.performCommand(getNetherCMD());
 							if (!forceReset) {
@@ -297,6 +306,7 @@ public class HellblockHandler {
 							memberConfig.set("player.reset-cooldown", null);
 							memberConfig.set("player.biome-cooldown", null);
 							memberConfig.set("player.island-choice", null);
+							memberConfig.set("player.banned-from-island", null);
 							memberConfig.set("player.in-unsafe-island", true);
 							try {
 								memberConfig.save(memberFile);
@@ -352,6 +362,25 @@ public class HellblockHandler {
 			} while (id >= nextID);
 		}
 		return nextID;
+	}
+	
+	public Location locateBedrock(UUID id) {
+		if (isWorldguardProtect()) {
+			List<Location> blocks = instance.getWorldGuardHandler().getRegionBlocks(id);
+			Location bedrock = new Location(getHellblockWorld(), 0.0D, (getHeight() + 1), 0.0D);
+			for (Location location : blocks) {
+				if (location.getBlock().getType() != Material.BEDROCK)
+					continue;
+				
+				bedrock = location;
+				break;
+			}
+			bedrock = new Location(bedrock.getWorld(), bedrock.getX(), bedrock.getWorld().getHighestBlockYAt(bedrock), bedrock.getZ());
+			return bedrock;
+		} else {
+			return new Location(getHellblockWorld(), 0.0D, (getHeight() + 1), 0.0D);
+			// TODO: using plugin protection
+		}
 	}
 
 	public void reloadLastHellblock() {
@@ -492,6 +521,10 @@ public class HellblockHandler {
 
 	public boolean checkIfInSpawn(Location location) {
 		if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
+			if (instance.getWorldGuardHandler().getWorldGuardPlatform() == null) {
+				LogUtils.severe("Could not retrieve WorldGuard platform.");
+				return false;
+			}
 			RegionContainer container = instance.getWorldGuardHandler().getWorldGuardPlatform().getRegionContainer();
 			com.sk89q.worldedit.world.World world = BukkitAdapter
 					.adapt(instance.getHellblockHandler().getHellblockWorld());

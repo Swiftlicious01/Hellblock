@@ -73,6 +73,12 @@ public class PlayerListener implements Listener {
 
 			if (!LocationUtils.isSafeLocation(player.getLocation())) {
 				if (pi.hasHellblock() && pi.getHomeLocation() != null) {
+					if (!LocationUtils.isSafeLocation(pi.getHomeLocation())) {
+						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+								"<red>This hellblock home location was deemed not safe, resetting to bedrock location!");
+						pi.setHome(HellblockPlugin.getInstance().getHellblockHandler().locateBedrock(player.getUniqueId()));
+						HellblockPlugin.getInstance().getCoopManager().updateParty(player.getUniqueId(), "home", pi.getHomeLocation());
+					}
 					player.teleportAsync(pi.getHomeLocation());
 				} else {
 					player.performCommand(instance.getHellblockHandler().getNetherCMD());
@@ -82,6 +88,20 @@ public class PlayerListener implements Listener {
 			if (instance.getCoopManager().getHellblockOwnerOfVisitingIsland(player) != null) {
 				instance.getCoopManager()
 						.kickVisitorsIfLocked(instance.getCoopManager().getHellblockOwnerOfVisitingIsland(player));
+			}
+
+			if (instance.getCoopManager().trackBannedPlayer(id)) {
+				if (pi.hasHellblock()) {
+					if (!LocationUtils.isSafeLocation(pi.getHomeLocation())) {
+						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+								"<red>This hellblock home location was deemed not safe, resetting to bedrock location!");
+						pi.setHome(HellblockPlugin.getInstance().getHellblockHandler().locateBedrock(player.getUniqueId()));
+						HellblockPlugin.getInstance().getCoopManager().updateParty(player.getUniqueId(), "home", pi.getHomeLocation());
+					}
+					player.teleportAsync(pi.getHomeLocation());
+				} else {
+					player.performCommand(instance.getHellblockHandler().getNetherCMD());
+				}
 			}
 
 			// if raining give player a bit of protection
@@ -193,6 +213,12 @@ public class PlayerListener implements Listener {
 			HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(player);
 			CancellableTask portalTask = instance.getScheduler().runTaskSyncLater(() -> {
 				if (pi.hasHellblock()) {
+					if (!LocationUtils.isSafeLocation(pi.getHomeLocation())) {
+						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+								"<red>This hellblock home location was deemed not safe, resetting to bedrock location!");
+						pi.setHome(HellblockPlugin.getInstance().getHellblockHandler().locateBedrock(player.getUniqueId()));
+						HellblockPlugin.getInstance().getCoopManager().updateParty(player.getUniqueId(), "home", pi.getHomeLocation());
+					}
 					player.teleportAsync(pi.getHomeLocation());
 					// if raining give player a bit of protection
 					if (instance.getLavaRain().getLavaRainTask() != null

@@ -19,6 +19,7 @@ import com.swiftlicious.hellblock.creation.addons.enchant.AdvancedEnchantments;
 import com.swiftlicious.hellblock.creation.addons.level.JobsReborn;
 import com.swiftlicious.hellblock.creation.entity.MythicMobsEntity;
 import com.swiftlicious.hellblock.creation.item.MythicMobsItem;
+import com.swiftlicious.hellblock.events.worldguard.Entry;
 import com.swiftlicious.hellblock.utils.LogUtils;
 
 public class IntegrationManager implements IntegrationManagerInterface {
@@ -78,6 +79,16 @@ public class IntegrationManager implements IntegrationManagerInterface {
 			if (instance.getHellblockHandler().isWorldguardProtect()) {
 				Plugin worldGuard = Bukkit.getPluginManager().getPlugin("WorldGuard");
 				if (worldGuard != null && worldGuard instanceof WorldGuardPlugin) {
+					String version = WorldGuard.getVersion();
+					if (!version.startsWith("7.")) {
+						LogUtils.warn("WorldGuard version must be 7.0 or higher to be able to use it for Hellblock.");
+						return;
+					}
+					if (!WorldGuard.getInstance().getPlatform().getSessionManager().registerHandler(Entry.factory,
+							null)) {
+						LogUtils.warn("Could not register the WorldGuard handler for Hellblock.");
+						return;
+					}
 					instance.getWorldGuardHandler().setWorldGuardPlatform(WorldGuard.getInstance().getPlatform());
 					hookMessage("WorldGuard");
 				}

@@ -43,7 +43,7 @@ public class SchematicManager {
 		}
 
 		if ((worldEdit) && !WorldEditHook.isWorking()) {
-			LogUtils.warn("WorldEdit version doesn't support minecraft version, disabling WorldEdit integration.");
+			LogUtils.warn("WorldEdit version doesn't support this minecraft version, disabling WorldEdit integration.");
 		}
 		if ((fawe) && !FastAsyncWorldEditHook.isWorking()) {
 			LogUtils.warn(

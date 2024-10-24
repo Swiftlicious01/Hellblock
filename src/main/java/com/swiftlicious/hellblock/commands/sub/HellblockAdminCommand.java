@@ -10,6 +10,7 @@ import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
 import com.swiftlicious.hellblock.playerdata.UUIDFetcher;
+import com.swiftlicious.hellblock.utils.LocationUtils;
 
 import dev.jorel.commandapi.CommandAPICommand;
 import dev.jorel.commandapi.CommandPermission;
@@ -47,6 +48,13 @@ public class HellblockAdminCommand {
 					}
 
 					if (ti.hasHellblock()) {
+						if (!LocationUtils.isSafeLocation(ti.getHomeLocation())) {
+							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+									"<red>This hellblock home location was deemed not safe, resetting to bedrock location!");
+							ti.setHome(HellblockPlugin.getInstance().getHellblockHandler().locateBedrock(id));
+							HellblockPlugin.getInstance().getCoopManager().updateParty(player.getUniqueId(), "home",
+									ti.getHomeLocation());
+						}
 						player.teleportAsync(ti.getHomeLocation());
 						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 								String.format("<red>You have been teleported to <dark_red>%s<red>'s hellblock!", user));
@@ -105,8 +113,9 @@ public class HellblockAdminCommand {
 			World world = HellblockPlugin.getInstance().getHellblockHandler().getHellblockWorld();
 			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
 				com.sk89q.worldedit.world.World weWorld = BukkitAdapter.adapt(world);
-				if (HellblockPlugin.getInstance().getWorldGuardHandler().getWorldGuardPlatform().getRegionContainer()
-						.get(weWorld).hasRegion("Spawn")) {
+				if (HellblockPlugin.getInstance().getWorldGuardHandler().getWorldGuardPlatform() != null
+						&& HellblockPlugin.getInstance().getWorldGuardHandler().getWorldGuardPlatform()
+								.getRegionContainer().get(weWorld).hasRegion("Spawn")) {
 					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 							"<red>The spawn area has already been generated!");
 					return;

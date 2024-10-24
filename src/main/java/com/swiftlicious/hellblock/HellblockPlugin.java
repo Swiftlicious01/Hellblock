@@ -67,6 +67,7 @@ import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
 import com.swiftlicious.hellblock.scheduler.Scheduler;
 import com.swiftlicious.hellblock.schematic.SchematicManager;
 import com.swiftlicious.hellblock.utils.ConfigUtils;
+import com.swiftlicious.hellblock.utils.LocationUtils;
 import com.swiftlicious.hellblock.utils.LogUtils;
 import com.swiftlicious.hellblock.utils.NumberUtils;
 import com.swiftlicious.hellblock.utils.ParseUtils;
@@ -263,6 +264,19 @@ public class HellblockPlugin extends JavaPlugin {
 			HellblockPlayer pi = new HellblockPlayer(id);
 			getHellblockHandler().addActivePlayer(player, pi);
 			getNetherFarming().trackNetherFarms(pi);
+			if (getCoopManager().trackBannedPlayer(id)) {
+				if (pi.hasHellblock()) {
+					if (!LocationUtils.isSafeLocation(pi.getHomeLocation())) {
+						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+								"<red>This hellblock home location was deemed not safe, resetting to bedrock location!");
+						pi.setHome(HellblockPlugin.getInstance().getHellblockHandler().locateBedrock(player.getUniqueId()));
+						HellblockPlugin.getInstance().getCoopManager().updateParty(player.getUniqueId(), "home", pi.getHomeLocation());
+					}
+					player.teleportAsync(pi.getHomeLocation());
+				} else {
+					player.performCommand(getHellblockHandler().getNetherCMD());
+				}
+			}
 		}
 
 		getLavaRain().startLavaRainProcess();

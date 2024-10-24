@@ -11,6 +11,7 @@ import org.jetbrains.annotations.NotNull;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.gui.icon.BackGroundItem;
 import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
+import com.swiftlicious.hellblock.utils.LocationUtils;
 import com.swiftlicious.hellblock.utils.wrappers.ShadedAdventureComponentWrapper;
 
 import xyz.xenondevs.invui.gui.Gui;
@@ -198,6 +199,12 @@ public class HellblockMenu {
 						"<red>You don't have a hellblock!");
 			} else {
 				if (pi.getHomeLocation() != null) {
+					if (!LocationUtils.isSafeLocation(pi.getHomeLocation())) {
+						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+								"<red>This hellblock home location was deemed not safe, resetting to bedrock location!");
+						pi.setHome(HellblockPlugin.getInstance().getHellblockHandler().locateBedrock(player.getUniqueId()));
+						HellblockPlugin.getInstance().getCoopManager().updateParty(player.getUniqueId(), "home", pi.getHomeLocation());
+					}
 					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 							"<red>Teleporting you to your hellblock!");
 					player.teleportAsync(pi.getHomeLocation());
