@@ -204,7 +204,6 @@ public class HellblockPlugin extends JavaPlugin {
 		this.biomeHandler = new BiomeHandler(this);
 		this.islandChoiceConverter = new IslandChoiceConverter(this);
 		this.coopManager = new CoopManager(this);
-		this.schematicManager = new SchematicManager(this);
 
 		this.actionManager = new ActionManager(this);
 		this.adventureManager = new AdventureManager();
@@ -222,6 +221,7 @@ public class HellblockPlugin extends JavaPlugin {
 		this.integrationManager = new IntegrationManager(this);
 		this.hookManager = new HookManager(this);
 		this.chatCatcherManager = new ChatCatcherManager(this);
+		this.schematicManager = new SchematicManager(this);
 
 		this.netherBrewing = new NetherBrewing(this);
 		this.netherTools = new NetherTools(this);
