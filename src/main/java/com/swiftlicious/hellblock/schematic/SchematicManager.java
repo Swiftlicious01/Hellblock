@@ -33,10 +33,14 @@ public class SchematicManager {
 	public SchematicManager(HellblockPlugin plugin) {
 		instance = plugin;
 		availablePasters = new TreeMap<>();
-		if ((worldEdit) && WorldEditHook.isWorking())
+		if ((worldEdit) && WorldEditHook.isWorking()) {
 			availablePasters.put("worldedit", new WorldEditHook());
-		if ((fawe) && FastAsyncWorldEditHook.isWorking())
+			instance.getIntegrationManager().hookMessage("WorldEdit");
+		}
+		if ((fawe) && FastAsyncWorldEditHook.isWorking()) {
 			availablePasters.put("fawe", new FastAsyncWorldEditHook());
+			instance.getIntegrationManager().hookMessage("FastAsyncWorldEdit");
+		}
 
 		if ((worldEdit) && !WorldEditHook.isWorking()) {
 			LogUtils.warn("WorldEdit version doesn't support minecraft version, disabling WorldEdit integration.");
