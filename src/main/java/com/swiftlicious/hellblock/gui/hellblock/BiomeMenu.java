@@ -60,7 +60,7 @@ public class BiomeMenu {
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
 			HellblockPlayer hbPlayer = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(playerUUID);
-			HellblockPlugin.getInstance().getBiomeHandler().changeHellblockBiome(hbPlayer, HellBiome.SOUL_SAND_VALLEY);
+			HellblockPlugin.getInstance().getBiomeHandler().changeHellblockBiome(hbPlayer, HellBiome.SOUL_SAND_VALLEY, false);
 		}
 	}
 
@@ -86,7 +86,7 @@ public class BiomeMenu {
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
 			HellblockPlayer hbPlayer = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(playerUUID);
-			HellblockPlugin.getInstance().getBiomeHandler().changeHellblockBiome(hbPlayer, HellBiome.CRIMSON_FOREST);
+			HellblockPlugin.getInstance().getBiomeHandler().changeHellblockBiome(hbPlayer, HellBiome.CRIMSON_FOREST, false);
 		}
 	}
 
@@ -113,7 +113,7 @@ public class BiomeMenu {
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
 			HellblockPlayer hbPlayer = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(playerUUID);
-			HellblockPlugin.getInstance().getBiomeHandler().changeHellblockBiome(hbPlayer, HellBiome.WARPED_FOREST);
+			HellblockPlugin.getInstance().getBiomeHandler().changeHellblockBiome(hbPlayer, HellBiome.WARPED_FOREST, false);
 		}
 	}
 
@@ -139,7 +139,7 @@ public class BiomeMenu {
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
 			HellblockPlayer hbPlayer = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(playerUUID);
-			HellblockPlugin.getInstance().getBiomeHandler().changeHellblockBiome(hbPlayer, HellBiome.NETHER_WASTES);
+			HellblockPlugin.getInstance().getBiomeHandler().changeHellblockBiome(hbPlayer, HellBiome.NETHER_WASTES, false);
 		}
 	}
 
@@ -165,7 +165,7 @@ public class BiomeMenu {
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
 			HellblockPlayer hbPlayer = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(playerUUID);
-			HellblockPlugin.getInstance().getBiomeHandler().changeHellblockBiome(hbPlayer, HellBiome.BASALT_DELTAS);
+			HellblockPlugin.getInstance().getBiomeHandler().changeHellblockBiome(hbPlayer, HellBiome.BASALT_DELTAS, false);
 		}
 	}
 }

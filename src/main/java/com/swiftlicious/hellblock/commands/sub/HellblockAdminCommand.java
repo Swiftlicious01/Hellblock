@@ -34,6 +34,11 @@ public class HellblockAdminCommand {
 				.executesPlayer((player, args) -> {
 					String user = (String) args.getOrDefault("player", player);
 					UUID id = UUIDFetcher.getUUID(user);
+					if (id == null) {
+						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+								"<red>The player's hellblock you're trying to teleport to doesn't exist!");
+						return;
+					}
 					HellblockPlayer ti = null;
 					if (HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers().containsKey(id)) {
 						ti = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers().get(id);
@@ -63,6 +68,11 @@ public class HellblockAdminCommand {
 				.executesPlayer((player, args) -> {
 					String user = (String) args.getOrDefault("player", player);
 					UUID id = UUIDFetcher.getUUID(user);
+					if (id == null) {
+						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+								"<red>The player's hellblock you're trying to delete doesn't exist!");
+						return;
+					}
 					HellblockPlayer ti = null;
 					if (HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers().containsKey(id)) {
 						ti = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers().get(id);

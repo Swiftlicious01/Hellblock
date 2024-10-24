@@ -15,6 +15,7 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.Nullable;
 
+import com.google.common.io.Files;
 import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.world.World;
@@ -94,17 +95,22 @@ public class CoopManager {
 					}
 
 					party.add(player.getUniqueId());
-					playerToAdd.setHellblock(true, hbPlayer.getHellblockLocation());
+					playerToAdd.setHellblock(true, hbPlayer.getHellblockLocation(), hbPlayer.getID());
 					playerToAdd.setHome(hbPlayer.getHomeLocation());
 					playerToAdd.setHellblockParty(hbPlayer.getHellblockParty());
 					playerToAdd.addToHellblockParty(player.getUniqueId());
 					playerToAdd.setHellblockOwner(owner.getUniqueId());
 					playerToAdd.setHellblockBiome(hbPlayer.getHellblockBiome());
 					playerToAdd.setLockedStatus(hbPlayer.getLockedStatus());
+					playerToAdd.setCreationTime(hbPlayer.getCreation());
+					playerToAdd.setTotalVisits(hbPlayer.getTotalVisitors());
 					playerToAdd.setBiomeCooldown(hbPlayer.getBiomeCooldown());
 					playerToAdd.setResetCooldown(hbPlayer.getResetCooldown());
 					playerToAdd.setIslandChoice(hbPlayer.getIslandChoice());
 					playerToAdd.setUsedSchematic(hbPlayer.getUsedSchematic());
+					if (playerToAdd.getWhoTrusted().contains(owner.getUniqueId())) {
+						playerToAdd.removeTrustPermission(owner.getUniqueId());
+					}
 					player.teleportAsync(hbPlayer.getHomeLocation());
 					// if raining give player a bit of protection
 					if (instance.getLavaRain().getLavaRainTask() != null
@@ -114,6 +120,40 @@ public class CoopManager {
 						player.setNoDamageTicks(5 * 20);
 					}
 					hbPlayer.addToHellblockParty(player.getUniqueId());
+					for (HellblockPlayer active : instance.getHellblockHandler().getActivePlayers().values()) {
+						if (active == null || active.getPlayer() == null)
+							continue;
+						if (active.getHellblockOwner().equals(playerToAdd.getHellblockOwner())) {
+							active.addToHellblockParty(player.getUniqueId());
+						}
+						active.saveHellblockPlayer();
+					}
+					for (File offline : instance.getHellblockHandler().getPlayersDirectory().listFiles()) {
+						if (!offline.isFile() || !offline.getName().endsWith(".yml"))
+							continue;
+						String uuid = Files.getNameWithoutExtension(offline.getName());
+						UUID id = null;
+						try {
+							id = UUID.fromString(uuid);
+						} catch (IllegalArgumentException ignored) {
+							// ignored
+							continue;
+						}
+						if (id != null && instance.getHellblockHandler().getActivePlayers().keySet().contains(id))
+							continue;
+						YamlConfiguration offlineFile = YamlConfiguration.loadConfiguration(offline);
+						if (offlineFile.getString("player.owner").equals(playerToAdd.getHellblockOwner().toString())) {
+							List<String> offlineParty = offlineFile.getStringList("player.party");
+							offlineParty.add(player.getUniqueId().toString());
+							offlineFile.set("player.party", offlineParty);
+						}
+						try {
+							offlineFile.save(offline);
+						} catch (IOException ex) {
+							LogUtils.warn(String.format("Could not save the offline data file for %s", uuid), ex);
+							continue;
+						}
+					}
 					playerToAdd.saveHellblockPlayer();
 					hbPlayer.saveHellblockPlayer();
 					instance.getAdventureManager().sendMessageWithPrefix(owner,
@@ -131,76 +171,116 @@ public class CoopManager {
 		}
 	}
 
-	public void removeMemberFromHellblock(@NonNull HellblockPlayer hbPlayer, @NonNull HellblockPlayer playerToRemove) {
+	public void removeMemberFromHellblock(@NonNull HellblockPlayer hbPlayer, @NonNull String input, @NonNull UUID id) {
 		Player owner = hbPlayer.getPlayer();
-		Player player = playerToRemove.getPlayer();
 		if (owner != null) {
-			if (player != null) {
-				if (!hbPlayer.hasHellblock()) {
+			if (!hbPlayer.hasHellblock()) {
+				instance.getAdventureManager().sendMessageWithPrefix(owner,
+						"<red>You don't have a hellblock island! Create one with /hellblock create");
+				return;
+			}
+			HellblockPlayer ti = null;
+			if (HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers().containsKey(id)) {
+				ti = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers().get(id);
+			} else {
+				ti = new HellblockPlayer(id);
+			}
+
+			if (owner.getUniqueId().equals(ti.getHellblockOwner())) {
+				instance.getAdventureManager().sendMessageWithPrefix(owner,
+						"<red>You cannot kick yourself from your own island!");
+				return;
+			}
+			if (!ti.hasHellblock()) {
+				instance.getAdventureManager().sendMessageWithPrefix(owner,
+						"<red>This player is not a part of your hellblock party!");
+				return;
+			}
+
+			if (instance.getHellblockHandler().isWorldguardProtect()) {
+				RegionContainer container = instance.getWorldGuardHandler().getWorldGuardPlatform()
+						.getRegionContainer();
+				World world = BukkitAdapter.adapt(instance.getHellblockHandler().getHellblockWorld());
+				RegionManager regions = container.get(world);
+				if (regions == null) {
+					LogUtils.severe(String.format("Could not load WorldGuard regions for hellblock world: %s",
+							world.getName()));
+					return;
+				}
+				ProtectedRegion region = regions.getRegion(owner.getName() + "Hellblock");
+				if (region == null) {
 					instance.getAdventureManager().sendMessageWithPrefix(owner,
 							"<red>You don't have a hellblock island! Create one with /hellblock create");
 					return;
 				}
-				if (owner.getUniqueId().equals(player.getUniqueId())) {
+				Set<UUID> party = region.getMembers().getUniqueIds();
+				if (!party.contains(id)) {
 					instance.getAdventureManager().sendMessageWithPrefix(owner,
-							"<red>You cannot kick yourself from your own island!");
-					return;
-				}
-				if (!playerToRemove.hasHellblock()) {
-					instance.getAdventureManager().sendMessageWithPrefix(owner,
-							"<red>This player is not a part of your hellblock party!");
+							"<red>" + input + " is not a part of your hellblock party!");
 					return;
 				}
 
-				if (instance.getHellblockHandler().isWorldguardProtect()) {
-					RegionContainer container = instance.getWorldGuardHandler().getWorldGuardPlatform()
-							.getRegionContainer();
-					World world = BukkitAdapter.adapt(instance.getHellblockHandler().getHellblockWorld());
-					RegionManager regions = container.get(world);
-					if (regions == null) {
-						LogUtils.severe(String.format("Could not load WorldGuard regions for hellblock world: %s",
-								world.getName()));
-						return;
+				party.remove(id);
+				ti.setHellblock(false, null, -1);
+				ti.setHellblockParty(new ArrayList<>());
+				ti.setHome(null);
+				ti.setTotalVisits(0);
+				ti.setCreationTime(0L);
+				ti.setHellblockBiome(null);
+				ti.setLockedStatus(false);
+				ti.setBiomeCooldown(0L);
+				ti.setBiomeCooldown(0L);
+				ti.setIslandChoice(null);
+				ti.setUsedSchematic(null);
+				hbPlayer.kickFromHellblockParty(id);
+				for (HellblockPlayer active : instance.getHellblockHandler().getActivePlayers().values()) {
+					if (active == null || active.getPlayer() == null)
+						continue;
+					if (active.getHellblockOwner().equals(ti.getHellblockOwner())) {
+						active.kickFromHellblockParty(id);
 					}
-					ProtectedRegion region = regions.getRegion(owner.getName() + "Hellblock");
-					if (region == null) {
-						instance.getAdventureManager().sendMessageWithPrefix(owner,
-								"<red>You don't have a hellblock island! Create one with /hellblock create");
-						return;
+					active.saveHellblockPlayer();
+				}
+				for (File offline : instance.getHellblockHandler().getPlayersDirectory().listFiles()) {
+					if (!offline.isFile() || !offline.getName().endsWith(".yml"))
+						continue;
+					String uuid = Files.getNameWithoutExtension(offline.getName());
+					UUID offlineID = null;
+					try {
+						offlineID = UUID.fromString(uuid);
+					} catch (IllegalArgumentException ignored) {
+						// ignored
+						continue;
 					}
-					Set<UUID> party = region.getMembers().getUniqueIds();
-					if (!party.contains(player.getUniqueId())) {
-						instance.getAdventureManager().sendMessageWithPrefix(owner,
-								"<red>" + player.getName() + " is not a part of your hellblock party!");
-						return;
+					if (offlineID != null
+							&& instance.getHellblockHandler().getActivePlayers().keySet().contains(offlineID))
+						continue;
+					YamlConfiguration offlineFile = YamlConfiguration.loadConfiguration(offline);
+					if (offlineFile.getString("player.owner").equals(ti.getHellblockOwner().toString())) {
+						List<String> offlineParty = offlineFile.getStringList("player.party");
+						offlineParty.remove(id.toString());
+						offlineFile.set("player.party", offlineParty);
 					}
-
-					party.remove(player.getUniqueId());
-					playerToRemove.setHellblock(false, null);
-					playerToRemove.setHellblockParty(new ArrayList<>());
-					playerToRemove.setHome(null);
-					playerToRemove.setHellblockBiome(null);
-					playerToRemove.setLockedStatus(false);
-					playerToRemove.setBiomeCooldown(0L);
-					playerToRemove.setBiomeCooldown(0L);
-					playerToRemove.setHellblockOwner(null);
-					playerToRemove.setIslandChoice(null);
-					playerToRemove.setUsedSchematic(null);
-					hbPlayer.kickFromHellblockParty(player.getUniqueId());
+					try {
+						offlineFile.save(offline);
+					} catch (IOException ex) {
+						LogUtils.warn(String.format("Could not save the offline data file for %s", uuid), ex);
+						continue;
+					}
+				}
+				ti.setHellblockOwner(null);
+				ti.saveHellblockPlayer();
+				hbPlayer.saveHellblockPlayer();
+				instance.getAdventureManager().sendMessageWithPrefix(owner,
+						"<red>" + input + " has been kicked to your hellblock party!");
+				Player player = Bukkit.getPlayer(id);
+				if (player != null) {
 					player.performCommand(instance.getHellblockHandler().getNetherCMD());
-					playerToRemove.saveHellblockPlayer();
-					hbPlayer.saveHellblockPlayer();
-					instance.getAdventureManager().sendMessageWithPrefix(owner,
-							"<red>" + player.getName() + " has been kicked to your hellblock party!");
 					instance.getAdventureManager().sendMessageWithPrefix(player,
 							"<red>You have been removed from " + owner.getName() + "'s hellblock!");
-				} else {
-					// TODO: using plugin protection
 				}
 			} else {
-				instance.getAdventureManager().sendMessageWithPrefix(owner,
-						"<red>The player you are trying to kick isn't online!");
-				return;
+				// TODO: using plugin protection
 			}
 		}
 	}
@@ -256,22 +336,24 @@ public class CoopManager {
 				}
 
 				party.remove(player.getUniqueId());
-				leavingPlayer.setHellblock(false, null);
+				leavingPlayer.setHellblock(false, null, -1);
 				leavingPlayer.setHome(null);
-				leavingPlayer.setHellblockOwner(null);
 				leavingPlayer.setHellblockBiome(null);
 				leavingPlayer.setLockedStatus(false);
+				leavingPlayer.setTotalVisits(0);
+				leavingPlayer.setCreationTime(0L);
 				leavingPlayer.setBiomeCooldown(0L);
 				leavingPlayer.setBiomeCooldown(0L);
 				leavingPlayer.setIslandChoice(null);
 				leavingPlayer.setUsedSchematic(null);
 				leavingPlayer.setHellblockParty(new ArrayList<>());
 				player.performCommand(instance.getHellblockHandler().getNetherCMD());
-				leavingPlayer.saveHellblockPlayer();
 				if (owner != null && owner.isOnline()) {
 					HellblockPlayer ownerPlayer = instance.getHellblockHandler()
 							.getActivePlayer(leavingPlayer.getHellblockOwner());
-					ownerPlayer.kickFromHellblockParty(player.getUniqueId());
+					if (ownerPlayer.getHellblockParty().contains(player.getUniqueId())) {
+						ownerPlayer.kickFromHellblockParty(player.getUniqueId());
+					}
 					ownerPlayer.saveHellblockPlayer();
 				} else {
 					File ownerFile = new File(HellblockPlugin.getInstance().getHellblockHandler().getPlayersDirectory()
@@ -282,6 +364,11 @@ public class CoopManager {
 						partyList.remove(player.getUniqueId().toString());
 					}
 					ownerConfig.set("player.party", partyList);
+					List<String> trustedList = ownerConfig.getStringList("player.trusted");
+					if (trustedList.contains(player.getUniqueId().toString())) {
+						trustedList.remove(player.getUniqueId().toString());
+					}
+					ownerConfig.set("player.trusted", trustedList);
 					try {
 						ownerConfig.save(ownerFile);
 					} catch (IOException ex) {
@@ -290,6 +377,42 @@ public class CoopManager {
 								ex);
 					}
 				}
+				for (HellblockPlayer active : instance.getHellblockHandler().getActivePlayers().values()) {
+					if (active == null || active.getPlayer() == null)
+						continue;
+					if (active.getHellblockOwner().equals(leavingPlayer.getHellblockOwner())) {
+						active.kickFromHellblockParty(player.getUniqueId());
+					}
+					active.saveHellblockPlayer();
+				}
+				for (File offline : instance.getHellblockHandler().getPlayersDirectory().listFiles()) {
+					if (!offline.isFile() || !offline.getName().endsWith(".yml"))
+						continue;
+					String uuid = Files.getNameWithoutExtension(offline.getName());
+					UUID id = null;
+					try {
+						id = UUID.fromString(uuid);
+					} catch (IllegalArgumentException ignored) {
+						// ignored
+						continue;
+					}
+					if (id != null && instance.getHellblockHandler().getActivePlayers().keySet().contains(id))
+						continue;
+					YamlConfiguration offlineFile = YamlConfiguration.loadConfiguration(offline);
+					if (offlineFile.getString("player.owner").equals(leavingPlayer.getHellblockOwner().toString())) {
+						List<String> offlineParty = offlineFile.getStringList("player.party");
+						offlineParty.remove(player.getUniqueId().toString());
+						offlineFile.set("player.party", offlineParty);
+					}
+					try {
+						offlineFile.save(offline);
+					} catch (IOException ex) {
+						LogUtils.warn(String.format("Could not save the offline data file for %s", uuid), ex);
+						continue;
+					}
+				}
+				leavingPlayer.setHellblockOwner(null);
+				leavingPlayer.saveHellblockPlayer();
 				instance.getAdventureManager().sendMessageWithPrefix(player,
 						"<red>You have left your hellblock party with "
 								+ (owner.getName() != null ? owner.getName() : "Unknown"));
@@ -371,6 +494,43 @@ public class CoopManager {
 					playerToTransfer.setHellblockOwner(player.getUniqueId());
 					playerToTransfer.kickFromHellblockParty(player.getUniqueId());
 					hbPlayer.addToHellblockParty(owner.getUniqueId());
+					for (HellblockPlayer active : instance.getHellblockHandler().getActivePlayers().values()) {
+						if (active == null || active.getPlayer() == null)
+							continue;
+						if (active.getHellblockOwner().equals(owner.getUniqueId())) {
+							active.setHellblockOwner(playerToTransfer.getHellblockOwner());
+							active.setHellblockParty(playerToTransfer.getHellblockParty());
+						}
+						active.saveHellblockPlayer();
+					}
+					for (File offline : instance.getHellblockHandler().getPlayersDirectory().listFiles()) {
+						if (!offline.isFile() || !offline.getName().endsWith(".yml"))
+							continue;
+						String uuid = Files.getNameWithoutExtension(offline.getName());
+						UUID id = null;
+						try {
+							id = UUID.fromString(uuid);
+						} catch (IllegalArgumentException ignored) {
+							// ignored
+							continue;
+						}
+						if (id != null && instance.getHellblockHandler().getActivePlayers().keySet().contains(id))
+							continue;
+						YamlConfiguration offlineFile = YamlConfiguration.loadConfiguration(offline);
+						if (offlineFile.getString("player.owner").equals(owner.getUniqueId().toString())) {
+							List<String> offlineParty = offlineFile.getStringList("player.party");
+							offlineParty.remove(player.getUniqueId().toString());
+							offlineParty.add(owner.getUniqueId().toString());
+							offlineFile.set("player.party", offlineParty);
+							offlineFile.set("player.owner", player.getUniqueId().toString());
+						}
+						try {
+							offlineFile.save(offline);
+						} catch (IOException ex) {
+							LogUtils.warn(String.format("Could not save the offline data file for %s", uuid), ex);
+							continue;
+						}
+					}
 					playerToTransfer.saveHellblockPlayer();
 					hbPlayer.saveHellblockPlayer();
 					instance.getAdventureManager().sendMessageWithPrefix(owner,
@@ -467,7 +627,7 @@ public class CoopManager {
 			Iterator<UUID> uuids = owners.iterator();
 			do {
 				if (!uuids.hasNext()) {
-					break;
+					return null;
 				}
 				ownerUUID = uuids.next();
 				break;
@@ -479,7 +639,13 @@ public class CoopManager {
 		}
 	}
 
-	public boolean checkIfVisitorIsIslandMember(@NonNull Player player, @NonNull UUID id) {
+	public boolean checkIfVisitorIsWelcome(@NonNull Player player, @NonNull UUID id) {
+		HellblockPlayer pi = null;
+		if (instance.getHellblockHandler().getActivePlayers().get(id) != null) {
+			pi = instance.getHellblockHandler().getActivePlayers().get(id);
+		} else {
+			pi = new HellblockPlayer(id);
+		}
 		if (instance.getHellblockHandler().isWorldguardProtect()) {
 			RegionContainer container = instance.getWorldGuardHandler().getWorldGuardPlatform().getRegionContainer();
 			World world = BukkitAdapter.adapt(instance.getHellblockHandler().getHellblockWorld());
@@ -502,6 +668,7 @@ public class CoopManager {
 			Set<UUID> owners = region.getOwners().getUniqueIds();
 			Set<UUID> members = region.getMembers().getUniqueIds();
 			return (owners.contains(player.getUniqueId()) || members.contains(player.getUniqueId())
+					|| pi.getWhoTrusted().contains(player.getUniqueId())
 					|| player.hasPermission("hellblock.bypass.lock") || player.hasPermission("hellblock.admin")
 					|| player.isOp());
 		} else {
@@ -539,7 +706,7 @@ public class CoopManager {
 					for (UUID visitor : visitors) {
 						HellblockPlayer vi = instance.getHellblockHandler().getActivePlayer(visitor);
 						if (vi.getPlayer() != null) {
-							if (!checkIfVisitorIsIslandMember(vi.getPlayer(), id)) {
+							if (!checkIfVisitorIsWelcome(vi.getPlayer(), id)) {
 								if (vi.hasHellblock()) {
 									vi.getPlayer().teleportAsync(vi.getHomeLocation());
 								} else {
@@ -554,6 +721,70 @@ public class CoopManager {
 			} else {
 				// TODO: using plugin protection
 			}
+		}
+	}
+
+	public boolean addTrustAccess(@NonNull HellblockPlayer hbPlayer, @NonNull String input, @NonNull UUID id) {
+		if (hbPlayer.getPlayer() == null || !hbPlayer.getPlayer().isOnline()) {
+			LogUtils.severe("Player object returned null, please report this to the developer.");
+			return false;
+		}
+		if (instance.getHellblockHandler().isWorldguardProtect()) {
+			RegionContainer container = instance.getWorldGuardHandler().getWorldGuardPlatform().getRegionContainer();
+			World world = BukkitAdapter.adapt(instance.getHellblockHandler().getHellblockWorld());
+			RegionManager regions = container.get(world);
+			if (regions == null) {
+				LogUtils.severe(
+						String.format("Could not load WorldGuard regions for hellblock world: %s", world.getName()));
+				return false;
+			}
+			ProtectedRegion region = regions.getRegion(String.format("%sHellblock", hbPlayer.getPlayer().getName()));
+			if (region == null) {
+				return false;
+			}
+			Set<UUID> trusted = region.getMembers().getUniqueIds();
+			if (trusted.contains(id)) {
+				instance.getAdventureManager().sendMessageWithPrefix(hbPlayer.getPlayer(),
+						"<red>" + input + " is already trusted on your hellblock!");
+				return false;
+			}
+
+			return trusted.add(id);
+		} else {
+			// TODO: using plugin protection
+			return false;
+		}
+	}
+
+	public boolean removeTrustAccess(@NonNull HellblockPlayer hbPlayer, @NonNull String input, @NonNull UUID id) {
+		if (hbPlayer.getPlayer() == null || !hbPlayer.getPlayer().isOnline()) {
+			LogUtils.severe("Player object returned null, please report this to the developer.");
+			return false;
+		}
+		if (instance.getHellblockHandler().isWorldguardProtect()) {
+			RegionContainer container = instance.getWorldGuardHandler().getWorldGuardPlatform().getRegionContainer();
+			World world = BukkitAdapter.adapt(instance.getHellblockHandler().getHellblockWorld());
+			RegionManager regions = container.get(world);
+			if (regions == null) {
+				LogUtils.severe(
+						String.format("Could not load WorldGuard regions for hellblock world: %s", world.getName()));
+				return false;
+			}
+			ProtectedRegion region = regions.getRegion(String.format("%sHellblock", hbPlayer.getPlayer().getName()));
+			if (region == null) {
+				return false;
+			}
+			Set<UUID> trusted = region.getMembers().getUniqueIds();
+			if (!trusted.contains(id)) {
+				instance.getAdventureManager().sendMessageWithPrefix(hbPlayer.getPlayer(),
+						"<red>" + input + " isn't trusted on your hellblock!");
+				return false;
+			}
+
+			return trusted.remove(id);
+		} else {
+			// TODO: using plugin protection
+			return false;
 		}
 	}
 }

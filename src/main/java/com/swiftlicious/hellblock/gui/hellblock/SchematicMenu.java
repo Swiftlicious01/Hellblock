@@ -37,6 +37,8 @@ public class SchematicMenu {
 				if (file.isFile()
 						&& HellblockPlugin.getInstance().getHellblockHandler().getIslandOptions()
 								.contains(Files.getNameWithoutExtension(file.getName()))
+						&& (player.hasPermission("hellblock.schematic.*") || player
+								.hasPermission("hellblock.schematic." + Files.getNameWithoutExtension(file.getName())))
 						&& (file.getName().endsWith(".schematic") || file.getName().endsWith(".schem"))) {
 					items.addFirst(new SchematicItem(file));
 				}
@@ -75,24 +77,32 @@ public class SchematicMenu {
 							new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 									.getComponentFromMiniMessage(String.format("<yellow>%s",
 											Files.getNameWithoutExtension(file.getName())))))
-					.addLoreLines(
-							new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
-									.getComponentFromMiniMessage(String.format(
-											"<gold>Click to generate your hellblock island as the %s schematic!",
-											Files.getNameWithoutExtension(file.getName())))));
+					.addLoreLines(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
+							.getAdventureManager()
+							.getComponentFromMiniMessage(String.format(
+									"<gold>Click to generate your hellblock island as the <yellow>%s <gold>schematic!",
+									Files.getNameWithoutExtension(file.getName())))));
 		}
 
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			if (HellblockPlugin.getInstance().getHellblockHandler().getIslandOptions()
-					.contains(Files.getNameWithoutExtension(file.getName()))) {
-				HellblockPlugin.getInstance().getHellblockHandler().createHellblock(player, IslandOptions.SCHEMATIC,
-						Files.getNameWithoutExtension(file.getName()));
-				event.getInventory().close();
+			if (player.hasPermission("hellblock.schematic.*")
+					|| player.hasPermission("hellblock.schematic." + Files.getNameWithoutExtension(file.getName()))) {
+				if (HellblockPlugin.getInstance().getHellblockHandler().getIslandOptions()
+						.contains(Files.getNameWithoutExtension(file.getName()))) {
+					HellblockPlugin.getInstance().getHellblockHandler().createHellblock(player, IslandOptions.SCHEMATIC,
+							Files.getNameWithoutExtension(file.getName()));
+					player.closeInventory();
+				} else {
+					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player, String.format(
+							"<red>The schematic <dark_red>%s <red>hellblock island type is not available to generate!",
+							Files.getNameWithoutExtension(file.getName())));
+				}
 			} else {
 				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-						String.format("<red>The schematic %s hellblock island type is not available to generate!",
+						String.format(
+								"<red>You don't have permission to generate the hellblock schematic <dark_red>%s<red>!",
 								Files.getNameWithoutExtension(file.getName())));
 			}
 		}

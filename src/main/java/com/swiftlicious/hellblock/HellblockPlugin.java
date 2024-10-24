@@ -65,6 +65,7 @@ import com.swiftlicious.hellblock.loot.LootManager;
 import com.swiftlicious.hellblock.placeholders.PlaceholderManager;
 import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
 import com.swiftlicious.hellblock.scheduler.Scheduler;
+import com.swiftlicious.hellblock.schematic.SchematicManager;
 import com.swiftlicious.hellblock.utils.ConfigUtils;
 import com.swiftlicious.hellblock.utils.LogUtils;
 import com.swiftlicious.hellblock.utils.NumberUtils;
@@ -101,6 +102,7 @@ public class HellblockPlugin extends JavaPlugin {
 	protected BiomeHandler biomeHandler;
 	protected IslandChoiceConverter islandChoiceConverter;
 	protected CoopManager coopManager;
+	protected SchematicManager schematicManager;
 
 	protected ConfigUtils configUtils;
 	protected WeightUtils weightUtils;
@@ -201,6 +203,7 @@ public class HellblockPlugin extends JavaPlugin {
 		this.biomeHandler = new BiomeHandler(this);
 		this.islandChoiceConverter = new IslandChoiceConverter(this);
 		this.coopManager = new CoopManager(this);
+		this.schematicManager = new SchematicManager(this);
 
 		this.actionManager = new ActionManager(this);
 		this.adventureManager = new AdventureManager();
@@ -373,6 +376,7 @@ public class HellblockPlugin extends JavaPlugin {
 		this.commandManager.load();
 		this.chatCatcherManager.unload();
 		this.chatCatcherManager.load();
+		this.schematicManager.reload();
 
 		LavaFishingReloadEvent event = new LavaFishingReloadEvent(this);
 		Bukkit.getPluginManager().callEvent(event);

@@ -25,7 +25,10 @@ import org.bukkit.generator.ChunkGenerator;
 
 import com.google.common.io.Files;
 import com.onarandombox.MultiverseCore.api.MVWorldManager;
-
+import com.sk89q.worldedit.bukkit.BukkitAdapter;
+import com.sk89q.worldguard.protection.managers.RegionManager;
+import com.sk89q.worldguard.protection.regions.ProtectedRegion;
+import com.sk89q.worldguard.protection.regions.RegionContainer;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
 import com.swiftlicious.hellblock.utils.LogUtils;
@@ -43,6 +46,7 @@ public class HellblockHandler {
 	public String worldName;
 	public int spawnSize;
 	public String netherCMD;
+	public String paster;
 	public int height;
 	public int distance;
 	public List<String> islandOptions;
@@ -65,6 +69,7 @@ public class HellblockHandler {
 		this.worldName = instance.getConfig("config.yml").getString("general.world", "hellworld");
 		this.spawnSize = instance.getConfig("config.yml").getInt("general.spawnSize", 50);
 		this.netherCMD = instance.getConfig("config.yml").getString("general.netherCMD", "/spawn");
+		this.paster = instance.getConfig("config.yml").getString("hellblock.schematic-paster", "worldedit");
 		this.chestItems = instance.getConfig("config.yml").getStringList("hellblock.starter-chest");
 		this.height = instance.getConfig("config.yml").getInt("hellblock.height", 150);
 		this.islandOptions = instance.getConfig("config.yml").getStringList("hellblock.island-options");
@@ -86,7 +91,7 @@ public class HellblockHandler {
 	public void startCountdowns() {
 		HellblockPlugin.getInstance().getScheduler().runTaskAsyncTimer(() -> {
 			for (HellblockPlayer active : getActivePlayers().values()) {
-				if (active == null)
+				if (active == null || active.getPlayer() == null)
 					continue;
 				if (active.getResetCooldown() > 0) {
 					active.setResetCooldown(active.getResetCooldown() - 1);
@@ -97,7 +102,7 @@ public class HellblockHandler {
 				active.saveHellblockPlayer();
 			}
 			for (File offline : this.getPlayersDirectory().listFiles()) {
-				if (!offline.isFile())
+				if (!offline.isFile() || !offline.getName().endsWith(".yml"))
 					continue;
 				String uuid = Files.getNameWithoutExtension(offline.getName());
 				UUID id = null;
@@ -130,13 +135,13 @@ public class HellblockHandler {
 		HellblockPlayer pi = this.getActivePlayer(player);
 		Location last = this.getLastHellblock();
 
-		Location next;
-		for (next = this.nextHellblockLocation(last); this
-				.hellblockInSpawn(next); next = this.nextHellblockLocation(next)) {
-		}
+		Location next = this.nextHellblockLocation(last);
+		do {
+			next = this.nextHellblockLocation(next);
+		} while (this.hellblockInSpawn(next));
 		this.setLastHellblock(next);
 
-		pi.setHellblock(true, next);
+		pi.setHellblock(true, next, nextHellblockID());
 		pi.setIslandChoice(islandChoice);
 		if (islandChoice == IslandOptions.SCHEMATIC && schematic != null && !schematic.isEmpty()) {
 			pi.setUsedSchematic(schematic);
@@ -152,11 +157,12 @@ public class HellblockHandler {
 		pi.setLockedStatus(false);
 		pi.setHellblockOwner(player.getUniqueId());
 		pi.setHellblockParty(new ArrayList<>());
-		instance.getBiomeHandler().changeHellblockBiome(pi, pi.getHellblockBiome());
 
 		player.teleportAsync(pi.getHomeLocation());
 		instance.debug(String.format("Creating new hellblock for %s", player.getName()));
 		instance.getAdventureManager().sendMessageWithPrefix(player, "<red>Creating new hellblock!");
+		instance.getBiomeHandler().changeHellblockBiome(pi, pi.getHellblockBiome(), true);
+		pi.setCreationTime(System.currentTimeMillis());
 		pi.saveHellblockPlayer();
 
 		// if raining give player a bit of protection
@@ -178,16 +184,17 @@ public class HellblockHandler {
 		} else {
 			pi = new HellblockPlayer(id);
 		}
-		int z_operate;
 		Location loc = pi.getHellblockLocation();
 		double y = loc.getY();
-		z_operate = (int) loc.getX() - getDistance();
+		int z_operate = (int) loc.getX() - getDistance();
 
 		while (true) {
 			if (z_operate > (int) loc.getX() + getDistance()) {
 				instance.getWorldGuardHandler().unprotectHellblock(id, forceReset);
-				pi.setHellblock(false, null);
+				pi.setHellblock(false, null, -1);
 				pi.setHellblockOwner(null);
+				pi.setTotalVisits(0);
+				pi.setCreationTime(0L);
 				pi.setHellblockBiome(null);
 				pi.setBiomeCooldown(0L);
 				pi.setUsedSchematic(null);
@@ -210,15 +217,51 @@ public class HellblockHandler {
 						}
 					}
 				}
+				for (HellblockPlayer active : getActivePlayers().values()) {
+					if (active == null || active.getPlayer() == null)
+						continue;
+					if (active.getWhoTrusted().contains(id)) {
+						active.removeTrustPermission(id);
+					}
+					active.saveHellblockPlayer();
+				}
+				for (File offline : this.getPlayersDirectory().listFiles()) {
+					if (!offline.isFile() || !offline.getName().endsWith(".yml"))
+						continue;
+					String uuid = Files.getNameWithoutExtension(offline.getName());
+					UUID offlineID = null;
+					try {
+						offlineID = UUID.fromString(uuid);
+					} catch (IllegalArgumentException ignored) {
+						// ignored
+						continue;
+					}
+					if (offlineID != null && getActivePlayers().keySet().contains(offlineID))
+						continue;
+					YamlConfiguration offlineFile = YamlConfiguration.loadConfiguration(offline);
+					if (offlineFile.getStringList("player.trusted-on-islands").contains(id.toString())) {
+						List<String> trusted = offlineFile.getStringList("player.trusted-on-islands");
+						trusted.remove(id.toString());
+						offlineFile.set("player.trusted-on-islands", trusted);
+					}
+					try {
+						offlineFile.save(offline);
+					} catch (IOException ex) {
+						LogUtils.warn(String.format("Could not save the offline data file for %s", uuid), ex);
+						continue;
+					}
+				}
 				List<UUID> party = pi.getHellblockParty();
 				if (party != null && !party.isEmpty()) {
 					for (UUID uuid : party) {
 						Player member = Bukkit.getPlayer(uuid);
 						if (member != null && member.isOnline()) {
 							HellblockPlayer hbMember = getActivePlayer(member);
-							hbMember.setHellblock(false, null);
+							hbMember.setHellblock(false, null, -1);
 							hbMember.setHellblockOwner(null);
 							hbMember.setHellblockBiome(null);
+							hbMember.setTotalVisits(0);
+							hbMember.setCreationTime(0L);
 							hbMember.setBiomeCooldown(0L);
 							hbMember.setResetCooldown(0L);
 							hbMember.setIslandChoice(null);
@@ -243,15 +286,17 @@ public class HellblockHandler {
 							YamlConfiguration memberConfig = YamlConfiguration.loadConfiguration(memberFile);
 							memberConfig.set("player.hasHellblock", false);
 							memberConfig.set("player.hellblock", null);
+							memberConfig.set("player.hellblock-id", null);
 							memberConfig.set("player.home", null);
 							memberConfig.set("player.owner", null);
 							memberConfig.set("player.biome", null);
 							memberConfig.set("player.party", null);
+							memberConfig.set("player.creation-time", null);
+							memberConfig.set("player.total-visits", null);
 							memberConfig.set("player.locked-island", null);
 							memberConfig.set("player.reset-cooldown", null);
 							memberConfig.set("player.biome-cooldown", null);
 							memberConfig.set("player.island-choice", null);
-							memberConfig.set("player.island-choice.schematic", null);
 							memberConfig.set("player.in-unsafe-island", true);
 							try {
 								memberConfig.save(memberFile);
@@ -289,6 +334,24 @@ public class HellblockHandler {
 			return location.getX() > (double) (0 - this.spawnSize) && location.getX() < (double) this.spawnSize
 					&& location.getZ() > (double) (0 - this.spawnSize) && location.getZ() < (double) this.spawnSize;
 		}
+	}
+
+	public int nextHellblockID() {
+		if (this.getPlayersDirectory().listFiles().length == 0)
+			return 1;
+		int nextID = 0;
+		for (File playerFile : this.getPlayersDirectory().listFiles()) {
+			if (!(playerFile.isFile() || playerFile.getName().endsWith(".yml")))
+				continue;
+			YamlConfiguration playerConfig = YamlConfiguration.loadConfiguration(playerFile);
+			if (!(playerConfig.contains("player.hellblock-id")))
+				continue;
+			int id = playerConfig.getInt("player.hellblock-id", 0);
+			do {
+				nextID++;
+			} while (id >= nextID);
+		}
+		return nextID;
 	}
 
 	public void reloadLastHellblock() {
@@ -427,6 +490,29 @@ public class HellblockHandler {
 		return hellblockWorld;
 	}
 
+	public boolean checkIfInSpawn(Location location) {
+		if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
+			RegionContainer container = instance.getWorldGuardHandler().getWorldGuardPlatform().getRegionContainer();
+			com.sk89q.worldedit.world.World world = BukkitAdapter
+					.adapt(instance.getHellblockHandler().getHellblockWorld());
+			RegionManager regions = container.get(world);
+			if (regions == null) {
+				LogUtils.severe(
+						String.format("Could not load WorldGuard regions for hellblock world: %s", world.getName()));
+				return false;
+			}
+			ProtectedRegion region = regions.getRegion("Spawn");
+			if (region == null) {
+				return false;
+			}
+
+			return region.contains(location.getBlockX(), location.getBlockY(), location.getBlockZ());
+		} else {
+			// TODO: using plugin protection
+			return false;
+		}
+	}
+
 	public Location generateSpawn() {
 		World world = HellblockPlugin.getInstance().getHellblockHandler().getHellblockWorld();
 		int y = HellblockPlugin.getInstance().getHellblockHandler().getHeight();
@@ -452,7 +538,7 @@ public class HellblockHandler {
 			HellblockPlugin.getInstance().getWorldGuardHandler().protectSpawn();
 			HellblockPlugin.getInstance().debug("Spawn area protected with WorldGuard!");
 		} else {
-			// TODO: island protection
+			// TODO: using plugin protection
 		}
 
 		return spawn;

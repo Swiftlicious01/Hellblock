@@ -72,7 +72,7 @@ public class PlayerListener implements Listener {
 				return;
 
 			if (!LocationUtils.isSafeLocation(player.getLocation())) {
-				if (pi.getHomeLocation() != null) {
+				if (pi.hasHellblock() && pi.getHomeLocation() != null) {
 					player.teleportAsync(pi.getHomeLocation());
 				} else {
 					player.performCommand(instance.getHellblockHandler().getNetherCMD());

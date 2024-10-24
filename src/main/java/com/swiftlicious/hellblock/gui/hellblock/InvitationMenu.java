@@ -29,6 +29,7 @@ import xyz.xenondevs.invui.item.Item;
 import xyz.xenondevs.invui.item.ItemProvider;
 import xyz.xenondevs.invui.item.builder.ItemBuilder;
 import xyz.xenondevs.invui.item.builder.SkullBuilder;
+import xyz.xenondevs.invui.item.builder.SkullBuilder.HeadTexture;
 import xyz.xenondevs.invui.item.impl.AbstractItem;
 import xyz.xenondevs.invui.item.impl.SimpleItem;
 import xyz.xenondevs.invui.util.MojangApiUtils.MojangApiException;
@@ -89,7 +90,7 @@ public class InvitationMenu {
 					continue;
 				if (key.equals(player.getUniqueId()))
 					continue;
-				if (hbPlayer.getPlayer() == null)
+				if (hbPlayer.getPlayer() == null || !hbPlayer.getPlayer().isOnline())
 					continue;
 				SkullBuilder skullBuilder = null;
 				try {
@@ -101,7 +102,7 @@ public class InvitationMenu {
 				continue;
 			}
 			try {
-				itemList.add(new ItemInList("MHF_QUESTION", new SkullBuilder("MHF_QUESTION"), this));
+				itemList.add(new ItemInList("???", new SkullBuilder(HeadTexture.of("MHF_QUESTION")), this));
 			} catch (MojangApiException | IOException ignored) {
 				// ignored
 			}
@@ -147,7 +148,7 @@ public class InvitationMenu {
 			if (prefix != null && prefix.matches("^[a-zA-Z0-9_]+$")
 					&& HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers().values().stream()
 							.filter(hbPlayer -> hbPlayer.getPlayer() != null
-									&& !hbPlayer.getPlayer().getName().equalsIgnoreCase(player.getName()))
+									&& !hbPlayer.getPlayer().getUniqueId().equals(player.getUniqueId()))
 							.map(hbPlayer -> hbPlayer.getPlayer().getName()).collect(Collectors.toList())
 							.contains(prefix)) {
 				SkullBuilder builder = null;
@@ -163,8 +164,9 @@ public class InvitationMenu {
 				}
 				builder.setDisplayName(new ShadedAdventureComponentWrapper(
 						HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(prefix)));
-				builder.addLoreLines(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
-						.getAdventureManager().getComponentFromMiniMessage("<pink>Click to invite this player!")));
+				builder.addLoreLines(
+						new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+								.getComponentFromMiniMessage("<light_purple>Click to invite this player!")));
 				return builder;
 			} else {
 				return new ItemBuilder(Material.BARRIER).setDisplayName(
@@ -179,15 +181,15 @@ public class InvitationMenu {
 			if (prefix != null && prefix.matches("^[a-zA-Z0-9_]+$")
 					&& HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers().values().stream()
 							.filter(hbPlayer -> hbPlayer.getPlayer() != null
-									&& !hbPlayer.getPlayer().getName().equalsIgnoreCase(player.getName()))
+									&& !hbPlayer.getPlayer().getUniqueId().equals(player.getUniqueId()))
 							.map(hbPlayer -> hbPlayer.getPlayer().getName()).collect(Collectors.toList())
 							.contains(prefix)) {
-				HellblockPlayer hbPlayer = HellblockPlugin.getInstance().getHellblockHandler()
-						.getActivePlayer(player.getUniqueId());
-				if (Bukkit.getPlayer(prefix) == null) {
+				if (Bukkit.getPlayer(prefix) == null || !Bukkit.getPlayer(prefix).isOnline()) {
 					LogUtils.warn(String.format("Unable to invite player %s because they returned null.", prefix));
 					return;
 				}
+				HellblockPlayer hbPlayer = HellblockPlugin.getInstance().getHellblockHandler()
+						.getActivePlayer(player.getUniqueId());
 				HellblockPlayer invitingPlayer = HellblockPlugin.getInstance().getHellblockHandler()
 						.getActivePlayer(Bukkit.getPlayer(prefix).getUniqueId());
 				HellblockPlugin.getInstance().getCoopManager().addMemberToHellblock(hbPlayer, invitingPlayer);

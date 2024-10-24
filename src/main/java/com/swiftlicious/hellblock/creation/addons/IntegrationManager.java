@@ -11,7 +11,6 @@ import org.bukkit.plugin.Plugin;
 import org.jetbrains.annotations.Nullable;
 
 import com.onarandombox.MultiverseCore.MultiverseCore;
-import com.sk89q.worldedit.bukkit.WorldEditPlugin;
 import com.sk89q.worldguard.WorldGuard;
 import com.sk89q.worldguard.bukkit.WorldGuardPlugin;
 import com.swiftlicious.hellblock.HellblockPlugin;
@@ -82,13 +81,6 @@ public class IntegrationManager implements IntegrationManagerInterface {
 					instance.getWorldGuardHandler().setWorldGuardPlatform(WorldGuard.getInstance().getPlatform());
 					hookMessage("WorldGuard");
 				}
-			}
-		}
-		if (instance.isHookedPluginEnabled("WorldEdit")) {
-			Plugin worldEdit = Bukkit.getPluginManager().getPlugin("WorldEdit");
-			if (worldEdit != null && worldEdit instanceof WorldEditPlugin) {
-				instance.getWorldEditHandler().setWorldEdit((WorldEditPlugin) worldEdit);
-				hookMessage("WorldEdit");
 			}
 		}
 	}

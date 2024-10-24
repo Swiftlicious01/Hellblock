@@ -36,10 +36,12 @@ public class CommandManager implements CommandManagerInterface {
 						GUIEditorCommand.INSTANCE.getEditorCommand(), DataCommand.INSTANCE.getDataCommand(),
 						HellblockUserCommand.INSTANCE.getMenuCommand(), HellblockUserCommand.INSTANCE.getResetCommand(),
 						HellblockUserCommand.INSTANCE.getCreateCommand(),
-						HellblockUserCommand.INSTANCE.getHomeCommand(), HellblockUserCommand.INSTANCE.getLockCommand(),
-						HellblockUserCommand.INSTANCE.getVisitCommand(), getAboutCommand(),
-						ItemCommand.INSTANCE.getItemCommand(), DebugCommand.INSTANCE.getDebugCommand(),
-						HellblockCoopCommand.INSTANCE.getCoopCommand())
+						HellblockUserCommand.INSTANCE.getHomeCommand(), HellblockUserCommand.INSTANCE.getBiomeCommand(),
+						HellblockUserCommand.INSTANCE.getLockCommand(),
+						HellblockUserCommand.INSTANCE.getSetHomeCommand(),
+						HellblockUserCommand.INSTANCE.getInfoCommand(), HellblockUserCommand.INSTANCE.getVisitCommand(),
+						getAboutCommand(), ItemCommand.INSTANCE.getItemCommand(),
+						DebugCommand.INSTANCE.getDebugCommand(), HellblockCoopCommand.INSTANCE.getCoopCommand())
 				.register();
 		if (instance.getMarketManager().isEnable()) {
 			new CommandAPICommand("sellfish").withPermission("hellblock.sellfish").executesPlayer((player, args) -> {

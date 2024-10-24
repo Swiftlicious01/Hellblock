@@ -19,6 +19,8 @@ general:
 hellblock:
   can-transfer-islands: true
   party-size: 4
+  # Can be fawe or worldedit  
+  schematic-paster: worldedit
   island-options:
     - 'default'
     - 'classic'

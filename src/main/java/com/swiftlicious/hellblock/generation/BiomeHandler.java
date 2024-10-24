@@ -3,13 +3,10 @@ package com.swiftlicious.hellblock.generation;
 import java.io.File;
 import java.io.IOException;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
 import org.bukkit.Bukkit;
-import org.bukkit.Chunk;
 import org.bukkit.Location;
 import org.bukkit.block.Biome;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -63,7 +60,7 @@ public class BiomeHandler {
 		return hellBiome;
 	}
 
-	public void changeHellblockBiome(@NonNull HellblockPlayer hbPlayer, @NonNull HellBiome biome) {
+	public void changeHellblockBiome(@NonNull HellblockPlayer hbPlayer, @NonNull HellBiome biome, boolean forced) {
 		Player player = hbPlayer.getPlayer();
 		if (player != null) {
 			if (!hbPlayer.hasHellblock()) {
@@ -133,12 +130,12 @@ public class BiomeHandler {
 				List<Location> locations = instance.getWorldGuardHandler().getRegionBlocks(player);
 				locations.forEach(loc -> {
 					loc.getBlock().setBiome(Biome.valueOf(biome.toString().toUpperCase()));
-					instance.sendPackets(player, getChunkUnloadPacket(loc.getChunk()),
+					instance.sendPacket(player,
 							getLightUpdateChunkPacket(player, (int) loc.getX(), (int) loc.getY(), (int) loc.getZ()));
 				});
 
 				hbPlayer.setHellblockBiome(biome);
-				hbPlayer.setBiomeCooldown(Duration.ofDays(1).toHours());
+				hbPlayer.setBiomeCooldown(forced ? 0L : Duration.ofDays(1).toHours());
 				hbPlayer.saveHellblockPlayer();
 				player.teleportAsync(hbPlayer.getHomeLocation());
 				List<UUID> party = hbPlayer.getHellblockParty();
@@ -148,7 +145,7 @@ public class BiomeHandler {
 						if (member != null && member.isOnline()) {
 							HellblockPlayer hbMember = instance.getHellblockHandler().getActivePlayer(member);
 							hbMember.setHellblockBiome(biome);
-							hbMember.setBiomeCooldown(Duration.ofDays(1).toHours());
+							hbMember.setBiomeCooldown(forced ? 0L : Duration.ofDays(1).toHours());
 							hbMember.saveHellblockPlayer();
 							member.teleportAsync(hbMember.getHomeLocation());
 						} else {
@@ -157,7 +154,7 @@ public class BiomeHandler {
 											+ File.separator + id + ".yml");
 							YamlConfiguration memberConfig = YamlConfiguration.loadConfiguration(memberFile);
 							memberConfig.set("player.biome", biome.toString());
-							memberConfig.set("player.biome-cooldown", Duration.ofDays(1).toHours());
+							memberConfig.set("player.biome-cooldown", forced ? 0L : Duration.ofDays(1).toHours());
 							try {
 								memberConfig.save(memberFile);
 							} catch (IOException ex) {
@@ -175,27 +172,9 @@ public class BiomeHandler {
 		}
 	}
 
-	public PacketContainer getChunkUnloadPacket(Chunk chunk) {
-		PacketContainer unloadPacket = new PacketContainer(PacketType.Play.Server.UNLOAD_CHUNK);
-		unloadPacket.getIntegers().write(0, chunk.getX());
-		unloadPacket.getIntegers().write(1, chunk.getZ());
-		return unloadPacket;
-	}
-
-	@SuppressWarnings("unused")
 	public PacketContainer getLightUpdateChunkPacket(Player player, int x, int y, int z) {
 		PacketContainer lightUpdatePacket = new PacketContainer(PacketType.Play.Server.LIGHT_UPDATE);
-		lightUpdatePacket.getIntegers().write(player.getLocation().getChunk().getX(), x);
-		lightUpdatePacket.getIntegers().write(player.getLocation().getChunk().getZ(), y);
-		lightUpdatePacket.getBooleans().write(0, true);
-		lightUpdatePacket.getIntegers().write(2, z);
-		lightUpdatePacket.getIntegers().write(3, x);
-		lightUpdatePacket.getIntegers().write(4, y);
-		lightUpdatePacket.getIntegers().write(5, z);
-		List<byte[]> g = new ArrayList<>();
-        List<byte[]> h = new ArrayList<>();
-        lightUpdatePacket.getBlockPositionCollectionModifier().write(0, Collections.emptyList());
-        lightUpdatePacket.getBlockPositionCollectionModifier().write(1, Collections.emptyList());
+
 		return lightUpdatePacket;
 	}
 }

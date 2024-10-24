@@ -3,6 +3,7 @@ package com.swiftlicious.hellblock.generation;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 import org.apache.commons.lang3.StringUtils;
 import org.bukkit.Color;
@@ -35,7 +36,6 @@ import com.google.common.io.Files;
 import com.saicone.rtag.RtagItem;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.listeners.GlowstoneTree.GlowTree;
-import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
 import com.swiftlicious.hellblock.utils.LocationCache;
 import com.swiftlicious.hellblock.utils.LogUtils;
 import com.swiftlicious.hellblock.utils.wrappers.ShadedAdventureComponentWrapper;
@@ -57,98 +57,56 @@ public class IslandGenerator {
 		this.instance = plugin;
 	}
 
-	public void generateHellblockSchematic(Location location, Player player) {
-		if (instance.getWorldEditHandler().getWorldEdit() != null
-				&& instance.getHellblockHandler().getSchematics().length > 0) {
-			boolean generatedIsland = false;
-			HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(player);
-			String schematic = "";
-			int i, x, y, z;
-			for (i = 0; i < instance.getHellblockHandler().getSchematics().length; ++i) {
-				if (!(instance.getHellblockHandler().getSchematics()[i].getName().endsWith(".schematic")
+	public boolean generateHellblockSchematic(Location location, Player player) {
+		if (instance.getHellblockHandler().getSchematics().length > 0) {
+			for (int i = 0; i < instance.getHellblockHandler().getSchematics().length; ++i) {
+				if (!(instance.getHellblockHandler().getSchematics()[i].isFile()
+						|| instance.getHellblockHandler().getSchematics()[i].getName().endsWith(".schematic")
 						|| instance.getHellblockHandler().getSchematics()[i].getName().endsWith(".schem")))
 					continue;
-				if (!generatedIsland) {
-					schematic = Files
-							.getNameWithoutExtension(instance.getHellblockHandler().getSchematics()[i].getName());
-					if (player.hasPermission("hellblock.schematic." + schematic)) {
-						try {
-							if (instance.getWorldEditHandler().loadIslandSchematic(
-									instance.getHellblockHandler().getHellblockWorld(), location,
-									instance.getHellblockHandler().getSchematics()[i])) {
-								for (x = -15; x <= 15; ++x) {
-									for (y = -15; y <= 15; ++y) {
-										for (z = -15; z <= 15; ++z) {
-											if (instance.getHellblockHandler().getHellblockWorld()
-													.getBlockAt(location.getBlockX() + x, location.getBlockY() + y,
-															location.getBlockZ() + z)
-													.getType() == Material.CHEST) {
-												this.generateChest(
-														new Location(instance.getHellblockHandler().getHellblockWorld(),
-																(double) (location.getBlockX() + x),
-																(double) (location.getBlockY() + y),
-																(double) (location.getBlockZ() + z)));
-											}
+				String schematic = Files
+						.getNameWithoutExtension(instance.getHellblockHandler().getSchematics()[i].getName());
+				if (instance.getHellblockHandler().getIslandOptions().contains(schematic)
+						&& (player.hasPermission("hellblock.schematic.*")
+								|| player.hasPermission("hellblock.schematic." + schematic))) {
+					try {
+						CompletableFuture<Void> pasteSchematic = instance.getSchematicManager()
+								.pasteSchematic(schematic, location);
+						pasteSchematic.thenRun(() -> {
+							for (int x = -15; x <= 15; ++x) {
+								for (int y = -15; y <= 15; ++y) {
+									for (int z = -15; z <= 15; ++z) {
+										if (instance.getHellblockHandler().getHellblockWorld()
+												.getBlockAt(location.getBlockX() + x, location.getBlockY() + y,
+														location.getBlockZ() + z)
+												.getType() == Material.CHEST) {
+											this.generateChest(
+													new Location(instance.getHellblockHandler().getHellblockWorld(),
+															(double) (location.getBlockX() + x),
+															(double) (location.getBlockY() + y),
+															(double) (location.getBlockZ() + z)),
+													player);
 										}
 									}
 								}
-
-								generatedIsland = true;
-								pi.setHome(location);
 							}
-						} catch (Exception var13) {
-							LogUtils.severe("An error occurred while pasting hellblock schematic.", var13);
-						}
-					}
-				}
-			}
-
-			if (!generatedIsland) {
-				for (i = 0; i < instance.getHellblockHandler().getSchematics().length; ++i) {
-					if (!(instance.getHellblockHandler().getSchematics()[i].getName().endsWith(".schematic")
-							|| instance.getHellblockHandler().getSchematics()[i].getName().endsWith(".schem")))
-						continue;
-					schematic = Files
-							.getNameWithoutExtension(instance.getHellblockHandler().getSchematics()[i].getName());
-					if (instance.getHellblockHandler().getIslandOptions().contains(schematic)) {
-						try {
-							if (instance.getWorldEditHandler().loadIslandSchematic(
-									instance.getHellblockHandler().getHellblockWorld(), location,
-									instance.getHellblockHandler().getSchematics()[i])) {
-								for (x = -15; x <= 15; ++x) {
-									for (y = -15; y <= 15; ++y) {
-										for (z = -15; z <= 15; ++z) {
-											if (instance.getHellblockHandler().getHellblockWorld()
-													.getBlockAt(location.getBlockX() + x, location.getBlockY() + y,
-															location.getBlockZ() + z)
-													.getType() == Material.CHEST) {
-												this.generateChest(
-														new Location(instance.getHellblockHandler().getHellblockWorld(),
-																(double) (location.getBlockX() + x),
-																(double) (location.getBlockY() + y),
-																(double) (location.getBlockZ() + z)));
-											}
-										}
-									}
-								}
-
-								generatedIsland = true;
-								pi.setHome(location);
-							}
-						} catch (Exception var12) {
-							LogUtils.severe("An error occurred while pasting hellblock schematic.", var12);
-						}
+						}).join();
+						return true;
+					} catch (Throwable t) {
+						LogUtils.severe("An error occurred while pasting hellblock schematic.", t);
+						return false;
 					}
 				}
 			}
 		}
+		return false;
 	}
 
-	public void generateDefaultHellblock(Location location) {
+	public boolean generateDefaultHellblock(Location location, Player player) {
 		World world = location.getWorld();
 		if (world == null) {
 			LogUtils.severe("An error occurred while generating default hellblock island.");
-			return;
+			return false;
 		}
 		int x = (int) location.getX();
 		int z = (int) location.getZ();
@@ -223,15 +181,16 @@ public class IslandGenerator {
 		block = world.getBlockAt(x, y, z);
 		block.setType(Material.DIRT);
 		y = (int) (location.getY() + 5.0D);
-		this.generateTree(new Location(world, (double) x, (double) y, (double) z));
-		this.generateChest(new Location(world, (double) x, (double) y, (double) (z + 1)));
+		this.generateGlowstoneTree(new Location(world, (double) x, (double) y, (double) z));
+		this.generateChest(new Location(world, (double) x, (double) y, (double) (z + 1)), player);
+		return true;
 	}
 
-	public void generateClassicHellblock(Location location) {
+	public boolean generateClassicHellblock(Location location, Player player) {
 		World world = location.getWorld();
 		if (world == null) {
 			LogUtils.severe("An error occurred while generating classic hellblock island.");
-			return;
+			return false;
 		}
 		int x = (int) location.getX();
 		int y = (int) location.getY();
@@ -301,15 +260,16 @@ public class IslandGenerator {
 		block = world.getBlockAt(x - 1, y - 1, z - 1);
 		block.setType(Material.BEDROCK);
 		y = (int) location.getY() + 3;
-		this.generateTree(new Location(world, (double) x, (double) y, (double) (z - 5)));
-		this.generateChest(new Location(world, (double) (x - 5), (double) y, (double) (z - 1)));
+		this.generateGlowstoneTree(new Location(world, (double) x, (double) y, (double) (z - 5)));
+		this.generateChest(new Location(world, (double) (x - 5), (double) y, (double) (z - 1)), player);
+		return true;
 	}
 
-	public void generateTree(Location location) {
+	public boolean generateGlowstoneTree(Location location) {
 		World world = location.getWorld();
 		if (world == null) {
 			LogUtils.severe("An error occurred while generating glowstone tree.");
-			return;
+			return false;
 		}
 		int x = (int) location.getX();
 		int y = (int) location.getY();
@@ -394,13 +354,14 @@ public class IslandGenerator {
 		GlowTree glowTree = instance.getGlowstoneTree().new GlowTree(TreeType.TREE, glowTreeStates);
 		instance.getGlowstoneTree().glowTreeCache
 				.put(LocationCache.getCachedLocation(world.getBlockAt(x, y, z).getLocation()), glowTree);
+		return true;
 	}
 
-	public void generateChest(Location location) {
+	public boolean generateChest(Location location, Player player) {
 		World world = location.getWorld();
 		if (world == null) {
 			LogUtils.severe("An error occurred while generating hellblock chest.");
-			return;
+			return false;
 		}
 		int x = (int) location.getX();
 		int y = (int) location.getY();
@@ -408,7 +369,8 @@ public class IslandGenerator {
 		Block block = world.getBlockAt(x, y, z);
 		block.setType(Material.CHEST);
 		Directional directional = (Directional) block.getBlockData();
-		directional.setFacing(getChestDirection(location));
+		directional.setFacing(
+				getChestDirection(location, instance.getHellblockHandler().getActivePlayer(player).getIslandChoice()));
 		block.setBlockData(directional);
 		Chest chest = (Chest) block.getState();
 		String chestName = instance.getConfig("config.yml").getString("hellblock.starter-chest.inventory-name");
@@ -633,14 +595,16 @@ public class IslandGenerator {
 						String.format("Unable to create the defined item for the starter chest: %s", instance
 								.getConfig("config.yml").getString("hellblock.starter-chest." + path + ".material")),
 						ex);
+				return false;
 			}
 		}
+		return true;
 	}
 
 	private static final BlockFace[] FACES = new BlockFace[] { BlockFace.NORTH, BlockFace.SOUTH, BlockFace.EAST,
 			BlockFace.WEST };
 
-	private @NonNull BlockFace getChestDirection(@NonNull Location location) {
+	private @NonNull BlockFace getChestDirection(@NonNull Location location, IslandOptions option) {
 
 		BlockFace finalFace = BlockFace.SOUTH;
 		for (BlockFace face : FACES) {
@@ -652,7 +616,8 @@ public class IslandGenerator {
 			break;
 		}
 
-		return finalFace;
+		return option == IslandOptions.CLASSIC ? BlockFace.WEST
+				: option == IslandOptions.DEFAULT ? BlockFace.SOUTH : finalFace;
 	}
 
 	public boolean checkChestData(@Nullable ItemStack item) {

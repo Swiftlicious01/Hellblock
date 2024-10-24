@@ -6,9 +6,11 @@ import java.util.UUID;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.persistence.PersistentDataType;
 import org.jetbrains.annotations.NotNull;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
@@ -20,6 +22,7 @@ import xyz.xenondevs.invui.gui.Gui;
 import xyz.xenondevs.invui.item.ItemProvider;
 import xyz.xenondevs.invui.item.builder.ItemBuilder;
 import xyz.xenondevs.invui.item.builder.SkullBuilder;
+import xyz.xenondevs.invui.item.builder.SkullBuilder.HeadTexture;
 import xyz.xenondevs.invui.item.impl.AbstractItem;
 import xyz.xenondevs.invui.util.MojangApiUtils.MojangApiException;
 import xyz.xenondevs.invui.window.Window;
@@ -79,9 +82,11 @@ public class CoopMenu {
 	public static class MemberItem extends AbstractItem {
 
 		private UUID playerUUID;
+		private NamespacedKey inviteKey;
 
 		public MemberItem(UUID playerUUID) {
 			this.playerUUID = playerUUID;
+			this.inviteKey = new NamespacedKey(HellblockPlugin.getInstance(), "inviteallowed");
 		}
 
 		@Override
@@ -107,18 +112,27 @@ public class CoopMenu {
 									.getComponentFromMiniMessage("<dark_red>Broken, please report this.")));
 				}
 			}
-			return new ItemBuilder(Material.STRUCTURE_VOID)
-					.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
-							.getAdventureManager().getComponentFromMiniMessage("<dark_green>Empty Slot")))
-					.addLoreLines(
-							new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
-									.getComponentFromMiniMessage("<green>Click to invite a new member!")));
+			try {
+				SkullBuilder item = new SkullBuilder(HeadTexture.of("MHF_QUESTION"))
+						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
+								.getAdventureManager().getComponentFromMiniMessage("<dark_green>Empty Slot")))
+						.addLoreLines(
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage("<green>Click to invite a new member!")));
+				item.get().getItemMeta().getPersistentDataContainer().set(inviteKey, PersistentDataType.BOOLEAN, true);
+				return item;
+			} catch (MojangApiException | IOException e) {
+				LogUtils.severe("Failed to create question mark player heads! ", e);
+				return new ItemBuilder(Material.BARRIER).setDisplayName(
+						new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+								.getComponentFromMiniMessage("<dark_red>Broken, please report this.")));
+			}
 		}
 
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			if (event.getCurrentItem() != null && event.getCurrentItem().getType() == Material.STRUCTURE_VOID) {
+			if (event.getCurrentItem() != null && event.getCurrentItem().getPersistentDataContainer().has(inviteKey)) {
 				new InvitationMenu(player);
 			}
 		}

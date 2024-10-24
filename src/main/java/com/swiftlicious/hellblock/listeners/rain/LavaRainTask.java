@@ -102,8 +102,8 @@ public class LavaRainTask implements Runnable {
 				Iterator<Block> blocks = lavaRainLocation.getBlocks();
 				Block block;
 				Block block2;
-				if (world.getName()
-						.equalsIgnoreCase(HellblockPlugin.getInstance().getHellblockHandler().getWorldName())) {
+				if (world.getName().equalsIgnoreCase(HellblockPlugin.getInstance().getHellblockHandler().getWorldName())
+						&& !HellblockPlugin.getInstance().getHellblockHandler().checkIfInSpawn(location)) {
 					while (true) {
 						while (true) {
 							do {

@@ -55,7 +55,7 @@ public class VersionManager implements VersionManagerInterface {
 			}
 		}
 
-		this.supportedVersions = List.of("1.20.5", "1.21.1", "1.21.2");
+		this.supportedVersions = List.of("1.20.5", "1.21.1", "1.21.2", "1.21.3");
 		// Get the plugin version
 		this.pluginVersion = plugin.getPluginMeta().getVersion();
 	}

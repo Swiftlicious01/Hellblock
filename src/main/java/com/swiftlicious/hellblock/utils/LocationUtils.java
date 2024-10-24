@@ -7,6 +7,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
+import org.bukkit.entity.Player;
 
 public class LocationUtils {
 
@@ -59,4 +60,33 @@ public class LocationUtils {
 		return true;
 	}
 
+	public static String getFacing(Player player) {
+		double yaw = player.getLocation().getYaw();
+		if (yaw >= 337.5 || (yaw <= 22.5 && yaw >= 0.0) || (yaw >= -22.5 && yaw <= 0.0)
+				|| (yaw <= -337.5 && yaw <= 0.0)) {
+			return "South";
+		}
+		if ((yaw >= 22.5 && yaw <= 67.5) || (yaw <= -292.5 && yaw >= -337.5)) {
+			return "South West";
+		}
+		if ((yaw >= 67.5 && yaw <= 112.5) || (yaw <= -247.5 && yaw >= -292.5)) {
+			return "West";
+		}
+		if ((yaw >= 112.5 && yaw <= 157.5) || (yaw <= -202.5 && yaw >= -247.5)) {
+			return "North West";
+		}
+		if ((yaw >= 157.5 && yaw <= 202.5) || (yaw <= -157.5 && yaw >= -202.5)) {
+			return "North";
+		}
+		if ((yaw >= 202.5 && yaw <= 247.5) || (yaw <= -112.5 && yaw >= -157.5)) {
+			return "North East";
+		}
+		if ((yaw >= 247.5 && yaw <= 292.5) || (yaw <= -67.5 && yaw >= -112.5)) {
+			return "East";
+		}
+		if ((yaw >= 292.5 && yaw <= 337.5) || (yaw <= -22.5 && yaw >= -67.5)) {
+			return "South East";
+		}
+		return "Error!";
+	}
 }

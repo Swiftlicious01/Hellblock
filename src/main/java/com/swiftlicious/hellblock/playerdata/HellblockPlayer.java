@@ -3,8 +3,10 @@ package com.swiftlicious.hellblock.playerdata;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.List;
 import java.util.Objects;
+import java.util.TimeZone;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -24,11 +26,15 @@ import com.swiftlicious.hellblock.utils.LogUtils;
 public class HellblockPlayer {
 
 	private UUID id;
+	private int hellblockID;
 	private boolean hasHellblock;
 	private UUID hellblockOwner;
 	private List<UUID> hellblockParty;
+	private List<UUID> whoHasTrusted;
 	private Location hellblockLocation;
 	private Location homeLocation;
+	private long creationTime;
+	private int totalVisitors;
 	private HellBiome hellblockBiome;
 	private IslandOptions islandChoice;
 	private String schematic;
@@ -59,17 +65,36 @@ public class HellblockPlayer {
 
 		this.pi = YamlConfiguration.loadConfiguration(this.file);
 		this.hasHellblock = this.getHellblockPlayer().getBoolean("player.hasHellblock");
+		if (this.getHellblockPlayer().contains("player.trusted-on-islands")
+				&& !this.getHellblockPlayer().getStringList("player.trusted-on-islands").isEmpty()) {
+			for (String trusted : this.getHellblockPlayer().getStringList("player.trusted-on-islands")) {
+				this.whoHasTrusted = new ArrayList<>();
+				UUID uuid = null;
+				try {
+					uuid = UUID.fromString(trusted);
+				} catch (IllegalArgumentException ignored) {
+					// ignored
+				}
+				if (uuid != null)
+					this.whoHasTrusted.add(uuid);
+			}
+		} else {
+			this.whoHasTrusted = new ArrayList<>();
+		}
 		if (this.hasHellblock) {
 			this.islandChoice = IslandOptions
-					.valueOf(this.getHellblockPlayer().get("player.island-choice").toString().toUpperCase());
+					.valueOf(this.getHellblockPlayer().get("player.island-choice.type").toString().toUpperCase());
+			this.hellblockID = this.getHellblockPlayer().getInt("player.hellblock-id", -1);
 			if (this.islandChoice == IslandOptions.SCHEMATIC) {
-				this.schematic = this.getHellblockPlayer().getString("player.island-choice.schematic");
+				this.schematic = this.getHellblockPlayer().getString("player.island-choice.used-schematic");
 			}
 			this.lockedStatus = this.getHellblockPlayer().getBoolean("player.locked-island");
 			this.hellblockLocation = this.deserializeLocation("player.hellblock");
 			this.homeLocation = this.deserializeLocation("player.home");
+			this.creationTime = this.getHellblockPlayer().getLong("player.creation-time", 0L);
 			this.resetCooldown = this.getHellblockPlayer().getLong("player.reset-cooldown", 0L);
 			this.biomeCooldown = this.getHellblockPlayer().getLong("player.biome-cooldown", 0L);
+			this.totalVisitors = this.getHellblockPlayer().getInt("player.total-visits", 0);
 			this.hellblockBiome = HellblockPlugin.getInstance().getBiomeHandler().convertBiomeToHellBiome(
 					Biome.valueOf(this.getHellblockPlayer().getString("player.biome", "NETHER_WASTES")));
 			try {
@@ -82,16 +107,27 @@ public class HellblockPlayer {
 			if (this.getHellblockPlayer().contains("player.party")
 					&& !this.getHellblockPlayer().getStringList("player.party").isEmpty()) {
 				for (String member : this.getHellblockPlayer().getStringList("player.party")) {
-					this.hellblockParty.add(UUID.fromString(member));
+					this.hellblockParty = new ArrayList<>();
+					UUID uuid = null;
+					try {
+						uuid = UUID.fromString(member);
+					} catch (IllegalArgumentException ignored) {
+						// ignored
+					}
+					if (uuid != null)
+						this.hellblockParty.add(uuid);
 				}
 			} else {
 				this.hellblockParty = new ArrayList<>();
 			}
 		} else {
+			this.hellblockID = -1;
 			this.hellblockBiome = null;
 			this.hellblockLocation = null;
 			this.resetCooldown = 0L;
 			this.biomeCooldown = 0L;
+			this.creationTime = 0L;
+			this.totalVisitors = 0;
 			this.homeLocation = null;
 			this.hellblockOwner = null;
 			this.hellblockParty = new ArrayList<>();
@@ -106,6 +142,10 @@ public class HellblockPlayer {
 		return this.hasHellblock;
 	}
 
+	public int getID() {
+		return this.hellblockID;
+	}
+
 	public Location getHellblockLocation() {
 		return this.hellblockLocation;
 	}
@@ -116,6 +156,10 @@ public class HellblockPlayer {
 
 	public List<UUID> getHellblockParty() {
 		return this.hellblockParty;
+	}
+
+	public List<UUID> getWhoTrusted() {
+		return this.whoHasTrusted;
 	}
 
 	public HellBiome getHellblockBiome() {
@@ -142,7 +186,23 @@ public class HellblockPlayer {
 		return this.lockedStatus;
 	}
 
-	public void setHellblock(boolean hasHellblock, Location hellblockLocation) {
+	public int getTotalVisitors() {
+		return this.totalVisitors;
+	}
+
+	public long getCreation() {
+		return this.creationTime;
+	}
+
+	public String getCreationTime() {
+		Calendar cal = Calendar.getInstance();
+		cal.setTimeZone(TimeZone.getTimeZone("UTC"));
+		cal.setTimeInMillis(this.creationTime);
+		return (cal.get(Calendar.YEAR) + " " + (cal.get(Calendar.MONTH) + 1) + " " + cal.get(Calendar.DAY_OF_MONTH)
+				+ " " + cal.get(Calendar.HOUR_OF_DAY) + ":" + cal.get(Calendar.MINUTE));
+	}
+
+	public void setHellblock(boolean hasHellblock, Location hellblockLocation, int id) {
 		this.hasHellblock = hasHellblock;
 		this.hellblockLocation = hellblockLocation;
 	}
@@ -173,6 +233,20 @@ public class HellblockPlayer {
 		this.hellblockParty = partyMembers;
 	}
 
+	public void addTrustPermission(UUID newMember) {
+		if (!this.whoHasTrusted.contains(newMember))
+			this.whoHasTrusted.add(newMember);
+	}
+
+	public void removeTrustPermission(UUID oldMember) {
+		if (this.whoHasTrusted.contains(oldMember))
+			this.whoHasTrusted.remove(oldMember);
+	}
+
+	public void setWhoTrusted(List<UUID> trustedMembers) {
+		this.whoHasTrusted = trustedMembers;
+	}
+
 	public void setHellblockBiome(HellBiome biome) {
 		this.hellblockBiome = biome;
 	}
@@ -195,6 +269,18 @@ public class HellblockPlayer {
 
 	public void setLockedStatus(boolean locked) {
 		this.lockedStatus = locked;
+	}
+
+	public void setCreationTime(long creation) {
+		this.creationTime = creation;
+	}
+
+	public void addTotalVisit() {
+		this.totalVisitors++;
+	}
+
+	public void setTotalVisits(int visits) {
+		this.totalVisitors = visits;
 	}
 
 	public boolean hasGlowstoneArmorEffect() {
@@ -221,14 +307,22 @@ public class HellblockPlayer {
 
 	public void saveHellblockPlayer() {
 		this.getHellblockPlayer().set("player.hasHellblock", this.hasHellblock);
+		if (!this.whoHasTrusted.isEmpty()) {
+			List<String> trustedString = this.whoHasTrusted.stream().filter(Objects::nonNull)
+					.map(uuid -> uuid.toString()).collect(Collectors.toList());
+			this.getHellblockPlayer().set("player.trusted-on-islands", trustedString);
+		}
 		if (this.hasHellblock()) {
+			this.getHellblockPlayer().set("player.hellblock-id", this.hellblockID);
 			this.serializeLocation("player.hellblock", this.hellblockLocation);
 			this.serializeLocation("player.home", this.homeLocation);
-			this.getHellblockPlayer().set("player.island-choice", this.islandChoice.toString());
+			this.getHellblockPlayer().set("player.creation-time", this.creationTime);
+			this.getHellblockPlayer().set("player.island-choice.type", this.islandChoice.toString());
 			if (this.islandChoice == IslandOptions.SCHEMATIC) {
-				this.getHellblockPlayer().set("player.island-choice.schematic", this.schematic);
+				this.getHellblockPlayer().set("player.island-choice.used-schematic", this.schematic);
 			}
 			this.getHellblockPlayer().set("player.locked-island", this.lockedStatus);
+			this.getHellblockPlayer().set("player.total-visits", this.totalVisitors);
 			this.getHellblockPlayer().set("player.owner", this.hellblockOwner.toString());
 			this.getHellblockPlayer().set("player.reset-cooldown", this.resetCooldown);
 			this.getHellblockPlayer().set("player.biome-cooldown", this.biomeCooldown);
@@ -260,24 +354,28 @@ public class HellblockPlayer {
 		double x = 0.0D;
 		double y = (double) HellblockPlugin.getInstance().getHellblockHandler().getHeight();
 		double z = 0.0D;
+		float yaw = 0.0F;
 		if (location != null) {
 			world = location.getWorld().getName();
 			x = location.getX();
 			y = location.getY();
 			z = location.getZ();
+			yaw = location.getYaw();
 		}
 
 		this.getHellblockPlayer().set(path + ".world", world);
 		this.getHellblockPlayer().set(path + ".x", x);
 		this.getHellblockPlayer().set(path + ".y", y);
 		this.getHellblockPlayer().set(path + ".z", z);
+		this.getHellblockPlayer().set(path + ".yaw", yaw);
 	}
 
 	public Location deserializeLocation(String path) {
 		World world = Bukkit.getWorld(this.getHellblockPlayer().getString(path + ".world"));
-		int x = (int) this.getHellblockPlayer().getDouble(path + ".x");
-		int y = (int) this.getHellblockPlayer().getDouble(path + ".y");
-		int z = (int) this.getHellblockPlayer().getDouble(path + ".z");
-		return new Location(world, (double) x, (double) y, (double) z);
+		double x = this.getHellblockPlayer().getDouble(path + ".x");
+		double y = this.getHellblockPlayer().getDouble(path + ".y");
+		double z = this.getHellblockPlayer().getDouble(path + ".z");
+		float yaw = (float) this.getHellblockPlayer().getDouble(path + ".yaw");
+		return new Location(world, x, y, z, yaw, 0);
 	}
 }

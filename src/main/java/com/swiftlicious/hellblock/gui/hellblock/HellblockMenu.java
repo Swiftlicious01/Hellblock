@@ -119,6 +119,7 @@ public class HellblockMenu {
 					HellblockPlugin.getInstance().getCoopManager().kickVisitorsIfLocked(player.getUniqueId());
 					HellblockPlugin.getInstance().getCoopManager().changeLockStatus(player);
 				}
+				new HellblockMenu(player);
 			} else {
 				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 						"<red>You don't have a hellblock!");
