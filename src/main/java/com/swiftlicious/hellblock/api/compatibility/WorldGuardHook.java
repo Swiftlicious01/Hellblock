@@ -72,8 +72,7 @@ public class WorldGuardHook {
 			region.setOwners(owners);
 			region.setParent(regionManager.getRegion("__GLOBAL__"));
 			region.setPriority(100);
-			region.setFlag(Flags.PVP,
-					StateFlag.State.valueOf(instance.getHellblockHandler().getAllowPvP().toUpperCase()));
+			region.setFlag(Flags.PVP, StateFlag.State.DENY);
 			region.setFlag(Flags.CHEST_ACCESS, StateFlag.State.DENY);
 			region.setFlag(Flags.USE, StateFlag.State.DENY);
 			region.setFlag(Flags.ENTITY_ITEM_FRAME_DESTROY, StateFlag.State.DENY);
@@ -87,6 +86,26 @@ public class WorldGuardHook {
 			region.setFlag(Flags.USE_ANVIL, StateFlag.State.DENY);
 			region.setFlag(Flags.USE_DRIPLEAF, StateFlag.State.DENY);
 			region.setFlag(Flags.SLEEP, StateFlag.State.DENY);
+			region.setFlag(Flags.CREEPER_EXPLOSION, StateFlag.State.DENY);
+			region.setFlag(Flags.BUILD, StateFlag.State.DENY);
+			region.setFlag(Flags.TRAMPLE_BLOCKS, StateFlag.State.DENY);
+			region.setFlag(Flags.WITHER_DAMAGE, StateFlag.State.DENY);
+			region.setFlag(Flags.GHAST_FIREBALL, StateFlag.State.DENY);
+			region.setFlag(Flags.ENDER_BUILD, StateFlag.State.DENY);
+			region.setFlag(Flags.ENDERDRAGON_BLOCK_DAMAGE, StateFlag.State.DENY);
+			region.setFlag(Flags.OTHER_EXPLOSION, StateFlag.State.DENY);
+			region.setFlag(Flags.FIRE_SPREAD, StateFlag.State.DENY);
+			region.setFlag(Flags.INTERACT, StateFlag.State.DENY);
+			region.setFlag(Flags.LAVA_FIRE, StateFlag.State.DENY);
+			region.setFlag(Flags.RAVAGER_RAVAGE, StateFlag.State.DENY);
+			region.setFlag(Flags.TNT, StateFlag.State.DENY);
+			region.setFlag(Flags.FALL_DAMAGE, StateFlag.State.DENY);
+			region.setFlag(Flags.CHORUS_TELEPORT, StateFlag.State.DENY);
+			region.setFlag(Flags.ENDERPEARL, StateFlag.State.DENY);
+			region.setFlag(Flags.LIGHTNING, StateFlag.State.DENY);
+			region.setFlag(Flags.LIGHTER, StateFlag.State.DENY);
+			region.setFlag(Flags.MOB_DAMAGE, StateFlag.State.DENY);
+			region.setFlag(Flags.MOB_SPAWNING, StateFlag.State.DENY);
 			region.setFlag(Flags.GREET_MESSAGE,
 					String.format("&cYou're entering &4%s&c's Hellblock!", player.getName()));
 			region.setFlag(Flags.FAREWELL_MESSAGE,
@@ -179,7 +198,7 @@ public class WorldGuardHook {
 				Bukkit.getOfflinePlayer(id).hasPlayedBefore() && Bukkit.getOfflinePlayer(id).getName() != null
 						? Bukkit.getOfflinePlayer(id).getName()
 						: "?"));
-		if (region == null) {
+		if (region == null || region.getId().equals("?Hellblock")) {
 			return new ArrayList<>();
 		}
 
@@ -195,6 +214,24 @@ public class WorldGuardHook {
 			}
 		}
 		return locations;
+	}
+
+	public ProtectedRegion getRegion(UUID id) {
+		World world = instance.getHellblockHandler().getHellblockWorld();
+		if (this.worldGuardPlatform == null) {
+			LogUtils.severe("Could not retrieve WorldGuard platform.");
+			return null;
+		}
+		RegionManager regionManager = this.worldGuardPlatform.getRegionContainer().get(BukkitAdapter.adapt(world));
+		ProtectedRegion region = regionManager.getRegion(String.format("%sHellblock",
+				Bukkit.getOfflinePlayer(id).hasPlayedBefore() && Bukkit.getOfflinePlayer(id).getName() != null
+						? Bukkit.getOfflinePlayer(id).getName()
+						: "?"));
+		if (region == null || region.getId().equals("?Hellblock")) {
+			return null;
+		}
+
+		return region;
 	}
 
 	public void protectSpawn() {

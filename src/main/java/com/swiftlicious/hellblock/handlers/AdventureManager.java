@@ -1,18 +1,15 @@
 package com.swiftlicious.hellblock.handlers;
 
 import java.lang.reflect.InvocationTargetException;
+import java.time.Duration;
 
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.ConsoleCommandSender;
 import org.bukkit.entity.Player;
 
-import com.comphenix.protocol.PacketType;
-import com.comphenix.protocol.events.PacketContainer;
-import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.config.HBConfig;
 import com.swiftlicious.hellblock.config.HBLocale;
-import com.swiftlicious.hellblock.utils.LogUtils;
 import com.swiftlicious.hellblock.utils.ReflectionUtils;
 
 import net.kyori.adventure.audience.Audience;
@@ -21,6 +18,7 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
+import net.kyori.adventure.title.Title;
 
 public class AdventureManager implements AdventureManagerInterface {
 
@@ -90,33 +88,18 @@ public class AdventureManager implements AdventureManagerInterface {
 	}
 
 	@Override
-	public void sendTitle(Player player, Component title, Component subtitle, int in, int duration, int out) {
-		try {
-			PacketContainer titlePacket = new PacketContainer(PacketType.Play.Server.SET_TITLE_TEXT);
-			titlePacket.getModifier().write(0, getIChatComponent(componentToJson(title)));
-			PacketContainer subTitlePacket = new PacketContainer(PacketType.Play.Server.SET_SUBTITLE_TEXT);
-			subTitlePacket.getModifier().write(0, getIChatComponent(componentToJson(subtitle)));
-			PacketContainer timePacket = new PacketContainer(PacketType.Play.Server.SET_TITLES_ANIMATION);
-			timePacket.getIntegers().write(0, in);
-			timePacket.getIntegers().write(1, duration);
-			timePacket.getIntegers().write(2, out);
-			HellblockPlugin.getInstance().getProtocolManager().sendServerPacket(player, titlePacket);
-			HellblockPlugin.getInstance().getProtocolManager().sendServerPacket(player, subTitlePacket);
-			HellblockPlugin.getInstance().getProtocolManager().sendServerPacket(player, timePacket);
-		} catch (InvocationTargetException | IllegalAccessException e) {
-			LogUtils.warn("Error occurred when sending title.");
-		}
+	public void sendTitle(Player player, Component title, Component subtitle, int fadeIn, int stay, int fadeOut) {
+		Audience au = Audience.audience(player);
+		au.showTitle(Title.title(title, subtitle, Title.Times.times(Duration.ofMillis(fadeIn * 50L),
+				Duration.ofMillis(stay * 50L), Duration.ofMillis(fadeOut * 50L))));
 	}
 
 	@Override
 	public void sendActionbar(Player player, String s) {
-		try {
-			PacketContainer packet = new PacketContainer(PacketType.Play.Server.SET_ACTION_BAR_TEXT);
-			packet.getModifier().write(0, getIChatComponent(componentToJson(getComponentFromMiniMessage(s))));
-			HellblockPlugin.getInstance().getProtocolManager().sendServerPacket(player, packet);
-		} catch (InvocationTargetException | IllegalAccessException e) {
-			LogUtils.warn("Error occurred when sending actionbar.");
-		}
+		if (s == null)
+			return;
+		Audience au = Audience.audience(player);
+		au.sendActionBar(getComponentFromMiniMessage(s));
 	}
 
 	@Override
@@ -221,9 +204,5 @@ public class AdventureManager implements AdventureManagerInterface {
 			return null;
 		}
 		return cp;
-	}
-
-	public Object getIChatComponent(String json) throws InvocationTargetException, IllegalAccessException {
-		return ReflectionUtils.iChatComponentMethod.invoke(null, json);
 	}
 }

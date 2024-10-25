@@ -228,7 +228,7 @@ public class PlayerListener implements Listener {
 						player.setNoDamageTicks(5 * 20);
 					}
 				} else {
-					new IslandChoiceMenu(player);
+					new IslandChoiceMenu(player, false);
 				}
 			}, pi.getHomeLocation(), 5, TimeUnit.SECONDS);
 			this.cancellablePortal.putIfAbsent(player.getUniqueId(), portalTask);

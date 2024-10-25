@@ -110,7 +110,7 @@ public class InvitationMenu {
 		return itemList;
 	}
 
-	public static class ItemInList extends AbstractItem {
+	public class ItemInList extends AbstractItem {
 
 		private String key;
 		private final SkullBuilder skullBuilder;

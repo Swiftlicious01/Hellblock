@@ -25,10 +25,10 @@ public class HellblockMenu {
 	public HellblockMenu(Player player) {
 
 		if (HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player).hasHellblock()) {
-			Gui gui = Gui.normal().setStructure("# c t p b l u r #").addIngredient('c', new CreateIslandItem())
+			Gui gui = Gui.normal().setStructure("# c t p b l f r #").addIngredient('c', new CreateIslandItem())
 					.addIngredient('t', new TeleportIslandItem()).addIngredient('p', new ViewPartyMembersItem())
 					.addIngredient('b', new BiomeItem()).addIngredient('l', new LockIslandItem(player.getUniqueId()))
-					.addIngredient('r', new ResetIslandItem()).addIngredient('u', new UnknownFeatureItem())
+					.addIngredient('r', new ResetIslandItem()).addIngredient('f', new ProtectionFlagItem())
 					.addIngredient('#', new BackGroundItem()).build();
 
 			Window window = Window
@@ -38,25 +38,31 @@ public class HellblockMenu {
 
 			window.open();
 		} else {
-			new IslandChoiceMenu(player);
+			new IslandChoiceMenu(player, false);
 		}
 	}
 
-	public static class UnknownFeatureItem extends AbstractItem {
+	public class ProtectionFlagItem extends AbstractItem {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			return new ItemBuilder(Material.BARRIER).setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin
-					.getInstance().getAdventureManager().getComponentFromMiniMessage("<green>Feature not out yet!")));
+			return new ItemBuilder(Material.REPEATER)
+					.setDisplayName(
+							new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+									.getComponentFromMiniMessage("<green>Change your Hellblock Protection Flags!")))
+					.addLoreLines(new ShadedAdventureComponentWrapper(
+							HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
+									"<aqua>Click to change your hellblock protection flags!")));
 		}
 
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
+			new FlagMenu(player);
 		}
 	}
 
-	public static class CreateIslandItem extends AbstractItem {
+	public class CreateIslandItem extends AbstractItem {
 
 		@Override
 		public ItemProvider getItemProvider() {
@@ -73,7 +79,13 @@ public class HellblockMenu {
 				@NotNull InventoryClickEvent event) {
 			HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
 			if (!pi.hasHellblock()) {
-				new IslandChoiceMenu(player);
+				if (pi.getResetCooldown() > 0) {
+					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+							String.format("<red>You have recently reset your hellblock already, you must wait for %s!",
+									HellblockPlugin.getInstance().getFormattedCooldown(pi.getResetCooldown())));
+					return;
+				}
+				new IslandChoiceMenu(player, false);
 			} else {
 				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 						"<red>You already have a hellblock!");
@@ -81,7 +93,7 @@ public class HellblockMenu {
 		}
 	}
 
-	public static class LockIslandItem extends AbstractItem {
+	public class LockIslandItem extends AbstractItem {
 
 		private UUID playerUUID;
 
@@ -115,7 +127,7 @@ public class HellblockMenu {
 				pi.setLockedStatus(!pi.getLockedStatus());
 				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 						String.format("<red>You have just <dark_red>%s <red>your hellblock island!",
-								(pi.getLockedStatus() ? "unlocked" : "locked")));
+								(pi.getLockedStatus() ? "locked" : "unlocked")));
 				if (pi.getLockedStatus()) {
 					HellblockPlugin.getInstance().getCoopManager().kickVisitorsIfLocked(player.getUniqueId());
 					HellblockPlugin.getInstance().getCoopManager().changeLockStatus(player);
@@ -128,7 +140,7 @@ public class HellblockMenu {
 		}
 	}
 
-	public static class ViewPartyMembersItem extends AbstractItem {
+	public class ViewPartyMembersItem extends AbstractItem {
 
 		@Override
 		public ItemProvider getItemProvider() {
@@ -153,7 +165,7 @@ public class HellblockMenu {
 		}
 	}
 
-	public static class BiomeItem extends AbstractItem {
+	public class BiomeItem extends AbstractItem {
 
 		@Override
 		public ItemProvider getItemProvider() {
@@ -178,7 +190,7 @@ public class HellblockMenu {
 		}
 	}
 
-	public static class TeleportIslandItem extends AbstractItem {
+	public class TeleportIslandItem extends AbstractItem {
 
 		@Override
 		public ItemProvider getItemProvider() {
@@ -202,8 +214,10 @@ public class HellblockMenu {
 					if (!LocationUtils.isSafeLocation(pi.getHomeLocation())) {
 						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 								"<red>This hellblock home location was deemed not safe, resetting to bedrock location!");
-						pi.setHome(HellblockPlugin.getInstance().getHellblockHandler().locateBedrock(player.getUniqueId()));
-						HellblockPlugin.getInstance().getCoopManager().updateParty(player.getUniqueId(), "home", pi.getHomeLocation());
+						pi.setHome(HellblockPlugin.getInstance().getHellblockHandler()
+								.locateBedrock(player.getUniqueId()));
+						HellblockPlugin.getInstance().getCoopManager().updateParty(player.getUniqueId(), "home",
+								pi.getHomeLocation());
 					}
 					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 							"<red>Teleporting you to your hellblock!");
@@ -224,7 +238,7 @@ public class HellblockMenu {
 		}
 	}
 
-	public static class ResetIslandItem extends AbstractItem {
+	public class ResetIslandItem extends AbstractItem {
 
 		@Override
 		public ItemProvider getItemProvider() {
@@ -245,20 +259,21 @@ public class HellblockMenu {
 						"<red>You don't have a hellblock!");
 				return;
 			}
-			if (!pi.getHellblockOwner().equals(player.getUniqueId())) {
+			if (pi.getHellblockOwner() != null && !pi.getHellblockOwner().equals(player.getUniqueId())) {
 				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 						"<red>You don't own this hellblock!");
 				return;
 			}
 			if (pi.getResetCooldown() > 0) {
 				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-						String.format("<red>You have recently rest your hellblock already, you must wait for %s!",
+						String.format("<red>You have recently reset your hellblock already, you must wait for %s!",
 								HellblockPlugin.getInstance().getFormattedCooldown(pi.getResetCooldown())));
 				return;
 			}
 
 			HellblockPlugin.getInstance().getHellblockHandler().resetHellblock(player.getUniqueId(), false);
-			new IslandChoiceMenu(player);
+			player.performCommand(HellblockPlugin.getInstance().getHellblockHandler().getNetherCMD());
+			new IslandChoiceMenu(player, true);
 		}
 	}
 }

@@ -1,6 +1,7 @@
 package com.swiftlicious.hellblock.gui.hellblock;
 
 import java.io.File;
+import java.time.Duration;
 import java.util.ArrayDeque;
 import java.util.Deque;
 
@@ -29,7 +30,7 @@ import xyz.xenondevs.invui.window.Window;
 
 public class SchematicMenu {
 
-	public SchematicMenu(Player player) {
+	public SchematicMenu(Player player, boolean isReset) {
 		File[] files = HellblockPlugin.getInstance().getHellblockHandler().getSchematics();
 		Deque<Item> items = new ArrayDeque<>();
 		if (files != null) {
@@ -40,7 +41,7 @@ public class SchematicMenu {
 						&& (player.hasPermission("hellblock.schematic.*") || player
 								.hasPermission("hellblock.schematic." + Files.getNameWithoutExtension(file.getName())))
 						&& (file.getName().endsWith(".schematic") || file.getName().endsWith(".schem"))) {
-					items.addFirst(new SchematicItem(file));
+					items.addFirst(new SchematicItem(file, isReset));
 				}
 			}
 		}
@@ -62,12 +63,14 @@ public class SchematicMenu {
 		window.open();
 	}
 
-	public static class SchematicItem extends AbstractItem {
+	public class SchematicItem extends AbstractItem {
 
 		private final File file;
+		private boolean isReset;
 
-		public SchematicItem(File file) {
+		public SchematicItem(File file, boolean isReset) {
 			this.file = file;
+			this.isReset = isReset;
 		}
 
 		@Override
@@ -91,9 +94,22 @@ public class SchematicMenu {
 					|| player.hasPermission("hellblock.schematic." + Files.getNameWithoutExtension(file.getName()))) {
 				if (HellblockPlugin.getInstance().getHellblockHandler().getIslandOptions()
 						.contains(Files.getNameWithoutExtension(file.getName()))) {
+					if (isReset && HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player)
+							.getResetCooldown() > 0) {
+						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+								String.format(
+										"<red>You have recently reset your hellblock already, you must wait for %s!",
+										HellblockPlugin.getInstance().getFormattedCooldown(HellblockPlugin.getInstance()
+												.getHellblockHandler().getActivePlayer(player).getResetCooldown())));
+						return;
+					}
 					HellblockPlugin.getInstance().getHellblockHandler().createHellblock(player, IslandOptions.SCHEMATIC,
 							Files.getNameWithoutExtension(file.getName()));
-					player.closeInventory();
+					HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player.getUniqueId())
+							.setResetCooldown(Duration.ofDays(1).toHours());
+					HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player.getUniqueId())
+							.saveHellblockPlayer();
+					new HellblockMenu(player);
 				} else {
 					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player, String.format(
 							"<red>The schematic <dark_red>%s <red>hellblock island type is not available to generate!",
@@ -108,7 +124,8 @@ public class SchematicMenu {
 		}
 	}
 
-	public static class BackToChoicesItem extends AbstractItem {
+	public class BackToChoicesItem extends AbstractItem {
+		
 		@Override
 		public ItemProvider getItemProvider() {
 			return new ItemBuilder(Material.ORANGE_STAINED_GLASS_PANE)
@@ -119,7 +136,7 @@ public class SchematicMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			new IslandChoiceMenu(player);
+			new IslandChoiceMenu(player, false);
 		}
 	}
 }

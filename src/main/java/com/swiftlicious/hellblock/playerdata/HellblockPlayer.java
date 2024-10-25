@@ -4,8 +4,10 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.TimeZone;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -18,6 +20,7 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.Nullable;
 
+import com.sk89q.worldguard.protection.flags.StateFlag;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.generation.HellBiome;
 import com.swiftlicious.hellblock.generation.IslandOptions;
@@ -32,6 +35,7 @@ public class HellblockPlayer {
 	private List<UUID> hellblockParty;
 	private List<UUID> whoHasTrusted;
 	private List<UUID> bannedPlayers;
+	private Set<String> protectionFlags;
 	private Location hellblockLocation;
 	private Location homeLocation;
 	private long creationTime;
@@ -85,7 +89,7 @@ public class HellblockPlayer {
 		if (this.hasHellblock) {
 			this.islandChoice = IslandOptions
 					.valueOf(this.getHellblockPlayer().get("player.island-choice.type").toString().toUpperCase());
-			this.hellblockID = this.getHellblockPlayer().getInt("player.hellblock-id", -1);
+			this.hellblockID = this.getHellblockPlayer().getInt("player.hellblock-id");
 			if (this.islandChoice == IslandOptions.SCHEMATIC) {
 				this.schematic = this.getHellblockPlayer().getString("player.island-choice.used-schematic");
 			}
@@ -137,8 +141,17 @@ public class HellblockPlayer {
 			} else {
 				this.bannedPlayers = new ArrayList<>();
 			}
+			if (this.getHellblockPlayer().contains("player.protection-flags")
+					&& !this.getHellblockPlayer().getStringList("player.protection-flags").isEmpty()) {
+				for (String flags : this.getHellblockPlayer().getStringList("player.protection-flags")) {
+					this.protectionFlags = new HashSet<>();
+					this.protectionFlags.add(flags);
+				}
+			} else {
+				this.protectionFlags = new HashSet<>();
+			}
 		} else {
-			this.hellblockID = -1;
+			this.hellblockID = 0;
 			this.hellblockBiome = null;
 			this.hellblockLocation = null;
 			this.resetCooldown = 0L;
@@ -147,6 +160,7 @@ public class HellblockPlayer {
 			this.totalVisitors = 0;
 			this.homeLocation = null;
 			this.hellblockOwner = null;
+			this.protectionFlags = new HashSet<>();
 			this.bannedPlayers = new ArrayList<>();
 			this.hellblockParty = new ArrayList<>();
 		}
@@ -224,9 +238,31 @@ public class HellblockPlayer {
 				+ " " + cal.get(Calendar.HOUR_OF_DAY) + ":" + cal.get(Calendar.MINUTE));
 	}
 
+	public Set<String> getProtectionFlags() {
+		return this.protectionFlags;
+	}
+
+	public <T> boolean getProtectionValue(T flag) {
+		boolean returnValue = false;
+		for (String flags : this.protectionFlags) {
+			String[] allFlags = flags.split(":");
+			String key = allFlags[0];
+			if (key.equals(((StateFlag) flag).getName())) {
+				String value = allFlags[1];
+				if (value.equalsIgnoreCase("ALLOW"))
+					returnValue = true;
+				else {
+					returnValue = false;
+				}
+			}
+		}
+		return returnValue;
+	}
+
 	public void setHellblock(boolean hasHellblock, Location hellblockLocation, int id) {
 		this.hasHellblock = hasHellblock;
 		this.hellblockLocation = hellblockLocation;
+		this.hellblockID = id;
 	}
 
 	public Location getHomeLocation() {
@@ -319,6 +355,23 @@ public class HellblockPlayer {
 		this.totalVisitors = visits;
 	}
 
+	public void setProtectionFlags(Set<String> flags) {
+		this.protectionFlags = flags;
+	}
+
+	public void setProtectionValue(String flag) {
+		String[] splitFlag = flag.split(":");
+		String splitKey = splitFlag[0];
+		for (String flags : this.protectionFlags) {
+			String[] split = flags.split(":");
+			String key = split[0];
+			if (key.equalsIgnoreCase(splitKey)) {
+				this.protectionFlags.remove(flag);
+			}
+		}
+		this.protectionFlags.add(flag);
+	}
+
 	public boolean hasGlowstoneArmorEffect() {
 		return this.wearingGlowstoneArmor;
 	}
@@ -349,7 +402,9 @@ public class HellblockPlayer {
 			this.getHellblockPlayer().set("player.trusted-on-islands", trustedString);
 		}
 		if (this.hasHellblock()) {
-			this.getHellblockPlayer().set("player.hellblock-id", this.hellblockID);
+			if (this.hellblockID > 0) {
+				this.getHellblockPlayer().set("player.hellblock-id", this.hellblockID);
+			}
 			this.serializeLocation("player.hellblock", this.hellblockLocation);
 			this.serializeLocation("player.home", this.homeLocation);
 			this.getHellblockPlayer().set("player.creation-time", this.creationTime);
@@ -372,6 +427,9 @@ public class HellblockPlayer {
 				List<String> bannedString = this.bannedPlayers.stream().filter(Objects::nonNull)
 						.map(uuid -> uuid.toString()).collect(Collectors.toList());
 				this.getHellblockPlayer().set("player.banned-from-island", bannedString);
+			}
+			if (!this.protectionFlags.isEmpty()) {
+				this.getHellblockPlayer().set("player.protection-flags", this.protectionFlags);
 			}
 		}
 

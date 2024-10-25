@@ -53,8 +53,7 @@ public class HellblockCoopCommand {
 						}
 						HellblockPlayer transferPlayer = HellblockPlugin.getInstance().getHellblockHandler()
 								.getActivePlayer(user);
-						HellblockPlugin.getInstance().getCoopManager().transferOwnershipOfHellblock(pi,
-								transferPlayer);
+						HellblockPlugin.getInstance().getCoopManager().transferOwnershipOfHellblock(pi, transferPlayer);
 					} else {
 						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 								"<red>You don't have a hellblock!");
@@ -82,8 +81,14 @@ public class HellblockCoopCommand {
 									"<red>You can't do this to yourself!");
 							return;
 						}
-						UUID id = UUIDFetcher.getUUID(user);
+						UUID id = Bukkit.getPlayer(user) != null ? Bukkit.getPlayer(user).getUniqueId()
+								: UUIDFetcher.getUUID(user);
 						if (id == null) {
+							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+									"<red>The player you're trying to kick from your hellblock doesn't exist!");
+							return;
+						}
+						if (!Bukkit.getOfflinePlayer(id).hasPlayedBefore()) {
 							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 									"<red>The player you're trying to kick from your hellblock doesn't exist!");
 							return;
@@ -226,8 +231,14 @@ public class HellblockCoopCommand {
 									"<red>You can't do this to yourself!");
 							return;
 						}
-						UUID id = UUIDFetcher.getUUID(user);
+						UUID id = Bukkit.getPlayer(user) != null ? Bukkit.getPlayer(user).getUniqueId()
+								: UUIDFetcher.getUUID(user);
 						if (id == null) {
+							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+									"<red>The player you're trying to untrust doesn't exist!");
+							return;
+						}
+						if (!Bukkit.getOfflinePlayer(id).hasPlayedBefore()) {
 							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 									"<red>The player you're trying to untrust doesn't exist!");
 							return;

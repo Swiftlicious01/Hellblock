@@ -55,6 +55,7 @@ import com.swiftlicious.hellblock.listeners.InfiniteLava;
 import com.swiftlicious.hellblock.listeners.NetherArmor;
 import com.swiftlicious.hellblock.listeners.NetherBrewing;
 import com.swiftlicious.hellblock.listeners.NetherFarming;
+import com.swiftlicious.hellblock.listeners.NetherSnowGolem;
 import com.swiftlicious.hellblock.listeners.NetherTools;
 import com.swiftlicious.hellblock.listeners.NetherrackGenerator;
 import com.swiftlicious.hellblock.listeners.PlayerListener;
@@ -64,6 +65,7 @@ import com.swiftlicious.hellblock.listeners.rain.LavaRain;
 import com.swiftlicious.hellblock.loot.LootManager;
 import com.swiftlicious.hellblock.placeholders.PlaceholderManager;
 import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
+import com.swiftlicious.hellblock.protection.IslandProtection;
 import com.swiftlicious.hellblock.scheduler.Scheduler;
 import com.swiftlicious.hellblock.schematic.SchematicManager;
 import com.swiftlicious.hellblock.utils.ConfigUtils;
@@ -94,6 +96,7 @@ public class HellblockPlugin extends JavaPlugin {
 	protected NetherFarming netherFarming;
 	protected NetherTools netherTools;
 	protected NetherArmor netherArmor;
+	protected NetherSnowGolem netherSnowGolem;
 	protected PlayerListener playerListener;
 	protected NetherrackGenerator netherrackGenerator;
 	protected IslandGenerator islandGenerator;
@@ -103,6 +106,7 @@ public class HellblockPlugin extends JavaPlugin {
 	protected BiomeHandler biomeHandler;
 	protected IslandChoiceConverter islandChoiceConverter;
 	protected CoopManager coopManager;
+	protected IslandProtection islandProtectionManager;
 	protected SchematicManager schematicManager;
 
 	protected ConfigUtils configUtils;
@@ -204,6 +208,7 @@ public class HellblockPlugin extends JavaPlugin {
 		this.biomeHandler = new BiomeHandler(this);
 		this.islandChoiceConverter = new IslandChoiceConverter(this);
 		this.coopManager = new CoopManager(this);
+		this.islandProtectionManager = new IslandProtection(this);
 
 		this.actionManager = new ActionManager(this);
 		this.adventureManager = new AdventureManager();
@@ -226,6 +231,7 @@ public class HellblockPlugin extends JavaPlugin {
 		this.netherBrewing = new NetherBrewing(this);
 		this.netherTools = new NetherTools(this);
 		this.netherArmor = new NetherArmor(this);
+		this.netherSnowGolem = new NetherSnowGolem(this);
 
 		this.globalSettings = new GlobalSettings();
 
@@ -269,8 +275,10 @@ public class HellblockPlugin extends JavaPlugin {
 					if (!LocationUtils.isSafeLocation(pi.getHomeLocation())) {
 						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 								"<red>This hellblock home location was deemed not safe, resetting to bedrock location!");
-						pi.setHome(HellblockPlugin.getInstance().getHellblockHandler().locateBedrock(player.getUniqueId()));
-						HellblockPlugin.getInstance().getCoopManager().updateParty(player.getUniqueId(), "home", pi.getHomeLocation());
+						pi.setHome(HellblockPlugin.getInstance().getHellblockHandler()
+								.locateBedrock(player.getUniqueId()));
+						HellblockPlugin.getInstance().getCoopManager().updateParty(player.getUniqueId(), "home",
+								pi.getHomeLocation());
 					}
 					player.teleportAsync(pi.getHomeLocation());
 				} else {
@@ -285,7 +293,8 @@ public class HellblockPlugin extends JavaPlugin {
 			if (HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers().isEmpty())
 				return;
 			long time1 = System.currentTimeMillis();
-			getHellblockHandler().getActivePlayers().values().forEach(hbPlayer -> hbPlayer.saveHellblockPlayer());
+			getHellblockHandler().getActivePlayers().values().stream().filter(hbPlayer -> hbPlayer.hasHellblock())
+					.forEach(hbPlayer -> hbPlayer.saveHellblockPlayer());
 			if (HBConfig.logDataSaving) {
 				LogUtils.info(String.format("Hellblock islands have all been saved. Took %sms.",
 						(System.currentTimeMillis() - time1)));

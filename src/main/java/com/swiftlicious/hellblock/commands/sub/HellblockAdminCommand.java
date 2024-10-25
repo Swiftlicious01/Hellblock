@@ -3,6 +3,7 @@ package com.swiftlicious.hellblock.commands.sub;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
 
@@ -34,8 +35,14 @@ public class HellblockAdminCommand {
 								.map(hbPlayer -> hbPlayer.getPlayer().getName()).collect(Collectors.toList()))))
 				.executesPlayer((player, args) -> {
 					String user = (String) args.getOrDefault("player", player);
-					UUID id = UUIDFetcher.getUUID(user);
+					UUID id = Bukkit.getPlayer(user) != null ? Bukkit.getPlayer(user).getUniqueId()
+							: UUIDFetcher.getUUID(user);
 					if (id == null) {
+						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+								"<red>The player's hellblock you're trying to teleport to doesn't exist!");
+						return;
+					}
+					if (!Bukkit.getOfflinePlayer(id).hasPlayedBefore()) {
 						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 								"<red>The player's hellblock you're trying to teleport to doesn't exist!");
 						return;
@@ -75,8 +82,14 @@ public class HellblockAdminCommand {
 								.map(hbPlayer -> hbPlayer.getPlayer().getName()).collect(Collectors.toList()))))
 				.executesPlayer((player, args) -> {
 					String user = (String) args.getOrDefault("player", player);
-					UUID id = UUIDFetcher.getUUID(user);
+					UUID id = Bukkit.getPlayer(user) != null ? Bukkit.getPlayer(user).getUniqueId()
+							: UUIDFetcher.getUUID(user);
 					if (id == null) {
+						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+								"<red>The player's hellblock you're trying to delete doesn't exist!");
+						return;
+					}
+					if (!Bukkit.getOfflinePlayer(id).hasPlayedBefore()) {
 						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 								"<red>The player's hellblock you're trying to delete doesn't exist!");
 						return;
@@ -90,6 +103,10 @@ public class HellblockAdminCommand {
 
 					if (ti.hasHellblock()) {
 						HellblockPlugin.getInstance().getHellblockHandler().resetHellblock(id, true);
+						if (Bukkit.getPlayer(id) != null && Bukkit.getPlayer(id).isOnline()) {
+							Bukkit.getPlayer(id)
+									.performCommand(HellblockPlugin.getInstance().getHellblockHandler().getNetherCMD());
+						}
 						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 								String.format("<red>You have forcefully deleted <dark_red>%s<red>'s hellblock!", user));
 						return;

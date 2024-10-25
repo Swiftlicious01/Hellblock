@@ -42,7 +42,7 @@ public class CoopMenu {
 		window.open();
 	}
 
-	public static class OwnerItem extends AbstractItem {
+	public class OwnerItem extends AbstractItem {
 
 		private UUID playerUUID;
 
@@ -66,7 +66,7 @@ public class CoopMenu {
 						.addLoreLines(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
 								.getAdventureManager().getComponentFromMiniMessage("<yellow>Role: <gold>Owner")));
 			} catch (MojangApiException | IOException e) {
-				LogUtils.severe("Failed to create owner player head! ", e);
+				LogUtils.severe("Failed to create owner player head!", e);
 				return new ItemBuilder(Material.BARRIER).setDisplayName(
 						new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 								.getComponentFromMiniMessage("<dark_red>Broken, please report this.")));
@@ -79,14 +79,14 @@ public class CoopMenu {
 		}
 	}
 
-	public static class MemberItem extends AbstractItem {
+	public class MemberItem extends AbstractItem {
 
 		private UUID playerUUID;
 		private NamespacedKey inviteKey;
 
 		public MemberItem(UUID playerUUID) {
 			this.playerUUID = playerUUID;
-			this.inviteKey = new NamespacedKey(HellblockPlugin.getInstance(), "inviteallowed");
+			this.inviteKey = new NamespacedKey(HellblockPlugin.getInstance(), "invite-allowed");
 		}
 
 		@Override
@@ -106,7 +106,7 @@ public class CoopMenu {
 							.addLoreLines(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
 									.getAdventureManager().getComponentFromMiniMessage("<yellow>Role: <gold>Member")));
 				} catch (MojangApiException | IOException e) {
-					LogUtils.severe("Failed to create party member player heads! ", e);
+					LogUtils.severe("Failed to create party member player heads!", e);
 					return new ItemBuilder(Material.BARRIER).setDisplayName(
 							new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 									.getComponentFromMiniMessage("<dark_red>Broken, please report this.")));
@@ -120,9 +120,11 @@ public class CoopMenu {
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 										.getComponentFromMiniMessage("<green>Click to invite a new member!")));
 				item.get().getItemMeta().getPersistentDataContainer().set(inviteKey, PersistentDataType.BOOLEAN, true);
-				return item;
+				item.get().setItemMeta(item.get().getItemMeta());
+				ItemBuilder update = new ItemBuilder(item.get());
+				return update;
 			} catch (MojangApiException | IOException e) {
-				LogUtils.severe("Failed to create question mark player heads! ", e);
+				LogUtils.severe("Failed to create question mark player heads!", e);
 				return new ItemBuilder(Material.BARRIER).setDisplayName(
 						new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 								.getComponentFromMiniMessage("<dark_red>Broken, please report this.")));
@@ -132,7 +134,8 @@ public class CoopMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			if (event.getCurrentItem() != null && event.getCurrentItem().getPersistentDataContainer().has(inviteKey)) {
+			if (event.getCurrentItem() != null
+					&& event.getCurrentItem().getPersistentDataContainer().has(inviteKey, PersistentDataType.BOOLEAN)) {
 				new InvitationMenu(player);
 			}
 		}

@@ -62,6 +62,8 @@ public class IslandChoiceConverter {
 			for (String list : instance.getHellblockHandler().getIslandOptions()) {
 				if (list.equalsIgnoreCase("classic") || list.equalsIgnoreCase("default"))
 					continue;
+				if (!instance.getSchematicManager().schematicFiles.containsKey(list))
+					continue;
 
 				schematicsAvailable = true;
 				break;

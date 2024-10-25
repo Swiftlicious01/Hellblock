@@ -60,13 +60,14 @@ public class HellblockUserCommand {
 					if (pi.getResetCooldown() > 0) {
 						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 								String.format(
-										"<red>You have recently rest your hellblock already, you must wait for %s!",
+										"<red>You have recently reset your hellblock already, you must wait for %s!",
 										HellblockPlugin.getInstance().getFormattedCooldown(pi.getResetCooldown())));
 						return;
 					}
 
 					HellblockPlugin.getInstance().getHellblockHandler().resetHellblock(player.getUniqueId(), false);
-					new IslandChoiceMenu(player);
+					player.performCommand(HellblockPlugin.getInstance().getHellblockHandler().getNetherCMD());
+					new IslandChoiceMenu(player, true);
 				});
 	}
 
@@ -75,7 +76,14 @@ public class HellblockUserCommand {
 				.executesPlayer((player, args) -> {
 					HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
 					if (!pi.hasHellblock()) {
-						new IslandChoiceMenu(player);
+						if (pi.getResetCooldown() > 0) {
+							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+									String.format(
+											"<red>You have recently reset your hellblock already, you must wait for %s!",
+											HellblockPlugin.getInstance().getFormattedCooldown(pi.getResetCooldown())));
+							return;
+						}
+						new IslandChoiceMenu(player, false);
 					} else {
 						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 								"<red>You already have a hellblock!");
@@ -96,7 +104,7 @@ public class HellblockUserCommand {
 						pi.setLockedStatus(!pi.getLockedStatus());
 						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 								String.format("<red>You have just <dark_red>%s <red>your hellblock island!",
-										(pi.getLockedStatus() ? "unlocked" : "locked")));
+										(pi.getLockedStatus() ? "locked" : "unlocked")));
 						if (pi.getLockedStatus()) {
 							HellblockPlugin.getInstance().getCoopManager().kickVisitorsIfLocked(player.getUniqueId());
 							HellblockPlugin.getInstance().getCoopManager().changeLockStatus(player);
@@ -113,7 +121,7 @@ public class HellblockUserCommand {
 				.withPermission(CommandPermission.NONE).withPermission("hellblock.user")
 				.withArguments(new StringArgument("biome").replaceSuggestions(
 						ArgumentSuggestions.stringCollection(collection -> Arrays.stream(HellBiome.values())
-								.map(biome -> biome.getName()).collect(Collectors.toList()))))
+								.map(biome -> biome.toString()).collect(Collectors.toList()))))
 				.executesPlayer((player, args) -> {
 					HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
 					if (pi.hasHellblock()) {
@@ -131,7 +139,8 @@ public class HellblockUserCommand {
 							return;
 						}
 						HellblockPlugin.getInstance().getBiomeHandler().changeHellblockBiome(pi, biome, false);
-						HellblockPlugin.getInstance().getCoopManager().updateParty(player.getUniqueId(), "biome", pi.getHellblockBiome());
+						HellblockPlugin.getInstance().getCoopManager().updateParty(player.getUniqueId(), "biome",
+								pi.getHellblockBiome());
 					} else {
 						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 								"<red>You don't have a hellblock!");
@@ -149,8 +158,14 @@ public class HellblockUserCommand {
 								.map(hbPlayer -> hbPlayer.getPlayer().getName()).collect(Collectors.toList()))))
 				.executesPlayer((player, args) -> {
 					String user = (String) args.getOrDefault("player", player);
-					UUID id = UUIDFetcher.getUUID(user);
+					UUID id = Bukkit.getPlayer(user) != null ? Bukkit.getPlayer(user).getUniqueId()
+							: UUIDFetcher.getUUID(user);
 					if (id == null) {
+						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+								"<red>The player's hellblock you're trying to visit doesn't exist!");
+						return;
+					}
+					if (!Bukkit.getOfflinePlayer(id).hasPlayedBefore()) {
 						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 								"<red>The player's hellblock you're trying to visit doesn't exist!");
 						return;
@@ -219,8 +234,10 @@ public class HellblockUserCommand {
 							if (!LocationUtils.isSafeLocation(pi.getHomeLocation())) {
 								HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 										"<red>This hellblock home location was deemed not safe, resetting to bedrock location!");
-								pi.setHome(HellblockPlugin.getInstance().getHellblockHandler().locateBedrock(player.getUniqueId()));
-								HellblockPlugin.getInstance().getCoopManager().updateParty(player.getUniqueId(), "home", pi.getHomeLocation());
+								pi.setHome(HellblockPlugin.getInstance().getHellblockHandler()
+										.locateBedrock(player.getUniqueId()));
+								HellblockPlugin.getInstance().getCoopManager().updateParty(player.getUniqueId(), "home",
+										pi.getHomeLocation());
 							}
 							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 									"<red>Teleporting you to your hellblock!");
@@ -256,8 +273,14 @@ public class HellblockUserCommand {
 								"<red>You don't have a hellblock!");
 					} else {
 						String user = (String) args.getOrDefault("player", player);
-						UUID id = UUIDFetcher.getUUID(user);
+						UUID id = Bukkit.getPlayer(user) != null ? Bukkit.getPlayer(user).getUniqueId()
+								: UUIDFetcher.getUUID(user);
 						if (id == null) {
+							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+									"<red>The player you are trying to ban doesn't exist!");
+							return;
+						}
+						if (!Bukkit.getOfflinePlayer(id).hasPlayedBefore()) {
 							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 									"<red>The player you are trying to ban doesn't exist!");
 							return;
@@ -286,10 +309,13 @@ public class HellblockUserCommand {
 										.getActivePlayer(id);
 								if (ti.hasHellblock()) {
 									if (!LocationUtils.isSafeLocation(ti.getHomeLocation())) {
-										HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(Bukkit.getPlayer(user),
+										HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(
+												Bukkit.getPlayer(user),
 												"<red>This hellblock home location was deemed not safe, resetting to bedrock location!");
-										ti.setHome(HellblockPlugin.getInstance().getHellblockHandler().locateBedrock(id));
-										HellblockPlugin.getInstance().getCoopManager().updateParty(id, "home", ti.getHomeLocation());
+										ti.setHome(
+												HellblockPlugin.getInstance().getHellblockHandler().locateBedrock(id));
+										HellblockPlugin.getInstance().getCoopManager().updateParty(id, "home",
+												ti.getHomeLocation());
 									}
 									Bukkit.getPlayer(user).teleportAsync(ti.getHomeLocation());
 								} else {
@@ -319,8 +345,14 @@ public class HellblockUserCommand {
 								"<red>You don't have a hellblock!");
 					} else {
 						String user = (String) args.getOrDefault("player", player);
-						UUID id = UUIDFetcher.getUUID(user);
+						UUID id = Bukkit.getPlayer(user) != null ? Bukkit.getPlayer(user).getUniqueId()
+								: UUIDFetcher.getUUID(user);
 						if (id == null) {
+							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+									"<red>The player you are trying to unban doesn't exist!");
+							return;
+						}
+						if (!Bukkit.getOfflinePlayer(id).hasPlayedBefore()) {
 							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 									"<red>The player you are trying to unban doesn't exist!");
 							return;
@@ -377,7 +409,7 @@ public class HellblockUserCommand {
 							}
 						}
 						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-								String.format("<dark_red>Hellblock Information (ID: <red>%s<dark_red):", pi.getID()));
+								String.format("<dark_red>Hellblock Information (ID: <red>%s<dark_red>):", pi.getID()));
 						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 								"<red>Owner: <dark_red>" + (pi.getHellblockOwner() != null
 										&& Bukkit.getOfflinePlayer(pi.getHellblockOwner()).hasPlayedBefore()

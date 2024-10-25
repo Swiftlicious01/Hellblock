@@ -38,7 +38,7 @@ public class BiomeMenu {
 		window.open();
 	}
 
-	public static class SoulSandValleyBiomeItem extends AbstractItem {
+	public class SoulSandValleyBiomeItem extends AbstractItem {
 
 		private UUID playerUUID;
 
@@ -60,11 +60,19 @@ public class BiomeMenu {
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
 			HellblockPlayer hbPlayer = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(playerUUID);
+			if (HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player)
+					.getBiomeCooldown() > 0) {
+				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+						String.format("<red>You have recently changed your hellbiome biome, you must wait for %s!",
+								HellblockPlugin.getInstance().getFormattedCooldown(HellblockPlugin.getInstance()
+										.getHellblockHandler().getActivePlayer(player).getBiomeCooldown())));
+				return;
+			}
 			HellblockPlugin.getInstance().getBiomeHandler().changeHellblockBiome(hbPlayer, HellBiome.SOUL_SAND_VALLEY, false);
 		}
 	}
 
-	public static class CrimsonForestBiomeItem extends AbstractItem {
+	public class CrimsonForestBiomeItem extends AbstractItem {
 
 		private UUID playerUUID;
 
@@ -86,11 +94,19 @@ public class BiomeMenu {
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
 			HellblockPlayer hbPlayer = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(playerUUID);
+			if (HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player)
+					.getBiomeCooldown() > 0) {
+				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+						String.format("<red>You have recently changed your hellbiome biome, you must wait for %s!",
+								HellblockPlugin.getInstance().getFormattedCooldown(HellblockPlugin.getInstance()
+										.getHellblockHandler().getActivePlayer(player).getBiomeCooldown())));
+				return;
+			}
 			HellblockPlugin.getInstance().getBiomeHandler().changeHellblockBiome(hbPlayer, HellBiome.CRIMSON_FOREST, false);
 		}
 	}
 
-	public static class WarpedForestBiomeItem extends AbstractItem {
+	public class WarpedForestBiomeItem extends AbstractItem {
 
 		private UUID playerUUID;
 
@@ -113,11 +129,19 @@ public class BiomeMenu {
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
 			HellblockPlayer hbPlayer = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(playerUUID);
+			if (HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player)
+					.getBiomeCooldown() > 0) {
+				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+						String.format("<red>You have recently changed your hellbiome biome, you must wait for %s!",
+								HellblockPlugin.getInstance().getFormattedCooldown(HellblockPlugin.getInstance()
+										.getHellblockHandler().getActivePlayer(player).getBiomeCooldown())));
+				return;
+			}
 			HellblockPlugin.getInstance().getBiomeHandler().changeHellblockBiome(hbPlayer, HellBiome.WARPED_FOREST, false);
 		}
 	}
 
-	public static class NetherWastesBiomeItem extends AbstractItem {
+	public class NetherWastesBiomeItem extends AbstractItem {
 
 		private UUID playerUUID;
 
@@ -139,11 +163,19 @@ public class BiomeMenu {
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
 			HellblockPlayer hbPlayer = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(playerUUID);
+			if (HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player)
+					.getBiomeCooldown() > 0) {
+				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+						String.format("<red>You have recently changed your hellbiome biome, you must wait for %s!",
+								HellblockPlugin.getInstance().getFormattedCooldown(HellblockPlugin.getInstance()
+										.getHellblockHandler().getActivePlayer(player).getBiomeCooldown())));
+				return;
+			}
 			HellblockPlugin.getInstance().getBiomeHandler().changeHellblockBiome(hbPlayer, HellBiome.NETHER_WASTES, false);
 		}
 	}
 
-	public static class BasaltDeltasBiomeItem extends AbstractItem {
+	public class BasaltDeltasBiomeItem extends AbstractItem {
 
 		private UUID playerUUID;
 
@@ -165,6 +197,14 @@ public class BiomeMenu {
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
 			HellblockPlayer hbPlayer = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(playerUUID);
+			if (HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player)
+					.getBiomeCooldown() > 0) {
+				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+						String.format("<red>You have recently changed your hellbiome biome, you must wait for %s!",
+								HellblockPlugin.getInstance().getFormattedCooldown(HellblockPlugin.getInstance()
+										.getHellblockHandler().getActivePlayer(player).getBiomeCooldown())));
+				return;
+			}
 			HellblockPlugin.getInstance().getBiomeHandler().changeHellblockBiome(hbPlayer, HellBiome.BASALT_DELTAS, false);
 		}
 	}

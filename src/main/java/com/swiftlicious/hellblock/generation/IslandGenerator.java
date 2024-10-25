@@ -616,7 +616,7 @@ public class IslandGenerator {
 			break;
 		}
 
-		return option == IslandOptions.CLASSIC ? BlockFace.WEST
+		return option == IslandOptions.CLASSIC ? BlockFace.EAST
 				: option == IslandOptions.DEFAULT ? BlockFace.SOUTH : finalFace;
 	}
 

@@ -109,6 +109,7 @@ public class CoopManager {
 					playerToAdd.setHellblockOwner(owner.getUniqueId());
 					playerToAdd.setBannedPlayers(hbPlayer.getBannedPlayers());
 					playerToAdd.setHellblockBiome(hbPlayer.getHellblockBiome());
+					playerToAdd.setProtectionFlags(hbPlayer.getProtectionFlags());
 					playerToAdd.setLockedStatus(hbPlayer.getLockedStatus());
 					playerToAdd.setCreationTime(hbPlayer.getCreation());
 					playerToAdd.setTotalVisits(hbPlayer.getTotalVisitors());
@@ -122,8 +123,10 @@ public class CoopManager {
 					if (!LocationUtils.isSafeLocation(playerToAdd.getHomeLocation())) {
 						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 								"<red>This hellblock home location was deemed not safe, resetting to bedrock location!");
-						playerToAdd.setHome(HellblockPlugin.getInstance().getHellblockHandler().locateBedrock(player.getUniqueId()));
-						HellblockPlugin.getInstance().getCoopManager().updateParty(player.getUniqueId(), "home", playerToAdd.getHomeLocation());
+						playerToAdd.setHome(HellblockPlugin.getInstance().getHellblockHandler()
+								.locateBedrock(player.getUniqueId()));
+						HellblockPlugin.getInstance().getCoopManager().updateParty(player.getUniqueId(), "home",
+								playerToAdd.getHomeLocation());
 					}
 					player.teleportAsync(hbPlayer.getHomeLocation());
 					// if raining give player a bit of protection
@@ -135,7 +138,8 @@ public class CoopManager {
 					}
 					hbPlayer.addToHellblockParty(player.getUniqueId());
 					for (HellblockPlayer active : instance.getHellblockHandler().getActivePlayers().values()) {
-						if (active == null || active.getPlayer() == null)
+						if (active == null || active.getPlayer() == null
+								|| active.getPlayer().getUniqueId().equals(owner.getUniqueId()))
 							continue;
 						if (active.getHellblockOwner().equals(playerToAdd.getHellblockOwner())) {
 							active.addToHellblockParty(player.getUniqueId());
@@ -156,6 +160,8 @@ public class CoopManager {
 						if (id != null && instance.getHellblockHandler().getActivePlayers().keySet().contains(id))
 							continue;
 						YamlConfiguration offlineFile = YamlConfiguration.loadConfiguration(offline);
+						if (offlineFile.getString("player.owner").equals(id.toString()))
+							continue;
 						if (offlineFile.getString("player.owner").equals(playerToAdd.getHellblockOwner().toString())) {
 							List<String> offlineParty = offlineFile.getStringList("player.party");
 							offlineParty.add(player.getUniqueId().toString());
@@ -239,21 +245,23 @@ public class CoopManager {
 				}
 
 				party.remove(id);
-				ti.setHellblock(false, null, -1);
+				ti.setHellblock(false, null, 0);
 				ti.setHellblockParty(new ArrayList<>());
 				ti.setBannedPlayers(new ArrayList<>());
+				ti.setProtectionFlags(new HashSet<>());
 				ti.setHome(null);
 				ti.setTotalVisits(0);
 				ti.setCreationTime(0L);
 				ti.setHellblockBiome(null);
 				ti.setLockedStatus(false);
-				ti.setBiomeCooldown(0L);
+				ti.setResetCooldown(0L);
 				ti.setBiomeCooldown(0L);
 				ti.setIslandChoice(null);
 				ti.setUsedSchematic(null);
 				hbPlayer.kickFromHellblockParty(id);
 				for (HellblockPlayer active : instance.getHellblockHandler().getActivePlayers().values()) {
-					if (active == null || active.getPlayer() == null)
+					if (active == null || active.getPlayer() == null
+							|| active.getPlayer().getUniqueId().equals(owner.getUniqueId()))
 						continue;
 					if (active.getHellblockOwner().equals(ti.getHellblockOwner())) {
 						active.kickFromHellblockParty(id);
@@ -275,6 +283,8 @@ public class CoopManager {
 							&& instance.getHellblockHandler().getActivePlayers().keySet().contains(offlineID))
 						continue;
 					YamlConfiguration offlineFile = YamlConfiguration.loadConfiguration(offline);
+					if (offlineFile.getString("player.owner").equals(offlineID.toString()))
+						continue;
 					if (offlineFile.getString("player.owner").equals(ti.getHellblockOwner().toString())) {
 						List<String> offlineParty = offlineFile.getStringList("player.party");
 						offlineParty.remove(id.toString());
@@ -359,18 +369,19 @@ public class CoopManager {
 				}
 
 				party.remove(player.getUniqueId());
-				leavingPlayer.setHellblock(false, null, -1);
+				leavingPlayer.setHellblock(false, null, 0);
 				leavingPlayer.setHome(null);
 				leavingPlayer.setHellblockBiome(null);
 				leavingPlayer.setLockedStatus(false);
 				leavingPlayer.setTotalVisits(0);
 				leavingPlayer.setCreationTime(0L);
-				leavingPlayer.setBiomeCooldown(0L);
+				leavingPlayer.setResetCooldown(0L);
 				leavingPlayer.setBiomeCooldown(0L);
 				leavingPlayer.setIslandChoice(null);
 				leavingPlayer.setUsedSchematic(null);
 				leavingPlayer.setBannedPlayers(new ArrayList<>());
 				leavingPlayer.setHellblockParty(new ArrayList<>());
+				leavingPlayer.setProtectionFlags(new HashSet<>());
 				player.performCommand(instance.getHellblockHandler().getNetherCMD());
 				if (owner != null && owner.isOnline()) {
 					HellblockPlayer ownerPlayer = instance.getHellblockHandler()
@@ -402,7 +413,8 @@ public class CoopManager {
 					}
 				}
 				for (HellblockPlayer active : instance.getHellblockHandler().getActivePlayers().values()) {
-					if (active == null || active.getPlayer() == null)
+					if (active == null || active.getPlayer() == null
+							|| active.getPlayer().getUniqueId().equals(owner.getUniqueId()))
 						continue;
 					if (active.getHellblockOwner().equals(leavingPlayer.getHellblockOwner())) {
 						active.kickFromHellblockParty(player.getUniqueId());
@@ -423,6 +435,8 @@ public class CoopManager {
 					if (id != null && instance.getHellblockHandler().getActivePlayers().keySet().contains(id))
 						continue;
 					YamlConfiguration offlineFile = YamlConfiguration.loadConfiguration(offline);
+					if (offlineFile.getString("player.owner").equals(id.toString()))
+						continue;
 					if (offlineFile.getString("player.owner").equals(leavingPlayer.getHellblockOwner().toString())) {
 						List<String> offlineParty = offlineFile.getStringList("player.party");
 						offlineParty.remove(player.getUniqueId().toString());
@@ -523,7 +537,8 @@ public class CoopManager {
 					playerToTransfer.kickFromHellblockParty(player.getUniqueId());
 					hbPlayer.addToHellblockParty(owner.getUniqueId());
 					for (HellblockPlayer active : instance.getHellblockHandler().getActivePlayers().values()) {
-						if (active == null || active.getPlayer() == null)
+						if (active == null || active.getPlayer() == null
+								|| active.getPlayer().getUniqueId().equals(owner.getUniqueId()))
 							continue;
 						if (active.getHellblockOwner().equals(owner.getUniqueId())) {
 							active.setHellblockOwner(playerToTransfer.getHellblockOwner());
@@ -545,6 +560,8 @@ public class CoopManager {
 						if (id != null && instance.getHellblockHandler().getActivePlayers().keySet().contains(id))
 							continue;
 						YamlConfiguration offlineFile = YamlConfiguration.loadConfiguration(offline);
+						if (offlineFile.getString("player.owner").equals(id.toString()))
+							continue;
 						if (offlineFile.getString("player.owner").equals(owner.getUniqueId().toString())) {
 							List<String> offlineParty = offlineFile.getStringList("player.party");
 							offlineParty.remove(player.getUniqueId().toString());
@@ -855,7 +872,7 @@ public class CoopManager {
 
 	public <T> void updateParty(@NonNull UUID id, String type, T value) {
 		for (HellblockPlayer active : instance.getHellblockHandler().getActivePlayers().values()) {
-			if (active == null || active.getPlayer() == null)
+			if (active == null || active.getPlayer() == null || active.getPlayer().getUniqueId().equals(id))
 				continue;
 			if (active.getHellblockOwner().equals(id)) {
 				switch (type) {
@@ -877,6 +894,9 @@ public class CoopManager {
 				case "visit":
 					active.setTotalVisits(active.getTotalVisitors() + (int) value);
 					break;
+				case "flag":
+					active.setProtectionValue((String) value);
+					break;
 				}
 			}
 			active.saveHellblockPlayer();
@@ -895,6 +915,8 @@ public class CoopManager {
 			if (uuid != null && instance.getHellblockHandler().getActivePlayers().keySet().contains(uuid))
 				continue;
 			YamlConfiguration offlineFile = YamlConfiguration.loadConfiguration(offline);
+			if (offlineFile.getString("player.owner").equals(uuid.toString()))
+				continue;
 			if (offlineFile.getString("player.owner").equals(id.toString())) {
 				switch (type) {
 				case "lock":
@@ -939,6 +961,13 @@ public class CoopManager {
 					break;
 				case "visit":
 					offlineFile.set("player.total-visits", offlineFile.getInt("player.total-visits") + (int) value);
+					break;
+				case "flag":
+					List<String> flags = offlineFile.getStringList("player.protection-flags");
+					if (!flags.contains((String) value)) {
+						flags.add((String) value);
+					}
+					offlineFile.set("player.protection-flags", flags);
 					break;
 				}
 			}

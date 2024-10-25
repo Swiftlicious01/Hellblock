@@ -30,7 +30,6 @@ hellblock:
   worldguardProtect: true
   disable-bed-explosions: true
   protectionRange: 105
-  allowPvP: DENY
   starter-chest: 
     inventory-name: '<dark_red>Hellblock Chest'
     '1':

@@ -132,7 +132,7 @@ public class BiomeHandler {
 				List<Location> locations = instance.getWorldGuardHandler().getRegionBlocks(player.getUniqueId());
 				locations.forEach(loc -> {
 					loc.getBlock().setBiome(Biome.valueOf(biome.toString().toUpperCase()));
-					loc.getBlock().getWorld().refreshChunk(loc.getBlockX(), loc.getBlockZ());
+					loc.getWorld().refreshChunk(loc.getBlockX(), loc.getBlockZ());
 				});
 
 				hbPlayer.setHellblockBiome(biome);
@@ -141,8 +141,10 @@ public class BiomeHandler {
 				if (!LocationUtils.isSafeLocation(hbPlayer.getHomeLocation())) {
 					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 							"<red>This hellblock home location was deemed not safe, resetting to bedrock location!");
-					hbPlayer.setHome(HellblockPlugin.getInstance().getHellblockHandler().locateBedrock(player.getUniqueId()));
-					HellblockPlugin.getInstance().getCoopManager().updateParty(player.getUniqueId(), "home", hbPlayer.getHomeLocation());
+					hbPlayer.setHome(
+							HellblockPlugin.getInstance().getHellblockHandler().locateBedrock(player.getUniqueId()));
+					HellblockPlugin.getInstance().getCoopManager().updateParty(player.getUniqueId(), "home",
+							hbPlayer.getHomeLocation());
 				}
 				player.teleportAsync(hbPlayer.getHomeLocation());
 				List<UUID> party = hbPlayer.getHellblockParty();
@@ -173,6 +175,8 @@ public class BiomeHandler {
 
 				instance.getAdventureManager().sendMessageWithPrefix(player, String.format(
 						"<red>You have changed the biome of your hellblock to <dark_red>%s<red>!", biome.getName()));
+				instance.getAdventureManager().sendMessageWithPrefix(player,
+						"<red>Please refresh the chunk by rejoining!");
 			} else {
 				// TODO: using plugin protection
 			}

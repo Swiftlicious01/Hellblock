@@ -1,5 +1,7 @@
 package com.swiftlicious.hellblock.gui.hellblock;
 
+import java.time.Duration;
+
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.ClickType;
@@ -19,11 +21,12 @@ import xyz.xenondevs.invui.window.Window;
 
 public class IslandChoiceMenu {
 
-	public IslandChoiceMenu(Player player) {
+	public IslandChoiceMenu(Player player, boolean isReset) {
 
-		Gui gui = Gui.normal().setStructure("# d c s #").addIngredient('d', new DefaultIslandChoiceItem())
-				.addIngredient('c', new ClassicIslandChoiceItem()).addIngredient('s', new SchematicIslandChoiceItem())
-				.addIngredient('#', new BackGroundItem()).build();
+		Gui gui = Gui.normal().setStructure("# d c s #").addIngredient('d', new DefaultIslandChoiceItem(isReset))
+				.addIngredient('c', new ClassicIslandChoiceItem(isReset))
+				.addIngredient('s', new SchematicIslandChoiceItem(isReset)).addIngredient('#', new BackGroundItem())
+				.build();
 
 		Window window = Window.single().setViewer(player)
 				.setTitle(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
@@ -35,7 +38,13 @@ public class IslandChoiceMenu {
 		window.open();
 	}
 
-	public static class DefaultIslandChoiceItem extends AbstractItem {
+	public class DefaultIslandChoiceItem extends AbstractItem {
+
+		boolean isReset = false;
+
+		public DefaultIslandChoiceItem(boolean isReset) {
+			this.isReset = isReset;
+		}
 
 		@Override
 		public ItemProvider getItemProvider() {
@@ -50,12 +59,30 @@ public class IslandChoiceMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
+			if (isReset && HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player)
+					.getResetCooldown() > 0) {
+				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+						String.format("<red>You have recently reset your hellblock already, you must wait for %s!",
+								HellblockPlugin.getInstance().getFormattedCooldown(HellblockPlugin.getInstance()
+										.getHellblockHandler().getActivePlayer(player).getResetCooldown())));
+				return;
+			}
 			HellblockPlugin.getInstance().getHellblockHandler().createHellblock(player, IslandOptions.DEFAULT);
-			player.closeInventory();
+			HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player.getUniqueId())
+					.setResetCooldown(Duration.ofDays(1).toHours());
+			HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player.getUniqueId())
+					.saveHellblockPlayer();
+			new HellblockMenu(player);
 		}
 	}
 
-	public static class ClassicIslandChoiceItem extends AbstractItem {
+	public class ClassicIslandChoiceItem extends AbstractItem {
+
+		boolean isReset = false;
+
+		public ClassicIslandChoiceItem(boolean isReset) {
+			this.isReset = isReset;
+		}
 
 		@Override
 		public ItemProvider getItemProvider() {
@@ -70,12 +97,30 @@ public class IslandChoiceMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
+			if (isReset && HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player)
+					.getResetCooldown() > 0) {
+				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+						String.format("<red>You have recently reset your hellblock already, you must wait for %s!",
+								HellblockPlugin.getInstance().getFormattedCooldown(HellblockPlugin.getInstance()
+										.getHellblockHandler().getActivePlayer(player).getResetCooldown())));
+				return;
+			}
 			HellblockPlugin.getInstance().getHellblockHandler().createHellblock(player, IslandOptions.CLASSIC);
-			player.closeInventory();
+			HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player.getUniqueId())
+					.setResetCooldown(Duration.ofDays(1).toHours());
+			HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player.getUniqueId())
+					.saveHellblockPlayer();
+			new HellblockMenu(player);
 		}
 	}
 
-	public static class SchematicIslandChoiceItem extends AbstractItem {
+	public class SchematicIslandChoiceItem extends AbstractItem {
+
+		boolean isReset = false;
+
+		public SchematicIslandChoiceItem(boolean isReset) {
+			this.isReset = isReset;
+		}
 
 		@Override
 		public ItemProvider getItemProvider() {
@@ -91,7 +136,30 @@ public class IslandChoiceMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			new SchematicMenu(player);
+			if (isReset && HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player)
+					.getResetCooldown() > 0) {
+				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+						String.format("<red>You have recently reset your hellblock already, you must wait for %s!",
+								HellblockPlugin.getInstance().getFormattedCooldown(HellblockPlugin.getInstance()
+										.getHellblockHandler().getActivePlayer(player).getResetCooldown())));
+				return;
+			}
+			boolean schematicsAvailable = false;
+			for (String list : HellblockPlugin.getInstance().getHellblockHandler().getIslandOptions()) {
+				if (list.equalsIgnoreCase("classic") || list.equalsIgnoreCase("default"))
+					continue;
+				if (!HellblockPlugin.getInstance().getSchematicManager().schematicFiles.containsKey(list))
+					continue;
+
+				schematicsAvailable = true;
+				break;
+			}
+			if (schematicsAvailable) {
+				new SchematicMenu(player, isReset);
+			} else {
+				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+						"<red>There are no hellblock schematics for you to choose from!");
+			}
 		}
 	}
 }
