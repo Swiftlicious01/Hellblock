@@ -76,8 +76,10 @@ public class PlayerListener implements Listener {
 					if (!LocationUtils.isSafeLocation(pi.getHomeLocation())) {
 						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 								"<red>This hellblock home location was deemed not safe, resetting to bedrock location!");
-						pi.setHome(HellblockPlugin.getInstance().getHellblockHandler().locateBedrock(player.getUniqueId()));
-						HellblockPlugin.getInstance().getCoopManager().updateParty(player.getUniqueId(), "home", pi.getHomeLocation());
+						pi.setHome(HellblockPlugin.getInstance().getHellblockHandler()
+								.locateBedrock(player.getUniqueId()));
+						HellblockPlugin.getInstance().getCoopManager().updateParty(player.getUniqueId(), "home",
+								pi.getHomeLocation());
 					}
 					player.teleportAsync(pi.getHomeLocation());
 				} else {
@@ -95,8 +97,10 @@ public class PlayerListener implements Listener {
 					if (!LocationUtils.isSafeLocation(pi.getHomeLocation())) {
 						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 								"<red>This hellblock home location was deemed not safe, resetting to bedrock location!");
-						pi.setHome(HellblockPlugin.getInstance().getHellblockHandler().locateBedrock(player.getUniqueId()));
-						HellblockPlugin.getInstance().getCoopManager().updateParty(player.getUniqueId(), "home", pi.getHomeLocation());
+						pi.setHome(HellblockPlugin.getInstance().getHellblockHandler()
+								.locateBedrock(player.getUniqueId()));
+						HellblockPlugin.getInstance().getCoopManager().updateParty(player.getUniqueId(), "home",
+								pi.getHomeLocation());
 					}
 					player.teleportAsync(pi.getHomeLocation());
 				} else {
@@ -184,6 +188,9 @@ public class PlayerListener implements Listener {
 				this.cancellablePortal.get(id).cancel();
 			this.cancellablePortal.remove(id);
 		}
+		// Cleanup
+		instance.getNetherrackGenerator().getGenManager().cleanupExpiredPistons(id);
+		instance.getNetherrackGenerator().getGenManager().cleanupExpiredLocations();
 		instance.getHellblockHandler().removeActivePlayer(player);
 	}
 
@@ -216,8 +223,10 @@ public class PlayerListener implements Listener {
 					if (!LocationUtils.isSafeLocation(pi.getHomeLocation())) {
 						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 								"<red>This hellblock home location was deemed not safe, resetting to bedrock location!");
-						pi.setHome(HellblockPlugin.getInstance().getHellblockHandler().locateBedrock(player.getUniqueId()));
-						HellblockPlugin.getInstance().getCoopManager().updateParty(player.getUniqueId(), "home", pi.getHomeLocation());
+						pi.setHome(HellblockPlugin.getInstance().getHellblockHandler()
+								.locateBedrock(player.getUniqueId()));
+						HellblockPlugin.getInstance().getCoopManager().updateParty(player.getUniqueId(), "home",
+								pi.getHomeLocation());
 					}
 					player.teleportAsync(pi.getHomeLocation());
 					// if raining give player a bit of protection

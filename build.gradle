@@ -48,10 +48,7 @@ allprojects {
 
         // packet
         compileOnly 'com.comphenix.protocol:ProtocolLib:5.3.0'
-
-        // bStats
-        implementation 'org.bstats:bstats-bukkit:3.1.0'
-
+        
         // papi
         compileOnly 'me.clip:placeholderapi:2.11.6'
 
@@ -140,7 +137,6 @@ allprojects {
         relocate 'com.saicone.rtag', 'com.swiftlicious.hellblock.lib.rtag'
         relocate 'dev.jorel.commandapi', 'com.swiftlicious.hellblock.lib.commandapi'
         relocate 'dev.dejvokep.boostedyaml', 'com.swiftlicious.hellblock.lib.boostedyaml'
-        relocate 'org.bstats', 'com.swiftlicious.hellblock.lib.bstats'
     }
 }
 

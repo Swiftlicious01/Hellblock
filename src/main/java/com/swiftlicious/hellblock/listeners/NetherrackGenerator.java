@@ -7,11 +7,8 @@ import java.util.Map.Entry;
 import java.util.UUID;
 
 import org.bukkit.Bukkit;
-import org.bukkit.Fluid;
 import org.bukkit.Location;
 import org.bukkit.Material;
-import org.bukkit.NamespacedKey;
-import org.bukkit.Registry;
 import org.bukkit.block.Block;
 import org.bukkit.block.data.Levelled;
 import org.bukkit.block.BlockFace;
@@ -37,13 +34,14 @@ import com.swiftlicious.hellblock.listeners.generator.GeneratorManager;
 import com.swiftlicious.hellblock.listeners.generator.GeneratorModeManager;
 import com.swiftlicious.hellblock.utils.LogUtils;
 
-import io.papermc.paper.registry.RegistryAccess;
-import io.papermc.paper.registry.RegistryKey;
+import lombok.Getter;
 
 public class NetherrackGenerator implements Listener {
 
 	private final HellblockPlugin instance;
+	@Getter
 	private final GeneratorManager genManager;
+	@Getter
 	private final GeneratorModeManager genModeManager;
 
 	public NetherrackGenerator(HellblockPlugin plugin) {
@@ -320,9 +318,6 @@ public class NetherrackGenerator implements Listener {
 	}
 
 	private boolean isLava(String materialName) {
-		final Registry<Fluid> fluidRegistry = RegistryAccess.registryAccess().getRegistry(RegistryKey.FLUID);
-		Fluid fluid = fluidRegistry.getOrThrow(NamespacedKey.fromString(
-				materialName.equals("LAVA") ? Fluid.FLOWING_LAVA.getKey().getKey() : Fluid.LAVA.getKey().getKey()));
-		return fluid == Fluid.LAVA || fluid == Fluid.FLOWING_LAVA;
+		return materialName.equalsIgnoreCase("LAVA") || materialName.equalsIgnoreCase("STATIONARY_LAVA");
 	}
 }

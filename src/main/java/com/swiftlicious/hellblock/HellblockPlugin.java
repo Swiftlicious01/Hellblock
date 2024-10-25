@@ -8,8 +8,6 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
-import org.bstats.bukkit.Metrics;
-
 import org.bukkit.Bukkit;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
@@ -23,7 +21,7 @@ import com.comphenix.protocol.PacketType;
 import com.comphenix.protocol.ProtocolLibrary;
 import com.comphenix.protocol.ProtocolManager;
 import com.comphenix.protocol.events.PacketContainer;
-
+import com.swiftlicious.hellblock.api.compatibility.Metrics;
 import com.swiftlicious.hellblock.api.compatibility.WorldEditHook;
 import com.swiftlicious.hellblock.api.compatibility.WorldGuardHook;
 import com.swiftlicious.hellblock.commands.CommandManager;
@@ -113,7 +111,7 @@ public class HellblockPlugin extends JavaPlugin {
 	protected WeightUtils weightUtils;
 	protected NumberUtils numberUtils;
 	protected ParseUtils parseUtils;
-
+	
 	protected ProtocolManager protocolManager;
 
 	protected Scheduler scheduler;
@@ -135,7 +133,7 @@ public class HellblockPlugin extends JavaPlugin {
 	protected VersionManager versionManager;
 	protected StorageManager storageManager;
 	protected DependencyManager dependencyManager;
-	private ChatCatcherManager chatCatcherManager;
+	protected ChatCatcherManager chatCatcherManager;
 
 	protected boolean updateAvailable = false;
 
