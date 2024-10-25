@@ -36,6 +36,7 @@ public class IslandProtection {
 				return false;
 
 			pi.setProtectionValue(flag + ":" + value);
+			instance.getCoopManager().updateParty(id, "flag", flag + ":" + value);
 			StateFlag newFlag = new StateFlag(flag, false);
 			region.setFlag(newFlag, StateFlag.State.valueOf(value.toUpperCase()));
 			pi.saveHellblockPlayer();
