@@ -7,6 +7,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.inventory.ItemStack;
+import org.codehaus.plexus.util.StringUtils;
 import org.jetbrains.annotations.NotNull;
 
 import com.sk89q.worldguard.protection.flags.Flags;
@@ -69,10 +70,12 @@ public class FlagMenu {
 		@Override
 		public ItemProvider getItemProvider() {
 			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
-				return new ItemBuilder(Material.WOODEN_PICKAXE)
-						.setDisplayName(new ShadedAdventureComponentWrapper(
-								HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
-										String.format("<aqua>%s Flag", Flags.BLOCK_BREAK.getName()))))
+				return new ItemBuilder(Material.STONE_PICKAXE)
+						.setDisplayName(
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage(String.format("<aqua>%s Flag",
+												StringUtils.capitaliseAllWords(
+														Flags.BLOCK_BREAK.getName().replace("-", " "))))))
 						.addLoreLines(
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 										.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s",
@@ -112,9 +115,11 @@ public class FlagMenu {
 		public ItemProvider getItemProvider() {
 			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
 				return new ItemBuilder(Material.COBBLESTONE)
-						.setDisplayName(new ShadedAdventureComponentWrapper(
-								HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
-										String.format("<aqua>%s Flag", Flags.BLOCK_PLACE.getName()))))
+						.setDisplayName(
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage(String.format("<aqua>%s Flag",
+												StringUtils.capitaliseAllWords(
+														Flags.BLOCK_PLACE.getName().replace("-", " "))))))
 						.addLoreLines(
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 										.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s",
@@ -154,9 +159,10 @@ public class FlagMenu {
 		public ItemProvider getItemProvider() {
 			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
 				return new ItemBuilder(Material.IRON_SWORD)
-						.setDisplayName(new ShadedAdventureComponentWrapper(
-								HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
-										String.format("<aqua>%s Flag", Flags.PVP.getName()))))
+						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
+								.getAdventureManager()
+								.getComponentFromMiniMessage(String.format("<aqua>%s Flag",
+										StringUtils.capitaliseAllWords(Flags.PVP.getName().replace("-", " "))))))
 						.addLoreLines(
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 										.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s",
@@ -195,9 +201,11 @@ public class FlagMenu {
 		public ItemProvider getItemProvider() {
 			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
 				return new ItemBuilder(Material.PORKCHOP)
-						.setDisplayName(new ShadedAdventureComponentWrapper(
-								HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
-										String.format("<aqua>%s Flag", Flags.DAMAGE_ANIMALS.getName()))))
+						.setDisplayName(
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage(String.format("<aqua>%s Flag",
+												StringUtils.capitaliseAllWords(
+														Flags.DAMAGE_ANIMALS.getName().replace("-", " "))))))
 						.addLoreLines(
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 										.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s",
@@ -237,9 +245,10 @@ public class FlagMenu {
 		public ItemProvider getItemProvider() {
 			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
 				return new ItemBuilder(Material.ZOMBIE_HEAD)
-						.setDisplayName(new ShadedAdventureComponentWrapper(
-								HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
-										String.format("<aqua>%s Flag", Flags.MOB_DAMAGE.getName()))))
+						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
+								.getAdventureManager()
+								.getComponentFromMiniMessage(String.format("<aqua>%s Flag",
+										StringUtils.capitaliseAllWords(Flags.MOB_DAMAGE.getName().replace("-", " "))))))
 						.addLoreLines(
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 										.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s",
@@ -279,9 +288,11 @@ public class FlagMenu {
 		public ItemProvider getItemProvider() {
 			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
 				return new ItemBuilder(Material.SPAWNER)
-						.setDisplayName(new ShadedAdventureComponentWrapper(
-								HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
-										String.format("<aqua>%s Flag", Flags.MOB_SPAWNING.getName()))))
+						.setDisplayName(
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage(String.format("<aqua>%s Flag",
+												StringUtils.capitaliseAllWords(
+														Flags.MOB_SPAWNING.getName().replace("-", " "))))))
 						.addLoreLines(
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 										.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s",
@@ -321,9 +332,11 @@ public class FlagMenu {
 		public ItemProvider getItemProvider() {
 			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
 				return new ItemBuilder(Material.CHEST)
-						.setDisplayName(new ShadedAdventureComponentWrapper(
-								HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
-										String.format("<aqua>%s Flag", Flags.CHEST_ACCESS.getName()))))
+						.setDisplayName(
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage(String.format("<aqua>%s Flag",
+												StringUtils.capitaliseAllWords(
+														Flags.CHEST_ACCESS.getName().replace("-", " "))))))
 						.addLoreLines(
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 										.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s",
@@ -363,9 +376,10 @@ public class FlagMenu {
 		public ItemProvider getItemProvider() {
 			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
 				return new ItemBuilder(Material.OAK_DOOR)
-						.setDisplayName(new ShadedAdventureComponentWrapper(
-								HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
-										String.format("<aqua>%s Flag", Flags.USE.getName()))))
+						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
+								.getAdventureManager()
+								.getComponentFromMiniMessage(String.format("<aqua>%s Flag",
+										StringUtils.capitaliseAllWords(Flags.USE.getName().replace("-", " "))))))
 						.addLoreLines(
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 										.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s",
@@ -404,9 +418,10 @@ public class FlagMenu {
 		public ItemProvider getItemProvider() {
 			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
 				return new ItemBuilder(Material.ANVIL)
-						.setDisplayName(new ShadedAdventureComponentWrapper(
-								HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
-										String.format("<aqua>%s Flag", Flags.USE_ANVIL.getName()))))
+						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
+								.getAdventureManager()
+								.getComponentFromMiniMessage(String.format("<aqua>%s Flag",
+										StringUtils.capitaliseAllWords(Flags.USE_ANVIL.getName().replace("-", " "))))))
 						.addLoreLines(
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 										.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s",
@@ -446,9 +461,11 @@ public class FlagMenu {
 		public ItemProvider getItemProvider() {
 			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
 				return new ItemBuilder(Material.BIG_DRIPLEAF)
-						.setDisplayName(new ShadedAdventureComponentWrapper(
-								HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
-										String.format("<aqua>%s Flag", Flags.USE_DRIPLEAF.getName()))))
+						.setDisplayName(
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage(String.format("<aqua>%s Flag",
+												StringUtils.capitaliseAllWords(
+														Flags.USE_DRIPLEAF.getName().replace("-", " "))))))
 						.addLoreLines(
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 										.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s",
@@ -488,9 +505,11 @@ public class FlagMenu {
 		public ItemProvider getItemProvider() {
 			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
 				return new ItemBuilder(Material.MINECART)
-						.setDisplayName(new ShadedAdventureComponentWrapper(
-								HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
-										String.format("<aqua>%s Flag", Flags.PLACE_VEHICLE.getName()))))
+						.setDisplayName(
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage(String.format("<aqua>%s Flag",
+												StringUtils.capitaliseAllWords(
+														Flags.PLACE_VEHICLE.getName().replace("-", " "))))))
 						.addLoreLines(
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 										.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s",
@@ -530,9 +549,11 @@ public class FlagMenu {
 		public ItemProvider getItemProvider() {
 			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
 				return new ItemBuilder(Material.OAK_BOAT)
-						.setDisplayName(new ShadedAdventureComponentWrapper(
-								HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
-										String.format("<aqua>%s Flag", Flags.DESTROY_VEHICLE.getName()))))
+						.setDisplayName(
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage(String.format("<aqua>%s Flag",
+												StringUtils.capitaliseAllWords(
+														Flags.DESTROY_VEHICLE.getName().replace("-", " "))))))
 						.addLoreLines(
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 										.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s",
@@ -572,9 +593,10 @@ public class FlagMenu {
 		public ItemProvider getItemProvider() {
 			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
 				return new ItemBuilder(Material.SADDLE)
-						.setDisplayName(new ShadedAdventureComponentWrapper(
-								HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
-										String.format("<aqua>%s Flag", Flags.RIDE.getName()))))
+						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
+								.getAdventureManager()
+								.getComponentFromMiniMessage(String.format("<aqua>%s Flag",
+										StringUtils.capitaliseAllWords(Flags.RIDE.getName().replace("-", " "))))))
 						.addLoreLines(
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 										.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s",
@@ -613,9 +635,11 @@ public class FlagMenu {
 		public ItemProvider getItemProvider() {
 			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
 				return new ItemBuilder(Material.ITEM_FRAME)
-						.setDisplayName(new ShadedAdventureComponentWrapper(
-								HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
-										String.format("<aqua>%s Flag", Flags.ITEM_FRAME_ROTATE.getName()))))
+						.setDisplayName(
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage(String.format("<aqua>%s Flag",
+												StringUtils.capitaliseAllWords(
+														Flags.ITEM_FRAME_ROTATE.getName().replace("-", " "))))))
 						.addLoreLines(
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 										.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s",
@@ -655,9 +679,11 @@ public class FlagMenu {
 		public ItemProvider getItemProvider() {
 			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
 				return new ItemBuilder(Material.TURTLE_EGG)
-						.setDisplayName(new ShadedAdventureComponentWrapper(
-								HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
-										String.format("<aqua>%s Flag", Flags.TRAMPLE_BLOCKS.getName()))))
+						.setDisplayName(
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage(String.format("<aqua>%s Flag",
+												StringUtils.capitaliseAllWords(
+														Flags.TRAMPLE_BLOCKS.getName().replace("-", " "))))))
 						.addLoreLines(
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 										.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s",
@@ -697,9 +723,11 @@ public class FlagMenu {
 		public ItemProvider getItemProvider() {
 			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
 				return new ItemBuilder(Material.FIREWORK_ROCKET)
-						.setDisplayName(new ShadedAdventureComponentWrapper(
-								HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
-										String.format("<aqua>%s Flag", Flags.FIREWORK_DAMAGE.getName()))))
+						.setDisplayName(
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage(String.format("<aqua>%s Flag",
+												StringUtils.capitaliseAllWords(
+														Flags.FIREWORK_DAMAGE.getName().replace("-", " "))))))
 						.addLoreLines(
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 										.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s",
@@ -739,9 +767,10 @@ public class FlagMenu {
 		public ItemProvider getItemProvider() {
 			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
 				return new ItemBuilder(Material.ENDER_PEARL)
-						.setDisplayName(new ShadedAdventureComponentWrapper(
-								HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
-										String.format("<aqua>%s Flag", Flags.ENDERPEARL.getName()))))
+						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
+								.getAdventureManager()
+								.getComponentFromMiniMessage(String.format("<aqua>%s Flag",
+										StringUtils.capitaliseAllWords(Flags.ENDERPEARL.getName().replace("-", " "))))))
 						.addLoreLines(
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 										.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s",
@@ -781,9 +810,11 @@ public class FlagMenu {
 		public ItemProvider getItemProvider() {
 			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
 				return new ItemBuilder(Material.CHORUS_FRUIT)
-						.setDisplayName(new ShadedAdventureComponentWrapper(
-								HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
-										String.format("<aqua>%s Flag", Flags.CHORUS_TELEPORT.getName()))))
+						.setDisplayName(
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage(String.format("<aqua>%s Flag",
+												StringUtils.capitaliseAllWords(
+														Flags.CHORUS_TELEPORT.getName().replace("-", " "))))))
 						.addLoreLines(
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 										.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s",
@@ -823,9 +854,10 @@ public class FlagMenu {
 		public ItemProvider getItemProvider() {
 			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
 				return new ItemBuilder(Material.FLINT_AND_STEEL)
-						.setDisplayName(new ShadedAdventureComponentWrapper(
-								HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
-										String.format("<aqua>%s Flag", Flags.LIGHTER.getName()))))
+						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
+								.getAdventureManager()
+								.getComponentFromMiniMessage(String.format("<aqua>%s Flag",
+										StringUtils.capitaliseAllWords(Flags.LIGHTER.getName().replace("-", " "))))))
 						.addLoreLines(
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 										.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s",
@@ -864,9 +896,10 @@ public class FlagMenu {
 		public ItemProvider getItemProvider() {
 			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
 				return new ItemBuilder(Material.TNT)
-						.setDisplayName(new ShadedAdventureComponentWrapper(
-								HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
-										String.format("<aqua>%s Flag", Flags.TNT.getName()))))
+						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
+								.getAdventureManager()
+								.getComponentFromMiniMessage(String.format("<aqua>%s Flag",
+										StringUtils.capitaliseAllWords(Flags.TNT.getName().replace("-", " "))))))
 						.addLoreLines(
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 										.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s",
@@ -905,9 +938,11 @@ public class FlagMenu {
 		public ItemProvider getItemProvider() {
 			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
 				return new ItemBuilder(Material.RESPAWN_ANCHOR)
-						.setDisplayName(new ShadedAdventureComponentWrapper(
-								HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
-										String.format("<aqua>%s Flag", Flags.RESPAWN_ANCHORS.getName()))))
+						.setDisplayName(
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage(String.format("<aqua>%s Flag",
+												StringUtils.capitaliseAllWords(
+														Flags.RESPAWN_ANCHORS.getName().replace("-", " "))))))
 						.addLoreLines(
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 										.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s",
