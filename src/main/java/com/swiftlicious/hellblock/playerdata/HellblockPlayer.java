@@ -20,7 +20,6 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.Nullable;
 
-import com.sk89q.worldguard.protection.flags.StateFlag;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.generation.HellBiome;
 import com.swiftlicious.hellblock.generation.IslandOptions;
@@ -242,18 +241,14 @@ public class HellblockPlayer {
 		return this.protectionFlags;
 	}
 
-	public <T> boolean getProtectionValue(T flag) {
+	public boolean getProtectionValue(String flag) {
 		boolean returnValue = false;
 		for (String flags : this.protectionFlags) {
 			String[] allFlags = flags.split(":");
 			String key = allFlags[0];
-			if (key.equals(((StateFlag) flag).getName())) {
+			if (key.equalsIgnoreCase(flag)) {
 				String value = allFlags[1];
-				if (value.equalsIgnoreCase("ALLOW"))
-					returnValue = true;
-				else {
-					returnValue = false;
-				}
+				returnValue = value.equalsIgnoreCase("ALLOW") ? true : false;
 			}
 		}
 		return returnValue;

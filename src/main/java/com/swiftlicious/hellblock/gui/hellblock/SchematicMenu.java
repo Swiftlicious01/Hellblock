@@ -105,10 +105,12 @@ public class SchematicMenu {
 					}
 					HellblockPlugin.getInstance().getHellblockHandler().createHellblock(player, IslandOptions.SCHEMATIC,
 							Files.getNameWithoutExtension(file.getName()));
-					HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player.getUniqueId())
-							.setResetCooldown(Duration.ofDays(1).toHours());
-					HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player.getUniqueId())
-							.saveHellblockPlayer();
+					if (isReset) {
+						HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player.getUniqueId())
+								.setResetCooldown(Duration.ofDays(1).toHours());
+						HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player.getUniqueId())
+								.saveHellblockPlayer();
+					}
 					new HellblockMenu(player);
 				} else {
 					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player, String.format(
@@ -125,7 +127,7 @@ public class SchematicMenu {
 	}
 
 	public class BackToChoicesItem extends AbstractItem {
-		
+
 		@Override
 		public ItemProvider getItemProvider() {
 			return new ItemBuilder(Material.ORANGE_STAINED_GLASS_PANE)

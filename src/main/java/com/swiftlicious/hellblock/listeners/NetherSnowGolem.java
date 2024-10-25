@@ -36,11 +36,45 @@ public class NetherSnowGolem implements Listener {
 		if (!location.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
 			return false;
 
-		if (location.getBlock().getRelative(BlockFace.UP).getType() == Material.FIRE) {
+		if (location.getBlock().getRelative(BlockFace.UP).getType() == Material.SOUL_FIRE) {
 			if (location.getBlock().getType() == Material.JACK_O_LANTERN) {
 				if (location.getBlock().getRelative(BlockFace.DOWN).getType() == Material.SOUL_SOIL) {
 					if (location.getBlock().getRelative(BlockFace.DOWN).getRelative(BlockFace.DOWN)
 							.getType() == Material.SOUL_SOIL) {
+						return true;
+					}
+				}
+			}
+		}
+
+		if (location.getBlock().getType() == Material.SOUL_FIRE) {
+			if (location.getBlock().getRelative(BlockFace.DOWN).getType() == Material.JACK_O_LANTERN) {
+				if (location.getBlock().getRelative(BlockFace.DOWN).getRelative(BlockFace.DOWN)
+						.getType() == Material.SOUL_SOIL) {
+					if (location.getBlock().getRelative(BlockFace.DOWN).getRelative(BlockFace.DOWN)
+							.getRelative(BlockFace.DOWN).getType() == Material.SOUL_SOIL) {
+						return true;
+					}
+				}
+			}
+		}
+
+		if (location.getBlock().getRelative(BlockFace.UP).getRelative(BlockFace.UP).getType() == Material.SOUL_FIRE) {
+			if (location.getBlock().getRelative(BlockFace.UP).getType() == Material.JACK_O_LANTERN) {
+				if (location.getBlock().getType() == Material.SOUL_SOIL) {
+					if (location.getBlock().getRelative(BlockFace.DOWN).getType() == Material.SOUL_SOIL) {
+						return true;
+					}
+				}
+			}
+		}
+
+		if (location.getBlock().getRelative(BlockFace.UP).getRelative(BlockFace.UP).getRelative(BlockFace.UP)
+				.getType() == Material.SOUL_FIRE) {
+			if (location.getBlock().getRelative(BlockFace.UP).getRelative(BlockFace.UP)
+					.getType() == Material.JACK_O_LANTERN) {
+				if (location.getBlock().getRelative(BlockFace.UP).getType() == Material.SOUL_SOIL) {
+					if (location.getBlock().getType() == Material.SOUL_SOIL) {
 						return true;
 					}
 				}
@@ -75,6 +109,12 @@ public class NetherSnowGolem implements Listener {
 			return;
 
 		final Block block = event.getBlockPlaced();
+		if (block.getType() == Material.FIRE
+				&& block.getRelative(BlockFace.DOWN).getType() == Material.JACK_O_LANTERN) {
+			block.setType(Material.SOUL_FIRE);
+			block.getState().update();
+		}
+
 		if (checkHellGolemBuild(block.getLocation())) {
 			spawnHellGolem(block.getLocation());
 		}

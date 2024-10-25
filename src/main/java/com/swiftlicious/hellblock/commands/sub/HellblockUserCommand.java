@@ -138,7 +138,7 @@ public class HellblockUserCommand {
 											biome.getName()));
 							return;
 						}
-						HellblockPlugin.getInstance().getBiomeHandler().changeHellblockBiome(pi, biome, false);
+						HellblockPlugin.getInstance().getBiomeHandler().changeHellblockBiome(pi, biome, false, false);
 						HellblockPlugin.getInstance().getCoopManager().updateParty(player.getUniqueId(), "biome",
 								pi.getHellblockBiome());
 					} else {

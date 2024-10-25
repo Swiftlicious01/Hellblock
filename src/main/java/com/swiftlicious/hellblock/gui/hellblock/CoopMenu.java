@@ -6,14 +6,13 @@ import java.util.UUID;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
-import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
-import org.bukkit.persistence.PersistentDataType;
 import org.jetbrains.annotations.NotNull;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.gui.icon.BackGroundItem;
 import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
 import com.swiftlicious.hellblock.utils.LogUtils;
 import com.swiftlicious.hellblock.utils.wrappers.ShadedAdventureComponentWrapper;
@@ -31,8 +30,10 @@ public class CoopMenu {
 
 	public CoopMenu(Player player) {
 
-		Gui gui = Gui.normal().setStructure(" o m m m m ").addIngredient('o', new OwnerItem(player.getUniqueId()))
-				.addIngredient('m', new MemberItem(player.getUniqueId())).build();
+		Gui gui = Gui.normal().setStructure(" # # o m m m m # x ")
+				.addIngredient('o', new OwnerItem(player.getUniqueId()))
+				.addIngredient('m', new MemberItem(player.getUniqueId())).addIngredient('#', new BackGroundItem())
+				.addIngredient('x', new BackToMainMenuItem()).build();
 
 		Window window = Window
 				.single().setViewer(player).setTitle(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
@@ -82,11 +83,9 @@ public class CoopMenu {
 	public class MemberItem extends AbstractItem {
 
 		private UUID playerUUID;
-		private NamespacedKey inviteKey;
 
 		public MemberItem(UUID playerUUID) {
 			this.playerUUID = playerUUID;
-			this.inviteKey = new NamespacedKey(HellblockPlugin.getInstance(), "invite-allowed");
 		}
 
 		@Override
@@ -113,16 +112,12 @@ public class CoopMenu {
 				}
 			}
 			try {
-				SkullBuilder item = new SkullBuilder(HeadTexture.of("MHF_QUESTION"))
+				return new SkullBuilder(HeadTexture.of("MHF_QUESTION")).setUnbreakable(true)
 						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
 								.getAdventureManager().getComponentFromMiniMessage("<dark_green>Empty Slot")))
 						.addLoreLines(
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 										.getComponentFromMiniMessage("<green>Click to invite a new member!")));
-				item.get().getItemMeta().getPersistentDataContainer().set(inviteKey, PersistentDataType.BOOLEAN, true);
-				item.get().setItemMeta(item.get().getItemMeta());
-				ItemBuilder update = new ItemBuilder(item.get());
-				return update;
 			} catch (MojangApiException | IOException e) {
 				LogUtils.severe("Failed to create question mark player heads!", e);
 				return new ItemBuilder(Material.BARRIER).setDisplayName(
@@ -134,10 +129,26 @@ public class CoopMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			if (event.getCurrentItem() != null
-					&& event.getCurrentItem().getPersistentDataContainer().has(inviteKey, PersistentDataType.BOOLEAN)) {
+			if (event.getCurrentItem() != null && event.getCurrentItem().hasItemMeta()
+					&& event.getCurrentItem().getItemMeta().isUnbreakable()) {
 				new InvitationMenu(player);
 			}
+		}
+	}
+
+	public class BackToMainMenuItem extends AbstractItem {
+
+		@Override
+		public ItemProvider getItemProvider() {
+			return new ItemBuilder(Material.ORANGE_STAINED_GLASS_PANE)
+					.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
+							.getAdventureManager().getComponentFromMiniMessage("<gold>Return to Hellblock Menu")));
+		}
+
+		@Override
+		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
+				@NotNull InventoryClickEvent event) {
+			new HellblockMenu(player);
 		}
 	}
 }

@@ -114,20 +114,21 @@ public class WorldGuardHook {
 					.getApplicableRegions(BlockVector3.at(pi.getHellblockLocation().getX(),
 							pi.getHellblockLocation().getY(), pi.getHellblockLocation().getZ()));
 			if (set.size() > 0) {
-				Iterator<ProtectedRegion> var6 = set.iterator();
+				Iterator<ProtectedRegion> regions = set.iterator();
 
-				while (var6.hasNext()) {
-					ProtectedRegion regions = (ProtectedRegion) var6.next();
-					if (!regions.getId().equalsIgnoreCase("__GLOBAL__") && !regions.getId().equalsIgnoreCase("Spawn")) {
-						regionManager.removeRegion(regions.getId());
+				while (regions.hasNext()) {
+					ProtectedRegion regionCheck = (ProtectedRegion) regions.next();
+					if (!regionCheck.getId().equalsIgnoreCase("__GLOBAL__")
+							&& !regionCheck.getId().equalsIgnoreCase("Spawn")) {
+						regionManager.removeRegion(regionCheck.getId());
 					}
 				}
 			}
 
 			regionManager.addRegion(region);
 			regionManager.save();
-		} catch (Exception var7) {
-			LogUtils.severe(String.format("Unable to protect %s's hellblock!", player.getName()), var7);
+		} catch (Exception ex) {
+			LogUtils.severe(String.format("Unable to protect %s's hellblock!", player.getName()), ex);
 		}
 	}
 

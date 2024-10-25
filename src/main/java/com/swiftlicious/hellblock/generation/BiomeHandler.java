@@ -58,7 +58,7 @@ public class BiomeHandler {
 		return hellBiome;
 	}
 
-	public void changeHellblockBiome(@NonNull HellblockPlayer hbPlayer, @NonNull HellBiome biome, boolean forced) {
+	public void changeHellblockBiome(@NonNull HellblockPlayer hbPlayer, @NonNull HellBiome biome, boolean forced, boolean isCreation) {
 		Player player = hbPlayer.getPlayer();
 		if (player != null) {
 			if (!hbPlayer.hasHellblock()) {
@@ -122,7 +122,7 @@ public class BiomeHandler {
 					return;
 				}
 
-				if (hbPlayer.getHomeLocation().getBlock().getBiome().getKey().getKey()
+				if (!isCreation && hbPlayer.getHomeLocation().getBlock().getBiome().getKey().getKey()
 						.equalsIgnoreCase(biome.toString().toLowerCase())) {
 					instance.getAdventureManager().sendMessageWithPrefix(player, String
 							.format("<red>Your hellblock biome is already set to <dark_red>%s<red>!", biome.getName()));
@@ -131,8 +131,10 @@ public class BiomeHandler {
 
 				List<Location> locations = instance.getWorldGuardHandler().getRegionBlocks(player.getUniqueId());
 				locations.forEach(loc -> {
-					loc.getBlock().setBiome(Biome.valueOf(biome.toString().toUpperCase()));
-					loc.getWorld().refreshChunk(loc.getBlockX(), loc.getBlockZ());
+					if (!loc.getBlock().getBiome().getKey().getKey().equalsIgnoreCase(biome.toString().toLowerCase())) {
+						loc.getBlock().setBiome(Biome.valueOf(biome.toString().toUpperCase()));
+						loc.getWorld().refreshChunk(loc.getBlockX(), loc.getBlockZ());
+					}
 				});
 
 				hbPlayer.setHellblockBiome(biome);

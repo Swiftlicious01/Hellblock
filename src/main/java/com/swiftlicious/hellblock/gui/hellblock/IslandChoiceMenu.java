@@ -68,10 +68,12 @@ public class IslandChoiceMenu {
 				return;
 			}
 			HellblockPlugin.getInstance().getHellblockHandler().createHellblock(player, IslandOptions.DEFAULT);
-			HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player.getUniqueId())
-					.setResetCooldown(Duration.ofDays(1).toHours());
-			HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player.getUniqueId())
-					.saveHellblockPlayer();
+			if (isReset) {
+				HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player.getUniqueId())
+						.setResetCooldown(Duration.ofDays(1).toHours());
+				HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player.getUniqueId())
+						.saveHellblockPlayer();
+			}
 			new HellblockMenu(player);
 		}
 	}
@@ -106,10 +108,12 @@ public class IslandChoiceMenu {
 				return;
 			}
 			HellblockPlugin.getInstance().getHellblockHandler().createHellblock(player, IslandOptions.CLASSIC);
-			HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player.getUniqueId())
-					.setResetCooldown(Duration.ofDays(1).toHours());
-			HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player.getUniqueId())
-					.saveHellblockPlayer();
+			if (isReset) {
+				HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player.getUniqueId())
+						.setResetCooldown(Duration.ofDays(1).toHours());
+				HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player.getUniqueId())
+						.saveHellblockPlayer();
+			}
 			new HellblockMenu(player);
 		}
 	}

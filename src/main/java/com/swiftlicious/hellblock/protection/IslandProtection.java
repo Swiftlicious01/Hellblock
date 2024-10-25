@@ -7,6 +7,8 @@ import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
 
+import lombok.NonNull;
+
 public class IslandProtection {
 
 	private final HellblockPlugin instance;
@@ -15,7 +17,7 @@ public class IslandProtection {
 		instance = plugin;
 	}
 
-	public <T> boolean changeProtectionFlag(UUID id, T flag, String value) {
+	public boolean changeProtectionFlag(@NonNull UUID id, @NonNull String flag, @NonNull String value) {
 		HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(id);
 		if (pi.getPlayer() == null)
 			return false;
@@ -33,10 +35,9 @@ public class IslandProtection {
 			if (region == null)
 				return false;
 
-			pi.setProtectionValue(((StateFlag) flag) + ":" + value);
-			instance.getAdventureManager().sendMessage(pi.getPlayer(), "" + pi.getProtectionFlags());
-			instance.getAdventureManager().sendMessage(pi.getPlayer(), "" + pi.getProtectionValue((StateFlag) flag));
-			region.setFlag((StateFlag) flag, StateFlag.State.valueOf(value.toUpperCase()));
+			pi.setProtectionValue(flag + ":" + value);
+			StateFlag newFlag = new StateFlag(flag, false);
+			region.setFlag(newFlag, StateFlag.State.valueOf(value.toUpperCase()));
 			pi.saveHellblockPlayer();
 			return true;
 		} else {

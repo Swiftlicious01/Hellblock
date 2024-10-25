@@ -91,7 +91,8 @@ public class FlagMenu {
 					.getActivePlayer(player.getUniqueId());
 			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
 				HellblockPlugin.getInstance().getIslandProtectionManager().changeProtectionFlag(player.getUniqueId(),
-						Flags.BLOCK_BREAK, (pi.getProtectionValue(Flags.BLOCK_BREAK) ? "ALLOW" : "DENY"));
+						Flags.BLOCK_BREAK.getName(),
+						(pi.getProtectionValue(Flags.BLOCK_BREAK.getName()) ? "ALLOW" : "DENY"));
 				new FlagMenu(player);
 			} else {
 				// TODO: using plugin protection
@@ -132,7 +133,8 @@ public class FlagMenu {
 					.getActivePlayer(player.getUniqueId());
 			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
 				HellblockPlugin.getInstance().getIslandProtectionManager().changeProtectionFlag(player.getUniqueId(),
-						Flags.BLOCK_PLACE, (pi.getProtectionValue(Flags.BLOCK_PLACE) ? "ALLOW" : "DENY"));
+						Flags.BLOCK_PLACE.getName(),
+						(pi.getProtectionValue(Flags.BLOCK_PLACE.getName()) ? "ALLOW" : "DENY"));
 				new FlagMenu(player);
 			} else {
 				// TODO: using plugin protection
@@ -173,7 +175,7 @@ public class FlagMenu {
 					.getActivePlayer(player.getUniqueId());
 			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
 				HellblockPlugin.getInstance().getIslandProtectionManager().changeProtectionFlag(player.getUniqueId(),
-						Flags.PVP, (pi.getProtectionValue(Flags.PVP) ? "ALLOW" : "DENY"));
+						Flags.PVP.getName(), (pi.getProtectionValue(Flags.PVP.getName()) ? "ALLOW" : "DENY"));
 				new FlagMenu(player);
 			} else {
 				// TODO: using plugin protection
@@ -192,7 +194,7 @@ public class FlagMenu {
 		@Override
 		public ItemProvider getItemProvider() {
 			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
-				return new ItemBuilder(Material.IRON_SWORD)
+				return new ItemBuilder(Material.PORKCHOP)
 						.setDisplayName(new ShadedAdventureComponentWrapper(
 								HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
 										String.format("<aqua>%s Flag", Flags.DAMAGE_ANIMALS.getName()))))
@@ -214,7 +216,8 @@ public class FlagMenu {
 					.getActivePlayer(player.getUniqueId());
 			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
 				HellblockPlugin.getInstance().getIslandProtectionManager().changeProtectionFlag(player.getUniqueId(),
-						Flags.DAMAGE_ANIMALS, (pi.getProtectionValue(Flags.DAMAGE_ANIMALS) ? "ALLOW" : "DENY"));
+						Flags.DAMAGE_ANIMALS.getName(),
+						(pi.getProtectionValue(Flags.DAMAGE_ANIMALS.getName()) ? "ALLOW" : "DENY"));
 				new FlagMenu(player);
 			} else {
 				// TODO: using plugin protection
@@ -233,7 +236,7 @@ public class FlagMenu {
 		@Override
 		public ItemProvider getItemProvider() {
 			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
-				return new ItemBuilder(Material.IRON_SWORD)
+				return new ItemBuilder(Material.ZOMBIE_HEAD)
 						.setDisplayName(new ShadedAdventureComponentWrapper(
 								HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
 										String.format("<aqua>%s Flag", Flags.MOB_DAMAGE.getName()))))
@@ -255,7 +258,8 @@ public class FlagMenu {
 					.getActivePlayer(player.getUniqueId());
 			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
 				HellblockPlugin.getInstance().getIslandProtectionManager().changeProtectionFlag(player.getUniqueId(),
-						Flags.MOB_DAMAGE, (pi.getProtectionValue(Flags.MOB_DAMAGE) ? "ALLOW" : "DENY"));
+						Flags.MOB_DAMAGE.getName(),
+						(pi.getProtectionValue(Flags.MOB_DAMAGE.getName()) ? "ALLOW" : "DENY"));
 				new FlagMenu(player);
 			} else {
 				// TODO: using plugin protection
@@ -274,7 +278,7 @@ public class FlagMenu {
 		@Override
 		public ItemProvider getItemProvider() {
 			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
-				return new ItemBuilder(Material.IRON_SWORD)
+				return new ItemBuilder(Material.SPAWNER)
 						.setDisplayName(new ShadedAdventureComponentWrapper(
 								HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
 										String.format("<aqua>%s Flag", Flags.MOB_SPAWNING.getName()))))
@@ -296,7 +300,8 @@ public class FlagMenu {
 					.getActivePlayer(player.getUniqueId());
 			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
 				HellblockPlugin.getInstance().getIslandProtectionManager().changeProtectionFlag(player.getUniqueId(),
-						Flags.MOB_SPAWNING, (pi.getProtectionValue(Flags.MOB_SPAWNING) ? "ALLOW" : "DENY"));
+						Flags.MOB_SPAWNING.getName(),
+						(pi.getProtectionValue(Flags.MOB_SPAWNING.getName()) ? "ALLOW" : "DENY"));
 				new FlagMenu(player);
 			} else {
 				// TODO: using plugin protection
@@ -315,7 +320,7 @@ public class FlagMenu {
 		@Override
 		public ItemProvider getItemProvider() {
 			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
-				return new ItemBuilder(Material.IRON_SWORD)
+				return new ItemBuilder(Material.CHEST)
 						.setDisplayName(new ShadedAdventureComponentWrapper(
 								HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
 										String.format("<aqua>%s Flag", Flags.CHEST_ACCESS.getName()))))
@@ -337,7 +342,8 @@ public class FlagMenu {
 					.getActivePlayer(player.getUniqueId());
 			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
 				HellblockPlugin.getInstance().getIslandProtectionManager().changeProtectionFlag(player.getUniqueId(),
-						Flags.CHEST_ACCESS, (pi.getProtectionValue(Flags.CHEST_ACCESS) ? "ALLOW" : "DENY"));
+						Flags.CHEST_ACCESS.getName(),
+						(pi.getProtectionValue(Flags.CHEST_ACCESS.getName()) ? "ALLOW" : "DENY"));
 				new FlagMenu(player);
 			} else {
 				// TODO: using plugin protection
@@ -378,7 +384,7 @@ public class FlagMenu {
 					.getActivePlayer(player.getUniqueId());
 			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
 				HellblockPlugin.getInstance().getIslandProtectionManager().changeProtectionFlag(player.getUniqueId(),
-						Flags.USE, (pi.getProtectionValue(Flags.USE) ? "ALLOW" : "DENY"));
+						Flags.USE.getName(), (pi.getProtectionValue(Flags.USE.getName()) ? "ALLOW" : "DENY"));
 				new FlagMenu(player);
 			} else {
 				// TODO: using plugin protection
@@ -419,7 +425,8 @@ public class FlagMenu {
 					.getActivePlayer(player.getUniqueId());
 			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
 				HellblockPlugin.getInstance().getIslandProtectionManager().changeProtectionFlag(player.getUniqueId(),
-						Flags.USE_ANVIL, (pi.getProtectionValue(Flags.USE_ANVIL) ? "ALLOW" : "DENY"));
+						Flags.USE_ANVIL.getName(),
+						(pi.getProtectionValue(Flags.USE_ANVIL.getName()) ? "ALLOW" : "DENY"));
 				new FlagMenu(player);
 			} else {
 				// TODO: using plugin protection
@@ -438,7 +445,7 @@ public class FlagMenu {
 		@Override
 		public ItemProvider getItemProvider() {
 			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
-				return new ItemBuilder(Material.SMALL_DRIPLEAF)
+				return new ItemBuilder(Material.BIG_DRIPLEAF)
 						.setDisplayName(new ShadedAdventureComponentWrapper(
 								HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
 										String.format("<aqua>%s Flag", Flags.USE_DRIPLEAF.getName()))))
@@ -460,7 +467,8 @@ public class FlagMenu {
 					.getActivePlayer(player.getUniqueId());
 			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
 				HellblockPlugin.getInstance().getIslandProtectionManager().changeProtectionFlag(player.getUniqueId(),
-						Flags.USE_DRIPLEAF, (pi.getProtectionValue(Flags.USE_DRIPLEAF) ? "ALLOW" : "DENY"));
+						Flags.USE_DRIPLEAF.getName(),
+						(pi.getProtectionValue(Flags.USE_DRIPLEAF.getName()) ? "ALLOW" : "DENY"));
 				new FlagMenu(player);
 			} else {
 				// TODO: using plugin protection
@@ -501,7 +509,8 @@ public class FlagMenu {
 					.getActivePlayer(player.getUniqueId());
 			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
 				HellblockPlugin.getInstance().getIslandProtectionManager().changeProtectionFlag(player.getUniqueId(),
-						Flags.PLACE_VEHICLE, (pi.getProtectionValue(Flags.PLACE_VEHICLE) ? "ALLOW" : "DENY"));
+						Flags.PLACE_VEHICLE.getName(),
+						(pi.getProtectionValue(Flags.PLACE_VEHICLE.getName()) ? "ALLOW" : "DENY"));
 				new FlagMenu(player);
 			} else {
 				// TODO: using plugin protection
@@ -542,7 +551,8 @@ public class FlagMenu {
 					.getActivePlayer(player.getUniqueId());
 			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
 				HellblockPlugin.getInstance().getIslandProtectionManager().changeProtectionFlag(player.getUniqueId(),
-						Flags.DESTROY_VEHICLE, (pi.getProtectionValue(Flags.DESTROY_VEHICLE) ? "ALLOW" : "DENY"));
+						Flags.DESTROY_VEHICLE.getName(),
+						(pi.getProtectionValue(Flags.DESTROY_VEHICLE.getName()) ? "ALLOW" : "DENY"));
 				new FlagMenu(player);
 			} else {
 				// TODO: using plugin protection
@@ -583,7 +593,7 @@ public class FlagMenu {
 					.getActivePlayer(player.getUniqueId());
 			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
 				HellblockPlugin.getInstance().getIslandProtectionManager().changeProtectionFlag(player.getUniqueId(),
-						Flags.RIDE, (pi.getProtectionValue(Flags.RIDE) ? "ALLOW" : "DENY"));
+						Flags.RIDE.getName(), (pi.getProtectionValue(Flags.RIDE.getName()) ? "ALLOW" : "DENY"));
 				new FlagMenu(player);
 			} else {
 				// TODO: using plugin protection
@@ -624,7 +634,8 @@ public class FlagMenu {
 					.getActivePlayer(player.getUniqueId());
 			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
 				HellblockPlugin.getInstance().getIslandProtectionManager().changeProtectionFlag(player.getUniqueId(),
-						Flags.ITEM_FRAME_ROTATE, (pi.getProtectionValue(Flags.ITEM_FRAME_ROTATE) ? "ALLOW" : "DENY"));
+						Flags.ITEM_FRAME_ROTATE.getName(),
+						(pi.getProtectionValue(Flags.ITEM_FRAME_ROTATE.getName()) ? "ALLOW" : "DENY"));
 				new FlagMenu(player);
 			} else {
 				// TODO: using plugin protection
@@ -665,7 +676,8 @@ public class FlagMenu {
 					.getActivePlayer(player.getUniqueId());
 			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
 				HellblockPlugin.getInstance().getIslandProtectionManager().changeProtectionFlag(player.getUniqueId(),
-						Flags.TRAMPLE_BLOCKS, (pi.getProtectionValue(Flags.TRAMPLE_BLOCKS) ? "ALLOW" : "DENY"));
+						Flags.TRAMPLE_BLOCKS.getName(),
+						(pi.getProtectionValue(Flags.TRAMPLE_BLOCKS.getName()) ? "ALLOW" : "DENY"));
 				new FlagMenu(player);
 			} else {
 				// TODO: using plugin protection
@@ -706,7 +718,8 @@ public class FlagMenu {
 					.getActivePlayer(player.getUniqueId());
 			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
 				HellblockPlugin.getInstance().getIslandProtectionManager().changeProtectionFlag(player.getUniqueId(),
-						Flags.FIREWORK_DAMAGE, (pi.getProtectionValue(Flags.FIREWORK_DAMAGE) ? "ALLOW" : "DENY"));
+						Flags.FIREWORK_DAMAGE.getName(),
+						(pi.getProtectionValue(Flags.FIREWORK_DAMAGE.getName()) ? "ALLOW" : "DENY"));
 				new FlagMenu(player);
 			} else {
 				// TODO: using plugin protection
@@ -747,7 +760,8 @@ public class FlagMenu {
 					.getActivePlayer(player.getUniqueId());
 			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
 				HellblockPlugin.getInstance().getIslandProtectionManager().changeProtectionFlag(player.getUniqueId(),
-						Flags.ENDERPEARL, (pi.getProtectionValue(Flags.ENDERPEARL) ? "ALLOW" : "DENY"));
+						Flags.ENDERPEARL.getName(),
+						(pi.getProtectionValue(Flags.ENDERPEARL.getName()) ? "ALLOW" : "DENY"));
 				new FlagMenu(player);
 			} else {
 				// TODO: using plugin protection
@@ -788,7 +802,8 @@ public class FlagMenu {
 					.getActivePlayer(player.getUniqueId());
 			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
 				HellblockPlugin.getInstance().getIslandProtectionManager().changeProtectionFlag(player.getUniqueId(),
-						Flags.CHORUS_TELEPORT, (pi.getProtectionValue(Flags.CHORUS_TELEPORT) ? "ALLOW" : "DENY"));
+						Flags.CHORUS_TELEPORT.getName(),
+						(pi.getProtectionValue(Flags.CHORUS_TELEPORT.getName()) ? "ALLOW" : "DENY"));
 				new FlagMenu(player);
 			} else {
 				// TODO: using plugin protection
@@ -829,7 +844,7 @@ public class FlagMenu {
 					.getActivePlayer(player.getUniqueId());
 			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
 				HellblockPlugin.getInstance().getIslandProtectionManager().changeProtectionFlag(player.getUniqueId(),
-						Flags.LIGHTER, (pi.getProtectionValue(Flags.LIGHTER) ? "ALLOW" : "DENY"));
+						Flags.LIGHTER.getName(), (pi.getProtectionValue(Flags.LIGHTER.getName()) ? "ALLOW" : "DENY"));
 				new FlagMenu(player);
 			} else {
 				// TODO: using plugin protection
@@ -870,7 +885,7 @@ public class FlagMenu {
 					.getActivePlayer(player.getUniqueId());
 			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
 				HellblockPlugin.getInstance().getIslandProtectionManager().changeProtectionFlag(player.getUniqueId(),
-						Flags.TNT, (pi.getProtectionValue(Flags.TNT) ? "ALLOW" : "DENY"));
+						Flags.TNT.getName(), (pi.getProtectionValue(Flags.TNT.getName()) ? "ALLOW" : "DENY"));
 				new FlagMenu(player);
 			} else {
 				// TODO: using plugin protection
@@ -911,7 +926,8 @@ public class FlagMenu {
 					.getActivePlayer(player.getUniqueId());
 			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
 				HellblockPlugin.getInstance().getIslandProtectionManager().changeProtectionFlag(player.getUniqueId(),
-						Flags.RESPAWN_ANCHORS, (pi.getProtectionValue(Flags.RESPAWN_ANCHORS) ? "ALLOW" : "DENY"));
+						Flags.RESPAWN_ANCHORS.getName(),
+						(pi.getProtectionValue(Flags.RESPAWN_ANCHORS.getName()) ? "ALLOW" : "DENY"));
 				new FlagMenu(player);
 			} else {
 				// TODO: using plugin protection

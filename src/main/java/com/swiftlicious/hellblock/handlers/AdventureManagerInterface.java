@@ -60,9 +60,9 @@ public interface AdventureManagerInterface {
 	 * @param player   player
 	 * @param title    title
 	 * @param subtitle subtitle
-	 * @param in       in (ms)
-	 * @param duration duration (ms)
-	 * @param out      out (ms)
+	 * @param in       in (ticks)
+	 * @param duration duration (ticks)
+	 * @param out      out (ticks)
 	 */
 	void sendTitle(Player player, String title, String subtitle, int in, int duration, int out);
 
@@ -72,9 +72,9 @@ public interface AdventureManagerInterface {
 	 * @param player   player
 	 * @param title    title
 	 * @param subtitle subtitle
-	 * @param in       in (ms)
-	 * @param duration duration (ms)
-	 * @param out      out (ms)
+	 * @param in       in (ticks)
+	 * @param duration duration (ticks)
+	 * @param out      out (ticks)
 	 */
 	void sendTitle(Player player, Component title, Component subtitle, int in, int duration, int out);
 

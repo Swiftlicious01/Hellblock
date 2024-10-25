@@ -169,12 +169,13 @@ public class HellblockHandler {
 		instance.debug(String.format("Creating new hellblock for %s", player.getName()));
 		instance.getAdventureManager().sendMessageWithPrefix(player, "<red>Creating new hellblock!");
 		instance.getScheduler().runTaskSyncLater(
-				() -> instance.getBiomeHandler().changeHellblockBiome(pi, pi.getHellblockBiome(), true),
+				() -> instance.getBiomeHandler().changeHellblockBiome(pi, pi.getHellblockBiome(), true, true),
 				pi.getHomeLocation(), 5 * 20);
 		pi.setCreationTime(System.currentTimeMillis());
 		pi.saveHellblockPlayer();
-		
-		instance.getAdventureManager().sendTitle(player, String.format("<red>Welcome <dark_red>%s", player.getName()), "<red>To Your Hellblock!", 5, 20, 5);
+
+		instance.getAdventureManager().sendTitle(player, String.format("<red>Welcome <dark_red>%s", player.getName()),
+				"<red>To Your Hellblock!", 3 * 20, 8 * 20, 3 * 20);
 
 		// if raining give player a bit of protection
 		if (instance.getLavaRain().getLavaRainTask() != null && instance.getLavaRain().getLavaRainTask().isLavaRaining()
