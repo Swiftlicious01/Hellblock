@@ -82,15 +82,15 @@ hellblock:
       material: BONE
       amount: 1
       slot: 23
-	  
+
 # You add the block material type and then the amount of levels you want it to add to the hellblock.
 # Example: 'cobblestone:5' will add 5 levels to the hellblock when cobblestone is placed. Doesn't matter if a trusted member, party member or owner places it.
 # Levels are done in a decimal system so it can be 0.5 to only add half a level as well.
 level-system:
   blocks:
     - 'cobblestone:1'
-	- 'glowstone_block:1.5'
-	- 'netherite_block:5'
+    - 'glowstone_block:1.5'
+    - 'netherite_block:5'
 
 brewing:
   nether-bottle:
