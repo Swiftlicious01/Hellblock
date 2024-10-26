@@ -9,11 +9,13 @@ import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.inventory.ItemFlag;
 import org.jetbrains.annotations.NotNull;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.gui.icon.BackGroundItem;
 import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
+import com.swiftlicious.hellblock.playerdata.UUIDFetcher;
 import com.swiftlicious.hellblock.utils.LogUtils;
 import com.swiftlicious.hellblock.utils.wrappers.ShadedAdventureComponentWrapper;
 
@@ -83,6 +85,7 @@ public class CoopMenu {
 	public class MemberItem extends AbstractItem {
 
 		private UUID playerUUID;
+		private String input;
 
 		public MemberItem(UUID playerUUID) {
 			this.playerUUID = playerUUID;
@@ -94,6 +97,9 @@ public class CoopMenu {
 			List<UUID> party = hbPlayer.getHellblockParty();
 			for (UUID uuid : party) {
 				try {
+					input = Bukkit.getOfflinePlayer(uuid).hasPlayedBefore()
+							&& Bukkit.getOfflinePlayer(uuid).getName() != null ? Bukkit.getOfflinePlayer(uuid).getName()
+									: "Unknown";
 					return new SkullBuilder(uuid)
 							.setDisplayName(new ShadedAdventureComponentWrapper(
 									HellblockPlugin.getInstance().getAdventureManager()
@@ -102,8 +108,15 @@ public class CoopMenu {
 															&& Bukkit.getOfflinePlayer(uuid).getName() != null
 																	? Bukkit.getOfflinePlayer(uuid).getName()
 																	: "Unknown")))))
-							.addLoreLines(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
-									.getAdventureManager().getComponentFromMiniMessage("<yellow>Role: <gold>Member")));
+							.addLoreLines(
+									new ShadedAdventureComponentWrapper(
+											HellblockPlugin.getInstance().getAdventureManager()
+													.getComponentFromMiniMessage("<yellow>Role: <gold>Member")),
+									new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
+											.getAdventureManager().getComponentFromMiniMessage(" ")),
+									new ShadedAdventureComponentWrapper(
+											HellblockPlugin.getInstance().getAdventureManager()
+													.getComponentFromMiniMessage("<red>Click to kick them!")));
 				} catch (MojangApiException | IOException e) {
 					LogUtils.severe("Failed to create party member player heads!", e);
 					return new ItemBuilder(Material.BARRIER).setDisplayName(
@@ -113,6 +126,7 @@ public class CoopMenu {
 			}
 			try {
 				return new SkullBuilder(HeadTexture.of("MHF_QUESTION")).setUnbreakable(true)
+						.addItemFlags(ItemFlag.HIDE_UNBREAKABLE)
 						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
 								.getAdventureManager().getComponentFromMiniMessage("<dark_green>Empty Slot")))
 						.addLoreLines(
@@ -129,9 +143,18 @@ public class CoopMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			if (event.getCurrentItem() != null && event.getCurrentItem().hasItemMeta()
-					&& event.getCurrentItem().getItemMeta().isUnbreakable()) {
-				new InvitationMenu(player);
+			if (event.getCurrentItem() != null && event.getCurrentItem().getType() == Material.PLAYER_HEAD) {
+				if (event.getCurrentItem().hasItemMeta() && event.getCurrentItem().getItemMeta().isUnbreakable()) {
+					new InvitationMenu(player);
+				} else {
+					HellblockPlayer hbPlayer = HellblockPlugin.getInstance().getHellblockHandler()
+							.getActivePlayer(player);
+					if (!input.equals("Unknown")) {
+						HellblockPlugin.getInstance().getCoopManager().removeMemberFromHellblock(hbPlayer, input,
+								UUIDFetcher.getUUID(input));
+						new CoopMenu(player);
+					}
+				}
 			}
 		}
 	}
@@ -140,7 +163,7 @@ public class CoopMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			return new ItemBuilder(Material.ORANGE_STAINED_GLASS_PANE)
+			return new ItemBuilder(Material.ORANGE_STAINED_GLASS_PANE).addAllItemFlags()
 					.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
 							.getAdventureManager().getComponentFromMiniMessage("<gold>Return to Hellblock Menu")));
 		}

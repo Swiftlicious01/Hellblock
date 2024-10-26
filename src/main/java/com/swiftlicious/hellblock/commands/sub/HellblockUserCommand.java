@@ -3,6 +3,7 @@ package com.swiftlicious.hellblock.commands.sub;
 import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Map.Entry;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -116,6 +117,36 @@ public class HellblockUserCommand {
 				});
 	}
 
+	public CommandAPICommand getTopCommand() {
+		return new CommandAPICommand("top").withPermission(CommandPermission.NONE).withPermission("hellblock.user")
+				.executesPlayer((player, args) -> {
+					int i = 0;
+					if (!HellblockPlugin.getInstance().getIslandLevelManager().getTopTenHellblocks().isEmpty()) {
+						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+								"<red>Top Ten Level Hellblocks:");
+						for (Entry<UUID, Float> ten : HellblockPlugin.getInstance().getIslandLevelManager()
+								.getTopTenHellblocks().reversed().entrySet()) {
+
+							UUID id = ten.getKey();
+							if (!Bukkit.getOfflinePlayer(id).hasPlayedBefore())
+								continue;
+							if (Bukkit.getOfflinePlayer(id).getName() == null)
+								continue;
+							float level = ten.getValue().floatValue();
+							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
+									String.format("<dark_red>%s. <red>%s (Lvl %s)", ++i,
+											Bukkit.getOfflinePlayer(id).getName(), level));
+							if (i >= 10) {
+								break;
+							}
+						}
+					} else {
+						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+								"<red>No hellblocks to list for the top ten!");
+					}
+				});
+	}
+
 	public CommandAPICommand getBiomeCommand() {
 		return new CommandAPICommand("changebiome").withAliases("setbiome", "biome")
 				.withPermission(CommandPermission.NONE).withPermission("hellblock.user")
@@ -154,7 +185,8 @@ public class HellblockUserCommand {
 				.withArguments(new StringArgument("player")
 						.replaceSuggestions(ArgumentSuggestions.stringCollection(collection -> HellblockPlugin
 								.getInstance().getHellblockHandler().getActivePlayers().values().stream()
-								.filter(hbPlayer -> hbPlayer.getPlayer() != null && !hbPlayer.getLockedStatus())
+								.filter(hbPlayer -> hbPlayer.getPlayer() != null && hbPlayer.hasHellblock()
+										&& !hbPlayer.getLockedStatus())
 								.map(hbPlayer -> hbPlayer.getPlayer().getName()).collect(Collectors.toList()))))
 				.executesPlayer((player, args) -> {
 					String user = (String) args.getOrDefault("player", player);
@@ -261,10 +293,9 @@ public class HellblockUserCommand {
 
 	public CommandAPICommand getBanCommand() {
 		return new CommandAPICommand("ban").withPermission(CommandPermission.NONE).withPermission("hellblock.user")
-				.withArguments(new StringArgument("player")
-						.replaceSuggestions(ArgumentSuggestions.stringCollection(collection -> HellblockPlugin
-								.getInstance().getHellblockHandler().getActivePlayers().values().stream()
-								.filter(hbPlayer -> hbPlayer.getPlayer() != null && !hbPlayer.getLockedStatus())
+				.withArguments(new StringArgument("player").replaceSuggestions(ArgumentSuggestions
+						.stringCollection(collection -> HellblockPlugin.getInstance().getHellblockHandler()
+								.getActivePlayers().values().stream().filter(hbPlayer -> hbPlayer.getPlayer() != null)
 								.map(hbPlayer -> hbPlayer.getPlayer().getName()).collect(Collectors.toList()))))
 				.executesPlayer((player, args) -> {
 					HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
@@ -333,10 +364,9 @@ public class HellblockUserCommand {
 
 	public CommandAPICommand getUnbanCommand() {
 		return new CommandAPICommand("unban").withPermission(CommandPermission.NONE).withPermission("hellblock.user")
-				.withArguments(new StringArgument("player")
-						.replaceSuggestions(ArgumentSuggestions.stringCollection(collection -> HellblockPlugin
-								.getInstance().getHellblockHandler().getActivePlayers().values().stream()
-								.filter(hbPlayer -> hbPlayer.getPlayer() != null && !hbPlayer.getLockedStatus())
+				.withArguments(new StringArgument("player").replaceSuggestions(ArgumentSuggestions
+						.stringCollection(collection -> HellblockPlugin.getInstance().getHellblockHandler()
+								.getActivePlayers().values().stream().filter(hbPlayer -> hbPlayer.getPlayer() != null)
 								.map(hbPlayer -> hbPlayer.getPlayer().getName()).collect(Collectors.toList()))))
 				.executesPlayer((player, args) -> {
 					HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
@@ -416,6 +446,8 @@ public class HellblockUserCommand {
 										&& Bukkit.getOfflinePlayer(pi.getHellblockOwner()).getName() != null
 												? Bukkit.getOfflinePlayer(pi.getHellblockOwner()).getName()
 												: "Unknown"));
+						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
+								"<red>Level: <dark_red>" + pi.getLevel());
 						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 								"<red>Creation Date: <dark_red>" + pi.getCreationTime());
 						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
@@ -564,6 +596,8 @@ public class HellblockUserCommand {
 						;
 						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 								"<red>/hellblock visit <player>: Visit another player's island");
+						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
+								"<red>/hellblock top: View the hellblocks with the top levels");
 					} else {
 						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 								"<red>/hellblock coop invite <player>: Invite another player to your island");

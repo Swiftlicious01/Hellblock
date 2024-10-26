@@ -37,8 +37,6 @@ import lombok.Getter;
 import lombok.NonNull;
 import lombok.Setter;
 
-import org.jetbrains.annotations.NotNull;
-
 @Getter
 public class HellblockHandler {
 
@@ -52,8 +50,11 @@ public class HellblockHandler {
 	public List<String> islandOptions;
 	public boolean worldguardProtect;
 	public boolean disableBedExplosions;
+	public boolean voidTeleport;
+	public boolean entryMessageEnabled, farewellMessageEnabled;
 	public int protectionRange;
-	public @NotNull List<String> chestItems;
+	public List<String> chestItems;
+	public List<String> blockLevelSystem;
 	public Map<UUID, HellblockPlayer> activePlayers;
 	public File playersDirectory;
 	public File schematicsDirectory;
@@ -70,11 +71,17 @@ public class HellblockHandler {
 		this.netherCMD = instance.getConfig("config.yml").getString("general.netherCMD", "/spawn");
 		this.paster = instance.getConfig("config.yml").getString("hellblock.schematic-paster", "worldedit");
 		this.chestItems = instance.getConfig("config.yml").getStringList("hellblock.starter-chest");
+		this.blockLevelSystem = instance.getConfig("config.yml").getStringList("level-system.blocks");
 		this.height = instance.getConfig("config.yml").getInt("hellblock.height", 150);
 		this.islandOptions = instance.getConfig("config.yml").getStringList("hellblock.island-options");
 		this.distance = instance.getConfig("config.yml").getInt("hellblock.distance", 110);
 		this.worldguardProtect = instance.getConfig("config.yml").getBoolean("hellblock.worldguardProtect");
-		this.worldguardProtect = instance.getConfig("config.yml").getBoolean("hellblock.disable-bed-explosions", true);
+		this.entryMessageEnabled = instance.getConfig("config.yml").getBoolean("hellblock.entry-message-enabled", true);
+		this.farewellMessageEnabled = instance.getConfig("config.yml").getBoolean("hellblock.farewell-message-enabled",
+				true);
+		this.disableBedExplosions = instance.getConfig("config.yml").getBoolean("hellblock.disable-bed-explosions",
+				true);
+		this.voidTeleport = instance.getConfig("config.yml").getBoolean("hellblock.void-teleport", true);
 		this.protectionRange = instance.getConfig("config.yml").getInt("hellblock.protectionRange", 105);
 		this.activePlayers = new HashMap<>();
 		this.playersDirectory = new File(instance.getDataFolder() + File.separator + "players");
@@ -175,7 +182,7 @@ public class HellblockHandler {
 		pi.saveHellblockPlayer();
 
 		instance.getAdventureManager().sendTitle(player, String.format("<red>Welcome <dark_red>%s", player.getName()),
-				"<red>To Your Hellblock!", 3 * 20, 8 * 20, 3 * 20);
+				"<red>To Your Hellblock!", 3 * 20, 5 * 20, 3 * 20);
 
 		// if raining give player a bit of protection
 		if (instance.getLavaRain().getLavaRainTask() != null && instance.getLavaRain().getLavaRainTask().isLavaRaining()
@@ -206,6 +213,7 @@ public class HellblockHandler {
 				pi.setHellblock(false, null, 0);
 				pi.setHellblockOwner(null);
 				pi.setTotalVisits(0);
+				pi.setLevel(0);
 				pi.setCreationTime(0L);
 				pi.setHellblockBiome(null);
 				pi.setBiomeCooldown(0L);
@@ -274,6 +282,7 @@ public class HellblockHandler {
 							hbMember.setHellblockOwner(null);
 							hbMember.setHellblockBiome(null);
 							hbMember.setTotalVisits(0);
+							hbMember.setLevel(0);
 							hbMember.setCreationTime(0L);
 							hbMember.setBiomeCooldown(0L);
 							hbMember.setResetCooldown(0L);
@@ -302,6 +311,7 @@ public class HellblockHandler {
 							memberConfig.set("player.hasHellblock", false);
 							memberConfig.set("player.hellblock", null);
 							memberConfig.set("player.hellblock-id", null);
+							memberConfig.set("player.hellblock-level", null);
 							memberConfig.set("player.home", null);
 							memberConfig.set("player.owner", null);
 							memberConfig.set("player.biome", null);
@@ -390,6 +400,10 @@ public class HellblockHandler {
 			return new Location(getHellblockWorld(), 0.0D, (getHeight() + 1), 0.0D);
 			// TODO: using plugin protection
 		}
+	}
+
+	public boolean isHellblockOwner(UUID fileID, UUID configID) {
+		return fileID.equals(configID);
 	}
 
 	public void reloadLastHellblock() {

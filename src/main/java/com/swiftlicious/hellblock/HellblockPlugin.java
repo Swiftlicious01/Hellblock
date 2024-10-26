@@ -1,6 +1,7 @@
 package com.swiftlicious.hellblock;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
@@ -9,6 +10,7 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 import org.bukkit.Bukkit;
+import org.bukkit.OfflinePlayer;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.HandlerList;
@@ -21,6 +23,7 @@ import com.comphenix.protocol.PacketType;
 import com.comphenix.protocol.ProtocolLibrary;
 import com.comphenix.protocol.ProtocolManager;
 import com.comphenix.protocol.events.PacketContainer;
+import com.google.common.io.Files;
 import com.swiftlicious.hellblock.api.compatibility.Metrics;
 import com.swiftlicious.hellblock.api.compatibility.WorldEditHook;
 import com.swiftlicious.hellblock.api.compatibility.WorldGuardHook;
@@ -50,6 +53,7 @@ import com.swiftlicious.hellblock.handlers.GlobalSettings;
 import com.swiftlicious.hellblock.handlers.RequirementManager;
 import com.swiftlicious.hellblock.listeners.GlowstoneTree;
 import com.swiftlicious.hellblock.listeners.InfiniteLava;
+import com.swiftlicious.hellblock.listeners.IslandLevelHandler;
 import com.swiftlicious.hellblock.listeners.NetherArmor;
 import com.swiftlicious.hellblock.listeners.NetherBrewing;
 import com.swiftlicious.hellblock.listeners.NetherFarming;
@@ -105,13 +109,14 @@ public class HellblockPlugin extends JavaPlugin {
 	protected IslandChoiceConverter islandChoiceConverter;
 	protected CoopManager coopManager;
 	protected IslandProtection islandProtectionManager;
+	protected IslandLevelHandler islandLevelManager;
 	protected SchematicManager schematicManager;
 
 	protected ConfigUtils configUtils;
 	protected WeightUtils weightUtils;
 	protected NumberUtils numberUtils;
 	protected ParseUtils parseUtils;
-	
+
 	protected ProtocolManager protocolManager;
 
 	protected Scheduler scheduler;
@@ -206,6 +211,7 @@ public class HellblockPlugin extends JavaPlugin {
 		this.biomeHandler = new BiomeHandler(this);
 		this.islandChoiceConverter = new IslandChoiceConverter(this);
 		this.coopManager = new CoopManager(this);
+		this.islandLevelManager = new IslandLevelHandler(this);
 		this.islandProtectionManager = new IslandProtection(this);
 
 		this.actionManager = new ActionManager(this);
@@ -241,6 +247,7 @@ public class HellblockPlugin extends JavaPlugin {
 		reload();
 
 		if (HBConfig.metrics)
+			// TODO: once published change out with my own ID
 			new Metrics(this, 42152);
 
 		if (HBConfig.updateChecker) {
@@ -285,19 +292,73 @@ public class HellblockPlugin extends JavaPlugin {
 			}
 		}
 
+		int purgeDays = getConfig("config.yml").getInt("hellblock.abandon-after-days", 30);
+		final int purgeTime = Integer.parseInt(String.valueOf(purgeDays), 10) * 24;
+		for (File playerData : HellblockPlugin.getInstance().getHellblockHandler().getPlayersDirectory().listFiles()) {
+			if (!playerData.isFile() || !playerData.getName().endsWith(".yml"))
+				continue;
+			String uuid = Files.getNameWithoutExtension(playerData.getName());
+			UUID id = null;
+			try {
+				id = UUID.fromString(uuid);
+			} catch (IllegalArgumentException ignored) {
+				// ignored
+				continue;
+			}
+			if (id == null)
+				continue;
+			if (!Bukkit.getOfflinePlayer(id).hasPlayedBefore())
+				continue;
+
+			OfflinePlayer player = Bukkit.getOfflinePlayer(id);
+			if (player.getLastLogin() == 0)
+				continue;
+			if (player.getLastLogin() > (System.currentTimeMillis() - (purgeTime * 3600000L))) {
+				YamlConfiguration playerConfig = YamlConfiguration.loadConfiguration(playerData);
+				String ownerID = playerConfig.getString("player.owner");
+				UUID ownerUUID = null;
+				try {
+					ownerUUID = UUID.fromString(ownerID);
+				} catch (IllegalArgumentException ignored) {
+					// ignored
+					continue;
+				}
+				if (ownerUUID == null)
+					continue;
+				if (getHellblockHandler().isHellblockOwner(id, ownerUUID)) {
+
+					playerConfig.set("player.abandoned", true);
+					try {
+						playerConfig.save(playerData);
+					} catch (IOException ex) {
+						LogUtils.warn(String.format("Could not save the player data file as abandoned for %s", uuid),
+								ex);
+						continue;
+					}
+					if (HellblockPlugin.getInstance().getWorldGuardHandler().getRegion(ownerUUID) != null) {
+						HellblockPlugin.getInstance().getWorldGuardHandler().updateHellblockMessages(ownerUUID,
+								HellblockPlugin.getInstance().getWorldGuardHandler().getRegion(ownerUUID));
+						HellblockPlugin.getInstance().getWorldGuardHandler().abandonIsland(ownerUUID,
+								HellblockPlugin.getInstance().getWorldGuardHandler().getRegion(ownerUUID));
+					}
+				}
+			}
+		}
+
 		getLavaRain().startLavaRainProcess();
 		getScheduler().runTaskSyncLater(() -> getHellblockHandler().getHellblockWorld(), null, 5, TimeUnit.SECONDS);
 		getScheduler().runTaskAsyncTimer(() -> {
 			if (HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers().isEmpty())
 				return;
 			long time1 = System.currentTimeMillis();
-			getHellblockHandler().getActivePlayers().values().stream().filter(hbPlayer -> hbPlayer.hasHellblock())
-					.forEach(hbPlayer -> hbPlayer.saveHellblockPlayer());
+			getHellblockHandler().getActivePlayers().values().stream()
+					.filter(hbPlayer -> hbPlayer.getPlayer() != null && hbPlayer.hasHellblock())
+					.forEach(HellblockPlayer::saveHellblockPlayer);
 			if (HBConfig.logDataSaving) {
 				LogUtils.info(String.format("Hellblock islands have all been saved. Took %sms.",
 						(System.currentTimeMillis() - time1)));
 			}
-		}, 5, 15, TimeUnit.MINUTES);
+		}, 5, 30, TimeUnit.MINUTES);
 	}
 
 	@Override

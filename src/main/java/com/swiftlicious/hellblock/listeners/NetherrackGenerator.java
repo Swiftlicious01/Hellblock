@@ -53,39 +53,14 @@ public class NetherrackGenerator implements Listener {
 	}
 
 	@EventHandler
-	public void checkFlow(BlockFromToEvent event) { // Does not respond if the toBlock is Lava
-		if (!event.getBlock().getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
-			return;
-		Block from = event.getBlock();
-		if (from.getType() != Material.LAVA)
-			return;
-		int fromLevel = ((Levelled) from.getBlockData()).getLevel();
-
-		Block toBlock = event.getToBlock();
-		BlockFace face = event.getFace();
-
-		Block nextBlock = toBlock.getRelative(face, 1);
-		if (nextBlock.getType() != Material.LAVA)
-			return;
-
-		int nextBlockLevel = ((Levelled) nextBlock.getBlockData()).getLevel();
-		if (fromLevel < nextBlockLevel) {
-			nextBlock.setType(Material.NETHERRACK);
-		}
-		if (fromLevel == nextBlockLevel) {
-			toBlock.setType(Material.NETHERRACK);
-		}
-	}
-
-	@EventHandler
 	public void onBlockFlow(BlockFromToEvent event) {
 		if (!event.getBlock().getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
 			return;
-		Block b = event.getBlock();
+		Block fromBlock = event.getBlock();
 
-		Material m = b.getType();
+		Material fromMaterial = fromBlock.getType();
 
-		List<GenMode> modes = genModeManager.getModesContainingMaterial(m);
+		List<GenMode> modes = genModeManager.getModesContainingMaterial(fromMaterial);
 		for (GenMode mode : modes) {
 			if (!mode.containsLiquidBlock() || !mode.isValid())
 				continue;
@@ -94,7 +69,7 @@ public class NetherrackGenerator implements Listener {
 			Material toBlockMaterial = toBlock.getType();
 
 			if (toBlockMaterial.equals(Material.AIR) || mode.containsBlock(toBlockMaterial)) {
-				if (isGenerating(mode, m, toBlock)) {
+				if (isGenerating(mode, fromBlock, toBlock)) {
 					Location l = toBlock.getLocation();
 					if (l.getWorld() == null)
 						return;
@@ -259,11 +234,12 @@ public class NetherrackGenerator implements Listener {
 	private static final BlockFace[] faces = new BlockFace[] { BlockFace.SELF, BlockFace.UP, BlockFace.DOWN,
 			BlockFace.NORTH, BlockFace.EAST, BlockFace.SOUTH, BlockFace.WEST };
 
-	private boolean isGenerating(GenMode mode, Material fromM, Block toB) {
+	private boolean isGenerating(GenMode mode, Block fromB, Block toB) {
 		if (!mode.isValid())
 			return false;
 		int blocksFound = 0; /* We need all blocks to be correct */
 		List<BlockFace> testedFaces = new ArrayList<>();
+		Material fromM = fromB.getType();
 		if (mode.getFixedBlocks() != null && !mode.getFixedBlocks().isEmpty()) {
 			for (Entry<BlockFace, Material> entry : mode.getFixedBlocks().entrySet()) {
 				if (testedFaces.contains(entry.getKey()))
@@ -292,14 +268,27 @@ public class NetherrackGenerator implements Listener {
 				/*
 				 * This also sadly disables LAVA and LAVA generators
 				 */
-				if (this.isSameMaterial(rm.name(), fromM.name())) { // Should not check for
-					// the original block
+//				if (this.isSameMaterial(rm.name(), fromB.getType().name())) { // Should not check for
+//					// the original block
+//					continue;
+//				}
+				if (fromM != Material.LAVA)
 					continue;
-				}
 
+				int fromLevel = ((Levelled) fromB.getBlockData()).getLevel();
+
+				if (rm != Material.LAVA)
+					continue;
+
+				int rLevel = ((Levelled) r.getBlockData()).getLevel();
 				for (Material mirrorMaterial : mode.getBlocks()) {
 					if (this.isSameMaterial(rm.name(), mirrorMaterial.name())) {
-						blocksFound++; /* This block is positioned correctly; */
+						if (fromLevel < rLevel) {
+							blocksFound++; /* This block is positioned correctly; */
+						}
+						if (fromLevel == rLevel) {
+							blocksFound++; /* This block is positioned correctly; */
+						}
 					}
 				}
 			}

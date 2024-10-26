@@ -57,10 +57,10 @@ public class InvitationMenu {
 				.addIngredient('#', border).addIngredient('b', confirmIcon).build();
 
 		var gui = PagedGui.items()
-				.setStructure("x x x x x x x x x", "x x x x x x x x x", "x x x x x x x x x", "# # a # # # b # #")
+				.setStructure("x x x x x x x x x", "x x x x x x x x x", "x x x x x x x x x", "# # a # o # b # #")
 				.addIngredient('x', Markers.CONTENT_LIST_SLOT_HORIZONTAL).addIngredient('#', new BackGroundItem())
 				.addIngredient('a', new PreviousPageItem()).addIngredient('b', new NextPageItem())
-				.setContent(getItemList()).build();
+				.addIngredient('o', new BackToCoopMenuItem()).setContent(getItemList()).build();
 
 		var window = AnvilWindow
 				.split().setViewer(player).setTitle(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
@@ -197,6 +197,22 @@ public class InvitationMenu {
 				return;
 			}
 			prefix = SEARCH;
+			new CoopMenu(player);
+		}
+	}
+
+	public class BackToCoopMenuItem extends AbstractItem {
+
+		@Override
+		public ItemProvider getItemProvider() {
+			return new ItemBuilder(Material.ORANGE_STAINED_GLASS_PANE)
+					.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
+							.getAdventureManager().getComponentFromMiniMessage("<gold>Return to Coop Menu")));
+		}
+
+		@Override
+		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
+				@NotNull InventoryClickEvent event) {
 			new CoopMenu(player);
 		}
 	}

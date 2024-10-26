@@ -2,10 +2,12 @@ package com.swiftlicious.hellblock.protection;
 
 import java.util.UUID;
 
+import com.sk89q.worldguard.protection.flags.RegionGroup;
 import com.sk89q.worldguard.protection.flags.StateFlag;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
+import com.swiftlicious.hellblock.utils.LogUtils;
 
 import lombok.NonNull;
 
@@ -17,10 +19,12 @@ public class IslandProtection {
 		instance = plugin;
 	}
 
-	public boolean changeProtectionFlag(@NonNull UUID id, @NonNull String flag, @NonNull String value) {
+	public boolean changeProtectionFlag(@NonNull UUID id, @NonNull String flag, boolean value) {
 		HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(id);
-		if (pi.getPlayer() == null)
+		if (pi.getPlayer() == null) {
+			LogUtils.warn("Player object returned null, please report this.");
 			return false;
+		}
 		if (!pi.hasHellblock()) {
 			instance.getAdventureManager().sendMessageWithPrefix(pi.getPlayer(), "<red>You don't have a hellblock!");
 			return false;
@@ -35,11 +39,11 @@ public class IslandProtection {
 			if (region == null)
 				return false;
 
-			pi.setProtectionValue(flag + ":" + value);
-			instance.getCoopManager().updateParty(id, "flag", flag + ":" + value);
-			StateFlag newFlag = new StateFlag(flag, false);
-			region.setFlag(newFlag, StateFlag.State.valueOf(value.toUpperCase()));
+			pi.setProtectionValue(flag.toLowerCase() + ":" + (value ? "allow" : "deny"));
 			pi.saveHellblockPlayer();
+			instance.getCoopManager().updateParty(id, "flag", flag.toLowerCase() + ":" + (value ? "allow" : "deny"));
+			StateFlag newFlag = new StateFlag(flag, false, RegionGroup.NON_MEMBERS);
+			region.setFlag(newFlag, value ? null : StateFlag.State.DENY);
 			return true;
 		} else {
 			// TODO: using plugin protection

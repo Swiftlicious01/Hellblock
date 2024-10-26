@@ -1,21 +1,28 @@
 package com.swiftlicious.hellblock.commands.sub;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.OfflinePlayer;
 import org.bukkit.World;
+import org.bukkit.configuration.file.YamlConfiguration;
 
+import com.google.common.io.Files;
 import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
 import com.swiftlicious.hellblock.playerdata.UUIDFetcher;
 import com.swiftlicious.hellblock.utils.LocationUtils;
+import com.swiftlicious.hellblock.utils.LogUtils;
 
 import dev.jorel.commandapi.CommandAPICommand;
 import dev.jorel.commandapi.CommandPermission;
 import dev.jorel.commandapi.arguments.ArgumentSuggestions;
+import dev.jorel.commandapi.arguments.IntegerArgument;
 import dev.jorel.commandapi.arguments.StringArgument;
 
 public class HellblockAdminCommand {
@@ -24,14 +31,15 @@ public class HellblockAdminCommand {
 
 	public CommandAPICommand getAdminCommand() {
 		return new CommandAPICommand("admin").withPermission(CommandPermission.OP).withPermission("hellblock.admin")
-				.withSubcommands(genSpawnCommand("genspawn"), teleportCommand("goto"), deleteCommand("delete"));
+				.withSubcommands(getGenSpawnCommand("genspawn"), getPurgeCommand("purge"), getTeleportCommand("goto"),
+						getDeleteCommand("delete"));
 	}
 
-	private CommandAPICommand teleportCommand(String namespace) {
+	private CommandAPICommand getTeleportCommand(String namespace) {
 		return new CommandAPICommand(namespace)
-				.withArguments(new StringArgument("player").replaceSuggestions(ArgumentSuggestions
-						.stringCollection(collection -> HellblockPlugin.getInstance().getHellblockHandler()
-								.getActivePlayers().values().stream().filter(hbPlayer -> hbPlayer.getPlayer() != null)
+				.withArguments(new StringArgument("player").replaceSuggestions(ArgumentSuggestions.stringCollection(
+						collection -> HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers().values()
+								.stream().filter(hbPlayer -> hbPlayer.getPlayer() != null && hbPlayer.hasHellblock())
 								.map(hbPlayer -> hbPlayer.getPlayer().getName()).collect(Collectors.toList()))))
 				.executesPlayer((player, args) -> {
 					String user = (String) args.getOrDefault("player", player);
@@ -74,11 +82,74 @@ public class HellblockAdminCommand {
 				});
 	}
 
-	private CommandAPICommand deleteCommand(String namespace) {
+	private CommandAPICommand getPurgeCommand(String namespace) {
+		return new CommandAPICommand(namespace).withArguments(new IntegerArgument("days")).executes((sender, args) -> {
+			int purgeDays = (int) args.get("days");
+			if (purgeDays <= 0) {
+				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(sender,
+						"<red>Please enter a positive number above 0!");
+				return;
+			}
+			final int purgeTime = Integer.parseInt(String.valueOf(purgeDays), 10) * 24;
+			for (File playerData : HellblockPlugin.getInstance().getHellblockHandler().getPlayersDirectory()
+					.listFiles()) {
+				if (!playerData.isFile() || !playerData.getName().endsWith(".yml"))
+					continue;
+				String uuid = Files.getNameWithoutExtension(playerData.getName());
+				UUID id = null;
+				try {
+					id = UUID.fromString(uuid);
+				} catch (IllegalArgumentException ignored) {
+					// ignored
+					continue;
+				}
+				if (id == null)
+					continue;
+				if (!Bukkit.getOfflinePlayer(id).hasPlayedBefore())
+					continue;
+
+				OfflinePlayer player = Bukkit.getOfflinePlayer(id);
+				if (player.getLastLogin() == 0)
+					continue;
+				if (player.getLastLogin() > (System.currentTimeMillis() - (purgeTime * 3600000L))) {
+					YamlConfiguration playerConfig = YamlConfiguration.loadConfiguration(playerData);
+					String ownerID = playerConfig.getString("player.owner");
+					UUID ownerUUID = null;
+					try {
+						ownerUUID = UUID.fromString(ownerID);
+					} catch (IllegalArgumentException ignored) {
+						// ignored
+						continue;
+					}
+					if (ownerUUID == null)
+						continue;
+					if (HellblockPlugin.getInstance().getHellblockHandler().isHellblockOwner(id, ownerUUID)) {
+
+						playerConfig.set("player.abandoned", true);
+						try {
+							playerConfig.save(playerData);
+						} catch (IOException ex) {
+							LogUtils.warn(
+									String.format("Could not save the player data file as abandoned for %s", uuid), ex);
+							continue;
+						}
+						if (HellblockPlugin.getInstance().getWorldGuardHandler().getRegion(ownerUUID) != null) {
+							HellblockPlugin.getInstance().getWorldGuardHandler().updateHellblockMessages(ownerUUID,
+									HellblockPlugin.getInstance().getWorldGuardHandler().getRegion(ownerUUID));
+							HellblockPlugin.getInstance().getWorldGuardHandler().abandonIsland(ownerUUID,
+									HellblockPlugin.getInstance().getWorldGuardHandler().getRegion(ownerUUID));
+						}
+					}
+				}
+			}
+		});
+	}
+
+	private CommandAPICommand getDeleteCommand(String namespace) {
 		return new CommandAPICommand(namespace)
-				.withArguments(new StringArgument("player").replaceSuggestions(ArgumentSuggestions
-						.stringCollection(collection -> HellblockPlugin.getInstance().getHellblockHandler()
-								.getActivePlayers().values().stream().filter(hbPlayer -> hbPlayer.getPlayer() != null)
+				.withArguments(new StringArgument("player").replaceSuggestions(ArgumentSuggestions.stringCollection(
+						collection -> HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers().values()
+								.stream().filter(hbPlayer -> hbPlayer.getPlayer() != null && hbPlayer.hasHellblock())
 								.map(hbPlayer -> hbPlayer.getPlayer().getName()).collect(Collectors.toList()))))
 				.executesPlayer((player, args) -> {
 					String user = (String) args.getOrDefault("player", player);
@@ -118,7 +189,7 @@ public class HellblockAdminCommand {
 				});
 	}
 
-	private CommandAPICommand genSpawnCommand(String namespace) {
+	private CommandAPICommand getGenSpawnCommand(String namespace) {
 		return new CommandAPICommand(namespace).executesPlayer((player, args) -> {
 			if (!player.getWorld().getName()
 					.equalsIgnoreCase(HellblockPlugin.getInstance().getHellblockHandler().getWorldName())) {

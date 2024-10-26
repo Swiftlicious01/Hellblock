@@ -27,9 +27,10 @@ public class HellblockMenu {
 		if (HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player).hasHellblock()) {
 			Gui gui = Gui.normal().setStructure("# c t p b l f r #").addIngredient('c', new CreateIslandItem())
 					.addIngredient('t', new TeleportIslandItem()).addIngredient('p', new ViewPartyMembersItem())
-					.addIngredient('b', new BiomeItem()).addIngredient('l', new LockIslandItem(player.getUniqueId()))
-					.addIngredient('r', new ResetIslandItem()).addIngredient('f', new ProtectionFlagItem())
-					.addIngredient('#', new BackGroundItem()).build();
+					.addIngredient('b', new BiomeItem(player.getUniqueId()))
+					.addIngredient('l', new LockIslandItem(player.getUniqueId()))
+					.addIngredient('r', new ResetIslandItem(player.getUniqueId()))
+					.addIngredient('f', new ProtectionFlagItem()).addIngredient('#', new BackGroundItem()).build();
 
 			Window window = Window
 					.single().setViewer(player).setTitle(new ShadedAdventureComponentWrapper(HellblockPlugin
@@ -46,7 +47,7 @@ public class HellblockMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			return new ItemBuilder(Material.REPEATER)
+			return new ItemBuilder(Material.REPEATER).addAllItemFlags()
 					.setDisplayName(
 							new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 									.getComponentFromMiniMessage("<green>Change your Hellblock Protection Flags!")))
@@ -66,7 +67,7 @@ public class HellblockMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			return new ItemBuilder(Material.SOUL_SAND)
+			return new ItemBuilder(Material.SOUL_SAND).addAllItemFlags()
 					.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
 							.getAdventureManager().getComponentFromMiniMessage("<green>Create your Hellblock!")))
 					.addLoreLines(new ShadedAdventureComponentWrapper(
@@ -103,7 +104,7 @@ public class HellblockMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			return new ItemBuilder(Material.TRAPPED_CHEST)
+			return new ItemBuilder(Material.TRAPPED_CHEST).addAllItemFlags()
 					.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
 							.getAdventureManager()
 							.getComponentFromMiniMessage(String.format("<green>%s your Hellblock!",
@@ -144,7 +145,7 @@ public class HellblockMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			return new ItemBuilder(Material.BEACON)
+			return new ItemBuilder(Material.BEACON).addAllItemFlags()
 					.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
 							.getAdventureManager().getComponentFromMiniMessage("<green>View your party members!")))
 					.addLoreLines(
@@ -167,25 +168,50 @@ public class HellblockMenu {
 
 	public class BiomeItem extends AbstractItem {
 
+		private UUID playerUUID;
+
+		public BiomeItem(UUID playerUUID) {
+			this.playerUUID = playerUUID;
+		}
+
 		@Override
 		public ItemProvider getItemProvider() {
-			return new ItemBuilder(Material.NETHER_WART)
-					.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
-							.getAdventureManager().getComponentFromMiniMessage("<green>Change island biome!")))
-					.addLoreLines(
-							new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
-									.getComponentFromMiniMessage("<aqua>Click to view all of the biome options!")));
+			HellblockPlayer hbPlayer = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(playerUUID);
+			if (hbPlayer.getBiomeCooldown() == 0) {
+				return new ItemBuilder(Material.NETHER_WART).addAllItemFlags()
+						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
+								.getAdventureManager().getComponentFromMiniMessage("<green>Change island biome!")))
+						.addLoreLines(
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage("<aqua>Click to view all of the biome options!")));
+			} else {
+				return new ItemBuilder(Material.BARRIER).addAllItemFlags()
+						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
+								.getAdventureManager().getComponentFromMiniMessage("<red>Reset on Cooldown!")))
+						.addLoreLines(new ShadedAdventureComponentWrapper(
+								HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
+										"<dark_red>Your ability to change your biome is on cooldown!")));
+			}
 		}
 
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
 			HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
-			if (pi.hasHellblock()) {
-				new BiomeMenu(player);
+			if (event.getCurrentItem() != null && event.getCurrentItem().getType() == Material.NETHER_WART) {
+				if (pi.hasHellblock()) {
+					new BiomeMenu(player);
+				} else {
+					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+							"<red>You don't have a hellblock!");
+				}
 			} else {
-				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-						"<red>You don't have a hellblock!");
+				if (pi.getBiomeCooldown() > 0) {
+					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+							String.format("<red>You have recently changed your biome already, you must wait for %s!",
+									HellblockPlugin.getInstance().getFormattedCooldown(pi.getBiomeCooldown())));
+					return;
+				}
 			}
 		}
 	}
@@ -194,7 +220,7 @@ public class HellblockMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			return new ItemBuilder(Material.FIRE_CHARGE)
+			return new ItemBuilder(Material.FIRE_CHARGE).addAllItemFlags()
 					.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
 							.getAdventureManager().getComponentFromMiniMessage("<green>Teleport to your Hellblock!")))
 					.addLoreLines(
@@ -240,40 +266,46 @@ public class HellblockMenu {
 
 	public class ResetIslandItem extends AbstractItem {
 
+		private UUID playerUUID;
+
+		public ResetIslandItem(UUID playerUUID) {
+			this.playerUUID = playerUUID;
+		}
+
 		@Override
 		public ItemProvider getItemProvider() {
-			return new ItemBuilder(Material.NETHER_BRICKS)
-					.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
-							.getAdventureManager().getComponentFromMiniMessage("<green>Reset your Hellblock!")))
-					.addLoreLines(
-							new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
-									.getComponentFromMiniMessage("<aqua>Click to reset your hellblock island!")));
+			HellblockPlayer hbPlayer = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(playerUUID);
+			if (hbPlayer.getResetCooldown() == 0) {
+				return new ItemBuilder(Material.NETHER_BRICKS).addAllItemFlags()
+						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
+								.getAdventureManager().getComponentFromMiniMessage("<green>Reset your Hellblock!")))
+						.addLoreLines(
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage("<aqua>Click to reset your hellblock island!")));
+			} else {
+				return new ItemBuilder(Material.BARRIER).addAllItemFlags()
+						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
+								.getAdventureManager().getComponentFromMiniMessage("<red>Reset on Cooldown!")))
+						.addLoreLines(new ShadedAdventureComponentWrapper(
+								HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
+										"<dark_red>Your ability to reset your hellblock is on cooldown!")));
+			}
 		}
 
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
 			HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
-			if (!pi.hasHellblock()) {
-				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-						"<red>You don't have a hellblock!");
-				return;
+			if (event.getCurrentItem() != null && event.getCurrentItem().getType() == Material.NETHER_BRICKS) {
+				new ConfirmMenu(player, "Reset");
+			} else {
+				if (pi.getResetCooldown() > 0) {
+					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+							String.format("<red>You have recently reset your hellblock already, you must wait for %s!",
+									HellblockPlugin.getInstance().getFormattedCooldown(pi.getResetCooldown())));
+					return;
+				}
 			}
-			if (pi.getHellblockOwner() != null && !pi.getHellblockOwner().equals(player.getUniqueId())) {
-				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-						"<red>You don't own this hellblock!");
-				return;
-			}
-			if (pi.getResetCooldown() > 0) {
-				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-						String.format("<red>You have recently reset your hellblock already, you must wait for %s!",
-								HellblockPlugin.getInstance().getFormattedCooldown(pi.getResetCooldown())));
-				return;
-			}
-
-			HellblockPlugin.getInstance().getHellblockHandler().resetHellblock(player.getUniqueId(), false);
-			player.performCommand(HellblockPlugin.getInstance().getHellblockHandler().getNetherCMD());
-			new IslandChoiceMenu(player, true);
 		}
 	}
 }

@@ -1,0 +1,250 @@
+package com.swiftlicious.hellblock.listeners;
+
+import java.io.File;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.TimeUnit;
+
+import org.bukkit.Bukkit;
+import org.bukkit.Location;
+import org.bukkit.Material;
+import org.bukkit.block.Block;
+import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.entity.Entity;
+import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.Listener;
+import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.block.BlockBurnEvent;
+import org.bukkit.event.block.BlockExplodeEvent;
+import org.bukkit.event.block.BlockPlaceEvent;
+
+import org.jetbrains.annotations.NotNull;
+
+import com.google.common.io.Files;
+import com.sk89q.worldguard.protection.regions.ProtectedRegion;
+
+import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
+import com.swiftlicious.hellblock.utils.LogUtils;
+
+public class IslandLevelHandler implements Listener {
+
+	private final HellblockPlugin instance;
+
+	private final Collection<LevelBlockCache> blockCache;
+
+	public IslandLevelHandler(HellblockPlugin plugin) {
+		instance = plugin;
+		this.blockCache = new HashSet<>();
+		Bukkit.getPluginManager().registerEvents(this, instance);
+		instance.getScheduler().runTaskAsyncTimer(() -> clearCache(), 0, 1, TimeUnit.HOURS);
+	}
+
+	private void clearCache() {
+		this.blockCache.clear();
+	}
+
+	@EventHandler
+	public void onLevelPlace(BlockPlaceEvent event) {
+		final Block block = event.getBlockPlaced();
+		if (!block.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+			return;
+
+		final Player player = event.getPlayer();
+		final UUID id = player.getUniqueId();
+		LevelBlockCache levelBlockUpdate = new LevelBlockCache(block, BlockAction.PLACE);
+		updateLevelFromBlockChange(id, levelBlockUpdate);
+	}
+
+	@EventHandler
+	public void onLevelBreak(BlockBreakEvent event) {
+		final Block block = event.getBlock();
+		if (!block.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+			return;
+
+		final Player player = event.getPlayer();
+		final UUID id = player.getUniqueId();
+		LevelBlockCache levelBlockUpdate = new LevelBlockCache(block, BlockAction.BREAK);
+		updateLevelFromBlockChange(id, levelBlockUpdate);
+	}
+
+	@EventHandler
+	public void onLevelExplode(BlockExplodeEvent event) {
+		final Block block = event.getBlock();
+		if (!block.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+			return;
+
+		Collection<Entity> entitiesNearby = block.getWorld().getNearbyEntities(block.getLocation(), 25, 25, 25);
+		Player player = instance.getNetherrackGenerator().getClosestPlayer(block.getLocation(), entitiesNearby);
+		if (player != null) {
+			final UUID id = player.getUniqueId();
+			LevelBlockCache levelBlockUpdate = new LevelBlockCache(block, BlockAction.BREAK);
+			updateLevelFromBlockChange(id, levelBlockUpdate);
+		}
+	}
+
+	@EventHandler
+	public void onLevelBurn(BlockBurnEvent event) {
+		final Block block = event.getBlock();
+		if (!block.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+			return;
+
+		Collection<Entity> entitiesNearby = block.getWorld().getNearbyEntities(block.getLocation(), 25, 25, 25);
+		Player player = instance.getNetherrackGenerator().getClosestPlayer(block.getLocation(), entitiesNearby);
+		if (player != null) {
+			final UUID id = player.getUniqueId();
+			LevelBlockCache levelBlockUpdate = new LevelBlockCache(block, BlockAction.BREAK);
+			updateLevelFromBlockChange(id, levelBlockUpdate);
+		}
+	}
+
+	public LinkedHashMap<UUID, Float> getTopTenHellblocks() {
+		Map<UUID, Float> topHellblocks = new HashMap<>();
+		for (File playerData : HellblockPlugin.getInstance().getHellblockHandler().getPlayersDirectory().listFiles()) {
+			if (!playerData.isFile() || !playerData.getName().endsWith(".yml"))
+				continue;
+			String uuid = Files.getNameWithoutExtension(playerData.getName());
+			UUID id = null;
+			try {
+				id = UUID.fromString(uuid);
+			} catch (IllegalArgumentException ignored) {
+				// ignored
+				continue;
+			}
+			if (id == null)
+				continue;
+			YamlConfiguration playerConfig = YamlConfiguration.loadConfiguration(playerData);
+			if (!playerConfig.contains("player.hellblock-level"))
+				continue;
+			float hellblockLevel = (float) playerConfig.getDouble("player-hellblock-level");
+			if (hellblockLevel <= 1.0F)
+				continue;
+
+			topHellblocks.put(id, hellblockLevel);
+		}
+		LinkedHashMap<UUID, Float> topHellblocksSorted = new LinkedHashMap<>();
+		topHellblocks.entrySet().stream().sorted(Map.Entry.comparingByValue())
+				.forEach(x -> topHellblocksSorted.put(x.getKey(), x.getValue()));
+		return topHellblocksSorted;
+	}
+
+	public void updateLevelFromBlockChange(@NotNull UUID id, @NotNull LevelBlockCache cache) {
+		if (this.blockCache.contains(cache)) {
+			return;
+		}
+		final List<String> blockLevelSystem = instance.getHellblockHandler().getBlockLevelSystem();
+		if (instance.getHellblockHandler().isWorldguardProtect()) {
+			HellblockPlayer pi;
+			if (instance.getHellblockHandler().getActivePlayers().get(id) != null) {
+				pi = instance.getHellblockHandler().getActivePlayers().get(id);
+			} else {
+				pi = new HellblockPlayer(id);
+			}
+			ProtectedRegion region = null;
+			if (pi.getHellblockOwner() != null && pi.getHellblockOwner().equals(id)) {
+				// is owner updating the island so get based off original id
+				region = instance.getWorldGuardHandler().getRegion(id);
+			} else {
+				// else is another player so just get the region they're in
+				ProtectedRegion defRegion = null;
+				for (Iterator<ProtectedRegion> regions = instance.getWorldGuardHandler().getRegions(id)
+						.iterator(); regions.hasNext();) {
+					defRegion = regions.next();
+					break;
+				}
+				if (defRegion != null) {
+					region = defRegion;
+				}
+			}
+			if (region != null) {
+				Set<UUID> owners = region.getOwners().getUniqueIds();
+				UUID ownerUUID = null;
+				for (Iterator<UUID> uuids = owners.iterator(); uuids.hasNext();) {
+					ownerUUID = uuids.next();
+					break;
+				}
+				if (ownerUUID != null) {
+					HellblockPlayer ti;
+					if (instance.getHellblockHandler().getActivePlayers().get(ownerUUID) != null) {
+						ti = instance.getHellblockHandler().getActivePlayers().get(ownerUUID);
+					} else {
+						ti = new HellblockPlayer(ownerUUID);
+					}
+
+					for (String blockConversion : blockLevelSystem) {
+						String[] split = blockConversion.split(":");
+						Material block = Material.getMaterial(split[0].toUpperCase());
+						float level = 0;
+						try {
+							level = Float.parseFloat(split[1]);
+						} catch (NumberFormatException ex) {
+							LogUtils.warn(
+									String.format("The level defined for the block %s is not a valid number", block),
+									ex);
+							continue;
+						}
+						if (block != null && level > 0.0F) {
+							if (block == cache.getMaterial()) {
+								if (level == 1.0F) {
+									if (cache.getBlockAction() == BlockAction.PLACE) {
+										ti.increaseIslandLevel();
+									} else {
+										ti.decreaseIslandLevel();
+									}
+								} else {
+									if (cache.getBlockAction() == BlockAction.PLACE) {
+										ti.addToLevel(level);
+									} else {
+										ti.removeFromLevel(level);
+									}
+								}
+								this.blockCache.add(cache);
+							}
+						}
+					}
+				}
+			}
+		} else {
+			// TODO: using plugin protection
+		}
+	}
+
+	public class LevelBlockCache {
+
+		private Material type;
+		private int x, y, z;
+		private BlockAction action;
+
+		public LevelBlockCache(@NotNull Block block, @NotNull BlockAction action) {
+			this.type = block.getType();
+			this.x = block.getLocation().getBlockX();
+			this.y = block.getLocation().getBlockY();
+			this.z = block.getLocation().getBlockZ();
+			this.action = action;
+		}
+
+		public @NotNull Material getMaterial() {
+			return this.type;
+		}
+
+		public @NotNull Location getLocation() {
+			return new Location(instance.getHellblockHandler().getHellblockWorld(), this.x, this.y, this.z);
+		}
+
+		public @NotNull BlockAction getBlockAction() {
+			return this.action;
+		}
+	}
+
+	public enum BlockAction {
+		BREAK, PLACE;
+	}
+}

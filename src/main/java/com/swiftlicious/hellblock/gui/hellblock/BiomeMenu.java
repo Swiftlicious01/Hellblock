@@ -3,9 +3,11 @@ package com.swiftlicious.hellblock.gui.hellblock;
 import java.util.UUID;
 
 import org.bukkit.Material;
+import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.inventory.ItemFlag;
 import org.jetbrains.annotations.NotNull;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
@@ -50,18 +52,41 @@ public class BiomeMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			return new ItemBuilder(Material.SOUL_SOIL)
-					.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
-							.getAdventureManager().getComponentFromMiniMessage("<aqua>Soul Sand Valley")))
-					.addLoreLines(new ShadedAdventureComponentWrapper(
-							HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
-									"<blue>Click to change your biome to Soul Sand Valley!")));
+			HellblockPlayer hbPlayer = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(playerUUID);
+			if (hbPlayer.getHellblockBiome() == HellBiome.SOUL_SAND_VALLEY) {
+				return new ItemBuilder(Material.SOUL_SOIL).addEnchantment(Enchantment.UNBREAKING, 1, false)
+						.addItemFlags(ItemFlag.HIDE_ENCHANTS)
+						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
+								.getAdventureManager().getComponentFromMiniMessage("<aqua>Soul Sand Valley")))
+						.addLoreLines(
+								new ShadedAdventureComponentWrapper(
+										HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
+												"<blue>Click to change your biome to Soul Sand Valley!")),
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage(" ")),
+								new ShadedAdventureComponentWrapper(
+										HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
+												"<light_purple>This is your currently selected biome!")));
+			} else {
+				return new ItemBuilder(Material.SOUL_SOIL)
+						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
+								.getAdventureManager().getComponentFromMiniMessage("<aqua>Soul Sand Valley")))
+						.addLoreLines(new ShadedAdventureComponentWrapper(
+								HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
+										"<blue>Click to change your biome to Soul Sand Valley!")));
+			}
 		}
 
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			HellblockPlayer hbPlayer = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(playerUUID);
+			HellblockPlayer hbPlayer = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
+			if (hbPlayer.getHellblockBiome() == HellBiome.SOUL_SAND_VALLEY) {
+				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+						String.format("<red>Your hellblock biome is already set to <dark_red>%s<red>!",
+								HellBiome.SOUL_SAND_VALLEY.getName()));
+				return;
+			}
 			if (HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player).getBiomeCooldown() > 0) {
 				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 						String.format("<red>You have recently changed your hellbiome biome, you must wait for %s!",
@@ -84,18 +109,41 @@ public class BiomeMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			return new ItemBuilder(Material.CRIMSON_STEM)
-					.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
-							.getAdventureManager().getComponentFromMiniMessage("<aqua>Crimson Forest")))
-					.addLoreLines(new ShadedAdventureComponentWrapper(
-							HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
-									"<blue>Click to change your biome to Crimson Forest!")));
+			HellblockPlayer hbPlayer = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(playerUUID);
+			if (hbPlayer.getHellblockBiome() == HellBiome.CRIMSON_FOREST) {
+				return new ItemBuilder(Material.CRIMSON_STEM).addEnchantment(Enchantment.UNBREAKING, 1, false)
+						.addItemFlags(ItemFlag.HIDE_ENCHANTS)
+						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
+								.getAdventureManager().getComponentFromMiniMessage("<aqua>Crimson Forest")))
+						.addLoreLines(
+								new ShadedAdventureComponentWrapper(
+										HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
+												"<blue>Click to change your biome to Crimson Forest!")),
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage(" ")),
+								new ShadedAdventureComponentWrapper(
+										HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
+												"<light_purple>This is your currently selected biome!")));
+			} else {
+				return new ItemBuilder(Material.CRIMSON_STEM)
+						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
+								.getAdventureManager().getComponentFromMiniMessage("<aqua>Crimson Forest")))
+						.addLoreLines(new ShadedAdventureComponentWrapper(
+								HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
+										"<blue>Click to change your biome to Crimson Forest!")));
+			}
 		}
 
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			HellblockPlayer hbPlayer = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(playerUUID);
+			HellblockPlayer hbPlayer = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
+			if (hbPlayer.getHellblockBiome() == HellBiome.CRIMSON_FOREST) {
+				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+						String.format("<red>Your hellblock biome is already set to <dark_red>%s<red>!",
+								HellBiome.CRIMSON_FOREST.getName()));
+				return;
+			}
 			if (HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player).getBiomeCooldown() > 0) {
 				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 						String.format("<red>You have recently changed your hellbiome biome, you must wait for %s!",
@@ -118,19 +166,42 @@ public class BiomeMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			return new ItemBuilder(Material.WARPED_STEM)
-					.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
-							.getAdventureManager().getComponentFromMiniMessage("<aqua>Warped Forest")))
-					.addLoreLines(new ShadedAdventureComponentWrapper(
-							HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
-									"<blue>Click to change your biome to Warped Forest!")));
+			HellblockPlayer hbPlayer = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(playerUUID);
+			if (hbPlayer.getHellblockBiome() == HellBiome.WARPED_FOREST) {
+				return new ItemBuilder(Material.WARPED_STEM).addEnchantment(Enchantment.UNBREAKING, 1, false)
+						.addItemFlags(ItemFlag.HIDE_ENCHANTS)
+						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
+								.getAdventureManager().getComponentFromMiniMessage("<aqua>Warped Forest")))
+						.addLoreLines(
+								new ShadedAdventureComponentWrapper(
+										HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
+												"<blue>Click to change your biome to Warped Forest!")),
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage(" ")),
+								new ShadedAdventureComponentWrapper(
+										HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
+												"<light_purple>This is your currently selected biome!")));
+			} else {
+				return new ItemBuilder(Material.WARPED_STEM)
+						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
+								.getAdventureManager().getComponentFromMiniMessage("<aqua>Warped Forest")))
+						.addLoreLines(new ShadedAdventureComponentWrapper(
+								HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
+										"<blue>Click to change your biome to Warped Forest!")));
+			}
 
 		}
 
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			HellblockPlayer hbPlayer = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(playerUUID);
+			HellblockPlayer hbPlayer = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
+			if (hbPlayer.getHellblockBiome() == HellBiome.WARPED_FOREST) {
+				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+						String.format("<red>Your hellblock biome is already set to <dark_red>%s<red>!",
+								HellBiome.WARPED_FOREST.getName()));
+				return;
+			}
 			if (HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player).getBiomeCooldown() > 0) {
 				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 						String.format("<red>You have recently changed your hellbiome biome, you must wait for %s!",
@@ -153,18 +224,41 @@ public class BiomeMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			return new ItemBuilder(Material.NETHERRACK)
-					.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
-							.getAdventureManager().getComponentFromMiniMessage("<aqua>Nether Wastes")))
-					.addLoreLines(new ShadedAdventureComponentWrapper(
-							HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
-									"<blue>Click to change your biome to Nether Wastes!")));
+			HellblockPlayer hbPlayer = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(playerUUID);
+			if (hbPlayer.getHellblockBiome() == HellBiome.NETHER_WASTES) {
+				return new ItemBuilder(Material.NETHERRACK).addEnchantment(Enchantment.UNBREAKING, 1, false)
+						.addItemFlags(ItemFlag.HIDE_ENCHANTS)
+						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
+								.getAdventureManager().getComponentFromMiniMessage("<aqua>Nether Wastes")))
+						.addLoreLines(
+								new ShadedAdventureComponentWrapper(
+										HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
+												"<blue>Click to change your biome to Nether Wastes!")),
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage(" ")),
+								new ShadedAdventureComponentWrapper(
+										HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
+												"<light_purple>This is your currently selected biome!")));
+			} else {
+				return new ItemBuilder(Material.NETHERRACK)
+						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
+								.getAdventureManager().getComponentFromMiniMessage("<aqua>Nether Wastes")))
+						.addLoreLines(new ShadedAdventureComponentWrapper(
+								HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
+										"<blue>Click to change your biome to Nether Wastes!")));
+			}
 		}
 
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			HellblockPlayer hbPlayer = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(playerUUID);
+			HellblockPlayer hbPlayer = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
+			if (hbPlayer.getHellblockBiome() == HellBiome.NETHER_WASTES) {
+				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+						String.format("<red>Your hellblock biome is already set to <dark_red>%s<red>!",
+								HellBiome.NETHER_WASTES.getName()));
+				return;
+			}
 			if (HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player).getBiomeCooldown() > 0) {
 				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 						String.format("<red>You have recently changed your hellbiome biome, you must wait for %s!",
@@ -187,18 +281,41 @@ public class BiomeMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			return new ItemBuilder(Material.NETHERITE_BLOCK)
-					.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
-							.getAdventureManager().getComponentFromMiniMessage("<aqua>Basalt Deltas")))
-					.addLoreLines(new ShadedAdventureComponentWrapper(
-							HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
-									"<blue>Click to change your biome to Basalt Deltas!")));
+			HellblockPlayer hbPlayer = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(playerUUID);
+			if (hbPlayer.getHellblockBiome() == HellBiome.BASALT_DELTAS) {
+				return new ItemBuilder(Material.NETHERITE_BLOCK).addEnchantment(Enchantment.UNBREAKING, 1, false)
+						.addItemFlags(ItemFlag.HIDE_ENCHANTS)
+						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
+								.getAdventureManager().getComponentFromMiniMessage("<aqua>NBasalt Deltas")))
+						.addLoreLines(
+								new ShadedAdventureComponentWrapper(
+										HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
+												"<blue>Click to change your biome to Basalt Deltas!")),
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage(" ")),
+								new ShadedAdventureComponentWrapper(
+										HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
+												"<light_purple>This is your currently selected biome!")));
+			} else {
+				return new ItemBuilder(Material.NETHERITE_BLOCK)
+						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
+								.getAdventureManager().getComponentFromMiniMessage("<aqua>Basalt Deltas")))
+						.addLoreLines(new ShadedAdventureComponentWrapper(
+								HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
+										"<blue>Click to change your biome to Basalt Deltas!")));
+			}
 		}
 
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			HellblockPlayer hbPlayer = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(playerUUID);
+			HellblockPlayer hbPlayer = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
+			if (hbPlayer.getHellblockBiome() == HellBiome.BASALT_DELTAS) {
+				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+						String.format("<red>Your hellblock biome is already set to <dark_red>%s<red>!",
+								HellBiome.BASALT_DELTAS.getName()));
+				return;
+			}
 			if (HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player).getBiomeCooldown() > 0) {
 				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 						String.format("<red>You have recently changed your hellbiome biome, you must wait for %s!",
@@ -215,7 +332,7 @@ public class BiomeMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			return new ItemBuilder(Material.ORANGE_STAINED_GLASS_PANE)
+			return new ItemBuilder(Material.ORANGE_STAINED_GLASS_PANE).addAllItemFlags()
 					.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
 							.getAdventureManager().getComponentFromMiniMessage("<gold>Return to Hellblock Menu")));
 		}

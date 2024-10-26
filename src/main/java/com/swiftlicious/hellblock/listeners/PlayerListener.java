@@ -16,7 +16,6 @@ import org.bukkit.block.Block;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
-import org.bukkit.event.Event.Result;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityPortalEvent;
@@ -206,7 +205,6 @@ public class PlayerListener implements Listener {
 		if (bed != null && Tag.BEDS.isTagged(bed.getType())) {
 			if (bed.getWorld().getEnvironment() == Environment.NETHER) {
 				event.setCancelled(true);
-				event.setUseInteractedBlock(Result.DENY);
 			}
 		}
 	}
@@ -221,12 +219,10 @@ public class PlayerListener implements Listener {
 			CancellableTask portalTask = instance.getScheduler().runTaskSyncLater(() -> {
 				if (pi.hasHellblock()) {
 					if (!LocationUtils.isSafeLocation(pi.getHomeLocation())) {
-						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+						instance.getAdventureManager().sendMessageWithPrefix(player,
 								"<red>This hellblock home location was deemed not safe, resetting to bedrock location!");
-						pi.setHome(HellblockPlugin.getInstance().getHellblockHandler()
-								.locateBedrock(player.getUniqueId()));
-						HellblockPlugin.getInstance().getCoopManager().updateParty(player.getUniqueId(), "home",
-								pi.getHomeLocation());
+						pi.setHome(instance.getHellblockHandler().locateBedrock(player.getUniqueId()));
+						instance.getCoopManager().updateParty(player.getUniqueId(), "home", pi.getHomeLocation());
 					}
 					player.teleportAsync(pi.getHomeLocation());
 					// if raining give player a bit of protection
@@ -287,10 +283,43 @@ public class PlayerListener implements Listener {
 	@EventHandler
 	public void onRespawn(PlayerRespawnEvent event) {
 		final Player player = event.getPlayer();
+		if (player.getPotentialBedLocation() != null
+				&& player.getPotentialBedLocation().getBlock().getType() == Material.RESPAWN_ANCHOR)
+			return;
 		if (event.getRespawnReason() == RespawnReason.DEATH) {
 			HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(player);
 			if (pi.hasHellblock()) {
+				if (!LocationUtils.isSafeLocation(pi.getHomeLocation())) {
+					instance.getAdventureManager().sendMessageWithPrefix(player,
+							"<red>This hellblock home location was deemed not safe, resetting to bedrock location!");
+					pi.setHome(instance.getHellblockHandler().locateBedrock(player.getUniqueId()));
+					instance.getCoopManager().updateParty(player.getUniqueId(), "home", pi.getHomeLocation());
+				}
 				event.setRespawnLocation(pi.getHomeLocation());
+			}
+		}
+	}
+
+	@EventHandler
+	public void onFallInVoid(PlayerMoveEvent event) {
+		if (!instance.getHellblockHandler().isVoidTeleport())
+			return;
+		final Player player = event.getPlayer();
+		if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+			return;
+		final UUID id = player.getUniqueId();
+		if (player.getLocation().getY() <= 0) {
+			HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(id);
+			if (pi.hasHellblock()) {
+				if (!LocationUtils.isSafeLocation(pi.getHomeLocation())) {
+					instance.getAdventureManager().sendMessageWithPrefix(player,
+							"<red>This hellblock home location was deemed not safe, resetting to bedrock location!");
+					pi.setHome(instance.getHellblockHandler().locateBedrock(player.getUniqueId()));
+					instance.getCoopManager().updateParty(player.getUniqueId(), "home", pi.getHomeLocation());
+				}
+				player.teleportAsync(pi.getHomeLocation());
+			} else {
+				player.performCommand(instance.getHellblockHandler().getNetherCMD());
 			}
 		}
 	}

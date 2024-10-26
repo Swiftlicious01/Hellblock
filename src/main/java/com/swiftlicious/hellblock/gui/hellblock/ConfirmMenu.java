@@ -1,0 +1,104 @@
+package com.swiftlicious.hellblock.gui.hellblock;
+
+import org.bukkit.Material;
+import org.bukkit.entity.Player;
+import org.bukkit.event.inventory.ClickType;
+import org.bukkit.event.inventory.InventoryClickEvent;
+import org.jetbrains.annotations.NotNull;
+
+import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.gui.icon.BackGroundItem;
+import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
+import com.swiftlicious.hellblock.utils.wrappers.ShadedAdventureComponentWrapper;
+
+import xyz.xenondevs.invui.gui.Gui;
+import xyz.xenondevs.invui.item.ItemProvider;
+import xyz.xenondevs.invui.item.builder.ItemBuilder;
+import xyz.xenondevs.invui.item.impl.AbstractItem;
+import xyz.xenondevs.invui.window.Window;
+
+public class ConfirmMenu {
+
+	public ConfirmMenu(Player player, String action) {
+
+		Gui gui = Gui.normal().setStructure(" # c # d # ").addIngredient('c', new ConfirmItem(action))
+				.addIngredient('d', new DenyItem(action)).addIngredient('#', new BackGroundItem()).build();
+
+		Window window = Window
+				.single().setViewer(player).setTitle(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
+						.getAdventureManager().getComponentFromMiniMessage("<red>Hellblock Confirm Menu")))
+				.setGui(gui).build();
+
+		window.open();
+	}
+
+	public class ConfirmItem extends AbstractItem {
+
+		private final String action;
+
+		public ConfirmItem(String action) {
+			this.action = action;
+		}
+
+		@Override
+		public ItemProvider getItemProvider() {
+			return new ItemBuilder(Material.LIME_WOOL).addAllItemFlags()
+					.setDisplayName(
+							new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+									.getComponentFromMiniMessage(String.format("<green>Confirm %s Action", action))))
+					.addLoreLines(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
+							.getAdventureManager().getComponentFromMiniMessage("<dark_green>Reset your Hellblock!")));
+		}
+
+		@Override
+		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
+				@NotNull InventoryClickEvent event) {
+			HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
+			if (!pi.hasHellblock()) {
+				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+						"<red>You don't have a hellblock!");
+				return;
+			}
+			if (pi.getHellblockOwner() != null && !pi.getHellblockOwner().equals(player.getUniqueId())) {
+				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+						"<red>You don't own this hellblock!");
+				return;
+			}
+			if (pi.getResetCooldown() > 0) {
+				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+						String.format("<red>You have recently reset your hellblock already, you must wait for %s!",
+								HellblockPlugin.getInstance().getFormattedCooldown(pi.getResetCooldown())));
+				return;
+			}
+
+			HellblockPlugin.getInstance().getHellblockHandler().resetHellblock(player.getUniqueId(), false);
+			player.performCommand(HellblockPlugin.getInstance().getHellblockHandler().getNetherCMD());
+			new IslandChoiceMenu(player, true);
+		}
+	}
+
+	public class DenyItem extends AbstractItem {
+
+		private final String action;
+
+		public DenyItem(String action) {
+			this.action = action;
+		}
+
+		@Override
+		public ItemProvider getItemProvider() {
+			return new ItemBuilder(Material.RED_WOOL).addAllItemFlags()
+					.setDisplayName(
+							new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+									.getComponentFromMiniMessage(String.format("<red>Deny %s Action", action))))
+					.addLoreLines(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
+							.getAdventureManager().getComponentFromMiniMessage("<dark_red>Return to Main Menu!")));
+		}
+
+		@Override
+		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
+				@NotNull InventoryClickEvent event) {
+			new HellblockMenu(player);
+		}
+	}
+}

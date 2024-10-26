@@ -23,19 +23,32 @@ public class IslandChoiceMenu {
 
 	public IslandChoiceMenu(Player player, boolean isReset) {
 
-		Gui gui = Gui.normal().setStructure("# d c s #").addIngredient('d', new DefaultIslandChoiceItem(isReset))
-				.addIngredient('c', new ClassicIslandChoiceItem(isReset))
-				.addIngredient('s', new SchematicIslandChoiceItem(isReset)).addIngredient('#', new BackGroundItem())
-				.build();
+		if (!HellblockPlugin.getInstance().getHellblockHandler().getIslandOptions().isEmpty()) {
+			Gui gui = Gui.normal().setStructure("# d c s #").addIngredient('d', new DefaultIslandChoiceItem(isReset))
+					.addIngredient('c', new ClassicIslandChoiceItem(isReset))
+					.addIngredient('s', new SchematicIslandChoiceItem(isReset)).addIngredient('#', new BackGroundItem())
+					.build();
 
-		Window window = Window.single().setViewer(player)
-				.setTitle(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
-						.getComponentFromMiniMessage("<red>Hellblock Island Options")))
-				.setGui(gui).setCloseable(HellblockPlugin.getInstance().getHellblockHandler()
-						.getActivePlayer(player.getUniqueId()).hasHellblock())
-				.build();
+			Window window = Window.single().setViewer(player)
+					.setTitle(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+							.getComponentFromMiniMessage("<red>Hellblock Island Options")))
+					.setGui(gui).setCloseable(HellblockPlugin.getInstance().getHellblockHandler()
+							.getActivePlayer(player.getUniqueId()).hasHellblock())
+					.build();
 
-		window.open();
+			window.open();
+		} else {
+			HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+					"<red>The island options list is empty, creating classic hellblock!");
+			HellblockPlugin.getInstance().getHellblockHandler().createHellblock(player, IslandOptions.CLASSIC);
+			if (isReset) {
+				HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player.getUniqueId())
+						.setResetCooldown(Duration.ofDays(1).toHours());
+				HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player.getUniqueId())
+						.saveHellblockPlayer();
+			}
+			new HellblockMenu(player);
+		}
 	}
 
 	public class DefaultIslandChoiceItem extends AbstractItem {
@@ -48,33 +61,48 @@ public class IslandChoiceMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			return new ItemBuilder(Material.NETHERRACK)
-					.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
-							.getAdventureManager().getComponentFromMiniMessage("<red>Default Hellblock Island")))
-					.addLoreLines(new ShadedAdventureComponentWrapper(
-							HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
-									"<gold>Click to generate the default hellblock island type!")));
+			if (HellblockPlugin.getInstance().getHellblockHandler().getIslandOptions().contains("default")) {
+				return new ItemBuilder(Material.NETHERRACK)
+						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
+								.getAdventureManager().getComponentFromMiniMessage("<red>Default Hellblock Island")))
+						.addLoreLines(new ShadedAdventureComponentWrapper(
+								HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
+										"<gold>Click to generate the default hellblock island type!")));
+			} else {
+				return new ItemBuilder(Material.BARRIER)
+						.setDisplayName(
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage("<red>Default Hellblock Unavailable!")))
+						.addLoreLines(new ShadedAdventureComponentWrapper(
+								HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
+										"<gold>This type of hellblock isn't available to chosoe!")));
+			}
 		}
 
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			if (isReset && HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player)
-					.getResetCooldown() > 0) {
+			if (event.getCurrentItem() != null && event.getCurrentItem().getType() == Material.SOUL_SAND) {
+				if (isReset && HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player)
+						.getResetCooldown() > 0) {
+					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+							String.format("<red>You have recently reset your hellblock already, you must wait for %s!",
+									HellblockPlugin.getInstance().getFormattedCooldown(HellblockPlugin.getInstance()
+											.getHellblockHandler().getActivePlayer(player).getResetCooldown())));
+					return;
+				}
+				HellblockPlugin.getInstance().getHellblockHandler().createHellblock(player, IslandOptions.DEFAULT);
+				if (isReset) {
+					HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player.getUniqueId())
+							.setResetCooldown(Duration.ofDays(1).toHours());
+					HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player.getUniqueId())
+							.saveHellblockPlayer();
+				}
+				new HellblockMenu(player);
+			} else {
 				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-						String.format("<red>You have recently reset your hellblock already, you must wait for %s!",
-								HellblockPlugin.getInstance().getFormattedCooldown(HellblockPlugin.getInstance()
-										.getHellblockHandler().getActivePlayer(player).getResetCooldown())));
-				return;
+						"<red>The default hellblock type isn't available to generate!");
 			}
-			HellblockPlugin.getInstance().getHellblockHandler().createHellblock(player, IslandOptions.DEFAULT);
-			if (isReset) {
-				HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player.getUniqueId())
-						.setResetCooldown(Duration.ofDays(1).toHours());
-				HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player.getUniqueId())
-						.saveHellblockPlayer();
-			}
-			new HellblockMenu(player);
 		}
 	}
 
@@ -88,33 +116,48 @@ public class IslandChoiceMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			return new ItemBuilder(Material.SOUL_SAND)
-					.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
-							.getAdventureManager().getComponentFromMiniMessage("<red>Classic Hellblock Island")))
-					.addLoreLines(new ShadedAdventureComponentWrapper(
-							HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
-									"<gold>Click to generate the classic hellblock island type!")));
+			if (HellblockPlugin.getInstance().getHellblockHandler().getIslandOptions().contains("classic")) {
+				return new ItemBuilder(Material.SOUL_SAND)
+						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
+								.getAdventureManager().getComponentFromMiniMessage("<red>Classic Hellblock Island")))
+						.addLoreLines(new ShadedAdventureComponentWrapper(
+								HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
+										"<gold>Click to generate the classic hellblock island type!")));
+			} else {
+				return new ItemBuilder(Material.BARRIER)
+						.setDisplayName(
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage("<red>Classic Hellblock Unavailable!")))
+						.addLoreLines(new ShadedAdventureComponentWrapper(
+								HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
+										"<gold>This type of hellblock isn't available to chosoe!")));
+			}
 		}
 
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			if (isReset && HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player)
-					.getResetCooldown() > 0) {
+			if (event.getCurrentItem() != null && event.getCurrentItem().getType() == Material.SOUL_SAND) {
+				if (isReset && HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player)
+						.getResetCooldown() > 0) {
+					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+							String.format("<red>You have recently reset your hellblock already, you must wait for %s!",
+									HellblockPlugin.getInstance().getFormattedCooldown(HellblockPlugin.getInstance()
+											.getHellblockHandler().getActivePlayer(player).getResetCooldown())));
+					return;
+				}
+				HellblockPlugin.getInstance().getHellblockHandler().createHellblock(player, IslandOptions.CLASSIC);
+				if (isReset) {
+					HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player.getUniqueId())
+							.setResetCooldown(Duration.ofDays(1).toHours());
+					HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player.getUniqueId())
+							.saveHellblockPlayer();
+				}
+				new HellblockMenu(player);
+			} else {
 				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-						String.format("<red>You have recently reset your hellblock already, you must wait for %s!",
-								HellblockPlugin.getInstance().getFormattedCooldown(HellblockPlugin.getInstance()
-										.getHellblockHandler().getActivePlayer(player).getResetCooldown())));
-				return;
+						"<red>The classic hellblock type isn't available to generate!");
 			}
-			HellblockPlugin.getInstance().getHellblockHandler().createHellblock(player, IslandOptions.CLASSIC);
-			if (isReset) {
-				HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player.getUniqueId())
-						.setResetCooldown(Duration.ofDays(1).toHours());
-				HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player.getUniqueId())
-						.saveHellblockPlayer();
-			}
-			new HellblockMenu(player);
 		}
 	}
 
@@ -128,26 +171,6 @@ public class IslandChoiceMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			return new ItemBuilder(Material.MAP)
-					.setDisplayName(
-							new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
-									.getComponentFromMiniMessage("<red>Choose a schematic for your Hellblock Island!")))
-					.addLoreLines(new ShadedAdventureComponentWrapper(
-							HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
-									"<gold>Click to view the different schematic options you have available!")));
-		}
-
-		@Override
-		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
-				@NotNull InventoryClickEvent event) {
-			if (isReset && HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player)
-					.getResetCooldown() > 0) {
-				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-						String.format("<red>You have recently reset your hellblock already, you must wait for %s!",
-								HellblockPlugin.getInstance().getFormattedCooldown(HellblockPlugin.getInstance()
-										.getHellblockHandler().getActivePlayer(player).getResetCooldown())));
-				return;
-			}
 			boolean schematicsAvailable = false;
 			for (String list : HellblockPlugin.getInstance().getHellblockHandler().getIslandOptions()) {
 				if (list.equalsIgnoreCase("classic") || list.equalsIgnoreCase("default"))
@@ -159,7 +182,51 @@ public class IslandChoiceMenu {
 				break;
 			}
 			if (schematicsAvailable) {
-				new SchematicMenu(player, isReset);
+				return new ItemBuilder(Material.MAP)
+						.setDisplayName(new ShadedAdventureComponentWrapper(
+								HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
+										"<red>Choose a schematic for your Hellblock Island!")))
+						.addLoreLines(new ShadedAdventureComponentWrapper(
+								HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
+										"<gold>Click to view the different schematic options you have available!")));
+			} else {
+				return new ItemBuilder(Material.BARRIER)
+						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
+								.getAdventureManager().getComponentFromMiniMessage("<red>No schematics available!")))
+						.addLoreLines(new ShadedAdventureComponentWrapper(
+								HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
+										"<gold>There are no options to choose from here!")));
+			}
+		}
+
+		@Override
+		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
+				@NotNull InventoryClickEvent event) {
+			if (event.getCurrentItem() != null && event.getCurrentItem().getType() == Material.MAP) {
+				if (isReset && HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player)
+						.getResetCooldown() > 0) {
+					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+							String.format("<red>You have recently reset your hellblock already, you must wait for %s!",
+									HellblockPlugin.getInstance().getFormattedCooldown(HellblockPlugin.getInstance()
+											.getHellblockHandler().getActivePlayer(player).getResetCooldown())));
+					return;
+				}
+				boolean schematicsAvailable = false;
+				for (String list : HellblockPlugin.getInstance().getHellblockHandler().getIslandOptions()) {
+					if (list.equalsIgnoreCase("classic") || list.equalsIgnoreCase("default"))
+						continue;
+					if (!HellblockPlugin.getInstance().getSchematicManager().schematicFiles.containsKey(list))
+						continue;
+
+					schematicsAvailable = true;
+					break;
+				}
+				if (schematicsAvailable) {
+					new SchematicMenu(player, isReset);
+				} else {
+					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+							"<red>There are no hellblock schematics for you to choose from!");
+				}
 			} else {
 				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 						"<red>There are no hellblock schematics for you to choose from!");

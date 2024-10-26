@@ -108,6 +108,7 @@ public class CoopManager {
 					playerToAdd.addToHellblockParty(player.getUniqueId());
 					playerToAdd.setHellblockOwner(owner.getUniqueId());
 					playerToAdd.setBannedPlayers(hbPlayer.getBannedPlayers());
+					playerToAdd.setLevel(hbPlayer.getLevel());
 					playerToAdd.setHellblockBiome(hbPlayer.getHellblockBiome());
 					playerToAdd.setProtectionFlags(hbPlayer.getProtectionFlags());
 					playerToAdd.setLockedStatus(hbPlayer.getLockedStatus());
@@ -251,6 +252,7 @@ public class CoopManager {
 				ti.setProtectionFlags(new HashSet<>());
 				ti.setHome(null);
 				ti.setTotalVisits(0);
+				ti.setLevel(0);
 				ti.setCreationTime(0L);
 				ti.setHellblockBiome(null);
 				ti.setLockedStatus(false);
@@ -374,6 +376,7 @@ public class CoopManager {
 				leavingPlayer.setHellblockBiome(null);
 				leavingPlayer.setLockedStatus(false);
 				leavingPlayer.setTotalVisits(0);
+				leavingPlayer.setLevel(0);
 				leavingPlayer.setCreationTime(0L);
 				leavingPlayer.setResetCooldown(0L);
 				leavingPlayer.setBiomeCooldown(0L);
@@ -630,11 +633,11 @@ public class CoopManager {
 		return visitors;
 	}
 
-	public void changeLockStatus(@NonNull Player player) {
+	public boolean changeLockStatus(@NonNull Player player) {
 		if (instance.getHellblockHandler().isWorldguardProtect()) {
 			if (instance.getWorldGuardHandler().getWorldGuardPlatform() == null) {
 				LogUtils.severe("Could not retrieve WorldGuard platform.");
-				return;
+				return false;
 			}
 			RegionContainer container = instance.getWorldGuardHandler().getWorldGuardPlatform().getRegionContainer();
 			World world = BukkitAdapter.adapt(instance.getHellblockHandler().getHellblockWorld());
@@ -642,18 +645,20 @@ public class CoopManager {
 			if (regions == null) {
 				LogUtils.severe(
 						String.format("Could not load WorldGuard regions for hellblock world: %s", world.getName()));
-				return;
+				return false;
 			}
 			ProtectedRegion region = regions.getRegion(player.getName() + "Hellblock");
 			if (region == null) {
 				instance.getAdventureManager().sendMessageWithPrefix(player,
 						"<red>An error has occurred. Please report this to the developer.");
-				return;
+				return false;
 			}
 			HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(player);
-			region.setFlag(Flags.ENTRY, StateFlag.State.valueOf(pi.getLockedStatus() ? "DENY" : "ALLOW"));
+			region.setFlag(Flags.ENTRY, pi.getLockedStatus() ? StateFlag.State.DENY : null);
+			return true;
 		} else {
 			// TODO: using plugin protection
+			return false;
 		}
 	}
 

@@ -47,10 +47,8 @@ public class WorldGuardHook {
 		instance = plugin;
 	}
 
-	@SuppressWarnings("deprecation")
 	public void protectHellblock(Player player) {
 		try {
-			HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(player);
 			ProtectedRegion region = null;
 			if (this.worldGuardPlatform == null) {
 				LogUtils.severe("Could not retrieve WorldGuard platform.");
@@ -64,52 +62,16 @@ public class WorldGuardHook {
 						instance.getHellblockHandler().getWorldName()));
 				return;
 			}
+			HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(player);
 			DefaultDomain owners = new DefaultDomain();
 			region = new ProtectedCuboidRegion(String.format("%sHellblock", player.getName()),
 					getProtectionVectorLeft(pi.getHellblockLocation()),
 					getProtectionVectorRight(pi.getHellblockLocation()));
 			owners.addPlayer(player.getUniqueId());
 			region.setOwners(owners);
-			region.setParent(regionManager.getRegion("__GLOBAL__"));
 			region.setPriority(100);
-			region.setFlag(Flags.PVP, StateFlag.State.DENY);
-			region.setFlag(Flags.CHEST_ACCESS, StateFlag.State.DENY);
-			region.setFlag(Flags.USE, StateFlag.State.DENY);
-			region.setFlag(Flags.ENTITY_ITEM_FRAME_DESTROY, StateFlag.State.DENY);
-			region.setFlag(Flags.ENTITY_PAINTING_DESTROY, StateFlag.State.DENY);
-			region.setFlag(Flags.BLOCK_BREAK, StateFlag.State.DENY);
-			region.setFlag(Flags.BLOCK_PLACE, StateFlag.State.DENY);
-			region.setFlag(Flags.DAMAGE_ANIMALS, StateFlag.State.DENY);
-			region.setFlag(Flags.DESTROY_VEHICLE, StateFlag.State.DENY);
-			region.setFlag(Flags.ITEM_FRAME_ROTATE, StateFlag.State.DENY);
-			region.setFlag(Flags.PLACE_VEHICLE, StateFlag.State.DENY);
-			region.setFlag(Flags.USE_ANVIL, StateFlag.State.DENY);
-			region.setFlag(Flags.USE_DRIPLEAF, StateFlag.State.DENY);
-			region.setFlag(Flags.SLEEP, StateFlag.State.DENY);
-			region.setFlag(Flags.CREEPER_EXPLOSION, StateFlag.State.DENY);
-			region.setFlag(Flags.BUILD, StateFlag.State.DENY);
-			region.setFlag(Flags.TRAMPLE_BLOCKS, StateFlag.State.DENY);
-			region.setFlag(Flags.WITHER_DAMAGE, StateFlag.State.DENY);
-			region.setFlag(Flags.GHAST_FIREBALL, StateFlag.State.DENY);
-			region.setFlag(Flags.ENDER_BUILD, StateFlag.State.DENY);
-			region.setFlag(Flags.ENDERDRAGON_BLOCK_DAMAGE, StateFlag.State.DENY);
-			region.setFlag(Flags.OTHER_EXPLOSION, StateFlag.State.DENY);
-			region.setFlag(Flags.FIRE_SPREAD, StateFlag.State.DENY);
-			region.setFlag(Flags.INTERACT, StateFlag.State.DENY);
-			region.setFlag(Flags.LAVA_FIRE, StateFlag.State.DENY);
-			region.setFlag(Flags.RAVAGER_RAVAGE, StateFlag.State.DENY);
-			region.setFlag(Flags.TNT, StateFlag.State.DENY);
-			region.setFlag(Flags.FALL_DAMAGE, StateFlag.State.DENY);
-			region.setFlag(Flags.CHORUS_TELEPORT, StateFlag.State.DENY);
-			region.setFlag(Flags.ENDERPEARL, StateFlag.State.DENY);
-			region.setFlag(Flags.LIGHTNING, StateFlag.State.DENY);
-			region.setFlag(Flags.LIGHTER, StateFlag.State.DENY);
-			region.setFlag(Flags.MOB_DAMAGE, StateFlag.State.DENY);
-			region.setFlag(Flags.MOB_SPAWNING, StateFlag.State.DENY);
-			region.setFlag(Flags.GREET_MESSAGE,
-					String.format("&cYou're entering &4%s&c's Hellblock!", player.getName()));
-			region.setFlag(Flags.FAREWELL_MESSAGE,
-					String.format("&cYou're leaving &4%s&c's Hellblock!", player.getName()));
+			updateHellblockMessages(player.getUniqueId(), region);
+			instance.getCoopManager().changeLockStatus(player);
 			ApplicableRegionSet set = regionManager
 					.getApplicableRegions(BlockVector3.at(pi.getHellblockLocation().getX(),
 							pi.getHellblockLocation().getY(), pi.getHellblockLocation().getZ()));
@@ -151,7 +113,7 @@ public class WorldGuardHook {
 					instance.getHellblockHandler().getWorldName()));
 			return;
 		}
-		if (pi.getPlayer() == null && !force) {
+		if (!force && pi.getPlayer() == null) {
 			LogUtils.severe("Could not find the player restarting their hellblock at this time.");
 			return;
 		}
@@ -160,6 +122,61 @@ public class WorldGuardHook {
 						: Bukkit.getOfflinePlayer(id).hasPlayedBefore() && Bukkit.getOfflinePlayer(id).getName() != null
 								? Bukkit.getOfflinePlayer(id).getName()
 								: "?")));
+	}
+
+	@SuppressWarnings("deprecation")
+	public void updateHellblockMessages(UUID id, ProtectedRegion region) {
+		HellblockPlayer pi;
+		if (instance.getHellblockHandler().getActivePlayers().get(id) != null) {
+			pi = instance.getHellblockHandler().getActivePlayers().get(id);
+		} else {
+			pi = new HellblockPlayer(id);
+		}
+		String name = Bukkit.getOfflinePlayer(id).hasPlayedBefore() && Bukkit.getOfflinePlayer(id).getName() != null
+				? Bukkit.getOfflinePlayer(id).getName()
+				: "?";
+		if (name.equals("?")) {
+			LogUtils.warn("Failed to retrieve player's username to update hellblock entry and farewell messages.");
+			return;
+		}
+		if (instance.getHellblockHandler().isEntryMessageEnabled()) {
+			if (!pi.isAbandoned()) {
+				region.setFlag(Flags.GREET_MESSAGE, String.format("&cYou're entering &4%s&c's Hellblock!", name));
+			} else {
+				region.setFlag(Flags.GREET_MESSAGE, "&4** &cYou're entering an abandoned Hellblock! &4**");
+			}
+		} else {
+			region.setFlag(Flags.GREET_MESSAGE, null);
+		}
+		if (instance.getHellblockHandler().isFarewellMessageEnabled()) {
+			if (!pi.isAbandoned()) {
+				region.setFlag(Flags.FAREWELL_MESSAGE, String.format("&cYou're leaving &4%s&c's Hellblock!", name));
+			} else {
+				region.setFlag(Flags.FAREWELL_MESSAGE, "&4** &cYou're leaving an abandoned Hellblock! &4**");
+			}
+		} else {
+			region.setFlag(Flags.FAREWELL_MESSAGE, null);
+		}
+	}
+
+	public void abandonIsland(UUID id, ProtectedRegion region) {
+		HellblockPlayer pi;
+		if (instance.getHellblockHandler().getActivePlayers().get(id) != null) {
+			pi = instance.getHellblockHandler().getActivePlayers().get(id);
+		} else {
+			pi = new HellblockPlayer(id);
+		}
+		String name = Bukkit.getOfflinePlayer(id).hasPlayedBefore() && Bukkit.getOfflinePlayer(id).getName() != null
+				? Bukkit.getOfflinePlayer(id).getName()
+				: "?";
+		if (name.equals("?")) {
+			LogUtils.warn("Failed to retrieve player's username to update hellblock region groups.");
+			return;
+		}
+		if (pi.isAbandoned()) {
+			region.getOwners().clear();
+			region.getMembers().clear();
+		}
 	}
 
 	public BlockVector3 getProtectionVectorLeft(Location loc) {
@@ -195,6 +212,11 @@ public class WorldGuardHook {
 			return new ArrayList<>();
 		}
 		RegionManager regionManager = this.worldGuardPlatform.getRegionContainer().get(BukkitAdapter.adapt(world));
+		if (regionManager == null) {
+			LogUtils.severe(String.format("Could not get the WorldGuard region manager for the world: %s",
+					instance.getHellblockHandler().getWorldName()));
+			return new ArrayList<>();
+		}
 		ProtectedRegion region = regionManager.getRegion(String.format("%sHellblock",
 				Bukkit.getOfflinePlayer(id).hasPlayedBefore() && Bukkit.getOfflinePlayer(id).getName() != null
 						? Bukkit.getOfflinePlayer(id).getName()
@@ -224,6 +246,11 @@ public class WorldGuardHook {
 			return null;
 		}
 		RegionManager regionManager = this.worldGuardPlatform.getRegionContainer().get(BukkitAdapter.adapt(world));
+		if (regionManager == null) {
+			LogUtils.severe(String.format("Could not get the WorldGuard region manager for the world: %s",
+					instance.getHellblockHandler().getWorldName()));
+			return null;
+		}
 		ProtectedRegion region = regionManager.getRegion(String.format("%sHellblock",
 				Bukkit.getOfflinePlayer(id).hasPlayedBefore() && Bukkit.getOfflinePlayer(id).getName() != null
 						? Bukkit.getOfflinePlayer(id).getName()
@@ -257,11 +284,8 @@ public class WorldGuardHook {
 			}
 			region.setParent(regionManager.getRegion("__GLOBAL__"));
 			region.setPriority(100);
-			region.setFlag(Flags.PVP, StateFlag.State.DENY);
 			region.setFlag(Flags.INVINCIBILITY, StateFlag.State.ALLOW);
-			region.setFlag(Flags.MOB_SPAWNING, StateFlag.State.DENY);
-			region.setFlag(Flags.MOB_DAMAGE, StateFlag.State.DENY);
-			region.setFlag(Flags.BUILD, StateFlag.State.DENY);
+			region.setFlag(Flags.PVP, StateFlag.State.DENY);
 			regionManager.addRegion(region);
 			regionManager.save();
 		} catch (Exception ex) {

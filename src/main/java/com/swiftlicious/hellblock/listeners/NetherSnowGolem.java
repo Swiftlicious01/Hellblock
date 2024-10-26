@@ -1,5 +1,7 @@
 package com.swiftlicious.hellblock.listeners;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 import org.bukkit.Bukkit;
@@ -16,9 +18,11 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockPistonExtendEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
+import org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason;
 import org.bukkit.event.entity.EntityCombustEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 
+import com.sk89q.worldguard.protection.flags.Flags;
 import com.swiftlicious.hellblock.HellblockPlugin;
 
 import lombok.NonNull;
@@ -32,74 +36,97 @@ public class NetherSnowGolem implements Listener {
 		Bukkit.getPluginManager().registerEvents(this, instance);
 	}
 
-	public boolean checkHellGolemBuild(@NonNull Location location) {
+	public List<Block> checkHellGolemBuild(@NonNull Location location) {
+		if (location.getWorld() == null)
+			return new ArrayList<>();
 		if (!location.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
-			return false;
+			return new ArrayList<>();
 
-		if (location.getBlock().getRelative(BlockFace.UP).getType() == Material.SOUL_FIRE) {
+		List<Block> blocks = new ArrayList<>();
+
+		if (location.getBlock().getRelative(BlockFace.UP).getType() == Material.FIRE) {
 			if (location.getBlock().getType() == Material.JACK_O_LANTERN) {
 				if (location.getBlock().getRelative(BlockFace.DOWN).getType() == Material.SOUL_SOIL) {
 					if (location.getBlock().getRelative(BlockFace.DOWN).getRelative(BlockFace.DOWN)
 							.getType() == Material.SOUL_SOIL) {
-						return true;
+						blocks.addAll(List.of(location.getBlock().getRelative(BlockFace.UP),
+								location.getBlock().getRelative(BlockFace.DOWN),
+								location.getBlock().getRelative(BlockFace.DOWN).getRelative(BlockFace.DOWN),
+								location.getBlock()));
 					}
 				}
 			}
 		}
 
-		if (location.getBlock().getType() == Material.SOUL_FIRE) {
+		if (location.getBlock().getType() == Material.FIRE) {
 			if (location.getBlock().getRelative(BlockFace.DOWN).getType() == Material.JACK_O_LANTERN) {
 				if (location.getBlock().getRelative(BlockFace.DOWN).getRelative(BlockFace.DOWN)
 						.getType() == Material.SOUL_SOIL) {
 					if (location.getBlock().getRelative(BlockFace.DOWN).getRelative(BlockFace.DOWN)
 							.getRelative(BlockFace.DOWN).getType() == Material.SOUL_SOIL) {
-						return true;
+						blocks.addAll(List.of(location.getBlock().getRelative(BlockFace.DOWN),
+								location.getBlock().getRelative(BlockFace.DOWN).getRelative(BlockFace.DOWN),
+								location.getBlock().getRelative(BlockFace.DOWN).getRelative(BlockFace.DOWN)
+										.getRelative(BlockFace.DOWN),
+								location.getBlock()));
 					}
 				}
 			}
 		}
 
-		if (location.getBlock().getRelative(BlockFace.UP).getRelative(BlockFace.UP).getType() == Material.SOUL_FIRE) {
+		if (location.getBlock().getRelative(BlockFace.UP).getRelative(BlockFace.UP).getType() == Material.FIRE) {
 			if (location.getBlock().getRelative(BlockFace.UP).getType() == Material.JACK_O_LANTERN) {
 				if (location.getBlock().getType() == Material.SOUL_SOIL) {
 					if (location.getBlock().getRelative(BlockFace.DOWN).getType() == Material.SOUL_SOIL) {
-						return true;
+						blocks.addAll(List.of(location.getBlock().getRelative(BlockFace.UP).getRelative(BlockFace.UP),
+								location.getBlock().getRelative(BlockFace.UP),
+								location.getBlock().getRelative(BlockFace.DOWN), location.getBlock()));
 					}
 				}
 			}
 		}
 
 		if (location.getBlock().getRelative(BlockFace.UP).getRelative(BlockFace.UP).getRelative(BlockFace.UP)
-				.getType() == Material.SOUL_FIRE) {
+				.getType() == Material.FIRE) {
 			if (location.getBlock().getRelative(BlockFace.UP).getRelative(BlockFace.UP)
 					.getType() == Material.JACK_O_LANTERN) {
 				if (location.getBlock().getRelative(BlockFace.UP).getType() == Material.SOUL_SOIL) {
 					if (location.getBlock().getType() == Material.SOUL_SOIL) {
-						return true;
+						blocks.addAll(List.of(
+								location.getBlock().getRelative(BlockFace.UP).getRelative(BlockFace.UP)
+										.getRelative(BlockFace.UP),
+								location.getBlock().getRelative(BlockFace.UP).getRelative(BlockFace.UP),
+								location.getBlock().getRelative(BlockFace.UP), location.getBlock()));
 					}
 				}
 			}
 		}
-		return false;
+		return blocks;
 	}
 
-	public boolean spawnHellGolem(@NonNull Location location) {
+	public boolean spawnHellGolem(@NonNull Player player, @NonNull Location location) {
+		if (location.getWorld() == null)
+			return false;
 		if (!location.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
 			return false;
 
-		location.getBlock().getRelative(BlockFace.UP).setType(Material.AIR);
-		location.getBlock().setType(Material.AIR);
-		location.getBlock().getRelative(BlockFace.DOWN).setType(Material.AIR);
-		location.getBlock().getRelative(BlockFace.DOWN).getRelative(BlockFace.DOWN).setType(Material.AIR);
-		location.getBlock().getRelative(BlockFace.UP).getState().update();
-		location.getBlock().getState().update();
-		location.getBlock().getRelative(BlockFace.DOWN).getState().update();
-		location.getBlock().getRelative(BlockFace.DOWN).getRelative(BlockFace.DOWN).getState().update();
-		Snowman hellGolem = (Snowman) location.getBlock().getWorld().spawnEntity(location, EntityType.SNOW_GOLEM);
-		hellGolem.setAware(true);
-		hellGolem.setDerp(false);
-		hellGolem.setVisualFire(true);
-		return true;
+		Snowman hellGolem;
+		if (checkHellGolemBuild(location).size() != 0 && instance.getHellblockHandler().getActivePlayer(player)
+				.getProtectionValue(Flags.MOB_SPAWNING.getName())) {
+			List<Block> blocks = checkHellGolemBuild(location);
+			for (Block block : blocks) {
+				block.setType(Material.AIR);
+				block.getState().update();
+			}
+			hellGolem = (Snowman) location.getWorld().spawnEntity(location, EntityType.SNOW_GOLEM,
+					SpawnReason.BUILD_SNOWMAN);
+			hellGolem.setAware(true);
+			hellGolem.setDerp(false);
+			hellGolem.setVisualFire(true);
+			return true;
+		}
+
+		return false;
 	}
 
 	@EventHandler
@@ -109,15 +136,7 @@ public class NetherSnowGolem implements Listener {
 			return;
 
 		final Block block = event.getBlockPlaced();
-		if (block.getType() == Material.FIRE
-				&& block.getRelative(BlockFace.DOWN).getType() == Material.JACK_O_LANTERN) {
-			block.setType(Material.SOUL_FIRE);
-			block.getState().update();
-		}
-
-		if (checkHellGolemBuild(block.getLocation())) {
-			spawnHellGolem(block.getLocation());
-		}
+		spawnHellGolem(player, block.getLocation());
 	}
 
 	@EventHandler
@@ -127,9 +146,10 @@ public class NetherSnowGolem implements Listener {
 			if (!block.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
 				return;
 
-			if (checkHellGolemBuild(block.getLocation())) {
-				spawnHellGolem(block.getLocation());
-			}
+			Collection<Entity> entitiesNearby = block.getWorld().getNearbyEntities(block.getLocation(), 25, 25, 25);
+			Player player = instance.getNetherrackGenerator().getClosestPlayer(block.getLocation(), entitiesNearby);
+			if (player != null)
+				spawnHellGolem(player, block.getLocation());
 		}
 	}
 
@@ -149,7 +169,7 @@ public class NetherSnowGolem implements Listener {
 		if (!entity.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
 			return;
 		if (entity instanceof Snowman && entity.isVisualFire()) {
-			if (event.getDamageSource().getDamageType() == DamageType.IN_FIRE) {
+			if (event.getDamageSource().getDamageType() == DamageType.ON_FIRE) {
 				event.setCancelled(true);
 			}
 		}
