@@ -1,9 +1,9 @@
 package com.swiftlicious.hellblock.listeners;
 
-import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
-import java.util.Map.Entry;
+import java.util.Map;
 import java.util.UUID;
 
 import org.bukkit.Bukkit;
@@ -35,6 +35,7 @@ import com.swiftlicious.hellblock.listeners.generator.GeneratorModeManager;
 import com.swiftlicious.hellblock.utils.LogUtils;
 
 import lombok.Getter;
+import lombok.NonNull;
 
 public class NetherrackGenerator implements Listener {
 
@@ -54,29 +55,27 @@ public class NetherrackGenerator implements Listener {
 
 	@EventHandler
 	public void onBlockFlow(BlockFromToEvent event) {
-		if (!event.getBlock().getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
-			return;
 		Block fromBlock = event.getBlock();
+		if (!fromBlock.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+			return;
 
-		Material fromMaterial = fromBlock.getType();
-
-		List<GenMode> modes = genModeManager.getModesContainingMaterial(fromMaterial);
+		List<GenMode> modes = genModeManager.getModes();
 		for (GenMode mode : modes) {
-			if (!mode.containsLiquidBlock() || !mode.isValid())
+			if (!mode.isValid())
 				continue;
 
 			Block toBlock = event.getToBlock();
 			Material toBlockMaterial = toBlock.getType();
 
-			if (toBlockMaterial.equals(Material.AIR) || mode.containsBlock(toBlockMaterial)) {
-				if (isGenerating(mode, fromBlock, toBlock)) {
+			if (toBlockMaterial.equals(Material.AIR)) {
+				if (isGenerating(mode, event.getFace(), fromBlock, toBlock)) {
 					Location l = toBlock.getLocation();
 					if (l.getWorld() == null)
 						return;
 					// Checks if the block has been broken before and if it is a known gen location
 					if (!genManager.isGenLocationKnown(l) && mode.isSearchingForPlayersNearby()) {
 						double searchRadius = instance.getConfig("config.yml")
-								.getDouble("generator-options.playerSearchRadius", 4D);
+								.getDouble("netherrack-generator-options.playerSearchRadius", 4D);
 						if (l.getWorld() == null)
 							return;
 						Collection<Entity> entitiesNearby = l.getWorld().getNearbyEntities(l, searchRadius,
@@ -104,15 +103,17 @@ public class NetherrackGenerator implements Listener {
 						if (!(mode.canGenerateWhileLavaRaining()) && instance.getLavaRain().getLavaRainTask() != null
 								&& instance.getLavaRain().getLavaRainTask().isLavaRaining()) {
 							event.setCancelled(true);
-							if (!toBlock.getLocation().getBlock().getType().equals(Material.NETHERRACK))
-								toBlock.getLocation().getBlock().setType(Material.NETHERRACK);
+							if (!toBlock.getLocation().getBlock().getType().equals(mode.getFallbackMaterial()))
+								toBlock.getLocation().getBlock().setType(mode.getFallbackMaterial());
 							return;
 						}
 
 						float soundVolume = 2F;
 						float pitch = 1F;
 						Material result = null;
-						if (mode.hasFallBackMaterial()) {
+						if (getRandomResult() != null) {
+							result = getRandomResult();
+						} else if (mode.hasFallBackMaterial()) {
 							result = mode.getFallbackMaterial();
 						}
 
@@ -177,7 +178,7 @@ public class NetherrackGenerator implements Listener {
 	public void onPistonPush(BlockPistonExtendEvent event) {
 		if (!event.getBlock().getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
 			return;
-		if (!instance.getConfig("config.yml").getConfigurationSection("generator-options.automation")
+		if (!instance.getConfig("config.yml").getConfigurationSection("netherrack-generator-options.automation")
 				.getBoolean("pistons", false))
 			return;
 		if (!genManager.getKnownGenPistons().containsKey(event.getBlock().getLocation()))
@@ -195,7 +196,7 @@ public class NetherrackGenerator implements Listener {
 	public void onBlockPlace(BlockPlaceEvent event) {
 		if (!event.getBlock().getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
 			return;
-		if (!instance.getConfig("config.yml").getConfigurationSection("generator-options.automation")
+		if (!instance.getConfig("config.yml").getConfigurationSection("netherrack-generator-options.automation")
 				.getBoolean("pistons", false))
 			return;
 		if (event.getBlock().getType() != Material.PISTON)
@@ -231,82 +232,62 @@ public class NetherrackGenerator implements Listener {
 		}
 	}
 
-	private static final BlockFace[] faces = new BlockFace[] { BlockFace.SELF, BlockFace.UP, BlockFace.DOWN,
-			BlockFace.NORTH, BlockFace.EAST, BlockFace.SOUTH, BlockFace.WEST };
-
-	private boolean isGenerating(GenMode mode, Block fromB, Block toB) {
+	private boolean isGenerating(GenMode mode, BlockFace face, Block fromB, Block toB) {
 		if (!mode.isValid())
 			return false;
-		int blocksFound = 0; /* We need all blocks to be correct */
-		List<BlockFace> testedFaces = new ArrayList<>();
-		Material fromM = fromB.getType();
-		if (mode.getFixedBlocks() != null && !mode.getFixedBlocks().isEmpty()) {
-			for (Entry<BlockFace, Material> entry : mode.getFixedBlocks().entrySet()) {
-				if (testedFaces.contains(entry.getKey()))
-					continue;
-				testedFaces.add(entry.getKey());
-				if (this.isSameMaterial(entry.getValue().name(), fromM.name()))
-					continue; // Should not check for the original block
-				Block r = toB.getRelative(entry.getKey(), 1);
-				Material rm = r.getType();
 
-				if (this.isSameMaterial(rm.name(), entry.getValue().name())) {
-					blocksFound++; /* This block is positioned correctly; */
-				} else {
-					return false; /* This block is not positioned correctly so we stop testing */
-				}
-			}
+		if (fromB.getType() != Material.LAVA)
+			return false;
+		int fromLevel = ((Levelled) fromB.getBlockData()).getLevel();
+
+		Block nextBlock = toB.getRelative(face, 1);
+		if (nextBlock.getType() != Material.LAVA)
+			return false;
+
+		int genCount = 0;
+		int nextBlockLevel = ((Levelled) nextBlock.getBlockData()).getLevel();
+		if (fromLevel < nextBlockLevel) {
+			genCount++;
+		}
+		if (fromLevel == nextBlockLevel) {
+			genCount++;
 		}
 
-		if (mode.getBlocks() != null && !mode.getBlocks().isEmpty()) {
-			for (BlockFace face : faces) {
-				if (testedFaces.contains(face))
-					continue;
-				testedFaces.add(face);
-				Block r = toB.getRelative(face, 1);
-				Material rm = r.getType();
-				/*
-				 * This also sadly disables LAVA and LAVA generators
-				 */
-//				if (this.isSameMaterial(rm.name(), fromB.getType().name())) { // Should not check for
-//					// the original block
-//					continue;
-//				}
-				if (fromM != Material.LAVA)
-					continue;
+		return genCount != 0;
+	}
 
-				int fromLevel = ((Levelled) fromB.getBlockData()).getLevel();
-
-				if (rm != Material.LAVA)
-					continue;
-
-				int rLevel = ((Levelled) r.getBlockData()).getLevel();
-				for (Material mirrorMaterial : mode.getBlocks()) {
-					if (this.isSameMaterial(rm.name(), mirrorMaterial.name())) {
-						if (fromLevel < rLevel) {
-							blocksFound++; /* This block is positioned correctly; */
-						}
-						if (fromLevel == rLevel) {
-							blocksFound++; /* This block is positioned correctly; */
-						}
-					}
-				}
+	public @NonNull Map<Material, Double> getResults() {
+		List<String> materials = HellblockPlugin.getInstance().getConfig("config.yml")
+				.getConfigurationSection("netherrack-generator-options.generation").getStringList("blocks");
+		Map<Material, Double> results = new HashMap<>();
+		for (String result : materials) {
+			String[] split = result.split(":");
+			Material type = Material.getMaterial(split[0]);
+			double chance = 0.0D;
+			try {
+				chance = Double.parseDouble(split[1]);
+			} catch (NumberFormatException ex) {
+				LogUtils.warn(
+						String.format("Could not define the given chance %s for the block type %s", split[1], split[0]),
+						ex);
+				continue;
 			}
+			results.put(type, chance);
 		}
-
-		blocksFound++;
-		int blocksNeeded = (mode.getBlocks().size() + mode.getFixedBlocks().size());
-		return blocksFound >= blocksNeeded;
+		return results;
 	}
 
-	private boolean isSameMaterial(String materialName1, String materialName2) {
-		if (materialName1.equalsIgnoreCase(materialName2))
-			return true;
-		else
-			return isLava(materialName1) && isLava(materialName2);
-	}
-
-	private boolean isLava(String materialName) {
-		return materialName.equalsIgnoreCase("LAVA") || materialName.equalsIgnoreCase("STATIONARY_LAVA");
+	public @Nullable Material getRandomResult() {
+		double r = Math.random() * 100;
+		double prev = 0;
+		for (Material m : this.getResults().keySet()) {
+			double chance = this.getResults().get(m) + prev;
+			if (r > prev && r <= chance)
+				return m;
+			else
+				prev = chance;
+			continue;
+		}
+		return null;
 	}
 }

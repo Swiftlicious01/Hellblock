@@ -14,7 +14,7 @@ import org.bukkit.Material;
 public class GeneratorManager {
 
 	private final List<Location> knownGenLocations = new ArrayList<>();
-	private final Map<Location, GenBlock> genBreaks = new HashMap<>();	
+	private final Map<Location, GenBlock> genBreaks = new HashMap<>();
 	private Map<Location, GenPiston> knownGenPistons = new HashMap<>();
 
 	public List<Location> getKnownGenLocations() {

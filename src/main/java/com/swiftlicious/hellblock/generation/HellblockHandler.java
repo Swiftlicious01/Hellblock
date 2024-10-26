@@ -182,7 +182,7 @@ public class HellblockHandler {
 		pi.saveHellblockPlayer();
 
 		instance.getAdventureManager().sendTitle(player, String.format("<red>Welcome <dark_red>%s", player.getName()),
-				"<red>To Your Hellblock!", 3 * 20, 5 * 20, 3 * 20);
+				"<red>To Your Hellblock!", 2 * 20, 3 * 20, 2 * 20);
 
 		// if raining give player a bit of protection
 		if (instance.getLavaRain().getLavaRainTask() != null && instance.getLavaRain().getLavaRainTask().isLavaRaining()

@@ -85,12 +85,18 @@ public class HellblockAdminCommand {
 	private CommandAPICommand getPurgeCommand(String namespace) {
 		return new CommandAPICommand(namespace).withArguments(new IntegerArgument("days")).executes((sender, args) -> {
 			int purgeDays = (int) args.get("days");
+			if (HellblockPlugin.getInstance().getHellblockHandler().getPlayersDirectory().listFiles().length == 0) {
+				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(sender,
+						"<red>No hellblock player data to purge available!");
+				return;
+			}
 			if (purgeDays <= 0) {
 				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(sender,
 						"<red>Please enter a positive number above 0!");
 				return;
 			}
 			final int purgeTime = Integer.parseInt(String.valueOf(purgeDays), 10) * 24;
+			int purgeCount = 0;
 			for (File playerData : HellblockPlugin.getInstance().getHellblockHandler().getPlayersDirectory()
 					.listFiles()) {
 				if (!playerData.isFile() || !playerData.getName().endsWith(".yml"))
@@ -138,9 +144,18 @@ public class HellblockAdminCommand {
 									HellblockPlugin.getInstance().getWorldGuardHandler().getRegion(ownerUUID));
 							HellblockPlugin.getInstance().getWorldGuardHandler().abandonIsland(ownerUUID,
 									HellblockPlugin.getInstance().getWorldGuardHandler().getRegion(ownerUUID));
+							purgeCount++;
 						}
 					}
 				}
+			}
+
+			if (purgeCount > 0) {
+				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(sender,
+						String.format("<red>You purged a total of %s hellblocks!", purgeCount));
+			} else {
+				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(sender,
+						"<red>No hellblock data was purged with your inputted settings!");
 			}
 		});
 	}

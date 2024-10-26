@@ -243,11 +243,11 @@ public class HellblockPlayer {
 
 	public String getCreationTime() {
 		Calendar cal = Calendar.getInstance();
-		cal.setTimeZone(TimeZone.getTimeZone("UTC"));
+		cal.setTimeZone(TimeZone.getTimeZone("PST"));
 		cal.setTimeInMillis(this.creationTime);
 		return (cal.get(Calendar.MONTH) + "/" + (cal.get(Calendar.DAY_OF_MONTH) + 1) + "/" + cal.get(Calendar.YEAR)
-				+ " " + cal.get(Calendar.HOUR_OF_DAY) + ":" + cal.get(Calendar.MINUTE) + ":"
-				+ cal.get(Calendar.SECOND));
+				+ " " + cal.get(Calendar.HOUR_OF_DAY) + ":" + cal.get(Calendar.MINUTE) + ":" + cal.get(Calendar.SECOND)
+				+ cal.get(Calendar.AM_PM));
 	}
 
 	public boolean isAbandoned() {
@@ -386,7 +386,7 @@ public class HellblockPlayer {
 	public void removeFromLevel(float levels) {
 		this.hellblockLevel = this.hellblockLevel - levels;
 	}
-	
+
 	public void setLevel(float level) {
 		this.hellblockLevel = level;
 	}
@@ -442,8 +442,8 @@ public class HellblockPlayer {
 	public void saveHellblockPlayer() {
 		this.getHellblockPlayer().set("player.hasHellblock", this.hasHellblock);
 		if (!this.whoHasTrusted.isEmpty()) {
-			List<String> trustedString = this.whoHasTrusted.stream().filter(Objects::nonNull)
-					.map(uuid -> uuid.toString()).collect(Collectors.toList());
+			List<String> trustedString = this.whoHasTrusted.stream().filter(Objects::nonNull).map(UUID::toString)
+					.collect(Collectors.toList());
 			if (!trustedString.isEmpty()) {
 				this.getHellblockPlayer().set("player.trusted-on-islands", trustedString);
 			}
@@ -479,23 +479,23 @@ public class HellblockPlayer {
 				this.getHellblockPlayer().set("player.biome", this.hellblockBiome.toString());
 			}
 			if (!this.hellblockParty.isEmpty()) {
-				List<String> partyString = this.hellblockParty.stream().filter(Objects::nonNull)
-						.map(uuid -> uuid.toString()).collect(Collectors.toList());
+				List<String> partyString = this.hellblockParty.stream().filter(Objects::nonNull).map(UUID::toString)
+						.collect(Collectors.toList());
 				if (!partyString.isEmpty()) {
 					this.getHellblockPlayer().set("player.party", partyString);
 				}
 			}
 			if (!this.bannedPlayers.isEmpty()) {
-				List<String> bannedString = this.bannedPlayers.stream().filter(Objects::nonNull)
-						.map(uuid -> uuid.toString()).collect(Collectors.toList());
+				List<String> bannedString = this.bannedPlayers.stream().filter(Objects::nonNull).map(UUID::toString)
+						.collect(Collectors.toList());
 				if (!bannedString.isEmpty()) {
 					this.getHellblockPlayer().set("player.banned-from-island", bannedString);
 				}
 			}
 			if (!this.protectionFlags.isEmpty()) {
 				List<String> flagsString = this.protectionFlags.stream().filter(Objects::nonNull)
-						.filter(flag -> flag.contains(":allow")).map(flag -> flag.toString().toLowerCase())
-						.collect(Collectors.toList());
+						.filter(flag -> flag.contains(":allow")).map(String::toString).collect(Collectors.toList());
+				this.getHellblockPlayer().set("player.protection-flags", null);
 				if (!flagsString.isEmpty()) {
 					this.getHellblockPlayer().set("player.protection-flags", flagsString);
 				}

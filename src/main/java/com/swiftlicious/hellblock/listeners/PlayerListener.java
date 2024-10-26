@@ -16,6 +16,7 @@ import org.bukkit.block.Block;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
+import org.bukkit.event.Event.Result;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityPortalEvent;
@@ -64,6 +65,14 @@ public class PlayerListener implements Listener {
 		if (player.hasPermission("hellblock.updates") && instance.isUpdateAvailable()) {
 			instance.getAdventureManager().sendMessageWithPrefix(player,
 					"<red>There is a new update available!: <dark_red><u>https://github.com/Swiftlicious01/Hellblock<!u>");
+		}
+
+		if (pi.isAbandoned()) {
+			HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+					String.format("<red>Your hellblock was deemed abandoned for not logging in for the past %s days!",
+							instance.getConfig("config.yml").getInt("hellblock.abandon-after-days")));
+			HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+					"<red>You've lost access to your island, if you wish to recover it speak to an administrator.");
 		}
 
 		instance.getScheduler().runTaskSyncLater(() -> {
@@ -204,7 +213,7 @@ public class PlayerListener implements Listener {
 		Block bed = event.getClickedBlock();
 		if (bed != null && Tag.BEDS.isTagged(bed.getType())) {
 			if (bed.getWorld().getEnvironment() == Environment.NETHER) {
-				event.setCancelled(true);
+				event.setUseInteractedBlock(Result.DENY);
 			}
 		}
 	}
@@ -308,7 +317,7 @@ public class PlayerListener implements Listener {
 		if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
 			return;
 		final UUID id = player.getUniqueId();
-		if (player.getLocation().getY() <= 0) {
+		if (player.getVelocity().getY() <= 0) {
 			HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(id);
 			if (pi.hasHellblock()) {
 				if (!LocationUtils.isSafeLocation(pi.getHomeLocation())) {

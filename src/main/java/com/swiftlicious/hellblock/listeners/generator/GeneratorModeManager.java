@@ -2,9 +2,7 @@ package com.swiftlicious.hellblock.listeners.generator;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 import org.bukkit.Material;
@@ -22,119 +20,60 @@ public class GeneratorModeManager {
 
 	private List<GenMode> generatorModes;
 	private final GenMode defaultGenMode;
-	private final GenMode universalGenMode;
 
 	public GeneratorModeManager(HellblockPlugin plugin) {
 		instance = plugin;
 		this.generatorModes = new ArrayList<>();
-		List<Material> defaultBlocks = new ArrayList<>();
-		defaultBlocks.add(Material.LAVA);
-		defaultBlocks.add(Material.LAVA);
-		// THE ID IS 0 SINCE IT WILL ONLY BE USED IF NO OTHER GENMODES ARE LOADED
-		this.defaultGenMode = new GenMode(0, defaultBlocks, "Netherrack generator", Material.NETHERRACK);
-		this.universalGenMode = new GenMode(-1, defaultBlocks, "Universal generator", null);
+		this.defaultGenMode = new GenMode(Material.NETHERRACK);
 	}
 
 	public void loadFromConfig() {
 		this.generatorModes = new ArrayList<>();
-		if (instance.getConfig("config.yml").contains("generator-options.generationModes")) {
+		if (instance.getConfig("config.yml").contains("netherrack-generator-options.generation")) {
 
 			ConfigurationSection section = instance.getConfig("config.yml")
-					.getConfigurationSection("generator-options.generationModes");
+					.getConfigurationSection("netherrack-generator-options.generation");
 			if (section == null) {
 				LogUtils.severe("No generation mode section found");
 				return;
 			}
-			for (String s : section.getKeys(false)) {
-				List<String> blockNames = section.getStringList(s + ".blocks");
-				List<Material> blockMaterials;
-				blockMaterials = new ArrayList<>();
-				for (String name : blockNames) {
-					Material m = Material.valueOf(name.toUpperCase());
-					blockMaterials.add(m);
-				}
-				Map<BlockFace, Material> fixedBlockMaterials = null;
-				if (section.isConfigurationSection(s + ".fixedBlocks")) {
-					fixedBlockMaterials = new HashMap<>();
-					for (String fixedBlockFace : Objects
-							.requireNonNull(section.getConfigurationSection(s + ".fixedBlocks")).getKeys(false)) {
-						BlockFace blockFace = BlockFace.valueOf(fixedBlockFace.toUpperCase());
-						if (!this.isSupportedBlockFace(blockFace)) {
-							LogUtils.severe(String.format(
-									"%s is not a valid block face. Use UP, DOWN, EAST, NORTH, WEST or SOUTH",
-									fixedBlockFace.toUpperCase()));
-							continue;
-						}
-						String materialName = section.getString(s + ".fixedBlocks." + fixedBlockFace);
-						if (materialName == null) {
-							LogUtils.severe(String.format("Syntax error under block face %s - No material name",
-									fixedBlockFace.toUpperCase()));
-							continue;
-						}
-						Material m = Material.getMaterial(materialName.toUpperCase());
-						if (m == null) {
-							LogUtils.severe(String.format("%s is not a valid material under block face %s",
-									materialName.toUpperCase(), fixedBlockFace.toUpperCase()));
-							continue;
-						}
-						fixedBlockMaterials.put(blockFace, m);
-					}
-				}
-				int id;
-				try {
-					id = Integer.parseInt(s);
-				} catch (NumberFormatException e) {
-					LogUtils.severe(String.format("%s is not a valid generation mode id. MUST BE A NUMBER", s));
-					return;
-				}
-				if (id < 0) {
+			Material fallbackMaterial = null;
+			if (section.contains("fallback")) {
+				fallbackMaterial = Material
+						.getMaterial(Objects.requireNonNull(section.getString("fallback")).toUpperCase());
+				if (fallbackMaterial == null) {
 					LogUtils.severe(
-							String.format("%s is not a valid generation mode id. MUST BE A POSITIVE NUMBER", id));
-					return;
+							String.format("%s is not a valid fallback material", section.getString("fallback")));
 				}
-				String name = null;
-				if (section.contains(s + ".displayName")) {
-					name = section.getString(s + ".displayName");
+			}
+			GenMode mode = new GenMode(fallbackMaterial);
+			if (section.contains("searchForPlayersNearby")) {
+				mode.setSearchForPlayersNearby(section.getBoolean("searchForPlayersNearby", false));
+			}
+			if (section.contains("generationSound")) {
+				String soundString = section.getString("generationSound");
+				if (soundString != null && !soundString.equalsIgnoreCase("none")) {
+					Arrays.stream(Sound.values()).filter(sound -> sound.name().equalsIgnoreCase(soundString))
+							.findFirst().ifPresentOrElse(mode::setGenSound,
+									() -> LogUtils.severe(String.format("The sound %s does not exist.", soundString)));
 				}
-				Material fallbackMaterial = null;
-				if (section.contains(s + ".fallback")) {
-					fallbackMaterial = Material
-							.getMaterial(Objects.requireNonNull(section.getString(s + ".fallback")).toUpperCase());
-					if (fallbackMaterial == null) {
-						LogUtils.severe(String.format("%s is not a valid fallback material",
-								section.getString(s + ".fallback")));
-					}
+			}
+			if (section.contains("particleEffect")) {
+				String particle = section.getString("particleEffect");
+				if (particle != null) {
+					Particle[] effects = Particle.values();
+					Arrays.stream(effects).filter(particleEffect -> particleEffect.name().equalsIgnoreCase(particle))
+							.findFirst().ifPresentOrElse(mode::setParticleEffect,
+									() -> LogUtils.severe(String.format("The particle %s does not exist.", particle)));
 				}
-				GenMode mode = new GenMode(id, blockMaterials, fixedBlockMaterials, name, fallbackMaterial);
-				if (section.contains(s + ".searchForPlayersNearby")) {
-					mode.setSearchForPlayersNearby(section.getBoolean(s + ".searchForPlayersNearby", false));
-				}
-				if (section.contains(s + ".generationSound")) {
-					String soundString = section.getString(s + ".generationSound");
-					if (soundString != null && !soundString.equalsIgnoreCase("none")) {
-						Arrays.stream(Sound.values()).filter(sound -> sound.name().equalsIgnoreCase(soundString))
-								.findFirst().ifPresentOrElse(mode::setGenSound, () -> LogUtils
-										.severe(String.format("The sound %s does not exist.", soundString)));
-					}
-				}
-				if (section.contains(s + ".particleEffect")) {
-					String particle = section.getString(s + ".particleEffect");
-					if (particle != null) {
-						Particle[] effects = Particle.values();
-						Arrays.stream(effects)
-								.filter(particleEffect -> particleEffect.name().equalsIgnoreCase(particle)).findFirst()
-								.ifPresentOrElse(mode::setParticleEffect, () -> LogUtils
-										.severe(String.format("The particle %s does not exist.", particle)));
-					}
-				}
+			}
 
-				if (section.contains(s + ".canGenerateWhileLavaRaining")) {
-					boolean canGenWhileLavaRaining = section.getBoolean(s + ".canGenerateWhileLavaRaining");
-					mode.setCanGenWhileLavaRaining(canGenWhileLavaRaining);
-				}
-				if (mode.isValid()) {
-					this.generatorModes.add(mode);
-				}
+			if (section.contains("canGenerateWhileLavaRaining")) {
+				boolean canGenWhileLavaRaining = section.getBoolean("canGenerateWhileLavaRaining");
+				mode.setCanGenWhileLavaRaining(canGenWhileLavaRaining);
+			}
+			if (mode.isValid()) {
+				this.generatorModes.add(mode);
 			}
 		}
 
@@ -145,14 +84,6 @@ public class GeneratorModeManager {
 
 	}
 
-	public GenMode getModeById(int id) {
-		for (GenMode mode : this.getModes()) {
-			if (mode.getId() == id)
-				return mode;
-		}
-		return null;
-	}
-
 	public boolean isSupportedBlockFace(BlockFace blockFace) {
 		if (blockFace == null)
 			return false;
@@ -161,21 +92,7 @@ public class GeneratorModeManager {
 				|| blockFace.equals(BlockFace.SOUTH);
 	}
 
-	public List<GenMode> getModesContainingMaterial(Material m) {
-		List<GenMode> modesContainingMaterial = new ArrayList<>();
-		for (GenMode mode : this.getModes()) {
-			if (mode.containsBlock(m))
-				modesContainingMaterial.add(mode);
-		}
-		return modesContainingMaterial;
-	}
-
 	public List<GenMode> getModes() {
 		return this.generatorModes;
 	}
-
-	public GenMode getUniversalGenMode() {
-		return universalGenMode;
-	}
-
 }

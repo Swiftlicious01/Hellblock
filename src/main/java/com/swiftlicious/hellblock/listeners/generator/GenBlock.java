@@ -43,7 +43,7 @@ public class GenBlock {
 
 	public boolean hasExpired() {
 		if (this.pistonPowered && HellblockPlugin.getInstance().getConfig("config.yml")
-				.getConfigurationSection("generator-options.automation").getBoolean("pistons", false))
+				.getConfigurationSection("netherrack-generator-options.automation").getBoolean("pistons", false))
 			return false;
 		// Expire entries 4 seconds after they were created
 		// It only needs enough time for lava to flow and generator a new block

@@ -138,8 +138,7 @@ public class RandomUtils {
 	public static @NonNull Biome generateRandomBiome() {
 		List<Biome> biomes = List.of(Biome.NETHER_WASTES, Biome.CRIMSON_FOREST, Biome.WARPED_FOREST,
 				Biome.SOUL_SAND_VALLEY, Biome.BASALT_DELTAS);
-		Random random = new Random();
-		int randomIndex = random.nextInt(biomes.size());
+		int randomIndex = getInstance().random.nextInt(biomes.size()) + 1;
 		return biomes.get(randomIndex);
 	}
 }

@@ -40,16 +40,19 @@ public class IslandLevelHandler implements Listener {
 	private final HellblockPlugin instance;
 
 	private final Collection<LevelBlockCache> blockCache;
+	private final Map<UUID, Collection<LevelBlockCache>> placedByPlayerCache;
 
 	public IslandLevelHandler(HellblockPlugin plugin) {
 		instance = plugin;
 		this.blockCache = new HashSet<>();
+		this.placedByPlayerCache = new HashMap<>();
 		Bukkit.getPluginManager().registerEvents(this, instance);
 		instance.getScheduler().runTaskAsyncTimer(() -> clearCache(), 0, 1, TimeUnit.HOURS);
 	}
 
 	private void clearCache() {
 		this.blockCache.clear();
+		this.placedByPlayerCache.clear();
 	}
 
 	@EventHandler
@@ -60,7 +63,16 @@ public class IslandLevelHandler implements Listener {
 
 		final Player player = event.getPlayer();
 		final UUID id = player.getUniqueId();
-		LevelBlockCache levelBlockUpdate = new LevelBlockCache(block, BlockAction.PLACE);
+		Material material = block.getType();
+		int x = block.getLocation().getBlockX();
+		int y = block.getLocation().getBlockY();
+		int z = block.getLocation().getBlockZ();
+		LevelBlockCache levelBlockUpdate = new LevelBlockCache(material, x, y, z, BlockAction.PLACE, true);
+		this.placedByPlayerCache.putIfAbsent(id, new HashSet<>());
+		if (this.placedByPlayerCache.containsKey(id) && this.placedByPlayerCache.get(id) != null
+				&& !this.placedByPlayerCache.get(id).contains(levelBlockUpdate)) {
+			this.placedByPlayerCache.get(id).add(levelBlockUpdate);
+		}
 		updateLevelFromBlockChange(id, levelBlockUpdate);
 	}
 
@@ -72,8 +84,19 @@ public class IslandLevelHandler implements Listener {
 
 		final Player player = event.getPlayer();
 		final UUID id = player.getUniqueId();
-		LevelBlockCache levelBlockUpdate = new LevelBlockCache(block, BlockAction.BREAK);
+		Material material = block.getType();
+		int x = block.getLocation().getBlockX();
+		int y = block.getLocation().getBlockY();
+		int z = block.getLocation().getBlockZ();
+		LevelBlockCache levelBlockUpdate = new LevelBlockCache(material, x, y, z, BlockAction.BREAK, false);
+		levelBlockUpdate.setIfPlacedByPlayer(
+				(this.placedByPlayerCache.containsKey(id) && this.placedByPlayerCache.get(id) != null
+						&& this.placedByPlayerCache.get(id).contains(levelBlockUpdate)));
 		updateLevelFromBlockChange(id, levelBlockUpdate);
+		if (this.placedByPlayerCache.containsKey(id) && this.placedByPlayerCache.get(id) != null
+				&& this.placedByPlayerCache.get(id).contains(levelBlockUpdate)) {
+			this.placedByPlayerCache.get(id).remove(levelBlockUpdate);
+		}
 	}
 
 	@EventHandler
@@ -86,8 +109,19 @@ public class IslandLevelHandler implements Listener {
 		Player player = instance.getNetherrackGenerator().getClosestPlayer(block.getLocation(), entitiesNearby);
 		if (player != null) {
 			final UUID id = player.getUniqueId();
-			LevelBlockCache levelBlockUpdate = new LevelBlockCache(block, BlockAction.BREAK);
+			Material material = block.getType();
+			int x = block.getLocation().getBlockX();
+			int y = block.getLocation().getBlockY();
+			int z = block.getLocation().getBlockZ();
+			LevelBlockCache levelBlockUpdate = new LevelBlockCache(material, x, y, z, BlockAction.BREAK, false);
+			levelBlockUpdate.setIfPlacedByPlayer(
+					(this.placedByPlayerCache.containsKey(id) && this.placedByPlayerCache.get(id) != null
+							&& this.placedByPlayerCache.get(id).contains(levelBlockUpdate)));
 			updateLevelFromBlockChange(id, levelBlockUpdate);
+			if (this.placedByPlayerCache.containsKey(id) && this.placedByPlayerCache.get(id) != null
+					&& this.placedByPlayerCache.get(id).contains(levelBlockUpdate)) {
+				this.placedByPlayerCache.get(id).remove(levelBlockUpdate);
+			}
 		}
 	}
 
@@ -101,8 +135,19 @@ public class IslandLevelHandler implements Listener {
 		Player player = instance.getNetherrackGenerator().getClosestPlayer(block.getLocation(), entitiesNearby);
 		if (player != null) {
 			final UUID id = player.getUniqueId();
-			LevelBlockCache levelBlockUpdate = new LevelBlockCache(block, BlockAction.BREAK);
+			Material material = block.getType();
+			int x = block.getLocation().getBlockX();
+			int y = block.getLocation().getBlockY();
+			int z = block.getLocation().getBlockZ();
+			LevelBlockCache levelBlockUpdate = new LevelBlockCache(material, x, y, z, BlockAction.BREAK, false);
+			levelBlockUpdate.setIfPlacedByPlayer(
+					(this.placedByPlayerCache.containsKey(id) && this.placedByPlayerCache.get(id) != null
+							&& this.placedByPlayerCache.get(id).contains(levelBlockUpdate)));
 			updateLevelFromBlockChange(id, levelBlockUpdate);
+			if (this.placedByPlayerCache.containsKey(id) && this.placedByPlayerCache.get(id) != null
+					&& this.placedByPlayerCache.get(id).contains(levelBlockUpdate)) {
+				this.placedByPlayerCache.get(id).remove(levelBlockUpdate);
+			}
 		}
 	}
 
@@ -138,6 +183,9 @@ public class IslandLevelHandler implements Listener {
 
 	public void updateLevelFromBlockChange(@NotNull UUID id, @NotNull LevelBlockCache cache) {
 		if (this.blockCache.contains(cache)) {
+			return;
+		}
+		if (!cache.isPlacedByPlayer()) {
 			return;
 		}
 		final List<String> blockLevelSystem = instance.getHellblockHandler().getBlockLevelSystem();
@@ -196,17 +244,21 @@ public class IslandLevelHandler implements Listener {
 								if (level == 1.0F) {
 									if (cache.getBlockAction() == BlockAction.PLACE) {
 										ti.increaseIslandLevel();
+										ti.saveHellblockPlayer();
 										instance.getCoopManager().updateParty(ownerUUID, "leveladd", 1.0F);
 									} else {
 										ti.decreaseIslandLevel();
+										ti.saveHellblockPlayer();
 										instance.getCoopManager().updateParty(ownerUUID, "levelremove", 1.0F);
 									}
 								} else {
 									if (cache.getBlockAction() == BlockAction.PLACE) {
 										ti.addToLevel(level);
+										ti.saveHellblockPlayer();
 										instance.getCoopManager().updateParty(ownerUUID, "leveladd", level);
 									} else {
 										ti.removeFromLevel(level);
+										ti.saveHellblockPlayer();
 										instance.getCoopManager().updateParty(ownerUUID, "levelremove", level);
 									}
 								}
@@ -223,16 +275,19 @@ public class IslandLevelHandler implements Listener {
 
 	public class LevelBlockCache {
 
-		private Material type;
-		private int x, y, z;
-		private BlockAction action;
+		private final Material type;
+		private final int x, y, z;
+		private final BlockAction action;
+		private boolean placedByPlayer;
 
-		public LevelBlockCache(@NotNull Block block, @NotNull BlockAction action) {
-			this.type = block.getType();
-			this.x = block.getLocation().getBlockX();
-			this.y = block.getLocation().getBlockY();
-			this.z = block.getLocation().getBlockZ();
+		public LevelBlockCache(@NotNull Material type, int x, int y, int z, @NotNull BlockAction action,
+				boolean placedByPlayer) {
+			this.type = type;
+			this.x = x;
+			this.y = y;
+			this.z = z;
 			this.action = action;
+			this.placedByPlayer = placedByPlayer;
 		}
 
 		public @NotNull Material getMaterial() {
@@ -245,6 +300,14 @@ public class IslandLevelHandler implements Listener {
 
 		public @NotNull BlockAction getBlockAction() {
 			return this.action;
+		}
+
+		public boolean isPlacedByPlayer() {
+			return this.placedByPlayer;
+		}
+
+		public void setIfPlacedByPlayer(boolean placedByPlayer) {
+			this.placedByPlayer = placedByPlayer;
 		}
 	}
 

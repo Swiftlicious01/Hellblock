@@ -29,6 +29,7 @@ import dev.jorel.commandapi.CommandPermission;
 import dev.jorel.commandapi.arguments.ArgumentSuggestions;
 import dev.jorel.commandapi.arguments.IntegerArgument;
 import dev.jorel.commandapi.arguments.StringArgument;
+import io.lumine.mythic.bukkit.utils.lib.lang3.StringUtils;
 
 public class HellblockUserCommand {
 
@@ -455,7 +456,7 @@ public class HellblockUserCommand {
 						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 								"<red>Total Visits: <dark_red>" + pi.getTotalVisitors());
 						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-								"<red>Island Type: <dark_red>" + pi.getIslandChoice().name());
+								"<red>Island Type: <dark_red>" + StringUtils.capitalize(pi.getIslandChoice().name()));
 						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 								"<red>Biome: <dark_red>" + pi.getHellblockBiome().getName());
 						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
