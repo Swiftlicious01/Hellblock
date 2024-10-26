@@ -405,8 +405,8 @@ netherrack-generator-options:
     blocks:
       - 'NETHERRACK:95'
       - 'NETHER_GOLD_ORE:2'
-	  - 'NETHER_QUARTZ_ORE:3'
-	fallback: NETHERRACK
+      - 'NETHER_QUARTZ_ORE:3'
+    fallback: NETHERRACK
     particleEffect: LARGE_SMOKE
     generationSound: ENTITY_EXPERIENCE_ORB_PICKUP
     canGenerateWhileLavaRaining: true
