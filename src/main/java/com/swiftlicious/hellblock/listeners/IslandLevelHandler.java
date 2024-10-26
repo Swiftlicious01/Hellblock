@@ -196,14 +196,18 @@ public class IslandLevelHandler implements Listener {
 								if (level == 1.0F) {
 									if (cache.getBlockAction() == BlockAction.PLACE) {
 										ti.increaseIslandLevel();
+										instance.getCoopManager().updateParty(ownerUUID, "leveladd", 1.0F);
 									} else {
 										ti.decreaseIslandLevel();
+										instance.getCoopManager().updateParty(ownerUUID, "levelremove", 1.0F);
 									}
 								} else {
 									if (cache.getBlockAction() == BlockAction.PLACE) {
 										ti.addToLevel(level);
+										instance.getCoopManager().updateParty(ownerUUID, "leveladd", level);
 									} else {
 										ti.removeFromLevel(level);
+										instance.getCoopManager().updateParty(ownerUUID, "levelremove", level);
 									}
 								}
 								this.blockCache.add(cache);

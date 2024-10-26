@@ -902,6 +902,12 @@ public class CoopManager {
 				case "flag":
 					active.setProtectionValue((String) value);
 					break;
+				case "leveladd":
+					active.setLevel(active.getLevel() + (float) value);
+					break;
+				case "levelremove":
+					active.setLevel(active.getLevel() - (float) value);
+					break;
 				}
 			}
 			active.saveHellblockPlayer();
@@ -974,6 +980,12 @@ public class CoopManager {
 					}
 					offlineFile.set("player.protection-flags", flags);
 					break;
+				case "leveladd":
+					offlineFile.set("player.hellblock-level",
+							(float) offlineFile.getDouble("player.hellblock-level") + (float) value);
+				case "levelremove":
+					offlineFile.set("player.hellblock-level",
+							(float) offlineFile.getDouble("player.hellblock-level") - (float) value);
 				}
 			}
 			try {

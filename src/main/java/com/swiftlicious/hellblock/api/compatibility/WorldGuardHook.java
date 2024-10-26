@@ -71,7 +71,6 @@ public class WorldGuardHook {
 			region.setOwners(owners);
 			region.setPriority(100);
 			updateHellblockMessages(player.getUniqueId(), region);
-			instance.getCoopManager().changeLockStatus(player);
 			ApplicableRegionSet set = regionManager
 					.getApplicableRegions(BlockVector3.at(pi.getHellblockLocation().getX(),
 							pi.getHellblockLocation().getY(), pi.getHellblockLocation().getZ()));
@@ -89,6 +88,7 @@ public class WorldGuardHook {
 
 			regionManager.addRegion(region);
 			regionManager.save();
+			instance.getCoopManager().changeLockStatus(player);
 		} catch (Exception ex) {
 			LogUtils.severe(String.format("Unable to protect %s's hellblock!", player.getName()), ex);
 		}
