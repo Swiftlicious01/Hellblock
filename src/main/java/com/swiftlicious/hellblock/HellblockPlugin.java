@@ -293,7 +293,7 @@ public class HellblockPlugin extends JavaPlugin {
 		}
 
 		int purgeDays = getConfig("config.yml").getInt("hellblock.abandon-after-days", 30);
-		final int purgeTime = Integer.parseInt(String.valueOf(purgeDays), 10) * 24;
+		final int purgeTime = purgeDays * 24;
 		for (File playerData : HellblockPlugin.getInstance().getHellblockHandler().getPlayersDirectory().listFiles()) {
 			if (!playerData.isFile() || !playerData.getName().endsWith(".yml"))
 				continue;
@@ -311,9 +311,9 @@ public class HellblockPlugin extends JavaPlugin {
 				continue;
 
 			OfflinePlayer player = Bukkit.getOfflinePlayer(id);
-			if (player.getLastLogin() == 0)
+			if (player.getLastSeen() == 0)
 				continue;
-			if (player.getLastLogin() > (System.currentTimeMillis() - (purgeTime * 3600000L))) {
+			if (player.getLastSeen() > (System.currentTimeMillis() - (purgeTime * 3600000L))) {
 				YamlConfiguration playerConfig = YamlConfiguration.loadConfiguration(playerData);
 				String ownerID = playerConfig.getString("player.owner");
 				UUID ownerUUID = null;

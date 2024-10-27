@@ -176,6 +176,7 @@ public class WorldGuardHook {
 		if (pi.isAbandoned()) {
 			region.getOwners().clear();
 			region.getMembers().clear();
+			region.setFlag(Flags.ENTRY, StateFlag.State.DENY);
 		}
 	}
 

@@ -95,7 +95,7 @@ public class HellblockAdminCommand {
 						"<red>Please enter a positive number above 0!");
 				return;
 			}
-			final int purgeTime = Integer.parseInt(String.valueOf(purgeDays), 10) * 24;
+			final int purgeTime = purgeDays * 24;
 			int purgeCount = 0;
 			for (File playerData : HellblockPlugin.getInstance().getHellblockHandler().getPlayersDirectory()
 					.listFiles()) {
@@ -115,9 +115,9 @@ public class HellblockAdminCommand {
 					continue;
 
 				OfflinePlayer player = Bukkit.getOfflinePlayer(id);
-				if (player.getLastLogin() == 0)
+				if (player.getLastSeen() == 0)
 					continue;
-				if (player.getLastLogin() > (System.currentTimeMillis() - (purgeTime * 3600000L))) {
+				if (player.getLastSeen() > (System.currentTimeMillis() - (purgeTime * 3600000L))) {
 					YamlConfiguration playerConfig = YamlConfiguration.loadConfiguration(playerData);
 					String ownerID = playerConfig.getString("player.owner");
 					UUID ownerUUID = null;
