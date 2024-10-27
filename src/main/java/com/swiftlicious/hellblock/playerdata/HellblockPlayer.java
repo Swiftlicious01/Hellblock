@@ -3,8 +3,10 @@ package com.swiftlicious.hellblock.playerdata;
 import java.io.File;
 import java.io.IOException;
 import java.util.Calendar;
+import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TimeZone;
@@ -22,6 +24,9 @@ import org.jetbrains.annotations.Nullable;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.generation.HellBiome;
 import com.swiftlicious.hellblock.generation.IslandOptions;
+import com.swiftlicious.hellblock.protection.HellblockFlag;
+import com.swiftlicious.hellblock.protection.HellblockFlag.AccessType;
+import com.swiftlicious.hellblock.protection.HellblockFlag.FlagType;
 import com.swiftlicious.hellblock.utils.LogUtils;
 
 public class HellblockPlayer {
@@ -34,7 +39,7 @@ public class HellblockPlayer {
 	private Set<UUID> hellblockParty;
 	private Set<UUID> whoHasTrusted;
 	private Set<UUID> bannedPlayers;
-	private Set<String> protectionFlags;
+	private Map<FlagType, AccessType> protectionFlags;
 	private Location hellblockLocation;
 	private Location homeLocation;
 	private long creationTime;
@@ -145,14 +150,17 @@ public class HellblockPlayer {
 			} else {
 				this.bannedPlayers = new HashSet<>();
 			}
-			if (this.getHellblockPlayer().contains("player.protection-flags")
-					&& !this.getHellblockPlayer().getStringList("player.protection-flags").isEmpty()) {
-				for (String flags : this.getHellblockPlayer().getStringList("player.protection-flags")) {
-					this.protectionFlags = new HashSet<>();
-					this.protectionFlags.add(flags.toLowerCase());
-				}
+			if (this.getHellblockPlayer().contains("player.protection-flags")) {
+				this.protectionFlags = new HashMap<>();
+				this.getHellblockPlayer().getConfigurationSection("player.protection-flags").getKeys(false)
+						.forEach(key -> {
+							FlagType flag = FlagType.valueOf(key);
+							AccessType status = AccessType
+									.valueOf(this.getHellblockPlayer().getString("player.protection-flags." + key));
+							this.protectionFlags.put(flag, status);
+						});
 			} else {
-				this.protectionFlags = new HashSet<>();
+				this.protectionFlags = new HashMap<>();
 			}
 		} else {
 			this.hellblockID = 0;
@@ -165,7 +173,7 @@ public class HellblockPlayer {
 			this.totalVisitors = 0;
 			this.homeLocation = null;
 			this.hellblockOwner = null;
-			this.protectionFlags = new HashSet<>();
+			this.protectionFlags = new HashMap<>();
 			this.bannedPlayers = new HashSet<>();
 			this.hellblockParty = new HashSet<>();
 		}
@@ -252,19 +260,16 @@ public class HellblockPlayer {
 		return this.isAbandoned;
 	}
 
-	public Set<String> getProtectionFlags() {
+	public Map<FlagType, AccessType> getProtectionFlags() {
 		return this.protectionFlags;
 	}
 
-	public boolean getProtectionValue(String flag) {
-		boolean returnValue = false;
+	public AccessType getProtectionValue(FlagType flag) {
+		AccessType returnValue = AccessType.DENY;
 		if (!this.protectionFlags.isEmpty()) {
-			for (String flags : this.protectionFlags) {
-				String[] allFlags = flags.split(":");
-				String key = allFlags[0];
-				if (key.equalsIgnoreCase(flag)) {
-					String value = allFlags[1];
-					returnValue = value.equalsIgnoreCase("allow") ? true : false;
+			for (Entry<FlagType, AccessType> flags : this.protectionFlags.entrySet()) {
+				if (flags.getKey().getName().equalsIgnoreCase(flag.getName())) {
+					returnValue = flags.getValue();
 					break;
 				}
 			}
@@ -389,29 +394,21 @@ public class HellblockPlayer {
 		this.hellblockLevel = level;
 	}
 
-	public void setProtectionFlags(Set<String> flags) {
-		Set<String> flagsString = flags.stream().filter(Objects::nonNull).filter(flag -> flag.contains(":"))
-				.map(flag -> flag.toString().toLowerCase()).collect(Collectors.toSet());
-		this.protectionFlags = flagsString;
+	public void setProtectionFlags(Map<FlagType, AccessType> flags) {
+		this.protectionFlags = flags;
 	}
 
-	public void setProtectionValue(String flag) {
-		String[] splitValue = flag.split(":");
-		String newKey = splitValue[0];
-		String newFlagValue = splitValue[1];
+	public void setProtectionValue(HellblockFlag flag) {
 		if (!this.protectionFlags.isEmpty()) {
-			for (Iterator<String> iterator = this.protectionFlags.iterator(); iterator.hasNext();) {
-				String value = iterator.next();
-				String[] split = value.split(":");
-				String oldKey = split[0];
-				if (oldKey.equalsIgnoreCase(newKey)) {
-					iterator.remove();
+			for (Entry<FlagType, AccessType> flags : this.protectionFlags.entrySet()) {
+				if (flags.getKey().getName().equalsIgnoreCase(flag.getFlag().getName())) {
+					this.protectionFlags.remove(flag.getFlag());
 				}
 			}
 		}
 
-		if (!newFlagValue.equalsIgnoreCase("deny")) {
-			this.protectionFlags.add(flag.toLowerCase());
+		if (flag.getStatus() == AccessType.ALLOW) {
+			this.protectionFlags.put(flag.getFlag(), flag.getStatus());
 		}
 	}
 
@@ -491,11 +488,12 @@ public class HellblockPlayer {
 				}
 			}
 			if (!this.protectionFlags.isEmpty()) {
-				Set<String> flagsString = this.protectionFlags.stream().filter(Objects::nonNull)
-						.filter(flag -> flag.contains(":allow")).map(String::toString).collect(Collectors.toSet());
 				this.getHellblockPlayer().set("player.protection-flags", null);
-				if (!flagsString.isEmpty()) {
-					this.getHellblockPlayer().set("player.protection-flags", flagsString);
+				for (Map.Entry<FlagType, AccessType> flags : this.protectionFlags.entrySet()) {
+					if (flags.getValue() == AccessType.DENY)
+						continue;
+					this.getHellblockPlayer().set("player.protection-flags." + flags.getKey().toString(),
+							flags.getValue().toString());
 				}
 			}
 		}

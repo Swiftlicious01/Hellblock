@@ -3,9 +3,11 @@ package com.swiftlicious.hellblock.coop;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -29,6 +31,9 @@ import com.sk89q.worldguard.protection.regions.RegionContainer;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.generation.HellBiome;
 import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
+import com.swiftlicious.hellblock.protection.HellblockFlag;
+import com.swiftlicious.hellblock.protection.HellblockFlag.AccessType;
+import com.swiftlicious.hellblock.protection.HellblockFlag.FlagType;
 import com.swiftlicious.hellblock.utils.LocationUtils;
 import com.swiftlicious.hellblock.utils.LogUtils;
 
@@ -249,7 +254,7 @@ public class CoopManager {
 				ti.setHellblock(false, null, 0);
 				ti.setHellblockParty(new HashSet<>());
 				ti.setBannedPlayers(new HashSet<>());
-				ti.setProtectionFlags(new HashSet<>());
+				ti.setProtectionFlags(new HashMap<>());
 				ti.setHome(null);
 				ti.setTotalVisits(0);
 				ti.setLevel(0);
@@ -409,7 +414,7 @@ public class CoopManager {
 				leavingPlayer.setUsedSchematic(null);
 				leavingPlayer.setBannedPlayers(new HashSet<>());
 				leavingPlayer.setHellblockParty(new HashSet<>());
-				leavingPlayer.setProtectionFlags(new HashSet<>());
+				leavingPlayer.setProtectionFlags(new HashMap<>());
 				player.performCommand(instance.getHellblockHandler().getNetherCMD());
 				if (owner != null && owner.isOnline()) {
 					HellblockPlayer ownerPlayer = instance.getHellblockHandler()
@@ -925,7 +930,7 @@ public class CoopManager {
 					active.setTotalVisits(active.getTotalVisitors() + (int) value);
 					break;
 				case "flag":
-					active.setProtectionValue((String) value);
+					active.setProtectionValue((HellblockFlag) value);
 					break;
 				case "leveladd":
 					active.setLevel(active.getLevel() + (float) value);
@@ -999,11 +1004,20 @@ public class CoopManager {
 					offlineFile.set("player.total-visits", offlineFile.getInt("player.total-visits") + (int) value);
 					break;
 				case "flag":
-					List<String> flags = offlineFile.getStringList("player.protection-flags");
-					if (!flags.contains((String) value)) {
-						flags.add((String) value);
+					Map<FlagType, AccessType> flags = new HashMap<>();
+					offlineFile.getConfigurationSection("player.protection-flags").getKeys(false).forEach(key -> {
+						FlagType flag = FlagType.valueOf(key);
+						AccessType status = AccessType.valueOf(offlineFile.getString("player.protection-flags." + key));
+						flags.put(flag, status);
+					});
+					HellblockFlag flag = (HellblockFlag) value;
+					flags.put(flag.getFlag(), flag.getStatus());
+					for (Map.Entry<FlagType, AccessType> entry : flags.entrySet()) {
+						if (entry.getValue() == AccessType.DENY)
+							continue;
+						offlineFile.set("player.protection-flags." + entry.getKey().toString(),
+								entry.getValue().toString());
 					}
-					offlineFile.set("player.protection-flags", flags);
 					break;
 				case "leveladd":
 					offlineFile.set("player.hellblock-level",

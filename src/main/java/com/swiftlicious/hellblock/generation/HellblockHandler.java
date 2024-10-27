@@ -170,7 +170,7 @@ public class HellblockHandler {
 		pi.setLockedStatus(false);
 		pi.setHellblockOwner(player.getUniqueId());
 		pi.setHellblockParty(new HashSet<>());
-		pi.setProtectionFlags(new HashSet<>());
+		pi.setProtectionFlags(new HashMap<>());
 
 		player.teleportAsync(pi.getHomeLocation());
 		instance.debug(String.format("Creating new hellblock for %s", player.getName()));
@@ -221,7 +221,7 @@ public class HellblockHandler {
 				pi.setLockedStatus(false);
 				pi.setIslandChoice(null);
 				pi.setBannedPlayers(new HashSet<>());
-				pi.setProtectionFlags(new HashSet<>());
+				pi.setProtectionFlags(new HashMap<>());
 				List<UUID> visitors = instance.getCoopManager().getVisitors(id);
 				for (UUID uuid : visitors) {
 					Player visitor = Bukkit.getPlayer(uuid);
@@ -289,7 +289,7 @@ public class HellblockHandler {
 							hbMember.setIslandChoice(null);
 							hbMember.setLockedStatus(false);
 							hbMember.setUsedSchematic(null);
-							hbMember.setProtectionFlags(new HashSet<>());
+							hbMember.setProtectionFlags(new HashMap<>());
 							hbMember.setHellblockParty(new HashSet<>());
 							hbMember.setBannedPlayers(new HashSet<>());
 							hbMember.saveHellblockPlayer();

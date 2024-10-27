@@ -22,8 +22,9 @@ import org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason;
 import org.bukkit.event.entity.EntityCombustEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 
-import com.sk89q.worldguard.protection.flags.Flags;
 import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.protection.HellblockFlag;
+import com.swiftlicious.hellblock.protection.HellblockFlag.AccessType;
 
 import lombok.NonNull;
 
@@ -112,7 +113,7 @@ public class NetherSnowGolem implements Listener {
 
 		Snowman hellGolem;
 		if (checkHellGolemBuild(location).size() != 0 && instance.getHellblockHandler().getActivePlayer(player)
-				.getProtectionValue(Flags.MOB_SPAWNING.getName())) {
+				.getProtectionValue(HellblockFlag.FlagType.MOB_SPAWNING) == AccessType.ALLOW) {
 			List<Block> blocks = checkHellGolemBuild(location);
 			for (Block block : blocks) {
 				block.setType(Material.AIR);
