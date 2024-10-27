@@ -38,29 +38,30 @@ public class IslandChoiceConverter {
 		IslandOptions choice = pi.getIslandChoice();
 		switch (choice) {
 		case IslandOptions.DEFAULT:
-			if (instance.getHellblockHandler().getIslandOptions().contains("default")) {
+			if (instance.getHellblockHandler().getIslandOptions().contains(IslandOptions.DEFAULT.toString())) {
 				instance.getIslandGenerator().generateDefaultHellblock(location, player);
 				pi.setHome(new Location(world, x, y + 6.0D, z - 1.0D));
 				return true;
 			} else {
 				instance.getAdventureManager().sendMessageWithPrefix(player,
-						"<red>The default hellblock island type is not available to generate!");
+						"<red>The default hellblock island type isn't available to generate!");
 				return false;
 			}
 		case IslandOptions.CLASSIC:
-			if (instance.getHellblockHandler().getIslandOptions().contains("classic")) {
+			if (instance.getHellblockHandler().getIslandOptions().contains(IslandOptions.CLASSIC.toString())) {
 				instance.getIslandGenerator().generateClassicHellblock(location, player);
 				pi.setHome(new Location(world, x - 4.0D, y + 3.0D, z - 1.0D));
 				return true;
 			} else {
 				instance.getAdventureManager().sendMessageWithPrefix(player,
-						"<red>The classic hellblock island type is not available to generate!");
+						"<red>The classic hellblock island type isn't available to generate!");
 				return false;
 			}
 		case IslandOptions.SCHEMATIC:
 			boolean schematicsAvailable = false;
 			for (String list : instance.getHellblockHandler().getIslandOptions()) {
-				if (list.equalsIgnoreCase("classic") || list.equalsIgnoreCase("default"))
+				if (list.equalsIgnoreCase(IslandOptions.CLASSIC.toString())
+						|| list.equalsIgnoreCase(IslandOptions.DEFAULT.toString()))
 					continue;
 				if (!instance.getSchematicManager().schematicFiles.containsKey(list))
 					continue;

@@ -33,9 +33,9 @@ public class FlagMenu {
 	public FlagMenu(Player player) {
 
 		Gui gui = Gui.normal()
-				.setStructure(" # a b c d e f g # ", " # h i j k l m n # ", " # p q r s t u v # ",
-						" w y z x x x x x o ")
-				.addIngredient('#', new BackGroundItem()).addIngredient('x', new ItemStack(Material.AIR))
+				.setStructure(" # a b c d e f g # ", " # h i j k l m n # ", " # o p q r s t u # ",
+						" v w x y z 1 2 3 @ ")
+				.addIngredient('#', new BackGroundItem()).addIngredient('!', new ItemStack(Material.AIR))
 				.addIngredient('a', new FlagBlockBreakItem(player.getUniqueId()))
 				.addIngredient('b', new FlagBlockPlaceItem(player.getUniqueId()))
 				.addIngredient('c', new FlagPvPItem(player.getUniqueId()))
@@ -43,24 +43,29 @@ public class FlagMenu {
 				.addIngredient('e', new FlagMobDamageItem(player.getUniqueId()))
 				.addIngredient('f', new FlagMobSpawningItem(player.getUniqueId()))
 				.addIngredient('g', new FlagChestAccessItem(player.getUniqueId()))
-				.addIngredient('h', new FlagUseItem(player.getUniqueId()))
-				.addIngredient('i', new FlagUseAnvilItem(player.getUniqueId()))
-				.addIngredient('j', new FlagUseDripleafItem(player.getUniqueId()))
-				.addIngredient('k', new FlagPlaceVehicleItem(player.getUniqueId()))
-				.addIngredient('l', new FlagDestroyVehicleItem(player.getUniqueId()))
-				.addIngredient('m', new FlagRideItem(player.getUniqueId()))
-				.addIngredient('n', new FlagRotateItemFrameItem(player.getUniqueId()))
+				.addIngredient('h', new FlagInteractItem(player.getUniqueId()))
+				.addIngredient('i', new FlagUseItem(player.getUniqueId()))
+				.addIngredient('j', new FlagUseAnvilItem(player.getUniqueId()))
+				.addIngredient('k', new FlagUseDripleafItem(player.getUniqueId()))
+				.addIngredient('l', new FlagPlaceVehicleItem(player.getUniqueId()))
+				.addIngredient('m', new FlagDestroyVehicleItem(player.getUniqueId()))
+				.addIngredient('n', new FlagRideItem(player.getUniqueId()))
+				.addIngredient('o', new FlagRotateItemFrameItem(player.getUniqueId()))
 				.addIngredient('p', new FlagTrampleItem(player.getUniqueId()))
-				.addIngredient('q', new FlagFireworkDamageItem(player.getUniqueId()))
-				.addIngredient('r', new FlagEnderpearlItem(player.getUniqueId()))
-				.addIngredient('s', new FlagChorusFruitItem(player.getUniqueId()))
-				.addIngredient('t', new FlagLighterItem(player.getUniqueId()))
-				.addIngredient('u', new FlagTNTItem(player.getUniqueId()))
-				.addIngredient('v', new FlagRespawnAnchorItem(player.getUniqueId()))
-				.addIngredient('w', new FlagWindChargeBurstItem(player.getUniqueId()))
+				.addIngredient('q', new FlagFallDamageItem(player.getUniqueId()))
+				.addIngredient('r', new FlagFireworkDamageItem(player.getUniqueId()))
+				.addIngredient('s', new FlagEnderpearlItem(player.getUniqueId()))
+				.addIngredient('t', new FlagChorusFruitItem(player.getUniqueId()))
+				.addIngredient('u', new FlagLighterItem(player.getUniqueId()))
+				.addIngredient('v', new FlagTNTItem(player.getUniqueId()))
+				.addIngredient('w', new FlagRespawnAnchorItem(player.getUniqueId()))
+				.addIngredient('x', new FlagWindChargeBurstItem(player.getUniqueId()))
 				.addIngredient('y', new FlagPotionSplashItem(player.getUniqueId()))
 				.addIngredient('z', new FlagSnowmanTrailsItem(player.getUniqueId()))
-				.addIngredient('o', new BackToMainMenuItem()).build();
+				.addIngredient('1', new FlagEnderBuildItem(player.getUniqueId()))
+				.addIngredient('2', new FlagGhastFireballItem(player.getUniqueId()))
+				.addIngredient('3', new FlagHungerDrainItem(player.getUniqueId()))
+				.addIngredient('@', new BackToMainMenuItem()).build();
 
 		Window window = Window
 				.single().setViewer(player).setTitle(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
@@ -416,6 +421,57 @@ public class FlagMenu {
 				HellblockPlugin.getInstance().getIslandProtectionManager().changeProtectionFlag(player.getUniqueId(),
 						new HellblockFlag(HellblockFlag.FlagType.CHEST_ACCESS,
 								(pi.getProtectionValue(HellblockFlag.FlagType.CHEST_ACCESS) == AccessType.ALLOW
+										? AccessType.DENY
+										: AccessType.ALLOW)));
+				new FlagMenu(player);
+			} else {
+				// TODO: using plugin protection
+			}
+		}
+	}
+
+	public class FlagInteractItem extends AbstractItem {
+
+		private UUID playerUUID;
+
+		public FlagInteractItem(UUID playerUUID) {
+			this.playerUUID = playerUUID;
+		}
+
+		@Override
+		public ItemProvider getItemProvider() {
+			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
+				ItemBuilder item = new ItemBuilder(Material.LEVER).addAllItemFlags()
+						.setDisplayName(
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage(String.format("<aqua>%s Flag",
+												StringUtils.capitaliseAllWords(
+														HellblockFlag.FlagType.INTERACT.getName().replace("-", " "))))))
+						.addLoreLines(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
+								.getAdventureManager()
+								.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s",
+										HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(playerUUID)
+												.getProtectionValue(HellblockFlag.FlagType.INTERACT)
+												.getReturnValue()))));
+				if (HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(playerUUID)
+						.getProtectionValue(HellblockFlag.FlagType.INTERACT) == AccessType.ALLOW) {
+					item.addEnchantment(Enchantment.UNBREAKING, 1, false);
+				}
+				return item;
+			} else {
+				return new ItemBuilder(Material.AIR);
+			}
+		}
+
+		@Override
+		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
+				@NotNull InventoryClickEvent event) {
+			HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler()
+					.getActivePlayer(player.getUniqueId());
+			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
+				HellblockPlugin.getInstance().getIslandProtectionManager().changeProtectionFlag(player.getUniqueId(),
+						new HellblockFlag(HellblockFlag.FlagType.INTERACT,
+								(pi.getProtectionValue(HellblockFlag.FlagType.INTERACT) == AccessType.ALLOW
 										? AccessType.DENY
 										: AccessType.ALLOW)));
 				new FlagMenu(player);
@@ -821,6 +877,57 @@ public class FlagMenu {
 				HellblockPlugin.getInstance().getIslandProtectionManager().changeProtectionFlag(player.getUniqueId(),
 						new HellblockFlag(HellblockFlag.FlagType.TRAMPLE_BLOCKS,
 								(pi.getProtectionValue(HellblockFlag.FlagType.TRAMPLE_BLOCKS) == AccessType.ALLOW
+										? AccessType.DENY
+										: AccessType.ALLOW)));
+				new FlagMenu(player);
+			} else {
+				// TODO: using plugin protection
+			}
+		}
+	}
+
+	public class FlagFallDamageItem extends AbstractItem {
+
+		private UUID playerUUID;
+
+		public FlagFallDamageItem(UUID playerUUID) {
+			this.playerUUID = playerUUID;
+		}
+
+		@Override
+		public ItemProvider getItemProvider() {
+			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
+				ItemBuilder item = new ItemBuilder(Material.FEATHER).addAllItemFlags()
+						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
+								.getAdventureManager()
+								.getComponentFromMiniMessage(String.format("<aqua>%s Flag",
+										StringUtils.capitaliseAllWords(
+												HellblockFlag.FlagType.FALL_DAMAGE.getName().replace("-", " "))))))
+						.addLoreLines(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
+								.getAdventureManager()
+								.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s",
+										HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(playerUUID)
+												.getProtectionValue(HellblockFlag.FlagType.FALL_DAMAGE)
+												.getReturnValue()))));
+				if (HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(playerUUID)
+						.getProtectionValue(HellblockFlag.FlagType.FALL_DAMAGE) == AccessType.ALLOW) {
+					item.addEnchantment(Enchantment.UNBREAKING, 1, false);
+				}
+				return item;
+			} else {
+				return new ItemBuilder(Material.AIR);
+			}
+		}
+
+		@Override
+		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
+				@NotNull InventoryClickEvent event) {
+			HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler()
+					.getActivePlayer(player.getUniqueId());
+			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
+				HellblockPlugin.getInstance().getIslandProtectionManager().changeProtectionFlag(player.getUniqueId(),
+						new HellblockFlag(HellblockFlag.FlagType.FALL_DAMAGE,
+								(pi.getProtectionValue(HellblockFlag.FlagType.FALL_DAMAGE) == AccessType.ALLOW
 										? AccessType.DENY
 										: AccessType.ALLOW)));
 				new FlagMenu(player);
@@ -1279,6 +1386,159 @@ public class FlagMenu {
 				HellblockPlugin.getInstance().getIslandProtectionManager().changeProtectionFlag(player.getUniqueId(),
 						new HellblockFlag(HellblockFlag.FlagType.SNOWMAN_TRAILS,
 								(pi.getProtectionValue(HellblockFlag.FlagType.SNOWMAN_TRAILS) == AccessType.ALLOW
+										? AccessType.DENY
+										: AccessType.ALLOW)));
+				new FlagMenu(player);
+			} else {
+				// TODO: using plugin protection
+			}
+		}
+	}
+
+	public class FlagEnderBuildItem extends AbstractItem {
+
+		private UUID playerUUID;
+
+		public FlagEnderBuildItem(UUID playerUUID) {
+			this.playerUUID = playerUUID;
+		}
+
+		@Override
+		public ItemProvider getItemProvider() {
+			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
+				ItemBuilder item = new ItemBuilder(Material.ENDER_CHEST).addAllItemFlags()
+						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
+								.getAdventureManager()
+								.getComponentFromMiniMessage(String.format("<aqua>%s Flag",
+										StringUtils.capitaliseAllWords(
+												HellblockFlag.FlagType.ENDER_BUILD.getName().replace("-", " "))))))
+						.addLoreLines(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
+								.getAdventureManager()
+								.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s",
+										HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(playerUUID)
+												.getProtectionValue(HellblockFlag.FlagType.ENDER_BUILD)
+												.getReturnValue()))));
+				if (HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(playerUUID)
+						.getProtectionValue(HellblockFlag.FlagType.ENDER_BUILD) == AccessType.ALLOW) {
+					item.addEnchantment(Enchantment.UNBREAKING, 1, false);
+				}
+				return item;
+			} else {
+				return new ItemBuilder(Material.AIR);
+			}
+		}
+
+		@Override
+		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
+				@NotNull InventoryClickEvent event) {
+			HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler()
+					.getActivePlayer(player.getUniqueId());
+			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
+				HellblockPlugin.getInstance().getIslandProtectionManager().changeProtectionFlag(player.getUniqueId(),
+						new HellblockFlag(HellblockFlag.FlagType.ENDER_BUILD,
+								(pi.getProtectionValue(HellblockFlag.FlagType.ENDER_BUILD) == AccessType.ALLOW
+										? AccessType.DENY
+										: AccessType.ALLOW)));
+				new FlagMenu(player);
+			} else {
+				// TODO: using plugin protection
+			}
+		}
+	}
+
+	public class FlagGhastFireballItem extends AbstractItem {
+
+		private UUID playerUUID;
+
+		public FlagGhastFireballItem(UUID playerUUID) {
+			this.playerUUID = playerUUID;
+		}
+
+		@Override
+		public ItemProvider getItemProvider() {
+			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
+				ItemBuilder item = new ItemBuilder(Material.GHAST_TEAR).addAllItemFlags()
+						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
+								.getAdventureManager()
+								.getComponentFromMiniMessage(String.format("<aqua>%s Flag",
+										StringUtils.capitaliseAllWords(
+												HellblockFlag.FlagType.GHAST_FIREBALL.getName().replace("-", " "))))))
+						.addLoreLines(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
+								.getAdventureManager()
+								.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s",
+										HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(playerUUID)
+												.getProtectionValue(HellblockFlag.FlagType.GHAST_FIREBALL)
+												.getReturnValue()))));
+				if (HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(playerUUID)
+						.getProtectionValue(HellblockFlag.FlagType.GHAST_FIREBALL) == AccessType.ALLOW) {
+					item.addEnchantment(Enchantment.UNBREAKING, 1, false);
+				}
+				return item;
+			} else {
+				return new ItemBuilder(Material.AIR);
+			}
+		}
+
+		@Override
+		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
+				@NotNull InventoryClickEvent event) {
+			HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler()
+					.getActivePlayer(player.getUniqueId());
+			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
+				HellblockPlugin.getInstance().getIslandProtectionManager().changeProtectionFlag(player.getUniqueId(),
+						new HellblockFlag(HellblockFlag.FlagType.GHAST_FIREBALL,
+								(pi.getProtectionValue(HellblockFlag.FlagType.GHAST_FIREBALL) == AccessType.ALLOW
+										? AccessType.DENY
+										: AccessType.ALLOW)));
+				new FlagMenu(player);
+			} else {
+				// TODO: using plugin protection
+			}
+		}
+	}
+
+	public class FlagHungerDrainItem extends AbstractItem {
+
+		private UUID playerUUID;
+
+		public FlagHungerDrainItem(UUID playerUUID) {
+			this.playerUUID = playerUUID;
+		}
+
+		@Override
+		public ItemProvider getItemProvider() {
+			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
+				ItemBuilder item = new ItemBuilder(Material.ROTTEN_FLESH).addAllItemFlags()
+						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
+								.getAdventureManager()
+								.getComponentFromMiniMessage(String.format("<aqua>%s Flag",
+										StringUtils.capitaliseAllWords(
+												HellblockFlag.FlagType.HUNGER_DRAIN.getName().replace("-", " "))))))
+						.addLoreLines(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
+								.getAdventureManager()
+								.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s",
+										HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(playerUUID)
+												.getProtectionValue(HellblockFlag.FlagType.HUNGER_DRAIN)
+												.getReturnValue()))));
+				if (HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(playerUUID)
+						.getProtectionValue(HellblockFlag.FlagType.HUNGER_DRAIN) == AccessType.ALLOW) {
+					item.addEnchantment(Enchantment.UNBREAKING, 1, false);
+				}
+				return item;
+			} else {
+				return new ItemBuilder(Material.AIR);
+			}
+		}
+
+		@Override
+		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
+				@NotNull InventoryClickEvent event) {
+			HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler()
+					.getActivePlayer(player.getUniqueId());
+			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
+				HellblockPlugin.getInstance().getIslandProtectionManager().changeProtectionFlag(player.getUniqueId(),
+						new HellblockFlag(HellblockFlag.FlagType.HUNGER_DRAIN,
+								(pi.getProtectionValue(HellblockFlag.FlagType.HUNGER_DRAIN) == AccessType.ALLOW
 										? AccessType.DENY
 										: AccessType.ALLOW)));
 				new FlagMenu(player);
