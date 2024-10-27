@@ -317,7 +317,7 @@ public class PlayerListener implements Listener {
 		if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
 			return;
 		final UUID id = player.getUniqueId();
-		if (player.getVelocity().getY() <= 0) {
+		if (player.getLocation().getY() <= 0) {
 			HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(id);
 			if (pi.hasHellblock()) {
 				if (!LocationUtils.isSafeLocation(pi.getHomeLocation())) {

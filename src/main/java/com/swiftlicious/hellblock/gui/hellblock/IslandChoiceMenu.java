@@ -62,7 +62,7 @@ public class IslandChoiceMenu {
 		@Override
 		public ItemProvider getItemProvider() {
 			if (HellblockPlugin.getInstance().getHellblockHandler().getIslandOptions()
-					.contains(IslandOptions.DEFAULT.toString())) {
+					.contains(IslandOptions.DEFAULT.getName())) {
 				return new ItemBuilder(Material.NETHERRACK)
 						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
 								.getAdventureManager().getComponentFromMiniMessage("<red>Default Hellblock Island")))
@@ -76,7 +76,7 @@ public class IslandChoiceMenu {
 										.getComponentFromMiniMessage("<red>Default Hellblock Unavailable!")))
 						.addLoreLines(new ShadedAdventureComponentWrapper(
 								HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
-										"<gold>This type of hellblock isn't available to chosoe!")));
+										"<gold>This type of hellblock isn't available to choose!")));
 			}
 		}
 
@@ -118,7 +118,7 @@ public class IslandChoiceMenu {
 		@Override
 		public ItemProvider getItemProvider() {
 			if (HellblockPlugin.getInstance().getHellblockHandler().getIslandOptions()
-					.contains(IslandOptions.CLASSIC.toString())) {
+					.contains(IslandOptions.CLASSIC.getName())) {
 				return new ItemBuilder(Material.SOUL_SAND)
 						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
 								.getAdventureManager().getComponentFromMiniMessage("<red>Classic Hellblock Island")))
@@ -132,7 +132,7 @@ public class IslandChoiceMenu {
 										.getComponentFromMiniMessage("<red>Classic Hellblock Unavailable!")))
 						.addLoreLines(new ShadedAdventureComponentWrapper(
 								HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
-										"<gold>This type of hellblock isn't available to chosoe!")));
+										"<gold>This type of hellblock isn't available to choose!")));
 			}
 		}
 
@@ -175,8 +175,8 @@ public class IslandChoiceMenu {
 		public ItemProvider getItemProvider() {
 			boolean schematicsAvailable = false;
 			for (String list : HellblockPlugin.getInstance().getHellblockHandler().getIslandOptions()) {
-				if (list.equalsIgnoreCase(IslandOptions.CLASSIC.toString())
-						|| list.equalsIgnoreCase(IslandOptions.DEFAULT.toString()))
+				if (list.equalsIgnoreCase(IslandOptions.CLASSIC.getName())
+						|| list.equalsIgnoreCase(IslandOptions.DEFAULT.getName()))
 					continue;
 				if (!HellblockPlugin.getInstance().getSchematicManager().schematicFiles.containsKey(list))
 					continue;
@@ -216,8 +216,8 @@ public class IslandChoiceMenu {
 				}
 				boolean schematicsAvailable = false;
 				for (String list : HellblockPlugin.getInstance().getHellblockHandler().getIslandOptions()) {
-					if (list.equalsIgnoreCase(IslandOptions.CLASSIC.toString())
-							|| list.equalsIgnoreCase(IslandOptions.DEFAULT.toString()))
+					if (list.equalsIgnoreCase(IslandOptions.CLASSIC.getName())
+							|| list.equalsIgnoreCase(IslandOptions.DEFAULT.getName()))
 						continue;
 					if (!HellblockPlugin.getInstance().getSchematicManager().schematicFiles.containsKey(list))
 						continue;

@@ -23,7 +23,7 @@ import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.world.World;
 import com.sk89q.worldguard.protection.ApplicableRegionSet;
-import com.sk89q.worldguard.protection.flags.Flags;
+import com.sk89q.worldguard.protection.flags.RegionGroup;
 import com.sk89q.worldguard.protection.flags.StateFlag;
 import com.sk89q.worldguard.protection.managers.RegionManager;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
@@ -684,7 +684,8 @@ public class CoopManager {
 				return false;
 			}
 			HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(player);
-			region.setFlag(Flags.ENTRY, pi.getLockedStatus() ? StateFlag.State.DENY : null);
+			StateFlag flag = new StateFlag(HellblockFlag.FlagType.ENTRY.getName(), false, RegionGroup.NON_MEMBERS);
+			region.setFlag(flag, (!pi.getLockedStatus() ? null : StateFlag.State.DENY));
 			return true;
 		} else {
 			// TODO: using plugin protection

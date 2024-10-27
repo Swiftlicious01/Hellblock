@@ -169,7 +169,8 @@ public class IslandLevelHandler implements Listener {
 			YamlConfiguration playerConfig = YamlConfiguration.loadConfiguration(playerData);
 			if (!playerConfig.contains("player.hellblock-level"))
 				continue;
-			float hellblockLevel = (float) playerConfig.getDouble("player-hellblock-level");
+			float hellblockLevel = (float) playerConfig.getDouble("player-hellblock-level",
+					HellblockPlayer.DEFAULT_LEVEL);
 			if (hellblockLevel <= 1.0F)
 				continue;
 

@@ -38,7 +38,7 @@ public class IslandChoiceConverter {
 		IslandOptions choice = pi.getIslandChoice();
 		switch (choice) {
 		case IslandOptions.DEFAULT:
-			if (instance.getHellblockHandler().getIslandOptions().contains(IslandOptions.DEFAULT.toString())) {
+			if (instance.getHellblockHandler().getIslandOptions().contains(IslandOptions.DEFAULT.getName())) {
 				instance.getIslandGenerator().generateDefaultHellblock(location, player);
 				pi.setHome(new Location(world, x, y + 6.0D, z - 1.0D));
 				return true;
@@ -48,7 +48,7 @@ public class IslandChoiceConverter {
 				return false;
 			}
 		case IslandOptions.CLASSIC:
-			if (instance.getHellblockHandler().getIslandOptions().contains(IslandOptions.CLASSIC.toString())) {
+			if (instance.getHellblockHandler().getIslandOptions().contains(IslandOptions.CLASSIC.getName())) {
 				instance.getIslandGenerator().generateClassicHellblock(location, player);
 				pi.setHome(new Location(world, x - 4.0D, y + 3.0D, z - 1.0D));
 				return true;
@@ -60,8 +60,8 @@ public class IslandChoiceConverter {
 		case IslandOptions.SCHEMATIC:
 			boolean schematicsAvailable = false;
 			for (String list : instance.getHellblockHandler().getIslandOptions()) {
-				if (list.equalsIgnoreCase(IslandOptions.CLASSIC.toString())
-						|| list.equalsIgnoreCase(IslandOptions.DEFAULT.toString()))
+				if (list.equalsIgnoreCase(IslandOptions.CLASSIC.getName())
+						|| list.equalsIgnoreCase(IslandOptions.DEFAULT.getName()))
 					continue;
 				if (!instance.getSchematicManager().schematicFiles.containsKey(list))
 					continue;

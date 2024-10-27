@@ -6,7 +6,7 @@ import org.bukkit.World;
 import org.jetbrains.annotations.NotNull;
 
 public class StringUtils {
-	
+
 	private StringUtils() {
 		throw new UnsupportedOperationException("This class cannot be instantiated");
 	}
@@ -18,6 +18,33 @@ public class StringUtils {
 			camelCaseString.append(toProperCase(part));
 		}
 		return camelCaseString.toString();
+	}
+
+	/**
+	 * Converts a name like IRON_INGOT into Iron Ingot to improve readability
+	 *
+	 * @param ugly The string such as IRON_INGOT
+	 * @return A nicer version, such as Iron Ingot
+	 *
+	 *         Credits to mikenon on GitHub!
+	 */
+	public static String prettifyText(String ugly) {
+		StringBuilder fin = new StringBuilder();
+		ugly = ugly.toLowerCase(java.util.Locale.ENGLISH);
+		if (ugly.contains("_")) {
+			String[] splt = ugly.split("_");
+			int i = 0;
+			for (String s : splt) {
+				i += 1;
+				fin.append(Character.toUpperCase(s.charAt(0))).append(s.substring(1));
+				if (i < splt.length) {
+					fin.append(" ");
+				}
+			}
+		} else {
+			fin.append(Character.toUpperCase(ugly.charAt(0))).append(ugly.substring(1));
+		}
+		return fin.toString();
 	}
 
 	public static String toProperCase(String s) {

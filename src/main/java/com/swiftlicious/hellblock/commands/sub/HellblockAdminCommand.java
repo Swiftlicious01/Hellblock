@@ -3,6 +3,7 @@ package com.swiftlicious.hellblock.commands.sub;
 import java.io.File;
 import java.io.IOException;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import org.bukkit.Bukkit;
@@ -95,7 +96,6 @@ public class HellblockAdminCommand {
 						"<red>Please enter a positive number above 0!");
 				return;
 			}
-			final int purgeTime = purgeDays * 24;
 			int purgeCount = 0;
 			for (File playerData : HellblockPlugin.getInstance().getHellblockHandler().getPlayersDirectory()
 					.listFiles()) {
@@ -115,11 +115,18 @@ public class HellblockAdminCommand {
 					continue;
 
 				OfflinePlayer player = Bukkit.getOfflinePlayer(id);
-				if (player.getLastSeen() == 0)
+				if (player.getLastLogin() == 0)
 					continue;
-				if (player.getLastSeen() > (System.currentTimeMillis() - (purgeTime * 3600000L))) {
+				long millisSinceLastLogin = (System.currentTimeMillis() - player.getLastLogin()) -
+				// Account for a timezone difference
+						TimeUnit.MILLISECONDS.toHours(19);
+				if (millisSinceLastLogin > TimeUnit.DAYS.toMillis(purgeDays)) {
 					YamlConfiguration playerConfig = YamlConfiguration.loadConfiguration(playerData);
+					if (playerConfig.getKeys(true).size() == 0)
+						continue;
 					String ownerID = playerConfig.getString("player.owner");
+					if (ownerID == null)
+						continue;
 					UUID ownerUUID = null;
 					try {
 						ownerUUID = UUID.fromString(ownerID);

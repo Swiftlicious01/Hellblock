@@ -83,9 +83,9 @@ public class LavaRainTask implements Runnable {
 								getHowLongItWillLavaRainFor() > 0 ? getHowLongItWillLavaRainFor() - 1 : 0);
 						return;
 					}
-
+					
 					player = players.next().getPlayer();
-				} while (!player.isOp());
+				} while (player != null && !player.isOp());
 
 				Location location = player.getLocation();
 				if (location == null)

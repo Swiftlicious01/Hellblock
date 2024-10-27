@@ -27,7 +27,8 @@ public class HellblockFlag {
 		FIREWORK_DAMAGE("firework-damage"), RESPAWN_ANCHORS("respawn-anchors"), WIND_CHARGE_BURST("wind-charge-burst"),
 		POTION_SPLASH("potion-splash"), INTERACT("interact"), SNOWMAN_TRAILS("snowman-trails"),
 		ENDER_BUILD("enderman-grief"), GHAST_FIREBALL("ghast-fireball"), FALL_DAMAGE("fall-damage"),
-		HUNGER_DRAIN("natural-hunger-drain");
+		HUNGER_DRAIN("natural-hunger-drain"), ENTRY("entry"), GREETING_MESSAGE("greeting"),
+		FAREWELL_MESSAGE("farewell"), INVINCIBILITY("invincible");
 
 		private String name;
 

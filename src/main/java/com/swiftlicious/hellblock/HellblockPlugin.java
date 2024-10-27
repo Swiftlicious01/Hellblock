@@ -293,56 +293,66 @@ public class HellblockPlugin extends JavaPlugin {
 		}
 
 		int purgeDays = getConfig("config.yml").getInt("hellblock.abandon-after-days", 30);
-		final int purgeTime = purgeDays * 24;
-		for (File playerData : HellblockPlugin.getInstance().getHellblockHandler().getPlayersDirectory().listFiles()) {
-			if (!playerData.isFile() || !playerData.getName().endsWith(".yml"))
-				continue;
-			String uuid = Files.getNameWithoutExtension(playerData.getName());
-			UUID id = null;
-			try {
-				id = UUID.fromString(uuid);
-			} catch (IllegalArgumentException ignored) {
-				// ignored
-				continue;
-			}
-			if (id == null)
-				continue;
-			if (!Bukkit.getOfflinePlayer(id).hasPlayedBefore())
-				continue;
-
-			OfflinePlayer player = Bukkit.getOfflinePlayer(id);
-			if (player.getLastSeen() == 0)
-				continue;
-			if (player.getLastSeen() > (System.currentTimeMillis() - (purgeTime * 3600000L))) {
-				YamlConfiguration playerConfig = YamlConfiguration.loadConfiguration(playerData);
-				String ownerID = playerConfig.getString("player.owner");
-				UUID ownerUUID = null;
+		if (purgeDays > 0) {
+			for (File playerData : HellblockPlugin.getInstance().getHellblockHandler().getPlayersDirectory()
+					.listFiles()) {
+				if (!playerData.isFile() || !playerData.getName().endsWith(".yml"))
+					continue;
+				String uuid = Files.getNameWithoutExtension(playerData.getName());
+				UUID id = null;
 				try {
-					ownerUUID = UUID.fromString(ownerID);
+					id = UUID.fromString(uuid);
 				} catch (IllegalArgumentException ignored) {
 					// ignored
 					continue;
 				}
-				if (ownerUUID == null)
+				if (id == null)
 					continue;
-				if (getHellblockHandler().isHellblockOwner(id, ownerUUID)) {
-					float level = (float) playerConfig.getDouble("player.hellblock-level",
-							HellblockPlayer.DEFAULT_LEVEL);
-					if (level == HellblockPlayer.DEFAULT_LEVEL) {
+				if (!Bukkit.getOfflinePlayer(id).hasPlayedBefore())
+					continue;
 
-						playerConfig.set("player.abandoned", true);
-						try {
-							playerConfig.save(playerData);
-						} catch (IOException ex) {
-							LogUtils.warn(
-									String.format("Could not save the player data file as abandoned for %s", uuid), ex);
-							continue;
-						}
-						if (HellblockPlugin.getInstance().getWorldGuardHandler().getRegion(ownerUUID) != null) {
-							HellblockPlugin.getInstance().getWorldGuardHandler().updateHellblockMessages(ownerUUID,
-									HellblockPlugin.getInstance().getWorldGuardHandler().getRegion(ownerUUID));
-							HellblockPlugin.getInstance().getWorldGuardHandler().abandonIsland(ownerUUID,
-									HellblockPlugin.getInstance().getWorldGuardHandler().getRegion(ownerUUID));
+				OfflinePlayer player = Bukkit.getOfflinePlayer(id);
+				if (player.getLastLogin() == 0)
+					continue;
+				long millisSinceLastLogin = (System.currentTimeMillis() - player.getLastLogin()) -
+				// Account for a timezone difference
+						TimeUnit.MILLISECONDS.toHours(19);
+				if (millisSinceLastLogin > TimeUnit.DAYS.toMillis(purgeDays)) {
+					YamlConfiguration playerConfig = YamlConfiguration.loadConfiguration(playerData);
+					if (playerConfig.getKeys(true).size() == 0)
+						continue;
+					String ownerID = playerConfig.getString("player.owner");
+					if (ownerID == null)
+						continue;
+					UUID ownerUUID = null;
+					try {
+						ownerUUID = UUID.fromString(ownerID);
+					} catch (IllegalArgumentException ignored) {
+						// ignored
+						continue;
+					}
+					if (ownerUUID == null)
+						continue;
+					if (getHellblockHandler().isHellblockOwner(id, ownerUUID)) {
+						float level = (float) playerConfig.getDouble("player.hellblock-level",
+								HellblockPlayer.DEFAULT_LEVEL);
+						if (level == HellblockPlayer.DEFAULT_LEVEL) {
+
+							playerConfig.set("player.abandoned", true);
+							try {
+								playerConfig.save(playerData);
+							} catch (IOException ex) {
+								LogUtils.warn(
+										String.format("Could not save the player data file as abandoned for %s", uuid),
+										ex);
+								continue;
+							}
+							if (HellblockPlugin.getInstance().getWorldGuardHandler().getRegion(ownerUUID) != null) {
+								HellblockPlugin.getInstance().getWorldGuardHandler().updateHellblockMessages(ownerUUID,
+										HellblockPlugin.getInstance().getWorldGuardHandler().getRegion(ownerUUID));
+								HellblockPlugin.getInstance().getWorldGuardHandler().abandonIsland(ownerUUID,
+										HellblockPlugin.getInstance().getWorldGuardHandler().getRegion(ownerUUID));
+							}
 						}
 					}
 				}

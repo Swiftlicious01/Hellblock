@@ -21,8 +21,9 @@ import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldguard.domains.DefaultDomain;
 import com.sk89q.worldguard.internal.platform.WorldGuardPlatform;
 import com.sk89q.worldguard.protection.ApplicableRegionSet;
-import com.sk89q.worldguard.protection.flags.Flags;
+import com.sk89q.worldguard.protection.flags.RegionGroup;
 import com.sk89q.worldguard.protection.flags.StateFlag;
+import com.sk89q.worldguard.protection.flags.StringFlag;
 import com.sk89q.worldguard.protection.managers.RegionManager;
 import com.sk89q.worldguard.protection.regions.ProtectedCuboidRegion;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
@@ -30,6 +31,7 @@ import com.sk89q.worldguard.protection.regions.RegionContainer;
 import com.sk89q.worldguard.protection.regions.RegionQuery;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
+import com.swiftlicious.hellblock.protection.HellblockFlag;
 import com.swiftlicious.hellblock.utils.LogUtils;
 
 import lombok.Getter;
@@ -49,7 +51,6 @@ public class WorldGuardHook {
 
 	public void protectHellblock(Player player) {
 		try {
-			ProtectedRegion region = null;
 			if (this.worldGuardPlatform == null) {
 				LogUtils.severe("Could not retrieve WorldGuard platform.");
 				return;
@@ -64,10 +65,11 @@ public class WorldGuardHook {
 			}
 			HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(player);
 			DefaultDomain owners = new DefaultDomain();
-			region = new ProtectedCuboidRegion(String.format("%sHellblock", player.getName()),
+			ProtectedRegion region = new ProtectedCuboidRegion(String.format("%sHellblock", player.getName()),
 					getProtectionVectorLeft(pi.getHellblockLocation()),
 					getProtectionVectorRight(pi.getHellblockLocation()));
 			owners.addPlayer(player.getUniqueId());
+			region.setParent(regionManager.getRegion(ProtectedRegion.GLOBAL_REGION));
 			region.setOwners(owners);
 			region.setPriority(100);
 			updateHellblockMessages(player.getUniqueId(), region);
@@ -127,7 +129,6 @@ public class WorldGuardHook {
 		}
 	}
 
-	@SuppressWarnings("deprecation")
 	public void updateHellblockMessages(UUID id, ProtectedRegion region) {
 		HellblockPlayer pi;
 		if (instance.getHellblockHandler().getActivePlayers().get(id) != null) {
@@ -142,23 +143,25 @@ public class WorldGuardHook {
 			LogUtils.warn("Failed to retrieve player's username to update hellblock entry and farewell messages.");
 			return;
 		}
+		StringFlag greetFlag = new StringFlag(HellblockFlag.FlagType.GREETING_MESSAGE.getName(), RegionGroup.ALL);
 		if (instance.getHellblockHandler().isEntryMessageEnabled()) {
 			if (!pi.isAbandoned()) {
-				region.setFlag(Flags.GREET_MESSAGE, String.format("&cYou're entering &4%s&c's Hellblock!", name));
+				region.setFlag(greetFlag, String.format("&cYou're entering &4%s&c's Hellblock!", name));
 			} else {
-				region.setFlag(Flags.GREET_MESSAGE, "&4** &cYou're entering an abandoned Hellblock! &4**");
+				region.setFlag(greetFlag, "&4** &cYou're entering an abandoned Hellblock! &4**");
 			}
 		} else {
-			region.setFlag(Flags.GREET_MESSAGE, null);
+			region.setFlag(greetFlag, null);
 		}
+		StringFlag farewellFlag = new StringFlag(HellblockFlag.FlagType.FAREWELL_MESSAGE.getName(), RegionGroup.ALL);
 		if (instance.getHellblockHandler().isFarewellMessageEnabled()) {
 			if (!pi.isAbandoned()) {
-				region.setFlag(Flags.FAREWELL_MESSAGE, String.format("&cYou're leaving &4%s&c's Hellblock!", name));
+				region.setFlag(farewellFlag, String.format("&cYou're leaving &4%s&c's Hellblock!", name));
 			} else {
-				region.setFlag(Flags.FAREWELL_MESSAGE, "&4** &cYou're leaving an abandoned Hellblock! &4**");
+				region.setFlag(farewellFlag, "&4** &cYou're leaving an abandoned Hellblock! &4**");
 			}
 		} else {
-			region.setFlag(Flags.FAREWELL_MESSAGE, null);
+			region.setFlag(farewellFlag, null);
 		}
 	}
 
@@ -179,8 +182,10 @@ public class WorldGuardHook {
 		if (pi.isAbandoned()) {
 			region.getOwners().clear();
 			region.getMembers().clear();
-			region.setFlag(Flags.PVP, StateFlag.State.DENY);
-			region.setFlag(Flags.ENTRY, StateFlag.State.DENY);
+			StateFlag pvpFlag = new StateFlag(HellblockFlag.FlagType.PVP.getName(), false, RegionGroup.ALL);
+			region.setFlag(pvpFlag, StateFlag.State.DENY);
+			StateFlag entryFlag = new StateFlag(HellblockFlag.FlagType.ENTRY.getName(), false, RegionGroup.ALL);
+			region.setFlag(entryFlag, StateFlag.State.DENY);
 		}
 	}
 
@@ -287,10 +292,13 @@ public class WorldGuardHook {
 						instance.getHellblockHandler().getWorldName()));
 				return;
 			}
-			region.setParent(regionManager.getRegion("__GLOBAL__"));
+			region.setParent(regionManager.getRegion(ProtectedRegion.GLOBAL_REGION));
 			region.setPriority(100);
-			region.setFlag(Flags.INVINCIBILITY, StateFlag.State.ALLOW);
-			region.setFlag(Flags.PVP, StateFlag.State.DENY);
+			StateFlag invincibilityFlag = new StateFlag(HellblockFlag.FlagType.INVINCIBILITY.getName(), false,
+					RegionGroup.ALL);
+			region.setFlag(invincibilityFlag, StateFlag.State.ALLOW);
+			StateFlag pvpFlag = new StateFlag(HellblockFlag.FlagType.PVP.getName(), false, RegionGroup.ALL);
+			region.setFlag(pvpFlag, StateFlag.State.DENY);
 			regionManager.addRegion(region);
 			regionManager.save();
 		} catch (Exception ex) {

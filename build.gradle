@@ -105,6 +105,8 @@ allprojects {
         // nbt
         implementation 'com.saicone.rtag:rtag:1.5.7'
         implementation 'com.saicone.rtag:rtag-item:1.5.7'
+        
+        implementation 'io.papermc:paperlib:1.0.7'
     }
 
     compileJava {
@@ -137,6 +139,7 @@ allprojects {
         relocate 'com.saicone.rtag', 'com.swiftlicious.hellblock.lib.rtag'
         relocate 'dev.jorel.commandapi', 'com.swiftlicious.hellblock.lib.commandapi'
         relocate 'dev.dejvokep.boostedyaml', 'com.swiftlicious.hellblock.lib.boostedyaml'
+        relocate 'io.papermc.lib', 'com.swiftlicious.hellblock.lib.paperlib'
     }
 }
 

@@ -44,7 +44,7 @@ public class IslandProtection {
 			pi.saveHellblockPlayer();
 			instance.getCoopManager().updateParty(id, "flag", flag);
 			StateFlag newFlag = new StateFlag(flag.getFlag().getName(), false, RegionGroup.NON_MEMBERS);
-			region.setFlag(newFlag, flag.getStatus() == AccessType.ALLOW ? null : StateFlag.State.DENY);
+			region.setFlag(newFlag, (flag.getStatus() == AccessType.ALLOW ? null : StateFlag.State.DENY));
 			return true;
 		} else {
 			// TODO: using plugin protection
