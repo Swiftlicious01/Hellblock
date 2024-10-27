@@ -1,10 +1,13 @@
 package com.swiftlicious.hellblock.utils;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 
 import org.bukkit.block.Biome;
+
+import com.swiftlicious.hellblock.generation.HellBiome;
 
 import lombok.NonNull;
 
@@ -136,9 +139,8 @@ public class RandomUtils {
 	 * @return a random biome
 	 */
 	public static @NonNull Biome generateRandomBiome() {
-		List<Biome> biomes = List.of(Biome.NETHER_WASTES, Biome.CRIMSON_FOREST, Biome.WARPED_FOREST,
-				Biome.SOUL_SAND_VALLEY, Biome.BASALT_DELTAS);
-		int randomIndex = getInstance().random.nextInt(biomes.size()) + 1;
-		return biomes.get(randomIndex);
+		List<HellBiome> biomes = Arrays.asList(HellBiome.values());
+		int randomIndex = getInstance().random.nextInt(biomes.size());
+		return Biome.valueOf(biomes.get(randomIndex).toString());
 	}
 }
