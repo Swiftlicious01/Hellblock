@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import org.bukkit.Bukkit;
@@ -149,7 +150,7 @@ public class BiomeHandler {
 							hbPlayer.getHomeLocation());
 				}
 				player.teleportAsync(hbPlayer.getHomeLocation());
-				List<UUID> party = hbPlayer.getHellblockParty();
+				Set<UUID> party = hbPlayer.getHellblockParty();
 				if (party != null && !party.isEmpty()) {
 					for (UUID id : party) {
 						Player member = Bukkit.getPlayer(id);

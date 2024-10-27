@@ -247,8 +247,8 @@ public class CoopManager {
 
 				party.remove(id);
 				ti.setHellblock(false, null, 0);
-				ti.setHellblockParty(new ArrayList<>());
-				ti.setBannedPlayers(new ArrayList<>());
+				ti.setHellblockParty(new HashSet<>());
+				ti.setBannedPlayers(new HashSet<>());
 				ti.setProtectionFlags(new HashSet<>());
 				ti.setHome(null);
 				ti.setTotalVisits(0);
@@ -356,21 +356,46 @@ public class CoopManager {
 				} else {
 					owner = Bukkit.getOfflinePlayer(leavingPlayer.getHellblockOwner());
 				}
-				ProtectedRegion region = owner.getName() != null ? regions.getRegion(owner.getName() + "Hellblock")
+				ProtectedRegion region = owner.hasPlayedBefore() && owner.getName() != null
+						? regions.getRegion(owner.getName() + "Hellblock")
 						: null;
 				if (region == null) {
 					instance.getAdventureManager().sendMessageWithPrefix(player,
 							"<red>An error has occurred. Please report this to the developer.");
 					return;
 				}
-				Set<UUID> party = region.getMembers().getUniqueIds();
-				if (!party.contains(player.getUniqueId())) {
-					instance.getAdventureManager().sendMessageWithPrefix(player,
-							"<red>You aren't a part of this hellblock island!");
-					return;
+
+				Set<UUID> party = new HashSet<>();
+
+				HellblockPlayer ti = null;
+				if (HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers()
+						.containsKey(owner.getUniqueId())) {
+					ti = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers()
+							.get(owner.getUniqueId());
+				} else {
+					ti = new HellblockPlayer(owner.getUniqueId());
+				}
+				if (!ti.isAbandoned()) {
+					party = region.getMembers().getUniqueIds();
+					if (!party.contains(player.getUniqueId())) {
+						instance.getAdventureManager().sendMessageWithPrefix(player,
+								"<red>You aren't a part of this hellblock island!");
+						return;
+					}
+				} else {
+					party = ti.getHellblockParty();
+					if (!party.contains(player.getUniqueId())) {
+						instance.getAdventureManager().sendMessageWithPrefix(player,
+								"<red>You aren't a part of this hellblock island!");
+						return;
+					}
 				}
 
-				party.remove(player.getUniqueId());
+				if (!ti.isAbandoned()) {
+					party.remove(player.getUniqueId());
+				} else {
+					ti.kickFromHellblockParty(player.getUniqueId());
+				}
 				leavingPlayer.setHellblock(false, null, 0);
 				leavingPlayer.setHome(null);
 				leavingPlayer.setHellblockBiome(null);
@@ -382,8 +407,8 @@ public class CoopManager {
 				leavingPlayer.setBiomeCooldown(0L);
 				leavingPlayer.setIslandChoice(null);
 				leavingPlayer.setUsedSchematic(null);
-				leavingPlayer.setBannedPlayers(new ArrayList<>());
-				leavingPlayer.setHellblockParty(new ArrayList<>());
+				leavingPlayer.setBannedPlayers(new HashSet<>());
+				leavingPlayer.setHellblockParty(new HashSet<>());
 				leavingPlayer.setProtectionFlags(new HashSet<>());
 				player.performCommand(instance.getHellblockHandler().getNetherCMD());
 				if (owner != null && owner.isOnline()) {
@@ -614,9 +639,9 @@ public class CoopManager {
 			ProtectedRegion region = regions.getRegion((Bukkit.getPlayer(id) != null ? Bukkit.getPlayer(id).getName()
 					: Bukkit.getOfflinePlayer(id).hasPlayedBefore() && Bukkit.getOfflinePlayer(id).getName() != null
 							? Bukkit.getOfflinePlayer(id).getName()
-							: "?")
+							: null)
 					+ "Hellblock");
-			if (region != null && !region.getId().equals("?Hellblock")) {
+			if (region != null) {
 				instance.getHellblockHandler().getActivePlayers().values().forEach(player -> {
 					Player onlinePlayer = player.getPlayer();
 					if (onlinePlayer != null && onlinePlayer.isOnline()) {
@@ -724,9 +749,9 @@ public class CoopManager {
 			ProtectedRegion region = regions.getRegion((Bukkit.getPlayer(id) != null ? Bukkit.getPlayer(id).getName()
 					: Bukkit.getOfflinePlayer(id).hasPlayedBefore() && Bukkit.getOfflinePlayer(id).getName() != null
 							? Bukkit.getOfflinePlayer(id).getName()
-							: "?")
+							: null)
 					+ "Hellblock");
-			if (region == null || region.getId().equals("?Hellblock")) {
+			if (region == null) {
 				instance.getAdventureManager().sendMessageWithPrefix(player,
 						"<red>An error has occurred. Please report this to the developer.");
 				return false;
@@ -769,9 +794,9 @@ public class CoopManager {
 						? Bukkit.getPlayer(id).getName()
 						: Bukkit.getOfflinePlayer(id).hasPlayedBefore() && Bukkit.getOfflinePlayer(id).getName() != null
 								? Bukkit.getOfflinePlayer(id).getName()
-								: "?")
+								: null)
 						+ "Hellblock");
-				if (region != null && !region.getId().equals("?Hellblock")) {
+				if (region != null) {
 					List<UUID> visitors = getVisitors(id);
 					for (UUID visitor : visitors) {
 						HellblockPlayer vi = instance.getHellblockHandler().getActivePlayer(visitor);
@@ -1048,8 +1073,8 @@ public class CoopManager {
 						Bukkit.getOfflinePlayer(bannedFromUUID).hasPlayedBefore()
 								&& Bukkit.getOfflinePlayer(bannedFromUUID).getName() != null
 										? Bukkit.getOfflinePlayer(bannedFromUUID).getName()
-										: "?"));
-				if (region == null || region.getId().equals("?Hellblock")) {
+										: null));
+				if (region == null) {
 					return false;
 				}
 				onBannedIsland = instance.getWorldGuardHandler().isPlayerInAnyRegion(id, region.getId());

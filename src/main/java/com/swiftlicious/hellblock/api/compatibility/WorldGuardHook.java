@@ -117,11 +117,14 @@ public class WorldGuardHook {
 			LogUtils.severe("Could not find the player restarting their hellblock at this time.");
 			return;
 		}
-		regionManager.removeRegion(String.format("%sHellblock",
+		String regionName = String.format("%sHellblock",
 				(!force ? pi.getPlayer().getName()
 						: Bukkit.getOfflinePlayer(id).hasPlayedBefore() && Bukkit.getOfflinePlayer(id).getName() != null
 								? Bukkit.getOfflinePlayer(id).getName()
-								: "?")));
+								: null));
+		if (regionName != null) {
+			regionManager.removeRegion(regionName);
+		}
 	}
 
 	@SuppressWarnings("deprecation")
@@ -134,8 +137,8 @@ public class WorldGuardHook {
 		}
 		String name = Bukkit.getOfflinePlayer(id).hasPlayedBefore() && Bukkit.getOfflinePlayer(id).getName() != null
 				? Bukkit.getOfflinePlayer(id).getName()
-				: "?";
-		if (name.equals("?")) {
+				: null;
+		if (name == null) {
 			LogUtils.warn("Failed to retrieve player's username to update hellblock entry and farewell messages.");
 			return;
 		}
@@ -168,8 +171,8 @@ public class WorldGuardHook {
 		}
 		String name = Bukkit.getOfflinePlayer(id).hasPlayedBefore() && Bukkit.getOfflinePlayer(id).getName() != null
 				? Bukkit.getOfflinePlayer(id).getName()
-				: "?";
-		if (name.equals("?")) {
+				: null;
+		if (name == null) {
 			LogUtils.warn("Failed to retrieve player's username to update hellblock region groups.");
 			return;
 		}
@@ -221,8 +224,8 @@ public class WorldGuardHook {
 		ProtectedRegion region = regionManager.getRegion(String.format("%sHellblock",
 				Bukkit.getOfflinePlayer(id).hasPlayedBefore() && Bukkit.getOfflinePlayer(id).getName() != null
 						? Bukkit.getOfflinePlayer(id).getName()
-						: "?"));
-		if (region == null || region.getId().equals("?Hellblock")) {
+						: null));
+		if (region == null) {
 			return new ArrayList<>();
 		}
 
@@ -255,8 +258,8 @@ public class WorldGuardHook {
 		ProtectedRegion region = regionManager.getRegion(String.format("%sHellblock",
 				Bukkit.getOfflinePlayer(id).hasPlayedBefore() && Bukkit.getOfflinePlayer(id).getName() != null
 						? Bukkit.getOfflinePlayer(id).getName()
-						: "?"));
-		if (region == null || region.getId().equals("?Hellblock")) {
+						: null));
+		if (region == null) {
 			return null;
 		}
 

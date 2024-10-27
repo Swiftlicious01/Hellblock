@@ -2,11 +2,11 @@ package com.swiftlicious.hellblock.generation;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
@@ -169,7 +169,7 @@ public class HellblockHandler {
 		pi.setBiomeCooldown(0L);
 		pi.setLockedStatus(false);
 		pi.setHellblockOwner(player.getUniqueId());
-		pi.setHellblockParty(new ArrayList<>());
+		pi.setHellblockParty(new HashSet<>());
 		pi.setProtectionFlags(new HashSet<>());
 
 		player.teleportAsync(pi.getHomeLocation());
@@ -220,7 +220,7 @@ public class HellblockHandler {
 				pi.setUsedSchematic(null);
 				pi.setLockedStatus(false);
 				pi.setIslandChoice(null);
-				pi.setBannedPlayers(new ArrayList<>());
+				pi.setBannedPlayers(new HashSet<>());
 				pi.setProtectionFlags(new HashSet<>());
 				List<UUID> visitors = instance.getCoopManager().getVisitors(id);
 				for (UUID uuid : visitors) {
@@ -272,7 +272,7 @@ public class HellblockHandler {
 						continue;
 					}
 				}
-				List<UUID> party = pi.getHellblockParty();
+				Set<UUID> party = pi.getHellblockParty();
 				if (party != null && !party.isEmpty()) {
 					for (UUID uuid : party) {
 						Player member = Bukkit.getPlayer(uuid);
@@ -290,8 +290,8 @@ public class HellblockHandler {
 							hbMember.setLockedStatus(false);
 							hbMember.setUsedSchematic(null);
 							hbMember.setProtectionFlags(new HashSet<>());
-							hbMember.setHellblockParty(new ArrayList<>());
-							hbMember.setBannedPlayers(new ArrayList<>());
+							hbMember.setHellblockParty(new HashSet<>());
+							hbMember.setBannedPlayers(new HashSet<>());
 							hbMember.saveHellblockPlayer();
 							member.performCommand(getNetherCMD());
 							if (!forceReset) {
@@ -333,7 +333,7 @@ public class HellblockHandler {
 						}
 					}
 				}
-				pi.setHellblockParty(new ArrayList<>());
+				pi.setHellblockParty(new HashSet<>());
 				pi.saveHellblockPlayer();
 				break;
 			}

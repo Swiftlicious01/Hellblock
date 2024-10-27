@@ -1,7 +1,7 @@
 package com.swiftlicious.hellblock.gui.hellblock;
 
 import java.io.IOException;
-import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import org.bukkit.Bukkit;
@@ -94,7 +94,7 @@ public class CoopMenu {
 		@Override
 		public ItemProvider getItemProvider() {
 			HellblockPlayer hbPlayer = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(playerUUID);
-			List<UUID> party = hbPlayer.getHellblockParty();
+			Set<UUID> party = hbPlayer.getHellblockParty();
 			for (UUID uuid : party) {
 				try {
 					input = Bukkit.getOfflinePlayer(uuid).hasPlayedBefore()
