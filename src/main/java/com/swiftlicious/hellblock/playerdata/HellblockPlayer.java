@@ -51,7 +51,7 @@ public class HellblockPlayer {
 	private File file;
 	private YamlConfiguration pi;
 
-	private final static float DEFAULT_LEVEL = 1.0F;
+	public final static float DEFAULT_LEVEL = 1.0F;
 
 	public HellblockPlayer(UUID id) {
 		this.id = id;

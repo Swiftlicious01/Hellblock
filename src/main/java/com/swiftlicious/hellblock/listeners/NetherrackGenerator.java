@@ -253,7 +253,7 @@ public class NetherrackGenerator implements Listener {
 			genCount++;
 		}
 
-		return genCount != 0;
+		return genCount > 0;
 	}
 
 	public @NonNull Map<Material, Double> getResults() {

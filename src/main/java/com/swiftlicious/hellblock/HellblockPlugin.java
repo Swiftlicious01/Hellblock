@@ -326,20 +326,24 @@ public class HellblockPlugin extends JavaPlugin {
 				if (ownerUUID == null)
 					continue;
 				if (getHellblockHandler().isHellblockOwner(id, ownerUUID)) {
+					float level = (float) playerConfig.getDouble("player.hellblock-level",
+							HellblockPlayer.DEFAULT_LEVEL);
+					if (level == HellblockPlayer.DEFAULT_LEVEL) {
 
-					playerConfig.set("player.abandoned", true);
-					try {
-						playerConfig.save(playerData);
-					} catch (IOException ex) {
-						LogUtils.warn(String.format("Could not save the player data file as abandoned for %s", uuid),
-								ex);
-						continue;
-					}
-					if (HellblockPlugin.getInstance().getWorldGuardHandler().getRegion(ownerUUID) != null) {
-						HellblockPlugin.getInstance().getWorldGuardHandler().updateHellblockMessages(ownerUUID,
-								HellblockPlugin.getInstance().getWorldGuardHandler().getRegion(ownerUUID));
-						HellblockPlugin.getInstance().getWorldGuardHandler().abandonIsland(ownerUUID,
-								HellblockPlugin.getInstance().getWorldGuardHandler().getRegion(ownerUUID));
+						playerConfig.set("player.abandoned", true);
+						try {
+							playerConfig.save(playerData);
+						} catch (IOException ex) {
+							LogUtils.warn(
+									String.format("Could not save the player data file as abandoned for %s", uuid), ex);
+							continue;
+						}
+						if (HellblockPlugin.getInstance().getWorldGuardHandler().getRegion(ownerUUID) != null) {
+							HellblockPlugin.getInstance().getWorldGuardHandler().updateHellblockMessages(ownerUUID,
+									HellblockPlugin.getInstance().getWorldGuardHandler().getRegion(ownerUUID));
+							HellblockPlugin.getInstance().getWorldGuardHandler().abandonIsland(ownerUUID,
+									HellblockPlugin.getInstance().getWorldGuardHandler().getRegion(ownerUUID));
+						}
 					}
 				}
 			}
