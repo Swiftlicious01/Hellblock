@@ -6,11 +6,13 @@ import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.player.PlayerTeleportEvent.TeleportCause;
 import org.jetbrains.annotations.NotNull;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.gui.icon.BackGroundItem;
 import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
+import com.swiftlicious.hellblock.utils.ChunkUtils;
 import com.swiftlicious.hellblock.utils.LocationUtils;
 import com.swiftlicious.hellblock.utils.wrappers.ShadedAdventureComponentWrapper;
 
@@ -25,7 +27,8 @@ public class HellblockMenu {
 	public HellblockMenu(Player player) {
 
 		if (HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player).hasHellblock()) {
-			Gui gui = Gui.normal().setStructure("# c t p b l f r #").addIngredient('c', new CreateIslandItem())
+			Gui gui = Gui.normal().setStructure("# i t p b l f r #")
+					.addIngredient('i', new IslandLevelItem(player.getUniqueId()))
 					.addIngredient('t', new TeleportIslandItem()).addIngredient('p', new ViewPartyMembersItem())
 					.addIngredient('b', new BiomeItem(player.getUniqueId()))
 					.addIngredient('l', new LockIslandItem(player.getUniqueId()))
@@ -60,37 +63,41 @@ public class HellblockMenu {
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
 			new FlagMenu(player);
+			HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+					net.kyori.adventure.sound.Sound.Source.PLAYER,
+					net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
 		}
 	}
 
-	public class CreateIslandItem extends AbstractItem {
+	public class IslandLevelItem extends AbstractItem {
+
+		private UUID playerUUID;
+
+		public IslandLevelItem(UUID playerUUID) {
+			this.playerUUID = playerUUID;
+		}
 
 		@Override
 		public ItemProvider getItemProvider() {
-			return new ItemBuilder(Material.SOUL_SAND).addAllItemFlags()
+			HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(playerUUID);
+			return new ItemBuilder(Material.EXPERIENCE_BOTTLE).addAllItemFlags()
 					.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
-							.getAdventureManager().getComponentFromMiniMessage("<green>Create your Hellblock!")))
-					.addLoreLines(new ShadedAdventureComponentWrapper(
-							HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
-									"<aqua>Click to view the options to create your very own hellblock!")));
+							.getAdventureManager().getComponentFromMiniMessage("<green>Hellblock Level")))
+					.addLoreLines(
+							new ShadedAdventureComponentWrapper(
+									HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
+											String.format("<gold>Level: <yellow>%s", pi.getLevel()))),
+							new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+									.getComponentFromMiniMessage(" ")),
+							new ShadedAdventureComponentWrapper(
+									HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
+											String.format("<gold>Your overall rank is <yellow>#%s", HellblockPlugin
+													.getInstance().getIslandLevelManager().getLevelRank(playerUUID)))));
 		}
 
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
-			if (!pi.hasHellblock()) {
-				if (pi.getResetCooldown() > 0) {
-					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-							String.format("<red>You have recently reset your hellblock already, you must wait for %s!",
-									HellblockPlugin.getInstance().getFormattedCooldown(pi.getResetCooldown())));
-					return;
-				}
-				new IslandChoiceMenu(player, false);
-			} else {
-				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-						"<red>You already have a hellblock!");
-			}
 		}
 	}
 
@@ -123,6 +130,9 @@ public class HellblockMenu {
 				if (pi.getHellblockOwner() != null && !pi.getHellblockOwner().equals(player.getUniqueId())) {
 					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 							"<red>Only the owner of the hellblock island can change this!");
+					HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+							net.kyori.adventure.sound.Sound.Source.PLAYER,
+							net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 					return;
 				}
 				pi.setLockedStatus(!pi.getLockedStatus());
@@ -134,9 +144,15 @@ public class HellblockMenu {
 					HellblockPlugin.getInstance().getCoopManager().changeLockStatus(player);
 				}
 				new HellblockMenu(player);
+				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+						net.kyori.adventure.sound.Sound.Source.PLAYER,
+						net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
 			} else {
 				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 						"<red>You don't have a hellblock!");
+				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+						net.kyori.adventure.sound.Sound.Source.PLAYER,
+						net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 			}
 		}
 	}
@@ -159,9 +175,15 @@ public class HellblockMenu {
 			HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
 			if (pi.hasHellblock()) {
 				new CoopMenu(player);
+				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+						net.kyori.adventure.sound.Sound.Source.PLAYER,
+						net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
 			} else {
 				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 						"<red>You don't have a hellblock!");
+				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+						net.kyori.adventure.sound.Sound.Source.PLAYER,
+						net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 			}
 		}
 	}
@@ -201,15 +223,24 @@ public class HellblockMenu {
 			if (event.getCurrentItem() != null && event.getCurrentItem().getType() == Material.NETHER_WART) {
 				if (pi.hasHellblock()) {
 					new BiomeMenu(player);
+					HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+							net.kyori.adventure.sound.Sound.Source.PLAYER,
+							net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
 				} else {
 					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 							"<red>You don't have a hellblock!");
+					HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+							net.kyori.adventure.sound.Sound.Source.PLAYER,
+							net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 				}
 			} else {
 				if (pi.getBiomeCooldown() > 0) {
 					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 							String.format("<red>You have recently changed your biome already, you must wait for %s!",
 									HellblockPlugin.getInstance().getFormattedCooldown(pi.getBiomeCooldown())));
+					HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+							net.kyori.adventure.sound.Sound.Source.PLAYER,
+							net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 					return;
 				}
 			}
@@ -235,6 +266,9 @@ public class HellblockMenu {
 			if (!pi.hasHellblock()) {
 				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 						"<red>You don't have a hellblock!");
+				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+						net.kyori.adventure.sound.Sound.Source.PLAYER,
+						net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 			} else {
 				if (pi.getHomeLocation() != null) {
 					if (!LocationUtils.isSafeLocation(pi.getHomeLocation())) {
@@ -247,7 +281,7 @@ public class HellblockMenu {
 					}
 					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 							"<red>Teleporting you to your hellblock!");
-					player.teleportAsync(pi.getHomeLocation());
+					ChunkUtils.teleportAsync(player, pi.getHomeLocation(), TeleportCause.PLUGIN);
 					// if raining give player a bit of protection
 					if (HellblockPlugin.getInstance().getLavaRain().getLavaRainTask() != null
 							&& HellblockPlugin.getInstance().getLavaRain().getLavaRainTask().isLavaRaining()
@@ -255,10 +289,16 @@ public class HellblockMenu {
 							&& !HellblockPlugin.getInstance().getLavaRain().getHighestBlock(player.getLocation())
 									.isEmpty()) {
 						player.setNoDamageTicks(5 * 20);
+						HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+								net.kyori.adventure.sound.Sound.Source.PLAYER,
+								net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
 					}
 				} else {
 					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 							"<red>Error teleporting you to your hellblock!");
+					HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+							net.kyori.adventure.sound.Sound.Source.PLAYER,
+							net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 				}
 			}
 		}
@@ -298,11 +338,17 @@ public class HellblockMenu {
 			HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
 			if (event.getCurrentItem() != null && event.getCurrentItem().getType() == Material.NETHER_BRICKS) {
 				new ConfirmMenu(player, "Reset");
+				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+						net.kyori.adventure.sound.Sound.Source.PLAYER,
+						net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
 			} else {
 				if (pi.getResetCooldown() > 0) {
 					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 							String.format("<red>You have recently reset your hellblock already, you must wait for %s!",
 									HellblockPlugin.getInstance().getFormattedCooldown(pi.getResetCooldown())));
+					HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+							net.kyori.adventure.sound.Sound.Source.PLAYER,
+							net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 					return;
 				}
 			}

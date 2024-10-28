@@ -101,6 +101,9 @@ public class SchematicMenu {
 										"<red>You have recently reset your hellblock already, you must wait for %s!",
 										HellblockPlugin.getInstance().getFormattedCooldown(HellblockPlugin.getInstance()
 												.getHellblockHandler().getActivePlayer(player).getResetCooldown())));
+						HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+								net.kyori.adventure.sound.Sound.Source.PLAYER,
+								net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 						return;
 					}
 					HellblockPlugin.getInstance().getHellblockHandler().createHellblock(player, IslandOptions.SCHEMATIC,
@@ -112,16 +115,25 @@ public class SchematicMenu {
 								.saveHellblockPlayer();
 					}
 					new HellblockMenu(player);
+					HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+							net.kyori.adventure.sound.Sound.Source.PLAYER,
+							net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
 				} else {
 					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player, String.format(
 							"<red>The schematic <dark_red>%s <red>hellblock island type is not available to generate!",
 							Files.getNameWithoutExtension(file.getName())));
+					HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+							net.kyori.adventure.sound.Sound.Source.PLAYER,
+							net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 				}
 			} else {
 				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 						String.format(
 								"<red>You don't have permission to generate the hellblock schematic <dark_red>%s<red>!",
 								Files.getNameWithoutExtension(file.getName())));
+				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+						net.kyori.adventure.sound.Sound.Source.PLAYER,
+						net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 			}
 		}
 	}
@@ -139,6 +151,9 @@ public class SchematicMenu {
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
 			new IslandChoiceMenu(player, false);
+			HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+					net.kyori.adventure.sound.Sound.Source.PLAYER,
+					net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
 		}
 	}
 }

@@ -11,12 +11,14 @@ import org.bukkit.Location;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.World;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.event.player.PlayerTeleportEvent.TeleportCause;
 
 import com.google.common.io.Files;
 import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
 import com.swiftlicious.hellblock.playerdata.UUIDFetcher;
+import com.swiftlicious.hellblock.utils.ChunkUtils;
 import com.swiftlicious.hellblock.utils.LocationUtils;
 import com.swiftlicious.hellblock.utils.LogUtils;
 
@@ -71,7 +73,7 @@ public class HellblockAdminCommand {
 							HellblockPlugin.getInstance().getCoopManager().updateParty(player.getUniqueId(), "home",
 									ti.getHomeLocation());
 						}
-						player.teleportAsync(ti.getHomeLocation());
+						ChunkUtils.teleportAsync(player, ti.getHomeLocation(), TeleportCause.PLUGIN);
 						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 								String.format("<red>You have been teleported to <dark_red>%s<red>'s hellblock!", user));
 						return;

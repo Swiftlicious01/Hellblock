@@ -85,6 +85,9 @@ public class BiomeMenu {
 				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 						String.format("<red>Your hellblock biome is already set to <dark_red>%s<red>!",
 								HellBiome.SOUL_SAND_VALLEY.getName()));
+				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+						net.kyori.adventure.sound.Sound.Source.PLAYER,
+						net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 				return;
 			}
 			if (HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player).getBiomeCooldown() > 0) {
@@ -92,10 +95,16 @@ public class BiomeMenu {
 						String.format("<red>You have recently changed your hellbiome biome, you must wait for %s!",
 								HellblockPlugin.getInstance().getFormattedCooldown(HellblockPlugin.getInstance()
 										.getHellblockHandler().getActivePlayer(player).getBiomeCooldown())));
+				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+						net.kyori.adventure.sound.Sound.Source.PLAYER,
+						net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 				return;
 			}
 			HellblockPlugin.getInstance().getBiomeHandler().changeHellblockBiome(hbPlayer, HellBiome.SOUL_SAND_VALLEY,
 					false, false);
+			HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+					net.kyori.adventure.sound.Sound.Source.PLAYER,
+					net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
 		}
 	}
 
@@ -142,6 +151,9 @@ public class BiomeMenu {
 				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 						String.format("<red>Your hellblock biome is already set to <dark_red>%s<red>!",
 								HellBiome.CRIMSON_FOREST.getName()));
+				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+						net.kyori.adventure.sound.Sound.Source.PLAYER,
+						net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 				return;
 			}
 			if (HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player).getBiomeCooldown() > 0) {
@@ -149,10 +161,16 @@ public class BiomeMenu {
 						String.format("<red>You have recently changed your hellbiome biome, you must wait for %s!",
 								HellblockPlugin.getInstance().getFormattedCooldown(HellblockPlugin.getInstance()
 										.getHellblockHandler().getActivePlayer(player).getBiomeCooldown())));
+				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+						net.kyori.adventure.sound.Sound.Source.PLAYER,
+						net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 				return;
 			}
 			HellblockPlugin.getInstance().getBiomeHandler().changeHellblockBiome(hbPlayer, HellBiome.CRIMSON_FOREST,
 					false, false);
+			HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+					net.kyori.adventure.sound.Sound.Source.PLAYER,
+					net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
 		}
 	}
 
@@ -200,6 +218,9 @@ public class BiomeMenu {
 				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 						String.format("<red>Your hellblock biome is already set to <dark_red>%s<red>!",
 								HellBiome.WARPED_FOREST.getName()));
+				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+						net.kyori.adventure.sound.Sound.Source.PLAYER,
+						net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 				return;
 			}
 			if (HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player).getBiomeCooldown() > 0) {
@@ -207,10 +228,16 @@ public class BiomeMenu {
 						String.format("<red>You have recently changed your hellbiome biome, you must wait for %s!",
 								HellblockPlugin.getInstance().getFormattedCooldown(HellblockPlugin.getInstance()
 										.getHellblockHandler().getActivePlayer(player).getBiomeCooldown())));
+				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+						net.kyori.adventure.sound.Sound.Source.PLAYER,
+						net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 				return;
 			}
 			HellblockPlugin.getInstance().getBiomeHandler().changeHellblockBiome(hbPlayer, HellBiome.WARPED_FOREST,
 					false, false);
+			HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+					net.kyori.adventure.sound.Sound.Source.PLAYER,
+					net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
 		}
 	}
 
@@ -257,6 +284,9 @@ public class BiomeMenu {
 				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 						String.format("<red>Your hellblock biome is already set to <dark_red>%s<red>!",
 								HellBiome.NETHER_WASTES.getName()));
+				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+						net.kyori.adventure.sound.Sound.Source.PLAYER,
+						net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 				return;
 			}
 			if (HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player).getBiomeCooldown() > 0) {
@@ -264,10 +294,16 @@ public class BiomeMenu {
 						String.format("<red>You have recently changed your hellbiome biome, you must wait for %s!",
 								HellblockPlugin.getInstance().getFormattedCooldown(HellblockPlugin.getInstance()
 										.getHellblockHandler().getActivePlayer(player).getBiomeCooldown())));
+				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+						net.kyori.adventure.sound.Sound.Source.PLAYER,
+						net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 				return;
 			}
 			HellblockPlugin.getInstance().getBiomeHandler().changeHellblockBiome(hbPlayer, HellBiome.NETHER_WASTES,
 					false, false);
+			HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+					net.kyori.adventure.sound.Sound.Source.PLAYER,
+					net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
 		}
 	}
 
@@ -314,6 +350,9 @@ public class BiomeMenu {
 				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 						String.format("<red>Your hellblock biome is already set to <dark_red>%s<red>!",
 								HellBiome.BASALT_DELTAS.getName()));
+				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+						net.kyori.adventure.sound.Sound.Source.PLAYER,
+						net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 				return;
 			}
 			if (HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player).getBiomeCooldown() > 0) {
@@ -321,10 +360,16 @@ public class BiomeMenu {
 						String.format("<red>You have recently changed your hellbiome biome, you must wait for %s!",
 								HellblockPlugin.getInstance().getFormattedCooldown(HellblockPlugin.getInstance()
 										.getHellblockHandler().getActivePlayer(player).getBiomeCooldown())));
+				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+						net.kyori.adventure.sound.Sound.Source.PLAYER,
+						net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 				return;
 			}
 			HellblockPlugin.getInstance().getBiomeHandler().changeHellblockBiome(hbPlayer, HellBiome.BASALT_DELTAS,
 					false, false);
+			HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+					net.kyori.adventure.sound.Sound.Source.PLAYER,
+					net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
 		}
 	}
 
@@ -341,6 +386,9 @@ public class BiomeMenu {
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
 			new HellblockMenu(player);
+			HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+					net.kyori.adventure.sound.Sound.Source.PLAYER,
+					net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
 		}
 	}
 }

@@ -25,10 +25,10 @@ public class HellblockFlag {
 		DESTROY_VEHICLE("vehicle-destroy"), RIDE("ride"), ENDERPEARL("enderpearl"), TRAMPLE_BLOCKS("block-trampling"),
 		ITEM_FRAME_ROTATE("item-frame-rotation"), CHORUS_TELEPORT("chorus-fruit-teleport"), LIGHTER("lighter"),
 		FIREWORK_DAMAGE("firework-damage"), RESPAWN_ANCHORS("respawn-anchors"), WIND_CHARGE_BURST("wind-charge-burst"),
-		POTION_SPLASH("potion-splash"), INTERACT("interact"), SNOWMAN_TRAILS("snowman-trails"),
+		POTION_SPLASH("potion-splash"), INTERACT("interact"), SLEEP("sleep"), SNOWMAN_TRAILS("snowman-trails"),
 		ENDER_BUILD("enderman-grief"), GHAST_FIREBALL("ghast-fireball"), FALL_DAMAGE("fall-damage"),
-		HUNGER_DRAIN("natural-hunger-drain"), ENTRY("entry"), GREETING_MESSAGE("greeting"),
-		FAREWELL_MESSAGE("farewell"), INVINCIBILITY("invincible");
+		HEALTH_REGEN("natural-health-regen"), HUNGER_DRAIN("natural-hunger-drain"), ENTRY("entry"),
+		GREETING_MESSAGE("greeting"), FAREWELL_MESSAGE("farewell"), INVINCIBILITY("invincible");
 
 		private String name;
 

@@ -90,6 +90,9 @@ public class IslandChoiceMenu {
 							String.format("<red>You have recently reset your hellblock already, you must wait for %s!",
 									HellblockPlugin.getInstance().getFormattedCooldown(HellblockPlugin.getInstance()
 											.getHellblockHandler().getActivePlayer(player).getResetCooldown())));
+					HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+							net.kyori.adventure.sound.Sound.Source.PLAYER,
+							net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 					return;
 				}
 				HellblockPlugin.getInstance().getHellblockHandler().createHellblock(player, IslandOptions.DEFAULT);
@@ -100,9 +103,15 @@ public class IslandChoiceMenu {
 							.saveHellblockPlayer();
 				}
 				new HellblockMenu(player);
+				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+						net.kyori.adventure.sound.Sound.Source.PLAYER,
+						net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
 			} else {
 				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 						"<red>The default hellblock type isn't available to generate!");
+				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+						net.kyori.adventure.sound.Sound.Source.PLAYER,
+						net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 			}
 		}
 	}
@@ -146,6 +155,9 @@ public class IslandChoiceMenu {
 							String.format("<red>You have recently reset your hellblock already, you must wait for %s!",
 									HellblockPlugin.getInstance().getFormattedCooldown(HellblockPlugin.getInstance()
 											.getHellblockHandler().getActivePlayer(player).getResetCooldown())));
+					HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+							net.kyori.adventure.sound.Sound.Source.PLAYER,
+							net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 					return;
 				}
 				HellblockPlugin.getInstance().getHellblockHandler().createHellblock(player, IslandOptions.CLASSIC);
@@ -156,9 +168,15 @@ public class IslandChoiceMenu {
 							.saveHellblockPlayer();
 				}
 				new HellblockMenu(player);
+				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+						net.kyori.adventure.sound.Sound.Source.PLAYER,
+						net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
 			} else {
 				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 						"<red>The classic hellblock type isn't available to generate!");
+				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+						net.kyori.adventure.sound.Sound.Source.PLAYER,
+						net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 			}
 		}
 	}
@@ -212,6 +230,9 @@ public class IslandChoiceMenu {
 							String.format("<red>You have recently reset your hellblock already, you must wait for %s!",
 									HellblockPlugin.getInstance().getFormattedCooldown(HellblockPlugin.getInstance()
 											.getHellblockHandler().getActivePlayer(player).getResetCooldown())));
+					HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+							net.kyori.adventure.sound.Sound.Source.PLAYER,
+							net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 					return;
 				}
 				boolean schematicsAvailable = false;
@@ -227,13 +248,22 @@ public class IslandChoiceMenu {
 				}
 				if (schematicsAvailable) {
 					new SchematicMenu(player, isReset);
+					HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+							net.kyori.adventure.sound.Sound.Source.PLAYER,
+							net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
 				} else {
 					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 							"<red>There are no hellblock schematics for you to choose from!");
+					HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+							net.kyori.adventure.sound.Sound.Source.PLAYER,
+							net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 				}
 			} else {
 				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 						"<red>There are no hellblock schematics for you to choose from!");
+				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+						net.kyori.adventure.sound.Sound.Source.PLAYER,
+						net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 			}
 		}
 	}

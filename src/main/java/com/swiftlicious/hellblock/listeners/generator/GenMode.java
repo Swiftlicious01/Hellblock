@@ -11,7 +11,6 @@ import com.swiftlicious.hellblock.utils.LogUtils;
 
 public class GenMode {
 
-	private boolean valid;
 	private boolean searchForPlayersNearby = false;
 	private boolean canGenWhileLavaRaining = true;
 
@@ -26,48 +25,39 @@ public class GenMode {
 	public GenMode(boolean searchForPlayersNearby, Material fallbackMaterial) {
 		this.setSearchForPlayersNearby(searchForPlayersNearby);
 		this.setFallbackMaterial(fallbackMaterial);
-		valid = true;
-	}
-
-	public boolean isValid() {
-		return valid;
-	}
-
-	public void setValid(boolean valid) {
-		this.valid = valid;
 	}
 
 	public boolean isSearchingForPlayersNearby() {
-		return searchForPlayersNearby;
+		return this.searchForPlayersNearby;
 	}
 
 	public void setSearchForPlayersNearby(boolean searchForPlayersNearby) {
 		this.searchForPlayersNearby = searchForPlayersNearby;
 	}
 
-	public Material getFallbackMaterial() {
-		return fallbackMaterial;
+	public boolean hasFallBackMaterial() {
+		return this.getFallbackMaterial() != null;
 	}
 
-	public boolean hasFallBackMaterial() {
-		return fallbackMaterial != null;
+	public Material getFallbackMaterial() {
+		return this.fallbackMaterial;
 	}
 
 	public void setFallbackMaterial(Material fallbackMaterial) {
 		this.fallbackMaterial = fallbackMaterial;
 	}
 
-	public Sound getGenSound() {
-		return genSound;
-	}
-
 	public boolean hasGenSound() {
 		return this.getGenSound() != null;
 	}
 
+	public Sound getGenSound() {
+		return this.genSound;
+	}
+
 	public void setGenSound(Sound genSound) {
 		if (genSound == null) {
-			LogUtils.warn("Unknown sound variable defined for netherrack generator setttings.");
+			LogUtils.warn("Unknown sound variable defined for netherrack generator settings.");
 			return;
 		}
 		this.genSound = genSound;
@@ -78,15 +68,18 @@ public class GenMode {
 	}
 
 	public Particle getParticleEffect() {
-		return particleEffect;
+		return this.particleEffect;
 	}
 
 	public void setParticleEffect(Particle particleEffect) {
+		if (particleEffect == null) {
+			LogUtils.warn("Unknown particle effect variable defined for netherrack generator settings.");
+			return;
+		}
 		this.particleEffect = particleEffect;
 	}
 
 	public void displayGenerationParticles(Location loc) {
-		loc = loc.add(0.5D, 1D, 0.5D);
 		for (int i = 0; i < 10; i++) {
 			Random rand = new Random();
 			Location tempLoc = loc.clone().add(rand.nextDouble(), 1D, rand.nextDouble());
@@ -97,11 +90,10 @@ public class GenMode {
 	}
 
 	public boolean canGenerateWhileLavaRaining() {
-		return canGenWhileLavaRaining;
+		return this.canGenWhileLavaRaining;
 	}
 
 	public void setCanGenWhileLavaRaining(boolean canGenWhileLavaRaining) {
 		this.canGenWhileLavaRaining = canGenWhileLavaRaining;
 	}
-
 }

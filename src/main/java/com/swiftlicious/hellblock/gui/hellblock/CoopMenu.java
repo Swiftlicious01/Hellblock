@@ -155,6 +155,9 @@ public class CoopMenu {
 						new CoopMenu(player);
 					}
 				}
+				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+						net.kyori.adventure.sound.Sound.Source.PLAYER,
+						net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
 			}
 		}
 	}
@@ -172,6 +175,9 @@ public class CoopMenu {
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
 			new HellblockMenu(player);
+			HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+					net.kyori.adventure.sound.Sound.Source.PLAYER,
+					net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
 		}
 	}
 }

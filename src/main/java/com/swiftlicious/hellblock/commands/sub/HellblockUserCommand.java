@@ -8,9 +8,11 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import org.apache.commons.lang3.StringUtils;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.event.player.PlayerTeleportEvent.TeleportCause;
 
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
@@ -21,6 +23,7 @@ import com.swiftlicious.hellblock.gui.hellblock.HellblockMenu;
 import com.swiftlicious.hellblock.gui.hellblock.IslandChoiceMenu;
 import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
 import com.swiftlicious.hellblock.playerdata.UUIDFetcher;
+import com.swiftlicious.hellblock.utils.ChunkUtils;
 import com.swiftlicious.hellblock.utils.LocationUtils;
 import com.swiftlicious.hellblock.utils.LogUtils;
 
@@ -29,7 +32,6 @@ import dev.jorel.commandapi.CommandPermission;
 import dev.jorel.commandapi.arguments.ArgumentSuggestions;
 import dev.jorel.commandapi.arguments.IntegerArgument;
 import dev.jorel.commandapi.arguments.StringArgument;
-import io.lumine.mythic.bukkit.utils.lib.lang3.StringUtils;
 
 public class HellblockUserCommand {
 
@@ -121,8 +123,9 @@ public class HellblockUserCommand {
 	public CommandAPICommand getTopCommand() {
 		return new CommandAPICommand("top").withPermission(CommandPermission.NONE).withPermission("hellblock.user")
 				.executesPlayer((player, args) -> {
-					int i = 0;
-					if (!HellblockPlugin.getInstance().getIslandLevelManager().getTopTenHellblocks().isEmpty()) {
+					if (!HellblockPlugin.getInstance().getIslandLevelManager().getTopTenHellblocks().entrySet()
+							.isEmpty()) {
+						int i = 0;
 						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 								"<red>Top Ten Level Hellblocks:");
 						for (Entry<UUID, Float> ten : HellblockPlugin.getInstance().getIslandLevelManager()
@@ -135,7 +138,7 @@ public class HellblockUserCommand {
 								continue;
 							float level = ten.getValue().floatValue();
 							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-									String.format("<dark_red>%s. <red>%s (Lvl %s)", ++i,
+									String.format("<dark_red>%s. <red>%s <gray>(Lvl %s)", ++i,
 											Bukkit.getOfflinePlayer(id).getName(), level));
 							if (i >= 10) {
 								break;
@@ -218,7 +221,7 @@ public class HellblockUserCommand {
 										"<red>This hellblock is not safe to visit right now!");
 								return;
 							}
-							player.teleportAsync(ti.getHomeLocation());
+							ChunkUtils.teleportAsync(player, ti.getHomeLocation(), TeleportCause.PLUGIN);
 							// if raining give player a bit of protection
 							if (HellblockPlugin.getInstance().getLavaRain().getLavaRainTask() != null
 									&& HellblockPlugin.getInstance().getLavaRain().getLavaRainTask().isLavaRaining()
@@ -274,7 +277,7 @@ public class HellblockUserCommand {
 							}
 							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 									"<red>Teleporting you to your hellblock!");
-							player.teleportAsync(pi.getHomeLocation());
+							ChunkUtils.teleportAsync(player, pi.getHomeLocation(), TeleportCause.PLUGIN);
 							// if raining give player a bit of protection
 							if (HellblockPlugin.getInstance().getLavaRain().getLavaRainTask() != null
 									&& HellblockPlugin.getInstance().getLavaRain().getLavaRainTask().isLavaRaining()
@@ -349,7 +352,8 @@ public class HellblockUserCommand {
 										HellblockPlugin.getInstance().getCoopManager().updateParty(id, "home",
 												ti.getHomeLocation());
 									}
-									Bukkit.getPlayer(user).teleportAsync(ti.getHomeLocation());
+									ChunkUtils.teleportAsync(Bukkit.getPlayer(user), ti.getHomeLocation(),
+											TeleportCause.PLUGIN);
 								} else {
 									Bukkit.getPlayer(user).performCommand(
 											HellblockPlugin.getInstance().getHellblockHandler().getNetherCMD());
@@ -456,7 +460,8 @@ public class HellblockUserCommand {
 						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 								"<red>Total Visits: <dark_red>" + pi.getTotalVisitors());
 						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-								"<red>Island Type: <dark_red>" + StringUtils.capitalize(pi.getIslandChoice().name()));
+								"<red>Island Type: <dark_red>"
+										+ StringUtils.capitalize(pi.getIslandChoice().getName()));
 						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 								"<red>Biome: <dark_red>" + pi.getHellblockBiome().getName());
 						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
@@ -498,7 +503,12 @@ public class HellblockUserCommand {
 										"<red>The location you're standing at is not safe for a new home!");
 								return;
 							}
-							if (pi.getHomeLocation().equals(player.getLocation())) {
+							if (pi.getHomeLocation().getWorld() != null
+									&& pi.getHomeLocation().getWorld().getName().equals(player.getWorld().getName())
+									&& pi.getHomeLocation().getX() == player.getLocation().getX()
+									&& pi.getHomeLocation().getY() == player.getLocation().getY()
+									&& pi.getHomeLocation().getZ() == player.getLocation().getZ()
+									&& pi.getHomeLocation().getYaw() == player.getLocation().getYaw()) {
 								HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 										"<red>The location you're standing at is already set as your home!");
 								return;
@@ -536,17 +546,20 @@ public class HellblockUserCommand {
 								double y = location.getY();
 								double z = location.getZ();
 								float yaw = location.getYaw();
+								float pitch = location.getPitch();
 
 								if (!(offlineFile.getString("player.home.world").equalsIgnoreCase(world)
 										|| offlineFile.getDouble("player.home.x") == x
 										|| offlineFile.getDouble("player.home.y") == y
 										|| offlineFile.getDouble("player.home.z") == z
-										|| (float) offlineFile.getDouble("player.home.yaw") == yaw)) {
+										|| (float) offlineFile.getDouble("player.home.yaw") == yaw
+										|| (float) offlineFile.getDouble("player.home.pitch") == pitch)) {
 									offlineFile.set("player.home.world", world);
 									offlineFile.set("player.home.x", x);
 									offlineFile.set("player.home.y", y);
 									offlineFile.set("player.home.z", z);
 									offlineFile.set("player.home.yaw", yaw);
+									offlineFile.set("player.home.pitch", pitch);
 								}
 								try {
 									offlineFile.save(offline);
@@ -559,8 +572,8 @@ public class HellblockUserCommand {
 							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 									String.format(
 											"<red>You have set your new hellblock home location to x:%s, y:%s, z:%s facing %s!",
-											player.getLocation().getX(), player.getLocation().getY(),
-											player.getLocation().getZ(), LocationUtils.getFacing(player)));
+											player.getLocation().getBlockX(), player.getLocation().getBlockY(),
+											player.getLocation().getBlockZ(), LocationUtils.getFacing(player)));
 						} else {
 							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 									"<red>Error setting your home location!");

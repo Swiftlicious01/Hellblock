@@ -123,7 +123,7 @@ public class InvitationMenu {
 							HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(key)))
 					.addLoreLines(
 							new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
-									.getComponentFromMiniMessage("<light_purple>Click to invite this player!")));
+									.getComponentFromMiniMessage("<light_purple>Right click to invite this player!")));
 			this.InvitationMenu = invitationMenu;
 		}
 
@@ -137,6 +137,9 @@ public class InvitationMenu {
 				@NotNull InventoryClickEvent event) {
 			if (clickType.isRightClick()) {
 				this.InvitationMenu.updateMenu(key);
+				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+						net.kyori.adventure.sound.Sound.Source.PLAYER,
+						net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
 			}
 		}
 	}
@@ -193,7 +196,13 @@ public class InvitationMenu {
 				HellblockPlayer invitingPlayer = HellblockPlugin.getInstance().getHellblockHandler()
 						.getActivePlayer(Bukkit.getPlayer(username).getUniqueId());
 				HellblockPlugin.getInstance().getCoopManager().addMemberToHellblock(hbPlayer, invitingPlayer);
+				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+						net.kyori.adventure.sound.Sound.Source.PLAYER,
+						net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
 			} else {
+				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+						net.kyori.adventure.sound.Sound.Source.PLAYER,
+						net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 				return;
 			}
 			username = SEARCH;
@@ -214,6 +223,9 @@ public class InvitationMenu {
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
 			new CoopMenu(player);
+			HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+					net.kyori.adventure.sound.Sound.Source.PLAYER,
+					net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
 		}
 	}
 }

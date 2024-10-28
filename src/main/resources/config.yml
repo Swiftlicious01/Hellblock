@@ -376,18 +376,7 @@ armor:
         - FIRE_PROTECTION:1
  
 infinite-lava-options:
-  # At which height (block - not line of sight!) is the lava unlimited
-  height: 60
-  sources:
-    # Different sources
-    three: true
-    two: true
-    other: false
-    big: false
-    lava-fall: true
-    plus: true
-    T: true
-    ring: true
+  enabled: true
   
 lava-rain-options:
   # How far from the player should the lava particles fall (setting this value too high may cause lag !)
@@ -410,6 +399,7 @@ netherrack-generator-options:
     particleEffect: LARGE_SMOKE
     generationSound: ENTITY_EXPERIENCE_ORB_PICKUP
     canGenerateWhileLavaRaining: true
+    searchForPlayersNearby: true
 
 # mechanism settings
 mechanism:

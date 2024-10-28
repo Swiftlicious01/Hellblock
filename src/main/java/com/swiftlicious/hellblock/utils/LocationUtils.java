@@ -47,31 +47,25 @@ public class LocationUtils {
 	/**
 	 * Checks if this location is safe for a player to teleport to. Used by visits
 	 * and home teleports Unsafe is any liquid or air and also if there's no space
-	 *
-	 * @param l Location to be checked, not null.
-	 * @return true if safe, otherwise false
 	 */
-	public static boolean isSafeLocation(@NonNull Location l) {
-		Block ground = l.getBlock().getRelative(BlockFace.DOWN);
-		Block space1 = l.getBlock();
-		Block space2 = l.getBlock().getRelative(BlockFace.UP);
-		return checkIfSafe(l.getWorld(), ground.getType(), space1.getType(), space2.getType());
+	public static boolean isSafeLocation(@NonNull Location location) {
+		Block feet = location.getBlock();
+		Block head = feet.getRelative(BlockFace.UP);
+		Block ground = feet.getRelative(BlockFace.DOWN);
+		return checkIfSafe(location.getWorld(), ground, feet, head);
 	}
 
 	/**
 	 * Checks if this location is safe for a player to teleport to and loads chunks
 	 * async to check.
-	 *
-	 * @param l Location to be checked, not null.
-	 * @return a completable future that will be true if safe, otherwise false
 	 */
-	public static CompletableFuture<Boolean> isSafeLocationAsync(@NonNull Location l) {
+	public static CompletableFuture<Boolean> isSafeLocationAsync(@NonNull Location location) {
 		CompletableFuture<Boolean> result = new CompletableFuture<>();
-		ChunkUtils.getChunkAtAsync(l).thenRun(() -> {
-			Block ground = l.getBlock().getRelative(BlockFace.DOWN);
-			Block space1 = l.getBlock();
-			Block space2 = l.getBlock().getRelative(BlockFace.UP);
-			result.complete(checkIfSafe(l.getWorld(), ground.getType(), space1.getType(), space2.getType()));
+		ChunkUtils.getChunkAtAsync(location).thenRun(() -> {
+			Block feet = location.getBlock();
+			Block head = feet.getRelative(BlockFace.UP);
+			Block ground = feet.getRelative(BlockFace.DOWN);
+			result.complete(checkIfSafe(location.getWorld(), ground, feet, head));
 		});
 		return result;
 	}
@@ -79,43 +73,64 @@ public class LocationUtils {
 	/**
 	 * Check if a location is safe for teleporting
 	 * 
-	 * @param world  - world
-	 * @param ground Material of the block that is going to be the ground
-	 * @param space1 Material of the block above the ground
-	 * @param space2 Material of the block that is two blocks above the ground
-	 * @return {@code true} if the location is considered safe, {@code false}
-	 *         otherwise.
+	 * @return
 	 */
-	private static boolean checkIfSafe(@Nullable World world, @NonNull Material ground, @NonNull Material space1,
-			@NonNull Material space2) {
-		// Ground must be solid, space 1 and 2 must not be solid
-		if (world == null || !ground.isSolid() || (space1.isSolid() && !Tag.SIGNS.isTagged(space1))
-				|| (space2.isSolid() && !Tag.SIGNS.isTagged(space2))) {
+	private static boolean checkIfSafe(@Nullable World world, @NonNull Block ground, @NonNull Block feet,
+			@NonNull Block head) {
+
+		// Ground must be solid and head must not be solid
+		if (world == null || isNotStandable(ground) || (head.isSolid() && !Tag.ALL_SIGNS.isTagged(head.getType()))) {
 			return false;
 		}
+
 		// Cannot be submerged
-		if (space1.equals(Material.WATER) && space2.equals(Material.WATER)) {
+		if (feet.getType() == Material.WATER && head.getType() == Material.WATER) {
 			return false;
 		}
+
 		// Unsafe
-		if (ground.equals(Material.LAVA) || space1.equals(Material.LAVA) || space2.equals(Material.LAVA)
-				|| Tag.SIGNS.isTagged(ground) || Tag.TRAPDOORS.isTagged(ground) || Tag.BANNERS.isTagged(ground)
-				|| Tag.PRESSURE_PLATES.isTagged(ground) || Tag.FENCE_GATES.isTagged(ground)
-				|| Tag.DOORS.isTagged(ground) || Tag.FENCES.isTagged(ground) || Tag.BUTTONS.isTagged(ground)
-				|| Tag.ITEMS_BOATS.isTagged(ground) || Tag.ITEMS_CHEST_BOATS.isTagged(ground)
-				|| Tag.CAMPFIRES.isTagged(ground) || Tag.FIRE.isTagged(ground) || Tag.FIRE.isTagged(space1)
-				|| space1.equals(Material.END_PORTAL) || space2.equals(Material.END_PORTAL)
-				|| space1.equals(Material.END_GATEWAY) || space2.equals(Material.END_GATEWAY)) {
+		if (ground.getType() == Material.LAVA || feet.getType() == Material.LAVA || head.getType() == Material.LAVA
+				|| head.getRelative(BlockFace.UP).getType() == Material.LAVA || Tag.FIRE.isTagged(head.getType())
+				|| head.getRelative(BlockFace.UP).getType() == Material.POINTED_DRIPSTONE
+				|| Tag.ALL_SIGNS.isTagged(ground.getType()) || Tag.TRAPDOORS.isTagged(ground.getType())
+				|| Tag.BANNERS.isTagged(ground.getType()) || Tag.PRESSURE_PLATES.isTagged(ground.getType())
+				|| Tag.FENCE_GATES.isTagged(ground.getType()) || Tag.DOORS.isTagged(ground.getType())
+				|| Tag.CONCRETE_POWDER.isTagged(ground.getType()) || Tag.FENCES.isTagged(ground.getType())
+				|| Tag.BUTTONS.isTagged(ground.getType()) || Tag.ITEMS_BOATS.isTagged(ground.getType())
+				|| ground.getType() == Material.BAMBOO_RAFT || ground.getType() == Material.BAMBOO_CHEST_RAFT
+				|| Tag.ITEMS_CHEST_BOATS.isTagged(ground.getType()) || Tag.BEDS.isTagged(ground.getType())
+				|| Tag.CAMPFIRES.isTagged(ground.getType()) || Tag.FIRE.isTagged(ground.getType())
+				|| Tag.FIRE.isTagged(feet.getType()) || feet.getType() == Material.POWDER_SNOW_CAULDRON
+				|| feet.getType() == Material.POWDER_SNOW || feet.getType() == Material.COBWEB
+				|| feet.getType() == Material.SCAFFOLDING || feet.getType() == Material.BAMBOO
+				|| feet.getType() == Material.LAVA_CAULDRON || feet.getType() == Material.STRING
+				|| feet.getType() == Material.NETHER_PORTAL || feet.getType() == Material.END_PORTAL
+				|| feet.getType() == Material.END_GATEWAY || feet.getType() == Material.END_CRYSTAL
+				|| feet.getType() == Material.WITHER_ROSE || feet.getType() == Material.TRIPWIRE) {
 			return false;
 		}
 		// Known unsafe blocks
-		return switch (ground) {
+		return switch (ground.getType()) {
 		// Unsafe
-		case ANVIL, BARRIER, CACTUS, END_PORTAL, END_ROD, FIRE, FLOWER_POT, LADDER, LEVER, TALL_GRASS, PISTON_HEAD,
-				MOVING_PISTON, TORCH, WALL_TORCH, TRIPWIRE, WATER, COBWEB, NETHER_PORTAL, MAGMA_BLOCK ->
+		case ANVIL, CHIPPED_ANVIL, DAMAGED_ANVIL, BARRIER, GRAVEL, SAND, SUSPICIOUS_GRAVEL, SUSPICIOUS_SAND, RED_SAND,
+				POINTED_DRIPSTONE, STRUCTURE_VOID, CACTUS, END_PORTAL, END_ROD, FIRE, FLOWER_POT, LADDER, LEVER,
+				TALL_GRASS, PISTON_HEAD, MOVING_PISTON, TORCH, SOUL_TORCH, REDSTONE_TORCH, WALL_TORCH, TRIPWIRE, WATER,
+				COBWEB, LAVA, SOUL_FIRE, SOUL_CAMPFIRE, CAMPFIRE, BAMBOO, POWDER_SNOW, CANDLE, VINE, SWEET_BERRY_BUSH,
+				NETHER_PORTAL, MAGMA_BLOCK, TURTLE_EGG, SEA_PICKLE, LIGHTNING_ROD, CHAIN, SCULK_SENSOR, LANTERN,
+				SOUL_LANTERN, SCAFFOLDING, TNT, LAVA_CAULDRON, DRAGON_EGG, SMALL_DRIPLEAF, BIG_DRIPLEAF, SHULKER_BOX,
+				MINECART, END_GATEWAY, IRON_BARS, STRING, CALIBRATED_SCULK_SENSOR, DROPPER, OBSERVER, END_CRYSTAL,
+				DISPENSER, HOPPER, CHEST_MINECART, TNT_MINECART, FURNACE_MINECART, HOPPER_MINECART, PLAYER_HEAD,
+				PLAYER_WALL_HEAD, ZOMBIE_HEAD, CREEPER_HEAD, PIGLIN_HEAD, DRAGON_HEAD, ZOMBIE_WALL_HEAD,
+				CREEPER_WALL_HEAD, DRAGON_WALL_HEAD, PIGLIN_WALL_HEAD, WITHER_SKELETON_SKULL, SKELETON_SKULL,
+				SKELETON_WALL_SKULL, WITHER_SKELETON_WALL_SKULL, WITHER_ROSE, WEEPING_VINES, TWISTING_VINES,
+				COMMAND_BLOCK_MINECART, TRIPWIRE_HOOK, POWDER_SNOW_CAULDRON ->
 			false;
 		default -> true;
 		};
+	}
+
+	private static boolean isNotStandable(@NonNull Block block) {
+		return block.getCollisionShape().getBoundingBoxes().isEmpty();
 	}
 
 	/**

@@ -16,13 +16,11 @@ import org.bukkit.block.Block;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
-import org.bukkit.event.Event.Result;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityPortalEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.PlayerChangedWorldEvent;
-import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerPortalEvent;
@@ -38,8 +36,11 @@ import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.gui.hellblock.IslandChoiceMenu;
 import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
 import com.swiftlicious.hellblock.scheduler.CancellableTask;
+import com.swiftlicious.hellblock.utils.ChunkUtils;
 import com.swiftlicious.hellblock.utils.LocationUtils;
 import com.swiftlicious.hellblock.utils.LogUtils;
+
+import io.papermc.paper.event.player.PlayerBedFailEnterEvent;
 
 public class PlayerListener implements Listener {
 
@@ -79,7 +80,7 @@ public class PlayerListener implements Listener {
 			if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
 				return;
 
-			if (!LocationUtils.isSafeLocation(player.getLocation())) {
+			if (player.getLocation() != null && !LocationUtils.isSafeLocation(player.getLocation())) {
 				if (pi.hasHellblock() && pi.getHomeLocation() != null) {
 					if (!LocationUtils.isSafeLocation(pi.getHomeLocation())) {
 						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
@@ -89,7 +90,7 @@ public class PlayerListener implements Listener {
 						HellblockPlugin.getInstance().getCoopManager().updateParty(player.getUniqueId(), "home",
 								pi.getHomeLocation());
 					}
-					player.teleportAsync(pi.getHomeLocation());
+					ChunkUtils.teleportAsync(player, pi.getHomeLocation(), TeleportCause.PLUGIN);
 				} else {
 					player.performCommand(instance.getHellblockHandler().getNetherCMD());
 				}
@@ -110,7 +111,7 @@ public class PlayerListener implements Listener {
 						HellblockPlugin.getInstance().getCoopManager().updateParty(player.getUniqueId(), "home",
 								pi.getHomeLocation());
 					}
-					player.teleportAsync(pi.getHomeLocation());
+					ChunkUtils.teleportAsync(player, pi.getHomeLocation(), TeleportCause.PLUGIN);
 				} else {
 					player.performCommand(instance.getHellblockHandler().getNetherCMD());
 				}
@@ -203,17 +204,17 @@ public class PlayerListener implements Listener {
 	}
 
 	@EventHandler
-	public void onBedClick(PlayerInteractEvent event) {
+	public void onBedClick(PlayerBedFailEnterEvent event) {
 		if (!instance.getHellblockHandler().isDisableBedExplosions())
 			return;
 		final Player player = event.getPlayer();
 		if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
 			return;
 
-		Block bed = event.getClickedBlock();
+		Block bed = event.getBed();
 		if (bed != null && Tag.BEDS.isTagged(bed.getType())) {
 			if (bed.getWorld().getEnvironment() == Environment.NETHER) {
-				event.setUseInteractedBlock(Result.DENY);
+				event.setWillExplode(false);
 			}
 		}
 	}
@@ -233,7 +234,7 @@ public class PlayerListener implements Listener {
 						pi.setHome(instance.getHellblockHandler().locateBedrock(player.getUniqueId()));
 						instance.getCoopManager().updateParty(player.getUniqueId(), "home", pi.getHomeLocation());
 					}
-					player.teleportAsync(pi.getHomeLocation());
+					ChunkUtils.teleportAsync(player, pi.getHomeLocation(), TeleportCause.PLUGIN);
 					// if raining give player a bit of protection
 					if (instance.getLavaRain().getLavaRainTask() != null
 							&& instance.getLavaRain().getLavaRainTask().isLavaRaining()
@@ -326,7 +327,7 @@ public class PlayerListener implements Listener {
 					pi.setHome(instance.getHellblockHandler().locateBedrock(player.getUniqueId()));
 					instance.getCoopManager().updateParty(player.getUniqueId(), "home", pi.getHomeLocation());
 				}
-				player.teleportAsync(pi.getHomeLocation());
+				ChunkUtils.teleportAsync(player, pi.getHomeLocation(), TeleportCause.PLUGIN);
 			} else {
 				player.performCommand(instance.getHellblockHandler().getNetherCMD());
 			}

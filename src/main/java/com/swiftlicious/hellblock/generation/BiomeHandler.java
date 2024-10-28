@@ -12,6 +12,8 @@ import org.bukkit.Location;
 import org.bukkit.block.Biome;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
+import org.bukkit.event.player.PlayerTeleportEvent.TeleportCause;
+
 import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldedit.world.World;
 
@@ -22,6 +24,7 @@ import com.sk89q.worldguard.protection.regions.RegionContainer;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
+import com.swiftlicious.hellblock.utils.ChunkUtils;
 import com.swiftlicious.hellblock.utils.LocationUtils;
 import com.swiftlicious.hellblock.utils.LogUtils;
 
@@ -149,7 +152,7 @@ public class BiomeHandler {
 					HellblockPlugin.getInstance().getCoopManager().updateParty(player.getUniqueId(), "home",
 							hbPlayer.getHomeLocation());
 				}
-				player.teleportAsync(hbPlayer.getHomeLocation());
+				ChunkUtils.teleportAsync(player, hbPlayer.getHomeLocation(), TeleportCause.PLUGIN);
 				Set<UUID> party = hbPlayer.getHellblockParty();
 				if (party != null && !party.isEmpty()) {
 					for (UUID id : party) {

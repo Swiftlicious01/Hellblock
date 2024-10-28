@@ -67,15 +67,16 @@ public class HellblockPlayer {
 		if (!this.file.exists()) {
 			try {
 				this.file.createNewFile();
-			} catch (IOException var2) {
+			} catch (IOException ex) {
 				LogUtils.severe(
 						String.format("Could not create hellblock player file for %s!", this.getPlayer().getName()),
-						var2);
+						ex);
 				return;
 			}
 		}
 
 		this.pi = YamlConfiguration.loadConfiguration(this.file);
+		HellblockPlugin.getInstance().getIslandLevelManager().loadCache(this.id);
 		this.hasHellblock = this.getHellblockPlayer().getBoolean("player.hasHellblock");
 		this.isAbandoned = this.getHellblockPlayer().getBoolean("player.abandoned", false);
 		if (this.getHellblockPlayer().contains("player.trusted-on-islands")
@@ -403,6 +404,7 @@ public class HellblockPlayer {
 			for (Entry<FlagType, AccessType> flags : this.protectionFlags.entrySet()) {
 				if (flags.getKey().getName().equalsIgnoreCase(flag.getFlag().getName())) {
 					this.protectionFlags.remove(flag.getFlag());
+					this.getHellblockPlayer().set("player.protection-flags." + flag.getFlag().toString(), null);
 				}
 			}
 		}
@@ -436,6 +438,7 @@ public class HellblockPlayer {
 
 	public void saveHellblockPlayer() {
 		this.getHellblockPlayer().set("player.hasHellblock", this.hasHellblock);
+		HellblockPlugin.getInstance().getIslandLevelManager().saveCache(this.id);
 		if (!this.whoHasTrusted.isEmpty()) {
 			Set<String> trustedString = this.whoHasTrusted.stream().filter(Objects::nonNull).map(UUID::toString)
 					.collect(Collectors.toSet());
@@ -488,7 +491,6 @@ public class HellblockPlayer {
 				}
 			}
 			if (!this.protectionFlags.isEmpty()) {
-				this.getHellblockPlayer().set("player.protection-flags", null);
 				for (Map.Entry<FlagType, AccessType> flags : this.protectionFlags.entrySet()) {
 					if (flags.getValue() == AccessType.DENY)
 						continue;
@@ -500,8 +502,8 @@ public class HellblockPlayer {
 
 		try {
 			this.pi.save(this.file);
-		} catch (IOException var2) {
-			LogUtils.severe(String.format("Unable to save player file for %s!", this.getPlayer().getName()), var2);
+		} catch (IOException ex) {
+			LogUtils.severe(String.format("Unable to save player file for %s!", this.getPlayer().getName()), ex);
 		}
 	}
 
@@ -519,19 +521,22 @@ public class HellblockPlayer {
 		double y = (double) HellblockPlugin.getInstance().getHellblockHandler().getHeight();
 		double z = 0.0D;
 		float yaw = 0.0F;
+		float pitch = 0.0F;
 		if (location != null) {
 			world = location.getWorld().getName();
 			x = location.getX();
 			y = location.getY();
 			z = location.getZ();
 			yaw = location.getYaw();
+			pitch = location.getPitch();
 		}
 
 		this.getHellblockPlayer().set(path + ".world", world);
-		this.getHellblockPlayer().set(path + ".x", x);
-		this.getHellblockPlayer().set(path + ".y", y);
-		this.getHellblockPlayer().set(path + ".z", z);
-		this.getHellblockPlayer().set(path + ".yaw", yaw);
+		this.getHellblockPlayer().set(path + ".x", round(x, 2));
+		this.getHellblockPlayer().set(path + ".y", round(y, 2));
+		this.getHellblockPlayer().set(path + ".z", round(z, 2));
+		this.getHellblockPlayer().set(path + ".yaw", round(yaw, 2));
+		this.getHellblockPlayer().set(path + ".pitch", round(pitch, 2));
 	}
 
 	public Location deserializeLocation(String path) {
@@ -540,6 +545,19 @@ public class HellblockPlayer {
 		double y = this.getHellblockPlayer().getDouble(path + ".y");
 		double z = this.getHellblockPlayer().getDouble(path + ".z");
 		float yaw = (float) this.getHellblockPlayer().getDouble(path + ".yaw");
-		return new Location(world, x, y, z, yaw, 0);
+		float pitch = (float) this.getHellblockPlayer().getDouble(path + ".pitch");
+		return new Location(world, x, y, z, yaw, pitch);
+	}
+
+	/**
+	 * Rounds the specified value to the amount of decimals specified
+	 *
+	 * @param value    to round
+	 * @param decimals count
+	 * @return value round to the decimal count specified
+	 */
+	public double round(double value, int decimals) {
+		double p = Math.pow(10, decimals);
+		return Math.round(value * p) / p;
 	}
 }

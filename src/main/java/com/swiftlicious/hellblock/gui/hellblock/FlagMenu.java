@@ -7,7 +7,6 @@ import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
-import org.bukkit.inventory.ItemStack;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.codehaus.plexus.util.StringUtils;
@@ -33,9 +32,9 @@ public class FlagMenu {
 	public FlagMenu(Player player) {
 
 		Gui gui = Gui.normal()
-				.setStructure(" # a b c d e f g # ", " # h i j k l m n # ", " # o p q r s t u # ",
-						" v w x y z 1 2 3 @ ")
-				.addIngredient('#', new BackGroundItem()).addIngredient('!', new ItemStack(Material.AIR))
+				.setStructure(" a b c d e f g h # ", " i j k l m n o p # ", " q r s t u v w x # ",
+						" y z 1 2 3 4 5 # @ ")
+				.addIngredient('#', new BackGroundItem())
 				.addIngredient('a', new FlagBlockBreakItem(player.getUniqueId()))
 				.addIngredient('b', new FlagBlockPlaceItem(player.getUniqueId()))
 				.addIngredient('c', new FlagPvPItem(player.getUniqueId()))
@@ -58,13 +57,15 @@ public class FlagMenu {
 				.addIngredient('t', new FlagChorusFruitItem(player.getUniqueId()))
 				.addIngredient('u', new FlagLighterItem(player.getUniqueId()))
 				.addIngredient('v', new FlagTNTItem(player.getUniqueId()))
-				.addIngredient('w', new FlagRespawnAnchorItem(player.getUniqueId()))
-				.addIngredient('x', new FlagWindChargeBurstItem(player.getUniqueId()))
-				.addIngredient('y', new FlagPotionSplashItem(player.getUniqueId()))
-				.addIngredient('z', new FlagSnowmanTrailsItem(player.getUniqueId()))
-				.addIngredient('1', new FlagEnderBuildItem(player.getUniqueId()))
-				.addIngredient('2', new FlagGhastFireballItem(player.getUniqueId()))
-				.addIngredient('3', new FlagHungerDrainItem(player.getUniqueId()))
+				.addIngredient('w', new FlagSleepItem(player.getUniqueId()))
+				.addIngredient('x', new FlagRespawnAnchorItem(player.getUniqueId()))
+				.addIngredient('y', new FlagWindChargeBurstItem(player.getUniqueId()))
+				.addIngredient('z', new FlagPotionSplashItem(player.getUniqueId()))
+				.addIngredient('1', new FlagSnowmanTrailsItem(player.getUniqueId()))
+				.addIngredient('2', new FlagEnderBuildItem(player.getUniqueId()))
+				.addIngredient('3', new FlagGhastFireballItem(player.getUniqueId()))
+				.addIngredient('4', new FlagHealthRegenItem(player.getUniqueId()))
+				.addIngredient('5', new FlagHungerDrainItem(player.getUniqueId()))
 				.addIngredient('@', new BackToMainMenuItem()).build();
 
 		Window window = Window
@@ -123,6 +124,9 @@ public class FlagMenu {
 			} else {
 				// TODO: using plugin protection
 			}
+			HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+					net.kyori.adventure.sound.Sound.Source.PLAYER,
+					net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
 		}
 	}
 
@@ -174,6 +178,9 @@ public class FlagMenu {
 			} else {
 				// TODO: using plugin protection
 			}
+			HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+					net.kyori.adventure.sound.Sound.Source.PLAYER,
+					net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
 		}
 	}
 
@@ -223,6 +230,9 @@ public class FlagMenu {
 			} else {
 				// TODO: using plugin protection
 			}
+			HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+					net.kyori.adventure.sound.Sound.Source.PLAYER,
+					net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
 		}
 	}
 
@@ -274,6 +284,9 @@ public class FlagMenu {
 			} else {
 				// TODO: using plugin protection
 			}
+			HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+					net.kyori.adventure.sound.Sound.Source.PLAYER,
+					net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
 		}
 	}
 
@@ -325,6 +338,9 @@ public class FlagMenu {
 			} else {
 				// TODO: using plugin protection
 			}
+			HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+					net.kyori.adventure.sound.Sound.Source.PLAYER,
+					net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
 		}
 	}
 
@@ -376,6 +392,9 @@ public class FlagMenu {
 			} else {
 				// TODO: using plugin protection
 			}
+			HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+					net.kyori.adventure.sound.Sound.Source.PLAYER,
+					net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
 		}
 	}
 
@@ -427,6 +446,9 @@ public class FlagMenu {
 			} else {
 				// TODO: using plugin protection
 			}
+			HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+					net.kyori.adventure.sound.Sound.Source.PLAYER,
+					net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
 		}
 	}
 
@@ -478,6 +500,9 @@ public class FlagMenu {
 			} else {
 				// TODO: using plugin protection
 			}
+			HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+					net.kyori.adventure.sound.Sound.Source.PLAYER,
+					net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
 		}
 	}
 
@@ -527,6 +552,9 @@ public class FlagMenu {
 			} else {
 				// TODO: using plugin protection
 			}
+			HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+					net.kyori.adventure.sound.Sound.Source.PLAYER,
+					net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
 		}
 	}
 
@@ -578,6 +606,9 @@ public class FlagMenu {
 			} else {
 				// TODO: using plugin protection
 			}
+			HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+					net.kyori.adventure.sound.Sound.Source.PLAYER,
+					net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
 		}
 	}
 
@@ -629,6 +660,9 @@ public class FlagMenu {
 			} else {
 				// TODO: using plugin protection
 			}
+			HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+					net.kyori.adventure.sound.Sound.Source.PLAYER,
+					net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
 		}
 	}
 
@@ -680,6 +714,9 @@ public class FlagMenu {
 			} else {
 				// TODO: using plugin protection
 			}
+			HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+					net.kyori.adventure.sound.Sound.Source.PLAYER,
+					net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
 		}
 	}
 
@@ -731,6 +768,9 @@ public class FlagMenu {
 			} else {
 				// TODO: using plugin protection
 			}
+			HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+					net.kyori.adventure.sound.Sound.Source.PLAYER,
+					net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
 		}
 	}
 
@@ -781,6 +821,9 @@ public class FlagMenu {
 			} else {
 				// TODO: using plugin protection
 			}
+			HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+					net.kyori.adventure.sound.Sound.Source.PLAYER,
+					net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
 		}
 	}
 
@@ -832,6 +875,9 @@ public class FlagMenu {
 			} else {
 				// TODO: using plugin protection
 			}
+			HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+					net.kyori.adventure.sound.Sound.Source.PLAYER,
+					net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
 		}
 	}
 
@@ -883,6 +929,9 @@ public class FlagMenu {
 			} else {
 				// TODO: using plugin protection
 			}
+			HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+					net.kyori.adventure.sound.Sound.Source.PLAYER,
+					net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
 		}
 	}
 
@@ -934,6 +983,9 @@ public class FlagMenu {
 			} else {
 				// TODO: using plugin protection
 			}
+			HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+					net.kyori.adventure.sound.Sound.Source.PLAYER,
+					net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
 		}
 	}
 
@@ -985,6 +1037,9 @@ public class FlagMenu {
 			} else {
 				// TODO: using plugin protection
 			}
+			HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+					net.kyori.adventure.sound.Sound.Source.PLAYER,
+					net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
 		}
 	}
 
@@ -1036,6 +1091,9 @@ public class FlagMenu {
 			} else {
 				// TODO: using plugin protection
 			}
+			HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+					net.kyori.adventure.sound.Sound.Source.PLAYER,
+					net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
 		}
 	}
 
@@ -1087,6 +1145,9 @@ public class FlagMenu {
 			} else {
 				// TODO: using plugin protection
 			}
+			HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+					net.kyori.adventure.sound.Sound.Source.PLAYER,
+					net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
 		}
 	}
 
@@ -1138,6 +1199,9 @@ public class FlagMenu {
 			} else {
 				// TODO: using plugin protection
 			}
+			HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+					net.kyori.adventure.sound.Sound.Source.PLAYER,
+					net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
 		}
 	}
 
@@ -1187,6 +1251,62 @@ public class FlagMenu {
 			} else {
 				// TODO: using plugin protection
 			}
+			HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+					net.kyori.adventure.sound.Sound.Source.PLAYER,
+					net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
+		}
+	}
+
+	public class FlagSleepItem extends AbstractItem {
+
+		private UUID playerUUID;
+
+		public FlagSleepItem(UUID playerUUID) {
+			this.playerUUID = playerUUID;
+		}
+
+		@Override
+		public ItemProvider getItemProvider() {
+			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
+				ItemBuilder item = new ItemBuilder(Material.RED_BED).addAllItemFlags()
+						.setDisplayName(
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage(String.format("<aqua>%s Flag",
+												StringUtils.capitaliseAllWords(
+														HellblockFlag.FlagType.SLEEP.getName().replace("-", " "))))))
+						.addLoreLines(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
+								.getAdventureManager()
+								.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s",
+										HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(playerUUID)
+												.getProtectionValue(HellblockFlag.FlagType.SLEEP).getReturnValue()))));
+				if (HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(playerUUID)
+						.getProtectionValue(HellblockFlag.FlagType.SLEEP) == AccessType.ALLOW) {
+					item.addEnchantment(Enchantment.UNBREAKING, 1, false);
+				}
+				return item;
+			} else {
+				return new ItemBuilder(Material.AIR);
+			}
+		}
+
+		@Override
+		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
+				@NotNull InventoryClickEvent event) {
+			HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler()
+					.getActivePlayer(player.getUniqueId());
+			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
+				HellblockPlugin.getInstance().getIslandProtectionManager().changeProtectionFlag(player.getUniqueId(),
+						new HellblockFlag(HellblockFlag.FlagType.SLEEP,
+								(pi.getProtectionValue(HellblockFlag.FlagType.SLEEP) == AccessType.ALLOW
+										? AccessType.DENY
+										: AccessType.ALLOW)));
+				new FlagMenu(player);
+			} else {
+				// TODO: using plugin protection
+			}
+			HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+					net.kyori.adventure.sound.Sound.Source.PLAYER,
+					net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
 		}
 	}
 
@@ -1238,6 +1358,9 @@ public class FlagMenu {
 			} else {
 				// TODO: using plugin protection
 			}
+			HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+					net.kyori.adventure.sound.Sound.Source.PLAYER,
+					net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
 		}
 	}
 
@@ -1289,6 +1412,9 @@ public class FlagMenu {
 			} else {
 				// TODO: using plugin protection
 			}
+			HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+					net.kyori.adventure.sound.Sound.Source.PLAYER,
+					net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
 		}
 	}
 
@@ -1341,6 +1467,9 @@ public class FlagMenu {
 			} else {
 				// TODO: using plugin protection
 			}
+			HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+					net.kyori.adventure.sound.Sound.Source.PLAYER,
+					net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
 		}
 	}
 
@@ -1392,6 +1521,9 @@ public class FlagMenu {
 			} else {
 				// TODO: using plugin protection
 			}
+			HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+					net.kyori.adventure.sound.Sound.Source.PLAYER,
+					net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
 		}
 	}
 
@@ -1443,6 +1575,9 @@ public class FlagMenu {
 			} else {
 				// TODO: using plugin protection
 			}
+			HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+					net.kyori.adventure.sound.Sound.Source.PLAYER,
+					net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
 		}
 	}
 
@@ -1494,6 +1629,63 @@ public class FlagMenu {
 			} else {
 				// TODO: using plugin protection
 			}
+			HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+					net.kyori.adventure.sound.Sound.Source.PLAYER,
+					net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
+		}
+	}
+
+	public class FlagHealthRegenItem extends AbstractItem {
+
+		private UUID playerUUID;
+
+		public FlagHealthRegenItem(UUID playerUUID) {
+			this.playerUUID = playerUUID;
+		}
+
+		@Override
+		public ItemProvider getItemProvider() {
+			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
+				ItemBuilder item = new ItemBuilder(Material.GOLDEN_APPLE).addAllItemFlags()
+						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
+								.getAdventureManager()
+								.getComponentFromMiniMessage(String.format("<aqua>%s Flag",
+										StringUtils.capitaliseAllWords(
+												HellblockFlag.FlagType.HEALTH_REGEN.getName().replace("-", " "))))))
+						.addLoreLines(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
+								.getAdventureManager()
+								.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s",
+										HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(playerUUID)
+												.getProtectionValue(HellblockFlag.FlagType.HEALTH_REGEN)
+												.getReturnValue()))));
+				if (HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(playerUUID)
+						.getProtectionValue(HellblockFlag.FlagType.HEALTH_REGEN) == AccessType.ALLOW) {
+					item.addEnchantment(Enchantment.UNBREAKING, 1, false);
+				}
+				return item;
+			} else {
+				return new ItemBuilder(Material.AIR);
+			}
+		}
+
+		@Override
+		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
+				@NotNull InventoryClickEvent event) {
+			HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler()
+					.getActivePlayer(player.getUniqueId());
+			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
+				HellblockPlugin.getInstance().getIslandProtectionManager().changeProtectionFlag(player.getUniqueId(),
+						new HellblockFlag(HellblockFlag.FlagType.HEALTH_REGEN,
+								(pi.getProtectionValue(HellblockFlag.FlagType.HEALTH_REGEN) == AccessType.ALLOW
+										? AccessType.DENY
+										: AccessType.ALLOW)));
+				new FlagMenu(player);
+			} else {
+				// TODO: using plugin protection
+			}
+			HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+					net.kyori.adventure.sound.Sound.Source.PLAYER,
+					net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
 		}
 	}
 
@@ -1545,6 +1737,9 @@ public class FlagMenu {
 			} else {
 				// TODO: using plugin protection
 			}
+			HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+					net.kyori.adventure.sound.Sound.Source.PLAYER,
+					net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
 		}
 	}
 
@@ -1561,6 +1756,9 @@ public class FlagMenu {
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
 			new HellblockMenu(player);
+			HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+					net.kyori.adventure.sound.Sound.Source.PLAYER,
+					net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
 		}
 	}
 }

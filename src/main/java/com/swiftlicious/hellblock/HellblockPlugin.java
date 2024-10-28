@@ -14,6 +14,7 @@ import org.bukkit.OfflinePlayer;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.HandlerList;
+import org.bukkit.event.player.PlayerTeleportEvent.TeleportCause;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.potion.PotionEffectType;
 
@@ -70,6 +71,7 @@ import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
 import com.swiftlicious.hellblock.protection.IslandProtection;
 import com.swiftlicious.hellblock.scheduler.Scheduler;
 import com.swiftlicious.hellblock.schematic.SchematicManager;
+import com.swiftlicious.hellblock.utils.ChunkUtils;
 import com.swiftlicious.hellblock.utils.ConfigUtils;
 import com.swiftlicious.hellblock.utils.LocationUtils;
 import com.swiftlicious.hellblock.utils.LogUtils;
@@ -285,7 +287,7 @@ public class HellblockPlugin extends JavaPlugin {
 						HellblockPlugin.getInstance().getCoopManager().updateParty(player.getUniqueId(), "home",
 								pi.getHomeLocation());
 					}
-					player.teleportAsync(pi.getHomeLocation());
+					ChunkUtils.teleportAsync(player, pi.getHomeLocation(), TeleportCause.PLUGIN);
 				} else {
 					player.performCommand(getHellblockHandler().getNetherCMD());
 				}

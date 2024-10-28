@@ -1,5 +1,6 @@
 package com.swiftlicious.hellblock.listeners;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -10,8 +11,8 @@ import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
-import org.bukkit.block.data.Levelled;
 import org.bukkit.block.BlockFace;
+import org.bukkit.block.data.Levelled;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
@@ -22,6 +23,7 @@ import org.bukkit.event.block.BlockFromToEvent;
 import org.bukkit.event.block.BlockPistonExtendEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityChangeBlockEvent;
+
 import org.jetbrains.annotations.Nullable;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
@@ -44,100 +46,108 @@ public class NetherrackGenerator implements Listener {
 	private final GeneratorManager genManager;
 	@Getter
 	private final GeneratorModeManager genModeManager;
+	@Getter
+	private final List<String> generationResults;
+
+	private final static BlockFace[] FACES = new BlockFace[] { BlockFace.NORTH, BlockFace.SOUTH, BlockFace.EAST,
+			BlockFace.WEST };
 
 	public NetherrackGenerator(HellblockPlugin plugin) {
 		instance = plugin;
 		this.genManager = new GeneratorManager();
 		this.genModeManager = new GeneratorModeManager(instance);
 		this.genModeManager.loadFromConfig();
+		this.generationResults = instance.getConfig("config.yml")
+				.getConfigurationSection("netherrack-generator-options.generation").getStringList("blocks");
 		Bukkit.getPluginManager().registerEvents(this, instance);
 	}
 
 	@EventHandler
 	public void onBlockFlow(BlockFromToEvent event) {
 		Block fromBlock = event.getBlock();
+		Material fromBlockMaterial = fromBlock.getType();
 		if (!fromBlock.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
 			return;
 
-		List<GenMode> modes = genModeManager.getModes();
-		for (GenMode mode : modes) {
-			if (!mode.isValid())
-				continue;
+		if (!Arrays.asList(FACES).contains(event.getFace())) {
+			return;
+		}
+		GenMode mode = genModeManager.getGenMode();
+		Block toBlock = event.getToBlock();
+		Material toBlockMaterial = toBlock.getType();
 
-			Block toBlock = event.getToBlock();
-			Material toBlockMaterial = toBlock.getType();
-
-			if (toBlockMaterial.equals(Material.AIR)) {
-				if (isGenerating(mode, event.getFace(), fromBlock, toBlock)) {
-					Location l = toBlock.getLocation();
+		if (fromBlockMaterial == Material.LAVA) {
+			if (toBlockMaterial.isAir() && !isLavaPool(toBlock.getLocation())
+					&& (fromBlock.getRelative(event.getFace(), 2).getType() == Material.LAVA
+							&& isFlowing(fromBlock.getRelative(event.getFace(), 2)))) {
+				Location l = toBlock.getLocation();
+				if (l.getWorld() == null)
+					return;
+				// Checks if the block has been broken before and if it is a known gen location
+				if (!genManager.isGenLocationKnown(l) && mode.isSearchingForPlayersNearby()) {
+					double searchRadius = instance.getConfig("config.yml")
+							.getDouble("netherrack-generator-options.playerSearchRadius", 4D);
 					if (l.getWorld() == null)
 						return;
-					// Checks if the block has been broken before and if it is a known gen location
-					if (!genManager.isGenLocationKnown(l) && mode.isSearchingForPlayersNearby()) {
-						double searchRadius = instance.getConfig("config.yml")
-								.getDouble("netherrack-generator-options.playerSearchRadius", 4D);
-						if (l.getWorld() == null)
-							return;
-						Collection<Entity> entitiesNearby = l.getWorld().getNearbyEntities(l, searchRadius,
-								searchRadius, searchRadius);
-						Player closestPlayer = getClosestPlayer(l, entitiesNearby);
-						if (closestPlayer != null) {
-							genManager.addKnownGenLocation(l);
-							genManager.setPlayerForLocation(closestPlayer.getUniqueId(), l, false);
-						}
-					}
-					if (genManager.isGenLocationKnown(l)) {
-						// it is a Known gen location
-						if (!genManager.getGenBreaks().containsKey(l))
-							return; // A player has not prev broken a block here
-						// A player has prev broken a block here
-						GenBlock gb = genManager.getGenBreaks().get(l); // Get the GenBlock in this location
-						if (gb.hasExpired()) {
-							LogUtils.severe(String.format("GB has expired %s", gb.getLocation()));
-							genManager.removeKnownGenLocation(l);
-							return;
-						}
-
-						UUID uuid = gb.getUUID(); // Get the uuid of the player who broke the blocks
-
-						if (!(mode.canGenerateWhileLavaRaining()) && instance.getLavaRain().getLavaRainTask() != null
-								&& instance.getLavaRain().getLavaRainTask().isLavaRaining()) {
-							event.setCancelled(true);
-							if (!toBlock.getLocation().getBlock().getType().equals(mode.getFallbackMaterial()))
-								toBlock.getLocation().getBlock().setType(mode.getFallbackMaterial());
-							return;
-						}
-
-						float soundVolume = 2F;
-						float pitch = 1F;
-						Material result = null;
-						if (getRandomResult() != null) {
-							result = getRandomResult();
-						} else if (mode.hasFallBackMaterial()) {
-							result = mode.getFallbackMaterial();
-						}
-
-						GeneratorGenerateEvent genEvent = new GeneratorGenerateEvent(mode, result, uuid,
-								toBlock.getLocation());
-						Bukkit.getPluginManager().callEvent(event);
-						if (genEvent.isCancelled())
-							return;
-						event.setCancelled(true);
-						if (genEvent.getResult() == null) {
-							LogUtils.severe(String.format("Unknown material %s", result.name()));
-							return;
-						}
-						genEvent.getGenerationLocation().getBlock().setType(genEvent.getResult());
-
-						if (mode.hasGenSound())
-							l.getWorld().playSound(l, mode.getGenSound(), soundVolume, pitch);
-
-						if (mode.hasParticleEffect())
-							mode.displayGenerationParticles(l);
-					} else {
+					Collection<Entity> entitiesNearby = l.getWorld().getNearbyEntities(l, searchRadius, searchRadius,
+							searchRadius);
+					Player closestPlayer = getClosestPlayer(l, entitiesNearby);
+					if (closestPlayer != null) {
 						genManager.addKnownGenLocation(l);
+						genManager.setPlayerForLocation(closestPlayer.getUniqueId(), l, false);
+					}
+				}
+				if (genManager.isGenLocationKnown(l)) {
+					// it is a Known gen location
+					if (!genManager.getGenBreaks().containsKey(l))
+						return; // A player has not prev broken a block here
+					// A player has prev broken a block here
+					GenBlock gb = genManager.getGenBreaks().get(l); // Get the GenBlock in this location
+					if (gb.hasExpired()) {
+						instance.debug(String.format("GB has expired %s", gb.getLocation()));
+						genManager.removeKnownGenLocation(l);
 						return;
 					}
+
+					UUID uuid = gb.getUUID(); // Get the uuid of the player who broke the blocks
+
+					if (!(mode.canGenerateWhileLavaRaining()) && instance.getLavaRain().getLavaRainTask() != null
+							&& instance.getLavaRain().getLavaRainTask().isLavaRaining()) {
+						event.setCancelled(true);
+						if (toBlock.getLocation().getBlock().getType() != mode.getFallbackMaterial())
+							toBlock.getLocation().getBlock().setType(mode.getFallbackMaterial());
+						return;
+					}
+
+					float soundVolume = 2F;
+					float pitch = 1F;
+					Material result = null;
+					if (getRandomResult() != null) {
+						result = getRandomResult();
+					} else if (mode.hasFallBackMaterial()) {
+						result = mode.getFallbackMaterial();
+					}
+
+					GeneratorGenerateEvent genEvent = new GeneratorGenerateEvent(mode, result, uuid,
+							toBlock.getLocation());
+					Bukkit.getPluginManager().callEvent(genEvent);
+					if (genEvent.isCancelled())
+						return;
+					event.setCancelled(true);
+					if (genEvent.getResult() == null) {
+						LogUtils.severe(String.format("Unknown material %s.", result.name()));
+						return;
+					}
+					genEvent.getGenerationLocation().getBlock().setType(genEvent.getResult());
+
+					if (mode.hasGenSound())
+						l.getWorld().playSound(l, mode.getGenSound(), soundVolume, pitch);
+
+					if (mode.hasParticleEffect())
+						mode.displayGenerationParticles(l);
+				} else {
+					genManager.addKnownGenLocation(l);
+					return;
 				}
 			}
 		}
@@ -147,12 +157,12 @@ public class NetherrackGenerator implements Listener {
 		Player closestPlayer = null;
 		double closestDistance = 100D;
 		for (Entity entity : entitiesNearby) {
-			if (entity instanceof Player p) {
-				double distance = l.distance(p.getLocation());
+			if (entity instanceof Player player) {
+				double distance = l.distance(player.getLocation());
 				if (closestPlayer != null && !(closestDistance > distance)) {
 					continue;
 				}
-				closestPlayer = p;
+				closestPlayer = player;
 				closestDistance = distance;
 			}
 		}
@@ -163,8 +173,8 @@ public class NetherrackGenerator implements Listener {
 	public void onBlockChange(EntityChangeBlockEvent event) {
 		if (!event.getBlock().getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
 			return;
-		if (!event.getEntityType().equals(EntityType.FALLING_BLOCK)
-				|| !(event.getTo().equals(Material.AIR) || event.getTo().name().contains("LAVA")))
+		if (event.getEntityType() != EntityType.FALLING_BLOCK
+				|| !(event.getTo() == Material.AIR || event.getTo() == Material.LAVA))
 			return;
 
 		Location loc = event.getBlock().getLocation();
@@ -189,7 +199,6 @@ public class NetherrackGenerator implements Listener {
 			piston.setHasBeenUsed(true);
 			genManager.setPlayerForLocation(piston.getUUID(), genBlockLoc, true);
 		}
-
 	}
 
 	@EventHandler
@@ -232,47 +241,49 @@ public class NetherrackGenerator implements Listener {
 		}
 	}
 
-	private boolean isGenerating(GenMode mode, BlockFace face, Block fromB, Block toB) {
-		if (!mode.isValid())
-			return false;
+	private boolean isFlowing(@NonNull Block block) {
+		boolean isFlowing = false;
+		Levelled flowingData = (Levelled) block.getBlockData();
+		isFlowing = flowingData.getLevel() > 0 && flowingData.getLevel() <= 7;
+		return isFlowing;
+	}
 
-		if (fromB.getType() != Material.LAVA)
+	private boolean isLavaPool(@NonNull Location location) {
+		if (location.getWorld() == null)
 			return false;
-		int fromLevel = ((Levelled) fromB.getBlockData()).getLevel();
-
-		Block nextBlock = toB.getRelative(face, 1);
-		if (nextBlock.getType() != Material.LAVA)
-			return false;
-
-		int genCount = 0;
-		int nextBlockLevel = ((Levelled) nextBlock.getBlockData()).getLevel();
-		if (fromLevel < nextBlockLevel) {
-			genCount++;
+		int lavaCount = 0;
+		int centerX = location.getBlockX();
+		int centerY = location.getBlockY();
+		int centerZ = location.getBlockZ();
+		for (int x = centerX - 2; x <= centerX + 2; x++) {
+			for (int y = centerY - 1; y <= centerY + 1; y++) {
+				for (int z = centerZ - 2; z <= centerZ + 2; z++) {
+					Block b = location.getWorld().getBlockAt(x, y, z);
+					if (b.getType() == Material.AIR)
+						continue;
+					if (b.getType() == Material.LAVA) {
+						lavaCount++;
+					}
+				}
+			}
 		}
-		if (fromLevel == nextBlockLevel) {
-			genCount++;
-		}
-
-		return genCount > 0;
+		return lavaCount > 4;
 	}
 
 	public @NonNull Map<Material, Double> getResults() {
-		List<String> materials = HellblockPlugin.getInstance().getConfig("config.yml")
-				.getConfigurationSection("netherrack-generator-options.generation").getStringList("blocks");
 		Map<Material, Double> results = new HashMap<>();
-		for (String result : materials) {
+		for (String result : this.getGenerationResults()) {
 			String[] split = result.split(":");
-			Material type = Material.getMaterial(split[0]);
+			Material type = Material.getMaterial(split[0].toUpperCase());
 			double chance = 0.0D;
 			try {
 				chance = Double.parseDouble(split[1]);
 			} catch (NumberFormatException ex) {
-				LogUtils.warn(
-						String.format("Could not define the given chance %s for the block type %s", split[1], split[0]),
-						ex);
+				LogUtils.warn(String.format("Could not define the given chance %s for the block type %s.", split[1],
+						split[0]), ex);
 				continue;
 			}
-			results.put(type, chance);
+			results.put(type != null ? type : Material.NETHERRACK, chance);
 		}
 		return results;
 	}

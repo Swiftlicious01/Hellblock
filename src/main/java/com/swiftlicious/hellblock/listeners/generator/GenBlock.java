@@ -6,7 +6,6 @@ import java.util.UUID;
 import org.bukkit.Location;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
-import com.swiftlicious.hellblock.utils.LogUtils;
 
 public class GenBlock {
 	private final Location location;
@@ -48,7 +47,7 @@ public class GenBlock {
 		// Expire entries 4 seconds after they were created
 		// It only needs enough time for lava to flow and generator a new block
 		if (Instant.now().getEpochSecond() >= (timestamp.getEpochSecond() + 4)) {
-			LogUtils.info("GenMode has expired.");
+			HellblockPlugin.getInstance().debug("GenMode has expired.");
 			return true;
 		}
 		return false;

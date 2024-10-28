@@ -17,11 +17,13 @@ import org.bukkit.World;
 import org.bukkit.World.Environment;
 import org.bukkit.block.Biome;
 import org.bukkit.block.Block;
+import org.bukkit.block.BlockFace;
 import org.bukkit.WorldCreator;
 import org.bukkit.WorldType;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.generator.ChunkGenerator;
+import org.bukkit.util.Vector;
 
 import com.google.common.io.Files;
 import com.onarandombox.MultiverseCore.api.MVWorldManager;
@@ -31,6 +33,7 @@ import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import com.sk89q.worldguard.protection.regions.RegionContainer;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
+import com.swiftlicious.hellblock.utils.LocationUtils;
 import com.swiftlicious.hellblock.utils.LogUtils;
 
 import lombok.Getter;
@@ -393,8 +396,17 @@ public class HellblockHandler {
 				bedrock = location;
 				break;
 			}
-			bedrock = new Location(bedrock.getWorld(), bedrock.getX(), bedrock.getWorld().getHighestBlockYAt(bedrock),
-					bedrock.getZ());
+			Block highestBlock = getHellblockWorld().getHighestBlockAt(bedrock);
+			if (LocationUtils.isSafeLocation(highestBlock.getLocation())) {
+				bedrock = new Location(bedrock.getWorld(), bedrock.getX(), highestBlock.getY() + 1.0D, bedrock.getZ())
+						.add(new Vector(0.5D, 0D, 0.5D));
+			} else {
+				highestBlock.getRelative(BlockFace.DOWN).setType(Material.NETHERRACK, false);
+				highestBlock.setType(Material.AIR, false);
+				highestBlock.getRelative(BlockFace.UP).setType(Material.AIR, false);
+				highestBlock.getRelative(BlockFace.UP).getRelative(BlockFace.UP).setType(Material.NETHERRACK, false);
+				bedrock = highestBlock.getLocation().add(new Vector(0.5D, 0D, 0.5D));
+			}
 			return bedrock;
 		} else {
 			return new Location(getHellblockWorld(), 0.0D, (getHeight() + 1), 0.0D);
@@ -469,8 +481,8 @@ public class HellblockHandler {
 
 		try {
 			this.getLastHellblockConfig().save(this.lastHellblockFile);
-		} catch (IOException var3) {
-			var3.printStackTrace();
+		} catch (IOException ex) {
+			LogUtils.warn("Could not save the last known hellblock data to file.", ex);
 		}
 	}
 
@@ -511,7 +523,7 @@ public class HellblockHandler {
 	public void removeActivePlayer(Player player) {
 		UUID id = player.getUniqueId();
 		if (this.activePlayers.containsKey(id)) {
-			((HellblockPlayer) this.activePlayers.get(id)).saveHellblockPlayer();
+			this.activePlayers.get(id).saveHellblockPlayer();
 			this.activePlayers.remove(id);
 		}
 	}

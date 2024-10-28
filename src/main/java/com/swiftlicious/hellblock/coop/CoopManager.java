@@ -16,6 +16,7 @@ import org.bukkit.Location;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
+import org.bukkit.event.player.PlayerTeleportEvent.TeleportCause;
 import org.jetbrains.annotations.Nullable;
 
 import com.google.common.io.Files;
@@ -34,6 +35,7 @@ import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
 import com.swiftlicious.hellblock.protection.HellblockFlag;
 import com.swiftlicious.hellblock.protection.HellblockFlag.AccessType;
 import com.swiftlicious.hellblock.protection.HellblockFlag.FlagType;
+import com.swiftlicious.hellblock.utils.ChunkUtils;
 import com.swiftlicious.hellblock.utils.LocationUtils;
 import com.swiftlicious.hellblock.utils.LogUtils;
 
@@ -134,7 +136,7 @@ public class CoopManager {
 						HellblockPlugin.getInstance().getCoopManager().updateParty(player.getUniqueId(), "home",
 								playerToAdd.getHomeLocation());
 					}
-					player.teleportAsync(hbPlayer.getHomeLocation());
+					ChunkUtils.teleportAsync(player, hbPlayer.getHomeLocation(), TeleportCause.PLUGIN);
 					// if raining give player a bit of protection
 					if (instance.getLavaRain().getLavaRainTask() != null
 							&& instance.getLavaRain().getLavaRainTask().isLavaRaining()
@@ -818,7 +820,8 @@ public class CoopManager {
 										HellblockPlugin.getInstance().getCoopManager().updateParty(visitor, "home",
 												vi.getHomeLocation());
 									}
-									vi.getPlayer().teleportAsync(vi.getHomeLocation());
+									ChunkUtils.teleportAsync(vi.getPlayer(), vi.getHomeLocation(),
+											TeleportCause.PLUGIN);
 								} else {
 									vi.getPlayer().performCommand(instance.getHellblockHandler().getNetherCMD());
 								}
@@ -971,17 +974,20 @@ public class CoopManager {
 					double y = location.getY();
 					double z = location.getZ();
 					float yaw = location.getYaw();
+					float pitch = location.getPitch();
 
 					if (!(offlineFile.getString("player.home.world").equalsIgnoreCase(world)
 							|| offlineFile.getDouble("player.home.x") == x
 							|| offlineFile.getDouble("player.home.y") == y
 							|| offlineFile.getDouble("player.home.z") == z
-							|| (float) offlineFile.getDouble("player.home.yaw") == yaw)) {
+							|| (float) offlineFile.getDouble("player.home.yaw") == yaw
+							|| (float) offlineFile.getDouble("player.home.pitch") == pitch)) {
 						offlineFile.set("player.home.world", world);
 						offlineFile.set("player.home.x", x);
 						offlineFile.set("player.home.y", y);
 						offlineFile.set("player.home.z", z);
 						offlineFile.set("player.home.yaw", yaw);
+						offlineFile.set("player.home.pitch", pitch);
 					}
 					break;
 				case "ban":

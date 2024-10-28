@@ -116,5 +116,4 @@ public class GeneratorManager {
 				.filter(piston -> piston.getUUID() != null && piston.getUUID().equals(uuid)).toArray(GenPiston[]::new)
 				: new GenPiston[0];
 	}
-
 }

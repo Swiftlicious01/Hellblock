@@ -6,15 +6,16 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.commons.lang3.RandomUtils;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.Tag;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.Nullable;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.utils.RandomUtils;
 
 import lombok.Getter;
 
@@ -36,8 +37,9 @@ public class LavaRain {
 
 	public void startLavaRainProcess() {
 		instance.getScheduler().runTaskAsyncLater(
-				() -> this.lavaRainTask = new LavaRainTask(instance, true, false, RandomUtils.nextInt(150, 250)),
-				RandomUtils.nextInt(10, 15), TimeUnit.MINUTES);
+				() -> this.lavaRainTask = new LavaRainTask(instance, true, false,
+						RandomUtils.generateRandomInt(150, 250)),
+				RandomUtils.generateRandomInt(10, 15), TimeUnit.MINUTES);
 	}
 
 	public void stopLavaRainProcess() {
@@ -47,23 +49,50 @@ public class LavaRain {
 		}
 	}
 
-	public @Nullable Block getHighestBlock(@Nullable Location var1) {
-		if (var1 == null || var1.getWorld() == null)
+	public @Nullable Block getHighestBlock(@Nullable Location location) {
+		if (location == null || location.getWorld() == null)
 			return null;
 
-		Block var2 = var1.getWorld().getBlockAt(var1.getBlockX(), var1.getBlockY(), var1.getBlockZ());
-		var2 = var2.getType() == Material.AIR ? var2 : var1.getWorld().getBlockAt(var1.getBlockX(), var1.getBlockY() + 1, var1.getBlockZ());
+		Block highestBlock = location.getWorld().getBlockAt(location.getBlockX(), location.getBlockY(),
+				location.getBlockZ());
+		highestBlock = highestBlock.getType().isAir() ? highestBlock
+				: location.getWorld().getBlockAt(location.getBlockX(), location.getBlockY() + 1, location.getBlockZ());
 		for (int y = 0; y < 9; y++) {
 			// +2 for equal to eye level
-			Block var3 = var1.getWorld().getBlockAt(var1.getBlockX(), var1.getBlockY() + 2 + y, var1.getBlockZ());
-			if (var3.getType() == Material.AIR)
+			Block block = location.getWorld().getBlockAt(location.getBlockX(), location.getBlockY() + 2 + y,
+					location.getBlockZ());
+			if (Tag.AIR.isTagged(block.getType()) || Tag.ALL_SIGNS.isTagged(block.getType())
+					|| Tag.BANNERS.isTagged(block.getType()) || Tag.FENCES.isTagged(block.getType())
+					|| Tag.FENCE_GATES.isTagged(block.getType()) || Tag.DOORS.isTagged(block.getType())
+					|| Tag.BUTTONS.isTagged(block.getType()) || Tag.PRESSURE_PLATES.isTagged(block.getType())
+					|| Tag.FIRE.isTagged(block.getType()) || block.getType() == Material.LAVA
+					|| block.getType() == Material.WATER || block.getType() == Material.COBWEB
+					|| block.getType() == Material.STRING || block.getType() == Material.FLOWER_POT
+					|| Tag.ITEMS_BOATS.isTagged(block.getType()) || Tag.ITEMS_CHEST_BOATS.isTagged(block.getType())
+					|| block.getType() == Material.MINECART || block.getType() == Material.CHEST_MINECART
+					|| block.getType() == Material.BAMBOO || block.getType() == Material.BAMBOO_RAFT
+					|| block.getType() == Material.FURNACE_MINECART || block.getType() == Material.HOPPER_MINECART
+					|| block.getType() == Material.BAMBOO_CHEST_RAFT
+					|| block.getType() == Material.COMMAND_BLOCK_MINECART || block.getType() == Material.NETHER_PORTAL
+					|| block.getType() == Material.END_PORTAL || block.getType() == Material.END_GATEWAY
+					|| block.getType() == Material.LADDER || block.getType() == Material.CHAIN
+					|| block.getType() == Material.CANDLE || block.getType() == Material.SEA_PICKLE
+					|| block.getType() == Material.VINE || block.getType() == Material.TWISTING_VINES
+					|| block.getType() == Material.WEEPING_VINES || block.getType() == Material.END_ROD
+					|| block.getType() == Material.LIGHTNING_ROD || block.getType() == Material.LEVER
+					|| block.getType() == Material.SWEET_BERRY_BUSH || block.getType() == Material.SCAFFOLDING
+					|| block.getType() == Material.LANTERN || block.getType() == Material.SOUL_LANTERN
+					|| block.getType() == Material.TURTLE_EGG || block.getType() == Material.SMALL_DRIPLEAF
+					|| block.getType() == Material.IRON_BARS || block.getType() == Material.POWDER_SNOW
+					|| block.getType() == Material.TRIPWIRE || block.getType() == Material.TNT
+					|| block.getType() == Material.TNT_MINECART)
 				continue;
 			// get first non-empty block above player
-			var2 = var3;
+			highestBlock = block;
 			break;
 		}
 
-		return var2;
+		return highestBlock;
 	}
 
 	public class LavaRainLocation {
