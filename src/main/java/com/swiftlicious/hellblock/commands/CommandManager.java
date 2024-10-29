@@ -108,9 +108,9 @@ public class CommandManager implements CommandManagerInterface {
 		return new CommandAPICommand("about").executes((sender, args) -> {
 			instance.getAdventureManager().sendMessage(sender, "<#00BFFF>\uD83C\uDFDD Hellblock <gray>- <#87CEEB>"
 					+ instance.getVersionManager().getPluginVersion());
+			instance.getAdventureManager().sendMessage(sender, "<#B0C4DE>" + instance.getPluginMeta().getDescription());
 			instance.getAdventureManager().sendMessage(sender,
-					"<#B0C4DE>A skyblock plugin that puts you in the nether!");
-			instance.getAdventureManager().sendMessage(sender, "<#DA70D6>\uD83E\uDDEA Author: <#FFC0CB>Swiftlicious");
+					"<#DA70D6>\uD83E\uDDEA Author: <#FFC0CB>" + instance.getPluginMeta().getAuthors().getFirst());
 			instance.getAdventureManager().sendMessage(sender,
 					"<#FAFAD2>⛏ <click:open_url:https://github.com/Swiftlicious01/Hellblock>Github</click>");
 		});

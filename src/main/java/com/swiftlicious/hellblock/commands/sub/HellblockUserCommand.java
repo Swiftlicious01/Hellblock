@@ -3,6 +3,7 @@ package com.swiftlicious.hellblock.commands.sub;
 import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Map.Entry;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -12,6 +13,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.entity.Player;
 import org.bukkit.event.player.PlayerTeleportEvent.TeleportCause;
 
 import com.google.common.cache.Cache;
@@ -43,6 +45,12 @@ public class HellblockUserCommand {
 	public CommandAPICommand getMenuCommand() {
 		return new CommandAPICommand("menu").withPermission(CommandPermission.NONE).withPermission("hellblock.user")
 				.executesPlayer((player, args) -> {
+					HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
+					if (pi.isAbandoned()) {
+						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+								"<red>This hellblock is abandoned, you can't do anything until it's recovered!");
+						return;
+					}
 					new HellblockMenu(player);
 				});
 	}
@@ -54,6 +62,11 @@ public class HellblockUserCommand {
 					if (!pi.hasHellblock()) {
 						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 								"<red>You don't have a hellblock!");
+						return;
+					}
+					if (pi.isAbandoned()) {
+						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+								"<red>This hellblock is abandoned, you can't do anything until it's recovered!");
 						return;
 					}
 					if (pi.getHellblockOwner() != null && !pi.getHellblockOwner().equals(player.getUniqueId())) {
@@ -100,6 +113,11 @@ public class HellblockUserCommand {
 				.withPermission("hellblock.user").executesPlayer((player, args) -> {
 					HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
 					if (pi.hasHellblock()) {
+						if (pi.isAbandoned()) {
+							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+									"<red>This hellblock is abandoned, you can't do anything until it's recovered!");
+							return;
+						}
 						if (pi.getHellblockOwner() != null && !pi.getHellblockOwner().equals(player.getUniqueId())) {
 							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 									"<red>Only the owner of the hellblock island can change this!");
@@ -155,11 +173,16 @@ public class HellblockUserCommand {
 		return new CommandAPICommand("changebiome").withAliases("setbiome", "biome")
 				.withPermission(CommandPermission.NONE).withPermission("hellblock.user")
 				.withArguments(new StringArgument("biome").replaceSuggestions(
-						ArgumentSuggestions.stringCollection(collection -> Arrays.stream(HellBiome.values())
+						ArgumentSuggestions.stringCollection(info -> Arrays.stream(HellBiome.values())
 								.map(biome -> biome.toString()).collect(Collectors.toList()))))
 				.executesPlayer((player, args) -> {
 					HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
 					if (pi.hasHellblock()) {
+						if (pi.isAbandoned()) {
+							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+									"<red>This hellblock is abandoned, you can't do anything until it's recovered!");
+							return;
+						}
 						if (pi.getHellblockOwner() != null && !pi.getHellblockOwner().equals(player.getUniqueId())) {
 							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 									"<red>Only the owner of the hellblock island can change this!");
@@ -185,13 +208,22 @@ public class HellblockUserCommand {
 
 	public CommandAPICommand getVisitCommand() {
 		return new CommandAPICommand("visit").withAliases("warp").withPermission(CommandPermission.NONE)
-				.withPermission("hellblock.user")
-				.withArguments(new StringArgument("player")
-						.replaceSuggestions(ArgumentSuggestions.stringCollection(collection -> HellblockPlugin
-								.getInstance().getHellblockHandler().getActivePlayers().values().stream()
-								.filter(hbPlayer -> hbPlayer.getPlayer() != null && hbPlayer.hasHellblock()
-										&& !hbPlayer.getLockedStatus())
-								.map(hbPlayer -> hbPlayer.getPlayer().getName()).collect(Collectors.toList()))))
+				.withPermission("hellblock.user").withArguments(
+						new StringArgument("player").replaceSuggestions(ArgumentSuggestions.stringCollection(info -> {
+							if (info.sender() instanceof Player player) {
+								HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler()
+										.getActivePlayer(player);
+								return HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers().values()
+										.stream()
+										.filter(hbPlayer -> hbPlayer.getPlayer() != null && hbPlayer.hasHellblock()
+												&& hbPlayer.getHomeLocation() != null
+												&& !pi.getHellblockParty().contains(hbPlayer.getPlayer().getUniqueId())
+												&& !hbPlayer.getPlayer().getName().equalsIgnoreCase(player.getName()))
+										.map(hbPlayer -> hbPlayer.getPlayer().getName()).collect(Collectors.toList());
+							} else {
+								return Collections.emptyList();
+							}
+						})))
 				.executesPlayer((player, args) -> {
 					String user = (String) args.getOrDefault("player", player);
 					UUID id = Bukkit.getPlayer(user) != null ? Bukkit.getPlayer(user).getUniqueId()
@@ -206,14 +238,56 @@ public class HellblockUserCommand {
 								"<red>The player's hellblock you're trying to visit doesn't exist!");
 						return;
 					}
+					HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
+					
 					HellblockPlayer ti = null;
 					if (HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers().containsKey(id)) {
 						ti = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers().get(id);
 					} else {
 						ti = new HellblockPlayer(id);
 					}
+					
+					if (id.equals(player.getUniqueId()) || ti.getHellblockParty().contains(player.getUniqueId())) {
+						if (pi.isAbandoned()) {
+							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+									"<red>This hellblock is abandoned, you can't do anything until it's recovered!");
+							return;
+						}
+						if (pi.getHomeLocation() != null) {
+							if (!LocationUtils.isSafeLocation(pi.getHomeLocation())) {
+								HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+										"<red>This hellblock home location was deemed not safe, resetting to bedrock location!");
+								pi.setHome(HellblockPlugin.getInstance().getHellblockHandler()
+										.locateBedrock(player.getUniqueId()));
+								HellblockPlugin.getInstance().getCoopManager().updateParty(player.getUniqueId(), "home",
+										pi.getHomeLocation());
+							}
+							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+									"<red>Teleporting you to your hellblock!");
+							ChunkUtils.teleportAsync(player, pi.getHomeLocation(), TeleportCause.PLUGIN);
+							// if raining give player a bit of protection
+							if (HellblockPlugin.getInstance().getLavaRain().getLavaRainTask() != null
+									&& HellblockPlugin.getInstance().getLavaRain().getLavaRainTask().isLavaRaining()
+									&& HellblockPlugin.getInstance().getLavaRain()
+											.getHighestBlock(player.getLocation()) != null
+									&& !HellblockPlugin.getInstance().getLavaRain()
+											.getHighestBlock(player.getLocation()).isEmpty()) {
+								player.setNoDamageTicks(5 * 20);
+							}
+						} else {
+							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+									"<red>Error teleporting you to your hellblock!");
+							throw new NullPointerException();
+						}
+						return;
+					}
 
 					if (ti.hasHellblock()) {
+						if (ti.isAbandoned()) {
+							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+									"<red>This hellblock is abandoned, you can't visit it at this time!");
+							return;
+						}
 						if (!ti.getLockedStatus()
 								&& HellblockPlugin.getInstance().getCoopManager().checkIfVisitorIsWelcome(player, id)) {
 							if (!LocationUtils.isSafeLocation(ti.getHomeLocation())) {
@@ -266,6 +340,11 @@ public class HellblockUserCommand {
 						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 								"<red>You don't have a hellblock!");
 					} else {
+						if (pi.isAbandoned()) {
+							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+									"<red>This hellblock is abandoned, you can't do anything until it's recovered!");
+							return;
+						}
 						if (pi.getHomeLocation() != null) {
 							if (!LocationUtils.isSafeLocation(pi.getHomeLocation())) {
 								HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
@@ -290,6 +369,7 @@ public class HellblockUserCommand {
 						} else {
 							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 									"<red>Error teleporting you to your hellblock!");
+							throw new NullPointerException();
 						}
 					}
 				});
@@ -297,16 +377,33 @@ public class HellblockUserCommand {
 
 	public CommandAPICommand getBanCommand() {
 		return new CommandAPICommand("ban").withPermission(CommandPermission.NONE).withPermission("hellblock.user")
-				.withArguments(new StringArgument("player").replaceSuggestions(ArgumentSuggestions
-						.stringCollection(collection -> HellblockPlugin.getInstance().getHellblockHandler()
-								.getActivePlayers().values().stream().filter(hbPlayer -> hbPlayer.getPlayer() != null)
-								.map(hbPlayer -> hbPlayer.getPlayer().getName()).collect(Collectors.toList()))))
+				.withArguments(
+						new StringArgument("player").replaceSuggestions(ArgumentSuggestions.stringCollection(info -> {
+							if (info.sender() instanceof Player player) {
+								HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler()
+										.getActivePlayer(player);
+								return HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers().values()
+										.stream()
+										.filter(hbPlayer -> hbPlayer.getPlayer() != null
+												&& !pi.getWhoTrusted().contains(hbPlayer.getPlayer().getUniqueId())
+												&& !pi.getHellblockParty().contains(hbPlayer.getPlayer().getUniqueId())
+												&& !hbPlayer.getPlayer().getName().equalsIgnoreCase(player.getName()))
+										.map(hbPlayer -> hbPlayer.getPlayer().getName()).collect(Collectors.toList());
+							} else {
+								return Collections.emptyList();
+							}
+						})))
 				.executesPlayer((player, args) -> {
 					HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
 					if (!pi.hasHellblock()) {
 						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 								"<red>You don't have a hellblock!");
 					} else {
+						if (pi.isAbandoned()) {
+							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+									"<red>This hellblock is abandoned, you can't do anything until it's recovered!");
+							return;
+						}
 						String user = (String) args.getOrDefault("player", player);
 						UUID id = Bukkit.getPlayer(user) != null ? Bukkit.getPlayer(user).getUniqueId()
 								: UUIDFetcher.getUUID(user);
@@ -369,16 +466,33 @@ public class HellblockUserCommand {
 
 	public CommandAPICommand getUnbanCommand() {
 		return new CommandAPICommand("unban").withPermission(CommandPermission.NONE).withPermission("hellblock.user")
-				.withArguments(new StringArgument("player").replaceSuggestions(ArgumentSuggestions
-						.stringCollection(collection -> HellblockPlugin.getInstance().getHellblockHandler()
-								.getActivePlayers().values().stream().filter(hbPlayer -> hbPlayer.getPlayer() != null)
-								.map(hbPlayer -> hbPlayer.getPlayer().getName()).collect(Collectors.toList()))))
+				.withArguments(
+						new StringArgument("player").replaceSuggestions(ArgumentSuggestions.stringCollection(info -> {
+							if (info.sender() instanceof Player player) {
+								HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler()
+										.getActivePlayer(player);
+								return HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers().values()
+										.stream()
+										.filter(hbPlayer -> hbPlayer.getPlayer() != null
+												&& !pi.getWhoTrusted().contains(hbPlayer.getPlayer().getUniqueId())
+												&& !pi.getHellblockParty().contains(hbPlayer.getPlayer().getUniqueId())
+												&& !hbPlayer.getPlayer().getName().equalsIgnoreCase(player.getName()))
+										.map(hbPlayer -> hbPlayer.getPlayer().getName()).collect(Collectors.toList());
+							} else {
+								return Collections.emptyList();
+							}
+						})))
 				.executesPlayer((player, args) -> {
 					HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
 					if (!pi.hasHellblock()) {
 						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 								"<red>You don't have a hellblock!");
 					} else {
+						if (pi.isAbandoned()) {
+							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+									"<red>This hellblock is abandoned, you can't do anything until it's recovered!");
+							return;
+						}
 						String user = (String) args.getOrDefault("player", player);
 						UUID id = Bukkit.getPlayer(user) != null ? Bukkit.getPlayer(user).getUniqueId()
 								: UUIDFetcher.getUUID(user);
@@ -424,6 +538,11 @@ public class HellblockUserCommand {
 						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 								"<red>You don't have a hellblock!");
 					} else {
+						if (pi.isAbandoned()) {
+							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+									"<red>This hellblock is abandoned, you can't do anything until it's recovered!");
+							return;
+						}
 						String partyString = "", trustedString = "", bannedString = "";
 						for (UUID id : pi.getHellblockParty()) {
 							if (Bukkit.getOfflinePlayer(id).hasPlayedBefore()
@@ -431,7 +550,8 @@ public class HellblockUserCommand {
 								partyString = "<dark_red>" + Bukkit.getOfflinePlayer(id).getName() + "<red>, ";
 							}
 						}
-						for (UUID id : pi.getWhoTrusted()) {
+						for (UUID id : HellblockPlugin.getInstance().getHellblockHandler()
+								.getActivePlayer(pi.getHellblockOwner()).getWhoTrusted()) {
 							if (Bukkit.getOfflinePlayer(id).hasPlayedBefore()
 									&& Bukkit.getOfflinePlayer(id).getName() != null) {
 								trustedString = "<dark_red>" + Bukkit.getOfflinePlayer(id).getName() + "<red>, ";
@@ -491,6 +611,11 @@ public class HellblockUserCommand {
 						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 								"<red>You don't have a hellblock!");
 					} else {
+						if (pi.isAbandoned()) {
+							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+									"<red>This hellblock is abandoned, you can't do anything until it's recovered!");
+							return;
+						}
 						if (pi.getHomeLocation() != null) {
 							if (pi.getHellblockOwner() != null
 									&& !pi.getHellblockOwner().equals(player.getUniqueId())) {
@@ -584,8 +709,8 @@ public class HellblockUserCommand {
 
 	public CommandAPICommand getHelpCommand() {
 		return new CommandAPICommand("help").withPermission(CommandPermission.NONE).withPermission("hellblock.user")
-				.withArguments(new IntegerArgument("page").replaceSuggestions(
-						ArgumentSuggestions.stringCollection(collection -> Arrays.asList("1", "2"))))
+				.withArguments(new IntegerArgument("page")
+						.replaceSuggestions(ArgumentSuggestions.stringCollection(info -> Arrays.asList("1", "2"))))
 				.executesPlayer((player, args) -> {
 					int page = (int) args.getOrDefault("page", 1);
 					HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
@@ -616,7 +741,15 @@ public class HellblockUserCommand {
 						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 								"<red>/hellblock coop invite <player>: Invite another player to your island");
 						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-								"<red>/hellblock coop kick <player>: Kick the player from your island");
+								"<red>/hellblock coop accept <player>: Accept an invite to another player's island");
+						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
+								"<red>/hellblock coop decline <player>: Reject an invite to another player's island");
+						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
+								"<red>/hellblock coop invitations: See a list of invitations sent to you in the past 24 hours!");
+						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
+								"<red>/hellblock coop cancel <player>: Cancel an invite you sent to a player to join your island");
+						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
+								"<red>/hellblock coop kick <player>: Kick the player from your party");
 						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 								"<red>/hellblock coop leave: Leave the island you're apart of");
 						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,

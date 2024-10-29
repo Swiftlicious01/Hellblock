@@ -26,6 +26,7 @@ import org.jetbrains.annotations.Nullable;
 
 import com.saicone.rtag.RtagItem;
 import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.challenges.HellblockChallenge.ChallengeType;
 import com.swiftlicious.hellblock.config.HBConfig;
 import com.swiftlicious.hellblock.events.fishing.FishingResultEvent;
 import com.swiftlicious.hellblock.events.fishing.LavaFishingEvent;
@@ -33,6 +34,7 @@ import com.swiftlicious.hellblock.events.fishing.RodCastEvent;
 import com.swiftlicious.hellblock.handlers.RequirementManagerInterface;
 import com.swiftlicious.hellblock.loot.Loot;
 import com.swiftlicious.hellblock.loot.LootType;
+import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
 import com.swiftlicious.hellblock.utils.ItemUtils;
 import com.swiftlicious.hellblock.utils.LogUtils;
 import com.swiftlicious.hellblock.utils.extras.ActionTrigger;
@@ -642,6 +644,17 @@ public class FishingManager implements Listener, FishingManagerInterface {
 								fishingPreparation);
 						doSuccessActions(loot, fishingPreparation, player);
 					}, hook.getLocation(), (long) HBConfig.multipleLootSpawnDelay * i);
+				}
+			}
+
+			HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(player);
+			if (!pi.isChallengeActive(ChallengeType.LAVA_FISHING_CHALLENGE)
+					&& !pi.isChallengeCompleted(ChallengeType.LAVA_FISHING_CHALLENGE)) {
+				pi.beginChallengeProgression(ChallengeType.LAVA_FISHING_CHALLENGE);
+			} else {
+				pi.updateChallengeProgression(ChallengeType.LAVA_FISHING_CHALLENGE, 1);
+				if (pi.isChallengeCompleted(ChallengeType.LAVA_FISHING_CHALLENGE)) {
+					pi.completeChallenge(ChallengeType.LAVA_FISHING_CHALLENGE);
 				}
 			}
 		}

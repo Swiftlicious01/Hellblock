@@ -64,8 +64,7 @@ public class Head64Item extends AbstractItem {
 			player.closeInventory();
 			HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 					"Input the head64 value in chat");
-			((HellblockPlugin) HellblockPlugin.getInstance()).getChatCatcherManager().catchMessage(player,
-					"head64", itemPage);
+			HellblockPlugin.getInstance().getChatCatcherManager().catchMessage(player, "head64", itemPage);
 		} else if (clickType.isRightClick()) {
 			itemPage.getSection().set("head64", null);
 			itemPage.save();

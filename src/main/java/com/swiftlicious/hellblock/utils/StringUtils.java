@@ -3,6 +3,7 @@ package com.swiftlicious.hellblock.utils;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
+import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.NotNull;
 
 public class StringUtils {
@@ -28,11 +29,11 @@ public class StringUtils {
 	 *
 	 *         Credits to mikenon on GitHub!
 	 */
-	public static String prettifyText(String ugly) {
+	public static String prettifyText(ItemStack ugly) {
 		StringBuilder fin = new StringBuilder();
-		ugly = ugly.toLowerCase(java.util.Locale.ENGLISH);
-		if (ugly.contains("_")) {
-			String[] splt = ugly.split("_");
+		String pretty = ugly.getType().toString().toLowerCase(java.util.Locale.ENGLISH);
+		if (pretty.contains("_")) {
+			String[] splt = pretty.split("_");
 			int i = 0;
 			for (String s : splt) {
 				i += 1;
@@ -42,7 +43,7 @@ public class StringUtils {
 				}
 			}
 		} else {
-			fin.append(Character.toUpperCase(ugly.charAt(0))).append(ugly.substring(1));
+			fin.append(Character.toUpperCase(pretty.charAt(0))).append(pretty.substring(1));
 		}
 		return fin.toString();
 	}

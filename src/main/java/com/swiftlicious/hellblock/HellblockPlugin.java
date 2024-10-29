@@ -28,6 +28,7 @@ import com.google.common.io.Files;
 import com.swiftlicious.hellblock.api.compatibility.Metrics;
 import com.swiftlicious.hellblock.api.compatibility.WorldEditHook;
 import com.swiftlicious.hellblock.api.compatibility.WorldGuardHook;
+import com.swiftlicious.hellblock.challenges.ChallengeRewardBuilder;
 import com.swiftlicious.hellblock.commands.CommandManager;
 import com.swiftlicious.hellblock.config.HBConfig;
 import com.swiftlicious.hellblock.config.HBLocale;
@@ -113,6 +114,7 @@ public class HellblockPlugin extends JavaPlugin {
 	protected IslandProtection islandProtectionManager;
 	protected IslandLevelHandler islandLevelManager;
 	protected SchematicManager schematicManager;
+	protected ChallengeRewardBuilder challengeRewardBuilder;
 
 	protected ConfigUtils configUtils;
 	protected WeightUtils weightUtils;
@@ -215,6 +217,7 @@ public class HellblockPlugin extends JavaPlugin {
 		this.coopManager = new CoopManager(this);
 		this.islandLevelManager = new IslandLevelHandler(this);
 		this.islandProtectionManager = new IslandProtection(this);
+		this.challengeRewardBuilder = new ChallengeRewardBuilder(this);
 
 		this.actionManager = new ActionManager(this);
 		this.adventureManager = new AdventureManager();
@@ -249,8 +252,7 @@ public class HellblockPlugin extends JavaPlugin {
 		reload();
 
 		if (HBConfig.metrics)
-			// TODO: once published change out with my own ID
-			new Metrics(this, 42152);
+			new Metrics(this, 23739);
 
 		if (HBConfig.updateChecker) {
 			this.versionManager.checkUpdate().thenAccept(result -> {
@@ -277,6 +279,8 @@ public class HellblockPlugin extends JavaPlugin {
 			HellblockPlayer pi = new HellblockPlayer(id);
 			getHellblockHandler().addActivePlayer(player, pi);
 			getNetherFarming().trackNetherFarms(pi);
+			getIslandLevelManager().loadCache(id);
+			getNetherrackGenerator().loadPistons(id);
 			if (getCoopManager().trackBannedPlayer(id)) {
 				if (pi.hasHellblock()) {
 					if (!LocationUtils.isSafeLocation(pi.getHomeLocation())) {
@@ -425,6 +429,8 @@ public class HellblockPlugin extends JavaPlugin {
 				if (pi == null)
 					continue;
 				pi.saveHellblockPlayer();
+				getIslandLevelManager().saveCache(id);
+				getNetherrackGenerator().savePistons(id);
 				Player player = pi.getPlayer();
 				if (player == null || !player.isOnline())
 					continue;

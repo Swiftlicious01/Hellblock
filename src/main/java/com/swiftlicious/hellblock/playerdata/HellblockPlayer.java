@@ -2,6 +2,8 @@ package com.swiftlicious.hellblock.playerdata;
 
 import java.io.File;
 import java.io.IOException;
+import java.time.Duration;
+import java.util.AbstractMap.SimpleEntry;
 import java.util.Calendar;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -14,32 +16,52 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.bukkit.Bukkit;
+import org.bukkit.Color;
+import org.bukkit.FireworkEffect;
+import org.bukkit.FireworkEffect.Type;
 import org.bukkit.Location;
+import org.bukkit.NamespacedKey;
 import org.bukkit.World;
 import org.bukkit.block.Biome;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.entity.EntityType;
+import org.bukkit.entity.Firework;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.meta.FireworkMeta;
+import org.bukkit.persistence.PersistentDataType;
 import org.jetbrains.annotations.Nullable;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.challenges.ChallengeData;
+import com.swiftlicious.hellblock.challenges.HellblockChallenge;
+import com.swiftlicious.hellblock.challenges.HellblockChallenge.ChallengeType;
+import com.swiftlicious.hellblock.challenges.HellblockChallenge.CompletionStatus;
+import com.swiftlicious.hellblock.challenges.ProgressBar;
+import com.swiftlicious.hellblock.coop.HellblockParty;
 import com.swiftlicious.hellblock.generation.HellBiome;
 import com.swiftlicious.hellblock.generation.IslandOptions;
 import com.swiftlicious.hellblock.protection.HellblockFlag;
 import com.swiftlicious.hellblock.protection.HellblockFlag.AccessType;
 import com.swiftlicious.hellblock.protection.HellblockFlag.FlagType;
 import com.swiftlicious.hellblock.utils.LogUtils;
+import lombok.NonNull;
+import net.kyori.adventure.key.Key;
+import net.kyori.adventure.sound.Sound;
 
 public class HellblockPlayer {
 
-	private UUID id;
+	private final UUID id;
 	private int hellblockID;
 	private float hellblockLevel;
 	private boolean hasHellblock;
 	private UUID hellblockOwner;
+	private UUID linkedHellblock;
 	private Set<UUID> hellblockParty;
 	private Set<UUID> whoHasTrusted;
 	private Set<UUID> bannedPlayers;
+	private Map<UUID, Long> invitations;
 	private Map<FlagType, AccessType> protectionFlags;
+	private Map<ChallengeType, Entry<CompletionStatus, ChallengeData>> challenges;
 	private Location hellblockLocation;
 	private Location homeLocation;
 	private long creationTime;
@@ -56,7 +78,7 @@ public class HellblockPlayer {
 
 	public final static float DEFAULT_LEVEL = 1.0F;
 
-	public HellblockPlayer(UUID id) {
+	public HellblockPlayer(@NonNull UUID id) {
 		this.id = id;
 		this.loadHellblockPlayer();
 	}
@@ -76,8 +98,23 @@ public class HellblockPlayer {
 		}
 
 		this.pi = YamlConfiguration.loadConfiguration(this.file);
-		HellblockPlugin.getInstance().getIslandLevelManager().loadCache(this.id);
 		this.hasHellblock = this.getHellblockPlayer().getBoolean("player.hasHellblock");
+		if (this.getHellblockPlayer().contains("player.challenges")) {
+			this.challenges = new HashMap<>();
+			this.getHellblockPlayer().getConfigurationSection("player.challenges").getKeys(false).forEach(key -> {
+				ChallengeType challenge = ChallengeType.valueOf(key);
+				CompletionStatus completion = CompletionStatus
+						.valueOf(this.getHellblockPlayer().getString("player.challenges." + key + ".status"));
+				int progress = this.getHellblockPlayer().getInt("player.challenges." + key + ".progress",
+						challenge.getNeededAmount());
+				boolean claimedReward = this.getHellblockPlayer()
+						.getBoolean("player.challenges." + key + ".claimed-reward", false);
+				this.challenges.put(challenge, new SimpleEntry<CompletionStatus, ChallengeData>(completion,
+						new ChallengeData(progress, claimedReward)));
+			});
+		} else {
+			this.challenges = new HashMap<>();
+		}
 		this.isAbandoned = this.getHellblockPlayer().getBoolean("player.abandoned", false);
 		if (this.getHellblockPlayer().contains("player.trusted-on-islands")
 				&& !this.getHellblockPlayer().getStringList("player.trusted-on-islands").isEmpty()) {
@@ -103,6 +140,18 @@ public class HellblockPlayer {
 			if (this.islandChoice == IslandOptions.SCHEMATIC) {
 				this.schematic = this.getHellblockPlayer().getString("player.island-choice.used-schematic");
 			}
+			if (this.getHellblockPlayer().contains("player.linked-hellblock")) {
+				try {
+					this.linkedHellblock = UUID
+							.fromString(this.getHellblockPlayer().getString("player.linked-hellblock"));
+				} catch (IllegalArgumentException ex) {
+					this.hellblockOwner = null;
+					LogUtils.severe(String.format("Could not find the UUID from the linked hellblock owner: %s",
+							this.getHellblockPlayer().getString("player.linked-hellblock")), ex);
+				}
+			} else {
+				this.linkedHellblock = null;
+			}
 			this.lockedStatus = this.getHellblockPlayer().getBoolean("player.locked-island", false);
 			this.hellblockLocation = this.deserializeLocation("player.hellblock");
 			this.homeLocation = this.deserializeLocation("player.home");
@@ -115,7 +164,7 @@ public class HellblockPlayer {
 			try {
 				this.hellblockOwner = UUID.fromString(this.getHellblockPlayer().getString("player.owner"));
 			} catch (IllegalArgumentException ex) {
-				this.hellblockOwner = this.id;
+				this.hellblockOwner = null;
 				LogUtils.severe(String.format("Could not find the UUID from the hellblock owner: %s",
 						this.getHellblockPlayer().getString("player.owner")), ex);
 			}
@@ -174,14 +223,29 @@ public class HellblockPlayer {
 			this.totalVisitors = 0;
 			this.homeLocation = null;
 			this.hellblockOwner = null;
+			this.linkedHellblock = null;
 			this.protectionFlags = new HashMap<>();
 			this.bannedPlayers = new HashSet<>();
 			this.hellblockParty = new HashSet<>();
+			if (this.getHellblockPlayer().contains("player.invitations")) {
+				this.invitations = new HashMap<>();
+				this.getHellblockPlayer().getConfigurationSection("player.invitations").getKeys(false).forEach(key -> {
+					UUID invitee = UUID.fromString(key);
+					long expirationTime = this.getHellblockPlayer().getLong("player.invitations." + key);
+					this.invitations.put(invitee, expirationTime);
+				});
+			} else {
+				this.invitations = new HashMap<>();
+			}
 		}
 	}
 
 	public @Nullable Player getPlayer() {
 		return Bukkit.getPlayer(this.id);
+	}
+
+	public HellblockParty getParty() {
+		return new HellblockParty(this);
 	}
 
 	public boolean hasHellblock() {
@@ -198,6 +262,14 @@ public class HellblockPlayer {
 
 	public UUID getHellblockOwner() {
 		return this.hellblockOwner;
+	}
+
+	public UUID getLinkedHellblock() {
+		return this.linkedHellblock;
+	}
+
+	public boolean hasLinkedHellblock() {
+		return this.linkedHellblock != null;
 	}
 
 	public Set<UUID> getHellblockParty() {
@@ -257,8 +329,117 @@ public class HellblockPlayer {
 				+ cal.get(Calendar.AM_PM));
 	}
 
+	public Map<UUID, Long> getInvitations() {
+		if (this.invitations == null)
+			return new HashMap<>();
+		return this.invitations;
+	}
+
+	public boolean hasInvite(@NonNull UUID playerID) {
+		boolean inviteExists = false;
+		if (!this.invitations.isEmpty()) {
+			for (Entry<UUID, Long> invites : this.invitations.entrySet()) {
+				if (invites.getKey().equals(playerID)) {
+					inviteExists = true;
+					break;
+				}
+			}
+		}
+		return inviteExists;
+	}
+
+	public boolean hasInviteExpired(@NonNull UUID playerID) {
+		boolean expired = false;
+		if (!this.invitations.isEmpty()) {
+			for (Entry<UUID, Long> invites : this.invitations.entrySet()) {
+				if (invites.getKey().equals(playerID)) {
+					if (invites.getValue().longValue() == 0) {
+						expired = true;
+						break;
+					}
+				}
+			}
+		}
+		return expired;
+	}
+
 	public boolean isAbandoned() {
 		return this.isAbandoned;
+	}
+
+	public Map<ChallengeType, Entry<CompletionStatus, ChallengeData>> getChallenges() {
+		return this.challenges;
+	}
+
+	public CompletionStatus getChallengeStatus(ChallengeType challenge) {
+		CompletionStatus statusValue = CompletionStatus.NOT_STARTED;
+		if (!this.challenges.isEmpty()) {
+			for (Entry<ChallengeType, Entry<CompletionStatus, ChallengeData>> challenges : this.challenges.entrySet()) {
+				if (challenges.getKey().getName().equalsIgnoreCase(challenge.getName())) {
+					statusValue = challenges.getValue().getKey();
+					break;
+				}
+			}
+		}
+		return statusValue;
+	}
+
+	public int getChallengeProgress(ChallengeType challenge) {
+		int progress = 0;
+		if (!this.challenges.isEmpty()) {
+			for (Entry<ChallengeType, Entry<CompletionStatus, ChallengeData>> challenges : this.challenges.entrySet()) {
+				if (challenges.getKey().getName().equalsIgnoreCase(challenge.getName())) {
+					if (challenges.getValue().getKey() == CompletionStatus.IN_PROGRESS) {
+						progress = challenges.getValue().getValue().getProgress();
+						break;
+					}
+				}
+			}
+		}
+		return progress;
+	}
+
+	public boolean isChallengeActive(ChallengeType challenge) {
+		boolean active = false;
+		if (!this.challenges.isEmpty()) {
+			for (Entry<ChallengeType, Entry<CompletionStatus, ChallengeData>> challenges : this.challenges.entrySet()) {
+				if (challenges.getKey().getName().equalsIgnoreCase(challenge.getName())) {
+					active = challenges.getValue().getKey() == CompletionStatus.IN_PROGRESS;
+					break;
+				}
+			}
+		}
+		return active;
+	}
+
+	public boolean isChallengeCompleted(ChallengeType challenge) {
+		boolean completed = false;
+		if (!this.challenges.isEmpty()) {
+			for (Entry<ChallengeType, Entry<CompletionStatus, ChallengeData>> challenges : this.challenges.entrySet()) {
+				if (challenges.getKey().getName().equalsIgnoreCase(challenge.getName())) {
+					completed = challenges.getValue().getValue().getProgress() >= challenge.getNeededAmount();
+					break;
+				}
+			}
+		}
+		return completed;
+	}
+
+	public boolean isChallengeRewardClaimed(ChallengeType challenge) {
+		boolean claimed = false;
+		if (!this.challenges.isEmpty()) {
+			for (Entry<ChallengeType, Entry<CompletionStatus, ChallengeData>> challenges : this.challenges.entrySet()) {
+				if (challenges.getKey().getName().equalsIgnoreCase(challenge.getName())) {
+					if (challenges.getValue().getKey() == CompletionStatus.COMPLETED) {
+						if (challenges.getValue().getValue().getProgress() == challenge.getNeededAmount()) {
+							claimed = challenges.getValue().getValue().isRewardClaimed();
+							break;
+						}
+					}
+				}
+			}
+		}
+		return claimed;
 	}
 
 	public Map<FlagType, AccessType> getProtectionFlags() {
@@ -266,7 +447,7 @@ public class HellblockPlayer {
 	}
 
 	public AccessType getProtectionValue(FlagType flag) {
-		AccessType returnValue = AccessType.DENY;
+		AccessType returnValue = flag.getDefaultValue() ? AccessType.ALLOW : AccessType.DENY;
 		if (!this.protectionFlags.isEmpty()) {
 			for (Entry<FlagType, AccessType> flags : this.protectionFlags.entrySet()) {
 				if (flags.getKey().getName().equalsIgnoreCase(flag.getName())) {
@@ -295,6 +476,10 @@ public class HellblockPlayer {
 
 	public void setHellblockOwner(UUID newOwner) {
 		this.hellblockOwner = newOwner;
+	}
+
+	public void setLinkedHellblock(UUID linkedOwner) {
+		this.linkedHellblock = linkedOwner;
 	}
 
 	public void addToHellblockParty(UUID newMember) {
@@ -395,6 +580,143 @@ public class HellblockPlayer {
 		this.hellblockLevel = level;
 	}
 
+	public void setChallenges(Map<ChallengeType, Entry<CompletionStatus, ChallengeData>> challenges) {
+		this.challenges = challenges;
+	}
+
+	public void setChallengeStatus(HellblockChallenge challenge) {
+		if (!this.challenges.isEmpty()) {
+			for (Entry<ChallengeType, Entry<CompletionStatus, ChallengeData>> challenges : this.challenges.entrySet()) {
+				if (challenges.getKey().getName().equalsIgnoreCase(challenge.getChallengeType().getName())) {
+					this.challenges.remove(challenge.getChallengeType());
+					this.getHellblockPlayer().set("player.challenges." + challenge.getChallengeType().toString(), null);
+				}
+			}
+		}
+
+		if (challenge.getCompletionStatus() == CompletionStatus.COMPLETED) {
+			this.challenges.put(challenge.getChallengeType(),
+					new SimpleEntry<CompletionStatus, ChallengeData>(challenge.getCompletionStatus(),
+							new ChallengeData(challenge.getChallengeType().getNeededAmount(), false)));
+		}
+	}
+
+	public void setChallengeProgress(HellblockChallenge challenge, int progress) {
+		if (!this.challenges.isEmpty()) {
+			for (Entry<ChallengeType, Entry<CompletionStatus, ChallengeData>> challenges : this.challenges.entrySet()) {
+				if (challenges.getKey().getName().equalsIgnoreCase(challenge.getChallengeType().getName())
+						&& challenges.getValue().getKey() == challenge.getCompletionStatus()) {
+					this.challenges.remove(challenge.getChallengeType());
+					this.getHellblockPlayer().set("player.challenges." + challenge.getChallengeType().toString(), null);
+				}
+			}
+		}
+
+		if (challenge.getCompletionStatus() == CompletionStatus.IN_PROGRESS) {
+			this.challenges.put(challenge.getChallengeType(), new SimpleEntry<CompletionStatus, ChallengeData>(
+					challenge.getCompletionStatus(), new ChallengeData(progress, false)));
+		}
+	}
+
+	public void setChallengeRewardAsClaimed(ChallengeType challenge, boolean claimedReward) {
+		if (this.challenges.containsKey(challenge)
+				&& this.challenges.get(challenge).getKey() == CompletionStatus.COMPLETED) {
+			this.challenges.get(challenge).setValue(new ChallengeData(challenge.getNeededAmount(), true));
+		}
+	}
+
+	public void beginChallengeProgression(ChallengeType challenge) {
+		HellblockChallenge newChallenge = new HellblockChallenge(challenge, CompletionStatus.IN_PROGRESS, 1);
+		this.challenges.putIfAbsent(newChallenge.getChallengeType(), new SimpleEntry<CompletionStatus, ChallengeData>(
+				newChallenge.getCompletionStatus(), new ChallengeData(newChallenge.getProgress(), false)));
+		if (getPlayer() != null)
+			HellblockPlugin.getInstance().getAdventureManager()
+					.sendActionbar(
+							getPlayer(), String
+									.format("<yellow>Progress <gold>(%s/%s)<gray>: %s",
+											this.challenges.get(challenge).getValue().getProgress(),
+											challenge.getNeededAmount(),
+											ProgressBar.getProgressBar(
+													new ProgressBar(challenge.getNeededAmount(),
+															this.challenges.get(challenge).getValue().getProgress()),
+													25)));
+	}
+
+	public void updateChallengeProgression(ChallengeType challenge, int progressToAdd) {
+		if (this.challenges.containsKey(challenge)
+				&& this.challenges.get(challenge).getKey() == CompletionStatus.IN_PROGRESS) {
+			this.challenges.get(challenge).setValue(new ChallengeData(
+					(this.challenges.get(challenge).getValue().getProgress() + progressToAdd), false));
+			if (getPlayer() != null)
+				HellblockPlugin.getInstance().getAdventureManager().sendActionbar(getPlayer(),
+						String.format("<yellow>Progress <gold>(%s/%s)<gray>: %s",
+								this.challenges.get(challenge).getValue().getProgress(), challenge.getNeededAmount(),
+								ProgressBar.getProgressBar(new ProgressBar(challenge.getNeededAmount(),
+										this.challenges.get(challenge).getValue().getProgress()), 25)));
+		}
+	}
+
+	public void completeChallenge(ChallengeType challenge) {
+		if (this.challenges.containsKey(challenge)
+				&& this.challenges.get(challenge).getKey() == CompletionStatus.IN_PROGRESS) {
+			this.challenges.remove(challenge);
+			HellblockChallenge completedChallenge = new HellblockChallenge(challenge, CompletionStatus.COMPLETED,
+					challenge.getNeededAmount());
+			this.challenges.putIfAbsent(completedChallenge.getChallengeType(),
+					new SimpleEntry<CompletionStatus, ChallengeData>(completedChallenge.getCompletionStatus(),
+							new ChallengeData(challenge.getNeededAmount(), false)));
+			performChallengeCompletionActions(challenge);
+		}
+	}
+
+	public void performChallengeCompletionActions(ChallengeType challenge) {
+		Player player = this.getPlayer();
+		if (player != null) {
+			HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
+					"<dark_gray>[+] <gray><strikethrough>--------------------------------------------<reset> <dark_gray>[+]");
+			HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
+					"                         <dark_green>*** <green><bold>Challenge Completed! <dark_green>***");
+			HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
+					String.format("<gold>Claim your reward by clicking this challenge in the GUI menu!"));
+			HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
+					"<dark_gray>[+] <gray><strikethrough>--------------------------------------------<reset> <dark_gray>[+]");
+			HellblockPlugin.getInstance().getAdventureManager().sendSound(player, Sound.Source.PLAYER,
+					Key.key("minecraft:entity.player.levelup"), 1.0F, 1.0F);
+			Firework firework = (Firework) player.getWorld().spawnEntity(player.getLocation(),
+					EntityType.FIREWORK_ROCKET);
+			firework.setTicksToDetonate(20);
+			firework.setShotAtAngle(false);
+			firework.setTicksFlown(20);
+			FireworkMeta meta = firework.getFireworkMeta();
+			meta.setPower(1);
+			meta.addEffect(FireworkEffect.builder().with(Type.BURST).trail(false).flicker(false).withColor(Color.LIME)
+					.withFade(Color.LIME).build());
+			meta.getPersistentDataContainer().set(
+					new NamespacedKey(HellblockPlugin.getInstance(), "challenge-firework"), PersistentDataType.BOOLEAN,
+					true);
+			firework.setFireworkMeta(meta);
+		}
+	}
+
+	public void setInvitations(Map<UUID, Long> invites) {
+		this.invitations = invites;
+	}
+
+	public void sendInvitation(@NonNull UUID playerID) {
+		this.invitations.putIfAbsent(playerID, Duration.ofDays(1).toHours());
+	}
+
+	public void removeInvitation(@NonNull UUID playerID) {
+		if (this.invitations.containsKey(playerID)) {
+			this.invitations.remove(playerID);
+		}
+	}
+
+	public void clearInvites() {
+		this.invitations.clear();
+		this.getHellblockPlayer().set("player.invitations", null);
+	}
+
 	public void setProtectionFlags(Map<FlagType, AccessType> flags) {
 		this.protectionFlags = flags;
 	}
@@ -405,11 +727,16 @@ public class HellblockPlayer {
 				if (flags.getKey().getName().equalsIgnoreCase(flag.getFlag().getName())) {
 					this.protectionFlags.remove(flag.getFlag());
 					this.getHellblockPlayer().set("player.protection-flags." + flag.getFlag().toString(), null);
+					if (this.getHellblockPlayer().getConfigurationSection("player.protection-flags").getKeys(false)
+							.isEmpty()) {
+						this.getHellblockPlayer().set("player.protection-flags", null);
+					}
 				}
 			}
 		}
 
-		if (flag.getStatus() == AccessType.ALLOW) {
+		AccessType returnValue = flag.getFlag().getDefaultValue() ? AccessType.ALLOW : AccessType.DENY;
+		if (flag.getStatus() != returnValue) {
 			this.protectionFlags.put(flag.getFlag(), flag.getStatus());
 		}
 	}
@@ -438,7 +765,27 @@ public class HellblockPlayer {
 
 	public void saveHellblockPlayer() {
 		this.getHellblockPlayer().set("player.hasHellblock", this.hasHellblock);
-		HellblockPlugin.getInstance().getIslandLevelManager().saveCache(this.id);
+		if (!this.challenges.isEmpty()) {
+			for (Entry<ChallengeType, Entry<CompletionStatus, ChallengeData>> challenges : this.challenges.entrySet()) {
+				if (challenges.getValue().getKey() == CompletionStatus.NOT_STARTED)
+					continue;
+				this.getHellblockPlayer().set("player.challenges." + challenges.getKey().toString() + ".status",
+						challenges.getValue().getKey().toString());
+				if (challenges.getValue().getKey() == CompletionStatus.IN_PROGRESS) {
+					this.getHellblockPlayer().set("player.challenges." + challenges.getKey().toString() + ".progress",
+							challenges.getValue().getValue().getProgress());
+				}
+				if (challenges.getValue().getKey() == CompletionStatus.COMPLETED) {
+					this.getHellblockPlayer().set("player.challenges." + challenges.getKey().toString() + ".progress",
+							null);
+					if (challenges.getValue().getValue().isRewardClaimed()) {
+						this.getHellblockPlayer().set(
+								"player.challenges." + challenges.getKey().toString() + ".claimed-reward",
+								challenges.getValue().getValue().isRewardClaimed());
+					}
+				}
+			}
+		}
 		if (!this.whoHasTrusted.isEmpty()) {
 			Set<String> trustedString = this.whoHasTrusted.stream().filter(Objects::nonNull).map(UUID::toString)
 					.collect(Collectors.toSet());
@@ -450,7 +797,7 @@ public class HellblockPlayer {
 			if (this.hellblockID > 0) {
 				this.getHellblockPlayer().set("player.hellblock-id", this.hellblockID);
 			}
-			if (this.hellblockLevel > 1.0F) {
+			if (this.hellblockLevel > DEFAULT_LEVEL) {
 				this.getHellblockPlayer().set("player.hellblock-level", this.hellblockLevel);
 			}
 			this.serializeLocation("player.hellblock", this.hellblockLocation);
@@ -466,7 +813,13 @@ public class HellblockPlayer {
 			if (this.totalVisitors > 0) {
 				this.getHellblockPlayer().set("player.total-visits", this.totalVisitors);
 			}
-			this.getHellblockPlayer().set("player.owner", this.hellblockOwner.toString());
+			if (this.hellblockOwner != null) {
+				this.getHellblockPlayer().set("player.owner", this.hellblockOwner.toString());
+			}
+			if (this.linkedHellblock != null && !this.linkedHellblock.equals(this.id)
+					&& !this.hellblockParty.contains(this.linkedHellblock)) {
+				this.getHellblockPlayer().set("player.linked-hellblock", this.linkedHellblock.toString());
+			}
 			if (this.resetCooldown > 0) {
 				this.getHellblockPlayer().set("player.reset-cooldown", this.resetCooldown);
 			}
@@ -492,10 +845,20 @@ public class HellblockPlayer {
 			}
 			if (!this.protectionFlags.isEmpty()) {
 				for (Map.Entry<FlagType, AccessType> flags : this.protectionFlags.entrySet()) {
-					if (flags.getValue() == AccessType.DENY)
+					AccessType returnValue = flags.getKey().getDefaultValue() ? AccessType.ALLOW : AccessType.DENY;
+					if (flags.getValue() == returnValue)
 						continue;
 					this.getHellblockPlayer().set("player.protection-flags." + flags.getKey().toString(),
 							flags.getValue().toString());
+				}
+			}
+		} else {
+			if (!this.invitations.isEmpty()) {
+				for (Map.Entry<UUID, Long> invites : this.invitations.entrySet()) {
+					if (invites.getValue() == 0)
+						continue;
+					this.getHellblockPlayer().set("player.invitations." + invites.getKey().toString(),
+							invites.getValue().longValue());
 				}
 			}
 		}
@@ -508,11 +871,15 @@ public class HellblockPlayer {
 	}
 
 	public YamlConfiguration getHellblockPlayer() {
-		if (this.pi == null) {
+		if (this.pi == null)
 			this.reloadHellblockPlayer();
-		}
-
 		return this.pi;
+	}
+
+	public File getPlayerFile() {
+		if (this.file == null)
+			this.reloadHellblockPlayer();
+		return this.file;
 	}
 
 	public void serializeLocation(String path, Location location) {

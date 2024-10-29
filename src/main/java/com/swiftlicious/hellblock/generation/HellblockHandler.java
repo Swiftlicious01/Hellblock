@@ -103,9 +103,23 @@ public class HellblockHandler {
 					continue;
 				if (active.getResetCooldown() > 0) {
 					active.setResetCooldown(active.getResetCooldown() - 1);
+				} else {
+					active.getHellblockPlayer().set("player.reset-cooldown", null);
 				}
 				if (active.getBiomeCooldown() > 0) {
 					active.setBiomeCooldown(active.getBiomeCooldown() - 1);
+				} else {
+					active.getHellblockPlayer().set("player.biome-cooldown", null);
+				}
+				if (active.getInvitations() != null && !active.getInvitations().isEmpty()) {
+					for (Map.Entry<UUID, Long> invites : active.getInvitations().entrySet()) {
+						if (invites.getValue() > 0) {
+							active.getInvitations().replace(invites.getKey(), invites.getValue() - 1);
+						} else {
+							active.removeInvitation(invites.getKey());
+							active.getHellblockPlayer().set("player.invitations." + invites.getKey().toString(), null);
+						}
+					}
 				}
 				active.saveHellblockPlayer();
 			}
@@ -125,9 +139,24 @@ public class HellblockHandler {
 				YamlConfiguration offlineFile = YamlConfiguration.loadConfiguration(offline);
 				if (offlineFile.getLong("player.reset-cooldown") > 0) {
 					offlineFile.set("player.reset-cooldown", offlineFile.getLong("player.reset-cooldown") - 1);
+				} else {
+					offlineFile.set("player.reset-cooldown", null);
 				}
 				if (offlineFile.getLong("player.biome-cooldown") > 0) {
 					offlineFile.set("player.biome-cooldown", offlineFile.getLong("player.biome-cooldown") - 1);
+				} else {
+					offlineFile.set("player.biome-cooldown", null);
+				}
+				if (offlineFile.contains("player.invitations")) {
+					offlineFile.getConfigurationSection("player.invitations").getKeys(false).forEach(key -> {
+						UUID invitee = UUID.fromString(key);
+						long expirationTime = offlineFile.getLong("player.invitations." + invitee.toString());
+						if (expirationTime > 0) {
+							offlineFile.set("player.invitations." + invitee.toString(), expirationTime - 1);
+						} else {
+							offlineFile.set("player.invitations." + invitee.toString(), null);
+						}
+					});
 				}
 				try {
 					offlineFile.save(offline);

@@ -2,7 +2,6 @@ package com.swiftlicious.hellblock.protection;
 
 import java.util.UUID;
 
-import com.sk89q.worldguard.protection.flags.RegionGroup;
 import com.sk89q.worldguard.protection.flags.StateFlag;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import com.swiftlicious.hellblock.HellblockPlugin;
@@ -24,7 +23,7 @@ public class IslandProtection {
 		HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(id);
 		if (pi.getPlayer() == null) {
 			LogUtils.warn("Player object returned null, please report this.");
-			return false;
+			throw new NullPointerException("Player returned null.");
 		}
 		if (!pi.hasHellblock()) {
 			instance.getAdventureManager().sendMessageWithPrefix(pi.getPlayer(), "<red>You don't have a hellblock!");
@@ -37,13 +36,15 @@ public class IslandProtection {
 		}
 		if (instance.getHellblockHandler().isWorldguardProtect()) {
 			ProtectedRegion region = instance.getWorldGuardHandler().getRegion(id);
-			if (region == null)
-				return false;
+			if (region == null) {
+				LogUtils.warn("Region returned null, please report this.");
+				throw new NullPointerException("Region returned null.");
+			}
 
 			pi.setProtectionValue(flag);
 			pi.saveHellblockPlayer();
 			instance.getCoopManager().updateParty(id, "flag", flag);
-			StateFlag newFlag = new StateFlag(flag.getFlag().getName(), false, RegionGroup.NON_MEMBERS);
+			StateFlag newFlag = new StateFlag(flag.getFlag().getName(), flag.getFlag().getDefaultValue());
 			region.setFlag(newFlag, (flag.getStatus() == AccessType.ALLOW ? null : StateFlag.State.DENY));
 			return true;
 		} else {

@@ -19,25 +19,35 @@ public class HellblockFlag {
 	}
 
 	public enum FlagType {
-		BLOCK_BREAK("block-break"), BLOCK_PLACE("block-place"), DAMAGE_ANIMALS("damage-animals"),
-		MOB_DAMAGE("mob-damage"), MOB_SPAWNING("mob-spawning"), PVP("pvp"), TNT("tnt"), CHEST_ACCESS("chest-access"),
-		USE("use"), USE_ANVIL("use-anvil"), USE_DRIPLEAF("use-dripleaf"), PLACE_VEHICLE("vehicle-place"),
-		DESTROY_VEHICLE("vehicle-destroy"), RIDE("ride"), ENDERPEARL("enderpearl"), TRAMPLE_BLOCKS("block-trampling"),
-		ITEM_FRAME_ROTATE("item-frame-rotation"), CHORUS_TELEPORT("chorus-fruit-teleport"), LIGHTER("lighter"),
-		FIREWORK_DAMAGE("firework-damage"), RESPAWN_ANCHORS("respawn-anchors"), WIND_CHARGE_BURST("wind-charge-burst"),
-		POTION_SPLASH("potion-splash"), INTERACT("interact"), SLEEP("sleep"), SNOWMAN_TRAILS("snowman-trails"),
-		ENDER_BUILD("enderman-grief"), GHAST_FIREBALL("ghast-fireball"), FALL_DAMAGE("fall-damage"),
-		HEALTH_REGEN("natural-health-regen"), HUNGER_DRAIN("natural-hunger-drain"), ENTRY("entry"),
-		GREETING_MESSAGE("greeting"), FAREWELL_MESSAGE("farewell"), INVINCIBILITY("invincible");
+		BLOCK_BREAK("block-break", false), BLOCK_PLACE("block-place", false), DAMAGE_ANIMALS("damage-animals", false),
+		MOB_DAMAGE("mob-damage", true), MOB_SPAWNING("mob-spawning", true), PVP("pvp", false), TNT("tnt", false),
+		CHEST_ACCESS("chest-access", false), USE("use", false), USE_ANVIL("use-anvil", false),
+		USE_DRIPLEAF("use-dripleaf", false), PLACE_VEHICLE("vehicle-place", false),
+		DESTROY_VEHICLE("vehicle-destroy", false), RIDE("ride", false), ENDERPEARL("enderpearl", true),
+		TRAMPLE_BLOCKS("block-trampling", false), ITEM_FRAME_ROTATE("item-frame-rotation", false),
+		CHORUS_TELEPORT("chorus-fruit-teleport", true), LIGHTER("lighter", false),
+		FIREWORK_DAMAGE("firework-damage", false), RESPAWN_ANCHORS("respawn-anchors", false),
+		WIND_CHARGE_BURST("wind-charge-burst", false), POTION_SPLASH("potion-splash", false),
+		INTERACT("interact", false), SLEEP("sleep", false), SNOWMAN_TRAILS("snowman-trails", true),
+		ENDER_BUILD("enderman-grief", true), GHAST_FIREBALL("ghast-fireball", true), FALL_DAMAGE("fall-damage", true),
+		HEALTH_REGEN("natural-health-regen", true), HUNGER_DRAIN("natural-hunger-drain", true), ENTRY("entry", true),
+		GREETING_MESSAGE("greeting", true), FAREWELL_MESSAGE("farewell", true), INVINCIBILITY("invincible", false),
+		BUILD("build", true);
 
 		private String name;
+		private boolean defaultValue;
 
-		FlagType(String name) {
+		FlagType(String name, boolean defaultValue) {
 			this.name = name;
+			this.defaultValue = defaultValue;
 		}
 
 		public String getName() {
 			return this.name;
+		}
+
+		public boolean getDefaultValue() {
+			return this.defaultValue;
 		}
 	}
 

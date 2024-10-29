@@ -37,6 +37,7 @@ import org.jetbrains.annotations.Nullable;
 
 import com.saicone.rtag.RtagItem;
 import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.challenges.HellblockChallenge.ChallengeType;
 import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
 import com.swiftlicious.hellblock.utils.LogUtils;
 import com.swiftlicious.hellblock.utils.wrappers.ShadedAdventureComponentWrapper;
@@ -1009,7 +1010,19 @@ public class NetherTools implements Listener {
 			if (isNetherToolEnabled(result)) {
 				if (checkToolData(result) && getToolData(result)) {
 					if (recipe instanceof CraftingRecipe craft) {
-						player.discoverRecipe(craft.getKey());
+						if (!player.hasDiscoveredRecipe(craft.getKey())) {
+							HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(player);
+							if (!pi.isChallengeActive(ChallengeType.NETHER_CRAFTING_CHALLENGE)
+									&& !pi.isChallengeCompleted(ChallengeType.NETHER_CRAFTING_CHALLENGE)) {
+								pi.beginChallengeProgression(ChallengeType.NETHER_CRAFTING_CHALLENGE);
+							} else {
+								pi.updateChallengeProgression(ChallengeType.NETHER_CRAFTING_CHALLENGE, 1);
+								if (pi.isChallengeCompleted(ChallengeType.NETHER_CRAFTING_CHALLENGE)) {
+									pi.completeChallenge(ChallengeType.NETHER_CRAFTING_CHALLENGE);
+								}
+							}
+							player.discoverRecipe(craft.getKey());
+						}
 					}
 				}
 			}

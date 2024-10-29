@@ -1,5 +1,6 @@
 package com.swiftlicious.hellblock.listeners.rain;
 
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
@@ -7,12 +8,14 @@ import java.util.concurrent.TimeUnit;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Particle;
-import org.bukkit.Sound;
-import org.bukkit.Tag;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
+import org.bukkit.entity.EntityType;
+import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.TNTPrimed;
+import org.bukkit.entity.minecart.ExplosiveMinecart;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.util.BlockIterator;
 import org.bukkit.util.Vector;
@@ -116,52 +119,7 @@ public class LavaRainTask implements Runnable {
 										if (!blocks.hasNext()) {
 											block = HellblockPlugin.getInstance().getLavaRain()
 													.getHighestBlock(location);
-											if (block != null && (Tag.AIR.isTagged(block.getType())
-													|| Tag.ALL_SIGNS.isTagged(block.getType())
-													|| Tag.BANNERS.isTagged(block.getType())
-													|| Tag.FENCES.isTagged(block.getType())
-													|| Tag.FENCE_GATES.isTagged(block.getType())
-													|| Tag.DOORS.isTagged(block.getType())
-													|| Tag.BUTTONS.isTagged(block.getType())
-													|| Tag.PRESSURE_PLATES.isTagged(block.getType())
-													|| Tag.FIRE.isTagged(block.getType())
-													|| block.getType() == Material.LAVA
-													|| block.getType() == Material.COBWEB
-													|| block.getType() == Material.STRING
-													|| block.getType() == Material.FLOWER_POT
-													|| Tag.ITEMS_BOATS.isTagged(block.getType())
-													|| Tag.ITEMS_CHEST_BOATS.isTagged(block.getType())
-													|| block.getType() == Material.MINECART
-													|| block.getType() == Material.CHEST_MINECART
-													|| block.getType() == Material.BAMBOO
-													|| block.getType() == Material.BAMBOO_RAFT
-													|| block.getType() == Material.FURNACE_MINECART
-													|| block.getType() == Material.TNT_MINECART
-													|| block.getType() == Material.HOPPER_MINECART
-													|| block.getType() == Material.BAMBOO_CHEST_RAFT
-													|| block.getType() == Material.COMMAND_BLOCK_MINECART
-													|| block.getType() == Material.NETHER_PORTAL
-													|| block.getType() == Material.END_PORTAL
-													|| block.getType() == Material.END_GATEWAY
-													|| block.getType() == Material.LADDER
-													|| block.getType() == Material.CHAIN
-													|| block.getType() == Material.CANDLE
-													|| block.getType() == Material.SEA_PICKLE
-													|| block.getType() == Material.VINE
-													|| block.getType() == Material.TWISTING_VINES
-													|| block.getType() == Material.WEEPING_VINES
-													|| block.getType() == Material.END_ROD
-													|| block.getType() == Material.LIGHTNING_ROD
-													|| block.getType() == Material.LEVER
-													|| block.getType() == Material.SWEET_BERRY_BUSH
-													|| block.getType() == Material.SCAFFOLDING
-													|| block.getType() == Material.LANTERN
-													|| block.getType() == Material.SOUL_LANTERN
-													|| block.getType() == Material.TURTLE_EGG
-													|| block.getType() == Material.SMALL_DRIPLEAF
-													|| block.getType() == Material.IRON_BARS
-													|| block.getType() == Material.POWDER_SNOW
-													|| block.getType() == Material.TRIPWIRE)) {
+											if (block != null) {
 												ItemStack[] armorSet = player.getInventory().getArmorContents();
 												boolean checkArmor = false;
 												if (armorSet != null) {
@@ -182,6 +140,18 @@ public class LavaRainTask implements Runnable {
 												}
 												if (!checkArmor) {
 													player.setFireTicks(120);
+												}
+											}
+
+											Collection<LivingEntity> entities = location.getWorld()
+													.getNearbyLivingEntities(location, 35.0D);
+											for (LivingEntity living : entities) {
+												if (living instanceof Player)
+													continue;
+												Block above = HellblockPlugin.getInstance().getLavaRain()
+														.getHighestBlock(living.getLocation());
+												if (above != null) {
+													living.setFireTicks(120);
 												}
 											}
 											continue labelLavaRain;
@@ -205,7 +175,11 @@ public class LavaRainTask implements Runnable {
 									if (block2 != null) {
 										world.spawnParticle(Particle.DRIPPING_LAVA, block2.getLocation(), 1, 0.0D, 0.0D,
 												0.0D, 0.0D);
-										world.playSound(player, Sound.BLOCK_POINTED_DRIPSTONE_DRIP_LAVA, 0.5F, 0.5F);
+										HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+												net.kyori.adventure.sound.Sound.Source.PLAYER,
+												net.kyori.adventure.key.Key
+														.key("minecraft:block.pointed_dripstone.drip_lava"),
+												1, 1);
 									}
 								} while (Math.random() >= (double) HellblockPlugin.getInstance().getLavaRain()
 										.getFireChance() / 1000.0D);
@@ -223,6 +197,31 @@ public class LavaRainTask implements Runnable {
 										break;
 									}
 								}
+
+								BlockIterator iterator3 = new BlockIterator(world,
+										block.getLocation().subtract(0.0D, 50.0D, 0.0D).toVector(), new Vector(0, 1, 0),
+										0.0D, 30);
+
+								while (iterator3.hasNext()) {
+									Block var14 = iterator3.next();
+									if (var14.getType() == Material.TNT) {
+										TNTPrimed tnt = (TNTPrimed) var14.getWorld().spawnEntity(block.getLocation(),
+												EntityType.TNT);
+										tnt.setFuseTicks(3 * 20);
+										var14.setType(Material.AIR);
+										var14.getState().update();
+										break;
+									}
+									if (var14.getType() == Material.TNT_MINECART) {
+										ExplosiveMinecart tntMinecart = (ExplosiveMinecart) var14.getWorld()
+												.spawnEntity(block.getLocation(), EntityType.TNT_MINECART);
+										tntMinecart.setFuseTicks(3 * 20);
+										var14.setType(Material.AIR);
+										var14.getState().update();
+										break;
+									}
+								}
+
 								setHowLongItWillLavaRainFor(
 										getHowLongItWillLavaRainFor() > 0 ? getHowLongItWillLavaRainFor() - 1 : 0);
 							}

@@ -28,6 +28,7 @@ hellblock:
   height: 150
   distance: 110
   worldguardProtect: true
+  protectionRange: 105
   # Won't delete the islands but will set them as an abandoned state which removes them from the island region 
   # and any trustees / party members as well. 
   abandon-after-days: 30
@@ -35,7 +36,6 @@ hellblock:
   farewell-message-enabled: true
   disable-bed-explosions: true
   void-teleport: true
-  protectionRange: 105
   starter-chest: 
     inventory-name: '<dark_red>Hellblock Chest'
     '1':
@@ -90,7 +90,7 @@ hellblock:
 level-system:
   blocks:
     - 'COBBLESTONE:0.5'
-    - 'GLOWSTONE_BLOCK:1'
+    - 'GLOWSTONE:1'
     - 'NETHERITE_BLOCK:5'
 
 brewing:

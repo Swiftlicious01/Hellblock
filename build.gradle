@@ -100,7 +100,7 @@ allprojects {
         implementation 'dev.dejvokep:boosted-yaml:1.3.6'
 
         // command
-        implementation 'dev.jorel:commandapi-bukkit-shade:9.5.3'
+        implementation 'dev.jorel:commandapi-bukkit-shade:9.6.0'
 
         // nbt
         implementation 'com.saicone.rtag:rtag:1.5.7'

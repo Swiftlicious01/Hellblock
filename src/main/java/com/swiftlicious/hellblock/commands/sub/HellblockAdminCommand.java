@@ -2,6 +2,7 @@ package com.swiftlicious.hellblock.commands.sub;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -11,6 +12,7 @@ import org.bukkit.Location;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.World;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.entity.Player;
 import org.bukkit.event.player.PlayerTeleportEvent.TeleportCause;
 
 import com.google.common.io.Files;
@@ -39,12 +41,17 @@ public class HellblockAdminCommand {
 	}
 
 	private CommandAPICommand getTeleportCommand(String namespace) {
-		return new CommandAPICommand(namespace)
-				.withArguments(new StringArgument("player").replaceSuggestions(ArgumentSuggestions.stringCollection(
-						collection -> HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers().values()
-								.stream().filter(hbPlayer -> hbPlayer.getPlayer() != null && hbPlayer.hasHellblock())
-								.map(hbPlayer -> hbPlayer.getPlayer().getName()).collect(Collectors.toList()))))
-				.executesPlayer((player, args) -> {
+		return new CommandAPICommand(namespace).withArguments(
+				new StringArgument("player").replaceSuggestions(ArgumentSuggestions.stringCollection(info -> {
+					if (info.sender() instanceof Player player) {
+						return HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers().values().stream()
+								.filter(hbPlayer -> hbPlayer.getPlayer() != null && hbPlayer.hasHellblock()
+										&& !hbPlayer.getPlayer().getName().equalsIgnoreCase(player.getName()))
+								.map(hbPlayer -> hbPlayer.getPlayer().getName()).collect(Collectors.toList());
+					} else {
+						return Collections.emptyList();
+					}
+				}))).executesPlayer((player, args) -> {
 					String user = (String) args.getOrDefault("player", player);
 					UUID id = Bukkit.getPlayer(user) != null ? Bukkit.getPlayer(user).getUniqueId()
 							: UUIDFetcher.getUUID(user);
@@ -175,12 +182,17 @@ public class HellblockAdminCommand {
 	}
 
 	private CommandAPICommand getDeleteCommand(String namespace) {
-		return new CommandAPICommand(namespace)
-				.withArguments(new StringArgument("player").replaceSuggestions(ArgumentSuggestions.stringCollection(
-						collection -> HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers().values()
-								.stream().filter(hbPlayer -> hbPlayer.getPlayer() != null && hbPlayer.hasHellblock())
-								.map(hbPlayer -> hbPlayer.getPlayer().getName()).collect(Collectors.toList()))))
-				.executesPlayer((player, args) -> {
+		return new CommandAPICommand(namespace).withArguments(
+				new StringArgument("player").replaceSuggestions(ArgumentSuggestions.stringCollection(info -> {
+					if (info.sender() instanceof Player player) {
+						return HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers().values().stream()
+								.filter(hbPlayer -> hbPlayer.getPlayer() != null && hbPlayer.hasHellblock()
+										&& !hbPlayer.getPlayer().getName().equalsIgnoreCase(player.getName()))
+								.map(hbPlayer -> hbPlayer.getPlayer().getName()).collect(Collectors.toList());
+					} else {
+						return Collections.emptyList();
+					}
+				}))).executesPlayer((player, args) -> {
 					String user = (String) args.getOrDefault("player", player);
 					UUID id = Bukkit.getPlayer(user) != null ? Bukkit.getPlayer(user).getUniqueId()
 							: UUIDFetcher.getUUID(user);

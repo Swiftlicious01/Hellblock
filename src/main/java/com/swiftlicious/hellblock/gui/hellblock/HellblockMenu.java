@@ -10,7 +10,6 @@ import org.bukkit.event.player.PlayerTeleportEvent.TeleportCause;
 import org.jetbrains.annotations.NotNull;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
-import com.swiftlicious.hellblock.gui.icon.BackGroundItem;
 import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
 import com.swiftlicious.hellblock.utils.ChunkUtils;
 import com.swiftlicious.hellblock.utils.LocationUtils;
@@ -27,13 +26,14 @@ public class HellblockMenu {
 	public HellblockMenu(Player player) {
 
 		if (HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player).hasHellblock()) {
-			Gui gui = Gui.normal().setStructure("# i t p b l f r #")
+			Gui gui = Gui.normal().setStructure("t i c p b l f r x")
 					.addIngredient('i', new IslandLevelItem(player.getUniqueId()))
 					.addIngredient('t', new TeleportIslandItem()).addIngredient('p', new ViewPartyMembersItem())
+					.addIngredient('c', new IslandChallengesItem())
 					.addIngredient('b', new BiomeItem(player.getUniqueId()))
 					.addIngredient('l', new LockIslandItem(player.getUniqueId()))
 					.addIngredient('r', new ResetIslandItem(player.getUniqueId()))
-					.addIngredient('f', new ProtectionFlagItem()).addIngredient('#', new BackGroundItem()).build();
+					.addIngredient('f', new ProtectionFlagItem()).addIngredient('x', new CloseMenuItem()).build();
 
 			Window window = Window
 					.single().setViewer(player).setTitle(new ShadedAdventureComponentWrapper(HellblockPlugin
@@ -62,7 +62,39 @@ public class HellblockMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			new FlagMenu(player);
+			HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
+			if (pi.hasHellblock()) {
+				new FlagMenu(player);
+				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+						net.kyori.adventure.sound.Sound.Source.PLAYER,
+						net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
+			} else {
+				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+						"<red>You don't have a hellblock!");
+				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+						net.kyori.adventure.sound.Sound.Source.PLAYER,
+						net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
+			}
+		}
+	}
+
+	public class IslandChallengesItem extends AbstractItem {
+
+		@Override
+		public ItemProvider getItemProvider() {
+			return new ItemBuilder(Material.KNOWLEDGE_BOOK).addAllItemFlags()
+					.setDisplayName(
+							new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+									.getComponentFromMiniMessage("<green>View all Hellblock Challenges!")))
+					.addLoreLines(new ShadedAdventureComponentWrapper(
+							HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
+									"<aqua>Click to view a list of challenges for you to complete!")));
+		}
+
+		@Override
+		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
+				@NotNull InventoryClickEvent event) {
+			new ChallengesMenu(player);
 			HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
 					net.kyori.adventure.sound.Sound.Source.PLAYER,
 					net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
@@ -82,7 +114,7 @@ public class HellblockMenu {
 			HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(playerUUID);
 			return new ItemBuilder(Material.EXPERIENCE_BOTTLE).addAllItemFlags()
 					.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
-							.getAdventureManager().getComponentFromMiniMessage("<green>Hellblock Level")))
+							.getAdventureManager().getComponentFromMiniMessage("<green>View your island level!")))
 					.addLoreLines(
 							new ShadedAdventureComponentWrapper(
 									HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
@@ -111,7 +143,11 @@ public class HellblockMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			return new ItemBuilder(Material.TRAPPED_CHEST).addAllItemFlags()
+			return new ItemBuilder(
+					HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(playerUUID).getLockedStatus()
+							? Material.ENDER_CHEST
+							: Material.CHEST)
+					.addAllItemFlags()
 					.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
 							.getAdventureManager()
 							.getComponentFromMiniMessage(String.format("<green>%s your Hellblock!",
@@ -200,7 +236,7 @@ public class HellblockMenu {
 		public ItemProvider getItemProvider() {
 			HellblockPlayer hbPlayer = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(playerUUID);
 			if (hbPlayer.getBiomeCooldown() == 0) {
-				return new ItemBuilder(Material.NETHER_WART).addAllItemFlags()
+				return new ItemBuilder(Material.WARPED_FUNGUS).addAllItemFlags()
 						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
 								.getAdventureManager().getComponentFromMiniMessage("<green>Change island biome!")))
 						.addLoreLines(
@@ -220,7 +256,7 @@ public class HellblockMenu {
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
 			HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
-			if (event.getCurrentItem() != null && event.getCurrentItem().getType() == Material.NETHER_WART) {
+			if (event.getCurrentItem() != null && event.getCurrentItem().getType() == Material.WARPED_FUNGUS) {
 				if (pi.hasHellblock()) {
 					new BiomeMenu(player);
 					HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
@@ -251,7 +287,7 @@ public class HellblockMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			return new ItemBuilder(Material.FIRE_CHARGE).addAllItemFlags()
+			return new ItemBuilder(Material.ENDER_PEARL).addAllItemFlags()
 					.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
 							.getAdventureManager().getComponentFromMiniMessage("<green>Teleport to your Hellblock!")))
 					.addLoreLines(
@@ -282,6 +318,9 @@ public class HellblockMenu {
 					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 							"<red>Teleporting you to your hellblock!");
 					ChunkUtils.teleportAsync(player, pi.getHomeLocation(), TeleportCause.PLUGIN);
+					HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+							net.kyori.adventure.sound.Sound.Source.PLAYER,
+							net.kyori.adventure.key.Key.key("minecraft:entity.enderman.teleport"), 1, 1);
 					// if raining give player a bit of protection
 					if (HellblockPlugin.getInstance().getLavaRain().getLavaRainTask() != null
 							&& HellblockPlugin.getInstance().getLavaRain().getLavaRainTask().isLavaRaining()
@@ -289,9 +328,6 @@ public class HellblockMenu {
 							&& !HellblockPlugin.getInstance().getLavaRain().getHighestBlock(player.getLocation())
 									.isEmpty()) {
 						player.setNoDamageTicks(5 * 20);
-						HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
-								net.kyori.adventure.sound.Sound.Source.PLAYER,
-								net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
 					}
 				} else {
 					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
@@ -352,6 +388,25 @@ public class HellblockMenu {
 					return;
 				}
 			}
+		}
+	}
+
+	public class CloseMenuItem extends AbstractItem {
+
+		@Override
+		public ItemProvider getItemProvider() {
+			return new ItemBuilder(Material.RED_STAINED_GLASS_PANE).addAllItemFlags()
+					.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
+							.getAdventureManager().getComponentFromMiniMessage("<red>Close Menu")));
+		}
+
+		@Override
+		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
+				@NotNull InventoryClickEvent event) {
+			player.closeInventory();
+			HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+					net.kyori.adventure.sound.Sound.Source.PLAYER,
+					net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
 		}
 	}
 }

@@ -8,7 +8,6 @@ import org.bukkit.Bukkit;
 import org.bukkit.Color;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
-import org.bukkit.Sound;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Event.Result;
@@ -37,6 +36,8 @@ import xyz.xenondevs.invui.item.builder.PotionBuilder;
 
 import com.saicone.rtag.RtagItem;
 import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.challenges.HellblockChallenge.ChallengeType;
+import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
 import com.swiftlicious.hellblock.utils.RandomUtils;
 import com.swiftlicious.hellblock.utils.wrappers.ShadedAdventureComponentWrapper;
 
@@ -142,8 +143,19 @@ public class NetherBrewing implements Listener {
 					lastBlock.getWorld().dropItemNaturally(player.getLocation(), this.getPotionResult(1));
 				}
 				player.swingMainHand();
-				player.playSound(player.getLocation(), Sound.ITEM_BOTTLE_FILL, 1.0F, 1.0F);
+				instance.getAdventureManager().sendSound(player, net.kyori.adventure.sound.Sound.Source.PLAYER,
+						net.kyori.adventure.key.Key.key("minecraft:item.bottle.fill"), 1, 1);
 				player.updateInventory();
+				HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(player);
+				if (!pi.isChallengeActive(ChallengeType.NETHER_BREWING_CHALLENGE)
+						&& !pi.isChallengeCompleted(ChallengeType.NETHER_BREWING_CHALLENGE)) {
+					pi.beginChallengeProgression(ChallengeType.NETHER_BREWING_CHALLENGE);
+				} else {
+					pi.updateChallengeProgression(ChallengeType.NETHER_BREWING_CHALLENGE, 1);
+					if (pi.isChallengeCompleted(ChallengeType.NETHER_BREWING_CHALLENGE)) {
+						pi.completeChallenge(ChallengeType.NETHER_BREWING_CHALLENGE);
+					}
+				}
 			}
 		}
 	}
@@ -177,10 +189,21 @@ public class NetherBrewing implements Listener {
 					clicked.getWorld().dropItemNaturally(player.getLocation(), this.getPotionResult(4));
 				}
 				player.swingMainHand();
-				player.playSound(player.getLocation(), Sound.ITEM_BOTTLE_FILL, 1.0F, 1.0F);
+				instance.getAdventureManager().sendSound(player, net.kyori.adventure.sound.Sound.Source.PLAYER,
+						net.kyori.adventure.key.Key.key("minecraft:item.bottle.fill"), 1, 1);
 				player.updateInventory();
 				clicked.setType(Material.CAULDRON);
 				clicked.getState().update();
+				HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(player);
+				if (!pi.isChallengeActive(ChallengeType.NETHER_BREWING_CHALLENGE)
+						&& !pi.isChallengeCompleted(ChallengeType.NETHER_BREWING_CHALLENGE)) {
+					pi.beginChallengeProgression(ChallengeType.NETHER_BREWING_CHALLENGE);
+				} else {
+					pi.updateChallengeProgression(ChallengeType.NETHER_BREWING_CHALLENGE, 4);
+					if (pi.isChallengeCompleted(ChallengeType.NETHER_BREWING_CHALLENGE)) {
+						pi.completeChallenge(ChallengeType.NETHER_BREWING_CHALLENGE);
+					}
+				}
 			}
 		}
 	}

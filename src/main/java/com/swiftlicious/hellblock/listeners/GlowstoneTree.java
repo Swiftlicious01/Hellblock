@@ -17,6 +17,7 @@ import org.bukkit.TreeType;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.block.BlockState;
+import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
@@ -27,6 +28,8 @@ import org.bukkit.event.entity.EntityChangeBlockEvent;
 import org.bukkit.event.world.StructureGrowEvent;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.challenges.HellblockChallenge.ChallengeType;
+import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
 import com.swiftlicious.hellblock.utils.LocationCache;
 
 import lombok.AllArgsConstructor;
@@ -56,6 +59,22 @@ public class GlowstoneTree implements Listener {
 			return;
 
 		if (TREE_TYPES.contains(event.getSpecies())) {
+			final Player player = event.getPlayer();
+			// have to check this to prevent sapling bonemeal over a block and see it's not
+			// growing.
+			if (player != null && event.isFromBonemeal() && !event.getBlocks().isEmpty()
+					&& event.getBlocks().size() > 4) {
+				HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(player);
+				if (!pi.isChallengeActive(ChallengeType.GLOWSTONE_TREE_CHALLENGE)
+						&& !pi.isChallengeCompleted(ChallengeType.GLOWSTONE_TREE_CHALLENGE)) {
+					pi.beginChallengeProgression(ChallengeType.GLOWSTONE_TREE_CHALLENGE);
+				} else {
+					pi.updateChallengeProgression(ChallengeType.GLOWSTONE_TREE_CHALLENGE, 1);
+					if (pi.isChallengeCompleted(ChallengeType.GLOWSTONE_TREE_CHALLENGE)) {
+						pi.completeChallenge(ChallengeType.GLOWSTONE_TREE_CHALLENGE);
+					}
+				}
+			}
 
 			Iterator<BlockState> blocks = event.getBlocks().iterator();
 			GlowTree glowTree = new GlowTree(event.getSpecies(), event.getBlocks());

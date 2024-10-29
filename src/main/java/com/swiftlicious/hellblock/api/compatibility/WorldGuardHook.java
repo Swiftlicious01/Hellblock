@@ -3,11 +3,14 @@ package com.swiftlicious.hellblock.api.compatibility;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import org.bukkit.Bukkit;
@@ -45,8 +48,13 @@ public class WorldGuardHook {
 	@Setter
 	private WorldGuardPlatform worldGuardPlatform;
 
+	@Getter
+	private final Map<UUID, Set<Location>> cachedRegion;
+
 	public WorldGuardHook(HellblockPlugin plugin) {
 		instance = plugin;
+		this.cachedRegion = new HashMap<>();
+		instance.getScheduler().runTaskAsyncTimer(() -> this.cachedRegion.clear(), 1, 25, TimeUnit.MINUTES);
 	}
 
 	public void protectHellblock(Player player) {
@@ -182,9 +190,14 @@ public class WorldGuardHook {
 		if (pi.isAbandoned()) {
 			region.getOwners().clear();
 			region.getMembers().clear();
-			StateFlag pvpFlag = new StateFlag(HellblockFlag.FlagType.PVP.getName(), false, RegionGroup.ALL);
+			StateFlag buildFlag = new StateFlag(HellblockFlag.FlagType.BUILD.getName(),
+					HellblockFlag.FlagType.BUILD.getDefaultValue(), RegionGroup.ALL);
+			region.setFlag(buildFlag, StateFlag.State.DENY);
+			StateFlag pvpFlag = new StateFlag(HellblockFlag.FlagType.PVP.getName(),
+					HellblockFlag.FlagType.PVP.getDefaultValue(), RegionGroup.ALL);
 			region.setFlag(pvpFlag, StateFlag.State.DENY);
-			StateFlag entryFlag = new StateFlag(HellblockFlag.FlagType.ENTRY.getName(), false, RegionGroup.ALL);
+			StateFlag entryFlag = new StateFlag(HellblockFlag.FlagType.ENTRY.getName(),
+					HellblockFlag.FlagType.ENTRY.getDefaultValue(), RegionGroup.ALL);
 			region.setFlag(entryFlag, StateFlag.State.DENY);
 		}
 	}
@@ -216,6 +229,9 @@ public class WorldGuardHook {
 	}
 
 	public List<Location> getRegionBlocks(UUID id) {
+		if (this.cachedRegion.containsKey(id)) {
+			return new ArrayList<>(this.cachedRegion.get(id));
+		}
 		World world = instance.getHellblockHandler().getHellblockWorld();
 		if (this.worldGuardPlatform == null) {
 			LogUtils.severe("Could not retrieve WorldGuard platform.");
@@ -246,6 +262,7 @@ public class WorldGuardHook {
 				}
 			}
 		}
+		this.cachedRegion.putIfAbsent(id, new HashSet<>((locations)));
 		return locations;
 	}
 
@@ -294,10 +311,11 @@ public class WorldGuardHook {
 			}
 			region.setParent(regionManager.getRegion(ProtectedRegion.GLOBAL_REGION));
 			region.setPriority(100);
-			StateFlag invincibilityFlag = new StateFlag(HellblockFlag.FlagType.INVINCIBILITY.getName(), false,
-					RegionGroup.ALL);
+			StateFlag invincibilityFlag = new StateFlag(HellblockFlag.FlagType.INVINCIBILITY.getName(),
+					HellblockFlag.FlagType.INVINCIBILITY.getDefaultValue(), RegionGroup.ALL);
 			region.setFlag(invincibilityFlag, StateFlag.State.ALLOW);
-			StateFlag pvpFlag = new StateFlag(HellblockFlag.FlagType.PVP.getName(), false, RegionGroup.ALL);
+			StateFlag pvpFlag = new StateFlag(HellblockFlag.FlagType.PVP.getName(),
+					HellblockFlag.FlagType.PVP.getDefaultValue(), RegionGroup.ALL);
 			region.setFlag(pvpFlag, StateFlag.State.DENY);
 			regionManager.addRegion(region);
 			regionManager.save();

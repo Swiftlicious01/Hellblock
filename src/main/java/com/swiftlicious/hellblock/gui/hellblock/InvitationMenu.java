@@ -90,7 +90,7 @@ public class InvitationMenu {
 					continue;
 				if (key.equals(player.getUniqueId()))
 					continue;
-				if (hbPlayer.getPlayer() == null || !hbPlayer.getPlayer().isOnline())
+				if (hbPlayer.getPlayer() == null || !hbPlayer.getPlayer().isOnline() || hbPlayer.hasHellblock())
 					continue;
 				SkullBuilder skullBuilder = null;
 				try {
@@ -195,7 +195,7 @@ public class InvitationMenu {
 						.getActivePlayer(player.getUniqueId());
 				HellblockPlayer invitingPlayer = HellblockPlugin.getInstance().getHellblockHandler()
 						.getActivePlayer(Bukkit.getPlayer(username).getUniqueId());
-				HellblockPlugin.getInstance().getCoopManager().addMemberToHellblock(hbPlayer, invitingPlayer);
+				HellblockPlugin.getInstance().getCoopManager().sendInvite(hbPlayer, invitingPlayer);
 				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
 						net.kyori.adventure.sound.Sound.Source.PLAYER,
 						net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);

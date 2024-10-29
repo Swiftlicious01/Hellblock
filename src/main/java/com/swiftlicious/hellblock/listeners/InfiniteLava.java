@@ -2,7 +2,6 @@ package com.swiftlicious.hellblock.listeners;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
-import org.bukkit.Sound;
 import org.bukkit.block.Block;
 import org.bukkit.block.data.Levelled;
 import org.bukkit.entity.Player;
@@ -60,7 +59,8 @@ public class InfiniteLava implements Listener {
 					lastBlock.getWorld().dropItemNaturally(player.getLocation(), new ItemStack(Material.LAVA_BUCKET));
 				}
 				player.swingMainHand();
-				player.playSound(player.getLocation(), Sound.ITEM_BUCKET_FILL_LAVA, 1.0F, 1.0F);
+				instance.getAdventureManager().sendSound(player, net.kyori.adventure.sound.Sound.Source.PLAYER,
+						net.kyori.adventure.key.Key.key("minecraft:item.bucket.fill_lava"), 1, 1);
 				player.updateInventory();
 
 			}

@@ -23,6 +23,8 @@ import org.bukkit.event.entity.EntityCombustEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.challenges.HellblockChallenge.ChallengeType;
+import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
 import com.swiftlicious.hellblock.protection.HellblockFlag;
 import com.swiftlicious.hellblock.protection.HellblockFlag.AccessType;
 
@@ -124,6 +126,16 @@ public class NetherSnowGolem implements Listener {
 			hellGolem.setAware(true);
 			hellGolem.setDerp(false);
 			hellGolem.setVisualFire(true);
+			HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(player);
+			if (!pi.isChallengeActive(ChallengeType.NETHER_GOLEM_CHALLENGE)
+					&& !pi.isChallengeCompleted(ChallengeType.NETHER_GOLEM_CHALLENGE)) {
+				pi.beginChallengeProgression(ChallengeType.NETHER_GOLEM_CHALLENGE);
+			} else {
+				pi.updateChallengeProgression(ChallengeType.NETHER_GOLEM_CHALLENGE, 1);
+				if (pi.isChallengeCompleted(ChallengeType.NETHER_GOLEM_CHALLENGE)) {
+					pi.completeChallenge(ChallengeType.NETHER_GOLEM_CHALLENGE);
+				}
+			}
 			return true;
 		}
 
