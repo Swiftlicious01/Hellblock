@@ -106,15 +106,17 @@ public class SchematicMenu {
 								net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 						return;
 					}
-					HellblockPlugin.getInstance().getHellblockHandler().createHellblock(player, IslandOptions.SCHEMATIC,
-							Files.getNameWithoutExtension(file.getName()));
-					if (isReset) {
-						HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player.getUniqueId())
-								.setResetCooldown(Duration.ofDays(1).toHours());
-						HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player.getUniqueId())
-								.saveHellblockPlayer();
-					}
-					new HellblockMenu(player);
+					HellblockPlugin.getInstance().getHellblockHandler()
+							.createHellblock(player, IslandOptions.SCHEMATIC, file.getName()).thenRun(() -> {
+								if (isReset) {
+									HellblockPlugin.getInstance().getHellblockHandler()
+											.getActivePlayer(player.getUniqueId())
+											.setResetCooldown(Duration.ofDays(1).toHours());
+									HellblockPlugin.getInstance().getHellblockHandler()
+											.getActivePlayer(player.getUniqueId()).saveHellblockPlayer();
+								}
+								new HellblockMenu(player);
+							});
 					HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
 							net.kyori.adventure.sound.Sound.Source.PLAYER,
 							net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);

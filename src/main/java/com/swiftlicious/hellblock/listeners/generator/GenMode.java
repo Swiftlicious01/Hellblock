@@ -1,20 +1,18 @@
 package com.swiftlicious.hellblock.listeners.generator;
 
-import java.util.Random;
-
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Particle;
-import org.bukkit.Sound;
 import com.destroystokyo.paper.ParticleBuilder;
 import com.swiftlicious.hellblock.utils.LogUtils;
+import com.swiftlicious.hellblock.utils.RandomUtils;
 
 public class GenMode {
 
 	private boolean searchForPlayersNearby = false;
 	private boolean canGenWhileLavaRaining = true;
 
-	private Sound genSound = null;
+	private String genSound = null;
 	private Particle particleEffect = null;
 	private Material fallbackMaterial = null;
 
@@ -51,11 +49,11 @@ public class GenMode {
 		return this.getGenSound() != null;
 	}
 
-	public Sound getGenSound() {
+	public String getGenSound() {
 		return this.genSound;
 	}
 
-	public void setGenSound(Sound genSound) {
+	public void setGenSound(String genSound) {
 		if (genSound == null) {
 			LogUtils.warn("Unknown sound variable defined for netherrack generator settings.");
 			return;
@@ -81,8 +79,7 @@ public class GenMode {
 
 	public void displayGenerationParticles(Location loc) {
 		for (int i = 0; i < 10; i++) {
-			Random rand = new Random();
-			Location tempLoc = loc.clone().add(rand.nextDouble(), 1D, rand.nextDouble());
+			Location tempLoc = loc.clone().add(RandomUtils.generateRandomDouble(), 1D, RandomUtils.generateRandomDouble());
 			float speed = 1 / (i + 1);
 			ParticleBuilder builder = new ParticleBuilder(this.particleEffect);
 			builder.location(tempLoc).count((int) speed).source(null).spawn();

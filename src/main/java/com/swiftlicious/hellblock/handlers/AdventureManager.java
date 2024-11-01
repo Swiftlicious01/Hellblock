@@ -4,10 +4,12 @@ import java.lang.reflect.InvocationTargetException;
 import java.time.Duration;
 
 import org.bukkit.Bukkit;
+import org.bukkit.Location;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.ConsoleCommandSender;
 import org.bukkit.entity.Player;
 
+import com.swiftlicious.hellblock.api.DefaultFontInfo;
 import com.swiftlicious.hellblock.config.HBConfig;
 import com.swiftlicious.hellblock.config.HBLocale;
 import com.swiftlicious.hellblock.utils.ReflectionUtils;
@@ -15,12 +17,15 @@ import com.swiftlicious.hellblock.utils.ReflectionUtils;
 import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.sound.Sound;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import net.kyori.adventure.title.Title;
 
 public class AdventureManager implements AdventureManagerInterface {
+
+	private final static int CENTER_PX = 154;
 
 	@Override
 	public Component getComponentFromMiniMessage(String text) {
@@ -35,51 +40,83 @@ public class AdventureManager implements AdventureManagerInterface {
 	}
 
 	@Override
-	public void sendMessage(CommandSender sender, String s) {
-		if (s == null)
+	public void sendMessage(CommandSender sender, String message) {
+		if (message == null)
 			return;
 		if (sender == null)
-			sendGlobalMessage(s);
+			sendGlobalMessage(message);
 		else if (sender instanceof Player player)
-			sendPlayerMessage(player, s);
+			sendPlayerMessage(player, message);
 		else if (sender instanceof ConsoleCommandSender)
-			sendConsoleMessage(s);
+			sendConsoleMessage(message);
 	}
 
 	@Override
-	public void sendMessageWithPrefix(CommandSender sender, String s) {
-		if (s == null)
+	public void sendMessageWithPrefix(CommandSender sender, String message) {
+		if (message == null)
 			return;
 		if (sender == null)
-			sendGlobalMessage(HBLocale.MSG_Prefix + s);
+			sendGlobalMessage(HBLocale.MSG_Prefix + message);
 		else if (sender instanceof Player player)
-			sendPlayerMessage(player, HBLocale.MSG_Prefix + s);
+			sendPlayerMessage(player, HBLocale.MSG_Prefix + message);
 		else if (sender instanceof ConsoleCommandSender)
-			sendConsoleMessage(HBLocale.MSG_Prefix + s);
+			sendConsoleMessage(HBLocale.MSG_Prefix + message);
 	}
 
 	@Override
-	public void sendConsoleMessage(String s) {
-		if (s == null)
+	public void sendConsoleMessage(String message) {
+		if (message == null)
 			return;
 		Audience au = Audience.audience(Bukkit.getConsoleSender());
-		au.sendMessage(getComponentFromMiniMessage(s));
+		au.sendMessage(getComponentFromMiniMessage(message));
 	}
 
 	@Override
-	public void sendGlobalMessage(String s) {
-		if (s == null)
+	public void sendGlobalMessage(String message) {
+		if (message == null)
 			return;
 		Audience au = Audience.audience(Bukkit.getOnlinePlayers());
-		au.sendMessage(getComponentFromMiniMessage(s));
+		au.sendMessage(getComponentFromMiniMessage(message));
 	}
 
 	@Override
-	public void sendPlayerMessage(Player player, String s) {
-		if (s == null)
+	public void sendPlayerMessage(Player player, String message) {
+		if (message == null)
 			return;
 		Audience au = Audience.audience(player);
-		au.sendMessage(getComponentFromMiniMessage(s));
+		au.sendMessage(getComponentFromMiniMessage(message));
+	}
+
+	@Override
+	public void sendCenteredMessage(Player player, String message) {
+		if (message == null)
+			return;
+
+		int messagePxSize = 0;
+		boolean isBold = false;
+
+		for (char c : message.toCharArray()) {
+			if (getComponentFromMiniMessage(message).hasDecoration(TextDecoration.BOLD)) {
+				isBold = true;
+				continue;
+			} else
+				isBold = false;
+			DefaultFontInfo dFI = DefaultFontInfo.getDefaultFontInfo(c);
+			messagePxSize += isBold ? dFI.getBoldLength() : dFI.getLength();
+			messagePxSize++;
+		}
+
+		int halvedMessageSize = messagePxSize / 2;
+		int toCompensate = CENTER_PX - halvedMessageSize;
+		int spaceLength = DefaultFontInfo.SPACE.getLength() + 1;
+		int compensated = 0;
+		StringBuilder sb = new StringBuilder();
+		while (compensated < toCompensate) {
+			sb.append(" ");
+			compensated += spaceLength;
+		}
+		Audience au = Audience.audience(player);
+		au.sendMessage(getComponentFromMiniMessage(sb.toString() + message));
 	}
 
 	@Override
@@ -95,11 +132,11 @@ public class AdventureManager implements AdventureManagerInterface {
 	}
 
 	@Override
-	public void sendActionbar(Player player, String s) {
-		if (s == null)
+	public void sendActionbar(Player player, String text) {
+		if (text == null)
 			return;
 		Audience au = Audience.audience(player);
-		au.sendActionBar(getComponentFromMiniMessage(s));
+		au.sendActionBar(getComponentFromMiniMessage(text));
 	}
 
 	@Override
@@ -111,8 +148,22 @@ public class AdventureManager implements AdventureManagerInterface {
 	}
 
 	@Override
+	public void sendSound(Location location, Sound.Source source, net.kyori.adventure.key.Key key, float volume,
+			float pitch) {
+		Sound sound = Sound.sound(key, source, volume, pitch);
+		Audience au = Audience.audience(location.getNearbyPlayers(5.0D));
+		au.playSound(sound);
+	}
+
+	@Override
 	public void sendSound(Player player, Sound sound) {
 		Audience au = Audience.audience(player);
+		au.playSound(sound);
+	}
+
+	@Override
+	public void sendSound(Location location, Sound sound) {
+		Audience au = Audience.audience(location.getNearbyPlayers(5.0D));
 		au.playSound(sound);
 	}
 

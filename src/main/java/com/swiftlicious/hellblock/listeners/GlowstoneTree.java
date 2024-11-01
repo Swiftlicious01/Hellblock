@@ -1,46 +1,41 @@
 package com.swiftlicious.hellblock.listeners;
 
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 import org.bukkit.Bukkit;
-import org.bukkit.Location;
+import org.bukkit.Effect;
 import org.bukkit.Material;
 import org.bukkit.Tag;
 import org.bukkit.TreeType;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.block.BlockState;
+import org.bukkit.block.data.type.Sapling;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
-import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
-import org.bukkit.event.block.BlockBreakEvent;
-import org.bukkit.event.block.BlockExplodeEvent;
-import org.bukkit.event.block.BlockPistonExtendEvent;
-import org.bukkit.event.entity.EntityChangeBlockEvent;
+import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.world.StructureGrowEvent;
+import org.bukkit.inventory.ItemStack;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.challenges.HellblockChallenge.ChallengeType;
 import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
-import com.swiftlicious.hellblock.utils.LocationCache;
+import com.swiftlicious.hellblock.utils.RandomUtils;
 
-import lombok.AllArgsConstructor;
-import lombok.Getter;
+import lombok.NonNull;
+import net.kyori.adventure.key.Key;
+import net.kyori.adventure.sound.Sound.Source;
 
 public class GlowstoneTree implements Listener {
 
 	private final HellblockPlugin instance;
-
-	@Getter
-	public final Map<Location, GlowTree> glowTreeCache;
 
 	private static final Set<TreeType> TREE_TYPES = new HashSet<>(Arrays.asList(TreeType.TREE, TreeType.BIRCH,
 			TreeType.ACACIA, TreeType.JUNGLE, TreeType.DARK_OAK, TreeType.BIG_TREE, TreeType.CHERRY, TreeType.REDWOOD,
@@ -49,7 +44,6 @@ public class GlowstoneTree implements Listener {
 
 	public GlowstoneTree(HellblockPlugin plugin) {
 		instance = plugin;
-		this.glowTreeCache = new HashMap<>();
 		Bukkit.getPluginManager().registerEvents(this, instance);
 	}
 
@@ -63,7 +57,7 @@ public class GlowstoneTree implements Listener {
 			// have to check this to prevent sapling bonemeal over a block and see it's not
 			// growing.
 			if (player != null && event.isFromBonemeal() && !event.getBlocks().isEmpty()
-					&& event.getBlocks().size() > 4) {
+					&& !event.getBlocks().stream().anyMatch(state -> state.getBlockData() instanceof Sapling)) {
 				HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(player);
 				if (!pi.isChallengeActive(ChallengeType.GLOWSTONE_TREE_CHALLENGE)
 						&& !pi.isChallengeCompleted(ChallengeType.GLOWSTONE_TREE_CHALLENGE)) {
@@ -77,7 +71,6 @@ public class GlowstoneTree implements Listener {
 			}
 
 			Iterator<BlockState> blocks = event.getBlocks().iterator();
-			GlowTree glowTree = new GlowTree(event.getSpecies(), event.getBlocks());
 
 			while (true) {
 				BlockState block;
@@ -88,122 +81,95 @@ public class GlowstoneTree implements Listener {
 					block = (BlockState) blocks.next();
 					if (Tag.LOGS_THAT_BURN.isTagged(block.getType())) {
 						block.setType(Material.GRAVEL);
-						block.update();
 					}
 				} while (!Tag.LEAVES.isTagged(block.getType()));
 
 				block.setType(Material.GLOWSTONE);
-				block.update();
-				this.glowTreeCache.putIfAbsent(LocationCache.getCachedLocation(event.getLocation()), glowTree);
-			}
-		}
-	}
-
-	@EventHandler(priority = EventPriority.LOWEST)
-	public void onGravelChangeBlock(EntityChangeBlockEvent event) {
-		if (!event.getBlock().getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
-			return;
-
-		if (event.getBlock().getType() != Material.GRAVEL) {
-			return;
-		}
-
-		if (this.glowTreeCache.isEmpty()) {
-			return;
-		}
-
-		if (this.glowTreeCache.containsKey(event.getBlock().getLocation())) {
-			event.setCancelled(true);
-			GlowTree glowTree = this.glowTreeCache.get(event.getBlock().getLocation());
-			for (BlockState state : glowTree.getTreeBlocks()) {
-				Block block = state.getBlock();
-				if (block.getType() == Material.GRAVEL) {
-					event.setCancelled(true);
-				}
-			}
-		} else {
-			Set<Block> blocks = getConnectedBlocks(event.getBlock());
-			for (Block block : blocks) {
-				if (this.glowTreeCache.containsKey(block.getLocation())) {
-					this.glowTreeCache.remove(block.getLocation());
-				}
 			}
 		}
 	}
 
 	@EventHandler
-	public void onGravelExplode(BlockExplodeEvent event) {
-		if (!event.getBlock().getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+	public void onGlowstoneTreeGrowth(PlayerInteractEvent event) {
+		final Player player = event.getPlayer();
+		if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
 			return;
 
-		if (event.getBlock().getType() != Material.GRAVEL) {
-			return;
-		}
+		final UUID id = player.getUniqueId();
+		Block block = event.getClickedBlock();
+		ItemStack inHand = event.getItem();
+		int randomChance = RandomUtils.generateRandomInt(1, 3);
+		if (inHand != null && block != null) {
+			HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(id);
+			if (event.getBlockFace() == BlockFace.UP && block.getType() == Material.SOUL_SAND
+					&& block.getRelative(BlockFace.UP).getType().isAir()) {
+				if (inHand.getType() == Material.GLOWSTONE_DUST) {
+					player.swingMainHand();
+					block.getWorld().playEffect(block.getLocation(), Effect.SHOOT_WHITE_SMOKE, event.getBlockFace());
+					inHand.setAmount(inHand.getAmount() > 1 ? inHand.getAmount() - 1 : 0);
+					if (randomChance == RandomUtils.generateRandomInt(2, 3)) {
+						block.getRelative(BlockFace.UP).setType(Material.OAK_SAPLING);
+						instance.getAdventureManager().sendMessage(player, "<red>Soul Sand has been fertilized!");
+						instance.getAdventureManager().sendMessage(player,
+								"<red>Right click with <dark_red>flint <red>to grow the <gold>glowstone tree<red>!");
+						instance.getAdventureManager().sendSound(player, Source.PLAYER,
+								Key.key("minecraft:block.grass.place"), 1.0F, 1.0F);
+					}
+				}
+			}
 
-		if (this.glowTreeCache.isEmpty()) {
-			return;
-		}
-
-		if (this.glowTreeCache.containsKey(event.getBlock().getLocation())) {
-			this.glowTreeCache.remove(event.getBlock().getLocation());
-		} else {
-			Set<Block> blocks = getConnectedBlocks(event.getBlock());
-			for (Block block : blocks) {
-				if (this.glowTreeCache.containsKey(block.getLocation())) {
-					this.glowTreeCache.remove(block.getLocation());
+			if (block.getRelative(BlockFace.DOWN).getType() == Material.SOUL_SAND
+					&& block.getType() == Material.OAK_SAPLING) {
+				if (inHand.getType() == Material.FLINT) {
+					player.swingMainHand();
+					inHand.setAmount(inHand.getAmount() > 1 ? inHand.getAmount() - 1 : 0);
+					block.getWorld().playEffect(block.getLocation(), Effect.BONE_MEAL_USE,
+							RandomUtils.generateRandomInt(2, 5));
+					if (canGrow(block)) {
+						if (randomChance == RandomUtils.generateRandomInt(2, 4)) {
+							instance.getIslandGenerator().generateGlowstoneTree(block.getLocation()).thenRun(() -> {
+								if (!pi.isChallengeActive(ChallengeType.GLOWSTONE_TREE_CHALLENGE)
+										&& !pi.isChallengeCompleted(ChallengeType.GLOWSTONE_TREE_CHALLENGE)) {
+									pi.beginChallengeProgression(ChallengeType.GLOWSTONE_TREE_CHALLENGE);
+								} else {
+									pi.updateChallengeProgression(ChallengeType.GLOWSTONE_TREE_CHALLENGE, 1);
+									if (pi.isChallengeCompleted(ChallengeType.GLOWSTONE_TREE_CHALLENGE)) {
+										pi.completeChallenge(ChallengeType.GLOWSTONE_TREE_CHALLENGE);
+									}
+								}
+							});
+						}
+					}
 				}
 			}
 		}
 	}
 
-	@EventHandler
-	public void onGravelBreak(BlockBreakEvent event) {
-		if (!event.getBlock().getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
-			return;
-
-		if (event.getBlock().getType() != Material.GRAVEL) {
-			return;
-		}
-
-		if (this.glowTreeCache.isEmpty()) {
-			return;
-		}
-
-		if (this.glowTreeCache.containsKey(event.getBlock().getLocation())) {
-			this.glowTreeCache.remove(event.getBlock().getLocation());
-		} else {
-			Set<Block> blocks = getConnectedBlocks(event.getBlock());
-			for (Block block : blocks) {
-				if (this.glowTreeCache.containsKey(block.getLocation())) {
-					this.glowTreeCache.remove(block.getLocation());
+	private boolean canGrow(@NonNull Block block) {
+		boolean canGrow = false;
+		int centerX = block.getLocation().getBlockX();
+		int centerY = block.getLocation().getBlockY();
+		int centerZ = block.getLocation().getBlockZ();
+		for (int x = centerX - 1; x <= centerX + 1; x++) {
+			for (int y = centerY; y <= centerY + 5; y++) {
+				for (int z = centerZ - 1; z <= centerZ + 1; z++) {
+					instance.getAdventureManager().sendMessage(null,
+							block.getWorld().getBlockAt(x, y, z).getType().name());
+					if (canGrowIn(block.getWorld().getBlockAt(x, y, z).getType())) {
+						canGrow = true;
+					} else {
+						canGrow = false;
+						break;
+					}
 				}
 			}
 		}
+		return canGrow;
 	}
 
-	@EventHandler
-	public void onGravelMove(BlockPistonExtendEvent event) {
-		if (!event.getBlock().getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
-			return;
-
-		if (event.getBlock().getType() != Material.GRAVEL) {
-			return;
-		}
-
-		if (this.glowTreeCache.isEmpty()) {
-			return;
-		}
-
-		if (this.glowTreeCache.containsKey(event.getBlock().getLocation())) {
-			this.glowTreeCache.remove(event.getBlock().getLocation());
-		} else {
-			Set<Block> blocks = getConnectedBlocks(event.getBlock());
-			for (Block block : blocks) {
-				if (this.glowTreeCache.containsKey(block.getLocation())) {
-					this.glowTreeCache.remove(block.getLocation());
-				}
-			}
-		}
+	private boolean canGrowIn(Material material) {
+		return material == Material.GLOWSTONE || material.isAir() || material == Material.SNOW
+				|| material == Material.TALL_GRASS || material == Material.VINE;
 	}
 
 	// These are all the sides of the block
@@ -242,13 +208,5 @@ public class GlowstoneTree implements Listener {
 			getConnectedBlocks(block, set, list);
 		}
 		return set;
-	}
-
-	@AllArgsConstructor
-	@Getter
-	public class GlowTree {
-
-		private TreeType originalTreeType;
-		private List<BlockState> treeBlocks;
 	}
 }

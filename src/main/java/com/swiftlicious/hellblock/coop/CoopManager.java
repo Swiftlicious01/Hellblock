@@ -2,10 +2,8 @@ package com.swiftlicious.hellblock.coop;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -15,24 +13,21 @@ import java.util.UUID;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.OfflinePlayer;
+import org.bukkit.WorldBorder;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.player.PlayerTeleportEvent.TeleportCause;
 import org.jetbrains.annotations.Nullable;
 
 import com.google.common.io.Files;
-import com.sk89q.worldedit.bukkit.BukkitAdapter;
-import com.sk89q.worldedit.math.BlockVector3;
-import com.sk89q.worldedit.world.World;
-import com.sk89q.worldguard.protection.ApplicableRegionSet;
-import com.sk89q.worldguard.protection.flags.RegionGroup;
+
 import com.sk89q.worldguard.protection.flags.StateFlag;
-import com.sk89q.worldguard.protection.managers.RegionManager;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
-import com.sk89q.worldguard.protection.regions.RegionContainer;
+
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.generation.HellBiome;
 import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
+import com.swiftlicious.hellblock.playerdata.HellblockPlayer.HellblockData;
 import com.swiftlicious.hellblock.protection.HellblockFlag;
 import com.swiftlicious.hellblock.protection.HellblockFlag.AccessType;
 import com.swiftlicious.hellblock.protection.HellblockFlag.FlagType;
@@ -155,8 +150,7 @@ public class CoopManager {
 				return;
 			}
 			if (hbPlayer.getInvitations() != null && hbPlayer.getInvitations().isEmpty()) {
-				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-						"<red>You don't have any invitations!");
+				instance.getAdventureManager().sendMessageWithPrefix(player, "<red>You don't have any invitations!");
 				return;
 			}
 
@@ -195,41 +189,22 @@ public class CoopManager {
 						"<red>You don't have an invite from this player!");
 				return;
 			}
-			HellblockPlayer ti = null;
-			if (HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers().containsKey(ownerID)) {
-				ti = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers().get(ownerID);
-			} else {
-				ti = new HellblockPlayer(ownerID);
-			}
-
+			HellblockPlayer ti = instance.getHellblockHandler().getActivePlayer(ownerID);
 			if (ti.isAbandoned()) {
 				instance.getAdventureManager().sendMessageWithPrefix(player,
 						"<red>This hellblock is abandoned, you can't join it!");
 				return;
 			}
 
-			if (instance.getHellblockHandler().isWorldguardProtect()) {
-				if (instance.getWorldGuardHandler().getWorldGuardPlatform() == null) {
-					LogUtils.severe("Could not retrieve WorldGuard platform.");
-					return;
-				}
-				RegionContainer container = instance.getWorldGuardHandler().getWorldGuardPlatform()
-						.getRegionContainer();
-				World world = BukkitAdapter.adapt(instance.getHellblockHandler().getHellblockWorld());
-				RegionManager regions = container.get(world);
-				if (regions == null) {
-					LogUtils.severe(String.format("Could not load WorldGuard regions for hellblock world: %s",
-							world.getName()));
-					return;
-				}
+			if (instance.getHellblockHandler().isWorldguardProtected()) {
 				OfflinePlayer owner;
 				if (Bukkit.getPlayer(ownerID) != null) {
 					owner = Bukkit.getPlayer(ownerID);
 				} else {
 					owner = Bukkit.getOfflinePlayer(ownerID);
 				}
-				ProtectedRegion region = owner.hasPlayedBefore() && owner.getName() != null
-						? regions.getRegion(owner.getName() + "Hellblock")
+				ProtectedRegion region = owner.hasPlayedBefore()
+						? instance.getWorldGuardHandler().getRegion(owner.getUniqueId(), ti.getID())
 						: null;
 				if (region == null) {
 					instance.getAdventureManager().sendMessageWithPrefix(player,
@@ -269,26 +244,24 @@ public class CoopManager {
 				if (playerToAdd.getWhoTrusted().contains(ownerID)) {
 					playerToAdd.removeTrustPermission(ownerID);
 				}
-				if (!LocationUtils.isSafeLocation(playerToAdd.getHomeLocation())) {
-					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-							"<red>This hellblock home location was deemed not safe, resetting to bedrock location!");
-					playerToAdd.setHome(
-							HellblockPlugin.getInstance().getHellblockHandler().locateBedrock(player.getUniqueId()));
-					HellblockPlugin.getInstance().getCoopManager().updateParty(player.getUniqueId(), "home",
-							playerToAdd.getHomeLocation());
-				}
-				ChunkUtils.teleportAsync(player, ti.getHomeLocation(), TeleportCause.PLUGIN);
-				// if raining give player a bit of protection
-				if (instance.getLavaRain().getLavaRainTask() != null
-						&& instance.getLavaRain().getLavaRainTask().isLavaRaining()
-						&& instance.getLavaRain().getHighestBlock(player.getLocation()) != null
-						&& !instance.getLavaRain().getHighestBlock(player.getLocation()).isEmpty()) {
-					player.setNoDamageTicks(5 * 20);
-				}
+				LocationUtils.isSafeLocationAsync(playerToAdd.getHomeLocation()).thenAccept((result) -> {
+					if (!result.booleanValue()) {
+						instance.getAdventureManager().sendMessageWithPrefix(player,
+								"<red>This hellblock home location was deemed not safe, resetting to bedrock location!");
+						instance.getHellblockHandler().locateBedrock(player.getUniqueId()).thenAccept((bedrock) -> {
+							playerToAdd.setHome(bedrock);
+							instance.getCoopManager().updateParty(player.getUniqueId(), HellblockData.HOME,
+									playerToAdd.getHomeLocation());
+						});
+					}
+					ChunkUtils.teleportAsync(player, playerToAdd.getHomeLocation(), TeleportCause.PLUGIN)
+							.thenRun(() -> {
+								playerToAdd.setHellblockBorder(ti.getHellblockBorder());
+							});
+				});
 				ti.addToHellblockParty(player.getUniqueId());
 				for (HellblockPlayer active : instance.getHellblockHandler().getActivePlayers().values()) {
-					if (active == null || active.getPlayer() == null
-							|| active.getPlayer().getUniqueId().equals(ownerID))
+					if (active == null || active.getPlayer() == null || active.getUUID().equals(ownerID))
 						continue;
 					if (active.getHellblockOwner().equals(playerToAdd.getHellblockOwner())) {
 						active.addToHellblockParty(player.getUniqueId());
@@ -349,12 +322,7 @@ public class CoopManager {
 						"<red>You don't have a hellblock island! Create one with /hellblock create");
 				return;
 			}
-			HellblockPlayer ti = null;
-			if (HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers().containsKey(id)) {
-				ti = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers().get(id);
-			} else {
-				ti = new HellblockPlayer(id);
-			}
+			HellblockPlayer ti = instance.getHellblockHandler().getActivePlayer(id);
 
 			if (owner.getUniqueId().equals(ti.getHellblockOwner())) {
 				instance.getAdventureManager().sendMessageWithPrefix(owner,
@@ -367,21 +335,8 @@ public class CoopManager {
 				return;
 			}
 
-			if (instance.getHellblockHandler().isWorldguardProtect()) {
-				if (instance.getWorldGuardHandler().getWorldGuardPlatform() == null) {
-					LogUtils.severe("Could not retrieve WorldGuard platform.");
-					return;
-				}
-				RegionContainer container = instance.getWorldGuardHandler().getWorldGuardPlatform()
-						.getRegionContainer();
-				World world = BukkitAdapter.adapt(instance.getHellblockHandler().getHellblockWorld());
-				RegionManager regions = container.get(world);
-				if (regions == null) {
-					LogUtils.severe(String.format("Could not load WorldGuard regions for hellblock world: %s",
-							world.getName()));
-					return;
-				}
-				ProtectedRegion region = regions.getRegion(owner.getName() + "Hellblock");
+			if (instance.getHellblockHandler().isWorldguardProtected()) {
+				ProtectedRegion region = instance.getWorldGuardHandler().getRegion(owner.getUniqueId(), ti.getID());
 				if (region == null) {
 					instance.getAdventureManager().sendMessageWithPrefix(owner,
 							"<red>An error has occurred, please report this to the developer.");
@@ -411,8 +366,7 @@ public class CoopManager {
 				ti.setUsedSchematic(null);
 				hbPlayer.kickFromHellblockParty(id);
 				for (HellblockPlayer active : instance.getHellblockHandler().getActivePlayers().values()) {
-					if (active == null || active.getPlayer() == null
-							|| active.getPlayer().getUniqueId().equals(owner.getUniqueId()))
+					if (active == null || active.getPlayer() == null || active.getUUID().equals(owner.getUniqueId()))
 						continue;
 					if (active.getHellblockOwner().equals(ti.getHellblockOwner())) {
 						active.kickFromHellblockParty(id);
@@ -455,7 +409,8 @@ public class CoopManager {
 						"<red>" + input + " has been kicked to your hellblock party!");
 				Player player = Bukkit.getPlayer(id);
 				if (player != null) {
-					player.performCommand(instance.getHellblockHandler().getNetherCMD());
+					ti.setHellblockBorder(null);
+					instance.getHellblockHandler().teleportToSpawn(player);
 					instance.getAdventureManager().sendMessageWithPrefix(player,
 							"<red>You have been removed from " + owner.getName() + "'s hellblock!");
 				}
@@ -478,20 +433,7 @@ public class CoopManager {
 				return;
 			}
 
-			if (instance.getHellblockHandler().isWorldguardProtect()) {
-				if (instance.getWorldGuardHandler().getWorldGuardPlatform() == null) {
-					LogUtils.severe("Could not retrieve WorldGuard platform.");
-					return;
-				}
-				RegionContainer container = instance.getWorldGuardHandler().getWorldGuardPlatform()
-						.getRegionContainer();
-				World world = BukkitAdapter.adapt(instance.getHellblockHandler().getHellblockWorld());
-				RegionManager regions = container.get(world);
-				if (regions == null) {
-					LogUtils.severe(String.format("Could not load WorldGuard regions for hellblock world: %s",
-							world.getName()));
-					return;
-				}
+			if (instance.getHellblockHandler().isWorldguardProtected()) {
 				if (leavingPlayer.getHellblockOwner() == null) {
 					instance.getAdventureManager().sendMessageWithPrefix(player,
 							"<red>An error has occurred. Please report this to the developer.");
@@ -509,8 +451,11 @@ public class CoopManager {
 				} else {
 					owner = Bukkit.getOfflinePlayer(leavingPlayer.getHellblockOwner());
 				}
-				ProtectedRegion region = owner.hasPlayedBefore() && owner.getName() != null
-						? regions.getRegion(owner.getName() + "Hellblock")
+
+				HellblockPlayer ti = instance.getHellblockHandler().getActivePlayer(owner.getUniqueId());
+
+				ProtectedRegion region = owner.hasPlayedBefore()
+						? instance.getWorldGuardHandler().getRegion(owner.getUniqueId(), ti.getID())
 						: null;
 				if (region == null) {
 					instance.getAdventureManager().sendMessageWithPrefix(player,
@@ -520,14 +465,6 @@ public class CoopManager {
 
 				Set<UUID> party = new HashSet<>();
 
-				HellblockPlayer ti = null;
-				if (HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers()
-						.containsKey(owner.getUniqueId())) {
-					ti = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers()
-							.get(owner.getUniqueId());
-				} else {
-					ti = new HellblockPlayer(owner.getUniqueId());
-				}
 				if (!ti.isAbandoned()) {
 					party = region.getMembers().getUniqueIds();
 					if (!party.contains(player.getUniqueId())) {
@@ -551,6 +488,7 @@ public class CoopManager {
 				}
 				leavingPlayer.setHellblock(false, null, 0);
 				leavingPlayer.setHome(null);
+				leavingPlayer.setHellblockBorder(null);
 				leavingPlayer.setHellblockBiome(null);
 				leavingPlayer.setLockedStatus(false);
 				leavingPlayer.setTotalVisits(0);
@@ -563,7 +501,7 @@ public class CoopManager {
 				leavingPlayer.setBannedPlayers(new HashSet<>());
 				leavingPlayer.setHellblockParty(new HashSet<>());
 				leavingPlayer.setProtectionFlags(new HashMap<>());
-				player.performCommand(instance.getHellblockHandler().getNetherCMD());
+				instance.getHellblockHandler().teleportToSpawn(player);
 				if (owner != null && owner.isOnline()) {
 					HellblockPlayer ownerPlayer = instance.getHellblockHandler()
 							.getActivePlayer(leavingPlayer.getHellblockOwner());
@@ -572,8 +510,8 @@ public class CoopManager {
 					}
 					ownerPlayer.saveHellblockPlayer();
 				} else {
-					File ownerFile = new File(HellblockPlugin.getInstance().getHellblockHandler().getPlayersDirectory()
-							+ File.separator + leavingPlayer.getHellblockOwner() + ".yml");
+					File ownerFile = new File(instance.getHellblockHandler().getPlayersDirectory() + File.separator
+							+ leavingPlayer.getHellblockOwner() + ".yml");
 					YamlConfiguration ownerConfig = YamlConfiguration.loadConfiguration(ownerFile);
 					List<String> partyList = ownerConfig.getStringList("player.party");
 					if (partyList.contains(player.getUniqueId().toString())) {
@@ -594,8 +532,7 @@ public class CoopManager {
 					}
 				}
 				for (HellblockPlayer active : instance.getHellblockHandler().getActivePlayers().values()) {
-					if (active == null || active.getPlayer() == null
-							|| active.getPlayer().getUniqueId().equals(owner.getUniqueId()))
+					if (active == null || active.getPlayer() == null || active.getUUID().equals(owner.getUniqueId()))
 						continue;
 					if (active.getHellblockOwner().equals(leavingPlayer.getHellblockOwner())) {
 						active.kickFromHellblockParty(player.getUniqueId());
@@ -674,21 +611,9 @@ public class CoopManager {
 							"<red>This player isn't a member of your hellblock party!");
 					return;
 				}
-				if (instance.getHellblockHandler().isWorldguardProtect()) {
-					if (instance.getWorldGuardHandler().getWorldGuardPlatform() == null) {
-						LogUtils.severe("Could not retrieve WorldGuard platform.");
-						return;
-					}
-					RegionContainer container = instance.getWorldGuardHandler().getWorldGuardPlatform()
-							.getRegionContainer();
-					World world = BukkitAdapter.adapt(instance.getHellblockHandler().getHellblockWorld());
-					RegionManager regions = container.get(world);
-					if (regions == null) {
-						LogUtils.severe(String.format("Could not load WorldGuard regions for hellblock world: %s",
-								world.getName()));
-						return;
-					}
-					ProtectedRegion region = regions.getRegion(owner.getName() + "Hellblock");
+				if (instance.getHellblockHandler().isWorldguardProtected()) {
+					ProtectedRegion region = instance.getWorldGuardHandler().getRegion(owner.getUniqueId(),
+							hbPlayer.getID());
 					if (region == null) {
 						instance.getAdventureManager().sendMessageWithPrefix(owner,
 								"<red>You don't have a hellblock island! Create one with /hellblock create");
@@ -723,7 +648,7 @@ public class CoopManager {
 					hbPlayer.addToHellblockParty(owner.getUniqueId());
 					for (HellblockPlayer active : instance.getHellblockHandler().getActivePlayers().values()) {
 						if (active == null || active.getPlayer() == null
-								|| active.getPlayer().getUniqueId().equals(owner.getUniqueId()))
+								|| active.getUUID().equals(owner.getUniqueId()))
 							continue;
 						if (active.getHellblockOwner().equals(owner.getUniqueId())) {
 							active.setHellblockOwner(playerToTransfer.getHellblockOwner());
@@ -782,26 +707,11 @@ public class CoopManager {
 		}
 	}
 
-	public List<UUID> getVisitors(@NonNull UUID id) {
-		List<UUID> visitors = new ArrayList<>();
-		if (instance.getHellblockHandler().isWorldguardProtect()) {
-			if (instance.getWorldGuardHandler().getWorldGuardPlatform() == null) {
-				LogUtils.severe("Could not retrieve WorldGuard platform.");
-				return new ArrayList<>();
-			}
-			RegionContainer container = instance.getWorldGuardHandler().getWorldGuardPlatform().getRegionContainer();
-			World world = BukkitAdapter.adapt(instance.getHellblockHandler().getHellblockWorld());
-			RegionManager regions = container.get(world);
-			if (regions == null) {
-				LogUtils.severe(
-						String.format("Could not load WorldGuard regions for hellblock world: %s", world.getName()));
-				return new ArrayList<>();
-			}
-			ProtectedRegion region = regions.getRegion((Bukkit.getPlayer(id) != null ? Bukkit.getPlayer(id).getName()
-					: Bukkit.getOfflinePlayer(id).hasPlayedBefore() && Bukkit.getOfflinePlayer(id).getName() != null
-							? Bukkit.getOfflinePlayer(id).getName()
-							: null)
-					+ "Hellblock");
+	public Set<UUID> getVisitors(@NonNull UUID id) {
+		Set<UUID> visitors = new HashSet<>();
+		HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(id);
+		if (instance.getHellblockHandler().isWorldguardProtected()) {
+			ProtectedRegion region = instance.getWorldGuardHandler().getRegion(id, pi.getID());
 			if (region != null) {
 				instance.getHellblockHandler().getActivePlayers().values().forEach(player -> {
 					Player onlinePlayer = player.getPlayer();
@@ -819,30 +729,16 @@ public class CoopManager {
 		return visitors;
 	}
 
-	public boolean changeLockStatus(@NonNull Player player) {
-		if (instance.getHellblockHandler().isWorldguardProtect()) {
-			if (instance.getWorldGuardHandler().getWorldGuardPlatform() == null) {
-				LogUtils.severe("Could not retrieve WorldGuard platform.");
-				return false;
-			}
-			RegionContainer container = instance.getWorldGuardHandler().getWorldGuardPlatform().getRegionContainer();
-			World world = BukkitAdapter.adapt(instance.getHellblockHandler().getHellblockWorld());
-			RegionManager regions = container.get(world);
-			if (regions == null) {
-				LogUtils.severe(
-						String.format("Could not load WorldGuard regions for hellblock world: %s", world.getName()));
-				return false;
-			}
-			ProtectedRegion region = regions.getRegion(player.getName() + "Hellblock");
+	public boolean changeLockStatus(@NonNull HellblockPlayer player) {
+		if (instance.getHellblockHandler().isWorldguardProtected()) {
+			ProtectedRegion region = instance.getWorldGuardHandler().getRegion(player.getUUID(), player.getID());
 			if (region == null) {
-				instance.getAdventureManager().sendMessageWithPrefix(player,
+				instance.getAdventureManager().sendMessageWithPrefix(player.getPlayer(),
 						"<red>An error has occurred. Please report this to the developer.");
 				return false;
 			}
-			HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(player);
-			StateFlag flag = new StateFlag(HellblockFlag.FlagType.ENTRY.getName(),
-					HellblockFlag.FlagType.ENTRY.getDefaultValue(), RegionGroup.NON_MEMBERS);
-			region.setFlag(flag, (!pi.getLockedStatus() ? null : StateFlag.State.DENY));
+			region.setFlag(instance.getIslandProtectionManager().convertToWorldGuardFlag(HellblockFlag.FlagType.ENTRY),
+					(!player.getLockedStatus() ? null : StateFlag.State.DENY));
 			return true;
 		} else {
 			// TODO: using plugin protection
@@ -851,37 +747,16 @@ public class CoopManager {
 	}
 
 	public @Nullable UUID getHellblockOwnerOfVisitingIsland(@NonNull Player player) {
-		if (instance.getHellblockHandler().isWorldguardProtect()) {
-			if (instance.getWorldGuardHandler().getWorldGuardPlatform() == null) {
-				LogUtils.severe("Could not retrieve WorldGuard platform.");
+		if (instance.getHellblockHandler().isWorldguardProtected()) {
+			ProtectedRegion region = instance.getWorldGuardHandler().getRegions(player.getUniqueId()).stream().findAny()
+					.orElse(null);
+			if (region == null) {
 				return null;
 			}
-			RegionContainer container = instance.getWorldGuardHandler().getWorldGuardPlatform().getRegionContainer();
-			World world = BukkitAdapter.adapt(instance.getHellblockHandler().getHellblockWorld());
-			RegionManager regions = container.get(world);
-			if (regions == null) {
-				LogUtils.severe(
-						String.format("Could not load WorldGuard regions for hellblock world: %s", world.getName()));
+			UUID ownerUUID = region.getOwners().getUniqueIds().stream().findFirst().orElse(null);
+			if (ownerUUID == null) {
 				return null;
 			}
-			ApplicableRegionSet region = regions.getApplicableRegions(new BlockVector3(player.getLocation().getBlockX(),
-					player.getLocation().getBlockY(), player.getLocation().getBlockZ()));
-			Set<UUID> owners = new HashSet<>();
-			for (ProtectedRegion rg : region.getRegions()) {
-				if (rg == null)
-					continue;
-				owners = rg.getOwners().getUniqueIds();
-				break;
-			}
-			UUID ownerUUID = null;
-			Iterator<UUID> uuids = owners.iterator();
-			do {
-				if (!uuids.hasNext()) {
-					return null;
-				}
-				ownerUUID = uuids.next();
-				break;
-			} while (uuids.hasNext());
 			return ownerUUID;
 		} else {
 			// TODO: using plugin protection
@@ -890,30 +765,9 @@ public class CoopManager {
 	}
 
 	public boolean checkIfVisitorIsWelcome(@NonNull Player player, @NonNull UUID id) {
-		HellblockPlayer pi = null;
-		if (instance.getHellblockHandler().getActivePlayers().get(id) != null) {
-			pi = instance.getHellblockHandler().getActivePlayers().get(id);
-		} else {
-			pi = new HellblockPlayer(id);
-		}
-		if (instance.getHellblockHandler().isWorldguardProtect()) {
-			if (instance.getWorldGuardHandler().getWorldGuardPlatform() == null) {
-				LogUtils.severe("Could not retrieve WorldGuard platform.");
-				return false;
-			}
-			RegionContainer container = instance.getWorldGuardHandler().getWorldGuardPlatform().getRegionContainer();
-			World world = BukkitAdapter.adapt(instance.getHellblockHandler().getHellblockWorld());
-			RegionManager regions = container.get(world);
-			if (regions == null) {
-				LogUtils.severe(
-						String.format("Could not load WorldGuard regions for hellblock world: %s", world.getName()));
-				return false;
-			}
-			ProtectedRegion region = regions.getRegion((Bukkit.getPlayer(id) != null ? Bukkit.getPlayer(id).getName()
-					: Bukkit.getOfflinePlayer(id).hasPlayedBefore() && Bukkit.getOfflinePlayer(id).getName() != null
-							? Bukkit.getOfflinePlayer(id).getName()
-							: null)
-					+ "Hellblock");
+		HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(id);
+		if (instance.getHellblockHandler().isWorldguardProtected()) {
+			ProtectedRegion region = instance.getWorldGuardHandler().getRegion(id, pi.getID());
 			if (region == null) {
 				instance.getAdventureManager().sendMessageWithPrefix(player,
 						"<red>An error has occurred. Please report this to the developer.");
@@ -932,53 +786,55 @@ public class CoopManager {
 	}
 
 	public void kickVisitorsIfLocked(@NonNull UUID id) {
-		HellblockPlayer pi = null;
-		if (instance.getHellblockHandler().getActivePlayers().get(id) != null) {
-			pi = instance.getHellblockHandler().getActivePlayers().get(id);
-		} else {
-			pi = new HellblockPlayer(id);
-		}
+		HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(id);
 		if (pi.getLockedStatus()) {
-			if (instance.getHellblockHandler().isWorldguardProtect()) {
-				if (instance.getWorldGuardHandler().getWorldGuardPlatform() == null) {
-					LogUtils.severe("Could not retrieve WorldGuard platform.");
-					return;
-				}
-				RegionContainer container = instance.getWorldGuardHandler().getWorldGuardPlatform()
-						.getRegionContainer();
-				World world = BukkitAdapter.adapt(instance.getHellblockHandler().getHellblockWorld());
-				RegionManager regions = container.get(world);
-				if (regions == null) {
-					LogUtils.severe(String.format("Could not load WorldGuard regions for hellblock world: %s",
-							world.getName()));
-					return;
-				}
-				ProtectedRegion region = regions.getRegion((Bukkit.getPlayer(id) != null
-						? Bukkit.getPlayer(id).getName()
-						: Bukkit.getOfflinePlayer(id).hasPlayedBefore() && Bukkit.getOfflinePlayer(id).getName() != null
-								? Bukkit.getOfflinePlayer(id).getName()
-								: null)
-						+ "Hellblock");
+			if (instance.getHellblockHandler().isWorldguardProtected()) {
+				ProtectedRegion region = instance.getWorldGuardHandler().getRegion(id, pi.getID());
 				if (region != null) {
-					List<UUID> visitors = getVisitors(id);
+					Set<UUID> visitors = getVisitors(id);
 					for (UUID visitor : visitors) {
 						HellblockPlayer vi = instance.getHellblockHandler().getActivePlayer(visitor);
 						if (vi.getPlayer() != null) {
 							if (!checkIfVisitorIsWelcome(vi.getPlayer(), id)) {
 								if (vi.hasHellblock()) {
-									if (!LocationUtils.isSafeLocation(vi.getHomeLocation())) {
-										HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(
-												vi.getPlayer(),
-												"<red>This hellblock home location was deemed not safe, resetting to bedrock location!");
-										vi.setHome(HellblockPlugin.getInstance().getHellblockHandler()
-												.locateBedrock(visitor));
-										HellblockPlugin.getInstance().getCoopManager().updateParty(visitor, "home",
-												vi.getHomeLocation());
-									}
-									ChunkUtils.teleportAsync(vi.getPlayer(), vi.getHomeLocation(),
-											TeleportCause.PLUGIN);
+									LocationUtils.isSafeLocationAsync(vi.getHomeLocation()).thenAccept((result) -> {
+										if (!result.booleanValue()) {
+											instance.getAdventureManager().sendMessageWithPrefix(vi.getPlayer(),
+													"<red>This hellblock home location was deemed not safe, resetting to bedrock location!");
+											instance.getHellblockHandler().locateBedrock(visitor)
+													.thenAccept((bedrock) -> {
+														vi.setHome(bedrock);
+														instance.getCoopManager().updateParty(visitor,
+																HellblockData.HOME, vi.getHomeLocation());
+													});
+										}
+										ChunkUtils.teleportAsync(vi.getPlayer(), vi.getHomeLocation(),
+												TeleportCause.PLUGIN).thenRun(() -> {
+													WorldBorder border = instance.getHellblockHandler()
+															.getHellblockWorld().getWorldBorder();
+													if (instance.getHellblockHandler().isWorldguardProtected()) {
+														ProtectedRegion viRegion = instance.getWorldGuardHandler()
+																.getRegion(vi.getUUID(), vi.getID());
+														if (viRegion != null) {
+															border.setCenter(
+																	instance.getWorldGuardHandler().getCenter(viRegion)
+																			.toLocation(instance.getHellblockHandler()
+																					.getHellblockWorld()));
+														}
+													} else {
+														// TODO: using plugin protection
+													}
+													border.setSize(instance.getHellblockHandler().getProtectionRange());
+													border.setWarningDistance(0);
+													border.setDamageAmount(0);
+													border.setWarningTime(Integer.MAX_VALUE);
+													border.setDamageBuffer(Double.MAX_VALUE);
+													vi.setHellblockBorder(border);
+												});
+									});
 								} else {
-									vi.getPlayer().performCommand(instance.getHellblockHandler().getNetherCMD());
+									vi.setHellblockBorder(null);
+									instance.getHellblockHandler().teleportToSpawn(vi.getPlayer());
 								}
 								instance.getAdventureManager().sendMessageWithPrefix(vi.getPlayer(),
 										"<red>The hellblock you are trying to enter has been locked from having visitors at the moment.");
@@ -993,24 +849,12 @@ public class CoopManager {
 	}
 
 	public boolean addTrustAccess(@NonNull HellblockPlayer hbPlayer, @NonNull String input, @NonNull UUID id) {
-		if (hbPlayer.getPlayer() == null || !hbPlayer.getPlayer().isOnline()) {
+		if (hbPlayer.getPlayer() == null) {
 			LogUtils.severe("Player object returned null, please report this to the developer.");
-			return false;
+			throw new NullPointerException();
 		}
-		if (instance.getHellblockHandler().isWorldguardProtect()) {
-			if (instance.getWorldGuardHandler().getWorldGuardPlatform() == null) {
-				LogUtils.severe("Could not retrieve WorldGuard platform.");
-				return false;
-			}
-			RegionContainer container = instance.getWorldGuardHandler().getWorldGuardPlatform().getRegionContainer();
-			World world = BukkitAdapter.adapt(instance.getHellblockHandler().getHellblockWorld());
-			RegionManager regions = container.get(world);
-			if (regions == null) {
-				LogUtils.severe(
-						String.format("Could not load WorldGuard regions for hellblock world: %s", world.getName()));
-				return false;
-			}
-			ProtectedRegion region = regions.getRegion(String.format("%sHellblock", hbPlayer.getPlayer().getName()));
+		if (instance.getHellblockHandler().isWorldguardProtected()) {
+			ProtectedRegion region = instance.getWorldGuardHandler().getRegion(hbPlayer.getUUID(), hbPlayer.getID());
 			if (region == null) {
 				return false;
 			}
@@ -1029,24 +873,12 @@ public class CoopManager {
 	}
 
 	public boolean removeTrustAccess(@NonNull HellblockPlayer hbPlayer, @NonNull String input, @NonNull UUID id) {
-		if (hbPlayer.getPlayer() == null || !hbPlayer.getPlayer().isOnline()) {
+		if (hbPlayer.getPlayer() == null) {
 			LogUtils.severe("Player object returned null, please report this to the developer.");
-			return false;
+			throw new NullPointerException();
 		}
-		if (instance.getHellblockHandler().isWorldguardProtect()) {
-			if (instance.getWorldGuardHandler().getWorldGuardPlatform() == null) {
-				LogUtils.severe("Could not retrieve WorldGuard platform.");
-				return false;
-			}
-			RegionContainer container = instance.getWorldGuardHandler().getWorldGuardPlatform().getRegionContainer();
-			World world = BukkitAdapter.adapt(instance.getHellblockHandler().getHellblockWorld());
-			RegionManager regions = container.get(world);
-			if (regions == null) {
-				LogUtils.severe(
-						String.format("Could not load WorldGuard regions for hellblock world: %s", world.getName()));
-				return false;
-			}
-			ProtectedRegion region = regions.getRegion(String.format("%sHellblock", hbPlayer.getPlayer().getName()));
+		if (instance.getHellblockHandler().isWorldguardProtected()) {
+			ProtectedRegion region = instance.getWorldGuardHandler().getRegion(hbPlayer.getUUID(), hbPlayer.getID());
 			if (region == null) {
 				return false;
 			}
@@ -1064,38 +896,55 @@ public class CoopManager {
 		}
 	}
 
-	public <T> void updateParty(@NonNull UUID id, String type, T value) {
+	public <T> void updateParty(@NonNull UUID id, @NonNull HellblockData type, @Nullable T value) {
 		for (HellblockPlayer active : instance.getHellblockHandler().getActivePlayers().values()) {
-			if (active == null || active.getPlayer() == null || active.getPlayer().getUniqueId().equals(id))
+			if (active == null || active.getPlayer() == null || active.getUUID().equals(id))
 				continue;
 			if (active.getHellblockOwner().equals(id)) {
 				switch (type) {
-				case "lock":
+				case LOCK:
 					active.setLockedStatus((boolean) value);
 					break;
-				case "home":
+				case HOME:
 					active.setHome((Location) value);
 					break;
-				case "ban":
+				case BAN:
 					active.banPlayer((UUID) value);
 					break;
-				case "unban":
+				case UNBAN:
 					active.unbanPlayer((UUID) value);
 					break;
-				case "biome":
+				case BIOME:
 					active.setHellblockBiome((HellBiome) value);
 					break;
-				case "visit":
+				case VISIT:
 					active.setTotalVisits(active.getTotalVisitors() + (int) value);
 					break;
-				case "flag":
+				case PROTECTION_FLAG:
 					active.setProtectionValue((HellblockFlag) value);
 					break;
-				case "leveladd":
+				case LEVEL_ADDITION:
 					active.setLevel(active.getLevel() + (float) value);
 					break;
-				case "levelremove":
+				case LEVEL_REMOVAL:
 					active.setLevel(active.getLevel() - (float) value);
+					break;
+				case BIOME_COOLDOWN:
+					active.setBiomeCooldown((long) value);
+					break;
+				case OWNER:
+					active.setHellblockOwner((UUID) value);
+					break;
+				case PARTY_ADDITION:
+					active.addToHellblockParty((UUID) value);
+					break;
+				case PARTY_REMOVAL:
+					active.kickFromHellblockParty((UUID) value);
+					break;
+				case RESET_COOLDOWN:
+					active.setResetCooldown((long) value);
+					break;
+				default:
 					break;
 				}
 			}
@@ -1119,10 +968,10 @@ public class CoopManager {
 				continue;
 			if (offlineFile.getString("player.owner").equals(id.toString())) {
 				switch (type) {
-				case "lock":
+				case LOCK:
 					offlineFile.set("player.locked-island", (boolean) value);
 					break;
-				case "home":
+				case HOME:
 					Location location = (Location) value;
 					String world = location.getWorld().getName();
 					double x = location.getX();
@@ -1145,27 +994,27 @@ public class CoopManager {
 						offlineFile.set("player.home.pitch", pitch);
 					}
 					break;
-				case "ban":
+				case BAN:
 					List<String> ban = offlineFile.getStringList("player.banned-from-island");
 					if (!ban.contains(((UUID) value).toString())) {
 						ban.add(((UUID) value).toString());
 					}
 					offlineFile.set("player.banned-from-island", ban);
 					break;
-				case "unban":
+				case UNBAN:
 					List<String> unban = offlineFile.getStringList("player.banned-from-island");
 					if (unban.contains(((UUID) value).toString())) {
 						unban.remove(((UUID) value).toString());
 					}
 					offlineFile.set("player.banned-from-island", unban);
 					break;
-				case "biome":
-					offlineFile.set("player.biome", ((HellBiome) value).toString().toUpperCase());
+				case BIOME:
+					offlineFile.set("player.biome", ((HellBiome) value).toString());
 					break;
-				case "visit":
+				case VISIT:
 					offlineFile.set("player.total-visits", offlineFile.getInt("player.total-visits") + (int) value);
 					break;
-				case "flag":
+				case PROTECTION_FLAG:
 					Map<FlagType, AccessType> flags = new HashMap<>();
 					offlineFile.getConfigurationSection("player.protection-flags").getKeys(false).forEach(key -> {
 						FlagType flag = FlagType.valueOf(key);
@@ -1174,19 +1023,45 @@ public class CoopManager {
 					});
 					HellblockFlag flag = (HellblockFlag) value;
 					flags.put(flag.getFlag(), flag.getStatus());
+					AccessType returnValue = flag.getFlag().getDefaultValue() ? AccessType.ALLOW : AccessType.DENY;
 					for (Map.Entry<FlagType, AccessType> entry : flags.entrySet()) {
-						if (entry.getValue() == AccessType.DENY)
+						if (entry.getValue() == returnValue)
 							continue;
 						offlineFile.set("player.protection-flags." + entry.getKey().toString(),
 								entry.getValue().toString());
 					}
 					break;
-				case "leveladd":
+				case LEVEL_ADDITION:
 					offlineFile.set("player.hellblock-level",
 							(float) offlineFile.getDouble("player.hellblock-level") + (float) value);
-				case "levelremove":
+				case LEVEL_REMOVAL:
 					offlineFile.set("player.hellblock-level",
 							(float) offlineFile.getDouble("player.hellblock-level") - (float) value);
+				case BIOME_COOLDOWN:
+					offlineFile.set("player.biome-cooldown", (long) value);
+					break;
+				case OWNER:
+					offlineFile.set("player.owner", ((UUID) value).toString());
+					break;
+				case PARTY_ADDITION:
+					List<String> partyAdd = offlineFile.getStringList("player.party");
+					if (!partyAdd.contains(((UUID) value).toString())) {
+						partyAdd.add(((UUID) value).toString());
+					}
+					offlineFile.set("player.party", partyAdd);
+					break;
+				case PARTY_REMOVAL:
+					List<String> partyRemove = offlineFile.getStringList("player.party");
+					if (partyRemove.contains(((UUID) value).toString())) {
+						partyRemove.remove(((UUID) value).toString());
+					}
+					offlineFile.set("player.party", partyRemove);
+					break;
+				case RESET_COOLDOWN:
+					offlineFile.set("player.reset-cooldown", (long) value);
+					break;
+				default:
+					break;
 				}
 			}
 			try {
@@ -1198,67 +1073,21 @@ public class CoopManager {
 		}
 	}
 
-	public boolean trackBannedPlayer(@NonNull UUID id) {
-		if (instance.getHellblockHandler().isWorldguardProtect()) {
-			if (instance.getWorldGuardHandler().getWorldGuardPlatform() == null) {
-				LogUtils.severe("Could not retrieve WorldGuard platform.");
+	public boolean trackBannedPlayer(@NonNull UUID bannedFromUUID, @NonNull UUID playerUUID) {
+		boolean onBannedIsland = false;
+		if (instance.getHellblockHandler().isWorldguardProtected()) {
+			HellblockPlayer ti = instance.getHellblockHandler().getActivePlayer(bannedFromUUID);
+			int hellblockID = ti.getID();
+			ProtectedRegion region = instance.getWorldGuardHandler().getRegion(bannedFromUUID, hellblockID);
+			if (region == null) {
 				return false;
 			}
-			RegionContainer container = instance.getWorldGuardHandler().getWorldGuardPlatform().getRegionContainer();
-			World world = BukkitAdapter.adapt(instance.getHellblockHandler().getHellblockWorld());
-			RegionManager regions = container.get(world);
-			if (regions == null) {
-				LogUtils.severe(
-						String.format("Could not load WorldGuard regions for hellblock world: %s", world.getName()));
-				return false;
-			}
-			if (instance.getHellblockHandler().getPlayersDirectory().listFiles().length == 0)
-				return false;
-			boolean onBannedIsland = false;
-			for (File playerFile : instance.getHellblockHandler().getPlayersDirectory().listFiles()) {
-				if (!(playerFile.isFile() || playerFile.getName().endsWith(".yml")))
-					continue;
-				YamlConfiguration playerConfig = YamlConfiguration.loadConfiguration(playerFile);
-				if (!(playerConfig.contains("player.banned-from-island"))
-						|| playerConfig.getStringList("player.banned-from-island").isEmpty())
-					continue;
-				List<String> banned = playerConfig.getStringList("player.banned-from-island");
-				if (!banned.contains(id.toString()))
-					continue;
-				List<UUID> uuids = new ArrayList<>();
-				for (String uuid : banned) {
-					UUID convert = null;
-					try {
-						convert = UUID.fromString(uuid);
-					} catch (IllegalArgumentException ignored) {
-						// ignored
-					}
-					uuids.add(convert);
-				}
-				if (!uuids.contains(id))
-					continue;
-
-				String bannedFromID = Files.getNameWithoutExtension(playerFile.getName());
-				UUID bannedFromUUID = null;
-				try {
-					bannedFromUUID = UUID.fromString(bannedFromID);
-				} catch (IllegalArgumentException ignored) {
-					// ignored
-				}
-				ProtectedRegion region = regions.getRegion(String.format("%sHellblock",
-						Bukkit.getOfflinePlayer(bannedFromUUID).hasPlayedBefore()
-								&& Bukkit.getOfflinePlayer(bannedFromUUID).getName() != null
-										? Bukkit.getOfflinePlayer(bannedFromUUID).getName()
-										: null));
-				if (region == null) {
-					return false;
-				}
-				onBannedIsland = instance.getWorldGuardHandler().isPlayerInAnyRegion(id, region.getId());
-			}
-			return onBannedIsland;
+			onBannedIsland = instance.getWorldGuardHandler().isPlayerInAnyRegion(playerUUID, region.getId())
+					&& ti.getBannedPlayers().contains(playerUUID);
 		} else {
 			// TODO: using plugin protection
-			return false;
 		}
+
+		return onBannedIsland;
 	}
 }

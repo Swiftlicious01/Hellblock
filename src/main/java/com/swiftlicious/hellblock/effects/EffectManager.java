@@ -228,7 +228,7 @@ public class EffectManager implements EffectManagerInterface {
 
 	private void loadGlobalEffects() {
 		YamlConfiguration config = instance.getConfig("config.yml");
-		ConfigurationSection section = config.getConfigurationSection("mechanism.global-effects");
+		ConfigurationSection section = config.getConfigurationSection("lava-fishing-options.global-effects");
 		instance.getGlobalSettings().setEffects(getEffectModifiers(section));
 	}
 

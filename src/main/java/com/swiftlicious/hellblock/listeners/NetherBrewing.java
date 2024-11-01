@@ -193,7 +193,6 @@ public class NetherBrewing implements Listener {
 						net.kyori.adventure.key.Key.key("minecraft:item.bottle.fill"), 1, 1);
 				player.updateInventory();
 				clicked.setType(Material.CAULDRON);
-				clicked.getState().update();
 				HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(player);
 				if (!pi.isChallengeActive(ChallengeType.NETHER_BREWING_CHALLENGE)
 						&& !pi.isChallengeCompleted(ChallengeType.NETHER_BREWING_CHALLENGE)) {

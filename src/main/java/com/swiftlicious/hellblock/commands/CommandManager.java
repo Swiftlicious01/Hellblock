@@ -15,8 +15,11 @@ import com.swiftlicious.hellblock.commands.sub.HellblockCoopCommand;
 import com.swiftlicious.hellblock.commands.sub.HellblockUserCommand;
 import com.swiftlicious.hellblock.commands.sub.ItemCommand;
 import com.swiftlicious.hellblock.config.HBLocale;
+import com.swiftlicious.hellblock.gui.hellblock.HellblockMenu;
+import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
 
 import dev.jorel.commandapi.CommandAPICommand;
+import dev.jorel.commandapi.CommandPermission;
 import dev.jorel.commandapi.arguments.EntitySelectorArgument;
 import dev.jorel.commandapi.arguments.UUIDArgument;
 import dev.jorel.commandapi.arguments.StringArgument;
@@ -31,20 +34,17 @@ public class CommandManager implements CommandManagerInterface {
 
 	@Override
 	public void load() {
-		new CommandAPICommand("hellblock").withAliases("hellisland")
-				.withSubcommands(getReloadCommand(), getOpenCommand(), HellblockAdminCommand.INSTANCE.getAdminCommand(),
-						GUIEditorCommand.INSTANCE.getEditorCommand(), DataCommand.INSTANCE.getDataCommand(),
-						HellblockUserCommand.INSTANCE.getMenuCommand(), HellblockUserCommand.INSTANCE.getResetCommand(),
-						HellblockUserCommand.INSTANCE.getCreateCommand(),
-						HellblockUserCommand.INSTANCE.getHomeCommand(), HellblockUserCommand.INSTANCE.getBiomeCommand(),
-						HellblockUserCommand.INSTANCE.getLockCommand(),
-						HellblockUserCommand.INSTANCE.getSetHomeCommand(),
-						HellblockUserCommand.INSTANCE.getInfoCommand(), HellblockUserCommand.INSTANCE.getHelpCommand(),
-						HellblockUserCommand.INSTANCE.getBanCommand(), HellblockUserCommand.INSTANCE.getUnbanCommand(),
-						HellblockUserCommand.INSTANCE.getTopCommand(), HellblockUserCommand.INSTANCE.getVisitCommand(),
-						getAboutCommand(), ItemCommand.INSTANCE.getItemCommand(),
-						DebugCommand.INSTANCE.getDebugCommand(), HellblockCoopCommand.INSTANCE.getCoopCommand())
+		getMainCommand().withSubcommands(getOpenCommand(), HellblockAdminCommand.INSTANCE.getAdminCommand(),
+				GUIEditorCommand.INSTANCE.getEditorCommand(), DataCommand.INSTANCE.getDataCommand(),
+				HellblockUserCommand.INSTANCE.getResetCommand(), HellblockUserCommand.INSTANCE.getCreateCommand(),
+				HellblockUserCommand.INSTANCE.getHomeCommand(), HellblockUserCommand.INSTANCE.getBiomeCommand(),
+				HellblockUserCommand.INSTANCE.getLockCommand(), HellblockUserCommand.INSTANCE.getSetHomeCommand(),
+				HellblockUserCommand.INSTANCE.getInfoCommand(), HellblockUserCommand.INSTANCE.getHelpCommand(),
+				HellblockUserCommand.INSTANCE.getBanCommand(), HellblockUserCommand.INSTANCE.getUnbanCommand(),
+				HellblockUserCommand.INSTANCE.getTopCommand(), HellblockUserCommand.INSTANCE.getVisitCommand(),
+				getAboutCommand(), ItemCommand.INSTANCE.getItemCommand(), DebugCommand.INSTANCE.getDebugCommand())
 				.register();
+		HellblockCoopCommand.INSTANCE.getCoopCommand().register();
 		if (instance.getMarketManager().isEnable()) {
 			new CommandAPICommand("sellfish").withPermission("hellblock.sellfish").executesPlayer((player, args) -> {
 				if (instance.getMarketManager().isEnable())
@@ -57,13 +57,21 @@ public class CommandManager implements CommandManagerInterface {
 	public void unload() {
 	}
 
-	private CommandAPICommand getReloadCommand() {
-		return new CommandAPICommand("reload").executes((sender, args) -> {
-			long time = System.currentTimeMillis();
-			instance.reload();
-			instance.getAdventureManager().sendMessageWithPrefix(sender,
-					HBLocale.MSG_Reload.replace("{time}", String.valueOf(System.currentTimeMillis() - time)));
-		});
+	private CommandAPICommand getMainCommand() {
+		CommandAPICommand command = new CommandAPICommand("hellblock").withAliases("hellisland");
+		if (command.getArguments().isEmpty()) {
+			command.withPermission(CommandPermission.NONE).withPermission("hellblock.user")
+					.executesPlayer((player, args) -> {
+						HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(player);
+						if (pi.isAbandoned()) {
+							instance.getAdventureManager().sendMessageWithPrefix(player,
+									"<red>This hellblock is abandoned, you can't do anything until it's recovered!");
+							return;
+						}
+						new HellblockMenu(player);
+					});
+		}
+		return command;
 	}
 
 	private CommandAPICommand getOpenCommand() {

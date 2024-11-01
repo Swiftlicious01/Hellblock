@@ -32,7 +32,7 @@ public class CoopMenu {
 
 	public CoopMenu(Player player) {
 
-		Gui gui = Gui.normal().setStructure(" # # o m m m m # x ")
+		Gui gui = Gui.normal().setStructure(" o m m m m m m m x ")
 				.addIngredient('o', new OwnerItem(player.getUniqueId()))
 				.addIngredient('m', new MemberItem(player.getUniqueId())).addIngredient('#', new BackGroundItem())
 				.addIngredient('x', new BackToMainMenuItem()).build();
@@ -57,23 +57,28 @@ public class CoopMenu {
 		public ItemProvider getItemProvider() {
 			HellblockPlayer hbPlayer = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(playerUUID);
 			UUID owner = hbPlayer.getHellblockOwner();
-			try {
-				return new SkullBuilder(owner)
-						.setDisplayName(
-								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
-										.getComponentFromMiniMessage(String.format("<aqua>%s",
-												(Bukkit.getOfflinePlayer(owner).hasPlayedBefore()
-														&& Bukkit.getOfflinePlayer(owner).getName() != null
-																? Bukkit.getOfflinePlayer(owner).getName()
-																: "Unknown")))))
-						.addLoreLines(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
-								.getAdventureManager().getComponentFromMiniMessage("<yellow>Role: <gold>Owner")));
-			} catch (MojangApiException | IOException e) {
-				LogUtils.severe("Failed to create owner player head!", e);
-				return new ItemBuilder(Material.BARRIER).setDisplayName(
-						new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
-								.getComponentFromMiniMessage("<dark_red>Broken, please report this.")));
+			if (owner != null) {
+				try {
+					return new SkullBuilder(owner)
+							.setDisplayName(new ShadedAdventureComponentWrapper(
+									HellblockPlugin.getInstance().getAdventureManager()
+											.getComponentFromMiniMessage(String.format("<aqua>%s",
+													(Bukkit.getOfflinePlayer(owner).hasPlayedBefore()
+															&& Bukkit.getOfflinePlayer(owner).getName() != null
+																	? Bukkit.getOfflinePlayer(owner).getName()
+																	: "Unknown")))))
+							.addLoreLines(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
+									.getAdventureManager().getComponentFromMiniMessage("<yellow>Role: <gold>Owner")));
+				} catch (MojangApiException | IOException e) {
+					LogUtils.severe("Failed to create owner player head!", e);
+					return new ItemBuilder(Material.BARRIER).setDisplayName(
+							new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+									.getComponentFromMiniMessage("<dark_red>Broken, please report this.")));
+				}
 			}
+			return new ItemBuilder(Material.BARRIER).setDisplayName(
+					new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+							.getComponentFromMiniMessage("<dark_red>Broken, please report this.")));
 		}
 
 		@Override
@@ -94,44 +99,68 @@ public class CoopMenu {
 		@Override
 		public ItemProvider getItemProvider() {
 			HellblockPlayer hbPlayer = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(playerUUID);
+			UUID owner = hbPlayer.getHellblockOwner();
 			Set<UUID> party = hbPlayer.getHellblockParty();
-			for (UUID uuid : party) {
-				try {
-					input = Bukkit.getOfflinePlayer(uuid).hasPlayedBefore()
-							&& Bukkit.getOfflinePlayer(uuid).getName() != null ? Bukkit.getOfflinePlayer(uuid).getName()
-									: "Unknown";
-					return new SkullBuilder(uuid)
-							.setDisplayName(new ShadedAdventureComponentWrapper(
-									HellblockPlugin.getInstance().getAdventureManager()
-											.getComponentFromMiniMessage(String.format("<aqua>%s",
-													(Bukkit.getOfflinePlayer(uuid).hasPlayedBefore()
-															&& Bukkit.getOfflinePlayer(uuid).getName() != null
-																	? Bukkit.getOfflinePlayer(uuid).getName()
-																	: "Unknown")))))
-							.addLoreLines(
-									new ShadedAdventureComponentWrapper(
+			int maxPartySize = HellblockPlugin.getInstance().getCoopManager().getPartySizeLimit();
+			if (!party.isEmpty()) {
+				for (UUID uuid : party) {
+					try {
+						int currentSize = 1;
+						while (true) {
+							input = Bukkit.getPlayer(uuid) != null ? Bukkit.getPlayer(uuid).getName()
+									: Bukkit.getOfflinePlayer(uuid).hasPlayedBefore()
+											&& Bukkit.getOfflinePlayer(uuid).getName() != null
+													? Bukkit.getOfflinePlayer(uuid).getName()
+													: "Unknown";
+							SkullBuilder currentMember = new SkullBuilder(uuid)
+									.setDisplayName(new ShadedAdventureComponentWrapper(
 											HellblockPlugin.getInstance().getAdventureManager()
-													.getComponentFromMiniMessage("<yellow>Role: <gold>Member")),
-									new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
-											.getAdventureManager().getComponentFromMiniMessage(" ")),
-									new ShadedAdventureComponentWrapper(
+													.getComponentFromMiniMessage(String.format("<aqua>%s", input))))
+									.addLoreLines(new ShadedAdventureComponentWrapper(
 											HellblockPlugin.getInstance().getAdventureManager()
-													.getComponentFromMiniMessage("<red>Click to kick them!")));
-				} catch (MojangApiException | IOException e) {
-					LogUtils.severe("Failed to create party member player heads!", e);
-					return new ItemBuilder(Material.BARRIER).setDisplayName(
-							new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
-									.getComponentFromMiniMessage("<dark_red>Broken, please report this.")));
+													.getComponentFromMiniMessage("<yellow>Role: <gold>Member")));
+							if (owner != null && owner.equals(playerUUID)) {
+								currentMember.addLoreLines(
+										new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
+												.getAdventureManager().getComponentFromMiniMessage(" ")),
+										new ShadedAdventureComponentWrapper(
+												HellblockPlugin.getInstance().getAdventureManager()
+														.getComponentFromMiniMessage("<red>Click to kick them!")));
+							}
+							currentSize++;
+							if (currentSize > maxPartySize) {
+								break;
+							}
+							return currentMember;
+						}
+						return new ItemBuilder(Material.BLACK_STAINED_GLASS_PANE).setDisplayName("");
+					} catch (MojangApiException | IOException e) {
+						LogUtils.severe("Failed to create party member player heads!", e);
+						return new ItemBuilder(Material.BARRIER).setDisplayName(
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage("<dark_red>Broken, please report this.")));
+					}
 				}
 			}
 			try {
-				return new SkullBuilder(HeadTexture.of("MHF_QUESTION")).setUnbreakable(true)
-						.addItemFlags(ItemFlag.HIDE_UNBREAKABLE)
-						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
-								.getAdventureManager().getComponentFromMiniMessage("<dark_green>Empty Slot")))
-						.addLoreLines(
+				int currentSize = 1;
+				while (true) {
+					SkullBuilder newMember = new SkullBuilder(HeadTexture.of("MHF_QUESTION")).setUnbreakable(true)
+							.addItemFlags(ItemFlag.HIDE_UNBREAKABLE)
+							.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
+									.getAdventureManager().getComponentFromMiniMessage("<dark_green>Empty Slot")));
+					if (owner != null && owner.equals(playerUUID)) {
+						newMember.addLoreLines(
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 										.getComponentFromMiniMessage("<green>Click to invite a new member!")));
+					}
+					currentSize++;
+					if (currentSize > maxPartySize) {
+						break;
+					}
+					return newMember;
+				}
+				return new ItemBuilder(Material.BLACK_STAINED_GLASS_PANE).setDisplayName("");
 			} catch (MojangApiException | IOException e) {
 				LogUtils.severe("Failed to create question mark player heads!", e);
 				return new ItemBuilder(Material.BARRIER).setDisplayName(
@@ -143,21 +172,23 @@ public class CoopMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			if (event.getCurrentItem() != null && event.getCurrentItem().getType() == Material.PLAYER_HEAD) {
-				if (event.getCurrentItem().hasItemMeta() && event.getCurrentItem().getItemMeta().isUnbreakable()) {
-					new InvitationMenu(player);
-				} else {
-					HellblockPlayer hbPlayer = HellblockPlugin.getInstance().getHellblockHandler()
-							.getActivePlayer(player);
-					if (!input.equals("Unknown")) {
-						HellblockPlugin.getInstance().getCoopManager().removeMemberFromHellblock(hbPlayer, input,
-								UUIDFetcher.getUUID(input));
-						new CoopMenu(player);
+			HellblockPlayer hbPlayer = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
+			UUID owner = hbPlayer.getHellblockOwner();
+			if (owner != null && owner.equals(player.getUniqueId())) {
+				if (event.getCurrentItem() != null && event.getCurrentItem().getType() == Material.PLAYER_HEAD) {
+					if (event.getCurrentItem().hasItemMeta() && event.getCurrentItem().getItemMeta().isUnbreakable()) {
+						new InvitationMenu(player);
+					} else {
+						if (!input.equals("Unknown")) {
+							HellblockPlugin.getInstance().getCoopManager().removeMemberFromHellblock(hbPlayer, input,
+									UUIDFetcher.getUUID(input));
+							new CoopMenu(player);
+						}
 					}
+					HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+							net.kyori.adventure.sound.Sound.Source.PLAYER,
+							net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
 				}
-				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
-						net.kyori.adventure.sound.Sound.Source.PLAYER,
-						net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
 			}
 		}
 	}

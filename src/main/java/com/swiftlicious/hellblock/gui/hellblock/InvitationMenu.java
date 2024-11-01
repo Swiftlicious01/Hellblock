@@ -94,7 +94,7 @@ public class InvitationMenu {
 					continue;
 				SkullBuilder skullBuilder = null;
 				try {
-					skullBuilder = new SkullBuilder(hbPlayer.getPlayer().getUniqueId());
+					skullBuilder = new SkullBuilder(hbPlayer.getUUID());
 				} catch (MojangApiException | IOException ex) {
 					LogUtils.warn(String.format("Unable to retrieve skull data for the player %s", username), ex);
 				}
@@ -151,7 +151,7 @@ public class InvitationMenu {
 			if (username != null && username.matches("^[a-zA-Z0-9_]+$")
 					&& HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers().values().stream()
 							.filter(hbPlayer -> hbPlayer.getPlayer() != null
-									&& !hbPlayer.getPlayer().getUniqueId().equals(player.getUniqueId()))
+									&& !hbPlayer.getUUID().equals(player.getUniqueId()))
 							.map(hbPlayer -> hbPlayer.getPlayer().getName()).collect(Collectors.toList())
 							.contains(username)) {
 				SkullBuilder builder = null;
@@ -184,7 +184,7 @@ public class InvitationMenu {
 			if (username != null && username.matches("^[a-zA-Z0-9_]+$")
 					&& HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers().values().stream()
 							.filter(hbPlayer -> hbPlayer.getPlayer() != null && !hbPlayer.hasHellblock()
-									&& !hbPlayer.getPlayer().getUniqueId().equals(player.getUniqueId()))
+									&& !hbPlayer.getUUID().equals(player.getUniqueId()))
 							.map(hbPlayer -> hbPlayer.getPlayer().getName()).collect(Collectors.toList())
 							.contains(username)) {
 				if (Bukkit.getPlayer(username) == null || !Bukkit.getPlayer(username).isOnline()) {

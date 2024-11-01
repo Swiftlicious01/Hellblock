@@ -6,7 +6,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -23,7 +22,7 @@ import org.bukkit.Tag;
 import org.bukkit.block.Block;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
-import org.bukkit.entity.Entity;
+import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -38,7 +37,9 @@ import com.google.common.io.Files;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.challenges.HellblockChallenge.ChallengeType;
 import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
+import com.swiftlicious.hellblock.playerdata.HellblockPlayer.HellblockData;
 import com.swiftlicious.hellblock.utils.LogUtils;
 
 import lombok.NonNull;
@@ -142,7 +143,7 @@ public class IslandLevelHandler implements Listener {
 
 		final Player player = event.getPlayer();
 		final UUID id = player.getUniqueId();
-		if (instance.getHellblockHandler().isWorldguardProtect()) {
+		if (instance.getHellblockHandler().isWorldguardProtected()) {
 			ProtectedRegion region = instance.getWorldGuardHandler().getRegions(id).stream().findFirst().orElse(null);
 			if (region == null)
 				return;
@@ -177,7 +178,7 @@ public class IslandLevelHandler implements Listener {
 
 		final Player player = event.getPlayer();
 		final UUID id = player.getUniqueId();
-		if (instance.getHellblockHandler().isWorldguardProtect()) {
+		if (instance.getHellblockHandler().isWorldguardProtected()) {
 			ProtectedRegion region = instance.getWorldGuardHandler().getRegions(id).stream().findFirst().orElse(null);
 			if (region == null)
 				return;
@@ -219,11 +220,12 @@ public class IslandLevelHandler implements Listener {
 		if (!block.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
 			return;
 
-		Collection<Entity> entitiesNearby = block.getWorld().getNearbyEntities(block.getLocation(), 25, 25, 25);
-		Player player = instance.getNetherrackGenerator().getClosestPlayer(block.getLocation(), entitiesNearby);
+		Collection<LivingEntity> entitiesNearby = block.getWorld().getNearbyLivingEntities(block.getLocation(), 25, 25,
+				25);
+		Player player = instance.getNetherrackGeneratorHandler().getClosestPlayer(block.getLocation(), entitiesNearby);
 		if (player != null) {
 			final UUID id = player.getUniqueId();
-			if (instance.getHellblockHandler().isWorldguardProtect()) {
+			if (instance.getHellblockHandler().isWorldguardProtected()) {
 				ProtectedRegion region = instance.getWorldGuardHandler().getRegions(id).stream().findFirst()
 						.orElse(null);
 				if (region == null)
@@ -267,11 +269,12 @@ public class IslandLevelHandler implements Listener {
 		if (!block.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
 			return;
 
-		Collection<Entity> entitiesNearby = block.getWorld().getNearbyEntities(block.getLocation(), 25, 25, 25);
-		Player player = instance.getNetherrackGenerator().getClosestPlayer(block.getLocation(), entitiesNearby);
+		Collection<LivingEntity> entitiesNearby = block.getWorld().getNearbyLivingEntities(block.getLocation(), 25, 25,
+				25);
+		Player player = instance.getNetherrackGeneratorHandler().getClosestPlayer(block.getLocation(), entitiesNearby);
 		if (player != null) {
 			final UUID id = player.getUniqueId();
-			if (instance.getHellblockHandler().isWorldguardProtect()) {
+			if (instance.getHellblockHandler().isWorldguardProtected()) {
 				ProtectedRegion region = instance.getWorldGuardHandler().getRegions(id).stream().findFirst()
 						.orElse(null);
 				if (region == null)
@@ -330,7 +333,7 @@ public class IslandLevelHandler implements Listener {
 		}
 
 		Map<UUID, Float> levels = new HashMap<>();
-		for (File playerData : HellblockPlugin.getInstance().getHellblockHandler().getPlayersDirectory().listFiles()) {
+		for (File playerData : instance.getHellblockHandler().getPlayersDirectory().listFiles()) {
 			if (!playerData.isFile() || !playerData.getName().endsWith(".yml"))
 				continue;
 			String uuid = Files.getNameWithoutExtension(playerData.getName());
@@ -380,7 +383,7 @@ public class IslandLevelHandler implements Listener {
 
 	public LinkedHashMap<UUID, Float> getTopTenHellblocks() {
 		Map<UUID, Float> topHellblocks = new HashMap<>();
-		for (File playerData : HellblockPlugin.getInstance().getHellblockHandler().getPlayersDirectory().listFiles()) {
+		for (File playerData : instance.getHellblockHandler().getPlayersDirectory().listFiles()) {
 			if (!playerData.isFile() || !playerData.getName().endsWith(".yml"))
 				continue;
 			String uuid = Files.getNameWithoutExtension(playerData.getName());
@@ -412,7 +415,7 @@ public class IslandLevelHandler implements Listener {
 				continue;
 			float hellblockLevel = (float) playerConfig.getDouble("player.hellblock-level",
 					HellblockPlayer.DEFAULT_LEVEL);
-			if (hellblockLevel <= 1.0F)
+			if (hellblockLevel <= HellblockPlayer.DEFAULT_LEVEL)
 				continue;
 
 			topHellblocks.putIfAbsent(ownerUUID, hellblockLevel);
@@ -428,44 +431,24 @@ public class IslandLevelHandler implements Listener {
 			return;
 		}
 		final List<String> blockLevelSystem = instance.getHellblockHandler().getBlockLevelSystem();
-		if (instance.getHellblockHandler().isWorldguardProtect()) {
-			HellblockPlayer pi;
-			if (instance.getHellblockHandler().getActivePlayers().get(id) != null) {
-				pi = instance.getHellblockHandler().getActivePlayers().get(id);
-			} else {
-				pi = new HellblockPlayer(id);
-			}
+		if (instance.getHellblockHandler().isWorldguardProtected()) {
+			HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(id);
 			ProtectedRegion region = null;
 			if (pi.getHellblockOwner() != null && pi.getHellblockOwner().equals(id)) {
 				// is owner updating the island so get based off original id
-				region = instance.getWorldGuardHandler().getRegion(id);
+				region = instance.getWorldGuardHandler().getRegion(id, pi.getID());
 			} else {
 				// else is another player so just get the region they're in
-				ProtectedRegion defRegion = null;
-				for (Iterator<ProtectedRegion> regions = instance.getWorldGuardHandler().getRegions(id)
-						.iterator(); regions.hasNext();) {
-					defRegion = regions.next();
-					break;
-				}
+				ProtectedRegion defRegion = instance.getWorldGuardHandler().getRegions(id).stream().findAny()
+						.orElse(null);
 				if (defRegion != null) {
 					region = defRegion;
 				}
 			}
 			if (region != null) {
-				Set<UUID> owners = region.getOwners().getUniqueIds();
-				UUID ownerUUID = null;
-				for (Iterator<UUID> uuids = owners.iterator(); uuids.hasNext();) {
-					ownerUUID = uuids.next();
-					break;
-				}
+				UUID ownerUUID = region.getOwners().getUniqueIds().stream().findAny().orElse(null);
 				if (ownerUUID != null) {
-					HellblockPlayer ti;
-					if (instance.getHellblockHandler().getActivePlayers().get(ownerUUID) != null) {
-						ti = instance.getHellblockHandler().getActivePlayers().get(ownerUUID);
-					} else {
-						ti = new HellblockPlayer(ownerUUID);
-					}
-
+					HellblockPlayer ti = instance.getHellblockHandler().getActivePlayer(ownerUUID);
 					for (String blockConversion : blockLevelSystem) {
 						String[] split = blockConversion.split(":");
 						Material block = Material.getMaterial(split[0].toUpperCase());
@@ -484,22 +467,55 @@ public class IslandLevelHandler implements Listener {
 									if (placed) {
 										ti.increaseIslandLevel();
 										ti.saveHellblockPlayer();
-										instance.getCoopManager().updateParty(ownerUUID, "leveladd", 1.0F);
+										instance.getCoopManager().updateParty(ownerUUID, HellblockData.LEVEL_ADDITION,
+												1.0F);
 									} else {
 										ti.decreaseIslandLevel();
 										ti.saveHellblockPlayer();
-										instance.getCoopManager().updateParty(ownerUUID, "levelremove", 1.0F);
+										instance.getCoopManager().updateParty(ownerUUID, HellblockData.LEVEL_REMOVAL,
+												1.0F);
 									}
 								} else {
 									if (placed) {
 										ti.addToLevel(level);
 										ti.saveHellblockPlayer();
-										instance.getCoopManager().updateParty(ownerUUID, "leveladd", level);
+										instance.getCoopManager().updateParty(ownerUUID, HellblockData.LEVEL_ADDITION,
+												level);
 									} else {
 										ti.removeFromLevel(level);
 										ti.saveHellblockPlayer();
-										instance.getCoopManager().updateParty(ownerUUID, "levelremove", level);
+										instance.getCoopManager().updateParty(ownerUUID, HellblockData.LEVEL_REMOVAL,
+												level);
 									}
+								}
+							}
+						}
+
+						if (ti.getLevel() >= ChallengeType.ISLAND_LEVEL_CHALLENGE.getNeededAmount()) {
+							if (!ti.isChallengeActive(ChallengeType.ISLAND_LEVEL_CHALLENGE)
+									&& !ti.isChallengeCompleted(ChallengeType.ISLAND_LEVEL_CHALLENGE)) {
+								ti.beginChallengeProgression(ChallengeType.ISLAND_LEVEL_CHALLENGE);
+							} else {
+								ti.updateChallengeProgression(ChallengeType.ISLAND_LEVEL_CHALLENGE,
+										ChallengeType.ISLAND_LEVEL_CHALLENGE.getNeededAmount());
+								if (ti.isChallengeCompleted(ChallengeType.ISLAND_LEVEL_CHALLENGE)
+										&& (int) ti.getLevel() >= ChallengeType.ISLAND_LEVEL_CHALLENGE
+												.getNeededAmount()) {
+									ti.completeChallenge(ChallengeType.ISLAND_LEVEL_CHALLENGE);
+								}
+							}
+						}
+						if (pi.getLevel() >= ChallengeType.ISLAND_LEVEL_CHALLENGE.getNeededAmount()) {
+							if (!pi.isChallengeActive(ChallengeType.ISLAND_LEVEL_CHALLENGE)
+									&& !pi.isChallengeCompleted(ChallengeType.ISLAND_LEVEL_CHALLENGE)) {
+								pi.beginChallengeProgression(ChallengeType.ISLAND_LEVEL_CHALLENGE);
+							} else {
+								pi.updateChallengeProgression(ChallengeType.ISLAND_LEVEL_CHALLENGE,
+										ChallengeType.ISLAND_LEVEL_CHALLENGE.getNeededAmount());
+								if (pi.isChallengeCompleted(ChallengeType.ISLAND_LEVEL_CHALLENGE)
+										&& (int) pi.getLevel() >= ChallengeType.ISLAND_LEVEL_CHALLENGE
+												.getNeededAmount()) {
+									pi.completeChallenge(ChallengeType.ISLAND_LEVEL_CHALLENGE);
 								}
 							}
 						}

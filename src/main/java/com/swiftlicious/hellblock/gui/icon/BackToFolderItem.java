@@ -37,7 +37,7 @@ public class BackToFolderItem extends AbstractItem implements Icon {
 					.setLore(List.of(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
 							.getAdventureManager().getComponentFromMiniMessage("<#FFA500>-> " + file.getName()))));
 		} else {
-			return new ItemBuilder(Material.BLACK_STAINED_GLASS_PANE);
+			return new ItemBuilder(Material.BLACK_STAINED_GLASS_PANE).setDisplayName("");
 		}
 	}
 

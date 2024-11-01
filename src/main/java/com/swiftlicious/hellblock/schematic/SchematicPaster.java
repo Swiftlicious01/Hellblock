@@ -7,8 +7,7 @@ import org.bukkit.Location;
 
 public interface SchematicPaster {
 
-	boolean pasteHellIsland(File file, Location location, Boolean ignoreAirBlock,
-			CompletableFuture<Void> completableFuture);
+	boolean pasteHellblock(File file, Location location, CompletableFuture<Void> completableFuture);
 
 	void clearCache();
 }

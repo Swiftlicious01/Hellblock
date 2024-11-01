@@ -5,7 +5,6 @@ import java.util.Objects;
 
 import org.bukkit.Material;
 import org.bukkit.Particle;
-import org.bukkit.Sound;
 import org.bukkit.configuration.ConfigurationSection;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
@@ -45,11 +44,9 @@ public class GeneratorModeManager {
 				mode.setSearchForPlayersNearby(searchForPlayersNearby);
 			}
 			if (section.contains("generationSound")) {
-				String soundString = section.getString("generationSound", "ENTITY_EXPERIENCE_ORB_PICKUP");
+				String soundString = section.getString("generationSound", "minecraft:entity.experience_orb.pickup");
 				if (soundString != null && !soundString.equalsIgnoreCase("none")) {
-					Arrays.stream(Sound.values()).filter(sound -> sound.name().equalsIgnoreCase(soundString))
-							.findFirst().ifPresentOrElse(mode::setGenSound,
-									() -> LogUtils.severe(String.format("The sound %s does not exist.", soundString)));
+					mode.setGenSound(soundString);
 				}
 			}
 			if (section.contains("particleEffect")) {
@@ -65,7 +62,7 @@ public class GeneratorModeManager {
 				boolean canGenWhileLavaRaining = section.getBoolean("canGenerateWhileLavaRaining", true);
 				mode.setCanGenWhileLavaRaining(canGenWhileLavaRaining);
 			}
-			
+
 			this.generatorMode = mode;
 		}
 	}

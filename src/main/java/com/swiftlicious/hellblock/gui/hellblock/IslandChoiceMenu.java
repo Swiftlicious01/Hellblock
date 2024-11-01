@@ -40,14 +40,15 @@ public class IslandChoiceMenu {
 		} else {
 			HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 					"<red>The island options list is empty, creating classic hellblock!");
-			HellblockPlugin.getInstance().getHellblockHandler().createHellblock(player, IslandOptions.CLASSIC);
-			if (isReset) {
-				HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player.getUniqueId())
-						.setResetCooldown(Duration.ofDays(1).toHours());
-				HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player.getUniqueId())
-						.saveHellblockPlayer();
-			}
-			new HellblockMenu(player);
+			HellblockPlugin.getInstance().getHellblockHandler().createHellblock(player, IslandOptions.CLASSIC)
+					.thenRun(() -> {
+						if (isReset) {
+							HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player.getUniqueId())
+									.setResetCooldown(Duration.ofDays(1).toHours());
+							HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player.getUniqueId())
+									.saveHellblockPlayer();
+						}
+					});
 		}
 	}
 
@@ -95,14 +96,17 @@ public class IslandChoiceMenu {
 							net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 					return;
 				}
-				HellblockPlugin.getInstance().getHellblockHandler().createHellblock(player, IslandOptions.DEFAULT);
-				if (isReset) {
-					HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player.getUniqueId())
-							.setResetCooldown(Duration.ofDays(1).toHours());
-					HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player.getUniqueId())
-							.saveHellblockPlayer();
-				}
-				new HellblockMenu(player);
+				HellblockPlugin.getInstance().getHellblockHandler().createHellblock(player, IslandOptions.DEFAULT)
+						.thenRun(() -> {
+							if (isReset) {
+								HellblockPlugin.getInstance().getHellblockHandler()
+										.getActivePlayer(player.getUniqueId())
+										.setResetCooldown(Duration.ofDays(1).toHours());
+								HellblockPlugin.getInstance().getHellblockHandler()
+										.getActivePlayer(player.getUniqueId()).saveHellblockPlayer();
+							}
+							new HellblockMenu(player);
+						});
 				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
 						net.kyori.adventure.sound.Sound.Source.PLAYER,
 						net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
@@ -160,14 +164,17 @@ public class IslandChoiceMenu {
 							net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 					return;
 				}
-				HellblockPlugin.getInstance().getHellblockHandler().createHellblock(player, IslandOptions.CLASSIC);
-				if (isReset) {
-					HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player.getUniqueId())
-							.setResetCooldown(Duration.ofDays(1).toHours());
-					HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player.getUniqueId())
-							.saveHellblockPlayer();
-				}
-				new HellblockMenu(player);
+				HellblockPlugin.getInstance().getHellblockHandler().createHellblock(player, IslandOptions.CLASSIC)
+						.thenRun(() -> {
+							if (isReset) {
+								HellblockPlugin.getInstance().getHellblockHandler()
+										.getActivePlayer(player.getUniqueId())
+										.setResetCooldown(Duration.ofDays(1).toHours());
+								HellblockPlugin.getInstance().getHellblockHandler()
+										.getActivePlayer(player.getUniqueId()).saveHellblockPlayer();
+							}
+							new HellblockMenu(player);
+						});
 				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
 						net.kyori.adventure.sound.Sound.Source.PLAYER,
 						net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
@@ -196,7 +203,7 @@ public class IslandChoiceMenu {
 				if (list.equalsIgnoreCase(IslandOptions.CLASSIC.getName())
 						|| list.equalsIgnoreCase(IslandOptions.DEFAULT.getName()))
 					continue;
-				if (!HellblockPlugin.getInstance().getSchematicManager().schematicFiles.containsKey(list))
+				if (!HellblockPlugin.getInstance().getSchematicManager().availableSchematics.contains(list))
 					continue;
 
 				schematicsAvailable = true;
@@ -240,7 +247,7 @@ public class IslandChoiceMenu {
 					if (list.equalsIgnoreCase(IslandOptions.CLASSIC.getName())
 							|| list.equalsIgnoreCase(IslandOptions.DEFAULT.getName()))
 						continue;
-					if (!HellblockPlugin.getInstance().getSchematicManager().schematicFiles.containsKey(list))
+					if (!HellblockPlugin.getInstance().getSchematicManager().availableSchematics.contains(list))
 						continue;
 
 					schematicsAvailable = true;

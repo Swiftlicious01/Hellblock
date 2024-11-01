@@ -76,7 +76,7 @@ public class IntegrationManager implements IntegrationManagerInterface {
 			}
 		}
 		if (instance.isHookedPluginEnabled("WorldGuard")) {
-			if (instance.getHellblockHandler().isWorldguardProtect()) {
+			if (instance.getHellblockHandler().isWorldguardProtected()) {
 				Plugin worldGuard = Bukkit.getPluginManager().getPlugin("WorldGuard");
 				if (worldGuard != null && worldGuard instanceof WorldGuardPlugin) {
 					String version = WorldGuard.getVersion();

@@ -83,9 +83,9 @@ public class HBConfig {
                     UpdaterSettings
                             .builder()
                             .setVersioning(new BasicVersioning("config-version"))
-                            .addIgnoredRoute(configVersion, "mechanism.mechanism-requirements", '.')
-                            .addIgnoredRoute(configVersion, "mechanism.global-events", '.')
-                            .addIgnoredRoute(configVersion, "mechanism.global-effects", '.')
+                            .addIgnoredRoute(configVersion, "lava-fishing-options.fishing-requirements", '.')
+                            .addIgnoredRoute(configVersion, "lava-fishing-options.global-events", '.')
+                            .addIgnoredRoute(configVersion, "lava-fishing-options.global-effects", '.')
                             .addIgnoredRoute(configVersion, "other-settings.placeholder-register", '.')
                             .build()
             );
@@ -109,16 +109,16 @@ public class HBConfig {
         itemDetectOrder = config.getStringList("other-settings.item-detection-order");
         blockDetectOrder = config.getStringList("other-settings.block-detection-order");
 
-        overrideVanilla = config.getBoolean("mechanism.fishing-wait-time.override-vanilla", false);
+        overrideVanilla = config.getBoolean("lava-fishing-options.fishing-wait-time.override-vanilla", false);
 
-        lavaMinTime = config.getInt("mechanism.lava-fishing.min-wait-time", 100);
-        lavaMaxTime = config.getInt("mechanism.lava-fishing.max-wait-time", 600);
+        lavaMinTime = config.getInt("lava-fishing-options.lava-fishing.min-wait-time", 100);
+        lavaMaxTime = config.getInt("lava-fishing-options.lava-fishing.max-wait-time", 600);
 
-        restrictedSizeRange = config.getBoolean("mechanism.size.restricted-size-range", true);
+        restrictedSizeRange = config.getBoolean("lava-fishing-options.size.restricted-size-range", true);
 
-        globalShowInFinder = config.getBoolean("mechanism.global-loot-property.show-in-fishfinder", true);
+        globalShowInFinder = config.getBoolean("lava-fishing-options.global-loot-property.show-in-fishfinder", true);
 
-        multipleLootSpawnDelay = config.getInt("mechanism.multiple-loot-spawn-delay", 0);
+        multipleLootSpawnDelay = config.getInt("lava-fishing-options.multiple-loot-spawn-delay", 0);
 
         dataSaveInterval = config.getInt("other-settings.data-saving-interval", 600);
         logDataSaving = config.getBoolean("other-settings.log-data-saving", true);

@@ -1,29 +1,32 @@
 package com.swiftlicious.hellblock.schematic;
 
 import java.io.File;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
-import org.bukkit.World;
 
 import com.google.common.io.Files;
+import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.api.compatibility.FastAsyncWorldEditHook;
 import com.swiftlicious.hellblock.api.compatibility.WorldEditHook;
 import com.swiftlicious.hellblock.utils.LogUtils;
+
+import lombok.NonNull;
 
 public class SchematicManager {
 
 	private final HellblockPlugin instance;
 	public SchematicPaster schematicPaster;
 	public final Map<String, File> schematicFiles;
+	public final Set<String> availableSchematics;
 	public final TreeMap<String, SchematicPaster> availablePasters;
 
 	private final boolean worldEdit = Bukkit.getPluginManager().isPluginEnabled("WorldEdit");
@@ -53,9 +56,11 @@ public class SchematicManager {
 		setPasterFromConfig();
 
 		this.schematicFiles = new HashMap<>();
+		this.availableSchematics = new HashSet<>();
 		File parent = instance.getHellblockHandler().getSchematicsDirectory();
 		for (File file : parent.listFiles()) {
-			schematicFiles.put(Files.getNameWithoutExtension(file.getName()), file);
+			schematicFiles.put(file.getName(), file);
+			availableSchematics.add(Files.getNameWithoutExtension(file.getName()));
 		}
 	}
 
@@ -79,22 +84,18 @@ public class SchematicManager {
 
 	public void loadCache() {
 		schematicFiles.clear();
+		availableSchematics.clear();
 		File parent = instance.getHellblockHandler().getSchematicsDirectory();
 		for (File file : parent.listFiles()) {
-			schematicFiles.put(Files.getNameWithoutExtension(file.getName()), file);
+			schematicFiles.put(file.getName(), file);
+			availableSchematics.add(Files.getNameWithoutExtension(file.getName()));
 		}
 	}
 
-	public CompletableFuture<Void> pasteSchematic(String schematic, Location location) {
-		List<CompletableFuture<Void>> completableFutures = new ArrayList<>();
-
-		completableFutures.add(pasteSchematic(schematic, location, instance.getHellblockHandler().getHellblockWorld()));
-
-		return CompletableFuture.runAsync(() -> completableFutures.forEach(CompletableFuture::join));
-	}
-
-	private CompletableFuture<Void> pasteSchematic(String schematic, Location location, World world) {
+	public @NonNull CompletableFuture<Void> pasteSchematic(@NonNull String schematic, @NonNull ProtectedRegion region) {
 		CompletableFuture<Void> completableFuture = new CompletableFuture<>();
+		Location location = instance.getWorldGuardHandler().getCenter(region)
+				.toLocation(instance.getHellblockHandler().getHellblockWorld());
 		location.add(0, instance.getHellblockHandler().getHeight(), 0);
 		File file = schematicFiles.getOrDefault(schematic, schematicFiles.values().stream().findFirst().orElse(null));
 		instance.getScheduler().runTaskSync(() -> {
@@ -103,10 +104,10 @@ public class SchematicManager {
 				LogUtils.warn(String.format("Could not find schematic %s.", schematic));
 			} else {
 				if (fawe) {
-					instance.getScheduler().runTaskAsync(
-							() -> schematicPaster.pasteHellIsland(file, location, true, completableFuture));
+					instance.getScheduler()
+							.runTaskAsync(() -> schematicPaster.pasteHellblock(file, location, completableFuture));
 				} else {
-					schematicPaster.pasteHellIsland(file, location, true, completableFuture);
+					schematicPaster.pasteHellblock(file, location, completableFuture);
 				}
 			}
 		}, location);

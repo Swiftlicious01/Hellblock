@@ -25,11 +25,15 @@ public class HellblockChallenge {
 	}
 
 	public enum ChallengeType {
-		NETHERRACK_GENERATOR_CHALLENGE("generated-blocks", 250, ActionType.BREAK),
+		NETHERRACK_GENERATOR_CHALLENGE("netherrack-generator", 750, ActionType.BREAK),
 		GLOWSTONE_TREE_CHALLENGE("grow-tree", 25, ActionType.GROW),
 		LAVA_FISHING_CHALLENGE("lava-fish", 50, ActionType.FISH),
 		NETHER_CRAFTING_CHALLENGE("nether-crafting", 36, ActionType.CRAFT),
 		NETHER_BREWING_CHALLENGE("nether-brewing", 75, ActionType.INTERACT),
+		ISLAND_LEVEL_CHALLENGE("island-level-up", 500, ActionType.LEVELUP),
+		INFINITE_LAVA_CHALLENGE("infinite-lava", 15, ActionType.INTERACT),
+		NETHER_FARM_CHALLENGE("nether-farming", 100, ActionType.FARM),
+		ENHANCED_WITHER_CHALLENGE("enhanced-wither", 5, ActionType.KILL),
 		NETHER_GOLEM_CHALLENGE("nether-golem", 40, ActionType.SPAWN);
 
 		private String name;
@@ -70,6 +74,6 @@ public class HellblockChallenge {
 	}
 
 	public enum ActionType {
-		BREAK, PLACE, GROW, FISH, INTERACT, CRAFT, FARM, ENCHANT, SMELT, SPAWN;
+		BREAK, PLACE, GROW, FISH, INTERACT, CRAFT, FARM, ENCHANT, SMELT, SPAWN, KILL, LEVELUP;
 	}
 }

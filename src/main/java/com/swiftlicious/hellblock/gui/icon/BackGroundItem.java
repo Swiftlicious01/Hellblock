@@ -14,13 +14,13 @@ import xyz.xenondevs.invui.item.impl.AbstractItem;
 
 public class BackGroundItem extends AbstractItem implements Icon {
 
-    @Override
-    public ItemProvider getItemProvider() {
-        return new ItemBuilder(Material.BLACK_STAINED_GLASS_PANE).setDisplayName("");
-    }
+	@Override
+	public ItemProvider getItemProvider() {
+		return new ItemBuilder(Material.BLACK_STAINED_GLASS_PANE).setDisplayName("");
+	}
 
-    @Override
-    public void handleClick(@NotNull ClickType clickType, @NotNull Player player, @NotNull InventoryClickEvent event) {
+	@Override
+	public void handleClick(@NotNull ClickType clickType, @NotNull Player player, @NotNull InventoryClickEvent event) {
 
-    }
+	}
 }

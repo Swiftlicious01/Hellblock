@@ -80,9 +80,10 @@ public class ConfirmMenu {
 				return;
 			}
 
-			HellblockPlugin.getInstance().getHellblockHandler().resetHellblock(player.getUniqueId(), false);
-			player.performCommand(HellblockPlugin.getInstance().getHellblockHandler().getNetherCMD());
-			new IslandChoiceMenu(player, true);
+			HellblockPlugin.getInstance().getHellblockHandler().resetHellblock(player.getUniqueId(), false)
+					.thenRun(() -> {
+						new IslandChoiceMenu(player, true);
+					});
 			HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
 					net.kyori.adventure.sound.Sound.Source.PLAYER,
 					net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);

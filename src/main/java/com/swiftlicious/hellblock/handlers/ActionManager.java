@@ -105,7 +105,7 @@ public class ActionManager implements ActionManagerInterface {
 	// Method to load global event actions from the plugin's configuration file.
 	private void loadGlobalEventActions() {
 		YamlConfiguration config = instance.getConfig("config.yml");
-		instance.getGlobalSettings().loadEvents(config.getConfigurationSection("mechanism.global-events"));
+		instance.getGlobalSettings().loadEvents(config.getConfigurationSection("lava-fishing-options.global-events"));
 	}
 
 	/**

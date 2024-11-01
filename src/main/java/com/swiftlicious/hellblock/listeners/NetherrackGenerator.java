@@ -18,8 +18,8 @@ import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.block.data.Levelled;
 import org.bukkit.configuration.file.YamlConfiguration;
-import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
+import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -46,6 +46,8 @@ import com.swiftlicious.hellblock.utils.StringUtils;
 
 import lombok.Getter;
 import lombok.NonNull;
+import net.kyori.adventure.key.Key;
+import net.kyori.adventure.sound.Sound.Source;
 
 public class NetherrackGenerator implements Listener {
 
@@ -71,7 +73,7 @@ public class NetherrackGenerator implements Listener {
 	}
 
 	@EventHandler
-	public void onBlockFlow(BlockFromToEvent event) {
+	public void onNetherrackGeneration(BlockFromToEvent event) {
 		Block fromBlock = event.getBlock();
 		Material fromBlockMaterial = fromBlock.getType();
 		if (!fromBlock.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
@@ -97,8 +99,8 @@ public class NetherrackGenerator implements Listener {
 							.getDouble("netherrack-generator-options.playerSearchRadius", 4D);
 					if (l.getWorld() == null)
 						return;
-					Collection<Entity> entitiesNearby = l.getWorld().getNearbyEntities(l, searchRadius, searchRadius,
-							searchRadius);
+					Collection<LivingEntity> entitiesNearby = l.getWorld().getNearbyLivingEntities(l, searchRadius,
+							searchRadius, searchRadius);
 					Player closestPlayer = getClosestPlayer(l, entitiesNearby);
 					if (closestPlayer != null) {
 						genManager.addKnownGenLocation(l);
@@ -119,8 +121,8 @@ public class NetherrackGenerator implements Listener {
 
 					UUID uuid = gb.getUUID(); // Get the uuid of the player who broke the blocks
 
-					if (!(mode.canGenerateWhileLavaRaining()) && instance.getLavaRain().getLavaRainTask() != null
-							&& instance.getLavaRain().getLavaRainTask().isLavaRaining()) {
+					if (!(mode.canGenerateWhileLavaRaining()) && instance.getLavaRainHandler().getLavaRainTask() != null
+							&& instance.getLavaRainHandler().getLavaRainTask().isLavaRaining()) {
 						event.setCancelled(true);
 						if (toBlock.getLocation().getBlock().getType() != mode.getFallbackMaterial())
 							toBlock.getLocation().getBlock().setType(mode.getFallbackMaterial());
@@ -149,7 +151,8 @@ public class NetherrackGenerator implements Listener {
 					genEvent.getGenerationLocation().getBlock().setType(genEvent.getResult());
 
 					if (mode.hasGenSound())
-						l.getWorld().playSound(l, mode.getGenSound(), soundVolume, pitch);
+						instance.getAdventureManager().sendSound(l, Source.AMBIENT, Key.key(mode.getGenSound()),
+								soundVolume, pitch);
 
 					if (mode.hasParticleEffect())
 						mode.displayGenerationParticles(l);
@@ -161,10 +164,10 @@ public class NetherrackGenerator implements Listener {
 		}
 	}
 
-	public @Nullable Player getClosestPlayer(Location l, Collection<Entity> entitiesNearby) {
+	public @Nullable Player getClosestPlayer(Location l, Collection<LivingEntity> entitiesNearby) {
 		Player closestPlayer = null;
 		double closestDistance = 100D;
-		for (Entity entity : entitiesNearby) {
+		for (LivingEntity entity : entitiesNearby) {
 			if (entity instanceof Player player) {
 				double distance = l.distance(player.getLocation());
 				if (closestPlayer != null && !(closestDistance > distance)) {

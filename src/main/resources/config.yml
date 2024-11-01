@@ -7,15 +7,14 @@ config-version: '1'
 debug: false
 
 # BStats
-metrics: false
+metrics: true
 
 # Check updates
 update-checker: false
 
 general:
   world: hellworld
-  spawnSize: 50
-  netherCMD: '/spawn'
+  spawnSize: 25
 hellblock:
   can-transfer-islands: true
   party-size: 4
@@ -374,17 +373,31 @@ armor:
       enchantments: 
         - PROTECTION:3
         - FIRE_PROTECTION:1
- 
+
+wither-stats:
+  random-stats: true
+  random-min-health: 200
+  random-max-health: 500
+  random-min-strength: 0.5
+  random-max-strength: 2.5
+  default-strength: 1.25
+  default-health: 300
+
 infinite-lava-options:
   enabled: true
   
 lava-rain-options:
+  enabled: true
   # How far from the player should the lava particles fall (setting this value too high may cause lag !)
   radius: 16
   # Chance to make fire appear on the ground when the lava is falling
   fireChance: 1
   # Every how many ticks should the task repeat (20 ticks is 1 second)
   taskDelay: 3
+  # Whether or not lava rain will damage not just players but other mobs / animals if not covered.
+  canHurtLivingCreatures: true
+  # Whether tnt and tnt minecarts will explode if exposed to lava rain.
+  willTNTExplode: true
 
 netherrack-generator-options:
   playerSearchRadius: 4.0
@@ -397,20 +410,20 @@ netherrack-generator-options:
       - 'NETHER_QUARTZ_ORE:3'
     fallback: NETHERRACK
     particleEffect: LARGE_SMOKE
-    generationSound: ENTITY_EXPERIENCE_ORB_PICKUP
+    generationSound: 'minecraft:entity.experience_orb.pickup'
     canGenerateWhileLavaRaining: true
     searchForPlayersNearby: true
 
-# mechanism settings
-mechanism:
-  # Specifies the conditions required for the plugin mechanism to work.
-  # Here, the type is !world, which implies the plugin won't work in
-  # the world named 'blacklist_world'.
-  mechanism-requirements:
-    world_requirement:
-      type: '!world'
+# lava fishing settings
+lava-fishing-options:
+  # Specifies the conditions required for the lava fishing mechanism to work.
+  # Here, the type is !weather, which implies lava fishing won't work if
+  # the weather is lava raining.
+  fishing-requirements:
+    weather_requirement:
+      type: '!weather'
       value:
-        - blacklist_world
+        - lavarain
       # Configures global effects. This is useful if you want to give all the players certain effects based on certain conditions
       global-effects:
         effect_1:
@@ -439,7 +452,7 @@ mechanism:
                   sound_action:
                     type: sound
                     value:
-                      key: "minecraft:block.note_block.cow_bell"
+                      key: 'minecraft:block.note_block.cow_bell'
                       source: 'player'
                       volume: 1
                       pitch: 1
@@ -451,7 +464,7 @@ mechanism:
                         sound_action:
                           type: sound
                           value:
-                            key: "minecraft:block.note_block.bell"
+                            key: 'minecraft:block.note_block.bell'
                             source: 'player'
                             volume: 1
                             pitch: 1

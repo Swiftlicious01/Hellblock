@@ -9,6 +9,7 @@ depend:
 - ProtocolLib
 softdepend:
 - WorldEdit
+- FastAsyncWorldEdit
 - WorldGuard
 - PlaceholderAPI
 - Vault

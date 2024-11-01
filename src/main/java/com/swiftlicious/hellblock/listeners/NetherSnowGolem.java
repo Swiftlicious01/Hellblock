@@ -12,7 +12,9 @@ import org.bukkit.block.BlockFace;
 import org.bukkit.damage.DamageType;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
+import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.Snowball;
 import org.bukkit.entity.Snowman;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -20,6 +22,7 @@ import org.bukkit.event.block.BlockPistonExtendEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason;
 import org.bukkit.event.entity.EntityCombustEvent;
+import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
@@ -114,12 +117,12 @@ public class NetherSnowGolem implements Listener {
 			return false;
 
 		Snowman hellGolem;
-		if (checkHellGolemBuild(location).size() != 0 && instance.getHellblockHandler().getActivePlayer(player)
-				.getProtectionValue(HellblockFlag.FlagType.MOB_SPAWNING) == AccessType.ALLOW) {
+		if (!checkHellGolemBuild(location).isEmpty() && !instance.getHellblockHandler().checkIfInSpawn(location)
+				&& instance.getHellblockHandler().getActivePlayer(player)
+						.getProtectionValue(HellblockFlag.FlagType.MOB_SPAWNING) == AccessType.ALLOW) {
 			List<Block> blocks = checkHellGolemBuild(location);
 			for (Block block : blocks) {
 				block.setType(Material.AIR);
-				block.getState().update();
 			}
 			hellGolem = (Snowman) location.getWorld().spawnEntity(location, EntityType.SNOW_GOLEM,
 					SpawnReason.BUILD_SNOWMAN);
@@ -159,8 +162,10 @@ public class NetherSnowGolem implements Listener {
 			if (!block.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
 				return;
 
-			Collection<Entity> entitiesNearby = block.getWorld().getNearbyEntities(block.getLocation(), 25, 25, 25);
-			Player player = instance.getNetherrackGenerator().getClosestPlayer(block.getLocation(), entitiesNearby);
+			Collection<LivingEntity> entitiesNearby = block.getWorld().getNearbyLivingEntities(block.getLocation(), 25,
+					25, 25);
+			Player player = instance.getNetherrackGeneratorHandler().getClosestPlayer(block.getLocation(),
+					entitiesNearby);
 			if (player != null)
 				spawnHellGolem(player, block.getLocation());
 		}
@@ -184,6 +189,22 @@ public class NetherSnowGolem implements Listener {
 		if (entity instanceof Snowman && entity.isVisualFire()) {
 			if (event.getDamageSource().getDamageType() == DamageType.ON_FIRE) {
 				event.setCancelled(true);
+			}
+		}
+	}
+
+	@EventHandler
+	public void onSnowball(EntityDamageByEntityEvent event) {
+		if (!event.getEntity().getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+			return;
+		if (event.getEntity() instanceof LivingEntity living) {
+			if (event.getDamager() instanceof Snowball snowball) {
+				if (snowball.getShooter() != null && snowball.getShooter() instanceof Snowman snowman) {
+					if (snowman.isVisualFire()) {
+						snowball.setVisualFire(true);
+						living.setFireTicks(40);
+					}
+				}
 			}
 		}
 	}

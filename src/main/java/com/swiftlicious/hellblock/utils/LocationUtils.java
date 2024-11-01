@@ -12,7 +12,6 @@ import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Player;
-import org.jetbrains.annotations.Nullable;
 
 import lombok.NonNull;
 
@@ -34,10 +33,6 @@ public class LocationUtils {
 				+ Math.pow(location2.getY() - location1.getY(), 2) + Math.pow(location2.getZ() - location1.getZ(), 2));
 	}
 
-	public static Location getAnyLocationInstance() {
-		return new Location(Bukkit.getWorlds().get(0), 0, 64, 0);
-	}
-
 	public static List<String> readableLocation(Location location) {
 		List<String> readableLocation = Arrays.asList(location.getWorld().getName(), String.valueOf(location.getX()),
 				String.valueOf(location.getY()), String.valueOf(location.getZ()));
@@ -52,7 +47,7 @@ public class LocationUtils {
 		Block feet = location.getBlock();
 		Block head = feet.getRelative(BlockFace.UP);
 		Block ground = feet.getRelative(BlockFace.DOWN);
-		return checkIfSafe(location.getWorld(), ground, feet, head);
+		return checkIfSafe(ground, feet, head);
 	}
 
 	/**
@@ -65,7 +60,7 @@ public class LocationUtils {
 			Block feet = location.getBlock();
 			Block head = feet.getRelative(BlockFace.UP);
 			Block ground = feet.getRelative(BlockFace.DOWN);
-			result.complete(checkIfSafe(location.getWorld(), ground, feet, head));
+			result.complete(checkIfSafe(ground, feet, head));
 		});
 		return result;
 	}
@@ -75,11 +70,10 @@ public class LocationUtils {
 	 * 
 	 * @return
 	 */
-	private static boolean checkIfSafe(@Nullable World world, @NonNull Block ground, @NonNull Block feet,
-			@NonNull Block head) {
+	private static boolean checkIfSafe(@NonNull Block ground, @NonNull Block feet, @NonNull Block head) {
 
 		// Ground must be solid and head must not be solid
-		if (world == null || isNotStandable(ground) || (head.isSolid() && !Tag.ALL_SIGNS.isTagged(head.getType()))) {
+		if (!ground.isSolid() || (head.isSolid() && !head.isPassable())) {
 			return false;
 		}
 
@@ -123,14 +117,15 @@ public class LocationUtils {
 				PLAYER_WALL_HEAD, ZOMBIE_HEAD, CREEPER_HEAD, PIGLIN_HEAD, DRAGON_HEAD, ZOMBIE_WALL_HEAD,
 				CREEPER_WALL_HEAD, DRAGON_WALL_HEAD, PIGLIN_WALL_HEAD, WITHER_SKELETON_SKULL, SKELETON_SKULL,
 				SKELETON_WALL_SKULL, WITHER_SKELETON_WALL_SKULL, WITHER_ROSE, WEEPING_VINES, TWISTING_VINES,
-				COMMAND_BLOCK_MINECART, TRIPWIRE_HOOK, POWDER_SNOW_CAULDRON ->
+				COMMAND_BLOCK_MINECART, TRIPWIRE_HOOK, POWDER_SNOW_CAULDRON, ORANGE_STAINED_GLASS_PANE,
+				BLACK_STAINED_GLASS_PANE, BLUE_STAINED_GLASS_PANE, LIGHT_BLUE_STAINED_GLASS_PANE,
+				LIME_STAINED_GLASS_PANE, GREEN_STAINED_GLASS_PANE, RED_STAINED_GLASS_PANE, GRAY_STAINED_GLASS_PANE,
+				WHITE_STAINED_GLASS_PANE, YELLOW_STAINED_GLASS_PANE, PINK_STAINED_GLASS_PANE, PURPLE_STAINED_GLASS_PANE,
+				CYAN_STAINED_GLASS_PANE, LIGHT_GRAY_STAINED_GLASS_PANE, BROWN_STAINED_GLASS_PANE,
+				MAGENTA_STAINED_GLASS_PANE, GLASS_PANE ->
 			false;
 		default -> true;
 		};
-	}
-
-	private static boolean isNotStandable(@NonNull Block block) {
-		return block.getCollisionShape().getBoundingBoxes().isEmpty();
 	}
 
 	/**

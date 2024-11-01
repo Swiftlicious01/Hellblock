@@ -1,5 +1,6 @@
 package com.swiftlicious.hellblock.handlers;
 
+import org.bukkit.Location;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
@@ -30,7 +31,7 @@ public interface AdventureManagerInterface {
 	 * @param sender command sender
 	 * @param s      message
 	 */
-	void sendMessageWithPrefix(CommandSender sender, String s);
+	void sendMessageWithPrefix(CommandSender sender, String msg);
 
 	/**
 	 * Send a message to console
@@ -53,6 +54,14 @@ public interface AdventureManagerInterface {
 	 * @param msg    message
 	 */
 	void sendPlayerMessage(Player player, String msg);
+
+	/**
+	 * Send a centered message to a player
+	 * 
+	 * @param player player
+	 * @param msg    message
+	 */
+	void sendCenteredMessage(Player player, String msg);
 
 	/**
 	 * Send a title to a player
@@ -97,7 +106,20 @@ public interface AdventureManagerInterface {
 	 */
 	void sendSound(Player player, Sound.Source source, net.kyori.adventure.key.Key key, float volume, float pitch);
 
+	/**
+	 * Play a sound to the location
+	 * 
+	 * @param location location
+	 * @param source   sound source
+	 * @param key      sound key
+	 * @param volume   volume
+	 * @param pitch    pitch
+	 */
+	void sendSound(Location location, Sound.Source source, net.kyori.adventure.key.Key key, float volume, float pitch);
+
 	void sendSound(Player player, Sound sound);
+
+	void sendSound(Location location, Sound sound);
 
 	/**
 	 * Replace legacy color codes to MiniMessage format

@@ -33,8 +33,7 @@ public class GlobalSettings {
 			return;
 		for (Map.Entry<String, Object> entry : section.getValues(false).entrySet()) {
 			if (entry.getValue() instanceof ConfigurationSection inner) {
-				HashMap<ActionTrigger, Action[]> map = HellblockPlugin.getInstance().getActionManager()
-						.getActionMap(inner);
+				Map<ActionTrigger, Action[]> map = HellblockPlugin.getInstance().getActionManager().getActionMap(inner);
 				switch (entry.getKey()) {
 				case "loot" -> lootActions = map;
 				case "rod" -> rodActions = map;

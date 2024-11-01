@@ -3,13 +3,11 @@ package com.swiftlicious.hellblock.listeners.rain;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Tag;
-import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.Nullable;
@@ -18,12 +16,16 @@ import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.utils.RandomUtils;
 
 import lombok.Getter;
+import lombok.NonNull;
 
-@Getter
 public class LavaRain {
 
+	@Getter
 	private int radius, fireChance, taskDelay;
-
+	@Getter
+	private boolean enabled;
+	private boolean canHurtLivingCreatures, willTNTExplode;
+	@Getter
 	private LavaRainTask lavaRainTask;
 
 	private final HellblockPlugin instance;
@@ -33,9 +35,15 @@ public class LavaRain {
 		this.radius = Math.abs(instance.getConfig("config.yml").getInt("lava-rain-options.radius", 16));
 		this.fireChance = Math.abs(instance.getConfig("config.yml").getInt("lava-rain-options.fireChance", 1));
 		this.taskDelay = Math.abs(instance.getConfig("config.yml").getInt("lava-rain-options.taskDelay", 3));
+		this.enabled = instance.getConfig("config.yml").getBoolean("lava-rain-options.enabled", true);
+		this.canHurtLivingCreatures = instance.getConfig("config.yml")
+				.getBoolean("lava-rain-options.canHurtLivingCreatures", true);
+		this.willTNTExplode = instance.getConfig("config.yml").getBoolean("lava-rain-options.willTNTExplode", true);
 	}
 
 	public void startLavaRainProcess() {
+		if (!this.enabled)
+			return;
 		instance.getScheduler().runTaskAsyncLater(
 				() -> this.lavaRainTask = new LavaRainTask(instance, true, false,
 						RandomUtils.generateRandomInt(150, 250)),
@@ -45,8 +53,16 @@ public class LavaRain {
 	public void stopLavaRainProcess() {
 		if (this.lavaRainTask != null) {
 			this.lavaRainTask.cancelAnimation();
-			lavaRainTask = null;
+			this.lavaRainTask = null;
 		}
+	}
+
+	public boolean canHurtLivingCreatures() {
+		return this.canHurtLivingCreatures;
+	}
+
+	public boolean willTNTExplode() {
+		return this.willTNTExplode;
 	}
 
 	public @Nullable Block getHighestBlock(@Nullable Location location) {
@@ -55,9 +71,7 @@ public class LavaRain {
 
 		Block highestBlock = location.getWorld().getBlockAt(location.getBlockX(), location.getBlockY(),
 				location.getBlockZ());
-		highestBlock = highestBlock.getType().isAir() ? highestBlock
-				: location.getWorld().getBlockAt(location.getBlockX(), location.getBlockY() + 1, location.getBlockZ());
-		for (int y = 0; y < 9; y++) {
+		for (int y = 0; y < 10; y++) {
 			// +2 for equal to eye level
 			Block block = location.getWorld().getBlockAt(location.getBlockX(), location.getBlockY() + 2 + y,
 					location.getBlockZ());
@@ -83,11 +97,12 @@ public class LavaRain {
 					|| block.getType() == Material.SWEET_BERRY_BUSH || block.getType() == Material.SCAFFOLDING
 					|| block.getType() == Material.LANTERN || block.getType() == Material.SOUL_LANTERN
 					|| block.getType() == Material.TURTLE_EGG || block.getType() == Material.SMALL_DRIPLEAF
-					|| block.getType() == Material.IRON_BARS || block.getType() == Material.POWDER_SNOW
-					|| block.getType() == Material.TRIPWIRE || block.getType() == Material.TNT
-					|| block.getType() == Material.TNT_MINECART)
+					|| block.getType() == Material.BIG_DRIPLEAF || block.getType() == Material.IRON_BARS
+					|| block.getType() == Material.POWDER_SNOW || block.getType() == Material.TRIPWIRE
+					|| block.getType() == Material.TRIPWIRE_HOOK || block.getType() == Material.TNT_MINECART
+					|| block.getType().toString().contains("GLASS_PANE"))
 				continue;
-			// get first non-empty block above player
+			// get first non-empty full block above player
 			highestBlock = block;
 			break;
 		}
@@ -103,36 +118,35 @@ public class LavaRain {
 		private final int y2;
 		private final int z1;
 		private final int z2;
-		private final World world;
 
-		public LavaRainLocation(Location var1, Location var2) {
-			this.x1 = Math.min(var1.getBlockX(), var2.getBlockX());
-			this.x2 = Math.max(var1.getBlockX(), var2.getBlockX());
-			this.y1 = Math.min(var1.getBlockY(), var2.getBlockY());
-			this.y2 = Math.max(var1.getBlockY(), var2.getBlockY());
-			this.z1 = Math.min(var1.getBlockZ(), var2.getBlockZ());
-			this.z2 = Math.max(var1.getBlockZ(), var2.getBlockZ());
-			this.world = var1.getWorld();
+		public LavaRainLocation(@NonNull Location min, @NonNull Location max) {
+			this.x1 = Math.min(min.getBlockX(), max.getBlockX());
+			this.x2 = Math.max(min.getBlockX(), max.getBlockX());
+			this.y1 = Math.min(min.getBlockY(), max.getBlockY());
+			this.y2 = Math.max(min.getBlockY(), max.getBlockY());
+			this.z1 = Math.min(min.getBlockZ(), max.getBlockZ());
+			this.z2 = Math.max(min.getBlockZ(), max.getBlockZ());
 		}
 
-		public Iterator<Block> getBlocks() {
-			List<Block> var1 = new ArrayList<Block>((int) this.getDistanceSquared());
+		public @NonNull Iterator<Block> getBlocks() {
+			List<Block> list = new ArrayList<>(this.getAllCoordinates());
 
-			for (int var2 = this.x1; var2 <= this.x2; ++var2) {
-				for (int var3 = this.y1; var3 <= this.y2; ++var3) {
-					for (int var4 = this.z1; var4 <= this.z2; ++var4) {
-						Block var5 = this.world.getBlockAt(var2, var3, var4);
-						var1.add(var5);
+			for (int x = this.x1; x <= this.x2; ++x) {
+				for (int y = this.y1; y <= this.y2; ++y) {
+					for (int z = this.z1; z <= this.z2; ++z) {
+						Block block = instance.getHellblockHandler().getHellblockWorld().getBlockAt(x, y, z);
+						list.add(block);
 					}
 				}
 			}
 
-			return var1.iterator();
+			return list.iterator();
 		}
 
-		public Location getMainLocation() {
-			return new Location(this.world, (double) ((this.x2 - this.x1) / 2 + this.x1),
-					(double) ((this.y2 - this.y1) / 2 + this.y1), (double) ((this.z2 - this.z1) / 2 + this.z1));
+		public @NonNull Location getMainLocation() {
+			return new Location(instance.getHellblockHandler().getHellblockWorld(),
+					(double) ((this.x2 - this.x1) / 2 + this.x1), (double) ((this.y2 - this.y1) / 2 + this.y1),
+					(double) ((this.z2 - this.z1) / 2 + this.z1));
 		}
 
 		public double getDistance() {
@@ -143,24 +157,22 @@ public class LavaRain {
 			return this.getMinLocation().distanceSquared(this.getMaxLocation());
 		}
 
-		public int getY() {
-			return this.y2 - this.y1 + 1;
+		public @NonNull Location getMinLocation() {
+			return new Location(instance.getHellblockHandler().getHellblockWorld(), (double) this.x1, (double) this.y1,
+					(double) this.z1);
 		}
 
-		public Location getMinLocation() {
-			return new Location(this.world, (double) this.x1, (double) this.y1, (double) this.z1);
+		public @NonNull Location getMaxLocation() {
+			return new Location(instance.getHellblockHandler().getHellblockWorld(), (double) this.x2, (double) this.y2,
+					(double) this.z2);
 		}
 
-		public Location getMaxLocation() {
-			return new Location(this.world, (double) this.x2, (double) this.y2, (double) this.z2);
-		}
-
-		public Location getRandomLocation() {
-			Random var1 = new Random();
-			int var2 = var1.nextInt(Math.abs(this.x2 - this.x1) + 1) + this.x1;
-			int var3 = var1.nextInt(Math.abs(this.y2 - this.y1) + 1) + this.y1;
-			int var4 = var1.nextInt(Math.abs(this.z2 - this.z1) + 1) + this.z1;
-			return new Location(this.world, (double) var2, (double) var3, (double) var4);
+		public @NonNull Location getRandomLocation() {
+			int rndX = RandomUtils.generateRandomInt(Math.abs(this.x2 - this.x1) + 1) + this.x1;
+			int rndY = RandomUtils.generateRandomInt(Math.abs(this.y2 - this.y1) + 1) + this.y1;
+			int rndZ = RandomUtils.generateRandomInt(Math.abs(this.z2 - this.z1) + 1) + this.z1;
+			return new Location(instance.getHellblockHandler().getHellblockWorld(), (double) rndX, (double) rndY,
+					(double) rndZ);
 		}
 
 		public int getAllCoordinates() {
@@ -171,18 +183,25 @@ public class LavaRain {
 			return this.x2 - this.x1 + 1;
 		}
 
+		public int getY() {
+			return this.y2 - this.y1 + 1;
+		}
+
 		public int getZ() {
 			return this.z2 - this.z1 + 1;
 		}
 
-		public boolean checkLocation(Location var1) {
-			return var1.getWorld() == this.world && var1.getBlockX() >= this.x1 && var1.getBlockX() <= this.x2
-					&& var1.getBlockY() >= this.y1 && var1.getBlockY() <= this.y2 && var1.getBlockZ() >= this.z1
-					&& var1.getBlockZ() <= this.z2;
+		public boolean checkLocation(@NonNull Location location) {
+			return location.getWorld() != null
+					&& location.getWorld().getName()
+							.equals(instance.getHellblockHandler().getHellblockWorld().getName())
+					&& location.getBlockX() >= this.x1 && location.getBlockX() <= this.x2
+					&& location.getBlockY() >= this.y1 && location.getBlockY() <= this.y2
+					&& location.getBlockZ() >= this.z1 && location.getBlockZ() <= this.z2;
 		}
 
-		public boolean matches(Player var1) {
-			return this.checkLocation(var1.getLocation());
+		public boolean matches(@NonNull Player player) {
+			return this.checkLocation(player.getLocation());
 		}
 	}
 }

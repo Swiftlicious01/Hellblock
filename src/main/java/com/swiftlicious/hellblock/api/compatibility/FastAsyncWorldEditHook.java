@@ -4,13 +4,14 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 import org.bukkit.Location;
 
 import com.sk89q.worldedit.EditSession;
 import com.sk89q.worldedit.WorldEditException;
-import com.sk89q.worldedit.bukkit.BukkitWorld;
+import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldedit.extension.platform.Capability;
 import com.sk89q.worldedit.extension.platform.Platform;
 import com.sk89q.worldedit.extent.clipboard.Clipboard;
@@ -27,7 +28,7 @@ import com.swiftlicious.hellblock.utils.LogUtils;
 
 public class FastAsyncWorldEditHook implements SchematicPaster {
 
-	private static final HashMap<File, ClipboardFormat> cachedClipboardFormat = new HashMap<>();
+	private static final Map<File, ClipboardFormat> cachedClipboardFormat = new HashMap<>();
 	private static Object mutex = new Object();
 
 	public static boolean isWorking() {
@@ -45,33 +46,27 @@ public class FastAsyncWorldEditHook implements SchematicPaster {
 	}
 
 	@Override
-	public boolean pasteHellIsland(File file, Location location, Boolean ignoreAirBlock,
-			CompletableFuture<Void> completableFuture) {
+	public boolean pasteHellblock(File file, Location location, CompletableFuture<Void> completableFuture) {
 		try {
 			ClipboardFormat format = cachedClipboardFormat.getOrDefault(file, ClipboardFormats.findByFile(file));
-			ClipboardReader reader = format.getReader(new FileInputStream(file));
-			Clipboard clipboard = reader.read();
-			int width = clipboard.getDimensions().x();
-			int height = clipboard.getDimensions().y();
-			int length = clipboard.getDimensions().z();
+			Clipboard clipboard;
+			try (ClipboardReader reader = format.getReader(new FileInputStream(file))) {
+				clipboard = reader.read();
+			}
 
-			int newLength = (int) (length / 2.00);
-			int newWidth = (int) (width / 2.00);
-			int newHeight = (int) (height / 2.00);
+			clipboard.setOrigin(BlockVector3.at(location.getBlockX(), location.getBlockY(), location.getBlockZ()));
 
-			location.subtract(newWidth, newHeight, newLength); // Center the schematic (for real this time)
-
-			clipboard.setOrigin(clipboard.getRegion().getMinimumPoint()); // Change the //copy point to the minimum
-																			// corner
 			{
 				Thread t = new Thread() {
 					public void run() {
 						synchronized (mutex) {
 							EditSession editSession = com.sk89q.worldedit.WorldEdit.getInstance()
-									.newEditSession(new BukkitWorld(location.getWorld()));
+									.newEditSession(BukkitAdapter.adapt(
+											HellblockPlugin.getInstance().getHellblockHandler().getHellblockWorld()));
 							Operation operation = new ClipboardHolder(clipboard).createPaste(editSession)
-									.to(BlockVector3.at(location.getX(), location.getY(), location.getZ()))
-									.copyEntities(true).ignoreAirBlocks(ignoreAirBlock).build();
+									.to(BlockVector3.at(location.getBlockX(), location.getBlockY(),
+											location.getBlockZ()))
+									.copyBiomes(false).copyEntities(true).ignoreAirBlocks(true).build();
 							try {
 								Operations.complete(operation);
 								Operations.complete(editSession.commit());

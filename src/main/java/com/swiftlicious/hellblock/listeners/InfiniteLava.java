@@ -13,6 +13,8 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.util.BlockIterator;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.challenges.HellblockChallenge.ChallengeType;
+import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
 
 import lombok.Getter;
 import lombok.NonNull;
@@ -62,6 +64,16 @@ public class InfiniteLava implements Listener {
 				instance.getAdventureManager().sendSound(player, net.kyori.adventure.sound.Sound.Source.PLAYER,
 						net.kyori.adventure.key.Key.key("minecraft:item.bucket.fill_lava"), 1, 1);
 				player.updateInventory();
+				HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(player);
+				if (!pi.isChallengeActive(ChallengeType.INFINITE_LAVA_CHALLENGE)
+						&& !pi.isChallengeCompleted(ChallengeType.INFINITE_LAVA_CHALLENGE)) {
+					pi.beginChallengeProgression(ChallengeType.INFINITE_LAVA_CHALLENGE);
+				} else {
+					pi.updateChallengeProgression(ChallengeType.INFINITE_LAVA_CHALLENGE, 1);
+					if (pi.isChallengeCompleted(ChallengeType.INFINITE_LAVA_CHALLENGE)) {
+						pi.completeChallenge(ChallengeType.INFINITE_LAVA_CHALLENGE);
+					}
+				}
 
 			}
 		}

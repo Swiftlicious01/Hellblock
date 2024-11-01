@@ -15,6 +15,9 @@ dependencies:
     WorldEdit:
       load: BEFORE
       required: false
+    FastAsyncWorldEdit:
+      load: BEFORE
+      required: false
     WorldGuard:
       load: BEFORE
       required: false

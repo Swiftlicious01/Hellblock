@@ -8,7 +8,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import org.bukkit.Bukkit;
-import org.bukkit.Location;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.World;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -18,7 +17,10 @@ import org.bukkit.event.player.PlayerTeleportEvent.TeleportCause;
 import com.google.common.io.Files;
 import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.api.compatibility.WorldGuardHook;
+import com.swiftlicious.hellblock.config.HBLocale;
 import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
+import com.swiftlicious.hellblock.playerdata.HellblockPlayer.HellblockData;
 import com.swiftlicious.hellblock.playerdata.UUIDFetcher;
 import com.swiftlicious.hellblock.utils.ChunkUtils;
 import com.swiftlicious.hellblock.utils.LocationUtils;
@@ -36,8 +38,8 @@ public class HellblockAdminCommand {
 
 	public CommandAPICommand getAdminCommand() {
 		return new CommandAPICommand("admin").withPermission(CommandPermission.OP).withPermission("hellblock.admin")
-				.withSubcommands(getGenSpawnCommand("genspawn"), getPurgeCommand("purge"), getTeleportCommand("goto"),
-						getDeleteCommand("delete"));
+				.withSubcommands(getGenSpawnCommand("genspawn"), getPurgeCommand("purge"), getReloadCommand("reload"),
+						getTeleportCommand("goto"), getDeleteCommand("delete"));
 	}
 
 	private CommandAPICommand getTeleportCommand(String namespace) {
@@ -65,24 +67,25 @@ public class HellblockAdminCommand {
 								"<red>The player's hellblock you're trying to teleport to doesn't exist!");
 						return;
 					}
-					HellblockPlayer ti = null;
-					if (HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers().containsKey(id)) {
-						ti = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers().get(id);
-					} else {
-						ti = new HellblockPlayer(id);
-					}
-
+					HellblockPlayer ti = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(id);
 					if (ti.hasHellblock()) {
-						if (!LocationUtils.isSafeLocation(ti.getHomeLocation())) {
-							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-									"<red>This hellblock home location was deemed not safe, resetting to bedrock location!");
-							ti.setHome(HellblockPlugin.getInstance().getHellblockHandler().locateBedrock(id));
-							HellblockPlugin.getInstance().getCoopManager().updateParty(player.getUniqueId(), "home",
-									ti.getHomeLocation());
-						}
-						ChunkUtils.teleportAsync(player, ti.getHomeLocation(), TeleportCause.PLUGIN);
-						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-								String.format("<red>You have been teleported to <dark_red>%s<red>'s hellblock!", user));
+						LocationUtils.isSafeLocationAsync(ti.getHomeLocation()).thenAccept((result) -> {
+							if (!result.booleanValue()) {
+								HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+										"<red>This hellblock home location was deemed not safe, resetting to bedrock location!");
+								HellblockPlugin.getInstance().getHellblockHandler().locateBedrock(id)
+										.thenAccept((bedrock) -> {
+											ti.setHome(bedrock);
+											HellblockPlugin.getInstance().getCoopManager().updateParty(id, HellblockData.HOME,
+													ti.getHomeLocation());
+										});
+							}
+							ChunkUtils.teleportAsync(player, ti.getHomeLocation(), TeleportCause.PLUGIN).thenRun(() -> {
+								HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+										String.format("<red>You have been teleported to <dark_red>%s<red>'s hellblock!",
+												user));
+							});
+						});
 						return;
 					}
 
@@ -159,11 +162,15 @@ public class HellblockAdminCommand {
 										ex);
 								continue;
 							}
-							if (HellblockPlugin.getInstance().getWorldGuardHandler().getRegion(ownerUUID) != null) {
+							int hellblockID = playerConfig.getInt("player.hellblock-id");
+							if (HellblockPlugin.getInstance().getWorldGuardHandler().getRegion(ownerUUID,
+									hellblockID) != null) {
 								HellblockPlugin.getInstance().getWorldGuardHandler().updateHellblockMessages(ownerUUID,
-										HellblockPlugin.getInstance().getWorldGuardHandler().getRegion(ownerUUID));
+										HellblockPlugin.getInstance().getWorldGuardHandler().getRegion(ownerUUID,
+												hellblockID));
 								HellblockPlugin.getInstance().getWorldGuardHandler().abandonIsland(ownerUUID,
-										HellblockPlugin.getInstance().getWorldGuardHandler().getRegion(ownerUUID));
+										HellblockPlugin.getInstance().getWorldGuardHandler().getRegion(ownerUUID,
+												hellblockID));
 								purgeCount++;
 							}
 						}
@@ -206,21 +213,12 @@ public class HellblockAdminCommand {
 								"<red>The player's hellblock you're trying to delete doesn't exist!");
 						return;
 					}
-					HellblockPlayer ti = null;
-					if (HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers().containsKey(id)) {
-						ti = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers().get(id);
-					} else {
-						ti = new HellblockPlayer(id);
-					}
-
+					HellblockPlayer ti = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(id);
 					if (ti.hasHellblock()) {
-						HellblockPlugin.getInstance().getHellblockHandler().resetHellblock(id, true);
-						if (Bukkit.getPlayer(id) != null && Bukkit.getPlayer(id).isOnline()) {
-							Bukkit.getPlayer(id)
-									.performCommand(HellblockPlugin.getInstance().getHellblockHandler().getNetherCMD());
-						}
-						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-								String.format("<red>You have forcefully deleted <dark_red>%s<red>'s hellblock!", user));
+						HellblockPlugin.getInstance().getHellblockHandler().resetHellblock(id, true).thenRun(() -> {
+							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player, String
+									.format("<red>You have forcefully deleted <dark_red>%s<red>'s hellblock!", user));
+						});
 						return;
 					}
 
@@ -240,11 +238,11 @@ public class HellblockAdminCommand {
 			}
 
 			World world = HellblockPlugin.getInstance().getHellblockHandler().getHellblockWorld();
-			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtect()) {
+			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
 				com.sk89q.worldedit.world.World weWorld = BukkitAdapter.adapt(world);
 				if (HellblockPlugin.getInstance().getWorldGuardHandler().getWorldGuardPlatform() != null
 						&& HellblockPlugin.getInstance().getWorldGuardHandler().getWorldGuardPlatform()
-								.getRegionContainer().get(weWorld).hasRegion("Spawn")) {
+								.getRegionContainer().get(weWorld).hasRegion(WorldGuardHook.SPAWN_REGION)) {
 					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 							"<red>The spawn area has already been generated!");
 					return;
@@ -252,12 +250,21 @@ public class HellblockAdminCommand {
 			} else {
 				// TODO: plugin protection
 			}
-			HellblockPlugin.getInstance().getHellblockHandler().generateSpawn();
+			HellblockPlugin.getInstance().getHellblockHandler().generateSpawn().thenAccept(spawn -> {
+				ChunkUtils.teleportAsync(player, spawn, TeleportCause.PLUGIN).thenRun(() -> {
+					HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
+							"<red>Spawn area has been generated!");
+				});
+			});
+		});
+	}
 
-			player.teleportAsync(new Location(world, 0.0D,
-					(double) (HellblockPlugin.getInstance().getHellblockHandler().getHeight() + 1), 0.0D));
-			HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-					"<red>Spawn area has been generated!");
+	private CommandAPICommand getReloadCommand(String namespace) {
+		return new CommandAPICommand(namespace).executes((sender, args) -> {
+			long time = System.currentTimeMillis();
+			HellblockPlugin.getInstance().reload();
+			HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(sender,
+					HBLocale.MSG_Reload.replace("{time}", String.valueOf(System.currentTimeMillis() - time)));
 		});
 	}
 }

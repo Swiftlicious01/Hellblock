@@ -84,6 +84,25 @@ public class RandomUtils {
 	}
 
 	/**
+	 * Generates a random integer under the bound value (inclusive).
+	 *
+	 * @param bound the bound
+	 * @return a random integer within the bound (inclusive)
+	 */
+	public static int generateRandomInt(int bound) {
+		return getInstance().random.nextInt(bound);
+	}
+
+	/**
+	 * Generates a random double value.
+	 *
+	 * @return a random double value
+	 */
+	public static double generateRandomDouble() {
+		return getInstance().random.nextDouble();
+	}
+
+	/**
 	 * Selects a random element from the specified array.
 	 *
 	 * @param array the array to select a random element from

@@ -28,7 +28,7 @@ public class ChallengesMenu {
 
 	public ChallengesMenu(Player player) {
 
-		Gui gui = Gui.normal().setStructure(" # 1 2 3 4 5 6 ! # ", " # ! ! ! ! ! ! ! x ", " # ! ! ! ! ! ! ! # ")
+		Gui gui = Gui.normal().setStructure(" # 1 2 3 4 5 6 7 # ", " # # # 8 9 0 # # x ")
 				.addIngredient('#', new BackGroundItem()).addIngredient('x', new BackToMainMenuItem())
 				.addIngredient('!', new ItemStack(Material.AIR))
 				.addIngredient('1', new ChallengeOneItem(player.getUniqueId()))
@@ -36,7 +36,11 @@ public class ChallengesMenu {
 				.addIngredient('3', new ChallengeThreeItem(player.getUniqueId()))
 				.addIngredient('4', new ChallengeFourItem(player.getUniqueId()))
 				.addIngredient('5', new ChallengeFiveItem(player.getUniqueId()))
-				.addIngredient('6', new ChallengeSixItem(player.getUniqueId())).build();
+				.addIngredient('6', new ChallengeSixItem(player.getUniqueId()))
+				.addIngredient('7', new ChallengeSevenItem(player.getUniqueId()))
+				.addIngredient('8', new ChallengeEightItem(player.getUniqueId()))
+				.addIngredient('9', new ChallengeNineItem(player.getUniqueId()))
+				.addIngredient('0', new ChallengeTenItem(player.getUniqueId())).build();
 
 		Window window = Window
 				.single().setViewer(player).setTitle(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
@@ -534,6 +538,337 @@ public class ChallengesMenu {
 						player.getInventory().addItem(reward);
 						player.updateInventory();
 						pi.setChallengeRewardAsClaimed(ChallengeType.NETHER_BREWING_CHALLENGE, true);
+						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+								"<red>You've claimed your challenge reward!");
+						HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+								net.kyori.adventure.sound.Sound.Source.PLAYER,
+								net.kyori.adventure.key.Key.key("minecraft:entity.ender_dragon.growl"), 1, 1);
+						new ChallengesMenu(player);
+					} else {
+						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+								"<red>Please have an empty slot in your inventory to receive the reward!");
+					}
+				}
+			}
+		}
+	}
+
+	public class ChallengeSevenItem extends AbstractItem {
+
+		private UUID playerUUID;
+
+		public ChallengeSevenItem(UUID playerUUID) {
+			this.playerUUID = playerUUID;
+		}
+
+		@Override
+		public ItemProvider getItemProvider() {
+			HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(playerUUID);
+			if (pi.isChallengeCompleted(ChallengeType.ISLAND_LEVEL_CHALLENGE)) {
+				return new ItemBuilder(Material.EXPERIENCE_BOTTLE).addAllItemFlags()
+						.addEnchantment(Enchantment.UNBREAKING, 1, false)
+						.setDisplayName(new ShadedAdventureComponentWrapper(
+								HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
+										String.format("<green>Reach level %s for your island level!",
+												ChallengeType.ISLAND_LEVEL_CHALLENGE.getNeededAmount()))))
+						.addLoreLines(
+								new ShadedAdventureComponentWrapper(
+										HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
+												String.format("<dark_green>Completed!: <gray>(%s/%s)",
+														ChallengeType.ISLAND_LEVEL_CHALLENGE.getNeededAmount(),
+														ChallengeType.ISLAND_LEVEL_CHALLENGE.getNeededAmount()))),
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage(String.format(" "))),
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage(String.format(
+												!pi.isChallengeRewardClaimed(ChallengeType.ISLAND_LEVEL_CHALLENGE)
+														? "<yellow>Click to claim your reward!"
+														: "<yellow>Reward Claimed!"))));
+			} else {
+				return new ItemBuilder(Material.EXPERIENCE_BOTTLE).addAllItemFlags()
+						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
+								.getAdventureManager()
+								.getComponentFromMiniMessage(String.format("<red>Reach level %s for your island level!",
+										ChallengeType.ISLAND_LEVEL_CHALLENGE.getNeededAmount()))))
+						.addLoreLines(
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage(String.format("<dark_red>Progress: <gray>(%s/%s)",
+												pi.getChallengeProgress(ChallengeType.ISLAND_LEVEL_CHALLENGE),
+												ChallengeType.ISLAND_LEVEL_CHALLENGE.getNeededAmount()))),
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage(String.format("%s", ProgressBar.getProgressBar(
+												new ProgressBar(ChallengeType.ISLAND_LEVEL_CHALLENGE.getNeededAmount(),
+														pi.getChallengeProgress(ChallengeType.ISLAND_LEVEL_CHALLENGE)),
+												25)))));
+			}
+		}
+
+		@Override
+		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
+				@NotNull InventoryClickEvent event) {
+			HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
+			if (pi.isChallengeCompleted(ChallengeType.ISLAND_LEVEL_CHALLENGE)
+					&& !pi.isChallengeRewardClaimed(ChallengeType.ISLAND_LEVEL_CHALLENGE)) {
+				ConfigurationSection section = HellblockPlugin.getInstance().getConfig("challenge-rewards.yml")
+						.getConfigurationSection("rewards." + ChallengeType.ISLAND_LEVEL_CHALLENGE.toString());
+				ItemStack reward = HellblockPlugin.getInstance().getChallengeRewardBuilder()
+						.createChallengeReward(section);
+				if (reward != null) {
+					if (player.getInventory().firstEmpty() != -1) {
+						player.getInventory().addItem(reward);
+						player.updateInventory();
+						pi.setChallengeRewardAsClaimed(ChallengeType.ISLAND_LEVEL_CHALLENGE, true);
+						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+								"<red>You've claimed your challenge reward!");
+						HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+								net.kyori.adventure.sound.Sound.Source.PLAYER,
+								net.kyori.adventure.key.Key.key("minecraft:entity.ender_dragon.growl"), 1, 1);
+						new ChallengesMenu(player);
+					} else {
+						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+								"<red>Please have an empty slot in your inventory to receive the reward!");
+					}
+				}
+			}
+		}
+	}
+
+	public class ChallengeEightItem extends AbstractItem {
+
+		private UUID playerUUID;
+
+		public ChallengeEightItem(UUID playerUUID) {
+			this.playerUUID = playerUUID;
+		}
+
+		@Override
+		public ItemProvider getItemProvider() {
+			HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(playerUUID);
+			if (pi.isChallengeCompleted(ChallengeType.ENHANCED_WITHER_CHALLENGE)) {
+				return new ItemBuilder(Material.NETHER_STAR).addAllItemFlags()
+						.addEnchantment(Enchantment.UNBREAKING, 1, false)
+						.setDisplayName(
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage(String.format("<green>Slay %s enhanced withers!",
+												ChallengeType.ENHANCED_WITHER_CHALLENGE.getNeededAmount()))))
+						.addLoreLines(
+								new ShadedAdventureComponentWrapper(
+										HellblockPlugin.getInstance().getAdventureManager()
+												.getComponentFromMiniMessage(String.format(
+														"<dark_green>Completed!: <gray>(%s/%s)",
+														ChallengeType.ENHANCED_WITHER_CHALLENGE.getNeededAmount(),
+														ChallengeType.ENHANCED_WITHER_CHALLENGE.getNeededAmount()))),
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage(String.format(" "))),
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage(String.format(
+												!pi.isChallengeRewardClaimed(ChallengeType.ENHANCED_WITHER_CHALLENGE)
+														? "<yellow>Click to claim your reward!"
+														: "<yellow>Reward Claimed!"))));
+			} else {
+				return new ItemBuilder(Material.NETHER_STAR).addAllItemFlags()
+						.setDisplayName(
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage(String.format("<red>Slay %s enhanced withers!",
+												ChallengeType.ENHANCED_WITHER_CHALLENGE.getNeededAmount()))))
+						.addLoreLines(
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage(String.format("<dark_red>Progress: <gray>(%s/%s)",
+												pi.getChallengeProgress(ChallengeType.ENHANCED_WITHER_CHALLENGE),
+												ChallengeType.ENHANCED_WITHER_CHALLENGE.getNeededAmount()))),
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage(String.format("%s",
+												ProgressBar.getProgressBar(
+														new ProgressBar(
+																ChallengeType.ENHANCED_WITHER_CHALLENGE
+																		.getNeededAmount(),
+																pi.getChallengeProgress(
+																		ChallengeType.ENHANCED_WITHER_CHALLENGE)),
+														25)))));
+			}
+		}
+
+		@Override
+		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
+				@NotNull InventoryClickEvent event) {
+			HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
+			if (pi.isChallengeCompleted(ChallengeType.ENHANCED_WITHER_CHALLENGE)
+					&& !pi.isChallengeRewardClaimed(ChallengeType.ENHANCED_WITHER_CHALLENGE)) {
+				ConfigurationSection section = HellblockPlugin.getInstance().getConfig("challenge-rewards.yml")
+						.getConfigurationSection("rewards." + ChallengeType.ENHANCED_WITHER_CHALLENGE.toString());
+				ItemStack reward = HellblockPlugin.getInstance().getChallengeRewardBuilder()
+						.createChallengeReward(section);
+				if (reward != null) {
+					if (player.getInventory().firstEmpty() != -1) {
+						player.getInventory().addItem(reward);
+						player.updateInventory();
+						pi.setChallengeRewardAsClaimed(ChallengeType.ENHANCED_WITHER_CHALLENGE, true);
+						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+								"<red>You've claimed your challenge reward!");
+						HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+								net.kyori.adventure.sound.Sound.Source.PLAYER,
+								net.kyori.adventure.key.Key.key("minecraft:entity.ender_dragon.growl"), 1, 1);
+						new ChallengesMenu(player);
+					} else {
+						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+								"<red>Please have an empty slot in your inventory to receive the reward!");
+					}
+				}
+			}
+		}
+	}
+
+	public class ChallengeNineItem extends AbstractItem {
+
+		private UUID playerUUID;
+
+		public ChallengeNineItem(UUID playerUUID) {
+			this.playerUUID = playerUUID;
+		}
+
+		@Override
+		public ItemProvider getItemProvider() {
+			HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(playerUUID);
+			if (pi.isChallengeCompleted(ChallengeType.INFINITE_LAVA_CHALLENGE)) {
+				return new ItemBuilder(Material.LAVA_BUCKET).addAllItemFlags()
+						.addEnchantment(Enchantment.UNBREAKING, 1, false)
+						.setDisplayName(
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage(String.format(
+												"<green>Gather lava from an infinite lava source %s times!",
+												ChallengeType.INFINITE_LAVA_CHALLENGE.getNeededAmount()))))
+						.addLoreLines(
+								new ShadedAdventureComponentWrapper(
+										HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
+												String.format("<dark_green>Completed!: <gray>(%s/%s)",
+														ChallengeType.INFINITE_LAVA_CHALLENGE.getNeededAmount(),
+														ChallengeType.INFINITE_LAVA_CHALLENGE.getNeededAmount()))),
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage(String.format(" "))),
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage(String.format(
+												!pi.isChallengeRewardClaimed(ChallengeType.INFINITE_LAVA_CHALLENGE)
+														? "<yellow>Click to claim your reward!"
+														: "<yellow>Reward Claimed!"))));
+			} else {
+				return new ItemBuilder(Material.LAVA_BUCKET).addAllItemFlags()
+						.setDisplayName(new ShadedAdventureComponentWrapper(
+								HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
+										String.format("<red>Gather lava from an infinite lava source %s times!",
+												ChallengeType.INFINITE_LAVA_CHALLENGE.getNeededAmount()))))
+						.addLoreLines(
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage(String.format("<dark_red>Progress: <gray>(%s/%s)",
+												pi.getChallengeProgress(ChallengeType.INFINITE_LAVA_CHALLENGE),
+												ChallengeType.INFINITE_LAVA_CHALLENGE.getNeededAmount()))),
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage(String.format("%s",
+												ProgressBar.getProgressBar(
+														new ProgressBar(
+																ChallengeType.INFINITE_LAVA_CHALLENGE.getNeededAmount(),
+																pi.getChallengeProgress(
+																		ChallengeType.INFINITE_LAVA_CHALLENGE)),
+														25)))));
+			}
+		}
+
+		@Override
+		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
+				@NotNull InventoryClickEvent event) {
+			HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
+			if (pi.isChallengeCompleted(ChallengeType.INFINITE_LAVA_CHALLENGE)
+					&& !pi.isChallengeRewardClaimed(ChallengeType.INFINITE_LAVA_CHALLENGE)) {
+				ConfigurationSection section = HellblockPlugin.getInstance().getConfig("challenge-rewards.yml")
+						.getConfigurationSection("rewards." + ChallengeType.INFINITE_LAVA_CHALLENGE.toString());
+				ItemStack reward = HellblockPlugin.getInstance().getChallengeRewardBuilder()
+						.createChallengeReward(section);
+				if (reward != null) {
+					if (player.getInventory().firstEmpty() != -1) {
+						player.getInventory().addItem(reward);
+						player.updateInventory();
+						pi.setChallengeRewardAsClaimed(ChallengeType.INFINITE_LAVA_CHALLENGE, true);
+						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+								"<red>You've claimed your challenge reward!");
+						HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+								net.kyori.adventure.sound.Sound.Source.PLAYER,
+								net.kyori.adventure.key.Key.key("minecraft:entity.ender_dragon.growl"), 1, 1);
+						new ChallengesMenu(player);
+					} else {
+						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+								"<red>Please have an empty slot in your inventory to receive the reward!");
+					}
+				}
+			}
+		}
+	}
+
+	public class ChallengeTenItem extends AbstractItem {
+
+		private UUID playerUUID;
+
+		public ChallengeTenItem(UUID playerUUID) {
+			this.playerUUID = playerUUID;
+		}
+
+		@Override
+		public ItemProvider getItemProvider() {
+			HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(playerUUID);
+			if (pi.isChallengeCompleted(ChallengeType.NETHER_FARM_CHALLENGE)) {
+				return new ItemBuilder(Material.NETHERITE_HOE).addAllItemFlags()
+						.addEnchantment(Enchantment.UNBREAKING, 1, false)
+						.setDisplayName(
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage(String.format(
+												"<green>Create a nether farm using lava that consists of %s farmland!",
+												ChallengeType.NETHER_FARM_CHALLENGE.getNeededAmount()))))
+						.addLoreLines(
+								new ShadedAdventureComponentWrapper(
+										HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
+												String.format("<dark_green>Completed!: <gray>(%s/%s)",
+														ChallengeType.NETHER_FARM_CHALLENGE.getNeededAmount(),
+														ChallengeType.NETHER_FARM_CHALLENGE.getNeededAmount()))),
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage(String.format(" "))),
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage(String.format(
+												!pi.isChallengeRewardClaimed(ChallengeType.NETHER_FARM_CHALLENGE)
+														? "<yellow>Click to claim your reward!"
+														: "<yellow>Reward Claimed!"))));
+			} else {
+				return new ItemBuilder(Material.NETHERITE_HOE).addAllItemFlags()
+						.setDisplayName(
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage(String.format(
+												"<red>Create a nether farm using lava that consists of %s farmland!",
+												ChallengeType.NETHER_FARM_CHALLENGE.getNeededAmount()))))
+						.addLoreLines(
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage(String.format("<dark_red>Progress: <gray>(%s/%s)",
+												pi.getChallengeProgress(ChallengeType.NETHER_FARM_CHALLENGE),
+												ChallengeType.NETHER_FARM_CHALLENGE.getNeededAmount()))),
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage(String.format("%s", ProgressBar.getProgressBar(
+												new ProgressBar(ChallengeType.NETHER_FARM_CHALLENGE.getNeededAmount(),
+														pi.getChallengeProgress(ChallengeType.NETHER_FARM_CHALLENGE)),
+												25)))));
+			}
+		}
+
+		@Override
+		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
+				@NotNull InventoryClickEvent event) {
+			HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
+			if (pi.isChallengeCompleted(ChallengeType.NETHER_FARM_CHALLENGE)
+					&& !pi.isChallengeRewardClaimed(ChallengeType.NETHER_FARM_CHALLENGE)) {
+				ConfigurationSection section = HellblockPlugin.getInstance().getConfig("challenge-rewards.yml")
+						.getConfigurationSection("rewards." + ChallengeType.NETHER_FARM_CHALLENGE.toString());
+				ItemStack reward = HellblockPlugin.getInstance().getChallengeRewardBuilder()
+						.createChallengeReward(section);
+				if (reward != null) {
+					if (player.getInventory().firstEmpty() != -1) {
+						player.getInventory().addItem(reward);
+						player.updateInventory();
+						pi.setChallengeRewardAsClaimed(ChallengeType.NETHER_FARM_CHALLENGE, true);
 						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 								"<red>You've claimed your challenge reward!");
 						HellblockPlugin.getInstance().getAdventureManager().sendSound(player,

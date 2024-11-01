@@ -1,12 +1,13 @@
 package com.swiftlicious.hellblock.listeners;
 
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 import org.bukkit.Bukkit;
@@ -39,20 +40,18 @@ import org.bukkit.event.player.PlayerHarvestBlockEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.jetbrains.annotations.Nullable;
 
-import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.regions.Region;
-import com.sk89q.worldedit.world.World;
-import com.sk89q.worldguard.protection.ApplicableRegionSet;
-import com.sk89q.worldguard.protection.managers.RegionManager;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
-import com.sk89q.worldguard.protection.regions.RegionContainer;
 import com.sk89q.worldguard.protection.util.WorldEditRegionConverter;
+
 import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.challenges.HellblockChallenge.ChallengeType;
 import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
 import com.swiftlicious.hellblock.utils.LocationCache;
-import com.swiftlicious.hellblock.utils.LogUtils;
 import com.swiftlicious.hellblock.utils.RandomUtils;
+
+import lombok.NonNull;
 
 public class NetherFarming implements Listener {
 
@@ -63,107 +62,113 @@ public class NetherFarming implements Listener {
 
 	public NetherFarming(HellblockPlugin plugin) {
 		instance = plugin;
-		this.blockCache = new HashMap<>();
-		this.revertCache = new HashMap<>();
-		this.moistureCache = new HashMap<>();
-		this.regionCache = new HashMap<>();
+		this.blockCache = new LinkedHashMap<>();
+		this.revertCache = new LinkedHashMap<>();
+		this.moistureCache = new LinkedHashMap<>();
+		this.regionCache = new LinkedHashMap<>();
 		Bukkit.getPluginManager().registerEvents(this, instance);
 	}
 
-	public void trackNetherFarms(@Nullable HellblockPlayer hbPlayer) {
-		if (hbPlayer == null)
-			return;
-		Player player = hbPlayer.getPlayer();
-		if (player == null || !player.isOnline())
-			return;
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
-			return;
+	public CompletableFuture<Void> trackNetherFarms(@NonNull HellblockPlayer hbPlayer) {
+		return CompletableFuture.runAsync(() -> {
+			Set<Block> farmBlocks = getFarmlandOnHellblock(hbPlayer);
+			if (farmBlocks != null) {
+				Iterator<Block> islandBlocks = farmBlocks.iterator();
+				Block islandBlock;
+				do {
+					if (!islandBlocks.hasNext()) {
+						return;
+					}
 
-		Set<Block> farmBlocks = getFarmlandOnHellblock(hbPlayer);
-		if (farmBlocks != null) {
-			Iterator<Block> islandBlocks = farmBlocks.iterator();
-			Block islandBlock;
-			do {
-				if (!islandBlocks.hasNext()) {
-					return;
-				}
-
-				islandBlock = (Block) islandBlocks.next();
-				final Block updatingBlock = islandBlock;
-				if (!(updatingBlock.getBlockData() instanceof Farmland))
-					continue;
-				Farmland farm = (Farmland) updatingBlock.getBlockData();
-				Location cache = LocationCache.getCachedLocation(updatingBlock.getLocation());
-				if (checkForLavaAroundFarm(cache.getBlock()) || (instance.getLavaRain().getLavaRainTask() != null
-						&& instance.getLavaRain().getLavaRainTask().isLavaRaining()
-						&& instance.getLavaRain().getHighestBlock(cache) != null
-						&& instance.getLavaRain().getHighestBlock(cache).isEmpty())) {
-					instance.getScheduler().runTaskSyncLater(() -> {
-						if (!this.blockCache.containsKey(cache)) {
-							this.blockCache.put(cache, RandomUtils.generateRandomInt(15, 25));
-						}
-						do {
-							if (this.blockCache.containsKey(cache) && this.blockCache.get(cache) != null
-									&& this.blockCache.get(cache).intValue() == RandomUtils.generateRandomInt(15, 25)) {
-								if (player.getWorld()
-										.getBlockAt(cache.getBlockX(), cache.getBlockY(), cache.getBlockZ())
-										.getType() == Material.FARMLAND
-										&& ((Farmland) player.getWorld()
-												.getBlockAt(cache.getBlockX(), cache.getBlockY(), cache.getBlockZ())
-												.getBlockData())
-												.getMoisture() != ((Farmland) player.getWorld()
-														.getBlockAt(cache.getBlockX(), cache.getBlockY(),
-																cache.getBlockZ())
-														.getBlockData()).getMaximumMoisture()
-										&& !this.revertCache.containsKey(cache)
-										&& !this.moistureCache.containsKey(cache)) {
-									farm.setMoisture(farm.getMaximumMoisture());
-									updatingBlock.setBlockData(farm);
-									updatingBlock.getState().update();
-									this.moistureCache.put(cache, farm.getMoisture());
-								} else {
-									break;
-								}
-								if (this.moistureCache.containsKey(cache) && this.moistureCache.get(cache) != null
-										&& this.moistureCache.get(cache) == farm.getMaximumMoisture()) {
-									this.blockCache.remove(cache);
-									this.moistureCache.remove(cache);
-								}
-							}
-						} while (this.blockCache.containsKey(cache) && this.blockCache.get(cache) != null);
-					}, cache, RandomUtils.generateRandomInt(15, 30), TimeUnit.SECONDS);
-				} else {
-					instance.getScheduler().runTaskSyncLater(() -> {
-						farm.setMoisture(farm.getMoisture() > 0 ? farm.getMoisture() - 1 : 0);
-						if (farm.getMoisture() == 0) {
-							if (!this.revertCache.containsKey(cache)) {
-								this.revertCache.put(cache, RandomUtils.generateRandomInt(15, 20));
+					islandBlock = (Block) islandBlocks.next();
+					final Block updatingBlock = islandBlock;
+					if (!(updatingBlock.getBlockData() instanceof Farmland))
+						continue;
+					Farmland farm = (Farmland) updatingBlock.getBlockData();
+					Location cache = LocationCache.getCachedLocation(updatingBlock.getLocation());
+					if (checkForLavaAroundFarm(cache.getBlock())
+							|| (instance.getLavaRainHandler().getLavaRainTask() != null
+									&& instance.getLavaRainHandler().getLavaRainTask().isLavaRaining()
+									&& instance.getLavaRainHandler().getHighestBlock(cache) != null
+									&& instance.getLavaRainHandler().getHighestBlock(cache).isEmpty())) {
+						instance.getScheduler().runTaskSyncLater(() -> {
+							if (!this.blockCache.containsKey(cache)) {
+								this.blockCache.put(cache, RandomUtils.generateRandomInt(15, 25));
 							}
 							do {
-								if (this.revertCache.containsKey(cache) && this.revertCache.get(cache) != null
-										&& this.revertCache.get(cache).intValue() == RandomUtils.generateRandomInt(15,
-												20)) {
-									if (player.getWorld()
+								if (this.blockCache.containsKey(cache) && this.blockCache.get(cache) != null
+										&& this.blockCache.get(cache).intValue() == RandomUtils.generateRandomInt(15,
+												25)) {
+									if (instance.getHellblockHandler().getHellblockWorld()
 											.getBlockAt(cache.getBlockX(), cache.getBlockY(), cache.getBlockZ())
-											.getType() == Material.FARMLAND && !this.blockCache.containsKey(cache)
-											&& this.moistureCache.containsKey(cache)) {
-										updatingBlock.setType(Material.DIRT);
+											.getType() == Material.FARMLAND
+											&& ((Farmland) instance.getHellblockHandler().getHellblockWorld()
+													.getBlockAt(cache.getBlockX(), cache.getBlockY(), cache.getBlockZ())
+													.getBlockData())
+													.getMoisture() != ((Farmland) instance.getHellblockHandler()
+															.getHellblockWorld()
+															.getBlockAt(cache.getBlockX(), cache.getBlockY(),
+																	cache.getBlockZ())
+															.getBlockData()).getMaximumMoisture()
+											&& !this.revertCache.containsKey(cache)
+											&& !this.moistureCache.containsKey(cache)) {
+										farm.setMoisture(farm.getMaximumMoisture());
+										updatingBlock.setBlockData(farm);
 										updatingBlock.getState().update();
-										if (Tag.CROPS.isTagged(updatingBlock.getRelative(BlockFace.UP).getType())) {
-											updatingBlock.getRelative(BlockFace.UP).breakNaturally(true);
-											updatingBlock.getRelative(BlockFace.UP).getState().update();
+										if (!hbPlayer.isChallengeActive(ChallengeType.NETHER_FARM_CHALLENGE)
+												&& !hbPlayer
+														.isChallengeCompleted(ChallengeType.NETHER_FARM_CHALLENGE)) {
+											hbPlayer.beginChallengeProgression(ChallengeType.NETHER_FARM_CHALLENGE);
+										} else {
+											hbPlayer.updateChallengeProgression(ChallengeType.NETHER_FARM_CHALLENGE, 1);
+											if (hbPlayer.isChallengeCompleted(ChallengeType.NETHER_FARM_CHALLENGE)) {
+												hbPlayer.completeChallenge(ChallengeType.NETHER_FARM_CHALLENGE);
+											}
 										}
+										this.moistureCache.put(cache, farm.getMoisture());
 									} else {
 										break;
 									}
-									this.revertCache.remove(cache);
+									if (this.moistureCache.containsKey(cache) && this.moistureCache.get(cache) != null
+											&& this.moistureCache.get(cache) == farm.getMaximumMoisture()) {
+										this.blockCache.remove(cache);
+										this.moistureCache.remove(cache);
+									}
 								}
-							} while (this.revertCache.containsKey(cache) && this.revertCache.get(cache) != null);
-						}
-					}, cache, RandomUtils.generateRandomInt(10, 15), TimeUnit.SECONDS);
-				}
-			} while (hasDehydratedFarmland(farmBlocks) || hasUngrownCrops(farmBlocks));
-		}
+							} while (this.blockCache.containsKey(cache) && this.blockCache.get(cache) != null);
+						}, cache, RandomUtils.generateRandomInt(15, 30), TimeUnit.SECONDS);
+					} else {
+						instance.getScheduler().runTaskSyncLater(() -> {
+							farm.setMoisture(farm.getMoisture() > 0 ? farm.getMoisture() - 1 : 0);
+							if (farm.getMoisture() == 0) {
+								if (!this.revertCache.containsKey(cache)) {
+									this.revertCache.put(cache, RandomUtils.generateRandomInt(15, 20));
+								}
+								do {
+									if (this.revertCache.containsKey(cache) && this.revertCache.get(cache) != null
+											&& this.revertCache.get(cache).intValue() == RandomUtils
+													.generateRandomInt(15, 20)) {
+										if (instance.getHellblockHandler().getHellblockWorld()
+												.getBlockAt(cache.getBlockX(), cache.getBlockY(), cache.getBlockZ())
+												.getType() == Material.FARMLAND && !this.blockCache.containsKey(cache)
+												&& this.moistureCache.containsKey(cache)) {
+											if (Tag.CROPS.isTagged(updatingBlock.getRelative(BlockFace.UP).getType())) {
+												updatingBlock.getRelative(BlockFace.UP).breakNaturally(true);
+												updatingBlock.getRelative(BlockFace.UP).getState().update();
+											}
+											updatingBlock.setType(Material.DIRT);
+										} else {
+											break;
+										}
+										this.revertCache.remove(cache);
+									}
+								} while (this.revertCache.containsKey(cache) && this.revertCache.get(cache) != null);
+							}
+						}, cache, RandomUtils.generateRandomInt(10, 15), TimeUnit.SECONDS);
+					}
+				} while (hasDehydratedFarmland(farmBlocks) || hasUngrownCrops(farmBlocks));
+			}
+		});
 	}
 
 	private boolean hasUngrownCrops(@Nullable Set<Block> blocks) {
@@ -239,15 +244,13 @@ public class NetherFarming implements Listener {
 		return lavaFound;
 	}
 
-	private @Nullable Set<Block> getFarmlandOnHellblock(@Nullable HellblockPlayer hbPlayer) {
-		if (hbPlayer == null)
-			return null;
+	private @Nullable Set<Block> getFarmlandOnHellblock(@NonNull HellblockPlayer hbPlayer) {
 		Player player = hbPlayer.getPlayer();
 		if (player == null || !player.isOnline())
 			return null;
 		if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
 			return null;
-		if (instance.getHellblockHandler().isWorldguardProtect()) {
+		if (instance.getHellblockHandler().isWorldguardProtected()) {
 			Set<Block> regionBlocks = new HashSet<>();
 			// lessen the load on the server
 			if (this.regionCache.containsKey(hbPlayer) && this.regionCache.get(hbPlayer) != null) {
@@ -259,23 +262,7 @@ public class NetherFarming implements Listener {
 				instance.getScheduler().runTaskAsyncLater(() -> resetRegionCache(hbPlayer), 3, TimeUnit.MINUTES);
 				return regionBlocks;
 			}
-			if (instance.getWorldGuardHandler().getWorldGuardPlatform() == null) {
-				LogUtils.severe("Could not retrieve WorldGuard platform.");
-				return null;
-			}
-			RegionContainer container = instance.getWorldGuardHandler().getWorldGuardPlatform().getRegionContainer();
-			World world = BukkitAdapter.adapt(instance.getHellblockHandler().getHellblockWorld());
-			RegionManager regions = container.get(world);
-			if (regions == null) {
-				LogUtils.severe(
-						String.format("Could not load WorldGuard regions for hellblock world: %s", world.getName()));
-				return null;
-			}
-			BlockVector3 vector = BlockVector3.at(player.getX(), player.getY(), player.getZ());
-			ApplicableRegionSet wgRegion = regions.getApplicableRegions(vector);
-			if (wgRegion == null) {
-				return null;
-			}
+			Set<ProtectedRegion> wgRegion = instance.getWorldGuardHandler().getRegions(player.getUniqueId());
 			for (ProtectedRegion region : wgRegion) {
 				if (region == null) {
 					return null;
@@ -302,9 +289,8 @@ public class NetherFarming implements Listener {
 			// cache regions to keep it not thread heavy
 			if (!this.regionCache.containsKey(hbPlayer)) {
 				Collection<Location> localCache = new HashSet<>();
-				for (Block cachedBlock : regionBlocks) {
-					localCache.add(LocationCache.getCachedLocation(cachedBlock.getLocation()));
-				}
+				regionBlocks.forEach(
+						cachedBlock -> localCache.add(LocationCache.getCachedLocation(cachedBlock.getLocation())));
 				this.regionCache.put(hbPlayer, localCache);
 			}
 
@@ -315,10 +301,7 @@ public class NetherFarming implements Listener {
 		return null;
 	}
 
-	private void resetRegionCache(@Nullable HellblockPlayer hbPlayer) {
-		if (hbPlayer == null)
-			return;
-
+	private void resetRegionCache(@NonNull HellblockPlayer hbPlayer) {
 		if (this.regionCache.containsKey(hbPlayer)) {
 			this.regionCache.remove(hbPlayer);
 		}
@@ -329,18 +312,18 @@ public class NetherFarming implements Listener {
 		Block block = event.getBlock();
 		if (!block.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
 			return;
-		
+
 		if (block.getBlockData() instanceof Farmland) {
 			if (Tag.CROPS.isTagged(block.getRelative(BlockFace.UP).getType())
 					|| block.getRelative(BlockFace.UP).isEmpty()) {
-				if (checkForLavaAroundFarm(block) || (instance.getLavaRain().getLavaRainTask() != null
-						&& instance.getLavaRain().getLavaRainTask().isLavaRaining()
-						&& instance.getLavaRain().getHighestBlock(block.getLocation()) != null
-						&& instance.getLavaRain().getHighestBlock(block.getLocation()).isEmpty())) {
+				if (checkForLavaAroundFarm(block) || (instance.getLavaRainHandler().getLavaRainTask() != null
+						&& instance.getLavaRainHandler().getLavaRainTask().isLavaRaining()
+						&& instance.getLavaRainHandler().getHighestBlock(block.getLocation()) != null
+						&& instance.getLavaRainHandler().getHighestBlock(block.getLocation()).isEmpty())) {
 					event.setCancelled(true);
-					Collection<Entity> entitiesNearby = block.getWorld().getNearbyEntities(block.getLocation(), 25, 25,
-							25);
-					Player player = instance.getNetherrackGenerator().getClosestPlayer(block.getLocation(),
+					Collection<LivingEntity> entitiesNearby = block.getWorld()
+							.getNearbyLivingEntities(block.getLocation(), 25, 25, 25);
+					Player player = instance.getNetherrackGeneratorHandler().getClosestPlayer(block.getLocation(),
 							entitiesNearby);
 					if (player != null)
 						trackNetherFarms(instance.getHellblockHandler().getActivePlayer(player));
@@ -368,8 +351,10 @@ public class NetherFarming implements Listener {
 			return;
 
 		if (block.getBlockData() instanceof Farmland) {
-			Collection<Entity> entitiesNearby = block.getWorld().getNearbyEntities(block.getLocation(), 25, 25, 25);
-			Player player = instance.getNetherrackGenerator().getClosestPlayer(block.getLocation(), entitiesNearby);
+			Collection<LivingEntity> entitiesNearby = block.getWorld().getNearbyLivingEntities(block.getLocation(), 25,
+					25, 25);
+			Player player = instance.getNetherrackGeneratorHandler().getClosestPlayer(block.getLocation(),
+					entitiesNearby);
 			if (player != null) {
 				trackNetherFarms(instance.getHellblockHandler().getActivePlayer(player));
 			}
@@ -455,13 +440,15 @@ public class NetherFarming implements Listener {
 			return;
 
 		if (block.getBlockData() instanceof Farmland) {
-			if (checkForLavaAroundFarm(block) || (instance.getLavaRain().getLavaRainTask() != null
-					&& instance.getLavaRain().getLavaRainTask().isLavaRaining()
-					&& instance.getLavaRain().getHighestBlock(block.getLocation()) != null
-					&& instance.getLavaRain().getHighestBlock(block.getLocation()).isEmpty())) {
+			if (checkForLavaAroundFarm(block) || (instance.getLavaRainHandler().getLavaRainTask() != null
+					&& instance.getLavaRainHandler().getLavaRainTask().isLavaRaining()
+					&& instance.getLavaRainHandler().getHighestBlock(block.getLocation()) != null
+					&& instance.getLavaRainHandler().getHighestBlock(block.getLocation()).isEmpty())) {
 				event.setCancelled(true);
-				Collection<Entity> entitiesNearby = block.getWorld().getNearbyEntities(block.getLocation(), 25, 25, 25);
-				Player player = instance.getNetherrackGenerator().getClosestPlayer(block.getLocation(), entitiesNearby);
+				Collection<LivingEntity> entitiesNearby = block.getWorld().getNearbyLivingEntities(block.getLocation(),
+						25, 25, 25);
+				Player player = instance.getNetherrackGeneratorHandler().getClosestPlayer(block.getLocation(),
+						entitiesNearby);
 				if (player != null) {
 					trackNetherFarms(instance.getHellblockHandler().getActivePlayer(player));
 				}
@@ -506,8 +493,10 @@ public class NetherFarming implements Listener {
 			return;
 
 		if (block.getBlockData() instanceof Ageable) {
-			Collection<Entity> entitiesNearby = block.getWorld().getNearbyEntities(block.getLocation(), 25, 25, 25);
-			Player player = instance.getNetherrackGenerator().getClosestPlayer(block.getLocation(), entitiesNearby);
+			Collection<LivingEntity> entitiesNearby = block.getWorld().getNearbyLivingEntities(block.getLocation(), 25,
+					25, 25);
+			Player player = instance.getNetherrackGeneratorHandler().getClosestPlayer(block.getLocation(),
+					entitiesNearby);
 			if (player != null) {
 				trackNetherFarms(instance.getHellblockHandler().getActivePlayer(player));
 			}
@@ -561,8 +550,10 @@ public class NetherFarming implements Listener {
 		if (entity instanceof LivingEntity) {
 			Block block = event.getBlock();
 			if (block.getBlockData() instanceof Farmland || block.getBlockData() instanceof Ageable) {
-				Collection<Entity> entitiesNearby = block.getWorld().getNearbyEntities(block.getLocation(), 25, 25, 25);
-				Player player = instance.getNetherrackGenerator().getClosestPlayer(block.getLocation(), entitiesNearby);
+				Collection<LivingEntity> entitiesNearby = block.getWorld().getNearbyLivingEntities(block.getLocation(),
+						25, 25, 25);
+				Player player = instance.getNetherrackGeneratorHandler().getClosestPlayer(block.getLocation(),
+						entitiesNearby);
 				if (player != null)
 					trackNetherFarms(instance.getHellblockHandler().getActivePlayer(player));
 				if (block.getBlockData() instanceof Farmland) {

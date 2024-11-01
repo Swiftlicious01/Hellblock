@@ -1,7 +1,9 @@
 package com.swiftlicious.hellblock.generation;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -15,11 +17,9 @@ import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Registry;
 import org.bukkit.Tag;
-import org.bukkit.TreeType;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
-import org.bukkit.block.BlockState;
 import org.bukkit.block.Chest;
 import org.bukkit.block.banner.Pattern;
 import org.bukkit.block.banner.PatternType;
@@ -32,11 +32,9 @@ import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.jetbrains.annotations.Nullable;
 
-import com.google.common.io.Files;
 import com.saicone.rtag.RtagItem;
 import com.swiftlicious.hellblock.HellblockPlugin;
-import com.swiftlicious.hellblock.listeners.GlowstoneTree.GlowTree;
-import com.swiftlicious.hellblock.utils.LocationCache;
+import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
 import com.swiftlicious.hellblock.utils.LogUtils;
 import com.swiftlicious.hellblock.utils.wrappers.ShadedAdventureComponentWrapper;
 
@@ -57,315 +55,312 @@ public class IslandGenerator {
 		this.instance = plugin;
 	}
 
-	public boolean generateHellblockSchematic(Location location, Player player) {
-		if (instance.getHellblockHandler().getSchematics().length > 0) {
-			for (int i = 0; i < instance.getHellblockHandler().getSchematics().length; ++i) {
-				if (!(instance.getHellblockHandler().getSchematics()[i].isFile()
-						|| instance.getHellblockHandler().getSchematics()[i].getName().endsWith(".schematic")
-						|| instance.getHellblockHandler().getSchematics()[i].getName().endsWith(".schem")))
-					continue;
-				String schematic = Files
-						.getNameWithoutExtension(instance.getHellblockHandler().getSchematics()[i].getName());
-				if (instance.getHellblockHandler().getIslandOptions().contains(schematic)
-						&& (player.hasPermission("hellblock.schematic.*")
-								|| player.hasPermission("hellblock.schematic." + schematic))) {
-					try {
-						CompletableFuture<Void> pasteSchematic = instance.getSchematicManager()
-								.pasteSchematic(schematic, location);
-						pasteSchematic.thenRun(() -> {
+	public CompletableFuture<Void> generateHellblockSchematic(@NonNull Location location, @NonNull Player player,
+			@NonNull String schematic) {
+		return CompletableFuture.runAsync(() -> {
+			HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(player);
+			World world = instance.getHellblockHandler().getHellblockWorld();
+			if (instance.getHellblockHandler().isWorldguardProtected()) {
+				instance.getSchematicManager()
+						.pasteSchematic(schematic, instance.getWorldGuardHandler().getRegion(pi.getUUID(), pi.getID()))
+						.thenRun(() -> {
 							for (int x = -15; x <= 15; ++x) {
 								for (int y = -15; y <= 15; ++y) {
 									for (int z = -15; z <= 15; ++z) {
-										if (instance.getHellblockHandler().getHellblockWorld()
-												.getBlockAt(location.getBlockX() + x, location.getBlockY() + y,
-														location.getBlockZ() + z)
-												.getType() == Material.CHEST) {
-											this.generateChest(
-													new Location(instance.getHellblockHandler().getHellblockWorld(),
-															(double) (location.getBlockX() + x),
-															(double) (location.getBlockY() + y),
-															(double) (location.getBlockZ() + z)),
-													player);
+										if (world.getBlockAt(location.getBlockX() + x, location.getBlockY() + y,
+												location.getBlockZ() + z).getType() == Material.CHEST) {
+											final int finalX = x;
+											final int finalY = y;
+											final int finalZ = z;
+											instance.getScheduler().runTaskSync(
+													() -> this.generateChest(new Location(world,
+															(double) (location.getBlockX() + finalX),
+															(double) (location.getBlockY() + finalY),
+															(double) (location.getBlockZ() + finalZ)), player),
+													location);
+											break;
 										}
 									}
 								}
 							}
-						}).join();
-						return true;
-					} catch (Throwable t) {
-						LogUtils.severe("An error occurred while pasting hellblock schematic.", t);
-						return false;
-					}
+						});
+			}
+		});
+	}
+
+	public CompletableFuture<Void> generateDefaultHellblock(@NonNull Location location, @NonNull Player player) {
+		return CompletableFuture.runAsync(() -> {
+			Map<Block, Material> blockChanges = new LinkedHashMap<>();
+			World world = instance.getHellblockHandler().getHellblockWorld();
+			int x = location.getBlockX();
+			int z = location.getBlockZ();
+			Block block = world.getBlockAt(location);
+			blockChanges.put(block, Material.BEDROCK);
+			int y = location.getBlockY() + 4;
+
+			int operateX;
+			int operateZ;
+			for (operateX = x - 3; operateX <= x + 3; ++operateX) {
+				for (operateZ = z - 3; operateZ <= z + 3; ++operateZ) {
+					block = world.getBlockAt(operateX, y, operateZ);
+					blockChanges.put(block, Material.SOUL_SAND);
 				}
 			}
-		}
-		return false;
+
+			block = world.getBlockAt(x - 3, y, z + 3);
+			blockChanges.put(block, Material.AIR);
+			block = world.getBlockAt(x - 3, y, z - 3);
+			blockChanges.put(block, Material.AIR);
+			block = world.getBlockAt(x + 3, y, z - 3);
+			blockChanges.put(block, Material.AIR);
+			block = world.getBlockAt(x + 3, y, z + 3);
+			blockChanges.put(block, Material.AIR);
+			y = location.getBlockY() + 3;
+
+			for (operateX = x - 2; operateX <= x + 2; ++operateX) {
+				for (operateZ = z - 2; operateZ <= z + 2; ++operateZ) {
+					block = world.getBlockAt(operateX, y, operateZ);
+					blockChanges.put(block, Material.SOUL_SAND);
+				}
+			}
+
+			block = world.getBlockAt(x - 3, y, z);
+			blockChanges.put(block, Material.SOUL_SAND);
+			block = world.getBlockAt(x + 3, y, z);
+			blockChanges.put(block, Material.SOUL_SAND);
+			block = world.getBlockAt(x, y, z - 3);
+			blockChanges.put(block, Material.SOUL_SAND);
+			block = world.getBlockAt(x, y, z + 3);
+			blockChanges.put(block, Material.SOUL_SAND);
+			block = world.getBlockAt(x, y, z);
+			blockChanges.put(block, Material.GRASS_BLOCK);
+			y = location.getBlockY() + 2;
+
+			for (operateX = x - 1; operateX <= x + 1; ++operateX) {
+				for (operateZ = z - 1; operateZ <= z + 1; ++operateZ) {
+					block = world.getBlockAt(operateX, y, operateZ);
+					blockChanges.put(block, Material.SOUL_SAND);
+				}
+			}
+
+			block = world.getBlockAt(x - 2, y, z);
+			blockChanges.put(block, Material.SOUL_SAND);
+			block = world.getBlockAt(x + 2, y, z);
+			blockChanges.put(block, Material.SOUL_SAND);
+			block = world.getBlockAt(x, y, z - 2);
+			blockChanges.put(block, Material.SOUL_SAND);
+			block = world.getBlockAt(x, y, z + 2);
+			blockChanges.put(block, Material.SOUL_SAND);
+			block = world.getBlockAt(x, y, z);
+			blockChanges.put(block, Material.DIRT);
+			y = location.getBlockY() + 1;
+			block = world.getBlockAt(x - 1, y, z);
+			blockChanges.put(block, Material.SOUL_SAND);
+			block = world.getBlockAt(x + 1, y, z);
+			blockChanges.put(block, Material.SOUL_SAND);
+			block = world.getBlockAt(x, y, z - 1);
+			blockChanges.put(block, Material.SOUL_SAND);
+			block = world.getBlockAt(x, y, z + 1);
+			blockChanges.put(block, Material.SOUL_SAND);
+			block = world.getBlockAt(x, y, z);
+			blockChanges.put(block, Material.DIRT);
+			instance.getScheduler().runTaskSync(() -> blockChanges.forEach((change, type) -> change.setType(type)),
+					location);
+			y = (int) (location.getY() + 5.0D);
+			final int chestY = y;
+			this.generateGlowstoneTree(new Location(world, (double) x, (double) y, (double) z)).thenRun(() -> {
+				instance.getScheduler()
+						.runTaskSync(
+								() -> this.generateChest(
+										new Location(world, (double) x, (double) chestY, (double) (z + 1)), player),
+								location);
+			});
+		});
 	}
 
-	public boolean generateDefaultHellblock(Location location, Player player) {
-		World world = location.getWorld();
-		if (world == null) {
-			LogUtils.severe("An error occurred while generating default hellblock island.");
-			return false;
-		}
-		int x = (int) location.getX();
-		int z = (int) location.getZ();
-		Block block = world.getBlockAt(location);
-		block.setType(Material.BEDROCK);
-		int y = (int) (location.getY() + 4.0D);
+	public CompletableFuture<Void> generateClassicHellblock(@NonNull Location location, @NonNull Player player) {
+		return CompletableFuture.runAsync(() -> {
+			Map<Block, Material> blockChanges = new LinkedHashMap<>();
+			World world = instance.getHellblockHandler().getHellblockWorld();
+			int x = location.getBlockX();
+			int y = location.getBlockY();
+			int z = location.getBlockZ();
+			Block block = world.getBlockAt(location);
+			blockChanges.put(block, Material.SOUL_SAND);
 
-		int x_operate;
-		int z_operate;
-		for (x_operate = x - 3; x_operate <= x + 3; ++x_operate) {
-			for (z_operate = z - 3; z_operate <= z + 3; ++z_operate) {
-				block = world.getBlockAt(x_operate, y, z_operate);
-				block.setType(Material.SOUL_SAND);
+			int operateX;
+			int operateZ;
+			for (operateX = x - 5; operateX <= x; ++operateX) {
+				for (operateZ = z - 2; operateZ <= z; ++operateZ) {
+					block = world.getBlockAt(operateX, y, operateZ);
+					blockChanges.put(block, Material.SOUL_SAND);
+				}
 			}
-		}
 
-		block = world.getBlockAt(x - 3, y, z + 3);
-		block.setType(Material.AIR);
-		block = world.getBlockAt(x - 3, y, z - 3);
-		block.setType(Material.AIR);
-		block = world.getBlockAt(x + 3, y, z - 3);
-		block.setType(Material.AIR);
-		block = world.getBlockAt(x + 3, y, z + 3);
-		block.setType(Material.AIR);
-		y = (int) (location.getY() + 3.0D);
-
-		for (x_operate = x - 2; x_operate <= x + 2; ++x_operate) {
-			for (z_operate = z - 2; z_operate <= z + 2; ++z_operate) {
-				block = world.getBlockAt(x_operate, y, z_operate);
-				block.setType(Material.SOUL_SAND);
+			for (operateX = x - 2; operateX <= x; ++operateX) {
+				for (operateZ = z - 5; operateZ <= z; ++operateZ) {
+					block = world.getBlockAt(operateX, y, operateZ);
+					blockChanges.put(block, Material.SOUL_SAND);
+				}
 			}
-		}
 
-		block = world.getBlockAt(x - 3, y, z);
-		block.setType(Material.SOUL_SAND);
-		block = world.getBlockAt(x + 3, y, z);
-		block.setType(Material.SOUL_SAND);
-		block = world.getBlockAt(x, y, z - 3);
-		block.setType(Material.SOUL_SAND);
-		block = world.getBlockAt(x, y, z + 3);
-		block.setType(Material.SOUL_SAND);
-		block = world.getBlockAt(x, y, z);
-		block.setType(Material.GRASS_BLOCK);
-		y = (int) (location.getY() + 2.0D);
+			y = location.getBlockY() + 1;
 
-		for (x_operate = x - 1; x_operate <= x + 1; ++x_operate) {
-			for (z_operate = z - 1; z_operate <= z + 1; ++z_operate) {
-				block = world.getBlockAt(x_operate, y, z_operate);
-				block.setType(Material.SOUL_SAND);
+			for (operateX = x - 5; operateX <= x; ++operateX) {
+				for (operateZ = z - 2; operateZ <= z; ++operateZ) {
+					block = world.getBlockAt(operateX, y, operateZ);
+					blockChanges.put(block, Material.SOUL_SAND);
+				}
 			}
-		}
 
-		block = world.getBlockAt(x - 2, y, z);
-		block.setType(Material.SOUL_SAND);
-		block = world.getBlockAt(x + 2, y, z);
-		block.setType(Material.SOUL_SAND);
-		block = world.getBlockAt(x, y, z - 2);
-		block.setType(Material.SOUL_SAND);
-		block = world.getBlockAt(x, y, z + 2);
-		block.setType(Material.SOUL_SAND);
-		block = world.getBlockAt(x, y, z);
-		block.setType(Material.DIRT);
-		y = (int) (location.getY() + 1.0D);
-		block = world.getBlockAt(x - 1, y, z);
-		block.setType(Material.SOUL_SAND);
-		block = world.getBlockAt(x + 1, y, z);
-		block.setType(Material.SOUL_SAND);
-		block = world.getBlockAt(x, y, z - 1);
-		block.setType(Material.SOUL_SAND);
-		block = world.getBlockAt(x, y, z + 1);
-		block.setType(Material.SOUL_SAND);
-		block = world.getBlockAt(x, y, z);
-		block.setType(Material.DIRT);
-		y = (int) (location.getY() + 5.0D);
-		this.generateGlowstoneTree(new Location(world, (double) x, (double) y, (double) z));
-		this.generateChest(new Location(world, (double) x, (double) y, (double) (z + 1)), player);
-		return true;
+			for (operateX = x - 2; operateX <= x; ++operateX) {
+				for (operateZ = z - 5; operateZ <= z; ++operateZ) {
+					block = world.getBlockAt(operateX, y, operateZ);
+					blockChanges.put(block, Material.SOUL_SAND);
+				}
+			}
+
+			y = location.getBlockY() + 2;
+
+			for (operateX = x - 5; operateX <= x; ++operateX) {
+				for (operateZ = z - 2; operateZ <= z; ++operateZ) {
+					block = world.getBlockAt(operateX, y, operateZ);
+					blockChanges.put(block, Material.SOUL_SAND);
+				}
+			}
+
+			for (operateX = x - 2; operateX <= x; ++operateX) {
+				for (operateZ = z - 5; operateZ <= z; ++operateZ) {
+					block = world.getBlockAt(operateX, y, operateZ);
+					blockChanges.put(block, Material.SOUL_SAND);
+				}
+			}
+
+			y = location.getBlockY() + 1;
+			block = world.getBlockAt(x - 1, y, z - 1);
+			blockChanges.put(block, Material.GRASS_BLOCK);
+			block = world.getBlockAt(x - 3, y, z - 1);
+			blockChanges.put(block, Material.SOUL_SAND);
+			block = world.getBlockAt(x - 4, y, z - 1);
+			blockChanges.put(block, Material.DIRT);
+			block = world.getBlockAt(x - 1, y, z - 3);
+			blockChanges.put(block, Material.SOUL_SAND);
+			block = world.getBlockAt(x - 1, y, z - 4);
+			blockChanges.put(block, Material.DIRT);
+			block = world.getBlockAt(x - 1, y - 1, z - 1);
+			blockChanges.put(block, Material.BEDROCK);
+			instance.getScheduler().runTaskSync(() -> blockChanges.forEach((change, type) -> change.setType(type)),
+					location);
+			y = location.getBlockY() + 3;
+			final int chestY = y;
+			this.generateGlowstoneTree(new Location(world, (double) x, (double) y, (double) (z - 5))).thenRun(() -> {
+				instance.getScheduler()
+						.runTaskSync(() -> this.generateChest(
+								new Location(world, (double) (x - 5), (double) chestY, (double) (z - 1)), player),
+								location);
+			});
+		});
 	}
 
-	public boolean generateClassicHellblock(Location location, Player player) {
-		World world = location.getWorld();
-		if (world == null) {
-			LogUtils.severe("An error occurred while generating classic hellblock island.");
-			return false;
-		}
-		int x = (int) location.getX();
-		int y = (int) location.getY();
-		int z = (int) location.getZ();
-		Block block = world.getBlockAt(location);
-		block.setType(Material.SOUL_SAND);
+	public CompletableFuture<Void> generateGlowstoneTree(@NonNull Location location) {
+		return CompletableFuture.runAsync(() -> {
+			Map<Block, Material> blockChanges = new LinkedHashMap<>();
+			World world = instance.getHellblockHandler().getHellblockWorld();
+			int x = location.getBlockX();
+			int y = location.getBlockY();
+			int z = location.getBlockZ();
+			Block block = world.getBlockAt(x, y, z);
+			if (block.getType().isAir() || Tag.SAPLINGS.isTagged(block.getType()))
+				blockChanges.put(block, Material.GRAVEL);
+			block = world.getBlockAt(x, y + 1, z);
+			if (block.getType().isAir())
+				blockChanges.put(block, Material.GRAVEL);
+			block = world.getBlockAt(x, y + 2, z);
+			if (block.getType().isAir())
+				blockChanges.put(block, Material.GRAVEL);
+			y = location.getBlockY() + 3;
 
-		int x_operate;
-		int z_operate;
-		for (x_operate = x - 5; x_operate <= x; ++x_operate) {
-			for (z_operate = z - 2; z_operate <= z; ++z_operate) {
-				block = world.getBlockAt(x_operate, y, z_operate);
-				block.setType(Material.SOUL_SAND);
+			int operateX;
+			int operateZ;
+			for (operateX = x - 2; operateX <= x + 2; ++operateX) {
+				for (operateZ = z - 2; operateZ <= z + 2; ++operateZ) {
+					block = world.getBlockAt(operateX, y, operateZ);
+					if (!block.getType().isAir())
+						continue;
+					blockChanges.put(block, Material.GLOWSTONE);
+				}
 			}
-		}
 
-		for (x_operate = x - 2; x_operate <= x; ++x_operate) {
-			for (z_operate = z - 5; z_operate <= z; ++z_operate) {
-				block = world.getBlockAt(x_operate, y, z_operate);
-				block.setType(Material.SOUL_SAND);
+			block = world.getBlockAt(x + 2, y, z + 2);
+			if (block.getType() == Material.GLOWSTONE || block.getType().isAir())
+				blockChanges.put(block, Material.AIR);
+			block = world.getBlockAt(x + 2, y, z - 2);
+			if (block.getType() == Material.GLOWSTONE || block.getType().isAir())
+				blockChanges.put(block, Material.AIR);
+			block = world.getBlockAt(x - 2, y, z + 2);
+			if (block.getType() == Material.GLOWSTONE || block.getType().isAir())
+				blockChanges.put(block, Material.AIR);
+			block = world.getBlockAt(x - 2, y, z - 2);
+			if (block.getType() == Material.GLOWSTONE || block.getType().isAir())
+				blockChanges.put(block, Material.AIR);
+			block = world.getBlockAt(x, y, z);
+			if (block.getType() == Material.GLOWSTONE || block.getType().isAir())
+				blockChanges.put(block, Material.GRAVEL);
+			y = location.getBlockY() + 4;
+
+			for (operateX = x - 1; operateX <= x + 1; ++operateX) {
+				for (operateZ = z - 1; operateZ <= z + 1; ++operateZ) {
+					block = world.getBlockAt(operateX, y, operateZ);
+					if (!block.getType().isAir())
+						continue;
+					blockChanges.put(block, Material.GLOWSTONE);
+				}
 			}
-		}
 
-		y = (int) location.getY() + 1;
-
-		for (x_operate = x - 5; x_operate <= x; ++x_operate) {
-			for (z_operate = z - 2; z_operate <= z; ++z_operate) {
-				block = world.getBlockAt(x_operate, y, z_operate);
-				block.setType(Material.SOUL_SAND);
-			}
-		}
-
-		for (x_operate = x - 2; x_operate <= x; ++x_operate) {
-			for (z_operate = z - 5; z_operate <= z; ++z_operate) {
-				block = world.getBlockAt(x_operate, y, z_operate);
-				block.setType(Material.SOUL_SAND);
-			}
-		}
-
-		y = (int) location.getY() + 2;
-
-		for (x_operate = x - 5; x_operate <= x; ++x_operate) {
-			for (z_operate = z - 2; z_operate <= z; ++z_operate) {
-				block = world.getBlockAt(x_operate, y, z_operate);
-				block.setType(Material.SOUL_SAND);
-			}
-		}
-
-		for (x_operate = x - 2; x_operate <= x; ++x_operate) {
-			for (z_operate = z - 5; z_operate <= z; ++z_operate) {
-				block = world.getBlockAt(x_operate, y, z_operate);
-				block.setType(Material.SOUL_SAND);
-			}
-		}
-
-		y = (int) location.getY() + 1;
-		block = world.getBlockAt(x - 1, y, z - 1);
-		block.setType(Material.GRASS_BLOCK);
-		block = world.getBlockAt(x - 3, y, z - 1);
-		block.setType(Material.SOUL_SAND);
-		block = world.getBlockAt(x - 4, y, z - 1);
-		block.setType(Material.DIRT);
-		block = world.getBlockAt(x - 1, y, z - 3);
-		block.setType(Material.SOUL_SAND);
-		block = world.getBlockAt(x - 1, y, z - 4);
-		block.setType(Material.DIRT);
-		block = world.getBlockAt(x - 1, y - 1, z - 1);
-		block.setType(Material.BEDROCK);
-		y = (int) location.getY() + 3;
-		this.generateGlowstoneTree(new Location(world, (double) x, (double) y, (double) (z - 5)));
-		this.generateChest(new Location(world, (double) (x - 5), (double) y, (double) (z - 1)), player);
-		return true;
+			block = world.getBlockAt(x - 2, y, z);
+			if (block.getType().isAir())
+				blockChanges.put(block, Material.GLOWSTONE);
+			block = world.getBlockAt(x + 2, y, z);
+			if (block.getType().isAir())
+				blockChanges.put(block, Material.GLOWSTONE);
+			block = world.getBlockAt(x, y, z - 2);
+			if (block.getType().isAir())
+				blockChanges.put(block, Material.GLOWSTONE);
+			block = world.getBlockAt(x, y, z + 2);
+			if (block.getType().isAir())
+				blockChanges.put(block, Material.GLOWSTONE);
+			block = world.getBlockAt(x, y, z);
+			if (block.getType() == Material.GLOWSTONE || block.getType().isAir())
+				blockChanges.put(block, Material.GRAVEL);
+			y = location.getBlockY() + 5;
+			block = world.getBlockAt(x - 1, y, z);
+			if (block.getType().isAir())
+				blockChanges.put(block, Material.GLOWSTONE);
+			block = world.getBlockAt(x + 1, y, z);
+			if (block.getType().isAir())
+				blockChanges.put(block, Material.GLOWSTONE);
+			block = world.getBlockAt(x, y, z - 1);
+			if (block.getType().isAir())
+				blockChanges.put(block, Material.GLOWSTONE);
+			block = world.getBlockAt(x, y, z + 1);
+			if (block.getType().isAir())
+				blockChanges.put(block, Material.GLOWSTONE);
+			block = world.getBlockAt(x, y, z);
+			if (block.getType() == Material.GLOWSTONE || block.getType().isAir())
+				blockChanges.put(block, Material.GRAVEL);
+			block = world.getBlockAt(x, y + 1, z);
+			if (block.getType().isAir())
+				blockChanges.put(block, Material.GLOWSTONE);
+			instance.getScheduler().runTaskSync(() -> blockChanges.forEach((change, type) -> change.setType(type)),
+					location);
+		});
 	}
 
-	public boolean generateGlowstoneTree(Location location) {
-		World world = location.getWorld();
-		if (world == null) {
-			LogUtils.severe("An error occurred while generating glowstone tree.");
-			return false;
-		}
-		int x = (int) location.getX();
-		int y = (int) location.getY();
-		int z = (int) location.getZ();
-		List<BlockState> glowTreeStates = new ArrayList<>();
-		Block block = world.getBlockAt(x, y, z);
-		block.setType(Material.GRAVEL);
-		glowTreeStates.add(block.getState());
-		block = world.getBlockAt(x, y + 1, z);
-		block.setType(Material.GRAVEL);
-		glowTreeStates.add(block.getState());
-		block = world.getBlockAt(x, y + 2, z);
-		block.setType(Material.GRAVEL);
-		glowTreeStates.add(block.getState());
-		y = (int) (location.getY() + 3.0D);
-
-		int x_operate;
-		int z_operate;
-		for (x_operate = x - 2; x_operate <= x + 2; ++x_operate) {
-			for (z_operate = z - 2; z_operate <= z + 2; ++z_operate) {
-				block = world.getBlockAt(x_operate, y, z_operate);
-				block.setType(Material.GLOWSTONE);
-				glowTreeStates.add(block.getState());
-			}
-		}
-
-		block = world.getBlockAt(x + 2, y, z + 2);
-		block.setType(Material.AIR);
-		block = world.getBlockAt(x + 2, y, z - 2);
-		block.setType(Material.AIR);
-		block = world.getBlockAt(x - 2, y, z + 2);
-		block.setType(Material.AIR);
-		block = world.getBlockAt(x - 2, y, z - 2);
-		block.setType(Material.AIR);
-		block = world.getBlockAt(x, y, z);
-		block.setType(Material.GRAVEL);
-		glowTreeStates.add(block.getState());
-		y = (int) (location.getY() + 4.0D);
-
-		for (x_operate = x - 1; x_operate <= x + 1; ++x_operate) {
-			for (z_operate = z - 1; z_operate <= z + 1; ++z_operate) {
-				block = world.getBlockAt(x_operate, y, z_operate);
-				block.setType(Material.GLOWSTONE);
-				glowTreeStates.add(block.getState());
-			}
-		}
-
-		block = world.getBlockAt(x - 2, y, z);
-		block.setType(Material.GLOWSTONE);
-		glowTreeStates.add(block.getState());
-		block = world.getBlockAt(x + 2, y, z);
-		block.setType(Material.GLOWSTONE);
-		glowTreeStates.add(block.getState());
-		block = world.getBlockAt(x, y, z - 2);
-		block.setType(Material.GLOWSTONE);
-		glowTreeStates.add(block.getState());
-		block = world.getBlockAt(x, y, z + 2);
-		block.setType(Material.GLOWSTONE);
-		glowTreeStates.add(block.getState());
-		block = world.getBlockAt(x, y, z);
-		block.setType(Material.GRAVEL);
-		glowTreeStates.add(block.getState());
-		y = (int) (location.getY() + 5.0D);
-		block = world.getBlockAt(x - 1, y, z);
-		block.setType(Material.GLOWSTONE);
-		glowTreeStates.add(block.getState());
-		block = world.getBlockAt(x + 1, y, z);
-		block.setType(Material.GLOWSTONE);
-		glowTreeStates.add(block.getState());
-		block = world.getBlockAt(x, y, z - 1);
-		block.setType(Material.GLOWSTONE);
-		glowTreeStates.add(block.getState());
-		block = world.getBlockAt(x, y, z + 1);
-		block.setType(Material.GLOWSTONE);
-		glowTreeStates.add(block.getState());
-		block = world.getBlockAt(x, y, z);
-		block.setType(Material.GRAVEL);
-		glowTreeStates.add(block.getState());
-		block = world.getBlockAt(x, y + 1, z);
-		block.setType(Material.GLOWSTONE);
-		glowTreeStates.add(block.getState());
-		GlowTree glowTree = instance.getGlowstoneTree().new GlowTree(TreeType.TREE, glowTreeStates);
-		instance.getGlowstoneTree().glowTreeCache
-				.put(LocationCache.getCachedLocation(world.getBlockAt(x, y, z).getLocation()), glowTree);
-		return true;
-	}
-
-	public boolean generateChest(Location location, Player player) {
-		World world = location.getWorld();
-		if (world == null) {
-			LogUtils.severe("An error occurred while generating hellblock chest.");
-			return false;
-		}
-		int x = (int) location.getX();
-		int y = (int) location.getY();
-		int z = (int) location.getZ();
+	public void generateChest(@NonNull Location location, @NonNull Player player) {
+		World world = instance.getHellblockHandler().getHellblockWorld();
+		int x = location.getBlockX();
+		int y = location.getBlockY();
+		int z = location.getBlockZ();
 		Block block = world.getBlockAt(x, y, z);
 		block.setType(Material.CHEST);
 		Directional directional = (Directional) block.getBlockData();
@@ -550,11 +545,11 @@ public class IslandGenerator {
 							if (color.contains(":")) {
 								String[] split = color.split(":");
 								for (String string : split) {
-									Color mainColor = instance.getNetherBrewing().getColor(string);
+									Color mainColor = instance.getNetherBrewingHandler().getColor(string);
 									mainColors.add(mainColor);
 								}
 							} else {
-								mainColors.add(instance.getNetherBrewing().getColor(color));
+								mainColors.add(instance.getNetherBrewingHandler().getColor(color));
 							}
 						}
 						List<Color> fadeColors = new ArrayList<>();
@@ -562,11 +557,11 @@ public class IslandGenerator {
 							if (fade.contains(":")) {
 								String[] split = fade.split(":");
 								for (String string : split) {
-									Color fadeColor = instance.getNetherBrewing().getColor(string);
+									Color fadeColor = instance.getNetherBrewingHandler().getColor(string);
 									fadeColors.add(fadeColor);
 								}
 							} else {
-								fadeColors.add(instance.getNetherBrewing().getColor(fade));
+								fadeColors.add(instance.getNetherBrewingHandler().getColor(fade));
 							}
 						}
 						builder.flicker(flicker).trail(trail)
@@ -595,16 +590,15 @@ public class IslandGenerator {
 						String.format("Unable to create the defined item for the starter chest: %s", instance
 								.getConfig("config.yml").getString("hellblock.starter-chest." + path + ".material")),
 						ex);
-				return false;
+				continue;
 			}
 		}
-		return true;
 	}
 
 	private static final BlockFace[] FACES = new BlockFace[] { BlockFace.NORTH, BlockFace.SOUTH, BlockFace.EAST,
 			BlockFace.WEST };
 
-	private @NonNull BlockFace getChestDirection(@NonNull Location location, IslandOptions option) {
+	private @NonNull BlockFace getChestDirection(@NonNull Location location, @NonNull IslandOptions option) {
 
 		BlockFace finalFace = BlockFace.SOUTH;
 		for (BlockFace face : FACES) {

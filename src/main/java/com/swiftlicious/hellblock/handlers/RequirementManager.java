@@ -43,7 +43,7 @@ import io.papermc.paper.registry.RegistryKey;
 
 public class RequirementManager implements RequirementManagerInterface {
 
-	public Requirement[] mechanismRequirements;
+	public Requirement[] fishingRequirements;
 	private final HellblockPlugin instance;
 	private final HashMap<String, RequirementFactory> requirementFactoryMap;
 	private final LinkedHashMap<String, ConditionalElement> conditionalLootsMap;
@@ -74,7 +74,7 @@ public class RequirementManager implements RequirementManagerInterface {
 	public void loadRequirementGroupFileConfig() {
 		// Load mechanic requirements from the main configuration file
 		YamlConfiguration main = instance.getConfig("config.yml");
-		mechanismRequirements = getRequirements(main.getConfigurationSection("mechanism.mechanism-requirements"), true);
+		fishingRequirements = getRequirements(main.getConfigurationSection("lava-fishing-options.fishing-requirements"), true);
 
 		// Load conditional loot data from the loot conditions configuration file
 		YamlConfiguration config = instance.getConfig("loot-conditions.yml");
@@ -148,7 +148,6 @@ public class RequirementManager implements RequirementManagerInterface {
 		this.registerDateRequirement();
 		this.registerPluginLevelRequirement();
 		this.registerPermissionRequirement();
-		this.registerWorldRequirement();
 		this.registerWeatherRequirement();
 		this.registerLavaFishingRequirement();
 		this.registerRodRequirement();
@@ -514,36 +513,13 @@ public class RequirementManager implements RequirementManagerInterface {
 		});
 	}
 
-	private void registerWorldRequirement() {
-		registerRequirement("world", (args, actions, advanced) -> {
-			HashSet<String> worlds = new HashSet<>(instance.getConfigUtils().stringListArgs(args));
-			return condition -> {
-				if (worlds.contains(condition.getLocation().getWorld().getName()))
-					return true;
-				if (advanced)
-					triggerActions(actions, condition);
-				return false;
-			};
-		});
-		registerRequirement("!world", (args, actions, advanced) -> {
-			HashSet<String> worlds = new HashSet<>(instance.getConfigUtils().stringListArgs(args));
-			return condition -> {
-				if (!worlds.contains(condition.getLocation().getWorld().getName()))
-					return true;
-				if (advanced)
-					triggerActions(actions, condition);
-				return false;
-			};
-		});
-	}
-
 	private void registerWeatherRequirement() {
 		registerRequirement("weather", (args, actions, advanced) -> {
 			List<String> weathers = instance.getConfigUtils().stringListArgs(args);
 			return condition -> {
 				String currentWeather;
-				if (instance.getLavaRain().getLavaRainTask() != null
-						&& instance.getLavaRain().getLavaRainTask().isLavaRaining())
+				if (instance.getLavaRainHandler().getLavaRainTask() != null
+						&& instance.getLavaRainHandler().getLavaRainTask().isLavaRaining())
 					currentWeather = "lavarain";
 				else
 					currentWeather = "clear";

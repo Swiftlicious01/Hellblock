@@ -356,7 +356,7 @@ public class FishingManager implements Listener, FishingManagerInterface {
 		}
 		// Check mechanic requirements
 		if (!RequirementManagerInterface.isRequirementMet(fishingPreparation,
-				instance.getRequirementManager().mechanismRequirements)) {
+				instance.getRequirementManager().fishingRequirements)) {
 			this.removeTempFishingState(player);
 			return;
 		}

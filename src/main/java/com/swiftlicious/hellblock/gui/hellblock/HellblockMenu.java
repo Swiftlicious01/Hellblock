@@ -3,14 +3,17 @@ package com.swiftlicious.hellblock.gui.hellblock;
 import java.util.UUID;
 
 import org.bukkit.Material;
+import org.bukkit.WorldBorder;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.player.PlayerTeleportEvent.TeleportCause;
 import org.jetbrains.annotations.NotNull;
 
+import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
+import com.swiftlicious.hellblock.playerdata.HellblockPlayer.HellblockData;
 import com.swiftlicious.hellblock.utils.ChunkUtils;
 import com.swiftlicious.hellblock.utils.LocationUtils;
 import com.swiftlicious.hellblock.utils.wrappers.ShadedAdventureComponentWrapper;
@@ -26,15 +29,24 @@ public class HellblockMenu {
 	public HellblockMenu(Player player) {
 
 		if (HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player).hasHellblock()) {
-			Gui gui = Gui.normal().setStructure("t i c p b l f r x")
-					.addIngredient('i', new IslandLevelItem(player.getUniqueId()))
-					.addIngredient('t', new TeleportIslandItem()).addIngredient('p', new ViewPartyMembersItem())
-					.addIngredient('c', new IslandChallengesItem())
-					.addIngredient('b', new BiomeItem(player.getUniqueId()))
-					.addIngredient('l', new LockIslandItem(player.getUniqueId()))
-					.addIngredient('r', new ResetIslandItem(player.getUniqueId()))
-					.addIngredient('f', new ProtectionFlagItem()).addIngredient('x', new CloseMenuItem()).build();
-
+			Gui gui;
+			if (HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player).getHellblockOwner() != null
+					&& HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player).getHellblockOwner()
+							.equals(player.getUniqueId())) {
+				gui = Gui.normal().setStructure("t i c p b l f r x")
+						.addIngredient('i', new IslandLevelItem(player.getUniqueId()))
+						.addIngredient('t', new TeleportIslandItem()).addIngredient('p', new ViewPartyMembersItem())
+						.addIngredient('c', new IslandChallengesItem())
+						.addIngredient('b', new BiomeItem(player.getUniqueId()))
+						.addIngredient('l', new LockIslandItem(player.getUniqueId()))
+						.addIngredient('r', new ResetIslandItem(player.getUniqueId()))
+						.addIngredient('f', new ProtectionFlagItem()).addIngredient('x', new CloseMenuItem()).build();
+			} else {
+				gui = Gui.normal().setStructure("t i c p x")
+						.addIngredient('i', new IslandLevelItem(player.getUniqueId()))
+						.addIngredient('t', new TeleportIslandItem()).addIngredient('p', new ViewPartyMembersItem())
+						.addIngredient('c', new IslandChallengesItem()).addIngredient('x', new CloseMenuItem()).build();
+			}
 			Window window = Window
 					.single().setViewer(player).setTitle(new ShadedAdventureComponentWrapper(HellblockPlugin
 							.getInstance().getAdventureManager().getComponentFromMiniMessage("<red>Hellblock Menu")))
@@ -121,10 +133,13 @@ public class HellblockMenu {
 											String.format("<gold>Level: <yellow>%s", pi.getLevel()))),
 							new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 									.getComponentFromMiniMessage(" ")),
-							new ShadedAdventureComponentWrapper(
-									HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
-											String.format("<gold>Your overall rank is <yellow>#%s", HellblockPlugin
-													.getInstance().getIslandLevelManager().getLevelRank(playerUUID)))));
+							new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+									.getComponentFromMiniMessage(String.format("<gold>Your overall rank is <yellow>%s",
+											(HellblockPlugin.getInstance().getIslandLevelManager()
+													.getLevelRank(playerUUID) > 0
+															? "#" + HellblockPlugin.getInstance()
+																	.getIslandLevelManager().getLevelRank(playerUUID)
+															: "Unranked")))));
 		}
 
 		@Override
@@ -172,12 +187,14 @@ public class HellblockMenu {
 					return;
 				}
 				pi.setLockedStatus(!pi.getLockedStatus());
+				HellblockPlugin.getInstance().getCoopManager().updateParty(player.getUniqueId(), HellblockData.LOCK,
+						pi.getLockedStatus());
 				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 						String.format("<red>You have just <dark_red>%s <red>your hellblock island!",
 								(pi.getLockedStatus() ? "locked" : "unlocked")));
 				if (pi.getLockedStatus()) {
 					HellblockPlugin.getInstance().getCoopManager().kickVisitorsIfLocked(player.getUniqueId());
-					HellblockPlugin.getInstance().getCoopManager().changeLockStatus(player);
+					HellblockPlugin.getInstance().getCoopManager().changeLockStatus(pi);
 				}
 				new HellblockMenu(player);
 				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
@@ -245,7 +262,7 @@ public class HellblockMenu {
 			} else {
 				return new ItemBuilder(Material.BARRIER).addAllItemFlags()
 						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
-								.getAdventureManager().getComponentFromMiniMessage("<red>Reset on Cooldown!")))
+								.getAdventureManager().getComponentFromMiniMessage("<red>Biome Change on Cooldown!")))
 						.addLoreLines(new ShadedAdventureComponentWrapper(
 								HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
 										"<dark_red>Your ability to change your biome is on cooldown!")));
@@ -307,28 +324,44 @@ public class HellblockMenu {
 						net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 			} else {
 				if (pi.getHomeLocation() != null) {
-					if (!LocationUtils.isSafeLocation(pi.getHomeLocation())) {
-						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-								"<red>This hellblock home location was deemed not safe, resetting to bedrock location!");
-						pi.setHome(HellblockPlugin.getInstance().getHellblockHandler()
-								.locateBedrock(player.getUniqueId()));
-						HellblockPlugin.getInstance().getCoopManager().updateParty(player.getUniqueId(), "home",
-								pi.getHomeLocation());
-					}
+					LocationUtils.isSafeLocationAsync(pi.getHomeLocation()).thenAccept((result) -> {
+						if (!result.booleanValue()) {
+							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+									"<red>This hellblock home location was deemed not safe, resetting to bedrock location!");
+							HellblockPlugin.getInstance().getHellblockHandler().locateBedrock(player.getUniqueId())
+									.thenAccept((bedrock) -> {
+										pi.setHome(bedrock);
+										HellblockPlugin.getInstance().getCoopManager().updateParty(player.getUniqueId(),
+												HellblockData.HOME, pi.getHomeLocation());
+									});
+						}
+					});
 					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 							"<red>Teleporting you to your hellblock!");
-					ChunkUtils.teleportAsync(player, pi.getHomeLocation(), TeleportCause.PLUGIN);
+					ChunkUtils.teleportAsync(player, pi.getHomeLocation(), TeleportCause.PLUGIN).thenRun(() -> {
+						WorldBorder border = HellblockPlugin.getInstance().getHellblockHandler().getHellblockWorld()
+								.getWorldBorder();
+						if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
+							ProtectedRegion region = HellblockPlugin.getInstance().getWorldGuardHandler()
+									.getRegion(pi.getUUID(), pi.getID());
+							if (region != null) {
+								border.setCenter(HellblockPlugin.getInstance().getWorldGuardHandler().getCenter(region)
+										.toLocation(HellblockPlugin.getInstance().getHellblockHandler()
+												.getHellblockWorld()));
+							}
+						} else {
+							// TODO: using plugin protection
+						}
+						border.setSize(HellblockPlugin.getInstance().getHellblockHandler().getProtectionRange());
+						border.setWarningDistance(0);
+						border.setDamageAmount(0);
+						border.setWarningTime(Integer.MAX_VALUE);
+						border.setDamageBuffer(Double.MAX_VALUE);
+						pi.setHellblockBorder(border);
+					});
 					HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
 							net.kyori.adventure.sound.Sound.Source.PLAYER,
 							net.kyori.adventure.key.Key.key("minecraft:entity.enderman.teleport"), 1, 1);
-					// if raining give player a bit of protection
-					if (HellblockPlugin.getInstance().getLavaRain().getLavaRainTask() != null
-							&& HellblockPlugin.getInstance().getLavaRain().getLavaRainTask().isLavaRaining()
-							&& HellblockPlugin.getInstance().getLavaRain().getHighestBlock(player.getLocation()) != null
-							&& !HellblockPlugin.getInstance().getLavaRain().getHighestBlock(player.getLocation())
-									.isEmpty()) {
-						player.setNoDamageTicks(5 * 20);
-					}
 				} else {
 					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 							"<red>Error teleporting you to your hellblock!");

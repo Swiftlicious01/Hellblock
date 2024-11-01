@@ -22,27 +22,61 @@ public class HellblockCoopCommand {
 	public static HellblockCoopCommand INSTANCE = new HellblockCoopCommand();
 
 	public CommandAPICommand getCoopCommand() {
-		return new CommandAPICommand("coop").withPermission(CommandPermission.NONE).withPermission("hellblock.coop")
-				.withSubcommands(getOwnerCommand("setowner"), getRemoveCommand("kick"), getInviteCommand("invite"),
-						getLeaveCommand("leave"), getTrustCommand("trust"), getUntrustCommand("untrust"),
-						getAcceptInviteCommand("accept"), getRejectInviteCommand("reject"),
-						getInviteListCommand("invitations"), getCancelInviteCommand("cancel"));
+		return getHelpCommand().withSubcommands(getOwnerCommand("setowner"), getRemoveCommand("kick"),
+				getInviteCommand("invite"), getLeaveCommand("leave"), getTrustCommand("trust"),
+				getUntrustCommand("untrust"), getAcceptInviteCommand("accept"), getRejectInviteCommand("reject"),
+				getInviteListCommand("invitations"), getCancelInviteCommand("cancel"));
+	}
+
+	private CommandAPICommand getHelpCommand() {
+		CommandAPICommand command = new CommandAPICommand("hellcoop");
+		if (command.getArguments().isEmpty()) {
+			command.withPermission(CommandPermission.NONE).withPermission("hellblock.coop")
+					.executesPlayer((player, args) -> {
+						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+								"<dark_red>Hellblock Coop Commands:");
+						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
+								"<red>/hellcoop invite <player>: Invite another player to your island");
+						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
+								"<red>/hellcoop accept <player>: Accept an invite to another player's island");
+						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
+								"<red>/hellcoop decline <player>: Reject an invite to another player's island");
+						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
+								"<red>/hellcoop invitations: See a list of invitations sent to you in the past 24 hours!");
+						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
+								"<red>/hellcoop cancel <player>: Cancel an invite you sent to a player to join your island");
+						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
+								"<red>/hellcoop kick <player>: Kick the player from your party");
+						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
+								"<red>/hellcoop leave: Leave the island you're apart of");
+						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
+								"<red>/hellcoop setowner <player>: Set the new owner of your island");
+						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
+								"<red>/hellcoop trust <player>: Trust a player to your island without inviting them");
+						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
+								"<red>/hellcoop untrust <player>: Untrusts a player from your island");
+					});
+		}
+		return command;
 	}
 
 	private CommandAPICommand getOwnerCommand(String namespace) {
-		return new CommandAPICommand(namespace).withAliases("transferowner").withArguments(
-				new PlayerArgument("player").replaceSuggestions(ArgumentSuggestions.stringCollection(info -> {
-					if (info.sender() instanceof Player player) {
-						return HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers().values().stream()
-								.filter(hbPlayer -> hbPlayer.getPlayer() != null && hbPlayer.hasHellblock()
-										&& hbPlayer.getHellblockOwner() != null
-										&& hbPlayer.getHellblockOwner().equals(player.getUniqueId())
-										&& !hbPlayer.getPlayer().getName().equalsIgnoreCase(player.getName()))
-								.map(hbPlayer -> hbPlayer.getPlayer().getName()).collect(Collectors.toList());
-					} else {
-						return Collections.emptyList();
-					}
-				}))).executesPlayer((player, args) -> {
+		return new CommandAPICommand(namespace).withAliases("transferowner").withPermission(CommandPermission.NONE)
+				.withPermission("hellblock.coop").withArguments(
+						new PlayerArgument("player").replaceSuggestions(ArgumentSuggestions.stringCollection(info -> {
+							if (info.sender() instanceof Player player) {
+								return HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers().values()
+										.stream()
+										.filter(hbPlayer -> hbPlayer.getPlayer() != null && hbPlayer.hasHellblock()
+												&& hbPlayer.getHellblockOwner() != null
+												&& hbPlayer.getHellblockOwner().equals(player.getUniqueId())
+												&& !hbPlayer.getPlayer().getName().equalsIgnoreCase(player.getName()))
+										.map(hbPlayer -> hbPlayer.getPlayer().getName()).collect(Collectors.toList());
+							} else {
+								return Collections.emptyList();
+							}
+						})))
+				.executesPlayer((player, args) -> {
 					HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
 					if (pi.hasHellblock()) {
 						if (pi.isAbandoned()) {
@@ -77,19 +111,22 @@ public class HellblockCoopCommand {
 	}
 
 	private CommandAPICommand getRemoveCommand(String namespace) {
-		return new CommandAPICommand(namespace).withAliases("remove").withArguments(
-				new StringArgument("player").replaceSuggestions(ArgumentSuggestions.stringCollection(info -> {
-					if (info.sender() instanceof Player player) {
-						return HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers().values().stream()
-								.filter(hbPlayer -> hbPlayer.getPlayer() != null && hbPlayer.hasHellblock()
-										&& hbPlayer.getHellblockOwner() != null
-										&& hbPlayer.getHellblockOwner().equals(player.getUniqueId())
-										&& !hbPlayer.getPlayer().getName().equalsIgnoreCase(player.getName()))
-								.map(hbPlayer -> hbPlayer.getPlayer().getName()).collect(Collectors.toList());
-					} else {
-						return Collections.emptyList();
-					}
-				}))).executesPlayer((player, args) -> {
+		return new CommandAPICommand(namespace).withAliases("remove").withPermission(CommandPermission.NONE)
+				.withPermission("hellblock.coop").withArguments(
+						new StringArgument("player").replaceSuggestions(ArgumentSuggestions.stringCollection(info -> {
+							if (info.sender() instanceof Player player) {
+								return HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers().values()
+										.stream()
+										.filter(hbPlayer -> hbPlayer.getPlayer() != null && hbPlayer.hasHellblock()
+												&& hbPlayer.getHellblockOwner() != null
+												&& hbPlayer.getHellblockOwner().equals(player.getUniqueId())
+												&& !hbPlayer.getPlayer().getName().equalsIgnoreCase(player.getName()))
+										.map(hbPlayer -> hbPlayer.getPlayer().getName()).collect(Collectors.toList());
+							} else {
+								return Collections.emptyList();
+							}
+						})))
+				.executesPlayer((player, args) -> {
 					HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
 					if (pi.hasHellblock()) {
 						if (pi.isAbandoned()) {
@@ -139,24 +176,29 @@ public class HellblockCoopCommand {
 	}
 
 	private CommandAPICommand getLeaveCommand(String namespace) {
-		return new CommandAPICommand(namespace).executesPlayer((player, args) -> {
-			HellblockPlayer leavingPlayer = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
-			HellblockPlugin.getInstance().getCoopManager().leaveHellblockParty(leavingPlayer);
-		});
+		return new CommandAPICommand(namespace).withPermission(CommandPermission.NONE).withPermission("hellblock.coop")
+				.executesPlayer((player, args) -> {
+					HellblockPlayer leavingPlayer = HellblockPlugin.getInstance().getHellblockHandler()
+							.getActivePlayer(player);
+					HellblockPlugin.getInstance().getCoopManager().leaveHellblockParty(leavingPlayer);
+				});
 	}
 
 	private CommandAPICommand getInviteCommand(String namespace) {
-		return new CommandAPICommand(namespace).withAliases("add").withArguments(
-				new PlayerArgument("player").replaceSuggestions(ArgumentSuggestions.stringCollection(info -> {
-					if (info.sender() instanceof Player player) {
-						return HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers().values().stream()
-								.filter(hbPlayer -> hbPlayer.getPlayer() != null && !hbPlayer.hasHellblock()
-										&& !hbPlayer.getPlayer().getName().equalsIgnoreCase(player.getName()))
-								.map(hbPlayer -> hbPlayer.getPlayer().getName()).collect(Collectors.toList());
-					} else {
-						return Collections.emptyList();
-					}
-				}))).executesPlayer((player, args) -> {
+		return new CommandAPICommand(namespace).withAliases("add").withPermission(CommandPermission.NONE)
+				.withPermission("hellblock.coop").withArguments(
+						new PlayerArgument("player").replaceSuggestions(ArgumentSuggestions.stringCollection(info -> {
+							if (info.sender() instanceof Player player) {
+								return HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers().values()
+										.stream()
+										.filter(hbPlayer -> hbPlayer.getPlayer() != null && !hbPlayer.hasHellblock()
+												&& !hbPlayer.getPlayer().getName().equalsIgnoreCase(player.getName()))
+										.map(hbPlayer -> hbPlayer.getPlayer().getName()).collect(Collectors.toList());
+							} else {
+								return Collections.emptyList();
+							}
+						})))
+				.executesPlayer((player, args) -> {
 					HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
 					if (pi.hasHellblock()) {
 						if (pi.isAbandoned()) {
@@ -206,23 +248,27 @@ public class HellblockCoopCommand {
 	}
 
 	private CommandAPICommand getAcceptInviteCommand(String namespace) {
-		return new CommandAPICommand(namespace).withArguments(
-				new StringArgument("player").replaceSuggestions(ArgumentSuggestions.stringCollection(info -> {
-					if (info.sender() instanceof Player player) {
-						return HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers().values().stream()
-								.filter(hbPlayer -> hbPlayer.getPlayer() != null && !hbPlayer.hasHellblock()
-										&& hbPlayer.getInvitations() != null
-										&& hbPlayer.getPlayer().getName().equalsIgnoreCase(player.getName()))
-								.findFirst()
-								.orElse(HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player))
-								.getInvitations().keySet().stream()
-								.map(id -> (Bukkit.getPlayer(id) != null ? Bukkit.getPlayer(id).getName()
-										: Bukkit.getOfflinePlayer(id).getName()))
-								.collect(Collectors.toList());
-					} else {
-						return Collections.emptyList();
-					}
-				}))).executesPlayer((player, args) -> {
+		return new CommandAPICommand(namespace).withPermission(CommandPermission.NONE).withPermission("hellblock.coop")
+				.withArguments(
+						new StringArgument("player").replaceSuggestions(ArgumentSuggestions.stringCollection(info -> {
+							if (info.sender() instanceof Player player) {
+								return HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers().values()
+										.stream()
+										.filter(hbPlayer -> hbPlayer.getPlayer() != null && !hbPlayer.hasHellblock()
+												&& hbPlayer.getInvitations() != null
+												&& hbPlayer.getPlayer().getName().equalsIgnoreCase(player.getName()))
+										.findFirst()
+										.orElse(HellblockPlugin.getInstance().getHellblockHandler()
+												.getActivePlayer(player))
+										.getInvitations().keySet().stream()
+										.map(id -> (Bukkit.getPlayer(id) != null ? Bukkit.getPlayer(id).getName()
+												: Bukkit.getOfflinePlayer(id).getName()))
+										.collect(Collectors.toList());
+							} else {
+								return Collections.emptyList();
+							}
+						})))
+				.executesPlayer((player, args) -> {
 					HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
 					if (!pi.hasHellblock()) {
 						String user = (String) args.getOrDefault("player", player);
@@ -267,45 +313,50 @@ public class HellblockCoopCommand {
 	}
 
 	private CommandAPICommand getInviteListCommand(String namespace) {
-		return new CommandAPICommand(namespace).executesPlayer((player, args) -> {
-			HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
-			if (!pi.hasHellblock()) {
-				if (pi.getInvitations() == null) {
-					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-							"<red>You don't have any invitations!");
-					return;
-				}
-				if (pi.getInvitations() != null && pi.getInvitations().isEmpty()) {
-					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-							"<red>You don't have any invitations!");
-					return;
-				}
-				HellblockPlugin.getInstance().getCoopManager().listInvitations(pi);
-			} else {
-				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-						"<red>You already have a hellblock!");
-			}
-		});
+		return new CommandAPICommand(namespace).withPermission(CommandPermission.NONE).withPermission("hellblock.coop")
+				.executesPlayer((player, args) -> {
+					HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
+					if (!pi.hasHellblock()) {
+						if (pi.getInvitations() == null) {
+							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+									"<red>You don't have any invitations!");
+							return;
+						}
+						if (pi.getInvitations() != null && pi.getInvitations().isEmpty()) {
+							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+									"<red>You don't have any invitations!");
+							return;
+						}
+						HellblockPlugin.getInstance().getCoopManager().listInvitations(pi);
+					} else {
+						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+								"<red>You already have a hellblock!");
+					}
+				});
 	}
 
 	private CommandAPICommand getRejectInviteCommand(String namespace) {
-		return new CommandAPICommand(namespace).withAliases("decline").withArguments(
-				new StringArgument("player").replaceSuggestions(ArgumentSuggestions.stringCollection(info -> {
-					if (info.sender() instanceof Player player) {
-						return HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers().values().stream()
-								.filter(hbPlayer -> hbPlayer.getPlayer() != null && !hbPlayer.hasHellblock()
-										&& hbPlayer.getInvitations() != null
-										&& hbPlayer.getPlayer().getName().equalsIgnoreCase(player.getName()))
-								.findFirst()
-								.orElse(HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player))
-								.getInvitations().keySet().stream()
-								.map(id -> (Bukkit.getPlayer(id) != null ? Bukkit.getPlayer(id).getName()
-										: Bukkit.getOfflinePlayer(id).getName()))
-								.collect(Collectors.toList());
-					} else {
-						return Collections.emptyList();
-					}
-				}))).executesPlayer((player, args) -> {
+		return new CommandAPICommand(namespace).withPermission(CommandPermission.NONE).withPermission("hellblock.coop")
+				.withAliases("decline").withArguments(
+						new StringArgument("player").replaceSuggestions(ArgumentSuggestions.stringCollection(info -> {
+							if (info.sender() instanceof Player player) {
+								return HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers().values()
+										.stream()
+										.filter(hbPlayer -> hbPlayer.getPlayer() != null && !hbPlayer.hasHellblock()
+												&& hbPlayer.getInvitations() != null
+												&& hbPlayer.getPlayer().getName().equalsIgnoreCase(player.getName()))
+										.findFirst()
+										.orElse(HellblockPlugin.getInstance().getHellblockHandler()
+												.getActivePlayer(player))
+										.getInvitations().keySet().stream()
+										.map(id -> (Bukkit.getPlayer(id) != null ? Bukkit.getPlayer(id).getName()
+												: Bukkit.getOfflinePlayer(id).getName()))
+										.collect(Collectors.toList());
+							} else {
+								return Collections.emptyList();
+							}
+						})))
+				.executesPlayer((player, args) -> {
 					HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
 					if (!pi.hasHellblock()) {
 						String user = (String) args.getOrDefault("player", player);
@@ -350,18 +401,22 @@ public class HellblockCoopCommand {
 	}
 
 	private CommandAPICommand getCancelInviteCommand(String namespace) {
-		return new CommandAPICommand(namespace).withAliases("revoke").withArguments(
-				new StringArgument("player").replaceSuggestions(ArgumentSuggestions.stringCollection(info -> {
-					if (info.sender() instanceof Player player) {
-						return HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers().values().stream()
-								.filter(hbPlayer -> hbPlayer.getPlayer() != null && hbPlayer.getInvitations() != null
-										&& hbPlayer.getInvitations().keySet().contains(player.getUniqueId())
-										&& !hbPlayer.getPlayer().getName().equalsIgnoreCase(player.getName()))
-								.map(hbPlayer -> hbPlayer.getPlayer().getName()).collect(Collectors.toList());
-					} else {
-						return Collections.emptyList();
-					}
-				}))).executesPlayer((player, args) -> {
+		return new CommandAPICommand(namespace).withPermission(CommandPermission.NONE).withPermission("hellblock.coop")
+				.withAliases("revoke").withArguments(
+						new StringArgument("player").replaceSuggestions(ArgumentSuggestions.stringCollection(info -> {
+							if (info.sender() instanceof Player player) {
+								return HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers().values()
+										.stream()
+										.filter(hbPlayer -> hbPlayer.getPlayer() != null
+												&& hbPlayer.getInvitations() != null
+												&& hbPlayer.getInvitations().keySet().contains(player.getUniqueId())
+												&& !hbPlayer.getPlayer().getName().equalsIgnoreCase(player.getName()))
+										.map(hbPlayer -> hbPlayer.getPlayer().getName()).collect(Collectors.toList());
+							} else {
+								return Collections.emptyList();
+							}
+						})))
+				.executesPlayer((player, args) -> {
 					HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
 					if (pi.hasHellblock()) {
 						String user = (String) args.getOrDefault("player", player);
@@ -382,12 +437,7 @@ public class HellblockCoopCommand {
 									"<red>The player you're trying to cancel an invite from doesn't exist!");
 							return;
 						}
-						HellblockPlayer ti = null;
-						if (HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers().containsKey(id)) {
-							ti = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers().get(id);
-						} else {
-							ti = new HellblockPlayer(id);
-						}
+						HellblockPlayer ti = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(id);
 						if (ti.getInvitations() == null) {
 							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 									"<red>This player doesn't have an invite from you!");
@@ -419,8 +469,8 @@ public class HellblockCoopCommand {
 	}
 
 	private CommandAPICommand getTrustCommand(String namespace) {
-		return new CommandAPICommand(namespace).withPermission(CommandPermission.NONE).withPermission("hellblock.user")
-				.withArguments(
+		return new CommandAPICommand(namespace).withPermission(CommandPermission.NONE).withPermission("hellblock.coop")
+				.withPermission(CommandPermission.NONE).withPermission("hellblock.user").withArguments(
 						new PlayerArgument("player").replaceSuggestions(ArgumentSuggestions.stringCollection(info -> {
 							if (info.sender() instanceof Player player) {
 								HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler()
@@ -428,8 +478,8 @@ public class HellblockCoopCommand {
 								return HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers().values()
 										.stream()
 										.filter(hbPlayer -> hbPlayer.getPlayer() != null
-												&& !pi.getWhoTrusted().contains(hbPlayer.getPlayer().getUniqueId())
-												&& !pi.getHellblockParty().contains(hbPlayer.getPlayer().getUniqueId())
+												&& !pi.getWhoTrusted().contains(hbPlayer.getUUID())
+												&& !pi.getHellblockParty().contains(hbPlayer.getUUID())
 												&& !hbPlayer.getPlayer().getName().equalsIgnoreCase(player.getName()))
 										.map(hbPlayer -> hbPlayer.getPlayer().getName()).collect(Collectors.toList());
 							} else {
@@ -489,8 +539,8 @@ public class HellblockCoopCommand {
 	}
 
 	private CommandAPICommand getUntrustCommand(String namespace) {
-		return new CommandAPICommand(namespace).withPermission(CommandPermission.NONE).withPermission("hellblock.user")
-				.withArguments(
+		return new CommandAPICommand(namespace).withPermission(CommandPermission.NONE).withPermission("hellblock.coop")
+				.withPermission(CommandPermission.NONE).withPermission("hellblock.user").withArguments(
 						new StringArgument("player").replaceSuggestions(ArgumentSuggestions.stringCollection(info -> {
 							if (info.sender() instanceof Player player) {
 								HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler()
@@ -498,8 +548,8 @@ public class HellblockCoopCommand {
 								return HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers().values()
 										.stream()
 										.filter(hbPlayer -> hbPlayer.getPlayer() != null
-												&& pi.getWhoTrusted().contains(hbPlayer.getPlayer().getUniqueId())
-												&& !pi.getHellblockParty().contains(hbPlayer.getPlayer().getUniqueId())
+												&& pi.getWhoTrusted().contains(hbPlayer.getUUID())
+												&& !pi.getHellblockParty().contains(hbPlayer.getUUID())
 												&& !hbPlayer.getPlayer().getName().equalsIgnoreCase(player.getName()))
 										.map(hbPlayer -> hbPlayer.getPlayer().getName()).collect(Collectors.toList());
 							} else {
@@ -547,12 +597,7 @@ public class HellblockCoopCommand {
 									"<red>The player you're trying to apply this to is already a member of your party!");
 							return;
 						}
-						HellblockPlayer ti = null;
-						if (HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers().containsKey(id)) {
-							ti = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers().get(id);
-						} else {
-							ti = new HellblockPlayer(id);
-						}
+						HellblockPlayer ti = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(id);
 						if (!ti.getWhoTrusted().contains(player.getUniqueId())) {
 							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 									"<red>This player isn't trusted on your hellblock!");

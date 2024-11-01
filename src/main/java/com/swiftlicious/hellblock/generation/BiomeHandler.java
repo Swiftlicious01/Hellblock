@@ -1,33 +1,28 @@
 package com.swiftlicious.hellblock.generation;
 
-import java.io.File;
-import java.io.IOException;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
-import java.util.Set;
-import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 
-import org.bukkit.Bukkit;
+import org.bukkit.Chunk;
 import org.bukkit.Location;
+import org.bukkit.World;
 import org.bukkit.block.Biome;
-import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
-import org.bukkit.event.player.PlayerTeleportEvent.TeleportCause;
+import org.jetbrains.annotations.NotNull;
 
 import com.sk89q.worldedit.bukkit.BukkitAdapter;
-import com.sk89q.worldedit.world.World;
-
+import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldguard.domains.DefaultDomain;
-import com.sk89q.worldguard.protection.managers.RegionManager;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
-import com.sk89q.worldguard.protection.regions.RegionContainer;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
-import com.swiftlicious.hellblock.utils.ChunkUtils;
-import com.swiftlicious.hellblock.utils.LocationUtils;
-import com.swiftlicious.hellblock.utils.LogUtils;
-
+import com.swiftlicious.hellblock.playerdata.HellblockPlayer.HellblockData;
 import lombok.NonNull;
 
 public class BiomeHandler {
@@ -62,7 +57,7 @@ public class BiomeHandler {
 		return hellBiome;
 	}
 
-	public void changeHellblockBiome(@NonNull HellblockPlayer hbPlayer, @NonNull HellBiome biome, boolean forced, boolean isCreation) {
+	public void changeHellblockBiome(@NonNull HellblockPlayer hbPlayer, @NonNull HellBiome biome) {
 		Player player = hbPlayer.getPlayer();
 		if (player != null) {
 			if (!hbPlayer.hasHellblock()) {
@@ -83,30 +78,13 @@ public class BiomeHandler {
 			if (hbPlayer.getBiomeCooldown() > 0) {
 				instance.getAdventureManager().sendMessageWithPrefix(player,
 						String.format("<red>You have recently changed your biome already, you must wait for %s!",
-								HellblockPlugin.getInstance().getFormattedCooldown(hbPlayer.getBiomeCooldown())));
-				return;
-			}
-			if (!player.getWorld().getName().equals(instance.getHellblockHandler().getWorldName())) {
-				instance.getAdventureManager().sendMessageWithPrefix(player,
-						"<red>You must be on your hellblock to change the biome!");
+								instance.getFormattedCooldown(hbPlayer.getBiomeCooldown())));
 				return;
 			}
 
-			if (instance.getHellblockHandler().isWorldguardProtect()) {
-				if (instance.getWorldGuardHandler().getWorldGuardPlatform() == null) {
-					LogUtils.severe("Could not retrieve WorldGuard platform.");
-					return;
-				}
-				RegionContainer container = instance.getWorldGuardHandler().getWorldGuardPlatform()
-						.getRegionContainer();
-				World world = BukkitAdapter.adapt(instance.getHellblockHandler().getHellblockWorld());
-				RegionManager regions = container.get(world);
-				if (regions == null) {
-					LogUtils.severe(String.format("Could not load WorldGuard regions for hellblock world: %s",
-							world.getName()));
-					return;
-				}
-				ProtectedRegion region = regions.getRegion(String.format("%sHellblock", player.getName()));
+			if (instance.getHellblockHandler().isWorldguardProtected()) {
+				ProtectedRegion region = instance.getWorldGuardHandler().getRegion(player.getUniqueId(),
+						hbPlayer.getID());
 				if (region == null) {
 					instance.getAdventureManager().sendMessageWithPrefix(player,
 							"<red>You don't have a hellblock island! Create one with /hellblock create");
@@ -126,66 +104,93 @@ public class BiomeHandler {
 					return;
 				}
 
-				if (!isCreation && hbPlayer.getHomeLocation().getBlock().getBiome().getKey().getKey()
+				if (hbPlayer.getHomeLocation().getBlock().getBiome().getKey().getKey()
 						.equalsIgnoreCase(biome.toString().toLowerCase())) {
 					instance.getAdventureManager().sendMessageWithPrefix(player, String
 							.format("<red>Your hellblock biome is already set to <dark_red>%s<red>!", biome.getName()));
 					return;
 				}
 
-				List<Location> locations = instance.getWorldGuardHandler().getRegionBlocks(player.getUniqueId());
-				locations.forEach(loc -> {
-					if (!loc.getBlock().getBiome().getKey().getKey().equalsIgnoreCase(biome.toString().toLowerCase())) {
-						loc.getBlock().setBiome(Biome.valueOf(biome.toString().toUpperCase()));
-						loc.getWorld().refreshChunk(loc.getBlockX(), loc.getBlockZ());
-					}
-				});
+				setHellblockBiome(region, biome);
 
 				hbPlayer.setHellblockBiome(biome);
-				hbPlayer.setBiomeCooldown(forced ? 0L : Duration.ofDays(1).toHours());
+				hbPlayer.setBiomeCooldown(Duration.ofDays(1).toHours());
 				hbPlayer.saveHellblockPlayer();
-				if (!LocationUtils.isSafeLocation(hbPlayer.getHomeLocation())) {
-					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-							"<red>This hellblock home location was deemed not safe, resetting to bedrock location!");
-					hbPlayer.setHome(
-							HellblockPlugin.getInstance().getHellblockHandler().locateBedrock(player.getUniqueId()));
-					HellblockPlugin.getInstance().getCoopManager().updateParty(player.getUniqueId(), "home",
-							hbPlayer.getHomeLocation());
-				}
-				ChunkUtils.teleportAsync(player, hbPlayer.getHomeLocation(), TeleportCause.PLUGIN);
-				Set<UUID> party = hbPlayer.getHellblockParty();
-				if (party != null && !party.isEmpty()) {
-					for (UUID id : party) {
-						Player member = Bukkit.getPlayer(id);
-						if (member != null && member.isOnline()) {
-							HellblockPlayer hbMember = instance.getHellblockHandler().getActivePlayer(member);
-							hbMember.setHellblockBiome(biome);
-							hbMember.setBiomeCooldown(forced ? 0L : Duration.ofDays(1).toHours());
-							hbMember.saveHellblockPlayer();
-							member.teleportAsync(hbMember.getHomeLocation());
-						} else {
-							File memberFile = new File(
-									HellblockPlugin.getInstance().getHellblockHandler().getPlayersDirectory()
-											+ File.separator + id + ".yml");
-							YamlConfiguration memberConfig = YamlConfiguration.loadConfiguration(memberFile);
-							memberConfig.set("player.biome", biome.toString());
-							memberConfig.set("player.biome-cooldown", forced ? 0L : Duration.ofDays(1).toHours());
-							try {
-								memberConfig.save(memberFile);
-							} catch (IOException ex) {
-								LogUtils.severe(String.format("Unable to save member file for %s!", id), ex);
-							}
-						}
-					}
-				}
-
+				instance.getCoopManager().updateParty(hbPlayer.getUUID(), HellblockData.BIOME, biome);
+				instance.getCoopManager().updateParty(hbPlayer.getUUID(), HellblockData.BIOME_COOLDOWN,
+						Duration.ofDays(1).toHours());
 				instance.getAdventureManager().sendMessageWithPrefix(player, String.format(
 						"<red>You have changed the biome of your hellblock to <dark_red>%s<red>!", biome.getName()));
-				instance.getAdventureManager().sendMessageWithPrefix(player,
-						"<red>Please refresh the chunk by rejoining!");
 			} else {
 				// TODO: using plugin protection
 			}
 		}
+	}
+
+	public void setHellblockBiome(@NotNull ProtectedRegion region, @NotNull HellBiome biome) {
+		World world = instance.getHellblockHandler().getHellblockWorld();
+		getHellblockChunks(region).thenAccept(chunks -> {
+			Location min = BukkitAdapter.adapt(world, region.getMinimumPoint());
+			Location max = BukkitAdapter.adapt(world, region.getMaximumPoint());
+			setBiome(min, max, biome).thenRun(() -> {
+				for (Chunk chunk : chunks) {
+					chunk.getWorld().refreshChunk(chunk.getX(), chunk.getZ());
+				}
+			});
+		}).exceptionally(throwable -> {
+			throwable.printStackTrace();
+			return null;
+		});
+	}
+
+	public CompletableFuture<Void> setBiome(@NotNull Location start, @NotNull Location end, @NotNull HellBiome biome) {
+		World world = start.getWorld(); // Avoid getting from weak reference in a loop.
+		if (!world.getUID().equals(end.getWorld().getUID()))
+			throw new IllegalArgumentException("Location worlds mismatch");
+		int heightMax = world.getMaxHeight();
+		int heightMin = world.getMinHeight();
+
+		// Apparently setBiome is thread-safe.
+		return CompletableFuture.runAsync(() -> {
+			for (int x = start.getBlockX(); x < end.getBlockX(); x++) {
+				// As of now increasing it by 4 seems to work.
+				// This should be the minimal size of the vertical biomes.
+				for (int y = heightMin; y < heightMax; y += 4) {
+					for (int z = start.getBlockZ(); z < end.getBlockZ(); z++) {
+						Block block = new Location(world, x, y, z).getBlock();
+						if (convertBiomeToHellBiome(block.getBiome()) != biome)
+							block.setBiome(Biome.valueOf(biome.toString().toUpperCase()));
+					}
+				}
+			}
+		}).exceptionally((result) -> {
+			result.printStackTrace();
+			return null;
+		});
+	}
+
+	public CompletableFuture<List<Chunk>> getHellblockChunks(@NotNull ProtectedRegion region) {
+		return CompletableFuture.supplyAsync(() -> {
+			List<Chunk> chunks = new ArrayList<>();
+
+			World world = instance.getHellblockHandler().getHellblockWorld();
+			BlockVector3 pos1 = region.getMinimumPoint();
+			BlockVector3 pos2 = region.getMaximumPoint();
+
+			int minX = pos1.x() >> 4;
+			int minZ = pos1.z() >> 4;
+			int maxX = pos2.x() >> 4;
+			int maxZ = pos2.z() >> 4;
+
+			for (int x = minX; x <= maxX; x++) {
+				for (int z = minZ; z <= maxZ; z++) {
+					chunks.add(world.getChunkAt(x, z));
+				}
+			}
+			return chunks.stream().collect(Collectors.toList());
+		}).exceptionally(throwable -> {
+			throwable.printStackTrace();
+			return Collections.emptyList();
+		});
 	}
 }

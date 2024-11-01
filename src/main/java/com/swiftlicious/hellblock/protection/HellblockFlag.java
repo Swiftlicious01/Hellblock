@@ -31,7 +31,7 @@ public class HellblockFlag {
 		INTERACT("interact", false), SLEEP("sleep", false), SNOWMAN_TRAILS("snowman-trails", true),
 		ENDER_BUILD("enderman-grief", true), GHAST_FIREBALL("ghast-fireball", true), FALL_DAMAGE("fall-damage", true),
 		HEALTH_REGEN("natural-health-regen", true), HUNGER_DRAIN("natural-hunger-drain", true), ENTRY("entry", true),
-		GREETING_MESSAGE("greeting", true), FAREWELL_MESSAGE("farewell", true), INVINCIBILITY("invincible", false),
+		GREET_MESSAGE("greeting", true), FAREWELL_MESSAGE("farewell", true), INVINCIBILITY("invincible", false),
 		BUILD("build", true);
 
 		private String name;
