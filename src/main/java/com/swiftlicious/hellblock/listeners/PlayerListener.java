@@ -14,7 +14,6 @@ import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.PortalType;
 import org.bukkit.Tag;
-import org.bukkit.WorldBorder;
 import org.bukkit.World.Environment;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
@@ -36,7 +35,6 @@ import org.bukkit.event.player.PlayerPortalEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.event.player.PlayerRespawnEvent.RespawnReason;
-import org.bukkit.event.player.PlayerTeleportEvent;
 import org.bukkit.event.player.PlayerTeleportEvent.TeleportCause;
 import org.bukkit.event.world.PortalCreateEvent;
 import org.bukkit.event.world.PortalCreateEvent.CreateReason;
@@ -45,8 +43,8 @@ import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 
-import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.events.worldguard.RegionEnteredEvent;
 import com.swiftlicious.hellblock.gui.hellblock.IslandChoiceMenu;
 import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
 import com.swiftlicious.hellblock.playerdata.UUIDFetcher;
@@ -101,6 +99,8 @@ public class PlayerListener implements Listener {
 		instance.getIslandLevelManager().loadCache(id);
 		instance.getNetherrackGeneratorHandler().loadPistons(id);
 
+		pi.showBorder();
+
 		instance.getScheduler().runTaskSyncLater(() -> {
 			if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
 				return;
@@ -115,34 +115,14 @@ public class PlayerListener implements Listener {
 											"<red>This hellblock home location was deemed not safe, resetting to bedrock location!");
 									instance.getHellblockHandler().locateBedrock(player.getUniqueId())
 											.thenAccept((bedrock) -> {
-												pi.setHome(bedrock);
+												pi.setHome(bedrock.getBedrockLocation());
 												instance.getCoopManager().updateParty(player.getUniqueId(),
 														HellblockData.HOME, pi.getHomeLocation());
 											});
 								}
-							});
-							ChunkUtils.teleportAsync(player, pi.getHomeLocation(), TeleportCause.PLUGIN).thenRun(() -> {
-								WorldBorder border = instance.getHellblockHandler().getHellblockWorld()
-										.getWorldBorder();
-								if (instance.getHellblockHandler().isWorldguardProtected()) {
-									ProtectedRegion region = instance.getWorldGuardHandler().getRegion(pi.getUUID(),
-											pi.getID());
-									if (region != null) {
-										border.setCenter(instance.getWorldGuardHandler().getCenter(region)
-												.toLocation(instance.getHellblockHandler().getHellblockWorld()));
-									}
-								} else {
-									// TODO: using plugin protection
-								}
-								border.setSize(instance.getHellblockHandler().getProtectionRange());
-								border.setWarningDistance(0);
-								border.setDamageAmount(0);
-								border.setWarningTime(Integer.MAX_VALUE);
-								border.setDamageBuffer(Double.MAX_VALUE);
-								pi.setHellblockBorder(border);
+								ChunkUtils.teleportAsync(player, pi.getHomeLocation(), TeleportCause.PLUGIN);
 							});
 						} else {
-							pi.setHellblockBorder(null);
 							instance.getHellblockHandler().teleportToSpawn(player);
 						}
 					}
@@ -162,33 +142,14 @@ public class PlayerListener implements Listener {
 										"<red>This hellblock home location was deemed not safe, resetting to bedrock location!");
 								instance.getHellblockHandler().locateBedrock(player.getUniqueId())
 										.thenAccept((bedrock) -> {
-											pi.setHome(bedrock);
+											pi.setHome(bedrock.getBedrockLocation());
 											instance.getCoopManager().updateParty(player.getUniqueId(),
 													HellblockData.HOME, pi.getHomeLocation());
 										});
 							}
-						});
-						ChunkUtils.teleportAsync(player, pi.getHomeLocation(), TeleportCause.PLUGIN).thenRun(() -> {
-							WorldBorder border = instance.getHellblockHandler().getHellblockWorld().getWorldBorder();
-							if (instance.getHellblockHandler().isWorldguardProtected()) {
-								ProtectedRegion region = instance.getWorldGuardHandler().getRegion(pi.getUUID(),
-										pi.getID());
-								if (region != null) {
-									border.setCenter(instance.getWorldGuardHandler().getCenter(region)
-											.toLocation(instance.getHellblockHandler().getHellblockWorld()));
-								}
-							} else {
-								// TODO: using plugin protection
-							}
-							border.setSize(instance.getHellblockHandler().getProtectionRange());
-							border.setWarningDistance(0);
-							border.setDamageAmount(0);
-							border.setWarningTime(Integer.MAX_VALUE);
-							border.setDamageBuffer(Double.MAX_VALUE);
-							pi.setHellblockBorder(border);
+							ChunkUtils.teleportAsync(player, pi.getHomeLocation(), TeleportCause.PLUGIN);
 						});
 					} else {
-						pi.setHellblockBorder(null);
 						instance.getHellblockHandler().teleportToSpawn(player);
 					}
 				}
@@ -197,7 +158,6 @@ public class PlayerListener implements Listener {
 			File playerFile = pi.getPlayerFile();
 			YamlConfiguration playerConfig = pi.getHellblockPlayer();
 			if (playerConfig.getBoolean("player.in-unsafe-island", false)) {
-				pi.setHellblockBorder(null);
 				instance.getHellblockHandler().teleportToSpawn(player);
 				playerConfig.set("player.in-unsafe-island", null);
 				instance.getAdventureManager().sendMessageWithPrefix(player,
@@ -259,6 +219,8 @@ public class PlayerListener implements Listener {
 
 		HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(id);
 
+		pi.hideBorder();
+
 		if (pi.hasGlowstoneToolEffect() || pi.hasGlowstoneArmorEffect()) {
 			if (player.hasPotionEffect(PotionEffectType.NIGHT_VISION)) {
 				player.removePotionEffect(PotionEffectType.NIGHT_VISION);
@@ -313,6 +275,57 @@ public class PlayerListener implements Listener {
 	}
 
 	@EventHandler
+	public void onRegionEnterIfBanned(RegionEnteredEvent event) {
+		final Player player = event.getPlayer();
+		if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+			return;
+		final UUID id = player.getUniqueId();
+		HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(id);
+		UUID ownerUUID = event.getRegion().getOwners().getUniqueIds().stream().findFirst().orElse(null);
+		if (ownerUUID == null)
+			return;
+		if (instance.getCoopManager().trackBannedPlayer(ownerUUID, id)) {
+			if (pi.hasHellblock()) {
+				LocationUtils.isSafeLocationAsync(pi.getHomeLocation()).thenAccept((result) -> {
+					if (!result.booleanValue()) {
+						instance.getAdventureManager().sendMessageWithPrefix(player,
+								"<red>This hellblock home location was deemed not safe, resetting to bedrock location!");
+						instance.getHellblockHandler().locateBedrock(id).thenAccept((bedrock) -> {
+							pi.setHome(bedrock.getBedrockLocation());
+							instance.getCoopManager().updateParty(id, HellblockData.HOME, pi.getHomeLocation());
+						});
+					}
+					ChunkUtils.teleportAsync(player, pi.getHomeLocation(), TeleportCause.PLUGIN);
+				});
+			} else {
+				instance.getHellblockHandler().teleportToSpawn(player);
+			}
+			instance.getAdventureManager().sendMessageWithPrefix(player,
+					"<red>You're banned from this hellblock and aren't allowed entry!");
+		}
+
+		if (!instance.getCoopManager().checkIfVisitorIsWelcome(player, ownerUUID)) {
+			if (pi.hasHellblock()) {
+				LocationUtils.isSafeLocationAsync(pi.getHomeLocation()).thenAccept((result) -> {
+					if (!result.booleanValue()) {
+						instance.getAdventureManager().sendMessageWithPrefix(player,
+								"<red>This hellblock home location was deemed not safe, resetting to bedrock location!");
+						instance.getHellblockHandler().locateBedrock(id).thenAccept((bedrock) -> {
+							pi.setHome(bedrock.getBedrockLocation());
+							instance.getCoopManager().updateParty(id, HellblockData.HOME, pi.getHomeLocation());
+						});
+					}
+					ChunkUtils.teleportAsync(player, pi.getHomeLocation(), TeleportCause.PLUGIN);
+				});
+			} else {
+				instance.getHellblockHandler().teleportToSpawn(player);
+			}
+			instance.getAdventureManager().sendMessageWithPrefix(player,
+					"<red>This hellblock is locked at the moment, you're not allowed entry!");
+		}
+	}
+
+	@EventHandler
 	public void onPortal(PlayerPortalEvent event) {
 		final Player player = event.getPlayer();
 		if (player.getWorld().getEnvironment() == Environment.NETHER
@@ -345,56 +358,17 @@ public class PlayerListener implements Listener {
 												"<red>This hellblock home location was deemed not safe, resetting to bedrock location!");
 										instance.getHellblockHandler().locateBedrock(player.getUniqueId())
 												.thenAccept((bedrock) -> {
-													pi.setHome(bedrock);
+													pi.setHome(bedrock.getBedrockLocation());
 													instance.getCoopManager().updateParty(player.getUniqueId(),
 															HellblockData.HOME, pi.getHomeLocation());
 												});
 									}
-									ChunkUtils.teleportAsync(player, pi.getHomeLocation(), TeleportCause.PLUGIN)
-											.thenRun(() -> {
-												WorldBorder border = instance.getHellblockHandler().getHellblockWorld()
-														.getWorldBorder();
-												if (instance.getHellblockHandler().isWorldguardProtected()) {
-													ProtectedRegion region = instance.getWorldGuardHandler()
-															.getRegion(pi.getUUID(), pi.getID());
-													if (region != null) {
-														border.setCenter(instance.getWorldGuardHandler()
-																.getCenter(region).toLocation(instance
-																		.getHellblockHandler().getHellblockWorld()));
-													}
-												} else {
-													// TODO: using plugin protection
-												}
-												border.setSize(instance.getHellblockHandler().getProtectionRange());
-												border.setWarningDistance(0);
-												border.setDamageAmount(0);
-												border.setWarningTime(Integer.MAX_VALUE);
-												border.setDamageBuffer(Double.MAX_VALUE);
-												pi.setHellblockBorder(border);
-											});
+									ChunkUtils.teleportAsync(player, pi.getHomeLocation(), TeleportCause.PLUGIN);
 								});
 								return;
 							}
 						});
-						ChunkUtils.teleportAsync(player, ti.getHomeLocation(), TeleportCause.PLUGIN).thenRun(() -> {
-							WorldBorder border = instance.getHellblockHandler().getHellblockWorld().getWorldBorder();
-							if (instance.getHellblockHandler().isWorldguardProtected()) {
-								ProtectedRegion region = instance.getWorldGuardHandler().getRegion(ti.getUUID(),
-										ti.getID());
-								if (region != null) {
-									border.setCenter(instance.getWorldGuardHandler().getCenter(region)
-											.toLocation(instance.getHellblockHandler().getHellblockWorld()));
-								}
-							} else {
-								// TODO: using plugin protection
-							}
-							border.setSize(instance.getHellblockHandler().getProtectionRange());
-							border.setWarningDistance(0);
-							border.setDamageAmount(0);
-							border.setWarningTime(Integer.MAX_VALUE);
-							border.setDamageBuffer(Double.MAX_VALUE);
-							pi.setHellblockBorder(border);
-						});
+						ChunkUtils.teleportAsync(player, ti.getHomeLocation(), TeleportCause.PLUGIN);
 					} else {
 						LocationUtils.isSafeLocationAsync(pi.getHomeLocation()).thenAccept((result) -> {
 							if (!result.booleanValue()) {
@@ -402,31 +376,12 @@ public class PlayerListener implements Listener {
 										"<red>This hellblock home location was deemed not safe, resetting to bedrock location!");
 								instance.getHellblockHandler().locateBedrock(player.getUniqueId())
 										.thenAccept((bedrock) -> {
-											pi.setHome(bedrock);
+											pi.setHome(bedrock.getBedrockLocation());
 											instance.getCoopManager().updateParty(player.getUniqueId(),
 													HellblockData.HOME, pi.getHomeLocation());
 										});
 							}
-							ChunkUtils.teleportAsync(player, pi.getHomeLocation(), TeleportCause.PLUGIN).thenRun(() -> {
-								WorldBorder border = instance.getHellblockHandler().getHellblockWorld()
-										.getWorldBorder();
-								if (instance.getHellblockHandler().isWorldguardProtected()) {
-									ProtectedRegion region = instance.getWorldGuardHandler().getRegion(pi.getUUID(),
-											pi.getID());
-									if (region != null) {
-										border.setCenter(instance.getWorldGuardHandler().getCenter(region)
-												.toLocation(instance.getHellblockHandler().getHellblockWorld()));
-									}
-								} else {
-									// TODO: using plugin protection
-								}
-								border.setSize(instance.getHellblockHandler().getProtectionRange());
-								border.setWarningDistance(0);
-								border.setDamageAmount(0);
-								border.setWarningTime(Integer.MAX_VALUE);
-								border.setDamageBuffer(Double.MAX_VALUE);
-								pi.setHellblockBorder(border);
-							});
+							ChunkUtils.teleportAsync(player, pi.getHomeLocation(), TeleportCause.PLUGIN);
 						});
 					}
 				} else {
@@ -586,32 +541,11 @@ public class PlayerListener implements Listener {
 			final Player player = event.getPlayer();
 			final UUID id = player.getUniqueId();
 			HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(id);
-			pi.setHellblockBorder(null);
 			if (pi.hasGlowstoneToolEffect() || pi.hasGlowstoneArmorEffect()) {
 				if (player.hasPotionEffect(PotionEffectType.NIGHT_VISION)) {
 					player.removePotionEffect(PotionEffectType.NIGHT_VISION);
 					pi.isHoldingGlowstoneTool(false);
 					pi.isWearingGlowstoneArmor(false);
-				}
-			}
-		}
-	}
-
-	@EventHandler(priority = EventPriority.HIGHEST)
-	public void onEnterSpawn(PlayerTeleportEvent event) {
-		final Player player = event.getPlayer();
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
-			return;
-		if (event.getCause() == TeleportCause.PLUGIN || event.getCause() == TeleportCause.COMMAND) {
-			final UUID id = player.getUniqueId();
-			HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(id);
-			if (instance.getHellblockHandler().checkIfInSpawn(event.getTo())) {
-				pi.setHellblockBorder(null);
-			}
-			if (instance.getHellblockHandler().isWorldguardProtected()) {
-				if (!instance.getWorldGuardHandler().isPlayerInAnyRegion(id,
-						instance.getWorldGuardHandler().getRegion(id, pi.getID()).getId())) {
-					pi.setHellblockBorder(null);
 				}
 			}
 		}
@@ -656,7 +590,7 @@ public class PlayerListener implements Listener {
 						instance.getAdventureManager().sendMessageWithPrefix(player,
 								"<red>This hellblock home location was deemed not safe, resetting to bedrock location!");
 						instance.getHellblockHandler().locateBedrock(player.getUniqueId()).thenAccept((bedrock) -> {
-							pi.setHome(bedrock);
+							pi.setHome(bedrock.getBedrockLocation());
 							instance.getCoopManager().updateParty(player.getUniqueId(), HellblockData.HOME,
 									pi.getHomeLocation());
 						});
@@ -683,34 +617,16 @@ public class PlayerListener implements Listener {
 						instance.getAdventureManager().sendMessageWithPrefix(player,
 								"<red>This hellblock home location was deemed not safe, resetting to bedrock location!");
 						instance.getHellblockHandler().locateBedrock(player.getUniqueId()).thenAccept((bedrock) -> {
-							pi.setHome(bedrock);
+							pi.setHome(bedrock.getBedrockLocation());
 							instance.getCoopManager().updateParty(player.getUniqueId(), HellblockData.HOME,
 									pi.getHomeLocation());
 						});
 					}
 					ChunkUtils.teleportAsync(player, pi.getHomeLocation(), TeleportCause.PLUGIN).thenRun(() -> {
 						player.setFallDistance(0.0F);
-						WorldBorder border = instance.getHellblockHandler().getHellblockWorld().getWorldBorder();
-						if (instance.getHellblockHandler().isWorldguardProtected()) {
-							ProtectedRegion region = instance.getWorldGuardHandler().getRegion(pi.getUUID(),
-									pi.getID());
-							if (region != null) {
-								border.setCenter(instance.getWorldGuardHandler().getCenter(region)
-										.toLocation(instance.getHellblockHandler().getHellblockWorld()));
-							}
-						} else {
-							// TODO: using plugin protection
-						}
-						border.setSize(instance.getHellblockHandler().getProtectionRange());
-						border.setWarningDistance(0);
-						border.setDamageAmount(0);
-						border.setWarningTime(Integer.MAX_VALUE);
-						border.setDamageBuffer(Double.MAX_VALUE);
-						pi.setHellblockBorder(border);
 					});
 				});
 			} else {
-				pi.setHellblockBorder(null);
 				instance.getHellblockHandler().teleportToSpawn(player);
 			}
 		}

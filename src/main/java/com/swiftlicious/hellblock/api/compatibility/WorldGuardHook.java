@@ -279,29 +279,33 @@ public class WorldGuardHook {
 		return false;
 	}
 
-	public List<Location> getRegionBlocks(@NonNull UUID id) {
-		if (this.cachedRegion.containsKey(id)) {
-			return new ArrayList<>(this.cachedRegion.get(id));
-		}
-		World world = instance.getHellblockHandler().getHellblockWorld();
-		HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(id);
-		ProtectedRegion region = getRegion(id, pi.getID());
-		if (region == null) {
-			return new ArrayList<>();
-		}
+	public CompletableFuture<List<Location>> getRegionBlocks(@NonNull UUID id) {
+		CompletableFuture<List<Location>> locations = CompletableFuture.supplyAsync(() -> {
+			if (this.cachedRegion.containsKey(id)) {
+				return new ArrayList<>(this.cachedRegion.get(id));
+			}
+			World world = instance.getHellblockHandler().getHellblockWorld();
+			HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(id);
+			ProtectedRegion region = getRegion(id, pi.getID());
+			if (region == null) {
+				return new ArrayList<>();
+			}
 
-		Location min = BukkitAdapter.adapt(world, region.getMinimumPoint());
-		Location max = BukkitAdapter.adapt(world, region.getMaximumPoint());
+			Location min = BukkitAdapter.adapt(world, region.getMinimumPoint());
+			Location max = BukkitAdapter.adapt(world, region.getMaximumPoint());
 
-		List<Location> locations = new ArrayList<>();
-		for (int x = min.getBlockX(); x <= max.getBlockX(); x++) {
-			for (int y = min.getBlockY(); y <= max.getBlockY(); y++) {
-				for (int z = min.getBlockZ(); z <= max.getBlockZ(); z++) {
-					locations.add(new Location(world, x, y, z));
+			List<Location> regionBlocks = new ArrayList<>();
+			for (int x = min.getBlockX(); x <= max.getBlockX(); x++) {
+				for (int y = min.getBlockY(); y <= max.getBlockY(); y++) {
+					for (int z = min.getBlockZ(); z <= max.getBlockZ(); z++) {
+						regionBlocks.add(new Location(world, x, y, z));
+					}
 				}
 			}
-		}
-		this.cachedRegion.putIfAbsent(id, new HashSet<>((locations)));
+			this.cachedRegion.putIfAbsent(id, new HashSet<>((regionBlocks)));
+			return regionBlocks;
+		});
+
 		return locations;
 	}
 

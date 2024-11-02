@@ -22,7 +22,6 @@ import org.bukkit.Tag;
 import org.bukkit.block.Block;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
-import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -51,14 +50,19 @@ public class IslandLevelHandler implements Listener {
 	private final Map<UUID, Collection<LevelBlockCache>> placedByPlayerCache;
 
 	private final Map<UUID, Integer> levelRankCache;
+	private LinkedHashMap<UUID, Float> topCache;
 
 	public IslandLevelHandler(HellblockPlugin plugin) {
 		instance = plugin;
 		this.placedByPlayerCache = new HashMap<>();
 		this.levelRankCache = new HashMap<>();
+		this.topCache = new LinkedHashMap<>();
 		Bukkit.getPluginManager().registerEvents(this, instance);
 		clearCache();
-		instance.getScheduler().runTaskAsyncTimer(() -> this.levelRankCache.clear(), 1, 30, TimeUnit.MINUTES);
+		instance.getScheduler().runTaskAsyncTimer(() -> {
+			this.levelRankCache.clear();
+			this.topCache.clear();
+		}, 1, 30, TimeUnit.MINUTES);
 		instance.getScheduler().runTaskAsyncTimer(
 				() -> instance.getHellblockHandler().getActivePlayers().keySet().forEach(this::saveCache), 1, 2,
 				TimeUnit.HOURS);
@@ -220,9 +224,8 @@ public class IslandLevelHandler implements Listener {
 		if (!block.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
 			return;
 
-		Collection<LivingEntity> entitiesNearby = block.getWorld().getNearbyLivingEntities(block.getLocation(), 25, 25,
-				25);
-		Player player = instance.getNetherrackGeneratorHandler().getClosestPlayer(block.getLocation(), entitiesNearby);
+		Collection<Player> playersNearby = block.getWorld().getNearbyPlayers(block.getLocation(), 25, 25, 25);
+		Player player = instance.getNetherrackGeneratorHandler().getClosestPlayer(block.getLocation(), playersNearby);
 		if (player != null) {
 			final UUID id = player.getUniqueId();
 			if (instance.getHellblockHandler().isWorldguardProtected()) {
@@ -269,9 +272,8 @@ public class IslandLevelHandler implements Listener {
 		if (!block.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
 			return;
 
-		Collection<LivingEntity> entitiesNearby = block.getWorld().getNearbyLivingEntities(block.getLocation(), 25, 25,
-				25);
-		Player player = instance.getNetherrackGeneratorHandler().getClosestPlayer(block.getLocation(), entitiesNearby);
+		Collection<Player> playersNearby = block.getWorld().getNearbyPlayers(block.getLocation(), 25, 25, 25);
+		Player player = instance.getNetherrackGeneratorHandler().getClosestPlayer(block.getLocation(), playersNearby);
 		if (player != null) {
 			final UUID id = player.getUniqueId();
 			if (instance.getHellblockHandler().isWorldguardProtected()) {
@@ -382,6 +384,9 @@ public class IslandLevelHandler implements Listener {
 	}
 
 	public LinkedHashMap<UUID, Float> getTopTenHellblocks() {
+		if (!this.topCache.isEmpty()) {
+			return this.topCache;
+		}
 		Map<UUID, Float> topHellblocks = new HashMap<>();
 		for (File playerData : instance.getHellblockHandler().getPlayersDirectory().listFiles()) {
 			if (!playerData.isFile() || !playerData.getName().endsWith(".yml"))
@@ -423,6 +428,8 @@ public class IslandLevelHandler implements Listener {
 		LinkedHashMap<UUID, Float> topHellblocksSorted = new LinkedHashMap<>();
 		topHellblocks.entrySet().stream().sorted(Map.Entry.comparingByValue())
 				.forEach(x -> topHellblocksSorted.put(x.getKey(), x.getValue()));
+		if (this.topCache.isEmpty())
+			this.topCache = topHellblocksSorted;
 		return topHellblocksSorted;
 	}
 

@@ -10,6 +10,7 @@ import org.bukkit.Particle;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
@@ -139,10 +140,8 @@ public class LavaRainTask implements Runnable {
 										}
 										if (instance.getLavaRainHandler().canHurtLivingCreatures()) {
 											Collection<LivingEntity> entities = world.getNearbyLivingEntities(location,
-													20.0D);
+													20.0D, (e) -> e.getType() != EntityType.PLAYER);
 											for (LivingEntity living : entities) {
-												if (living instanceof Player)
-													continue;
 												Block above = instance.getLavaRainHandler()
 														.getHighestBlock(living.getLocation());
 												if (above != null
@@ -182,27 +181,37 @@ public class LavaRainTask implements Runnable {
 							} while (Math.random() >= (double) instance.getLavaRainHandler().getFireChance() / 1000.0D);
 
 							if (Math.random() < (double) instance.getLavaRainHandler().getFireChance() / 1000.0D) {
-								Block block4 = world.getHighestBlockAt(block.getLocation());
-								Block above = block4.getRelative(BlockFace.UP);
-								if (above.getType().isAir()) {
-									above.setType(block4.getType() == Material.SOUL_SAND
-											|| block4.getType() == Material.SOUL_SOIL ? Material.SOUL_FIRE
-													: Material.FIRE);
+								Block block4 = instance.getLavaRainHandler().getHighestBlock(block.getLocation());
+								if (block4 != null && (block4.isPassable() || block4.isEmpty() || block4.isLiquid()
+										|| !block4.isSolid() || block4.getType().isOccluding())) {
+									Block above = block4.getRelative(BlockFace.UP);
+									if (above.getType().isAir()) {
+										above.setType(block4.getType() == Material.SOUL_SAND
+												|| block4.getType() == Material.SOUL_SOIL ? Material.SOUL_FIRE
+														: Material.FIRE);
+									}
 								}
 							}
 
 							if (instance.getLavaRainHandler().willTNTExplode()) {
-								Block above = world.getHighestBlockAt(block.getLocation());
-								if (above.getType() == Material.TNT) {
+								Block above = instance.getLavaRainHandler().getHighestBlock(block.getLocation());
+								if (above != null && above.getType() == Material.TNT) {
+									above.setType(Material.AIR);
 									TNTPrimed tnt = (TNTPrimed) world.spawnEntity(above.getLocation(), EntityType.TNT);
 									tnt.setFuseTicks(RandomUtils.generateRandomInt(3, 5) * 20);
-									above.setType(Material.AIR);
 								}
-								if (block.getType() == Material.TNT_MINECART) {
-									ExplosiveMinecart tntMinecart = (ExplosiveMinecart) world
-											.spawnEntity(block.getLocation(), EntityType.TNT_MINECART);
-									tntMinecart.setFuseTicks(RandomUtils.generateRandomInt(3, 5) * 20);
-									block.setType(Material.AIR);
+								Collection<Entity> entities = world.getNearbyEntities(location, 15.0D, 15.0D, 15.0D,
+										(e) -> e.getType() == EntityType.TNT_MINECART);
+								for (Entity entity : entities) {
+									Block aboveMinecart = instance.getLavaRainHandler()
+											.getHighestBlock(entity.getLocation());
+									if (aboveMinecart != null && (aboveMinecart.isPassable() || aboveMinecart.isEmpty()
+											|| aboveMinecart.isLiquid() || !aboveMinecart.isSolid()
+											|| aboveMinecart.getType().isOccluding())) {
+										ExplosiveMinecart tntMinecart = (ExplosiveMinecart) entity;
+										tntMinecart.ignite();
+										tntMinecart.setFuseTicks(RandomUtils.generateRandomInt(3, 5) * 20);
+									}
 								}
 							}
 
@@ -243,7 +252,8 @@ public class LavaRainTask implements Runnable {
 	 * Cancels the rain animation and cleans up resources.
 	 */
 	public void cancelAnimation() {
-		this.cancellableTask.cancel();
+		if (!this.cancellableTask.isCancelled())
+			this.cancellableTask.cancel();
 		this.isRaining = false;
 		this.howLongRainLasts = 0L;
 	}

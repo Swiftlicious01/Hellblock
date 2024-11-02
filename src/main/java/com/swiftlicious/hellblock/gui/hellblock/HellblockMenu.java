@@ -3,14 +3,12 @@ package com.swiftlicious.hellblock.gui.hellblock;
 import java.util.UUID;
 
 import org.bukkit.Material;
-import org.bukkit.WorldBorder;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.player.PlayerTeleportEvent.TeleportCause;
 import org.jetbrains.annotations.NotNull;
 
-import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
 import com.swiftlicious.hellblock.playerdata.HellblockPlayer.HellblockData;
@@ -128,9 +126,9 @@ public class HellblockMenu {
 					.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
 							.getAdventureManager().getComponentFromMiniMessage("<green>View your island level!")))
 					.addLoreLines(
-							new ShadedAdventureComponentWrapper(
-									HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
-											String.format("<gold>Level: <yellow>%s", pi.getLevel()))),
+							new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+									.getComponentFromMiniMessage(String.format("<gold>Level: <yellow>%s",
+											pi.hasHellblock() ? pi.getLevel() : 0))),
 							new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 									.getComponentFromMiniMessage(" ")),
 							new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
@@ -330,38 +328,18 @@ public class HellblockMenu {
 									"<red>This hellblock home location was deemed not safe, resetting to bedrock location!");
 							HellblockPlugin.getInstance().getHellblockHandler().locateBedrock(player.getUniqueId())
 									.thenAccept((bedrock) -> {
-										pi.setHome(bedrock);
+										pi.setHome(bedrock.getBedrockLocation());
 										HellblockPlugin.getInstance().getCoopManager().updateParty(player.getUniqueId(),
 												HellblockData.HOME, pi.getHomeLocation());
 									});
 						}
+						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+								"<red>Teleporting you to your hellblock!");
+						ChunkUtils.teleportAsync(player, pi.getHomeLocation(), TeleportCause.PLUGIN);
+						HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+								net.kyori.adventure.sound.Sound.Source.PLAYER,
+								net.kyori.adventure.key.Key.key("minecraft:entity.enderman.teleport"), 1, 1);
 					});
-					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-							"<red>Teleporting you to your hellblock!");
-					ChunkUtils.teleportAsync(player, pi.getHomeLocation(), TeleportCause.PLUGIN).thenRun(() -> {
-						WorldBorder border = HellblockPlugin.getInstance().getHellblockHandler().getHellblockWorld()
-								.getWorldBorder();
-						if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
-							ProtectedRegion region = HellblockPlugin.getInstance().getWorldGuardHandler()
-									.getRegion(pi.getUUID(), pi.getID());
-							if (region != null) {
-								border.setCenter(HellblockPlugin.getInstance().getWorldGuardHandler().getCenter(region)
-										.toLocation(HellblockPlugin.getInstance().getHellblockHandler()
-												.getHellblockWorld()));
-							}
-						} else {
-							// TODO: using plugin protection
-						}
-						border.setSize(HellblockPlugin.getInstance().getHellblockHandler().getProtectionRange());
-						border.setWarningDistance(0);
-						border.setDamageAmount(0);
-						border.setWarningTime(Integer.MAX_VALUE);
-						border.setDamageBuffer(Double.MAX_VALUE);
-						pi.setHellblockBorder(border);
-					});
-					HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
-							net.kyori.adventure.sound.Sound.Source.PLAYER,
-							net.kyori.adventure.key.Key.key("minecraft:entity.enderman.teleport"), 1, 1);
 				} else {
 					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 							"<red>Error teleporting you to your hellblock!");

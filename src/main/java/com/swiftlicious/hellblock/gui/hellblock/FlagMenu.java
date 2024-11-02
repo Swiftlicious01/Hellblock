@@ -1538,7 +1538,7 @@ public class FlagMenu {
 		@Override
 		public ItemProvider getItemProvider() {
 			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
-				ItemBuilder item = new ItemBuilder(Material.ENDER_CHEST).addAllItemFlags()
+				ItemBuilder item = new ItemBuilder(Material.END_STONE).addAllItemFlags()
 						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
 								.getAdventureManager()
 								.getComponentFromMiniMessage(String.format("<aqua>%s Flag",

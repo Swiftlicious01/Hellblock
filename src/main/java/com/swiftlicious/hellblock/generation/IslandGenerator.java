@@ -83,7 +83,7 @@ public class IslandGenerator {
 									}
 								}
 							}
-						});
+						}).join();
 			}
 		});
 	}
@@ -174,7 +174,7 @@ public class IslandGenerator {
 								() -> this.generateChest(
 										new Location(world, (double) x, (double) chestY, (double) (z + 1)), player),
 								location);
-			});
+			}).join();
 		});
 	}
 
@@ -258,7 +258,7 @@ public class IslandGenerator {
 						.runTaskSync(() -> this.generateChest(
 								new Location(world, (double) (x - 5), (double) chestY, (double) (z - 1)), player),
 								location);
-			});
+			}).join();
 		});
 	}
 

@@ -11,7 +11,6 @@ import java.util.concurrent.TimeUnit;
 
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
-import org.bukkit.WorldBorder;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.HandlerList;
@@ -26,7 +25,6 @@ import com.comphenix.protocol.ProtocolLibrary;
 import com.comphenix.protocol.ProtocolManager;
 import com.comphenix.protocol.events.PacketContainer;
 import com.google.common.io.Files;
-import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import com.swiftlicious.hellblock.api.compatibility.Metrics;
 import com.swiftlicious.hellblock.api.compatibility.WorldEditHook;
 import com.swiftlicious.hellblock.api.compatibility.WorldGuardHook;
@@ -284,6 +282,7 @@ public class HellblockPlugin extends JavaPlugin {
 			UUID id = player.getUniqueId();
 			HellblockPlayer pi = new HellblockPlayer(id);
 			getHellblockHandler().addActivePlayer(player, pi);
+			pi.showBorder();
 			getNetherFarmingHandler().trackNetherFarms(pi);
 			getIslandLevelManager().loadCache(id);
 			getNetherrackGeneratorHandler().loadPistons(id);
@@ -296,32 +295,14 @@ public class HellblockPlugin extends JavaPlugin {
 								getAdventureManager().sendMessageWithPrefix(player,
 										"<red>This hellblock home location was deemed not safe, resetting to bedrock location!");
 								getHellblockHandler().locateBedrock(player.getUniqueId()).thenAccept((bedrock) -> {
-									pi.setHome(bedrock);
+									pi.setHome(bedrock.getBedrockLocation());
 									getCoopManager().updateParty(player.getUniqueId(), HellblockData.HOME,
 											pi.getHomeLocation());
 								});
 							}
-							ChunkUtils.teleportAsync(player, pi.getHomeLocation(), TeleportCause.PLUGIN).thenRun(() -> {
-								WorldBorder border = getHellblockHandler().getHellblockWorld().getWorldBorder();
-								if (getHellblockHandler().isWorldguardProtected()) {
-									ProtectedRegion region = getWorldGuardHandler().getRegion(pi.getUUID(), pi.getID());
-									if (region != null) {
-										border.setCenter(getWorldGuardHandler().getCenter(region)
-												.toLocation(getHellblockHandler().getHellblockWorld()));
-									}
-								} else {
-									// TODO: using plugin protection
-								}
-								border.setSize(getHellblockHandler().getProtectionRange());
-								border.setWarningDistance(0);
-								border.setDamageAmount(0);
-								border.setWarningTime(Integer.MAX_VALUE);
-								border.setDamageBuffer(Double.MAX_VALUE);
-								pi.setHellblockBorder(border);
-							});
+							ChunkUtils.teleportAsync(player, pi.getHomeLocation(), TeleportCause.PLUGIN);
 						});
 					} else {
-						pi.setHellblockBorder(null);
 						getHellblockHandler().teleportToSpawn(player);
 					}
 				}
@@ -455,10 +436,9 @@ public class HellblockPlugin extends JavaPlugin {
 
 			while (iterator.hasNext()) {
 				UUID id = (UUID) iterator.next();
-				HellblockPlayer pi = getHellblockHandler().getActivePlayers().get(id);
-				if (pi == null)
-					continue;
+				HellblockPlayer pi = getHellblockHandler().getActivePlayer(id);
 				pi.saveHellblockPlayer();
+				pi.hideBorder();
 				getIslandLevelManager().saveCache(id);
 				getNetherrackGeneratorHandler().savePistons(id);
 				Player player = pi.getPlayer();

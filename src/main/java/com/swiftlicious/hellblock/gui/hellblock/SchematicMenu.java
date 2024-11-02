@@ -4,6 +4,8 @@ import java.io.File;
 import java.time.Duration;
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.Iterator;
+import java.util.concurrent.TimeUnit;
 
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
@@ -106,6 +108,15 @@ public class SchematicMenu {
 								net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 						return;
 					}
+					HellblockPlugin.getInstance().getScheduler().runTaskSyncLater(() -> {
+						for (Iterator<Window> windows = getWindows().iterator(); windows.hasNext();) {
+							Window window = windows.next();
+							if (window.getViewerUUID().equals(player.getUniqueId())) {
+								window.setCloseable(true);
+								window.close();
+							}
+						}
+					}, player.getLocation(), 1, TimeUnit.SECONDS);
 					HellblockPlugin.getInstance().getHellblockHandler()
 							.createHellblock(player, IslandOptions.SCHEMATIC, file.getName()).thenRun(() -> {
 								if (isReset) {
@@ -115,7 +126,6 @@ public class SchematicMenu {
 									HellblockPlugin.getInstance().getHellblockHandler()
 											.getActivePlayer(player.getUniqueId()).saveHellblockPlayer();
 								}
-								new HellblockMenu(player);
 							});
 					HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
 							net.kyori.adventure.sound.Sound.Source.PLAYER,

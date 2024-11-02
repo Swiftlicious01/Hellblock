@@ -4,6 +4,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import org.bukkit.Bukkit;
+import org.bukkit.ExplosionResult;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
@@ -13,8 +14,10 @@ import org.bukkit.entity.WitherSkull;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.CreatureSpawnEvent;
+import org.bukkit.event.entity.EntityChangeBlockEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
+import org.bukkit.event.entity.EntityExplodeEvent;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.challenges.HellblockChallenge.ChallengeType;
@@ -92,13 +95,37 @@ public class WitherBoss implements Listener {
 				wither.setInvulnerableTicks(RandomUtils.generateRandomInt(100, 300));
 			}
 			Player closestPlayer = instance.getNetherrackGeneratorHandler().getClosestPlayer(event.getLocation(),
-					event.getLocation().getWorld().getNearbyLivingEntities(event.getLocation(), 5.0D));
+					event.getLocation().getWorld().getNearbyPlayers(event.getLocation(), 15.0D));
 			if (closestPlayer != null) {
 				wither.setTarget(closestPlayer);
 			}
 		}, event.getLocation(), 15 * 20, 30 * 20);
 
 		getWitherHandler().addWither(wither, witherStats);
+	}
+
+	@EventHandler
+	public void onWitherDestroyBlock(EntityChangeBlockEvent event) {
+		if (!event.getEntity().getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+			return;
+		if (!(event.getEntityType() == EntityType.WITHER || event.getEntityType() == EntityType.WITHER_SKULL))
+			return;
+
+		if (event.getTo().isAir()) {
+			event.setCancelled(true);
+		}
+	}
+
+	@EventHandler
+	public void onWitherExplode(EntityExplodeEvent event) {
+		if (!event.getLocation().getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+			return;
+
+		if (event.getExplosionResult() != ExplosionResult.KEEP) {
+			if (event.getEntityType() == EntityType.WITHER || event.getEntityType() == EntityType.WITHER_SKULL) {
+				event.setCancelled(true);
+			}
+		}
 	}
 
 	@EventHandler
@@ -138,7 +165,7 @@ public class WitherBoss implements Listener {
 
 			wither = (Wither) witherSkull.getShooter();
 		} else if (event.getDamager().getType() == EntityType.WITHER) {
-			wither = (Wither) event.getEntity();
+			wither = (Wither) event.getDamager();
 		} else {
 			return;
 		}

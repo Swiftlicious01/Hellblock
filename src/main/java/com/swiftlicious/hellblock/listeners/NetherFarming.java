@@ -321,10 +321,10 @@ public class NetherFarming implements Listener {
 						&& instance.getLavaRainHandler().getHighestBlock(block.getLocation()) != null
 						&& instance.getLavaRainHandler().getHighestBlock(block.getLocation()).isEmpty())) {
 					event.setCancelled(true);
-					Collection<LivingEntity> entitiesNearby = block.getWorld()
-							.getNearbyLivingEntities(block.getLocation(), 25, 25, 25);
+					Collection<Player> playersNearby = block.getWorld().getNearbyPlayers(block.getLocation(), 25, 25,
+							25);
 					Player player = instance.getNetherrackGeneratorHandler().getClosestPlayer(block.getLocation(),
-							entitiesNearby);
+							playersNearby);
 					if (player != null)
 						trackNetherFarms(instance.getHellblockHandler().getActivePlayer(player));
 				} else {
@@ -351,10 +351,9 @@ public class NetherFarming implements Listener {
 			return;
 
 		if (block.getBlockData() instanceof Farmland) {
-			Collection<LivingEntity> entitiesNearby = block.getWorld().getNearbyLivingEntities(block.getLocation(), 25,
-					25, 25);
+			Collection<Player> playersNearby = block.getWorld().getNearbyPlayers(block.getLocation(), 25, 25, 25);
 			Player player = instance.getNetherrackGeneratorHandler().getClosestPlayer(block.getLocation(),
-					entitiesNearby);
+					playersNearby);
 			if (player != null) {
 				trackNetherFarms(instance.getHellblockHandler().getActivePlayer(player));
 			}
@@ -445,10 +444,9 @@ public class NetherFarming implements Listener {
 					&& instance.getLavaRainHandler().getHighestBlock(block.getLocation()) != null
 					&& instance.getLavaRainHandler().getHighestBlock(block.getLocation()).isEmpty())) {
 				event.setCancelled(true);
-				Collection<LivingEntity> entitiesNearby = block.getWorld().getNearbyLivingEntities(block.getLocation(),
-						25, 25, 25);
+				Collection<Player> playersNearby = block.getWorld().getNearbyPlayers(block.getLocation(), 25, 25, 25);
 				Player player = instance.getNetherrackGeneratorHandler().getClosestPlayer(block.getLocation(),
-						entitiesNearby);
+						playersNearby);
 				if (player != null) {
 					trackNetherFarms(instance.getHellblockHandler().getActivePlayer(player));
 				}
@@ -493,10 +491,9 @@ public class NetherFarming implements Listener {
 			return;
 
 		if (block.getBlockData() instanceof Ageable) {
-			Collection<LivingEntity> entitiesNearby = block.getWorld().getNearbyLivingEntities(block.getLocation(), 25,
-					25, 25);
+			Collection<Player> playersNearby = block.getWorld().getNearbyPlayers(block.getLocation(), 25, 25, 25);
 			Player player = instance.getNetherrackGeneratorHandler().getClosestPlayer(block.getLocation(),
-					entitiesNearby);
+					playersNearby);
 			if (player != null) {
 				trackNetherFarms(instance.getHellblockHandler().getActivePlayer(player));
 			}
@@ -550,10 +547,9 @@ public class NetherFarming implements Listener {
 		if (entity instanceof LivingEntity) {
 			Block block = event.getBlock();
 			if (block.getBlockData() instanceof Farmland || block.getBlockData() instanceof Ageable) {
-				Collection<LivingEntity> entitiesNearby = block.getWorld().getNearbyLivingEntities(block.getLocation(),
-						25, 25, 25);
+				Collection<Player> playersNearby = block.getWorld().getNearbyPlayers(block.getLocation(), 25, 25, 25);
 				Player player = instance.getNetherrackGeneratorHandler().getClosestPlayer(block.getLocation(),
-						entitiesNearby);
+						playersNearby);
 				if (player != null)
 					trackNetherFarms(instance.getHellblockHandler().getActivePlayer(player));
 				if (block.getBlockData() instanceof Farmland) {

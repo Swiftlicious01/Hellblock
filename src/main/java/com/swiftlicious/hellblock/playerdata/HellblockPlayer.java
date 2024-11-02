@@ -15,6 +15,7 @@ import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
@@ -25,14 +26,13 @@ import org.bukkit.Color;
 import org.bukkit.FireworkEffect;
 import org.bukkit.FireworkEffect.Type;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.World;
-import org.bukkit.WorldBorder;
 import org.bukkit.block.Biome;
 import org.bukkit.configuration.file.YamlConfiguration;
-import org.bukkit.entity.EntityType;
-import org.bukkit.entity.Firework;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.FireworkMeta;
 import org.bukkit.persistence.PersistentDataType;
 import org.jetbrains.annotations.Nullable;
@@ -45,10 +45,12 @@ import com.swiftlicious.hellblock.challenges.HellblockChallenge.CompletionStatus
 import com.swiftlicious.hellblock.challenges.ProgressBar;
 import com.swiftlicious.hellblock.coop.HellblockParty;
 import com.swiftlicious.hellblock.generation.HellBiome;
+import com.swiftlicious.hellblock.generation.HellblockBorderTask;
 import com.swiftlicious.hellblock.generation.IslandOptions;
 import com.swiftlicious.hellblock.protection.HellblockFlag;
 import com.swiftlicious.hellblock.protection.HellblockFlag.AccessType;
 import com.swiftlicious.hellblock.protection.HellblockFlag.FlagType;
+import com.swiftlicious.hellblock.utils.FireworkUtils;
 import com.swiftlicious.hellblock.utils.LogUtils;
 import lombok.NonNull;
 import net.kyori.adventure.key.Key;
@@ -62,7 +64,7 @@ public class HellblockPlayer {
 	private boolean hasHellblock;
 	private UUID hellblockOwner;
 	private UUID linkedHellblock;
-	private WorldBorder hellblockBorder;
+	private HellblockBorderTask borderTask;
 	private Set<UUID> hellblockParty;
 	private Set<UUID> whoHasTrusted;
 	private Set<UUID> bannedPlayers;
@@ -224,12 +226,12 @@ public class HellblockPlayer {
 			this.hellblockID = 0;
 			this.hellblockLevel = 0.0F;
 			this.hellblockBiome = null;
-			this.hellblockBorder = null;
 			this.hellblockLocation = null;
 			this.resetCooldown = 0L;
 			this.biomeCooldown = 0L;
 			this.creationTime = 0L;
 			this.totalVisitors = 0;
+			this.borderTask = null;
 			this.homeLocation = null;
 			this.hellblockOwner = null;
 			this.linkedHellblock = null;
@@ -271,10 +273,6 @@ public class HellblockPlayer {
 
 	public int getID() {
 		return this.hellblockID;
-	}
-
-	public @NonNull WorldBorder getHellblockBorder() {
-		return this.hellblockBorder;
 	}
 
 	public @Nullable Location getHellblockLocation() {
@@ -478,10 +476,15 @@ public class HellblockPlayer {
 		this.homeLocation = homeLocation;
 	}
 
-	public void setHellblockBorder(@Nullable WorldBorder border) {
-		if (getPlayer() != null)
-			getPlayer().setWorldBorder(border != null ? border : null);
-		this.hellblockBorder = border;
+	public void showBorder() {
+		this.borderTask = new HellblockBorderTask(HellblockPlugin.getInstance(), this.id);
+	}
+
+	public void hideBorder() {
+		if (this.borderTask != null) {
+			this.borderTask.cancelBorderShowcase();
+			this.borderTask = null;
+		}
 	}
 
 	public void setHellblockOwner(@Nullable UUID newOwner) {
@@ -650,30 +653,32 @@ public class HellblockPlayer {
 		if (player != null) {
 			HellblockPlugin.getInstance().getAdventureManager().sendCenteredMessage(player,
 					"<dark_gray>[+] <gray><strikethrough>--------------------------------------------<reset> <dark_gray>[+]");
+			HellblockPlugin.getInstance().getAdventureManager().sendCenteredMessage(player, " ");
 			HellblockPlugin.getInstance().getAdventureManager().sendCenteredMessage(player,
-					"<dark_green>*** <green><bold>Challenge Completed! <dark_green>***");
+					"<dark_green>*** <green><bold>Challenge Completed!<reset> <dark_green>***");
 			HellblockPlugin.getInstance().getAdventureManager().sendCenteredMessage(player,
 					String.format("<gold>Claim your reward by clicking this challenge in the GUI menu!"));
+			HellblockPlugin.getInstance().getAdventureManager().sendCenteredMessage(player, " ");
 			HellblockPlugin.getInstance().getAdventureManager().sendCenteredMessage(player,
 					"<dark_gray>[+] <gray><strikethrough>--------------------------------------------<reset> <dark_gray>[+]");
 			HellblockPlugin.getInstance().getAdventureManager().sendSound(player, Sound.Source.PLAYER,
 					Key.key("minecraft:entity.player.levelup"), 1.0F, 1.0F);
-			Firework firework = (Firework) player.getWorld().spawnEntity(player.getLocation(),
-					EntityType.FIREWORK_ROCKET);
-			firework.setTicksToDetonate(0);
-			firework.setShotAtAngle(false);
-			firework.setTicksFlown(0);
-			firework.setInvisible(true);
-			firework.setTicksLived(0);
-			firework.detonate();
-			FireworkMeta meta = firework.getFireworkMeta();
-			meta.setPower(0);
+			int fireworkID = ThreadLocalRandom.current().nextInt(Integer.MAX_VALUE);
+			ItemStack firework = new ItemStack(Material.FIREWORK_ROCKET);
+			FireworkMeta meta = (FireworkMeta) firework.getItemMeta();
+			meta.setPower(2);
 			meta.addEffect(FireworkEffect.builder().with(Type.BURST).trail(false).flicker(false).withColor(Color.LIME)
 					.withFade(Color.LIME).build());
 			meta.getPersistentDataContainer().set(
 					new NamespacedKey(HellblockPlugin.getInstance(), "challenge-firework"), PersistentDataType.BOOLEAN,
 					true);
-			firework.setFireworkMeta(meta);
+			firework.setItemMeta(meta);
+			HellblockPlugin.getInstance().sendPackets(player,
+					FireworkUtils.getSpawnFireworkPacket(fireworkID, player.getLocation()),
+					FireworkUtils.getFireworkMetaPacket(fireworkID, firework),
+					FireworkUtils.getFireworkStatusPacket(fireworkID),
+					FireworkUtils.getFireworkDestroyPacket(fireworkID));
+			saveHellblockPlayer();
 		}
 	}
 
@@ -847,7 +852,31 @@ public class HellblockPlayer {
 		}
 
 		try {
-			this.pi.save(this.file);
+			this.getHellblockPlayer().save(this.file);
+		} catch (IOException ex) {
+			LogUtils.severe(String.format("Unable to save player file for %s!", this.getPlayer().getName()), ex);
+		}
+	}
+
+	public void resetHellblockData() {
+		this.getHellblockPlayer().set("player.hasHellblock", false);
+		this.getHellblockPlayer().set("player.hellblock", null);
+		this.getHellblockPlayer().set("player.hellblock-id", null);
+		this.getHellblockPlayer().set("player.hellblock-level", null);
+		this.getHellblockPlayer().set("player.home", null);
+		this.getHellblockPlayer().set("player.owner", null);
+		this.getHellblockPlayer().set("player.biome", null);
+		this.getHellblockPlayer().set("player.party", null);
+		this.getHellblockPlayer().set("player.creation-time", null);
+		this.getHellblockPlayer().set("player.total-visits", null);
+		this.getHellblockPlayer().set("player.locked-island", null);
+		this.getHellblockPlayer().set("player.biome-cooldown", null);
+		this.getHellblockPlayer().set("player.island-choice", null);
+		this.getHellblockPlayer().set("player.protection-flags", null);
+		this.getHellblockPlayer().set("player.banned-from-island", null);
+
+		try {
+			this.getHellblockPlayer().save(this.file);
 		} catch (IOException ex) {
 			LogUtils.severe(String.format("Unable to save player file for %s!", this.getPlayer().getName()), ex);
 		}

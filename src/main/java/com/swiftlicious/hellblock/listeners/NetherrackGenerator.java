@@ -19,7 +19,6 @@ import org.bukkit.block.BlockFace;
 import org.bukkit.block.data.Levelled;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.EntityType;
-import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -99,9 +98,9 @@ public class NetherrackGenerator implements Listener {
 							.getDouble("netherrack-generator-options.playerSearchRadius", 4D);
 					if (l.getWorld() == null)
 						return;
-					Collection<LivingEntity> entitiesNearby = l.getWorld().getNearbyLivingEntities(l, searchRadius,
+					Collection<Player> playersNearby = l.getWorld().getNearbyPlayers(l, searchRadius,
 							searchRadius, searchRadius);
-					Player closestPlayer = getClosestPlayer(l, entitiesNearby);
+					Player closestPlayer = getClosestPlayer(l, playersNearby);
 					if (closestPlayer != null) {
 						genManager.addKnownGenLocation(l);
 						genManager.setPlayerForLocation(closestPlayer.getUniqueId(), l, false);
@@ -164,18 +163,16 @@ public class NetherrackGenerator implements Listener {
 		}
 	}
 
-	public @Nullable Player getClosestPlayer(Location l, Collection<LivingEntity> entitiesNearby) {
+	public @Nullable Player getClosestPlayer(Location l, Collection<Player> playersNearby) {
 		Player closestPlayer = null;
 		double closestDistance = 100D;
-		for (LivingEntity entity : entitiesNearby) {
-			if (entity instanceof Player player) {
-				double distance = l.distance(player.getLocation());
-				if (closestPlayer != null && !(closestDistance > distance)) {
-					continue;
-				}
-				closestPlayer = player;
-				closestDistance = distance;
+		for (Player player : playersNearby) {
+			double distance = l.distance(player.getLocation());
+			if (closestPlayer != null && !(closestDistance > distance)) {
+				continue;
 			}
+			closestPlayer = player;
+			closestDistance = distance;
 		}
 		return closestPlayer;
 	}

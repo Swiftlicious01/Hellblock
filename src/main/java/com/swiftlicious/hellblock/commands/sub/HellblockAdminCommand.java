@@ -75,7 +75,7 @@ public class HellblockAdminCommand {
 										"<red>This hellblock home location was deemed not safe, resetting to bedrock location!");
 								HellblockPlugin.getInstance().getHellblockHandler().locateBedrock(id)
 										.thenAccept((bedrock) -> {
-											ti.setHome(bedrock);
+											ti.setHome(bedrock.getBedrockLocation());
 											HellblockPlugin.getInstance().getCoopManager().updateParty(id, HellblockData.HOME,
 													ti.getHomeLocation());
 										});

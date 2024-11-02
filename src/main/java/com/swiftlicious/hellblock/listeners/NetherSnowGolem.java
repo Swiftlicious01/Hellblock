@@ -162,10 +162,10 @@ public class NetherSnowGolem implements Listener {
 			if (!block.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
 				return;
 
-			Collection<LivingEntity> entitiesNearby = block.getWorld().getNearbyLivingEntities(block.getLocation(), 25,
-					25, 25);
+			Collection<Player> playersNearby = block.getWorld().getNearbyPlayers(block.getLocation(), 25, 25,
+					25);
 			Player player = instance.getNetherrackGeneratorHandler().getClosestPlayer(block.getLocation(),
-					entitiesNearby);
+					playersNearby);
 			if (player != null)
 				spawnHellGolem(player, block.getLocation());
 		}

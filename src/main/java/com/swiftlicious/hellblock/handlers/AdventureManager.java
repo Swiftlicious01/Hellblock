@@ -2,22 +2,26 @@ package com.swiftlicious.hellblock.handlers;
 
 import java.lang.reflect.InvocationTargetException;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.ConsoleCommandSender;
 import org.bukkit.entity.Player;
+import org.jetbrains.annotations.Nullable;
 
 import com.swiftlicious.hellblock.api.DefaultFontInfo;
 import com.swiftlicious.hellblock.config.HBConfig;
 import com.swiftlicious.hellblock.config.HBLocale;
 import com.swiftlicious.hellblock.utils.ReflectionUtils;
 
+import lombok.NonNull;
 import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.sound.Sound;
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.TextDecoration;
+import net.kyori.adventure.text.format.Style;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
@@ -28,7 +32,7 @@ public class AdventureManager implements AdventureManagerInterface {
 	private final static int CENTER_PX = 154;
 
 	@Override
-	public Component getComponentFromMiniMessage(String text) {
+	public @NonNull Component getComponentFromMiniMessage(@Nullable String text) {
 		if (text == null) {
 			return Component.empty();
 		}
@@ -40,7 +44,7 @@ public class AdventureManager implements AdventureManagerInterface {
 	}
 
 	@Override
-	public void sendMessage(CommandSender sender, String message) {
+	public void sendMessage(@Nullable CommandSender sender, @Nullable String message) {
 		if (message == null)
 			return;
 		if (sender == null)
@@ -52,7 +56,7 @@ public class AdventureManager implements AdventureManagerInterface {
 	}
 
 	@Override
-	public void sendMessageWithPrefix(CommandSender sender, String message) {
+	public void sendMessageWithPrefix(@Nullable CommandSender sender, @Nullable String message) {
 		if (message == null)
 			return;
 		if (sender == null)
@@ -64,7 +68,7 @@ public class AdventureManager implements AdventureManagerInterface {
 	}
 
 	@Override
-	public void sendConsoleMessage(String message) {
+	public void sendConsoleMessage(@Nullable String message) {
 		if (message == null)
 			return;
 		Audience au = Audience.audience(Bukkit.getConsoleSender());
@@ -72,7 +76,7 @@ public class AdventureManager implements AdventureManagerInterface {
 	}
 
 	@Override
-	public void sendGlobalMessage(String message) {
+	public void sendGlobalMessage(@Nullable String message) {
 		if (message == null)
 			return;
 		Audience au = Audience.audience(Bukkit.getOnlinePlayers());
@@ -80,7 +84,7 @@ public class AdventureManager implements AdventureManagerInterface {
 	}
 
 	@Override
-	public void sendPlayerMessage(Player player, String message) {
+	public void sendPlayerMessage(@NonNull Player player, @Nullable String message) {
 		if (message == null)
 			return;
 		Audience au = Audience.audience(player);
@@ -88,24 +92,51 @@ public class AdventureManager implements AdventureManagerInterface {
 	}
 
 	@Override
-	public void sendCenteredMessage(Player player, String message) {
-		if (message == null)
+	public void sendCenteredMessage(@NonNull Player player, @Nullable String message) {
+		sendCenteredMessage(player, getComponentFromMiniMessage(message));
+	}
+
+	public void sendCenteredMessage(@NonNull Player player, @Nullable Component component) {
+		if (component == null) {
 			return;
-
-		int messagePxSize = 0;
-		boolean isBold = false;
-
-		for (char c : message.toCharArray()) {
-			if (getComponentFromMiniMessage(message).hasDecoration(TextDecoration.BOLD)) {
-				isBold = true;
-				continue;
-			} else
-				isBold = false;
-			DefaultFontInfo dFI = DefaultFontInfo.getDefaultFontInfo(c);
-			messagePxSize += isBold ? dFI.getBoldLength() : dFI.getLength();
-			messagePxSize++;
 		}
-
+		if (component.children().contains(Component.newline())) {
+			Style parentStyle = component.style();
+			List<Component> children = new ArrayList<>(component.children());
+			children.add(0, component.children(new ArrayList<>()));
+			Component toSend = Component.empty().style(parentStyle);
+			for (int i = 0; i < children.size(); i++) {
+				Component child = children.get(i);
+				if (child.equals(Component.newline())) {
+					sendCenteredMessage(player, toSend);
+					if (i == children.size() - 1) {
+						break;
+					}
+					toSend = children.get(i + 1).applyFallbackStyle(parentStyle);
+					i++;
+				} else {
+					toSend = toSend.append(child);
+				}
+			}
+			sendCenteredMessage(player, toSend);
+			return;
+		}
+		String message = LegacyComponentSerializer.legacySection().serialize(component);
+		int messagePxSize = 0;
+		boolean previousCode = false;
+		boolean isBold = false;
+		for (char c : message.toCharArray()) {
+			if (c == '§') {
+				previousCode = true;
+			} else if (previousCode) {
+				previousCode = false;
+				isBold = c == 'l' || c == 'L';
+			} else {
+				DefaultFontInfo dFI = DefaultFontInfo.getDefaultFontInfo(c);
+				messagePxSize += isBold ? dFI.getBoldLength() : dFI.getLength();
+				messagePxSize++;
+			}
+		}
 		int halvedMessageSize = messagePxSize / 2;
 		int toCompensate = CENTER_PX - halvedMessageSize;
 		int spaceLength = DefaultFontInfo.SPACE.getLength() + 1;
@@ -116,23 +147,25 @@ public class AdventureManager implements AdventureManagerInterface {
 			compensated += spaceLength;
 		}
 		Audience au = Audience.audience(player);
-		au.sendMessage(getComponentFromMiniMessage(sb.toString() + message));
+		au.sendMessage(Component.text(sb.toString()).append(component));
 	}
 
 	@Override
-	public void sendTitle(Player player, String title, String subtitle, int in, int duration, int out) {
+	public void sendTitle(@NonNull Player player, @NonNull String title, @NonNull String subtitle, int in, int duration,
+			int out) {
 		sendTitle(player, getComponentFromMiniMessage(title), getComponentFromMiniMessage(subtitle), in, duration, out);
 	}
 
 	@Override
-	public void sendTitle(Player player, Component title, Component subtitle, int fadeIn, int stay, int fadeOut) {
+	public void sendTitle(@NonNull Player player, @NonNull Component title, @NonNull Component subtitle, int fadeIn,
+			int stay, int fadeOut) {
 		Audience au = Audience.audience(player);
 		au.showTitle(Title.title(title, subtitle, Title.Times.times(Duration.ofMillis(fadeIn * 50L),
 				Duration.ofMillis(stay * 50L), Duration.ofMillis(fadeOut * 50L))));
 	}
 
 	@Override
-	public void sendActionbar(Player player, String text) {
+	public void sendActionbar(@NonNull Player player, @Nullable String text) {
 		if (text == null)
 			return;
 		Audience au = Audience.audience(player);
@@ -140,35 +173,35 @@ public class AdventureManager implements AdventureManagerInterface {
 	}
 
 	@Override
-	public void sendSound(Player player, Sound.Source source, net.kyori.adventure.key.Key key, float volume,
-			float pitch) {
+	public void sendSound(@NonNull Player player, @NonNull Sound.Source source,
+			@NonNull net.kyori.adventure.key.Key key, float volume, float pitch) {
 		Sound sound = Sound.sound(key, source, volume, pitch);
 		Audience au = Audience.audience(player);
 		au.playSound(sound);
 	}
 
 	@Override
-	public void sendSound(Location location, Sound.Source source, net.kyori.adventure.key.Key key, float volume,
-			float pitch) {
+	public void sendSound(@NonNull Location location, @NonNull Sound.Source source,
+			@NonNull net.kyori.adventure.key.Key key, float volume, float pitch) {
 		Sound sound = Sound.sound(key, source, volume, pitch);
 		Audience au = Audience.audience(location.getNearbyPlayers(5.0D));
 		au.playSound(sound);
 	}
 
 	@Override
-	public void sendSound(Player player, Sound sound) {
+	public void sendSound(@NonNull Player player, @NonNull Sound sound) {
 		Audience au = Audience.audience(player);
 		au.playSound(sound);
 	}
 
 	@Override
-	public void sendSound(Location location, Sound sound) {
+	public void sendSound(@NonNull Location location, @NonNull Sound sound) {
 		Audience au = Audience.audience(location.getNearbyPlayers(5.0D));
 		au.playSound(sound);
 	}
 
 	@Override
-	public String legacyToMiniMessage(String legacy) {
+	public @NonNull String legacyToMiniMessage(@NonNull String legacy) {
 		StringBuilder stringBuilder = new StringBuilder();
 		char[] chars = legacy.toCharArray();
 		for (int i = 0; i < chars.length; i++) {
@@ -230,22 +263,22 @@ public class AdventureManager implements AdventureManagerInterface {
 	}
 
 	@Override
-	public String componentToLegacy(Component component) {
+	public @NonNull String componentToLegacy(@NonNull Component component) {
 		return LegacyComponentSerializer.legacySection().serialize(component);
 	}
 
 	@Override
-	public String componentToJson(Component component) {
+	public @NonNull String componentToJson(@NonNull Component component) {
 		return GsonComponentSerializer.gson().serialize(component);
 	}
 
 	@Override
-	public Component jsonToComponent(String json) {
+	public @NonNull Component jsonToComponent(@NonNull String json) {
 		return GsonComponentSerializer.gson().deserialize(json);
 	}
 
 	@Override
-	public Object shadedComponentToOriginalComponent(Component component) {
+	public @NonNull Object shadedComponentToOriginalComponent(@NonNull Component component) {
 		Object cp;
 		try {
 			cp = ReflectionUtils.gsonDeserializeMethod.invoke(ReflectionUtils.gsonInstance,

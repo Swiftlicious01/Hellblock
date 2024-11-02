@@ -17,7 +17,6 @@ import org.bukkit.NamespacedKey;
 import org.bukkit.Registry;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
-import org.bukkit.entity.Entity;
 import org.bukkit.entity.ExperienceOrb;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.EquipmentSlot;
@@ -293,8 +292,8 @@ public class ActionManager implements ActionManagerInterface {
 						return;
 					Player owner = condition.getPlayer();
 					instance.getScheduler().runTaskSync(() -> {
-						for (Entity player : condition.getLocation().getWorld().getNearbyEntities(
-								condition.getLocation(), range, range, range, entity -> entity instanceof Player)) {
+						for (Player player : condition.getLocation().getWorld()
+								.getNearbyPlayers(condition.getLocation(), range, range, range)) {
 							double distance = LocationUtils.getDistance(player.getLocation(), condition.getLocation());
 							if (distance <= range) {
 								condition.insertArg("{near}", player.getName());
@@ -362,8 +361,8 @@ public class ActionManager implements ActionManagerInterface {
 						return;
 					Player owner = condition.getPlayer();
 					instance.getScheduler().runTaskSync(() -> {
-						for (Entity player : condition.getLocation().getWorld().getNearbyEntities(
-								condition.getLocation(), range, range, range, entity -> entity instanceof Player)) {
+						for (Player player : condition.getLocation().getWorld()
+								.getNearbyPlayers(condition.getLocation(), range, range, range)) {
 							double distance = LocationUtils.getDistance(player.getLocation(), condition.getLocation());
 							if (distance <= range) {
 								condition.insertArg("{near}", player.getName());
@@ -422,8 +421,8 @@ public class ActionManager implements ActionManagerInterface {
 						return;
 					Player owner = condition.getPlayer();
 					instance.getScheduler().runTaskSync(() -> {
-						for (Entity player : condition.getLocation().getWorld().getNearbyEntities(
-								condition.getLocation(), range, range, range, entity -> entity instanceof Player)) {
+						for (Player player : condition.getLocation().getWorld()
+								.getNearbyPlayers(condition.getLocation(), range, range, range)) {
 							double distance = LocationUtils.getDistance(player.getLocation(), condition.getLocation());
 							if (distance <= range) {
 								condition.insertArg("{near}", player.getName());
@@ -512,8 +511,7 @@ public class ActionManager implements ActionManagerInterface {
 					Location location = position ? condition.getLocation() : owner.getLocation();
 					if (range > 0) {
 						instance.getScheduler().runTaskSync(() -> {
-							for (Entity player : location.getWorld().getNearbyEntities(location, range, range, range,
-									entity -> entity instanceof Player)) {
+							for (Player player : location.getWorld().getNearbyPlayers(location, range, range, range)) {
 								double distance = LocationUtils.getDistance(player.getLocation(), location);
 								if (distance <= range) {
 									ArmorStandUtils.sendHologram((Player) player, location.clone().add(x, y, z),
@@ -628,8 +626,8 @@ public class ActionManager implements ActionManagerInterface {
 							condition.getArgs());
 					if (range > 0) {
 						instance.getScheduler().runTaskSync(() -> {
-							for (Entity player : finalLocation.getWorld().getNearbyEntities(finalLocation, range, range,
-									range, entity -> entity instanceof Player)) {
+							for (Player player : finalLocation.getWorld().getNearbyPlayers(finalLocation, range, range,
+									range)) {
 								double distance = LocationUtils.getDistance(player.getLocation(), finalLocation);
 								if (distance <= range) {
 									Location locationTemp = finalLocation.clone();
@@ -822,8 +820,8 @@ public class ActionManager implements ActionManagerInterface {
 					if (Math.random() > chance)
 						return;
 					instance.getScheduler().runTaskSync(() -> {
-						for (Entity player : condition.getLocation().getWorld().getNearbyEntities(
-								condition.getLocation(), range, range, range, entity -> entity instanceof Player)) {
+						for (Player player : condition.getLocation().getWorld()
+								.getNearbyPlayers(condition.getLocation(), range, range, range)) {
 							double distance = LocationUtils.getDistance(player.getLocation(), condition.getLocation());
 							if (distance <= range) {
 								condition.insertArg("{near}", player.getName());

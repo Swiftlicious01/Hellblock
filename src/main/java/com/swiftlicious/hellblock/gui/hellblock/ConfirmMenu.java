@@ -1,5 +1,8 @@
 package com.swiftlicious.hellblock.gui.hellblock;
 
+import java.util.concurrent.TimeUnit;
+import java.util.Iterator;
+
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.ClickType;
@@ -80,9 +83,18 @@ public class ConfirmMenu {
 				return;
 			}
 
+			HellblockPlugin.getInstance().getScheduler().runTaskSyncLater(() -> {
+				for (Iterator<Window> windows = getWindows().iterator(); windows.hasNext();) {
+					Window window = windows.next();
+					if (window.getViewerUUID().equals(player.getUniqueId())) {
+						window.close();
+					}
+				}
+			}, player.getLocation(), 1, TimeUnit.SECONDS);
 			HellblockPlugin.getInstance().getHellblockHandler().resetHellblock(player.getUniqueId(), false)
 					.thenRun(() -> {
-						new IslandChoiceMenu(player, true);
+						HellblockPlugin.getInstance().getScheduler().runTaskSyncLater(
+								() -> new IslandChoiceMenu(player, true), player.getLocation(), 1, TimeUnit.SECONDS);
 					});
 			HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
 					net.kyori.adventure.sound.Sound.Source.PLAYER,

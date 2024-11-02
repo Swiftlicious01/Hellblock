@@ -146,18 +146,14 @@ public class GlowstoneTree implements Listener {
 	}
 
 	private boolean canGrow(@NonNull Block block) {
-		boolean canGrow = false;
+		boolean canGrow = true;
 		int centerX = block.getLocation().getBlockX();
 		int centerY = block.getLocation().getBlockY();
 		int centerZ = block.getLocation().getBlockZ();
 		for (int x = centerX - 1; x <= centerX + 1; x++) {
 			for (int y = centerY; y <= centerY + 5; y++) {
 				for (int z = centerZ - 1; z <= centerZ + 1; z++) {
-					instance.getAdventureManager().sendMessage(null,
-							block.getWorld().getBlockAt(x, y, z).getType().name());
-					if (canGrowIn(block.getWorld().getBlockAt(x, y, z).getType())) {
-						canGrow = true;
-					} else {
+					if (!canGrowIn(block.getWorld().getBlockAt(x, y, z).getType())) {
 						canGrow = false;
 						break;
 					}
@@ -168,8 +164,8 @@ public class GlowstoneTree implements Listener {
 	}
 
 	private boolean canGrowIn(Material material) {
-		return material == Material.GLOWSTONE || material.isAir() || material == Material.SNOW
-				|| material == Material.TALL_GRASS || material == Material.VINE;
+		return material == Material.GLOWSTONE || Tag.SAPLINGS.isTagged(material) || material.isAir()
+				|| material == Material.SNOW || material == Material.TALL_GRASS || material == Material.VINE;
 	}
 
 	// These are all the sides of the block

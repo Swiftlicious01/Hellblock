@@ -13,7 +13,6 @@ import java.util.UUID;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.OfflinePlayer;
-import org.bukkit.WorldBorder;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.player.PlayerTeleportEvent.TeleportCause;
@@ -249,15 +248,12 @@ public class CoopManager {
 						instance.getAdventureManager().sendMessageWithPrefix(player,
 								"<red>This hellblock home location was deemed not safe, resetting to bedrock location!");
 						instance.getHellblockHandler().locateBedrock(player.getUniqueId()).thenAccept((bedrock) -> {
-							playerToAdd.setHome(bedrock);
+							playerToAdd.setHome(bedrock.getBedrockLocation());
 							instance.getCoopManager().updateParty(player.getUniqueId(), HellblockData.HOME,
 									playerToAdd.getHomeLocation());
 						});
 					}
-					ChunkUtils.teleportAsync(player, playerToAdd.getHomeLocation(), TeleportCause.PLUGIN)
-							.thenRun(() -> {
-								playerToAdd.setHellblockBorder(ti.getHellblockBorder());
-							});
+					ChunkUtils.teleportAsync(player, playerToAdd.getHomeLocation(), TeleportCause.PLUGIN);
 				});
 				ti.addToHellblockParty(player.getUniqueId());
 				for (HellblockPlayer active : instance.getHellblockHandler().getActivePlayers().values()) {
@@ -404,12 +400,12 @@ public class CoopManager {
 				}
 				ti.setHellblockOwner(null);
 				ti.saveHellblockPlayer();
+				ti.resetHellblockData();
 				hbPlayer.saveHellblockPlayer();
 				instance.getAdventureManager().sendMessageWithPrefix(owner,
 						"<red>" + input + " has been kicked to your hellblock party!");
 				Player player = Bukkit.getPlayer(id);
 				if (player != null) {
-					ti.setHellblockBorder(null);
 					instance.getHellblockHandler().teleportToSpawn(player);
 					instance.getAdventureManager().sendMessageWithPrefix(player,
 							"<red>You have been removed from " + owner.getName() + "'s hellblock!");
@@ -442,7 +438,7 @@ public class CoopManager {
 				if (leavingPlayer.getHellblockOwner() != null
 						&& leavingPlayer.getHellblockOwner().equals(player.getUniqueId())) {
 					instance.getAdventureManager().sendMessageWithPrefix(player,
-							"<red>You cannot leave the hellblock you own!");
+							"<red>You can't leave the hellblock you own!");
 					return;
 				}
 				OfflinePlayer owner;
@@ -488,7 +484,6 @@ public class CoopManager {
 				}
 				leavingPlayer.setHellblock(false, null, 0);
 				leavingPlayer.setHome(null);
-				leavingPlayer.setHellblockBorder(null);
 				leavingPlayer.setHellblockBiome(null);
 				leavingPlayer.setLockedStatus(false);
 				leavingPlayer.setTotalVisits(0);
@@ -569,6 +564,7 @@ public class CoopManager {
 				}
 				leavingPlayer.setHellblockOwner(null);
 				leavingPlayer.saveHellblockPlayer();
+				leavingPlayer.resetHellblockData();
 				instance.getAdventureManager().sendMessageWithPrefix(player,
 						"<red>You have left your hellblock party with "
 								+ (owner.getName() != null ? owner.getName() : "Unknown"));
@@ -803,37 +799,15 @@ public class CoopManager {
 													"<red>This hellblock home location was deemed not safe, resetting to bedrock location!");
 											instance.getHellblockHandler().locateBedrock(visitor)
 													.thenAccept((bedrock) -> {
-														vi.setHome(bedrock);
+														vi.setHome(bedrock.getBedrockLocation());
 														instance.getCoopManager().updateParty(visitor,
 																HellblockData.HOME, vi.getHomeLocation());
 													});
 										}
 										ChunkUtils.teleportAsync(vi.getPlayer(), vi.getHomeLocation(),
-												TeleportCause.PLUGIN).thenRun(() -> {
-													WorldBorder border = instance.getHellblockHandler()
-															.getHellblockWorld().getWorldBorder();
-													if (instance.getHellblockHandler().isWorldguardProtected()) {
-														ProtectedRegion viRegion = instance.getWorldGuardHandler()
-																.getRegion(vi.getUUID(), vi.getID());
-														if (viRegion != null) {
-															border.setCenter(
-																	instance.getWorldGuardHandler().getCenter(viRegion)
-																			.toLocation(instance.getHellblockHandler()
-																					.getHellblockWorld()));
-														}
-													} else {
-														// TODO: using plugin protection
-													}
-													border.setSize(instance.getHellblockHandler().getProtectionRange());
-													border.setWarningDistance(0);
-													border.setDamageAmount(0);
-													border.setWarningTime(Integer.MAX_VALUE);
-													border.setDamageBuffer(Double.MAX_VALUE);
-													vi.setHellblockBorder(border);
-												});
+												TeleportCause.PLUGIN);
 									});
 								} else {
-									vi.setHellblockBorder(null);
 									instance.getHellblockHandler().teleportToSpawn(vi.getPlayer());
 								}
 								instance.getAdventureManager().sendMessageWithPrefix(vi.getPlayer(),
