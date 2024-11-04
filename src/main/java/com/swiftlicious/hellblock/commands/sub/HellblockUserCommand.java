@@ -446,7 +446,7 @@ public class HellblockUserCommand {
 									});
 								} else {
 									HellblockPlugin.getInstance().getHellblockHandler()
-											.teleportToSpawn(Bukkit.getPlayer(user));
+											.teleportToSpawn(Bukkit.getPlayer(user), true);
 
 								}
 							}

@@ -564,42 +564,47 @@ public class ChallengesMenu {
 		@Override
 		public ItemProvider getItemProvider() {
 			HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(playerUUID);
-			if (pi.isChallengeCompleted(ChallengeType.ISLAND_LEVEL_CHALLENGE)) {
-				return new ItemBuilder(Material.EXPERIENCE_BOTTLE).addAllItemFlags()
+			if (pi.isChallengeCompleted(ChallengeType.NETHER_TRADING_CHALLENGE)) {
+				return new ItemBuilder(Material.GOLD_INGOT).addAllItemFlags()
 						.addEnchantment(Enchantment.UNBREAKING, 1, false)
 						.setDisplayName(new ShadedAdventureComponentWrapper(
 								HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
-										String.format("<green>Reach level %s for your island level!",
-												ChallengeType.ISLAND_LEVEL_CHALLENGE.getNeededAmount()))))
+										String.format("<green>Barter for the %s items that piglins trade for!",
+												ChallengeType.NETHER_TRADING_CHALLENGE.getNeededAmount()))))
 						.addLoreLines(
 								new ShadedAdventureComponentWrapper(
-										HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
-												String.format("<dark_green>Completed!: <gray>(%s/%s)",
-														ChallengeType.ISLAND_LEVEL_CHALLENGE.getNeededAmount(),
-														ChallengeType.ISLAND_LEVEL_CHALLENGE.getNeededAmount()))),
+										HellblockPlugin.getInstance().getAdventureManager()
+												.getComponentFromMiniMessage(String.format(
+														"<dark_green>Completed!: <gray>(%s/%s)",
+														ChallengeType.NETHER_TRADING_CHALLENGE.getNeededAmount(),
+														ChallengeType.NETHER_TRADING_CHALLENGE.getNeededAmount()))),
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 										.getComponentFromMiniMessage(String.format(" "))),
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 										.getComponentFromMiniMessage(String.format(
-												!pi.isChallengeRewardClaimed(ChallengeType.ISLAND_LEVEL_CHALLENGE)
+												!pi.isChallengeRewardClaimed(ChallengeType.NETHER_TRADING_CHALLENGE)
 														? "<yellow>Click to claim your reward!"
 														: "<yellow>Reward Claimed!"))));
 			} else {
-				return new ItemBuilder(Material.EXPERIENCE_BOTTLE).addAllItemFlags()
-						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
-								.getAdventureManager()
-								.getComponentFromMiniMessage(String.format("<red>Reach level %s for your island level!",
-										ChallengeType.ISLAND_LEVEL_CHALLENGE.getNeededAmount()))))
+				return new ItemBuilder(Material.GOLD_INGOT).addAllItemFlags()
+						.setDisplayName(new ShadedAdventureComponentWrapper(
+								HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
+										String.format("<red>Barter for the %s items that piglins trade for!",
+												ChallengeType.NETHER_TRADING_CHALLENGE.getNeededAmount()))))
 						.addLoreLines(
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 										.getComponentFromMiniMessage(String.format("<dark_red>Progress: <gray>(%s/%s)",
-												pi.getChallengeProgress(ChallengeType.ISLAND_LEVEL_CHALLENGE),
-												ChallengeType.ISLAND_LEVEL_CHALLENGE.getNeededAmount()))),
+												pi.getChallengeProgress(ChallengeType.NETHER_TRADING_CHALLENGE),
+												ChallengeType.NETHER_TRADING_CHALLENGE.getNeededAmount()))),
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
-										.getComponentFromMiniMessage(String.format("%s", ProgressBar.getProgressBar(
-												new ProgressBar(ChallengeType.ISLAND_LEVEL_CHALLENGE.getNeededAmount(),
-														pi.getChallengeProgress(ChallengeType.ISLAND_LEVEL_CHALLENGE)),
-												25)))));
+										.getComponentFromMiniMessage(String.format("%s",
+												ProgressBar.getProgressBar(
+														new ProgressBar(
+																ChallengeType.NETHER_TRADING_CHALLENGE
+																		.getNeededAmount(),
+																pi.getChallengeProgress(
+																		ChallengeType.NETHER_TRADING_CHALLENGE)),
+														25)))));
 			}
 		}
 
@@ -607,17 +612,17 @@ public class ChallengesMenu {
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
 			HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
-			if (pi.isChallengeCompleted(ChallengeType.ISLAND_LEVEL_CHALLENGE)
-					&& !pi.isChallengeRewardClaimed(ChallengeType.ISLAND_LEVEL_CHALLENGE)) {
+			if (pi.isChallengeCompleted(ChallengeType.NETHER_TRADING_CHALLENGE)
+					&& !pi.isChallengeRewardClaimed(ChallengeType.NETHER_TRADING_CHALLENGE)) {
 				ConfigurationSection section = HellblockPlugin.getInstance().getConfig("challenge-rewards.yml")
-						.getConfigurationSection("rewards." + ChallengeType.ISLAND_LEVEL_CHALLENGE.toString());
+						.getConfigurationSection("rewards." + ChallengeType.NETHER_TRADING_CHALLENGE.toString());
 				ItemStack reward = HellblockPlugin.getInstance().getChallengeRewardBuilder()
 						.createChallengeReward(section);
 				if (reward != null) {
 					if (player.getInventory().firstEmpty() != -1) {
 						player.getInventory().addItem(reward);
 						player.updateInventory();
-						pi.setChallengeRewardAsClaimed(ChallengeType.ISLAND_LEVEL_CHALLENGE, true);
+						pi.setChallengeRewardAsClaimed(ChallengeType.NETHER_TRADING_CHALLENGE, true);
 						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 								"<red>You've claimed your challenge reward!");
 						HellblockPlugin.getInstance().getAdventureManager().sendSound(player,

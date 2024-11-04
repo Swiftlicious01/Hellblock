@@ -36,7 +36,6 @@ import com.google.common.io.Files;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
-import com.swiftlicious.hellblock.challenges.HellblockChallenge.ChallengeType;
 import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
 import com.swiftlicious.hellblock.playerdata.HellblockPlayer.HellblockData;
 import com.swiftlicious.hellblock.utils.LogUtils;
@@ -494,35 +493,6 @@ public class IslandLevelHandler implements Listener {
 										instance.getCoopManager().updateParty(ownerUUID, HellblockData.LEVEL_REMOVAL,
 												level);
 									}
-								}
-							}
-						}
-
-						if (ti.getLevel() >= ChallengeType.ISLAND_LEVEL_CHALLENGE.getNeededAmount()) {
-							if (!ti.isChallengeActive(ChallengeType.ISLAND_LEVEL_CHALLENGE)
-									&& !ti.isChallengeCompleted(ChallengeType.ISLAND_LEVEL_CHALLENGE)) {
-								ti.beginChallengeProgression(ChallengeType.ISLAND_LEVEL_CHALLENGE);
-							} else {
-								ti.updateChallengeProgression(ChallengeType.ISLAND_LEVEL_CHALLENGE,
-										ChallengeType.ISLAND_LEVEL_CHALLENGE.getNeededAmount());
-								if (ti.isChallengeCompleted(ChallengeType.ISLAND_LEVEL_CHALLENGE)
-										&& (int) ti.getLevel() >= ChallengeType.ISLAND_LEVEL_CHALLENGE
-												.getNeededAmount()) {
-									ti.completeChallenge(ChallengeType.ISLAND_LEVEL_CHALLENGE);
-								}
-							}
-						}
-						if (pi.getLevel() >= ChallengeType.ISLAND_LEVEL_CHALLENGE.getNeededAmount()) {
-							if (!pi.isChallengeActive(ChallengeType.ISLAND_LEVEL_CHALLENGE)
-									&& !pi.isChallengeCompleted(ChallengeType.ISLAND_LEVEL_CHALLENGE)) {
-								pi.beginChallengeProgression(ChallengeType.ISLAND_LEVEL_CHALLENGE);
-							} else {
-								pi.updateChallengeProgression(ChallengeType.ISLAND_LEVEL_CHALLENGE,
-										ChallengeType.ISLAND_LEVEL_CHALLENGE.getNeededAmount());
-								if (pi.isChallengeCompleted(ChallengeType.ISLAND_LEVEL_CHALLENGE)
-										&& (int) pi.getLevel() >= ChallengeType.ISLAND_LEVEL_CHALLENGE
-												.getNeededAmount()) {
-									pi.completeChallenge(ChallengeType.ISLAND_LEVEL_CHALLENGE);
 								}
 							}
 						}

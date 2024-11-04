@@ -1,10 +1,10 @@
 package com.swiftlicious.hellblock.generation;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import org.bukkit.Chunk;
@@ -114,11 +114,11 @@ public class BiomeHandler {
 				setHellblockBiome(region, biome);
 
 				hbPlayer.setHellblockBiome(biome);
-				hbPlayer.setBiomeCooldown(Duration.ofDays(1).toHours());
+				hbPlayer.setBiomeCooldown(TimeUnit.SECONDS.toDays(1));
 				hbPlayer.saveHellblockPlayer();
 				instance.getCoopManager().updateParty(hbPlayer.getUUID(), HellblockData.BIOME, biome);
 				instance.getCoopManager().updateParty(hbPlayer.getUUID(), HellblockData.BIOME_COOLDOWN,
-						Duration.ofDays(1).toHours());
+						TimeUnit.SECONDS.toDays(1));
 				instance.getAdventureManager().sendMessageWithPrefix(player, String.format(
 						"<red>You have changed the biome of your hellblock to <dark_red>%s<red>!", biome.getName()));
 			} else {

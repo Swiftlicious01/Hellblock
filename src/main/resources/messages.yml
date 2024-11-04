@@ -14,8 +14,6 @@ messages:
   goal-max-size: 'Largest fish caught'
   goal-total-size: 'Total length of fish caught'
   goal-total-score: 'Cumulative score of fish caught'
-  unsafe-modification: "Cannot modify a player's fishing bag if they're active on another linked server."
-  never-played: "The player hasn't joined the server before. Can't modify a nonexistent player's fishing bag."
   data-not-loaded: "<red>Data hasn't loaded. Please re-enter the server. If issues persist, reach out to the server admin."
   open-market-gui: "Successfully opened the market gui for {player}"
   format-day: 'd'

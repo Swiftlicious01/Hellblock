@@ -86,6 +86,7 @@ public class NetherrackGenerator implements Listener {
 		Material toBlockMaterial = toBlock.getType();
 
 		if (fromBlockMaterial == Material.LAVA) {
+			// TODO: make other positioned generators work
 			if (toBlockMaterial.isAir() && !isLavaPool(toBlock.getLocation())
 					&& (fromBlock.getRelative(event.getFace(), 2).getType() == Material.LAVA
 							&& isFlowing(fromBlock.getRelative(event.getFace(), 2)))) {
@@ -96,10 +97,8 @@ public class NetherrackGenerator implements Listener {
 				if (!genManager.isGenLocationKnown(l) && mode.isSearchingForPlayersNearby()) {
 					double searchRadius = instance.getConfig("config.yml")
 							.getDouble("netherrack-generator-options.playerSearchRadius", 4D);
-					if (l.getWorld() == null)
-						return;
-					Collection<Player> playersNearby = l.getWorld().getNearbyPlayers(l, searchRadius,
-							searchRadius, searchRadius);
+					Collection<Player> playersNearby = l.getWorld().getNearbyPlayers(l, searchRadius, searchRadius,
+							searchRadius);
 					Player closestPlayer = getClosestPlayer(l, playersNearby);
 					if (closestPlayer != null) {
 						genManager.addKnownGenLocation(l);

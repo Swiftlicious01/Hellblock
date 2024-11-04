@@ -2,7 +2,6 @@ package com.swiftlicious.hellblock.playerdata;
 
 import java.io.File;
 import java.io.IOException;
-import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -16,6 +15,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
@@ -687,7 +687,7 @@ public class HellblockPlayer {
 	}
 
 	public void sendInvitation(@NonNull UUID playerID) {
-		this.invitations.putIfAbsent(playerID, Duration.ofDays(1).toHours());
+		this.invitations.putIfAbsent(playerID, TimeUnit.SECONDS.toDays(1));
 	}
 
 	public void removeInvitation(@NonNull UUID playerID) {

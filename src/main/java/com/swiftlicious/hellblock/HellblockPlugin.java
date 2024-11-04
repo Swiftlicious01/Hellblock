@@ -62,6 +62,7 @@ import com.swiftlicious.hellblock.listeners.NetherFarming;
 import com.swiftlicious.hellblock.listeners.NetherSnowGolem;
 import com.swiftlicious.hellblock.listeners.NetherTools;
 import com.swiftlicious.hellblock.listeners.NetherrackGenerator;
+import com.swiftlicious.hellblock.listeners.PiglinBartering;
 import com.swiftlicious.hellblock.listeners.PlayerListener;
 import com.swiftlicious.hellblock.listeners.WitherBoss;
 import com.swiftlicious.hellblock.listeners.fishing.FishingManager;
@@ -88,7 +89,7 @@ import dev.jorel.commandapi.CommandAPI;
 import dev.jorel.commandapi.CommandAPIBukkitConfig;
 
 import lombok.Getter;
-
+import lombok.NonNull;
 import xyz.xenondevs.invui.InvUI;
 
 @Getter
@@ -103,6 +104,7 @@ public class HellblockPlugin extends JavaPlugin {
 	protected NetherFarming netherFarmingHandler;
 	protected NetherTools netherToolsHandler;
 	protected NetherArmor netherArmorHandler;
+	protected PiglinBartering piglinBarterHandler;
 	protected NetherSnowGolem netherSnowGolemHandler;
 	protected WitherBoss witherBossHandler;
 	protected PlayerListener playerListener;
@@ -244,6 +246,7 @@ public class HellblockPlugin extends JavaPlugin {
 		this.netherBrewingHandler = new NetherBrewing(this);
 		this.netherToolsHandler = new NetherTools(this);
 		this.netherArmorHandler = new NetherArmor(this);
+		this.piglinBarterHandler = new PiglinBartering(this);
 		this.netherSnowGolemHandler = new NetherSnowGolem(this);
 
 		this.globalSettings = new GlobalSettings();
@@ -303,7 +306,7 @@ public class HellblockPlugin extends JavaPlugin {
 							ChunkUtils.teleportAsync(player, pi.getHomeLocation(), TeleportCause.PLUGIN);
 						});
 					} else {
-						getHellblockHandler().teleportToSpawn(player);
+						getHellblockHandler().teleportToSpawn(player, true);
 					}
 				}
 			}
@@ -500,9 +503,11 @@ public class HellblockPlugin extends JavaPlugin {
 		return instance;
 	}
 
-	public String getFormattedCooldown(long hours) {
-		int intHours = (int) hours;
-		String formattedTime = String.format("%sh", intHours);
+	public @NonNull String getFormattedCooldown(long seconds) {
+		long hours = (seconds - seconds % 3600) / 3600;
+		long minutes = (seconds % 3600 - seconds % 3600 % 60) / 60;
+		seconds = seconds % 3600 % 60;
+		String formattedTime = String.format("%sh%sm%ss", hours, minutes, seconds);
 		return formattedTime;
 	}
 
@@ -512,7 +517,7 @@ public class HellblockPlugin extends JavaPlugin {
 	 * @param file The name of the configuration file.
 	 * @return A YamlConfiguration object representing the configuration.
 	 */
-	public YamlConfiguration getConfig(String file) {
+	public @NonNull YamlConfiguration getConfig(@NonNull String file) {
 		File config = new File(this.getDataFolder(), file);
 		if (!config.exists())
 			this.saveResource(file, false);
@@ -525,7 +530,7 @@ public class HellblockPlugin extends JavaPlugin {
 	 * @param plugin The name of the plugin to check.
 	 * @return True if the plugin is enabled, false otherwise.
 	 */
-	public boolean isHookedPluginEnabled(String plugin) {
+	public boolean isHookedPluginEnabled(@NonNull String plugin) {
 		return Bukkit.getPluginManager().isPluginEnabled(plugin);
 	}
 
@@ -534,7 +539,7 @@ public class HellblockPlugin extends JavaPlugin {
 	 *
 	 * @param message The debugging message to be logged.
 	 */
-	public void debug(String message) {
+	public void debug(@NonNull String message) {
 		if (!HBConfig.debug)
 			return;
 		LogUtils.info(message);
@@ -546,15 +551,15 @@ public class HellblockPlugin extends JavaPlugin {
 	 * @return The ProtocolManager instance.
 	 */
 	@NotNull
-	public ProtocolManager getProtocolManager() {
+	public @NonNull ProtocolManager getProtocolManager() {
 		return this.protocolManager;
 	}
 
-	public void sendPacket(Player player, PacketContainer packet) {
+	public void sendPacket(@NonNull Player player, @NonNull PacketContainer packet) {
 		this.protocolManager.sendServerPacket(player, packet);
 	}
 
-	public void sendPackets(Player player, PacketContainer... packets) {
+	public void sendPackets(@NonNull Player player, @NonNull PacketContainer... packets) {
 		List<PacketContainer> bundle = new ArrayList<>(Arrays.asList(packets));
 		PacketContainer bundlePacket = new PacketContainer(PacketType.Play.Server.BUNDLE);
 		bundlePacket.getPacketBundles().write(0, bundle);

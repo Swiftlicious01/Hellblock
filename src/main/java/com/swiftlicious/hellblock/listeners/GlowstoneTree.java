@@ -1,8 +1,6 @@
 package com.swiftlicious.hellblock.listeners;
 
-import java.util.Arrays;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
@@ -12,10 +10,8 @@ import org.bukkit.Bukkit;
 import org.bukkit.Effect;
 import org.bukkit.Material;
 import org.bukkit.Tag;
-import org.bukkit.TreeType;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
-import org.bukkit.block.BlockState;
 import org.bukkit.block.data.type.Sapling;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -37,11 +33,6 @@ public class GlowstoneTree implements Listener {
 
 	private final HellblockPlugin instance;
 
-	private static final Set<TreeType> TREE_TYPES = new HashSet<>(Arrays.asList(TreeType.TREE, TreeType.BIRCH,
-			TreeType.ACACIA, TreeType.JUNGLE, TreeType.DARK_OAK, TreeType.BIG_TREE, TreeType.CHERRY, TreeType.REDWOOD,
-			TreeType.MANGROVE, TreeType.TALL_REDWOOD, TreeType.SWAMP, TreeType.SMALL_JUNGLE, TreeType.TALL_BIRCH,
-			TreeType.TALL_REDWOOD, TreeType.MEGA_PINE, TreeType.MEGA_REDWOOD, TreeType.TALL_MANGROVE, TreeType.AZALEA));
-
 	public GlowstoneTree(HellblockPlugin plugin) {
 		instance = plugin;
 		Bukkit.getPluginManager().registerEvents(this, instance);
@@ -52,10 +43,8 @@ public class GlowstoneTree implements Listener {
 		if (!event.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
 			return;
 
-		if (TREE_TYPES.contains(event.getSpecies())) {
+		if (event.getLocation().getBlock().getRelative(BlockFace.DOWN).getType() == Material.SOUL_SAND) {
 			final Player player = event.getPlayer();
-			// have to check this to prevent sapling bonemeal over a block and see it's not
-			// growing.
 			if (player != null && event.isFromBonemeal() && !event.getBlocks().isEmpty()
 					&& !event.getBlocks().stream().anyMatch(state -> state.getBlockData() instanceof Sapling)) {
 				HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(player);
@@ -70,22 +59,8 @@ public class GlowstoneTree implements Listener {
 				}
 			}
 
-			Iterator<BlockState> blocks = event.getBlocks().iterator();
-
-			while (true) {
-				BlockState block;
-				do {
-					if (!blocks.hasNext()) {
-						return;
-					}
-					block = (BlockState) blocks.next();
-					if (Tag.LOGS_THAT_BURN.isTagged(block.getType())) {
-						block.setType(Material.GRAVEL);
-					}
-				} while (!Tag.LEAVES.isTagged(block.getType()));
-
-				block.setType(Material.GLOWSTONE);
-			}
+			event.setCancelled(true);
+			instance.getIslandGenerator().generateGlowstoneTree(event.getLocation());
 		}
 	}
 

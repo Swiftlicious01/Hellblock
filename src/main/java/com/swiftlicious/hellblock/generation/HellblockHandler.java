@@ -172,7 +172,7 @@ public class HellblockHandler {
 					continue;
 				}
 			}
-		}, 0, 1, TimeUnit.HOURS);
+		}, 0, 1, TimeUnit.SECONDS);
 	}
 
 	public CompletableFuture<Void> createHellblock(@NonNull Player player, @NonNull IslandOptions islandChoice,
@@ -315,9 +315,7 @@ public class HellblockHandler {
 																TeleportCause.PLUGIN);
 													});
 										} else {
-											instance.getScheduler().runTaskSync(() -> {
-												instance.getHellblockHandler().teleportToSpawn(visitor);
-											}, new Location(getHellblockWorld(), 0.0D, getHeight(), 0.0D));
+											instance.getHellblockHandler().teleportToSpawn(visitor, true);
 										}
 									} else {
 										File visitorFile = new File(
@@ -391,7 +389,7 @@ public class HellblockHandler {
 										hbMember.setBannedPlayers(new HashSet<>());
 										hbMember.saveHellblockPlayer();
 										hbMember.resetHellblockData();
-										teleportToSpawn(member);
+										teleportToSpawn(member, true);
 										if (!forceReset) {
 											Player player = Bukkit.getPlayer(id);
 											if (player != null) {
@@ -442,7 +440,7 @@ public class HellblockHandler {
 								if (!forceReset)
 									instance.getAdventureManager().sendMessageWithPrefix(Bukkit.getPlayer(id),
 											"<red>Resetting your current hellblock. Please choose a new hellblock type to create!");
-								teleportToSpawn(Bukkit.getPlayer(id));
+								teleportToSpawn(Bukkit.getPlayer(id), true);
 							}
 							instance.getScheduler().runTaskSync(() -> {
 								blockChanges.forEach((change, type) -> {
@@ -691,13 +689,14 @@ public class HellblockHandler {
 		return hellblockWorld;
 	}
 
-	public void teleportToSpawn(@NonNull Player player) {
+	public void teleportToSpawn(@NonNull Player player, boolean forced) {
 		if (this.worldguardProtected) {
 			Location spawn = instance.getWorldGuardHandler().getSpawnCenter().toLocation(getHellblockWorld());
 			spawn.setY(getHellblockWorld().getHighestBlockYAt(spawn) + 1);
 			ChunkUtils.teleportAsync(player, spawn).thenRun(() -> {
-				instance.getAdventureManager().sendMessageWithPrefix(player,
-						"<red>Sent to spawn due to unsafe conditions!");
+				if (!forced)
+					instance.getAdventureManager().sendMessageWithPrefix(player,
+							"<red>Sent to spawn due to unsafe conditions!");
 			});
 		} else {
 			// TODO: using plugin protection

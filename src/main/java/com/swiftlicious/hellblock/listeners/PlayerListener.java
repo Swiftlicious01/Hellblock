@@ -123,7 +123,7 @@ public class PlayerListener implements Listener {
 								ChunkUtils.teleportAsync(player, pi.getHomeLocation(), TeleportCause.PLUGIN);
 							});
 						} else {
-							instance.getHellblockHandler().teleportToSpawn(player);
+							instance.getHellblockHandler().teleportToSpawn(player, false);
 						}
 					}
 				});
@@ -150,7 +150,7 @@ public class PlayerListener implements Listener {
 							ChunkUtils.teleportAsync(player, pi.getHomeLocation(), TeleportCause.PLUGIN);
 						});
 					} else {
-						instance.getHellblockHandler().teleportToSpawn(player);
+						instance.getHellblockHandler().teleportToSpawn(player, true);
 					}
 				}
 			}
@@ -158,7 +158,7 @@ public class PlayerListener implements Listener {
 			File playerFile = pi.getPlayerFile();
 			YamlConfiguration playerConfig = pi.getHellblockPlayer();
 			if (playerConfig.getBoolean("player.in-unsafe-island", false)) {
-				instance.getHellblockHandler().teleportToSpawn(player);
+				instance.getHellblockHandler().teleportToSpawn(player, true);
 				playerConfig.set("player.in-unsafe-island", null);
 				instance.getAdventureManager().sendMessageWithPrefix(player,
 						"<red>You logged out in an unsafe hellblock environment because it was reset or deleted.");
@@ -220,7 +220,7 @@ public class PlayerListener implements Listener {
 		HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(id);
 
 		pi.hideBorder();
-
+		
 		if (pi.hasGlowstoneToolEffect() || pi.hasGlowstoneArmorEffect()) {
 			if (player.hasPotionEffect(PotionEffectType.NIGHT_VISION)) {
 				player.removePotionEffect(PotionEffectType.NIGHT_VISION);
@@ -298,7 +298,7 @@ public class PlayerListener implements Listener {
 					ChunkUtils.teleportAsync(player, pi.getHomeLocation(), TeleportCause.PLUGIN);
 				});
 			} else {
-				instance.getHellblockHandler().teleportToSpawn(player);
+				instance.getHellblockHandler().teleportToSpawn(player, true);
 			}
 			instance.getAdventureManager().sendMessageWithPrefix(player,
 					"<red>You're banned from this hellblock and aren't allowed entry!");
@@ -318,7 +318,7 @@ public class PlayerListener implements Listener {
 					ChunkUtils.teleportAsync(player, pi.getHomeLocation(), TeleportCause.PLUGIN);
 				});
 			} else {
-				instance.getHellblockHandler().teleportToSpawn(player);
+				instance.getHellblockHandler().teleportToSpawn(player, true);
 			}
 			instance.getAdventureManager().sendMessageWithPrefix(player,
 					"<red>This hellblock is locked at the moment, you're not allowed entry!");
@@ -627,7 +627,7 @@ public class PlayerListener implements Listener {
 					});
 				});
 			} else {
-				instance.getHellblockHandler().teleportToSpawn(player);
+				instance.getHellblockHandler().teleportToSpawn(player, true);
 			}
 		}
 	}

@@ -1,8 +1,8 @@
 package com.swiftlicious.hellblock.listeners;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Color;
@@ -83,10 +83,10 @@ public class NetherBrewing implements Listener {
 		pmeta.setBasePotionType(PotionType.WATER);
 		bottle.setItemMeta(pmeta);
 
-		ShapedRecipe recipe = new ShapedRecipe(brewingKey, getPotionResult(1));
+		ShapedRecipe recipe = new ShapedRecipe(brewingKey, bottle);
 		recipe.shape(new String[] { "GGG", "GBG", "GGG" });
 		recipe.setIngredient('G', Material.GLOWSTONE_DUST);
-		recipe.setIngredient('B', bottle);
+		recipe.setIngredient('B', getPotionResult(1));
 		return recipe;
 	}
 
@@ -227,12 +227,12 @@ public class NetherBrewing implements Listener {
 		if (!this.nBottle)
 			return;
 		if (event.getWhoClicked() instanceof Player player) {
-			if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName())) {
+			if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
 				return;
-			}
+
 			Inventory clicked = event.getClickedInventory();
-			if (clicked != null && clicked instanceof BrewerInventory inventory) {
-				if (inventory.equals(player.getOpenInventory().getTopInventory())) {
+			if (clicked != null && player.getOpenInventory().getTopInventory() instanceof BrewerInventory) {
+				if (clicked.equals(player.getOpenInventory().getBottomInventory())) {
 					ItemStack potion = event.getCurrentItem();
 					if (potion != null) {
 						if (checkBrewingData(potion) && getBrewingData(potion)) {
@@ -257,7 +257,8 @@ public class NetherBrewing implements Listener {
 			ItemStack result = recipe.getResult();
 			if (checkBrewingData(result) && getBrewingData(result)) {
 				if (recipe instanceof CraftingRecipe craft) {
-					player.discoverRecipe(craft.getKey());
+					if (!player.hasDiscoveredRecipe(craft.getKey()))
+						player.discoverRecipe(craft.getKey());
 				}
 			}
 		}
@@ -347,7 +348,7 @@ public class NetherBrewing implements Listener {
 			return 0;
 		}
 
-		HashMap<Integer, ItemStack> retVal = inventory.removeItem(new ItemStack(type, amount));
+		Map<Integer, ItemStack> retVal = inventory.removeItem(new ItemStack(type, amount));
 
 		int notRemoved = 0;
 		for (ItemStack item : retVal.values()) {

@@ -29,16 +29,16 @@ public class HBLocale {
 	public static String MSG_Item_Not_Exists;
 	public static String MSG_Get_Item;
 	public static String MSG_Give_Item;
-	public static String MSG_Never_Played;
-	public static String MSG_Unsafe_Modification;
 	public static String MSG_Data_Not_Loaded;
 	public static String MSG_Market_GUI_Open;
 	public static String MSG_Split_Char;
 	public static String MSG_Possible_Loots;
+	
 	public static String FORMAT_Day;
 	public static String FORMAT_Hour;
 	public static String FORMAT_Minute;
 	public static String FORMAT_Second;
+	
 	public static String GUI_SCROLL_DOWN;
 	public static String GUI_SCROLL_UP;
 	public static String GUI_CANNOT_SCROLL_UP;
@@ -143,8 +143,6 @@ public class HBLocale {
 			MSG_Item_Not_Exists = msgSection.getString("item-not-exist");
 			MSG_Get_Item = msgSection.getString("get-item");
 			MSG_Give_Item = msgSection.getString("give-item");
-			MSG_Never_Played = msgSection.getString("never-played");
-			MSG_Unsafe_Modification = msgSection.getString("unsafe-modification");
 			MSG_Data_Not_Loaded = msgSection.getString("data-not-loaded");
 			MSG_Market_GUI_Open = msgSection.getString("open-market-gui");
 			MSG_Split_Char = msgSection.getString("split-char");

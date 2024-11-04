@@ -1,6 +1,5 @@
 package com.swiftlicious.hellblock.gui.hellblock;
 
-import java.time.Duration;
 import java.util.Iterator;
 import java.util.concurrent.TimeUnit;
 
@@ -46,7 +45,7 @@ public class IslandChoiceMenu {
 					.thenRun(() -> {
 						if (isReset) {
 							HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player.getUniqueId())
-									.setResetCooldown(Duration.ofDays(1).toHours());
+									.setResetCooldown(TimeUnit.SECONDS.toDays(1));
 							HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player.getUniqueId())
 									.saveHellblockPlayer();
 						}
@@ -112,7 +111,7 @@ public class IslandChoiceMenu {
 							if (isReset) {
 								HellblockPlugin.getInstance().getHellblockHandler()
 										.getActivePlayer(player.getUniqueId())
-										.setResetCooldown(Duration.ofDays(1).toHours());
+										.setResetCooldown(TimeUnit.SECONDS.toDays(1));
 								HellblockPlugin.getInstance().getHellblockHandler()
 										.getActivePlayer(player.getUniqueId()).saveHellblockPlayer();
 							}
@@ -188,7 +187,7 @@ public class IslandChoiceMenu {
 							if (isReset) {
 								HellblockPlugin.getInstance().getHellblockHandler()
 										.getActivePlayer(player.getUniqueId())
-										.setResetCooldown(Duration.ofDays(1).toHours());
+										.setResetCooldown(TimeUnit.SECONDS.toDays(1));
 								HellblockPlugin.getInstance().getHellblockHandler()
 										.getActivePlayer(player.getUniqueId()).saveHellblockPlayer();
 							}

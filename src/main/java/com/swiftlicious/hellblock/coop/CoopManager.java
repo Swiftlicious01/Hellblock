@@ -406,7 +406,7 @@ public class CoopManager {
 						"<red>" + input + " has been kicked to your hellblock party!");
 				Player player = Bukkit.getPlayer(id);
 				if (player != null) {
-					instance.getHellblockHandler().teleportToSpawn(player);
+					instance.getHellblockHandler().teleportToSpawn(player, true);
 					instance.getAdventureManager().sendMessageWithPrefix(player,
 							"<red>You have been removed from " + owner.getName() + "'s hellblock!");
 				}
@@ -496,7 +496,7 @@ public class CoopManager {
 				leavingPlayer.setBannedPlayers(new HashSet<>());
 				leavingPlayer.setHellblockParty(new HashSet<>());
 				leavingPlayer.setProtectionFlags(new HashMap<>());
-				instance.getHellblockHandler().teleportToSpawn(player);
+				instance.getHellblockHandler().teleportToSpawn(player, true);
 				if (owner != null && owner.isOnline()) {
 					HellblockPlayer ownerPlayer = instance.getHellblockHandler()
 							.getActivePlayer(leavingPlayer.getHellblockOwner());
@@ -808,7 +808,7 @@ public class CoopManager {
 												TeleportCause.PLUGIN);
 									});
 								} else {
-									instance.getHellblockHandler().teleportToSpawn(vi.getPlayer());
+									instance.getHellblockHandler().teleportToSpawn(vi.getPlayer(), true);
 								}
 								instance.getAdventureManager().sendMessageWithPrefix(vi.getPlayer(),
 										"<red>The hellblock you are trying to enter has been locked from having visitors at the moment.");
