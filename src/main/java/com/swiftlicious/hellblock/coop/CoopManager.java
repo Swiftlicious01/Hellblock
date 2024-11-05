@@ -67,7 +67,7 @@ public class CoopManager {
 				}
 				if (owner.getUniqueId().equals(player.getUniqueId())) {
 					instance.getAdventureManager().sendMessageWithPrefix(owner,
-							"<red>You cannot invite yourself to your own island!");
+							"<red>You can't invite yourself to your own island!");
 					return;
 				}
 				if (hbPlayer.getHellblockParty().contains(player.getUniqueId())) {
@@ -90,8 +90,9 @@ public class CoopManager {
 				instance.getAdventureManager().sendMessageWithPrefix(owner,
 						"<red>You've invited <dark_red>" + player.getName() + " <red>to your hellblock!");
 				instance.getAdventureManager().sendMessageWithPrefix(player, String.format(
-						"<dark_red>%s <red>invited you to their hellblock! <green><bold><click:run_command:/hellblock coop accept %s>[ACCEPT]</click> <red><bold><click:run_command:/hellblock coop decline %s>[DECLINE]</click> <reset><gray>It will expire in 24 hours.",
-						owner.getName(), owner.getName(), owner.getName()));
+						"<dark_red>%s <red>invited you to their hellblock! <green><bold><click:run_command:/hellcoop accept %s>[ACCEPT]</click> <red><bold><click:run_command:/hellcoop decline %s>[DECLINE]</click> <reset><gray>It will expire in %s.",
+						owner.getName(), owner.getName(), owner.getName(),
+						instance.getFormattedCooldown(playerToInvite.getInvitations().get(owner.getUniqueId()))));
 			} else {
 				instance.getAdventureManager().sendMessageWithPrefix(owner,
 						"<red>The player you are trying to invite isn't online!");
@@ -163,9 +164,9 @@ public class CoopManager {
 				}
 				long expirationLeft = invites.getValue().longValue();
 				instance.getAdventureManager().sendMessage(player, String.format(
-						"<red>Hellblock Invitation: <dark_red>%s <green><bold><click:run_command:/hellblock coop accept %s>[ACCEPT]</click> <red><bold><click:run_command:/hellblock coop decline %s>[DECLINE]</click> <reset><gray>It will expire in %s %s.",
-						owner.getName(), owner.getName(), owner.getName(), expirationLeft,
-						(expirationLeft > 1 ? "hours" : "hour")));
+						"<red>Hellblock Invitation: <dark_red>%s <green><bold><click:run_command:/hellcoop accept %s>[ACCEPT]</click> <red><bold><click:run_command:/hellcoop decline %s>[DECLINE]</click> <reset><gray>It will expire in %s.",
+						owner.getName(), owner.getName(), owner.getName(),
+						instance.getFormattedCooldown(expirationLeft)));
 			}
 
 		} else {
@@ -322,7 +323,7 @@ public class CoopManager {
 
 			if (owner.getUniqueId().equals(ti.getHellblockOwner())) {
 				instance.getAdventureManager().sendMessageWithPrefix(owner,
-						"<red>You cannot kick yourself from your own island!");
+						"<red>You can't kick yourself from your own island!");
 				return;
 			}
 			if (!ti.hasHellblock()) {
@@ -408,7 +409,7 @@ public class CoopManager {
 				if (player != null) {
 					instance.getHellblockHandler().teleportToSpawn(player, true);
 					instance.getAdventureManager().sendMessageWithPrefix(player,
-							"<red>You have been removed from " + owner.getName() + "'s hellblock!");
+							"<red>You've been removed from " + owner.getName() + "'s hellblock!");
 				}
 			} else {
 				// TODO: using plugin protection
@@ -566,7 +567,7 @@ public class CoopManager {
 				leavingPlayer.saveHellblockPlayer();
 				leavingPlayer.resetHellblockData();
 				instance.getAdventureManager().sendMessageWithPrefix(player,
-						"<red>You have left your hellblock party with "
+						"<red>You've left your hellblock party with "
 								+ (owner.getName() != null ? owner.getName() : "Unknown"));
 				if (owner.isOnline())
 					instance.getAdventureManager().sendMessageWithPrefix(owner.getPlayer(),
@@ -599,7 +600,7 @@ public class CoopManager {
 				}
 				if (owner.getUniqueId().equals(player.getUniqueId())) {
 					instance.getAdventureManager().sendMessageWithPrefix(owner,
-							"<red>You cannot transfer ownership to yourself for your own island!");
+							"<red>You can't transfer ownership to yourself for your own island!");
 					return;
 				}
 				if (!playerToTransfer.hasHellblock()) {
@@ -687,7 +688,7 @@ public class CoopManager {
 					instance.getAdventureManager().sendMessageWithPrefix(owner,
 							"<red>" + player.getName() + " is the new owner of your hellblock!");
 					instance.getAdventureManager().sendMessageWithPrefix(player,
-							"<red>You have been made the new owner of " + owner.getName() + "'s hellblock!");
+							"<red>You've been made the new owner of " + owner.getName() + "'s hellblock!");
 				} else {
 					// TODO: using plugin protection
 				}

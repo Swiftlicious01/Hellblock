@@ -112,26 +112,11 @@ public class ChallengesMenu {
 			HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
 			if (pi.isChallengeCompleted(ChallengeType.NETHERRACK_GENERATOR_CHALLENGE)
 					&& !pi.isChallengeRewardClaimed(ChallengeType.NETHERRACK_GENERATOR_CHALLENGE)) {
-				ConfigurationSection section = HellblockPlugin.getInstance().getConfig("challenge-rewards.yml")
+				ConfigurationSection section = HellblockPlugin.getInstance().getChallengeRewardBuilder()
+						.getRewardConfig()
 						.getConfigurationSection("rewards." + ChallengeType.NETHERRACK_GENERATOR_CHALLENGE.toString());
-				ItemStack reward = HellblockPlugin.getInstance().getChallengeRewardBuilder()
-						.createChallengeReward(section);
-				if (reward != null) {
-					if (player.getInventory().firstEmpty() != -1) {
-						player.getInventory().addItem(reward);
-						player.updateInventory();
-						pi.setChallengeRewardAsClaimed(ChallengeType.NETHERRACK_GENERATOR_CHALLENGE, true);
-						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-								"<red>You've claimed your challenge reward!");
-						HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
-								net.kyori.adventure.sound.Sound.Source.PLAYER,
-								net.kyori.adventure.key.Key.key("minecraft:entity.ender_dragon.growl"), 1, 1);
-						new ChallengesMenu(player);
-					} else {
-						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-								"<red>Please have an empty slot in your inventory to receive the reward!");
-					}
-				}
+				HellblockPlugin.getInstance().getChallengeRewardBuilder().performChallengeRewardAction(player, section,
+						ChallengeType.NETHERRACK_GENERATOR_CHALLENGE);
 			}
 		}
 	}
@@ -197,26 +182,11 @@ public class ChallengesMenu {
 			HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
 			if (pi.isChallengeCompleted(ChallengeType.GLOWSTONE_TREE_CHALLENGE)
 					&& !pi.isChallengeRewardClaimed(ChallengeType.GLOWSTONE_TREE_CHALLENGE)) {
-				ConfigurationSection section = HellblockPlugin.getInstance().getConfig("challenge-rewards.yml")
+				ConfigurationSection section = HellblockPlugin.getInstance().getChallengeRewardBuilder()
+						.getRewardConfig()
 						.getConfigurationSection("rewards." + ChallengeType.GLOWSTONE_TREE_CHALLENGE.toString());
-				ItemStack reward = HellblockPlugin.getInstance().getChallengeRewardBuilder()
-						.createChallengeReward(section);
-				if (reward != null) {
-					if (player.getInventory().firstEmpty() != -1) {
-						player.getInventory().addItem(reward);
-						player.updateInventory();
-						pi.setChallengeRewardAsClaimed(ChallengeType.GLOWSTONE_TREE_CHALLENGE, true);
-						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-								"<red>You've claimed your challenge reward!");
-						HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
-								net.kyori.adventure.sound.Sound.Source.PLAYER,
-								net.kyori.adventure.key.Key.key("minecraft:entity.ender_dragon.growl"), 1, 1);
-						new ChallengesMenu(player);
-					} else {
-						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-								"<red>Please have an empty slot in your inventory to receive the reward!");
-					}
-				}
+				HellblockPlugin.getInstance().getChallengeRewardBuilder().performChallengeRewardAction(player, section,
+						ChallengeType.GLOWSTONE_TREE_CHALLENGE);
 			}
 		}
 	}
@@ -277,26 +247,11 @@ public class ChallengesMenu {
 			HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
 			if (pi.isChallengeCompleted(ChallengeType.LAVA_FISHING_CHALLENGE)
 					&& !pi.isChallengeRewardClaimed(ChallengeType.LAVA_FISHING_CHALLENGE)) {
-				ConfigurationSection section = HellblockPlugin.getInstance().getConfig("challenge-rewards.yml")
+				ConfigurationSection section = HellblockPlugin.getInstance().getChallengeRewardBuilder()
+						.getRewardConfig()
 						.getConfigurationSection("rewards." + ChallengeType.LAVA_FISHING_CHALLENGE.toString());
-				ItemStack reward = HellblockPlugin.getInstance().getChallengeRewardBuilder()
-						.createChallengeReward(section);
-				if (reward != null) {
-					if (player.getInventory().firstEmpty() != -1) {
-						player.getInventory().addItem(reward);
-						player.updateInventory();
-						pi.setChallengeRewardAsClaimed(ChallengeType.LAVA_FISHING_CHALLENGE, true);
-						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-								"<red>You've claimed your challenge reward!");
-						HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
-								net.kyori.adventure.sound.Sound.Source.PLAYER,
-								net.kyori.adventure.key.Key.key("minecraft:entity.ender_dragon.growl"), 1, 1);
-						new ChallengesMenu(player);
-					} else {
-						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-								"<red>Please have an empty slot in your inventory to receive the reward!");
-					}
-				}
+				HellblockPlugin.getInstance().getChallengeRewardBuilder().performChallengeRewardAction(player, section,
+						ChallengeType.LAVA_FISHING_CHALLENGE);
 			}
 		}
 	}
@@ -362,26 +317,11 @@ public class ChallengesMenu {
 			HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
 			if (pi.isChallengeCompleted(ChallengeType.NETHER_CRAFTING_CHALLENGE)
 					&& !pi.isChallengeRewardClaimed(ChallengeType.NETHER_CRAFTING_CHALLENGE)) {
-				ConfigurationSection section = HellblockPlugin.getInstance().getConfig("challenge-rewards.yml")
+				ConfigurationSection section = HellblockPlugin.getInstance().getChallengeRewardBuilder()
+						.getRewardConfig()
 						.getConfigurationSection("rewards." + ChallengeType.NETHER_CRAFTING_CHALLENGE.toString());
-				ItemStack reward = HellblockPlugin.getInstance().getChallengeRewardBuilder()
-						.createChallengeReward(section);
-				if (reward != null) {
-					if (player.getInventory().firstEmpty() != -1) {
-						player.getInventory().addItem(reward);
-						player.updateInventory();
-						pi.setChallengeRewardAsClaimed(ChallengeType.NETHER_CRAFTING_CHALLENGE, true);
-						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-								"<red>You've claimed your challenge reward!");
-						HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
-								net.kyori.adventure.sound.Sound.Source.PLAYER,
-								net.kyori.adventure.key.Key.key("minecraft:entity.ender_dragon.growl"), 1, 1);
-						new ChallengesMenu(player);
-					} else {
-						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-								"<red>Please have an empty slot in your inventory to receive the reward!");
-					}
-				}
+				HellblockPlugin.getInstance().getChallengeRewardBuilder().performChallengeRewardAction(player, section,
+						ChallengeType.NETHER_CRAFTING_CHALLENGE);
 			}
 		}
 	}
@@ -442,26 +382,11 @@ public class ChallengesMenu {
 			HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
 			if (pi.isChallengeCompleted(ChallengeType.NETHER_GOLEM_CHALLENGE)
 					&& !pi.isChallengeRewardClaimed(ChallengeType.NETHER_GOLEM_CHALLENGE)) {
-				ConfigurationSection section = HellblockPlugin.getInstance().getConfig("challenge-rewards.yml")
+				ConfigurationSection section = HellblockPlugin.getInstance().getChallengeRewardBuilder()
+						.getRewardConfig()
 						.getConfigurationSection("rewards." + ChallengeType.NETHER_GOLEM_CHALLENGE.toString());
-				ItemStack reward = HellblockPlugin.getInstance().getChallengeRewardBuilder()
-						.createChallengeReward(section);
-				if (reward != null) {
-					if (player.getInventory().firstEmpty() != -1) {
-						player.getInventory().addItem(reward);
-						player.updateInventory();
-						pi.setChallengeRewardAsClaimed(ChallengeType.NETHER_GOLEM_CHALLENGE, true);
-						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-								"<red>You've claimed your challenge reward!");
-						HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
-								net.kyori.adventure.sound.Sound.Source.PLAYER,
-								net.kyori.adventure.key.Key.key("minecraft:entity.ender_dragon.growl"), 1, 1);
-						new ChallengesMenu(player);
-					} else {
-						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-								"<red>Please have an empty slot in your inventory to receive the reward!");
-					}
-				}
+				HellblockPlugin.getInstance().getChallengeRewardBuilder().performChallengeRewardAction(player, section,
+						ChallengeType.NETHER_GOLEM_CHALLENGE);
 			}
 		}
 	}
@@ -529,26 +454,11 @@ public class ChallengesMenu {
 			HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
 			if (pi.isChallengeCompleted(ChallengeType.NETHER_BREWING_CHALLENGE)
 					&& !pi.isChallengeRewardClaimed(ChallengeType.NETHER_BREWING_CHALLENGE)) {
-				ConfigurationSection section = HellblockPlugin.getInstance().getConfig("challenge-rewards.yml")
+				ConfigurationSection section = HellblockPlugin.getInstance().getChallengeRewardBuilder()
+						.getRewardConfig()
 						.getConfigurationSection("rewards." + ChallengeType.NETHER_BREWING_CHALLENGE.toString());
-				ItemStack reward = HellblockPlugin.getInstance().getChallengeRewardBuilder()
-						.createChallengeReward(section);
-				if (reward != null) {
-					if (player.getInventory().firstEmpty() != -1) {
-						player.getInventory().addItem(reward);
-						player.updateInventory();
-						pi.setChallengeRewardAsClaimed(ChallengeType.NETHER_BREWING_CHALLENGE, true);
-						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-								"<red>You've claimed your challenge reward!");
-						HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
-								net.kyori.adventure.sound.Sound.Source.PLAYER,
-								net.kyori.adventure.key.Key.key("minecraft:entity.ender_dragon.growl"), 1, 1);
-						new ChallengesMenu(player);
-					} else {
-						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-								"<red>Please have an empty slot in your inventory to receive the reward!");
-					}
-				}
+				HellblockPlugin.getInstance().getChallengeRewardBuilder().performChallengeRewardAction(player, section,
+						ChallengeType.NETHER_BREWING_CHALLENGE);
 			}
 		}
 	}
@@ -614,26 +524,11 @@ public class ChallengesMenu {
 			HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
 			if (pi.isChallengeCompleted(ChallengeType.NETHER_TRADING_CHALLENGE)
 					&& !pi.isChallengeRewardClaimed(ChallengeType.NETHER_TRADING_CHALLENGE)) {
-				ConfigurationSection section = HellblockPlugin.getInstance().getConfig("challenge-rewards.yml")
+				ConfigurationSection section = HellblockPlugin.getInstance().getChallengeRewardBuilder()
+						.getRewardConfig()
 						.getConfigurationSection("rewards." + ChallengeType.NETHER_TRADING_CHALLENGE.toString());
-				ItemStack reward = HellblockPlugin.getInstance().getChallengeRewardBuilder()
-						.createChallengeReward(section);
-				if (reward != null) {
-					if (player.getInventory().firstEmpty() != -1) {
-						player.getInventory().addItem(reward);
-						player.updateInventory();
-						pi.setChallengeRewardAsClaimed(ChallengeType.NETHER_TRADING_CHALLENGE, true);
-						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-								"<red>You've claimed your challenge reward!");
-						HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
-								net.kyori.adventure.sound.Sound.Source.PLAYER,
-								net.kyori.adventure.key.Key.key("minecraft:entity.ender_dragon.growl"), 1, 1);
-						new ChallengesMenu(player);
-					} else {
-						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-								"<red>Please have an empty slot in your inventory to receive the reward!");
-					}
-				}
+				HellblockPlugin.getInstance().getChallengeRewardBuilder().performChallengeRewardAction(player, section,
+						ChallengeType.NETHER_TRADING_CHALLENGE);
 			}
 		}
 	}
@@ -699,26 +594,11 @@ public class ChallengesMenu {
 			HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
 			if (pi.isChallengeCompleted(ChallengeType.ENHANCED_WITHER_CHALLENGE)
 					&& !pi.isChallengeRewardClaimed(ChallengeType.ENHANCED_WITHER_CHALLENGE)) {
-				ConfigurationSection section = HellblockPlugin.getInstance().getConfig("challenge-rewards.yml")
+				ConfigurationSection section = HellblockPlugin.getInstance().getChallengeRewardBuilder()
+						.getRewardConfig()
 						.getConfigurationSection("rewards." + ChallengeType.ENHANCED_WITHER_CHALLENGE.toString());
-				ItemStack reward = HellblockPlugin.getInstance().getChallengeRewardBuilder()
-						.createChallengeReward(section);
-				if (reward != null) {
-					if (player.getInventory().firstEmpty() != -1) {
-						player.getInventory().addItem(reward);
-						player.updateInventory();
-						pi.setChallengeRewardAsClaimed(ChallengeType.ENHANCED_WITHER_CHALLENGE, true);
-						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-								"<red>You've claimed your challenge reward!");
-						HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
-								net.kyori.adventure.sound.Sound.Source.PLAYER,
-								net.kyori.adventure.key.Key.key("minecraft:entity.ender_dragon.growl"), 1, 1);
-						new ChallengesMenu(player);
-					} else {
-						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-								"<red>Please have an empty slot in your inventory to receive the reward!");
-					}
-				}
+				HellblockPlugin.getInstance().getChallengeRewardBuilder().performChallengeRewardAction(player, section,
+						ChallengeType.ENHANCED_WITHER_CHALLENGE);
 			}
 		}
 	}
@@ -783,26 +663,11 @@ public class ChallengesMenu {
 			HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
 			if (pi.isChallengeCompleted(ChallengeType.INFINITE_LAVA_CHALLENGE)
 					&& !pi.isChallengeRewardClaimed(ChallengeType.INFINITE_LAVA_CHALLENGE)) {
-				ConfigurationSection section = HellblockPlugin.getInstance().getConfig("challenge-rewards.yml")
+				ConfigurationSection section = HellblockPlugin.getInstance().getChallengeRewardBuilder()
+						.getRewardConfig()
 						.getConfigurationSection("rewards." + ChallengeType.INFINITE_LAVA_CHALLENGE.toString());
-				ItemStack reward = HellblockPlugin.getInstance().getChallengeRewardBuilder()
-						.createChallengeReward(section);
-				if (reward != null) {
-					if (player.getInventory().firstEmpty() != -1) {
-						player.getInventory().addItem(reward);
-						player.updateInventory();
-						pi.setChallengeRewardAsClaimed(ChallengeType.INFINITE_LAVA_CHALLENGE, true);
-						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-								"<red>You've claimed your challenge reward!");
-						HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
-								net.kyori.adventure.sound.Sound.Source.PLAYER,
-								net.kyori.adventure.key.Key.key("minecraft:entity.ender_dragon.growl"), 1, 1);
-						new ChallengesMenu(player);
-					} else {
-						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-								"<red>Please have an empty slot in your inventory to receive the reward!");
-					}
-				}
+				HellblockPlugin.getInstance().getChallengeRewardBuilder().performChallengeRewardAction(player, section,
+						ChallengeType.INFINITE_LAVA_CHALLENGE);
 			}
 		}
 	}
@@ -865,26 +730,11 @@ public class ChallengesMenu {
 			HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
 			if (pi.isChallengeCompleted(ChallengeType.NETHER_FARM_CHALLENGE)
 					&& !pi.isChallengeRewardClaimed(ChallengeType.NETHER_FARM_CHALLENGE)) {
-				ConfigurationSection section = HellblockPlugin.getInstance().getConfig("challenge-rewards.yml")
+				ConfigurationSection section = HellblockPlugin.getInstance().getChallengeRewardBuilder()
+						.getRewardConfig()
 						.getConfigurationSection("rewards." + ChallengeType.NETHER_FARM_CHALLENGE.toString());
-				ItemStack reward = HellblockPlugin.getInstance().getChallengeRewardBuilder()
-						.createChallengeReward(section);
-				if (reward != null) {
-					if (player.getInventory().firstEmpty() != -1) {
-						player.getInventory().addItem(reward);
-						player.updateInventory();
-						pi.setChallengeRewardAsClaimed(ChallengeType.NETHER_FARM_CHALLENGE, true);
-						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-								"<red>You've claimed your challenge reward!");
-						HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
-								net.kyori.adventure.sound.Sound.Source.PLAYER,
-								net.kyori.adventure.key.Key.key("minecraft:entity.ender_dragon.growl"), 1, 1);
-						new ChallengesMenu(player);
-					} else {
-						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-								"<red>Please have an empty slot in your inventory to receive the reward!");
-					}
-				}
+				HellblockPlugin.getInstance().getChallengeRewardBuilder().performChallengeRewardAction(player, section,
+						ChallengeType.NETHER_FARM_CHALLENGE);
 			}
 		}
 	}

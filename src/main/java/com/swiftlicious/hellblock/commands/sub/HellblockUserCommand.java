@@ -29,6 +29,7 @@ import com.swiftlicious.hellblock.utils.ChunkUtils;
 import com.swiftlicious.hellblock.utils.LocationUtils;
 import com.swiftlicious.hellblock.utils.LogUtils;
 
+import dev.jorel.commandapi.CommandAPI;
 import dev.jorel.commandapi.CommandAPICommand;
 import dev.jorel.commandapi.CommandPermission;
 import dev.jorel.commandapi.arguments.ArgumentSuggestions;
@@ -41,9 +42,31 @@ public class HellblockUserCommand {
 	private static final Cache<UUID, Boolean> visitCache = CacheBuilder.newBuilder().expireAfterWrite(1, TimeUnit.HOURS)
 			.build();
 
+	private static final Cache<UUID, Boolean> confirmCache = CacheBuilder.newBuilder()
+			.expireAfterWrite(15, TimeUnit.SECONDS).build();
+
 	public CommandAPICommand getResetCommand() {
-		return new CommandAPICommand("reset").withAliases("restart", "replace").withPermission(CommandPermission.NONE)
-				.withPermission("hellblock.user").executesPlayer((player, args) -> {
+		return new CommandAPICommand("reset").withAliases("restart", "replace")
+				.withSubcommand(new CommandAPICommand("confirm").withPermission(CommandPermission.NONE)
+						.withPermission("hellblock.user")
+						.withRequirement(sender -> confirmCache.getIfPresent(((Player) sender).getUniqueId()) != null)
+						.executesPlayer((player, args) -> {
+							if (confirmCache.getIfPresent(player.getUniqueId()) == null) {
+								HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+										"<red>You're not in the process of restarting your hellblock!");
+								return;
+							}
+
+							confirmCache.invalidate(player.getUniqueId());
+							HellblockPlugin.getInstance().getHellblockHandler()
+									.resetHellblock(player.getUniqueId(), false).thenRun(() -> {
+										HellblockPlugin.getInstance().getScheduler().runTaskSyncLater(
+												() -> new IslandChoiceMenu(player, true), player.getLocation(), 1,
+												TimeUnit.SECONDS);
+									});
+						}))
+				.withPermission(CommandPermission.NONE).withPermission("hellblock.user")
+				.executesPlayer((player, args) -> {
 					HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
 					if (!pi.hasHellblock()) {
 						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
@@ -63,15 +86,21 @@ public class HellblockUserCommand {
 					if (pi.getResetCooldown() > 0) {
 						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 								String.format(
-										"<red>You have recently reset your hellblock already, you must wait for %s!",
+										"<red>You've recently reset your hellblock already, you must wait for %s!",
 										HellblockPlugin.getInstance().getFormattedCooldown(pi.getResetCooldown())));
 						return;
 					}
 
-					HellblockPlugin.getInstance().getHellblockHandler().resetHellblock(player.getUniqueId(), false)
-							.thenRun(() -> {
-								new IslandChoiceMenu(player, true);
-							});
+					if (confirmCache.getIfPresent(player.getUniqueId()) != null) {
+						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+								"<red>You're already in the process of restarting your hellblock, click confirm!");
+						return;
+					}
+
+					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+							"<red>Please click confirm to successfully restart your hellblock. <green><bold><click:run_command:/hellblock reset confirm>[CONFIRM]</click>");
+					confirmCache.put(player.getUniqueId(), true);
+					CommandAPI.updateRequirements(player);
 				});
 	}
 
@@ -83,16 +112,20 @@ public class HellblockUserCommand {
 						if (pi.getResetCooldown() > 0) {
 							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 									String.format(
-											"<red>You have recently reset your hellblock already, you must wait for %s!",
+											"<red>You've recently reset your hellblock already, you must wait for %s!",
 											HellblockPlugin.getInstance().getFormattedCooldown(pi.getResetCooldown())));
 							return;
 						}
 						new IslandChoiceMenu(player, false);
 					} else {
-						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-								"<red>You already have a hellblock or are in a co-op! Use /hellblock home to teleport to it!");
-						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-								"<red>If you wish to leave use /hellcoop leave to leave and start your own!");
+						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
+								"<red>You already have a hellblock or are in a co-op! Use <dark_red>/hellblock home <red>to teleport to it.");
+						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
+								"<red>If you wish to leave use <dark_red>/hellcoop leave <red>to leave and start your own.");
+						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
+								String.format(
+										"<red>Your hellblock is located at x: <dark_red>%s <red>z: <dark_red>%s<red>.",
+										pi.getHellblockLocation().getBlockX(), pi.getHellblockLocation().getBlockZ()));
 					}
 				});
 	}
@@ -116,7 +149,7 @@ public class HellblockUserCommand {
 						HellblockPlugin.getInstance().getCoopManager().updateParty(player.getUniqueId(),
 								HellblockData.LOCK, pi.getLockedStatus());
 						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-								String.format("<red>You have just <dark_red>%s <red>your hellblock island!",
+								String.format("<red>You've just <dark_red>%s <red>your hellblock island!",
 										(pi.getLockedStatus() ? "locked" : "unlocked")));
 						if (pi.getLockedStatus()) {
 							HellblockPlugin.getInstance().getCoopManager().kickVisitorsIfLocked(player.getUniqueId());
@@ -692,7 +725,7 @@ public class HellblockUserCommand {
 							}
 							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 									String.format(
-											"<red>You have set your new hellblock home location to x:%s, y:%s, z:%s facing %s!",
+											"<red>You've set your new hellblock home location to x:%s, y:%s, z:%s facing %s!",
 											player.getLocation().getBlockX(), player.getLocation().getBlockY(),
 											player.getLocation().getBlockZ(), LocationUtils.getFacing(player)));
 						} else {

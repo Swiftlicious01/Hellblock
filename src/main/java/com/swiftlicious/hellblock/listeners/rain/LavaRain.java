@@ -33,12 +33,12 @@ public class LavaRain {
 	public LavaRain(HellblockPlugin plugin) {
 		instance = plugin;
 		this.radius = Math.abs(instance.getConfig("config.yml").getInt("lava-rain-options.radius", 16));
-		this.fireChance = Math.abs(instance.getConfig("config.yml").getInt("lava-rain-options.fireChance", 1));
-		this.taskDelay = Math.abs(instance.getConfig("config.yml").getInt("lava-rain-options.taskDelay", 3));
+		this.fireChance = Math.abs(instance.getConfig("config.yml").getInt("lava-rain-options.fire-chance", 1));
+		this.taskDelay = Math.abs(instance.getConfig("config.yml").getInt("lava-rain-options.task-delay", 3));
 		this.enabled = instance.getConfig("config.yml").getBoolean("lava-rain-options.enabled", true);
 		this.canHurtLivingCreatures = instance.getConfig("config.yml")
-				.getBoolean("lava-rain-options.canHurtLivingCreatures", true);
-		this.willTNTExplode = instance.getConfig("config.yml").getBoolean("lava-rain-options.willTNTExplode", true);
+				.getBoolean("lava-rain-options.can-hurt-living-creatures", true);
+		this.willTNTExplode = instance.getConfig("config.yml").getBoolean("lava-rain-options.will-tnt-explode", true);
 	}
 
 	public void startLavaRainProcess() {

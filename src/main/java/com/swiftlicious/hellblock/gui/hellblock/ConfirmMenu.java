@@ -75,7 +75,7 @@ public class ConfirmMenu {
 			}
 			if (pi.getResetCooldown() > 0) {
 				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-						String.format("<red>You have recently reset your hellblock already, you must wait for %s!",
+						String.format("<red>You've recently reset your hellblock already, you must wait for %s!",
 								HellblockPlugin.getInstance().getFormattedCooldown(pi.getResetCooldown())));
 				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
 						net.kyori.adventure.sound.Sound.Source.PLAYER,

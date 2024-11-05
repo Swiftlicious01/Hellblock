@@ -67,8 +67,7 @@ public class WorldGuardHook {
 		return CompletableFuture.runAsync(() -> {
 			try {
 				if (this.worldGuardPlatform == null) {
-					LogUtils.severe("Could not retrieve WorldGuard platform.");
-					return;
+					throw new NullPointerException("Could not retrieve WorldGuard platform.");
 				}
 				RegionContainer regionContainer = this.worldGuardPlatform.getRegionContainer();
 				RegionManager regionManager = regionContainer
@@ -117,8 +116,7 @@ public class WorldGuardHook {
 		return CompletableFuture.runAsync(() -> {
 			try {
 				if (this.worldGuardPlatform == null) {
-					LogUtils.severe("Could not retrieve WorldGuard platform.");
-					return;
+					throw new NullPointerException("Could not retrieve WorldGuard platform.");
 				}
 				RegionContainer regionContainer = this.worldGuardPlatform.getRegionContainer();
 				RegionManager regionManager = regionContainer
@@ -217,8 +215,7 @@ public class WorldGuardHook {
 		World world = instance.getHellblockHandler().getHellblockWorld();
 		// Get top location
 		if (this.worldGuardPlatform == null) {
-			LogUtils.severe("Could not retrieve WorldGuard platform.");
-			return new Location(world, 0, instance.getHellblockHandler().getHeight(), 0).toVector();
+			throw new NullPointerException("Could not retrieve WorldGuard platform.");
 		}
 		RegionContainer regionContainer = this.worldGuardPlatform.getRegionContainer();
 		RegionManager regionManager = regionContainer.get(BukkitAdapter.adapt(world));
@@ -268,8 +265,7 @@ public class WorldGuardHook {
 	public boolean isRegionProtected(@NonNull Location location) {
 		com.sk89q.worldedit.util.Location loc = BukkitAdapter.adapt(location);
 		if (this.worldGuardPlatform == null) {
-			LogUtils.severe("Could not retrieve WorldGuard platform.");
-			return false;
+			throw new NullPointerException("Could not retrieve WorldGuard platform.");
 		}
 		RegionContainer container = this.worldGuardPlatform.getRegionContainer();
 		RegionQuery query = container.createQuery();
@@ -311,8 +307,7 @@ public class WorldGuardHook {
 
 	public ProtectedRegion getRegion(@NonNull UUID playerUUID, int hellblockID) {
 		if (this.worldGuardPlatform == null) {
-			LogUtils.severe("Could not retrieve WorldGuard platform.");
-			return null;
+			throw new NullPointerException("Could not retrieve WorldGuard platform.");
 		}
 		World world = instance.getHellblockHandler().getHellblockWorld();
 		RegionManager regionManager = this.worldGuardPlatform.getRegionContainer().get(BukkitAdapter.adapt(world));
@@ -331,8 +326,7 @@ public class WorldGuardHook {
 
 	public ProtectedRegion getSpawnRegion() {
 		if (this.worldGuardPlatform == null) {
-			LogUtils.severe("Could not retrieve WorldGuard platform.");
-			return null;
+			throw new NullPointerException("Could not retrieve WorldGuard platform.");
 		}
 		World world = instance.getHellblockHandler().getHellblockWorld();
 		RegionManager regionManager = this.worldGuardPlatform.getRegionContainer().get(BukkitAdapter.adapt(world));
@@ -353,8 +347,7 @@ public class WorldGuardHook {
 		return CompletableFuture.runAsync(() -> {
 			try {
 				if (this.worldGuardPlatform == null) {
-					LogUtils.severe("Could not retrieve WorldGuard platform.");
-					return;
+					throw new NullPointerException("Could not retrieve WorldGuard platform.");
 				}
 				BlockVector3 pos1 = BlockVector3.at((double) instance.getHellblockHandler().getSpawnSize(),
 						instance.getHellblockHandler().getHellblockWorld().getMaxHeight(),

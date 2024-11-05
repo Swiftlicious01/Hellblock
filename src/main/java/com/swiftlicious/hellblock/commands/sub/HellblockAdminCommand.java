@@ -82,7 +82,7 @@ public class HellblockAdminCommand {
 							}
 							ChunkUtils.teleportAsync(player, ti.getHomeLocation(), TeleportCause.PLUGIN).thenRun(() -> {
 								HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-										String.format("<red>You have been teleported to <dark_red>%s<red>'s hellblock!",
+										String.format("<red>You've been teleported to <dark_red>%s<red>'s hellblock!",
 												user));
 							});
 						});
@@ -217,7 +217,7 @@ public class HellblockAdminCommand {
 					if (ti.hasHellblock()) {
 						HellblockPlugin.getInstance().getHellblockHandler().resetHellblock(id, true).thenRun(() -> {
 							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player, String
-									.format("<red>You have forcefully deleted <dark_red>%s<red>'s hellblock!", user));
+									.format("<red>You've forcefully deleted <dark_red>%s<red>'s hellblock!", user));
 						});
 						return;
 					}

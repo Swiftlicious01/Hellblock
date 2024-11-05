@@ -188,7 +188,7 @@ public class HellblockMenu {
 				HellblockPlugin.getInstance().getCoopManager().updateParty(player.getUniqueId(), HellblockData.LOCK,
 						pi.getLockedStatus());
 				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-						String.format("<red>You have just <dark_red>%s <red>your hellblock island!",
+						String.format("<red>You've just <dark_red>%s <red>your hellblock island!",
 								(pi.getLockedStatus() ? "locked" : "unlocked")));
 				if (pi.getLockedStatus()) {
 					HellblockPlugin.getInstance().getCoopManager().kickVisitorsIfLocked(player.getUniqueId());
@@ -287,7 +287,7 @@ public class HellblockMenu {
 			} else {
 				if (pi.getBiomeCooldown() > 0) {
 					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-							String.format("<red>You have recently changed your biome already, you must wait for %s!",
+							String.format("<red>You've recently changed your biome already, you must wait for %s!",
 									HellblockPlugin.getInstance().getFormattedCooldown(pi.getBiomeCooldown())));
 					HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
 							net.kyori.adventure.sound.Sound.Source.PLAYER,
@@ -391,7 +391,7 @@ public class HellblockMenu {
 			} else {
 				if (pi.getResetCooldown() > 0) {
 					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-							String.format("<red>You have recently reset your hellblock already, you must wait for %s!",
+							String.format("<red>You've recently reset your hellblock already, you must wait for %s!",
 									HellblockPlugin.getInstance().getFormattedCooldown(pi.getResetCooldown())));
 					HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
 							net.kyori.adventure.sound.Sound.Source.PLAYER,

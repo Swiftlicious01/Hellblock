@@ -99,7 +99,7 @@ public class SchematicMenu {
 							.getResetCooldown() > 0) {
 						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 								String.format(
-										"<red>You have recently reset your hellblock already, you must wait for %s!",
+										"<red>You've recently reset your hellblock already, you must wait for %s!",
 										HellblockPlugin.getInstance().getFormattedCooldown(HellblockPlugin.getInstance()
 												.getHellblockHandler().getActivePlayer(player).getResetCooldown())));
 						HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
@@ -120,8 +120,7 @@ public class SchematicMenu {
 							.createHellblock(player, IslandOptions.SCHEMATIC, file.getName()).thenRun(() -> {
 								if (isReset) {
 									HellblockPlugin.getInstance().getHellblockHandler()
-											.getActivePlayer(player.getUniqueId())
-											.setResetCooldown(TimeUnit.SECONDS.toDays(1));
+											.getActivePlayer(player.getUniqueId()).setResetCooldown(86400L);
 									HellblockPlugin.getInstance().getHellblockHandler()
 											.getActivePlayer(player.getUniqueId()).saveHellblockPlayer();
 								}

@@ -39,18 +39,18 @@ public class GeneratorModeManager {
 				}
 			}
 			GenMode mode = new GenMode(fallbackMaterial);
-			if (section.contains("searchForPlayersNearby")) {
-				boolean searchForPlayersNearby = section.getBoolean("searchForPlayersNearby", false);
+			if (section.contains("search-for-players-nearby")) {
+				boolean searchForPlayersNearby = section.getBoolean("search-for-players-nearby", false);
 				mode.setSearchForPlayersNearby(searchForPlayersNearby);
 			}
-			if (section.contains("generationSound")) {
-				String soundString = section.getString("generationSound", "minecraft:entity.experience_orb.pickup");
+			if (section.contains("generation-sound")) {
+				String soundString = section.getString("generation-sound", "minecraft:entity.experience_orb.pickup");
 				if (soundString != null && !soundString.equalsIgnoreCase("none")) {
 					mode.setGenSound(soundString);
 				}
 			}
-			if (section.contains("particleEffect")) {
-				String particleString = section.getString("particleEffect", "LARGE_SMOKE");
+			if (section.contains("particle-effect")) {
+				String particleString = section.getString("particle-effect", "LARGE_SMOKE");
 				if (particleString != null && !particleString.equalsIgnoreCase("none")) {
 					Arrays.stream(Particle.values())
 							.filter(particleEffect -> particleEffect.name().equalsIgnoreCase(particleString))
@@ -58,8 +58,8 @@ public class GeneratorModeManager {
 									.severe(String.format("The particle %s does not exist.", particleString)));
 				}
 			}
-			if (section.contains("canGenerateWhileLavaRaining")) {
-				boolean canGenWhileLavaRaining = section.getBoolean("canGenerateWhileLavaRaining", true);
+			if (section.contains("can-generate-while-lava-raining")) {
+				boolean canGenWhileLavaRaining = section.getBoolean("can-generate-while-lava-raining", true);
 				mode.setCanGenWhileLavaRaining(canGenWhileLavaRaining);
 			}
 

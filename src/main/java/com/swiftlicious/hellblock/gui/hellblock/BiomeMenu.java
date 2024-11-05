@@ -92,7 +92,7 @@ public class BiomeMenu {
 			}
 			if (HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player).getBiomeCooldown() > 0) {
 				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-						String.format("<red>You have recently changed your hellbiome biome, you must wait for %s!",
+						String.format("<red>You've recently changed your hellbiome biome, you must wait for %s!",
 								HellblockPlugin.getInstance().getFormattedCooldown(HellblockPlugin.getInstance()
 										.getHellblockHandler().getActivePlayer(player).getBiomeCooldown())));
 				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
@@ -158,7 +158,7 @@ public class BiomeMenu {
 			}
 			if (HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player).getBiomeCooldown() > 0) {
 				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-						String.format("<red>You have recently changed your hellbiome biome, you must wait for %s!",
+						String.format("<red>You've recently changed your hellbiome biome, you must wait for %s!",
 								HellblockPlugin.getInstance().getFormattedCooldown(HellblockPlugin.getInstance()
 										.getHellblockHandler().getActivePlayer(player).getBiomeCooldown())));
 				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
@@ -225,7 +225,7 @@ public class BiomeMenu {
 			}
 			if (HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player).getBiomeCooldown() > 0) {
 				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-						String.format("<red>You have recently changed your hellbiome biome, you must wait for %s!",
+						String.format("<red>You've recently changed your hellbiome biome, you must wait for %s!",
 								HellblockPlugin.getInstance().getFormattedCooldown(HellblockPlugin.getInstance()
 										.getHellblockHandler().getActivePlayer(player).getBiomeCooldown())));
 				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
@@ -291,7 +291,7 @@ public class BiomeMenu {
 			}
 			if (HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player).getBiomeCooldown() > 0) {
 				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-						String.format("<red>You have recently changed your hellbiome biome, you must wait for %s!",
+						String.format("<red>You've recently changed your hellbiome biome, you must wait for %s!",
 								HellblockPlugin.getInstance().getFormattedCooldown(HellblockPlugin.getInstance()
 										.getHellblockHandler().getActivePlayer(player).getBiomeCooldown())));
 				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
@@ -357,7 +357,7 @@ public class BiomeMenu {
 			}
 			if (HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player).getBiomeCooldown() > 0) {
 				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-						String.format("<red>You have recently changed your hellbiome biome, you must wait for %s!",
+						String.format("<red>You've recently changed your hellbiome biome, you must wait for %s!",
 								HellblockPlugin.getInstance().getFormattedCooldown(HellblockPlugin.getInstance()
 										.getHellblockHandler().getActivePlayer(player).getBiomeCooldown())));
 				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,

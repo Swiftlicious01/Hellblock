@@ -8,10 +8,12 @@ import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Registry;
+import org.bukkit.block.Block;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.block.BlockDispenseArmorEvent;
 import org.bukkit.event.inventory.CraftItemEvent;
 import org.bukkit.inventory.CraftingRecipe;
 import org.bukkit.inventory.ItemStack;
@@ -835,11 +837,13 @@ public class NetherArmor implements Listener {
 		if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
 			return;
 
+		HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(player);
+
 		ItemStack armor = event.getNewItem();
 		if (armor != null && armor.getType() != Material.AIR) {
 			if (checkNightVisionArmorStatus(armor) && getNightVisionArmorStatus(armor)) {
 				player.addPotionEffect(new PotionEffect(PotionEffectType.NIGHT_VISION, Integer.MAX_VALUE, 1));
-				instance.getHellblockHandler().getActivePlayer(player).isWearingGlowstoneArmor(true);
+				pi.isWearingGlowstoneArmor(true);
 			} else {
 				ItemStack[] armorSet = player.getInventory().getArmorContents();
 				boolean checkArmor = false;
@@ -853,10 +857,10 @@ public class NetherArmor implements Listener {
 						}
 					}
 				}
-				if (!checkArmor && instance.getHellblockHandler().getActivePlayer(player).hasGlowstoneArmorEffect()) {
+				if (!checkArmor && pi.hasGlowstoneArmorEffect()) {
 					if (player.hasPotionEffect(PotionEffectType.NIGHT_VISION)) {
-						instance.getHellblockHandler().getActivePlayer(player).isWearingGlowstoneArmor(false);
-						if (!instance.getHellblockHandler().getActivePlayer(player).hasGlowstoneToolEffect()) {
+						pi.isWearingGlowstoneArmor(false);
+						if (!pi.hasGlowstoneToolEffect()) {
 							player.removePotionEffect(PotionEffectType.NIGHT_VISION);
 						}
 					}
@@ -875,11 +879,50 @@ public class NetherArmor implements Listener {
 					}
 				}
 			}
-			if (!checkArmor && instance.getHellblockHandler().getActivePlayer(player).hasGlowstoneArmorEffect()) {
+			if (!checkArmor && pi.hasGlowstoneArmorEffect()) {
 				if (player.hasPotionEffect(PotionEffectType.NIGHT_VISION)) {
-					instance.getHellblockHandler().getActivePlayer(player).isWearingGlowstoneArmor(false);
-					if (!instance.getHellblockHandler().getActivePlayer(player).hasGlowstoneToolEffect()) {
+					pi.isWearingGlowstoneArmor(false);
+					if (!pi.hasGlowstoneToolEffect()) {
 						player.removePotionEffect(PotionEffectType.NIGHT_VISION);
+					}
+				}
+			}
+		}
+	}
+
+	@EventHandler
+	public void onDispenseArmor(BlockDispenseArmorEvent event) {
+		if (!this.gsNightVisionArmor || !this.gsArmor)
+			return;
+		final Block block = event.getBlock();
+		if (!block.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+			return;
+
+		if (event.getTargetEntity() instanceof Player player) {
+			HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(player);
+			ItemStack armor = event.getItem();
+			if (checkNightVisionArmorStatus(armor) && getNightVisionArmorStatus(armor)) {
+				player.addPotionEffect(new PotionEffect(PotionEffectType.NIGHT_VISION, Integer.MAX_VALUE, 1));
+				pi.isWearingGlowstoneArmor(true);
+			} else {
+				ItemStack[] armorSet = player.getInventory().getArmorContents();
+				boolean checkArmor = false;
+				if (armorSet != null) {
+					for (ItemStack item : armorSet) {
+						if (item == null || item.getType() == Material.AIR)
+							continue;
+						if (checkNightVisionArmorStatus(item) && getNightVisionArmorStatus(item)) {
+							checkArmor = true;
+							break;
+						}
+					}
+				}
+				if (!checkArmor && pi.hasGlowstoneArmorEffect()) {
+					if (player.hasPotionEffect(PotionEffectType.NIGHT_VISION)) {
+						pi.isWearingGlowstoneArmor(false);
+						if (!pi.hasGlowstoneToolEffect()) {
+							player.removePotionEffect(PotionEffectType.NIGHT_VISION);
+						}
 					}
 				}
 			}

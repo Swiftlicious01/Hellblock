@@ -1,6 +1,7 @@
 package com.swiftlicious.hellblock.utils;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
@@ -12,6 +13,9 @@ import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Player;
+import org.bukkit.util.BoundingBox;
+import org.bukkit.util.NumberConversions;
+import org.jetbrains.annotations.Nullable;
 
 import lombok.NonNull;
 
@@ -28,12 +32,12 @@ public class LocationUtils {
 	 * @param location2 The second location
 	 * @return The Euclidean distance between the two locations
 	 */
-	public static double getDistance(Location location1, Location location2) {
+	public static double getDistance(@NonNull Location location1, @NonNull Location location2) {
 		return Math.sqrt(Math.pow(location2.getX() - location1.getX(), 2)
 				+ Math.pow(location2.getY() - location1.getY(), 2) + Math.pow(location2.getZ() - location1.getZ(), 2));
 	}
 
-	public static List<String> readableLocation(Location location) {
+	public static @NonNull List<String> readableLocation(@NonNull Location location) {
 		List<String> readableLocation = Arrays.asList(location.getWorld().getName(), String.valueOf(location.getX()),
 				String.valueOf(location.getY()), String.valueOf(location.getZ()));
 		return readableLocation;
@@ -128,13 +132,59 @@ public class LocationUtils {
 		};
 	}
 
+	public @Nullable Block getBlockSupporting(@NonNull Player player) {
+		World w = player.getWorld();
+		BoundingBox box = player.getBoundingBox();
+		int blx = NumberConversions.floor(box.getMinX()), bgx = NumberConversions.ceil(box.getMaxX()),
+				bly = NumberConversions.floor(box.getMinY()) - 2, // check two blocks below the player as some blocks
+																	// have tall collision boxes
+				bgy = NumberConversions.ceil(box.getMinY()), // use minY as our other value is always lower
+				blz = NumberConversions.floor(box.getMinZ()), bgz = NumberConversions.ceil(box.getMaxZ());
+		for (int x = blx; x < bgx; x++) {
+			for (int y = bly; y < bgy; y++) {
+				for (int z = blz; z < bgz; z++) {
+					Block block = w.getBlockAt(x, y, z);
+					if (!block.isPassable()) {
+						Collection<BoundingBox> collisionShapes = block.getCollisionShape().getBoundingBoxes();
+						// for some reason collision shapes can be empty if the block has a "primitive
+						// shape" (such as slabs)
+						if (collisionShapes.isEmpty()) {
+							if (isStandingOn(block.getBoundingBox(), box)) {
+								return block;
+							}
+						} else {
+							for (BoundingBox cs : collisionShapes) {
+								// we need to shift the box as for some reason bukkit loves to have methods
+								// returning relative and non-relative BoundingBoxes because fuck everyone,
+								// apparently.
+								cs.shift(block.getX(), block.getY(), block.getZ());
+								if (isStandingOn(cs, box)) {
+									return block;
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+		return null;
+	}
+
+	public boolean isStandingOn(@NonNull BoundingBox blockBox, @NonNull BoundingBox playerBox) {
+		// if the maxY of the block bounding box == the minY of the players box, if they
+		// intersect 2d they are standing on it
+		// unfortunately bukkit's BoundingBox doesn't have an intersect2d method, so we
+		// shift it up.
+		return blockBox.getMaxY() == playerBox.getMinY() && playerBox.contains(blockBox.shift(0, 0.1, 0));
+	}
+
 	/**
 	 * Converts a serialized location to a Location. Returns null if string is empty
 	 *
 	 * @param s - serialized location in format "world:x:y:z:y:p"
 	 * @return Location
 	 */
-	public static Location getLocationString(final String s) {
+	public static @NonNull Location getLocationString(final @NonNull String s) {
 		if (s == null || s.trim().equals("")) {
 			return null;
 		}
@@ -163,7 +213,7 @@ public class LocationUtils {
 	 * @param l - the location
 	 * @return String of location in format "world:x:y:z:y:p"
 	 */
-	public static String getStringLocation(final Location l) {
+	public static @NonNull String getStringLocation(final @NonNull Location l) {
 		if (l == null || l.getWorld() == null) {
 			return "";
 		}
@@ -178,7 +228,7 @@ public class LocationUtils {
 	 * @param face - blockface
 	 * @return degrees
 	 */
-	public static float blockFaceToFloat(BlockFace face) {
+	public static float blockFaceToFloat(@NonNull BlockFace face) {
 		return switch (face) {
 		case EAST -> 90F;
 		case EAST_NORTH_EAST -> 67.5F;
@@ -198,7 +248,7 @@ public class LocationUtils {
 		};
 	}
 
-	public static String getFacing(Player player) {
+	public static @NonNull String getFacing(@NonNull Player player) {
 		double yaw = player.getLocation().getYaw();
 		if (yaw >= 337.5 || (yaw <= 22.5 && yaw >= 0.0) || (yaw >= -22.5 && yaw <= 0.0)
 				|| (yaw <= -337.5 && yaw <= 0.0)) {

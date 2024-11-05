@@ -15,7 +15,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.TimeUnit;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
@@ -687,7 +686,7 @@ public class HellblockPlayer {
 	}
 
 	public void sendInvitation(@NonNull UUID playerID) {
-		this.invitations.putIfAbsent(playerID, TimeUnit.SECONDS.toDays(1));
+		this.invitations.putIfAbsent(playerID, 86400L);
 	}
 
 	public void removeInvitation(@NonNull UUID playerID) {

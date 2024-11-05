@@ -507,7 +507,8 @@ public class HellblockPlugin extends JavaPlugin {
 		long hours = (seconds - seconds % 3600) / 3600;
 		long minutes = (seconds % 3600 - seconds % 3600 % 60) / 60;
 		seconds = seconds % 3600 % 60;
-		String formattedTime = String.format("%sh%sm%ss", hours, minutes, seconds);
+		String formattedTime = String.format("%s%s%s", hours > 0 ? hours + "h" : "", minutes > 0 ? minutes + "m" : "",
+				seconds > 0 ? seconds + "s" : "");
 		return formattedTime;
 	}
 

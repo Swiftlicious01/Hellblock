@@ -107,7 +107,7 @@ public class LavaRainTask implements Runnable {
 				LavaRainLocation lavaRainLocation = instance.getLavaRainHandler().new LavaRainLocation(add, sub);
 				Iterator<Block> blocks = lavaRainLocation.getBlocks();
 				Block block;
-				Block block2;
+				Block particleSpawn;
 				if (world.getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName())
 						&& !instance.getHellblockHandler().checkIfInSpawn(location)) {
 					while (true) {
@@ -160,45 +160,52 @@ public class LavaRainTask implements Runnable {
 
 								BlockIterator iterator = new BlockIterator(world, block.getLocation().toVector(),
 										new Vector(0, -1, 0), 0.0D, 30);
-								block2 = null;
+								particleSpawn = null;
 
 								while (iterator.hasNext()) {
-									Block block3 = iterator.next();
-									if (block3.isEmpty()) {
-										block2 = block3;
+									Block air = iterator.next();
+									if (air.isEmpty()) {
+										particleSpawn = air;
 										break;
 									}
 								}
 
-								if (block2 != null) {
-									world.spawnParticle(Particle.DRIPPING_LAVA, block2.getLocation(), 1, 0.0D, 0.0D,
-											0.0D, 0.0D);
+								if (particleSpawn != null) {
+									world.spawnParticle(Particle.DRIPPING_LAVA, particleSpawn.getLocation(), 1, 0.0D,
+											0.0D, 0.0D, 0.0D);
 									instance.getAdventureManager().sendSound(player.getLocation(),
 											net.kyori.adventure.sound.Sound.Source.WEATHER, net.kyori.adventure.key.Key
 													.key("minecraft:block.pointed_dripstone.drip_lava"),
 											1, 1);
 								}
-							} while (Math.random() >= (double) instance.getLavaRainHandler().getFireChance() / 1000.0D);
+							} while (Math
+									.random() >= (double) (instance.getLavaRainHandler().getFireChance() / 1000.0D));
 
-							if (Math.random() < (double) instance.getLavaRainHandler().getFireChance() / 1000.0D) {
-								Block block4 = instance.getLavaRainHandler().getHighestBlock(block.getLocation());
-								if (block4 != null && (block4.isPassable() || block4.isEmpty() || block4.isLiquid()
-										|| !block4.isSolid() || block4.getType().isOccluding())) {
-									Block above = block4.getRelative(BlockFace.UP);
-									if (above.getType().isAir()) {
-										above.setType(block4.getType() == Material.SOUL_SAND
-												|| block4.getType() == Material.SOUL_SOIL ? Material.SOUL_FIRE
+							if (Math.random() < (double) (instance.getLavaRainHandler().getFireChance() / 1000.0D)) {
+								for (Iterator<Block> fireIterator = lavaRainLocation.getBlocks(); fireIterator
+										.hasNext();) {
+									Block fire = fireIterator.next();
+									if (fire.isEmpty()) {
+										fire.setType(fire.getRelative(BlockFace.DOWN).getType() == Material.SOUL_SAND
+												|| fire.getRelative(BlockFace.DOWN).getType() == Material.SOUL_SOIL
+														? Material.SOUL_FIRE
 														: Material.FIRE);
+										break;
 									}
 								}
 							}
 
 							if (instance.getLavaRainHandler().willTNTExplode()) {
-								Block above = instance.getLavaRainHandler().getHighestBlock(block.getLocation());
-								if (above != null && above.getType() == Material.TNT) {
-									above.setType(Material.AIR);
-									TNTPrimed tnt = (TNTPrimed) world.spawnEntity(above.getLocation(), EntityType.TNT);
-									tnt.setFuseTicks(RandomUtils.generateRandomInt(3, 5) * 20);
+								for (Iterator<Block> tntIterator = lavaRainLocation.getBlocks(); tntIterator
+										.hasNext();) {
+									Block tnt = tntIterator.next();
+									Block aboveTnt = world.getHighestBlockAt(tnt.getLocation());
+									if (aboveTnt.getType() == Material.TNT) {
+										aboveTnt.setType(Material.AIR);
+										world.spawn(aboveTnt.getLocation(), TNTPrimed.class, (primed) -> {
+											primed.setFuseTicks(RandomUtils.generateRandomInt(3, 5) * 20);
+										});
+									}
 								}
 								Collection<Entity> entities = world.getNearbyEntities(location, 15.0D, 15.0D, 15.0D,
 										(e) -> e.getType() == EntityType.TNT_MINECART);
@@ -209,8 +216,8 @@ public class LavaRainTask implements Runnable {
 											|| aboveMinecart.isLiquid() || !aboveMinecart.isSolid()
 											|| aboveMinecart.getType().isOccluding())) {
 										ExplosiveMinecart tntMinecart = (ExplosiveMinecart) entity;
-										tntMinecart.ignite();
-										tntMinecart.setFuseTicks(RandomUtils.generateRandomInt(3, 5) * 20);
+										if (!tntMinecart.isIgnited())
+											tntMinecart.ignite();
 									}
 								}
 							}

@@ -18,6 +18,7 @@ import org.bukkit.World.Environment;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.entity.FallingBlock;
 import org.bukkit.entity.Firework;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
@@ -25,6 +26,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.entity.EntityDropItemEvent;
 import org.bukkit.event.entity.EntityPortalEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.PlayerChangedWorldEvent;
@@ -220,7 +222,7 @@ public class PlayerListener implements Listener {
 		HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(id);
 
 		pi.hideBorder();
-		
+
 		if (pi.hasGlowstoneToolEffect() || pi.hasGlowstoneArmorEffect()) {
 			if (player.hasPotionEffect(PotionEffectType.NIGHT_VISION)) {
 				player.removePotionEffect(PotionEffectType.NIGHT_VISION);
@@ -270,6 +272,21 @@ public class PlayerListener implements Listener {
 						.has(new NamespacedKey(instance, "challenge-firework"), PersistentDataType.BOOLEAN)) {
 					event.setCancelled(true);
 				}
+			}
+		}
+	}
+
+	@EventHandler
+	public void onFallingBlockLandOnSoulSand(EntityDropItemEvent event) {
+		if (event.getEntity() instanceof FallingBlock fallingBlock) {
+			if (!fallingBlock.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+				return;
+			if (fallingBlock.getLocation().getBlock().getType() == Material.SOUL_SAND
+					&& fallingBlock.getLocation().getBlock().getRelative(BlockFace.UP).getType() != Material.LAVA) {
+				event.setCancelled(true);
+				fallingBlock.getLocation().getBlock().getRelative(BlockFace.UP)
+						.setType(fallingBlock.getBlockData().getMaterial());
+				fallingBlock.setDropItem(false);
 			}
 		}
 	}
@@ -405,7 +422,7 @@ public class PlayerListener implements Listener {
 			HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(id);
 			if (pi.hasHellblock()) {
 				if (!this.linkPortalCatcher.contains(id)) {
-					instance.getAdventureManager().sendMessageWithPrefix(player,
+					instance.getAdventureManager().sendMessage(player,
 							"<red>Link your home nether portal to another player's hellblock if you wish or keep it as your own!");
 					instance.getAdventureManager().sendMessage(player,
 							"<red>You can always change this just by clicking on your nether portal!");
@@ -437,7 +454,7 @@ public class PlayerListener implements Listener {
 			HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(id);
 			if (pi.hasHellblock()) {
 				if (!this.linkPortalCatcher.contains(id)) {
-					instance.getAdventureManager().sendMessageWithPrefix(player,
+					instance.getAdventureManager().sendMessage(player,
 							"<red>Link your home nether portal to another player's hellblock if you wish or keep it as your own!");
 					instance.getAdventureManager().sendMessage(player,
 							"<red>You can always change this just by clicking on your nether portal!");
@@ -474,9 +491,9 @@ public class PlayerListener implements Listener {
 			if (link != null) {
 				if ((pi.getHellblockOwner() != null && pi.getHellblockOwner().equals(link.getUniqueId()))
 						|| pi.getHellblockParty().contains(link.getUniqueId())) {
-					instance.getAdventureManager().sendMessageWithPrefix(player,
+					instance.getAdventureManager().sendMessage(player,
 							"<red>The player you typed is a part of your hellblock already.");
-					instance.getAdventureManager().sendMessageWithPrefix(player,
+					instance.getAdventureManager().sendMessage(player,
 							"<red>The portal has kept it's link to your own hellblock!");
 					this.linkPortalCatcher.remove(id);
 					return;
@@ -514,9 +531,9 @@ public class PlayerListener implements Listener {
 				}
 				if ((pi.getHellblockOwner() != null && pi.getHellblockOwner().equals(linkID))
 						|| pi.getHellblockParty().contains(linkID)) {
-					instance.getAdventureManager().sendMessageWithPrefix(player,
+					instance.getAdventureManager().sendMessage(player,
 							"<red>The player you typed is a part of your hellblock already.");
-					instance.getAdventureManager().sendMessageWithPrefix(player,
+					instance.getAdventureManager().sendMessage(player,
 							"<red>The portal has kept it's link to your own hellblock!");
 					this.linkPortalCatcher.remove(id);
 					return;
@@ -529,7 +546,7 @@ public class PlayerListener implements Listener {
 				}
 				pi.setLinkedHellblock(linkID);
 				instance.getAdventureManager().sendMessageWithPrefix(player, String
-						.format("<red>You have linked your nether portal to <dark_red>%s<red>'s hellblock!", username));
+						.format("<red>You've linked your nether portal to <dark_red>%s<red>'s hellblock!", username));
 			}
 			this.linkPortalCatcher.remove(id);
 		}

@@ -1,5 +1,6 @@
 package com.swiftlicious.hellblock.listeners;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -12,15 +13,20 @@ import java.util.concurrent.TimeUnit;
 
 import org.bukkit.Bukkit;
 import org.bukkit.ExplosionResult;
+import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.Particle;
 import org.bukkit.Tag;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.block.BlockState;
+import org.bukkit.block.Dispenser;
 import org.bukkit.block.data.Ageable;
+import org.bukkit.block.data.Directional;
 import org.bukkit.block.data.type.Farmland;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.FallingBlock;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -28,13 +34,17 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.Event.Result;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.block.BlockDispenseEvent;
 import org.bukkit.event.block.BlockExplodeEvent;
 import org.bukkit.event.block.BlockFadeEvent;
 import org.bukkit.event.block.BlockFertilizeEvent;
+import org.bukkit.event.block.BlockFromToEvent;
 import org.bukkit.event.block.BlockGrowEvent;
 import org.bukkit.event.block.BlockPhysicsEvent;
+import org.bukkit.event.block.BlockPistonExtendEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.block.MoistureChangeEvent;
+import org.bukkit.event.entity.EntityDropItemEvent;
 import org.bukkit.event.entity.EntityInteractEvent;
 import org.bukkit.event.player.PlayerBucketEmptyEvent;
 import org.bukkit.event.player.PlayerBucketFillEvent;
@@ -55,6 +65,8 @@ import com.swiftlicious.hellblock.utils.LocationCache;
 import com.swiftlicious.hellblock.utils.RandomUtils;
 
 import lombok.NonNull;
+import net.kyori.adventure.key.Key;
+import net.kyori.adventure.sound.Sound.Source;
 
 public class NetherFarming implements Listener {
 
@@ -92,8 +104,7 @@ public class NetherFarming implements Listener {
 					if (checkForLavaAroundFarm(cache.getBlock())
 							|| (instance.getLavaRainHandler().getLavaRainTask() != null
 									&& instance.getLavaRainHandler().getLavaRainTask().isLavaRaining()
-									&& instance.getLavaRainHandler().getHighestBlock(cache) != null
-									&& instance.getLavaRainHandler().getHighestBlock(cache).isEmpty())) {
+									&& updatingBlock.getWorld().getHighestBlockAt(cache).isEmpty())) {
 						instance.getScheduler().runTaskSyncLater(() -> {
 							if (!this.blockCache.containsKey(cache)) {
 								this.blockCache.put(cache, RandomUtils.generateRandomInt(15, 25));
@@ -335,6 +346,82 @@ public class NetherFarming implements Listener {
 	}
 
 	@EventHandler
+	public void onFlowConcretePowder(BlockFromToEvent event) {
+		final Block block = event.getBlock();
+		if (!block.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+			return;
+
+		if (!Arrays.asList(FACES).contains(event.getFace())) {
+			return;
+		}
+
+		if (block.getType() == Material.LAVA) {
+			for (BlockFace face : FACES) {
+				if (Tag.CONCRETE_POWDER.isTagged(event.getToBlock().getRelative(face).getType())) {
+					event.getToBlock().getRelative(face)
+							.setType(convertToConcrete(event.getToBlock().getRelative(face).getType()));
+					instance.getAdventureManager().sendSound(block.getLocation(), Source.AMBIENT,
+							Key.key("minecraft:block.lava.extinguish"), 1, 1);
+					break;
+				}
+			}
+		}
+	}
+
+	@EventHandler
+	public void onPlaceConcretePowder(BlockPlaceEvent event) {
+		final Block block = event.getBlockPlaced();
+		if (!block.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+			return;
+
+		if (Tag.CONCRETE_POWDER.isTagged(block.getType())) {
+			for (BlockFace face : FACES) {
+				if (block.getRelative(face).getType() == Material.LAVA) {
+					block.setType(convertToConcrete(block.getType()));
+					instance.getAdventureManager().sendSound(event.getPlayer().getLocation(), Source.PLAYER,
+							Key.key("minecraft:block.lava.extinguish"), 1, 1);
+					break;
+				}
+			}
+		}
+	}
+
+	@EventHandler
+	public void onFallConcretePowder(EntityDropItemEvent event) {
+		if (event.getEntity() instanceof FallingBlock fallingBlock) {
+			if (!fallingBlock.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+				return;
+			if (Tag.CONCRETE_POWDER.isTagged(fallingBlock.getBlockData().getMaterial())) {
+				Material powder = fallingBlock.getBlockData().getMaterial();
+				if (fallingBlock.getLocation().getBlock().getRelative(BlockFace.UP).getType() == Material.LAVA) {
+					event.setCancelled(true);
+					instance.getScheduler().runTaskSyncLater(
+							() -> fallingBlock.getLocation().getBlock().getRelative(BlockFace.UP)
+									.setType(convertToConcrete(powder)),
+							fallingBlock.getLocation(), 5, TimeUnit.MILLISECONDS);
+					instance.getAdventureManager().sendSound(fallingBlock.getLocation().getBlock().getLocation(),
+							Source.AMBIENT, Key.key("minecraft:block.lava.extinguish"), 1, 1);
+					fallingBlock.setDropItem(false);
+				} else {
+					for (BlockFace face : FACES) {
+						if (fallingBlock.getLocation().getBlock().getRelative(face).getType() == Material.LAVA) {
+							event.setCancelled(true);
+							instance.getScheduler().runTaskSyncLater(
+									() -> fallingBlock.getLocation().getBlock().setType(convertToConcrete(powder)),
+									fallingBlock.getLocation(), 5, TimeUnit.MILLISECONDS);
+							instance.getAdventureManager().sendSound(
+									fallingBlock.getLocation().getBlock().getLocation(), Source.AMBIENT,
+									Key.key("minecraft:block.lava.extinguish"), 1, 1);
+							fallingBlock.setDropItem(false);
+							break;
+						}
+					}
+				}
+			}
+		}
+	}
+
+	@EventHandler
 	public void onForceSugarCanePlacement(PlayerInteractEvent event) {
 		final Player player = event.getPlayer();
 		if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
@@ -352,27 +439,29 @@ public class NetherFarming implements Listener {
 					if (sugarCaneGrowBlocks.contains(block.getType()) && block.getRelative(face).isEmpty()) {
 						if (checkForLavaAroundSugarCane(block)) {
 							event.setUseItemInHand(Result.ALLOW);
-							event.getItem()
-									.setAmount(event.getItem().getAmount() > 0 ? event.getItem().getAmount() - 1 : 0);
+							if (player.getGameMode() == GameMode.SURVIVAL)
+								event.getItem().setAmount(
+										event.getItem().getAmount() > 0 ? event.getItem().getAmount() - 1 : 0);
 							player.swingMainHand();
 							instance.getAdventureManager().sendSound(player,
 									net.kyori.adventure.sound.Sound.Source.PLAYER,
 									net.kyori.adventure.key.Key.key("minecraft:block.grass.place"), 1, 1);
 							player.updateInventory();
-							block.getRelative(face).setType(Material.SUGAR_CANE, false);
+							block.getRelative(face).setType(Material.SUGAR_CANE);
 						}
 					}
 					if (block.getType() == Material.SUGAR_CANE) {
 						if (checkForLavaAroundSugarCane(block.getRelative(BlockFace.DOWN))) {
 							event.setUseItemInHand(Result.ALLOW);
-							event.getItem()
-									.setAmount(event.getItem().getAmount() > 0 ? event.getItem().getAmount() - 1 : 0);
+							if (player.getGameMode() == GameMode.SURVIVAL)
+								event.getItem().setAmount(
+										event.getItem().getAmount() > 0 ? event.getItem().getAmount() - 1 : 0);
 							player.swingMainHand();
 							instance.getAdventureManager().sendSound(player,
 									net.kyori.adventure.sound.Sound.Source.PLAYER,
 									net.kyori.adventure.key.Key.key("minecraft:block.grass.place"), 1, 1);
 							player.updateInventory();
-							block.getRelative(face).setType(Material.SUGAR_CANE, false);
+							block.getRelative(face).setType(Material.SUGAR_CANE);
 						}
 					}
 				}
@@ -395,11 +484,18 @@ public class NetherFarming implements Listener {
 			} else {
 				event.setCancelled(true);
 				block.setType(Material.AIR);
+				block.getWorld().spawnParticle(Particle.BLOCK, block.getLocation(), 5,
+						Material.SUGAR_CANE.createBlockData());
 				block.getWorld().dropItemNaturally(block.getLocation(), new ItemStack(Material.SUGAR_CANE));
 				block.getRelative(BlockFace.DOWN).setType(Material.AIR);
+				block.getWorld().spawnParticle(Particle.BLOCK, block.getRelative(BlockFace.DOWN).getLocation(), 5,
+						Material.SUGAR_CANE.createBlockData());
 				block.getWorld().dropItemNaturally(block.getRelative(BlockFace.DOWN).getLocation(),
 						new ItemStack(Material.SUGAR_CANE));
 				block.getRelative(BlockFace.DOWN).getRelative(BlockFace.DOWN).setType(Material.AIR);
+				block.getWorld().spawnParticle(Particle.BLOCK,
+						block.getRelative(BlockFace.DOWN).getRelative(BlockFace.DOWN).getLocation(), 5,
+						Material.SUGAR_CANE.createBlockData());
 				block.getWorld().dropItemNaturally(
 						block.getRelative(BlockFace.DOWN).getRelative(BlockFace.DOWN).getLocation(),
 						new ItemStack(Material.SUGAR_CANE));
@@ -418,8 +514,12 @@ public class NetherFarming implements Listener {
 			} else {
 				event.setCancelled(true);
 				block.setType(Material.AIR);
+				block.getWorld().spawnParticle(Particle.BLOCK, block.getLocation(), 5,
+						Material.SUGAR_CANE.createBlockData());
 				block.getWorld().dropItemNaturally(block.getLocation(), new ItemStack(Material.SUGAR_CANE));
 				block.getRelative(BlockFace.DOWN).setType(Material.AIR);
+				block.getWorld().spawnParticle(Particle.BLOCK, block.getRelative(BlockFace.DOWN).getLocation(), 5,
+						Material.SUGAR_CANE.createBlockData());
 				block.getWorld().dropItemNaturally(block.getRelative(BlockFace.DOWN).getLocation(),
 						new ItemStack(Material.SUGAR_CANE));
 				instance.getAdventureManager().sendSound(block.getLocation(),
@@ -432,21 +532,23 @@ public class NetherFarming implements Listener {
 		if (block.getRelative(BlockFace.DOWN).getType() == Material.SUGAR_CANE && block.isEmpty()) {
 			if (checkForLavaAroundSugarCane(block.getRelative(BlockFace.DOWN).getRelative(BlockFace.DOWN))) {
 				event.setCancelled(true);
-				block.setType(Material.SUGAR_CANE, false);
+				block.setType(Material.SUGAR_CANE);
 				instance.getAdventureManager().sendSound(block.getLocation(),
 						net.kyori.adventure.sound.Sound.Source.AMBIENT,
 						net.kyori.adventure.key.Key.key("minecraft:block.grass.place"), 1, 1);
 				return;
 			} else {
 				event.setCancelled(true);
-				block.setType(Material.AIR);
-				block.getWorld().dropItemNaturally(block.getLocation(), new ItemStack(Material.SUGAR_CANE));
-				block.getRelative(BlockFace.DOWN).setType(Material.AIR);
-				block.getWorld().dropItemNaturally(block.getRelative(BlockFace.DOWN).getLocation(),
-						new ItemStack(Material.SUGAR_CANE));
-				instance.getAdventureManager().sendSound(block.getLocation(),
-						net.kyori.adventure.sound.Sound.Source.AMBIENT,
-						net.kyori.adventure.key.Key.key("minecraft:block.grass.break"), 1, 1);
+				instance.getScheduler().runTaskSyncLater(() -> {
+					block.getRelative(BlockFace.DOWN).setType(Material.AIR);
+					block.getWorld().spawnParticle(Particle.BLOCK, block.getRelative(BlockFace.DOWN).getLocation(), 5,
+							Material.SUGAR_CANE.createBlockData());
+					block.getWorld().dropItemNaturally(block.getRelative(BlockFace.DOWN).getLocation(),
+							new ItemStack(Material.SUGAR_CANE));
+					instance.getAdventureManager().sendSound(block.getLocation(),
+							net.kyori.adventure.sound.Sound.Source.AMBIENT,
+							net.kyori.adventure.key.Key.key("minecraft:block.grass.break"), 1, 1);
+				}, block.getRelative(BlockFace.DOWN).getLocation(), 5, TimeUnit.MILLISECONDS);
 				return;
 			}
 		}
@@ -459,17 +561,93 @@ public class NetherFarming implements Listener {
 			return;
 
 		if (block.getType() == Material.SUGAR_CANE) {
-			if (checkForLavaAroundSugarCane(block.getRelative(BlockFace.DOWN))
-					|| checkForLavaAroundSugarCane(block.getRelative(BlockFace.DOWN).getRelative(BlockFace.DOWN))) {
+			if (checkForLavaAroundSugarCane(block.getRelative(BlockFace.DOWN))) {
+				event.setCancelled(true);
+			}
+		}
+		if (block.getRelative(BlockFace.DOWN).getType() == Material.SUGAR_CANE) {
+			if (checkForLavaAroundSugarCane(block.getRelative(BlockFace.DOWN).getRelative(BlockFace.DOWN))) {
 				event.setCancelled(true);
 			}
 		}
 		for (BlockFace face : FACES) {
 			if (block.getRelative(face).getType() == Material.SUGAR_CANE) {
-				if (checkForLavaAroundSugarCane(block.getRelative(face).getRelative(BlockFace.DOWN))
-						|| checkForLavaAroundSugarCane(
-								block.getRelative(face).getRelative(BlockFace.DOWN).getRelative(BlockFace.DOWN))) {
+				if (checkForLavaAroundSugarCane(block.getRelative(face).getRelative(BlockFace.DOWN))) {
 					event.setCancelled(true);
+				}
+			}
+			if (block.getRelative(face).getRelative(BlockFace.DOWN).getType() == Material.SUGAR_CANE) {
+				if (checkForLavaAroundSugarCane(
+						block.getRelative(face).getRelative(BlockFace.DOWN).getRelative(BlockFace.DOWN))) {
+					event.setCancelled(true);
+				}
+			}
+		}
+	}
+
+	@EventHandler
+	public void onPistonExtendSugarCane(BlockPistonExtendEvent event) {
+		final Block block = event.getBlock();
+		if (!block.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+			return;
+
+		for (Block lava : event.getBlocks()) {
+			if (lava.getType() == Material.LAVA) {
+				for (BlockFace face : FACES) {
+					if (block.getRelative(face).getType() == Material.LAVA)
+						break;
+					if (sugarCaneGrowBlocks.contains(lava.getRelative(face).getType())) {
+						if (lava.getRelative(face).getRelative(BlockFace.UP).getType() == Material.SUGAR_CANE) {
+							if (lava.getRelative(face).getRelative(BlockFace.UP).getRelative(BlockFace.UP)
+									.getRelative(BlockFace.UP).getType().hasGravity()) {
+								block.getWorld().spawn(
+										lava.getRelative(face).getRelative(BlockFace.UP).getRelative(BlockFace.UP)
+												.getRelative(BlockFace.UP).getLocation().add(0.5D, 0, 0.5D),
+										FallingBlock.class, (falling) -> {
+											falling.setHurtEntities(true);
+											falling.setBlockData(lava.getRelative(face).getRelative(BlockFace.UP)
+													.getRelative(BlockFace.UP).getRelative(BlockFace.UP)
+													.getBlockData());
+											falling.setBlockState(lava.getRelative(face).getRelative(BlockFace.UP)
+													.getRelative(BlockFace.UP).getRelative(BlockFace.UP).getState());
+											falling.setDropItem(true);
+										});
+								lava.getRelative(face).getRelative(BlockFace.UP).getRelative(BlockFace.UP)
+										.getRelative(BlockFace.UP).setType(Material.AIR);
+							}
+							if (Tag.WOOL_CARPETS.isTagged(lava.getRelative(face).getRelative(BlockFace.UP)
+									.getRelative(BlockFace.UP).getRelative(BlockFace.UP).getType())) {
+								block.getWorld().dropItemNaturally(
+										lava.getRelative(face).getRelative(BlockFace.UP).getRelative(BlockFace.UP)
+												.getRelative(BlockFace.UP).getLocation(),
+										new ItemStack(lava.getRelative(face).getRelative(BlockFace.UP)
+												.getRelative(BlockFace.UP).getRelative(BlockFace.UP).getType()));
+								lava.getRelative(face).getRelative(BlockFace.UP).getRelative(BlockFace.UP)
+										.getRelative(BlockFace.UP).setType(Material.AIR);
+							}
+							if (lava.getRelative(face).getRelative(BlockFace.UP).getRelative(BlockFace.UP)
+									.getType() == Material.SUGAR_CANE) {
+								block.getWorld().dropItemNaturally(lava.getRelative(face).getRelative(BlockFace.UP)
+										.getRelative(BlockFace.UP).getLocation(), new ItemStack(Material.SUGAR_CANE));
+								block.getWorld().spawnParticle(
+										Particle.BLOCK, lava.getRelative(face).getRelative(BlockFace.UP)
+												.getRelative(BlockFace.UP).getLocation(),
+										5, Material.SUGAR_CANE.createBlockData());
+								lava.getRelative(face).getRelative(BlockFace.UP).getRelative(BlockFace.UP)
+										.setType(Material.AIR);
+							}
+							block.getWorld().dropItemNaturally(
+									lava.getRelative(face).getRelative(BlockFace.UP).getLocation(),
+									new ItemStack(Material.SUGAR_CANE));
+							block.getWorld().spawnParticle(Particle.BLOCK,
+									lava.getRelative(face).getRelative(BlockFace.UP).getLocation(), 5,
+									Material.SUGAR_CANE.createBlockData());
+							lava.getRelative(face).getRelative(BlockFace.UP).setType(Material.AIR);
+							instance.getAdventureManager().sendSound(block.getLocation(),
+									net.kyori.adventure.sound.Sound.Source.AMBIENT,
+									net.kyori.adventure.key.Key.key("minecraft:block.grass.break"), 1, 1);
+						}
+					}
 				}
 			}
 		}
@@ -486,23 +664,84 @@ public class NetherFarming implements Listener {
 			if (checkForLavaAroundSugarCane(block.getRelative(BlockFace.DOWN))
 					|| checkForLavaAroundSugarCane(block.getRelative(BlockFace.DOWN).getRelative(BlockFace.DOWN))) {
 				event.setCancelled(true);
+				if (block.getRelative(BlockFace.UP).getType().hasGravity()) {
+					block.getWorld().spawn(block.getRelative(BlockFace.UP).getLocation().add(0.5D, 0, 0.5D),
+							FallingBlock.class, (falling) -> {
+								falling.setHurtEntities(true);
+								falling.setBlockData(block.getRelative(BlockFace.UP).getBlockData());
+								falling.setBlockState(block.getRelative(BlockFace.UP).getState());
+								falling.setDropItem(true);
+							});
+					block.getRelative(BlockFace.UP).setType(Material.AIR);
+				}
+				if (Tag.WOOL_CARPETS.isTagged(block.getRelative(BlockFace.UP).getType())) {
+					block.getWorld().dropItemNaturally(block.getRelative(BlockFace.UP).getLocation(),
+							new ItemStack(block.getRelative(BlockFace.UP).getType()));
+					block.getRelative(BlockFace.UP).setType(Material.AIR);
+				}
+				if (block.getRelative(BlockFace.UP).getRelative(BlockFace.UP).getType().hasGravity()) {
+					block.getWorld().spawn(
+							block.getRelative(BlockFace.UP).getRelative(BlockFace.UP).getLocation().add(0.5D, 0, 0.5D),
+							FallingBlock.class, (falling) -> {
+								falling.setHurtEntities(true);
+								falling.setBlockData(
+										block.getRelative(BlockFace.UP).getRelative(BlockFace.UP).getBlockData());
+								falling.setBlockState(
+										block.getRelative(BlockFace.UP).getRelative(BlockFace.UP).getState());
+								falling.setDropItem(true);
+							});
+					block.getRelative(BlockFace.UP).getRelative(BlockFace.UP).setType(Material.AIR);
+				}
+				if (Tag.WOOL_CARPETS.isTagged(block.getRelative(BlockFace.UP).getRelative(BlockFace.UP).getType())) {
+					block.getWorld().dropItemNaturally(
+							block.getRelative(BlockFace.UP).getRelative(BlockFace.UP).getLocation(),
+							new ItemStack(block.getRelative(BlockFace.UP).getRelative(BlockFace.UP).getType()));
+					block.getRelative(BlockFace.UP).getRelative(BlockFace.UP).setType(Material.AIR);
+				}
 				if (block.getRelative(BlockFace.UP).getType() == Material.SUGAR_CANE) {
 					block.getWorld().dropItemNaturally(block.getRelative(BlockFace.UP).getLocation(),
 							new ItemStack(Material.SUGAR_CANE));
+					block.getWorld().spawnParticle(Particle.BLOCK, block.getRelative(BlockFace.UP).getLocation(), 5,
+							Material.SUGAR_CANE.createBlockData());
 					block.getRelative(BlockFace.UP).setType(Material.AIR, false);
 				}
 				block.setType(Material.AIR, false);
+				block.getWorld().spawnParticle(Particle.BLOCK, block.getLocation(), 5,
+						Material.SUGAR_CANE.createBlockData());
 				block.getWorld().dropItemNaturally(block.getLocation(), new ItemStack(Material.SUGAR_CANE));
 				instance.getAdventureManager().sendSound(player, net.kyori.adventure.sound.Sound.Source.PLAYER,
 						net.kyori.adventure.key.Key.key("minecraft:block.grass.break"), 1, 1);
 			} else {
 				event.setCancelled(true);
+				if (block.getRelative(BlockFace.UP).getRelative(BlockFace.UP).getType().hasGravity()) {
+					block.getWorld().spawn(
+							block.getRelative(BlockFace.UP).getRelative(BlockFace.UP).getLocation().add(0.5D, 0, 0.5D),
+							FallingBlock.class, (falling) -> {
+								falling.setHurtEntities(true);
+								falling.setBlockData(
+										block.getRelative(BlockFace.UP).getRelative(BlockFace.UP).getBlockData());
+								falling.setBlockState(
+										block.getRelative(BlockFace.UP).getRelative(BlockFace.UP).getState());
+								falling.setDropItem(true);
+							});
+					block.getRelative(BlockFace.UP).getRelative(BlockFace.UP).setType(Material.AIR);
+				}
+				if (Tag.WOOL_CARPETS.isTagged(block.getRelative(BlockFace.UP).getRelative(BlockFace.UP).getType())) {
+					block.getWorld().dropItemNaturally(
+							block.getRelative(BlockFace.UP).getRelative(BlockFace.UP).getLocation(),
+							new ItemStack(block.getRelative(BlockFace.UP).getRelative(BlockFace.UP).getType()));
+					block.getRelative(BlockFace.UP).getRelative(BlockFace.UP).setType(Material.AIR);
+				}
 				if (block.getRelative(BlockFace.UP).getType() == Material.SUGAR_CANE) {
 					block.getWorld().dropItemNaturally(block.getRelative(BlockFace.UP).getLocation(),
 							new ItemStack(Material.SUGAR_CANE));
+					block.getWorld().spawnParticle(Particle.BLOCK, block.getRelative(BlockFace.UP).getLocation(), 5,
+							Material.SUGAR_CANE.createBlockData());
 					block.getRelative(BlockFace.UP).setType(Material.AIR);
 				}
 				block.setType(Material.AIR);
+				block.getWorld().spawnParticle(Particle.BLOCK, block.getLocation(), 5,
+						Material.SUGAR_CANE.createBlockData());
 				block.getWorld().dropItemNaturally(block.getLocation(), new ItemStack(Material.SUGAR_CANE));
 				instance.getAdventureManager().sendSound(player, net.kyori.adventure.sound.Sound.Source.PLAYER,
 						net.kyori.adventure.key.Key.key("minecraft:block.grass.break"), 1, 1);
@@ -522,9 +761,14 @@ public class NetherFarming implements Listener {
 			event.setCancelled(true);
 			block.setType(Material.AIR);
 			block.getRelative(BlockFace.DOWN).setType(Material.AIR);
+			block.getWorld().spawnParticle(Particle.BLOCK, block.getRelative(BlockFace.DOWN).getLocation(), 5,
+					Material.SUGAR_CANE.createBlockData());
 			block.getWorld().dropItemNaturally(block.getRelative(BlockFace.DOWN).getLocation(),
 					new ItemStack(Material.SUGAR_CANE));
 			block.getRelative(BlockFace.DOWN).getRelative(BlockFace.DOWN).setType(Material.AIR);
+			block.getWorld().spawnParticle(Particle.BLOCK,
+					block.getRelative(BlockFace.DOWN).getRelative(BlockFace.DOWN).getLocation(), 5,
+					Material.SUGAR_CANE.createBlockData());
 			block.getWorld().dropItemNaturally(
 					block.getRelative(BlockFace.DOWN).getRelative(BlockFace.DOWN).getLocation(),
 					new ItemStack(Material.SUGAR_CANE));
@@ -536,27 +780,262 @@ public class NetherFarming implements Listener {
 				&& block.getRelative(BlockFace.DOWN).getType() == Material.SUGAR_CANE) {
 			if (checkForLavaAroundSugarCane(block.getRelative(BlockFace.DOWN).getRelative(BlockFace.DOWN))) {
 				event.setCancelled(true);
-				event.getItemInHand()
-						.setAmount(event.getItemInHand().getAmount() > 0 ? event.getItemInHand().getAmount() - 1 : 0);
-				block.setType(Material.SUGAR_CANE, false);
+				if (player.getGameMode() == GameMode.SURVIVAL)
+					event.getItemInHand().setAmount(
+							event.getItemInHand().getAmount() > 0 ? event.getItemInHand().getAmount() - 1 : 0);
+				block.setType(Material.SUGAR_CANE);
 				instance.getAdventureManager().sendSound(player, net.kyori.adventure.sound.Sound.Source.PLAYER,
 						net.kyori.adventure.key.Key.key("minecraft:block.grass.place"), 1, 1);
 			} else {
 				event.setCancelled(true);
-				event.getItemInHand()
-						.setAmount(event.getItemInHand().getAmount() > 0 ? event.getItemInHand().getAmount() - 1 : 0);
 				if (block.getRelative(BlockFace.UP).getType() == Material.SUGAR_CANE) {
 					block.getWorld().dropItemNaturally(block.getRelative(BlockFace.UP).getLocation(),
 							new ItemStack(Material.SUGAR_CANE));
 					block.getRelative(BlockFace.UP).setType(Material.AIR);
 				}
 				block.setType(Material.AIR);
+				block.getWorld().spawnParticle(Particle.BLOCK, block.getLocation(), 5,
+						Material.SUGAR_CANE.createBlockData());
 				block.getWorld().dropItemNaturally(block.getLocation(), new ItemStack(Material.SUGAR_CANE));
 				block.getRelative(BlockFace.DOWN).setType(Material.AIR);
+				block.getWorld().spawnParticle(Particle.BLOCK, block.getRelative(BlockFace.DOWN).getLocation(), 5,
+						Material.SUGAR_CANE.createBlockData());
 				block.getWorld().dropItemNaturally(block.getRelative(BlockFace.DOWN).getLocation(),
 						new ItemStack(Material.SUGAR_CANE));
 				instance.getAdventureManager().sendSound(player, net.kyori.adventure.sound.Sound.Source.PLAYER,
 						net.kyori.adventure.key.Key.key("minecraft:block.grass.break"), 1, 1);
+			}
+		}
+
+		if (event.getBlockReplacedState().getType() == Material.LAVA) {
+			for (BlockFace face : FACES) {
+				if (sugarCaneGrowBlocks
+						.contains(event.getBlockReplacedState().getBlock().getRelative(face).getType())) {
+					if (event.getBlockReplacedState().getBlock().getRelative(face).getRelative(BlockFace.UP)
+							.getType() == Material.SUGAR_CANE) {
+						if (event.getBlockReplacedState().getBlock().getRelative(face).getRelative(BlockFace.UP)
+								.getRelative(BlockFace.UP).getRelative(BlockFace.UP).getType().hasGravity()) {
+							block.getWorld()
+									.spawn(event.getBlockReplacedState().getBlock().getRelative(face)
+											.getRelative(BlockFace.UP).getRelative(BlockFace.UP)
+											.getRelative(BlockFace.UP).getLocation().add(0.5D, 0, 0.5D),
+											FallingBlock.class, (falling) -> {
+												falling.setHurtEntities(true);
+												falling.setBlockData(
+														event.getBlockReplacedState().getBlock().getRelative(face)
+																.getRelative(BlockFace.UP).getRelative(BlockFace.UP)
+																.getRelative(BlockFace.UP).getBlockData());
+												falling.setBlockState(
+														event.getBlockReplacedState().getBlock().getRelative(face)
+																.getRelative(BlockFace.UP).getRelative(BlockFace.UP)
+																.getRelative(BlockFace.UP).getState());
+												falling.setDropItem(true);
+											});
+							event.getBlockReplacedState().getBlock().getRelative(face).getRelative(BlockFace.UP)
+									.getRelative(BlockFace.UP).getRelative(BlockFace.UP).setType(Material.AIR);
+						}
+						if (Tag.WOOL_CARPETS.isTagged(
+								event.getBlockReplacedState().getBlock().getRelative(face).getRelative(BlockFace.UP)
+										.getRelative(BlockFace.UP).getRelative(BlockFace.UP).getType())) {
+							block.getWorld().dropItemNaturally(
+									event.getBlockReplacedState().getBlock().getRelative(face).getRelative(BlockFace.UP)
+											.getRelative(BlockFace.UP).getRelative(BlockFace.UP).getLocation(),
+									new ItemStack(event.getBlockReplacedState().getBlock().getRelative(face)
+											.getRelative(BlockFace.UP).getRelative(BlockFace.UP)
+											.getRelative(BlockFace.UP).getType()));
+							event.getBlockReplacedState().getBlock().getRelative(face).getRelative(BlockFace.UP)
+									.getRelative(BlockFace.UP).getRelative(BlockFace.UP).setType(Material.AIR);
+						}
+						if (event.getBlockReplacedState().getBlock().getRelative(face).getRelative(BlockFace.UP)
+								.getRelative(BlockFace.UP).getType() == Material.SUGAR_CANE) {
+							block.getWorld().dropItemNaturally(
+									event.getBlockReplacedState().getBlock().getRelative(face).getRelative(BlockFace.UP)
+											.getRelative(BlockFace.UP).getLocation(),
+									new ItemStack(Material.SUGAR_CANE));
+							block.getWorld().spawnParticle(Particle.BLOCK,
+									event.getBlockReplacedState().getBlock().getRelative(face).getRelative(BlockFace.UP)
+											.getRelative(BlockFace.UP).getLocation(),
+									5, Material.SUGAR_CANE.createBlockData());
+							event.getBlockReplacedState().getBlock().getRelative(face).getRelative(BlockFace.UP)
+									.getRelative(BlockFace.UP).setType(Material.AIR);
+						}
+						block.getWorld().dropItemNaturally(event.getBlockReplacedState().getBlock().getRelative(face)
+								.getRelative(BlockFace.UP).getLocation(), new ItemStack(Material.SUGAR_CANE));
+						block.getWorld().spawnParticle(
+								Particle.BLOCK, event.getBlockReplacedState().getBlock().getRelative(face)
+										.getRelative(BlockFace.UP).getLocation(),
+								5, Material.SUGAR_CANE.createBlockData());
+						event.getBlockReplacedState().getBlock().getRelative(face).getRelative(BlockFace.UP)
+								.setType(Material.AIR);
+						instance.getAdventureManager().sendSound(player, net.kyori.adventure.sound.Sound.Source.PLAYER,
+								net.kyori.adventure.key.Key.key("minecraft:block.grass.break"), 1, 1);
+					}
+				}
+			}
+		}
+	}
+
+	@EventHandler
+	public void onPickUpLavaWithDispenseSugarCane(BlockDispenseEvent event) {
+		final Block block = event.getBlock();
+		if (!block.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+			return;
+
+		if (block.getState() instanceof Dispenser dispenser) {
+			if (dispenser.getInventory().contains(Material.BUCKET)
+					&& !dispenser.getInventory().contains(Material.LAVA_BUCKET)) {
+				if (dispenser.getBlockData() instanceof Directional direction) {
+					if (block.getRelative(direction.getFacing()).getType() == Material.LAVA) {
+						for (BlockFace face : FACES) {
+							if (block.getRelative(direction.getFacing()).getRelative(face).getType() == Material.LAVA)
+								break;
+							if (sugarCaneGrowBlocks
+									.contains(block.getRelative(direction.getFacing()).getRelative(face).getType())) {
+								if (block.getRelative(direction.getFacing()).getRelative(face).getRelative(BlockFace.UP)
+										.getType() == Material.SUGAR_CANE) {
+									if (block.getRelative(direction.getFacing()).getRelative(face)
+											.getRelative(BlockFace.UP).getRelative(BlockFace.UP)
+											.getRelative(BlockFace.UP).getType().hasGravity()) {
+										block.getWorld()
+												.spawn(block.getRelative(direction.getFacing()).getRelative(face)
+														.getRelative(BlockFace.UP).getRelative(BlockFace.UP)
+														.getRelative(BlockFace.UP).getLocation().add(0.5D, 0, 0.5D),
+														FallingBlock.class, (falling) -> {
+															falling.setHurtEntities(true);
+															falling.setBlockData(
+																	block.getRelative(direction.getFacing())
+																			.getRelative(face).getRelative(BlockFace.UP)
+																			.getRelative(BlockFace.UP)
+																			.getRelative(BlockFace.UP).getBlockData());
+															falling.setBlockState(
+																	block.getRelative(direction.getFacing())
+																			.getRelative(face).getRelative(BlockFace.UP)
+																			.getRelative(BlockFace.UP)
+																			.getRelative(BlockFace.UP).getState());
+															falling.setDropItem(true);
+														});
+										block.getRelative(direction.getFacing()).getRelative(face)
+												.getRelative(BlockFace.UP).getRelative(BlockFace.UP)
+												.getRelative(BlockFace.UP).setType(Material.AIR);
+									}
+									if (Tag.WOOL_CARPETS.isTagged(block.getRelative(direction.getFacing())
+											.getRelative(face).getRelative(BlockFace.UP).getRelative(BlockFace.UP)
+											.getRelative(BlockFace.UP).getType())) {
+										block.getWorld().dropItemNaturally(
+												block.getRelative(direction.getFacing()).getRelative(face)
+														.getRelative(BlockFace.UP).getRelative(BlockFace.UP)
+														.getRelative(BlockFace.UP).getLocation(),
+												new ItemStack(block.getRelative(direction.getFacing()).getRelative(face)
+														.getRelative(BlockFace.UP).getRelative(BlockFace.UP)
+														.getRelative(BlockFace.UP).getType()));
+										block.getRelative(direction.getFacing()).getRelative(face)
+												.getRelative(BlockFace.UP).getRelative(BlockFace.UP)
+												.getRelative(BlockFace.UP).setType(Material.AIR);
+									}
+									if (block.getRelative(direction.getFacing()).getRelative(face)
+											.getRelative(BlockFace.UP).getRelative(BlockFace.UP)
+											.getType() == Material.SUGAR_CANE) {
+										block.getWorld()
+												.dropItemNaturally(block.getRelative(direction.getFacing())
+														.getRelative(face).getRelative(BlockFace.UP)
+														.getRelative(BlockFace.UP).getLocation(),
+														new ItemStack(Material.SUGAR_CANE));
+										block.getWorld().spawnParticle(Particle.BLOCK,
+												block.getRelative(direction.getFacing()).getRelative(face)
+														.getRelative(BlockFace.UP).getRelative(BlockFace.UP)
+														.getLocation(),
+												5, Material.SUGAR_CANE.createBlockData());
+										block.getRelative(direction.getFacing()).getRelative(face)
+												.getRelative(BlockFace.UP).getRelative(BlockFace.UP)
+												.setType(Material.AIR);
+									}
+									block.getWorld().dropItemNaturally(
+											block.getRelative(direction.getFacing()).getRelative(face)
+													.getRelative(BlockFace.UP).getLocation(),
+											new ItemStack(Material.SUGAR_CANE));
+									block.getWorld().spawnParticle(Particle.BLOCK,
+											block.getRelative(direction.getFacing()).getRelative(face)
+													.getRelative(BlockFace.UP).getLocation(),
+											5, Material.SUGAR_CANE.createBlockData());
+									block.getRelative(direction.getFacing()).getRelative(face).getRelative(BlockFace.UP)
+											.setType(Material.AIR);
+									instance.getAdventureManager().sendSound(block.getLocation(),
+											net.kyori.adventure.sound.Sound.Source.AMBIENT,
+											net.kyori.adventure.key.Key.key("minecraft:block.grass.break"), 1, 1);
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	@EventHandler
+	public void onPickUpLavaNextToSugarCane(PlayerBucketFillEvent event) {
+		final Player player = event.getPlayer();
+		if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+			return;
+
+		if (event.getItemStack() != null && event.getItemStack().getType() == Material.LAVA_BUCKET) {
+			for (BlockFace face : FACES) {
+				if (event.getBlockClicked().getRelative(face).getType() == Material.LAVA)
+					break;
+				if (sugarCaneGrowBlocks.contains(event.getBlockClicked().getRelative(face).getType())) {
+					if (event.getBlockClicked().getRelative(face).getRelative(BlockFace.UP)
+							.getType() == Material.SUGAR_CANE) {
+						if (event.getBlockClicked().getRelative(face).getRelative(BlockFace.UP)
+								.getRelative(BlockFace.UP).getRelative(BlockFace.UP).getType().hasGravity()) {
+							event.getBlockClicked().getWorld()
+									.spawn(event.getBlockClicked().getRelative(face).getRelative(BlockFace.UP)
+											.getRelative(BlockFace.UP).getRelative(BlockFace.UP).getLocation()
+											.add(0.5D, 0, 0.5D), FallingBlock.class, (falling) -> {
+												falling.setHurtEntities(true);
+												falling.setBlockData(event.getBlockClicked().getRelative(face)
+														.getRelative(BlockFace.UP).getRelative(BlockFace.UP)
+														.getRelative(BlockFace.UP).getBlockData());
+												falling.setBlockState(event.getBlockClicked().getRelative(face)
+														.getRelative(BlockFace.UP).getRelative(BlockFace.UP)
+														.getRelative(BlockFace.UP).getState());
+												falling.setDropItem(true);
+											});
+							event.getBlockClicked().getRelative(face).getRelative(BlockFace.UP)
+									.getRelative(BlockFace.UP).getRelative(BlockFace.UP).setType(Material.AIR);
+						}
+						if (Tag.WOOL_CARPETS
+								.isTagged(event.getBlockClicked().getRelative(face).getRelative(BlockFace.UP)
+										.getRelative(BlockFace.UP).getRelative(BlockFace.UP).getType())) {
+							event.getBlockClicked().getWorld().dropItemNaturally(
+									event.getBlockClicked().getRelative(face).getRelative(BlockFace.UP)
+											.getRelative(BlockFace.UP).getRelative(BlockFace.UP).getLocation(),
+									new ItemStack(event.getBlockClicked().getRelative(face).getRelative(BlockFace.UP)
+											.getRelative(BlockFace.UP).getRelative(BlockFace.UP).getType()));
+							event.getBlockClicked().getRelative(face).getRelative(BlockFace.UP)
+									.getRelative(BlockFace.UP).getRelative(BlockFace.UP).setType(Material.AIR);
+						}
+						if (event.getBlockClicked().getRelative(face).getRelative(BlockFace.UP)
+								.getRelative(BlockFace.UP).getType() == Material.SUGAR_CANE) {
+							event.getBlockClicked().getWorld().dropItemNaturally(
+									event.getBlockClicked().getRelative(face).getRelative(BlockFace.UP)
+											.getRelative(BlockFace.UP).getLocation(),
+									new ItemStack(Material.SUGAR_CANE));
+							event.getBlockClicked().getWorld().spawnParticle(Particle.BLOCK,
+									event.getBlockClicked().getRelative(face).getRelative(BlockFace.UP)
+											.getRelative(BlockFace.UP).getLocation(),
+									5, Material.SUGAR_CANE.createBlockData());
+							event.getBlockClicked().getRelative(face).getRelative(BlockFace.UP)
+									.getRelative(BlockFace.UP).setType(Material.AIR);
+						}
+						event.getBlockClicked().getWorld().dropItemNaturally(
+								event.getBlockClicked().getRelative(face).getRelative(BlockFace.UP).getLocation(),
+								new ItemStack(Material.SUGAR_CANE));
+						event.getBlockClicked().getWorld().spawnParticle(Particle.BLOCK,
+								event.getBlockClicked().getLocation(), 5, Material.SUGAR_CANE.createBlockData());
+						event.getBlockClicked().getRelative(face).getRelative(BlockFace.UP).setType(Material.AIR);
+						instance.getAdventureManager().sendSound(player, net.kyori.adventure.sound.Sound.Source.PLAYER,
+								net.kyori.adventure.key.Key.key("minecraft:block.grass.break"), 1, 1);
+					}
+				}
 			}
 		}
 	}
@@ -572,8 +1051,7 @@ public class NetherFarming implements Listener {
 					|| block.getRelative(BlockFace.UP).isEmpty()) {
 				if (checkForLavaAroundFarm(block) || (instance.getLavaRainHandler().getLavaRainTask() != null
 						&& instance.getLavaRainHandler().getLavaRainTask().isLavaRaining()
-						&& instance.getLavaRainHandler().getHighestBlock(block.getLocation()) != null
-						&& instance.getLavaRainHandler().getHighestBlock(block.getLocation()).isEmpty())) {
+						&& block.getWorld().getHighestBlockAt(block.getLocation()).isEmpty())) {
 					event.setCancelled(true);
 					Collection<Player> playersNearby = block.getWorld().getNearbyPlayers(block.getLocation(), 25, 25,
 							25);
@@ -647,6 +1125,49 @@ public class NetherFarming implements Listener {
 	}
 
 	@EventHandler
+	public void onPickUpLavaWithDispense(BlockDispenseEvent event) {
+		final Block block = event.getBlock();
+		if (!block.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+			return;
+
+		if (block.getState() instanceof Dispenser dispenser) {
+			if (dispenser.getInventory().contains(Material.BUCKET)
+					&& !dispenser.getInventory().contains(Material.LAVA_BUCKET)) {
+				if (dispenser.getBlockData() instanceof Directional direction) {
+					if (block.getRelative(direction.getFacing()).getType() == Material.LAVA) {
+						Collection<Player> playersNearby = block.getWorld().getNearbyPlayers(block.getLocation(), 25,
+								25, 25);
+						Player player = instance.getNetherrackGeneratorHandler().getClosestPlayer(block.getLocation(),
+								playersNearby);
+						if (player != null) {
+							resetRegionFarmCache(instance.getHellblockHandler().getActivePlayer(player));
+							trackNetherFarms(instance.getHellblockHandler().getActivePlayer(player));
+						}
+					}
+				}
+			}
+		}
+	}
+
+	@EventHandler
+	public void onPistonExtendIntoLava(BlockPistonExtendEvent event) {
+		final Block block = event.getBlock();
+		if (!block.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+			return;
+
+		Collection<Player> playersNearby = block.getWorld().getNearbyPlayers(block.getLocation(), 25, 25, 25);
+		Player player = instance.getNetherrackGeneratorHandler().getClosestPlayer(block.getLocation(), playersNearby);
+		if (player != null) {
+			for (Block lava : event.getBlocks()) {
+				if (lava.getType() == Material.LAVA) {
+					resetRegionFarmCache(instance.getHellblockHandler().getActivePlayer(player));
+					trackNetherFarms(instance.getHellblockHandler().getActivePlayer(player));
+				}
+			}
+		}
+	}
+
+	@EventHandler
 	public void onBlockBreak(BlockBreakEvent event) {
 		final Block block = event.getBlock();
 		if (!block.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
@@ -695,8 +1216,7 @@ public class NetherFarming implements Listener {
 		if (block.getBlockData() instanceof Farmland) {
 			if (checkForLavaAroundFarm(block) || (instance.getLavaRainHandler().getLavaRainTask() != null
 					&& instance.getLavaRainHandler().getLavaRainTask().isLavaRaining()
-					&& instance.getLavaRainHandler().getHighestBlock(block.getLocation()) != null
-					&& instance.getLavaRainHandler().getHighestBlock(block.getLocation()).isEmpty())) {
+					&& block.getWorld().getHighestBlockAt(block.getLocation()).isEmpty())) {
 				event.setCancelled(true);
 				Collection<Player> playersNearby = block.getWorld().getNearbyPlayers(block.getLocation(), 25, 25, 25);
 				Player player = instance.getNetherrackGeneratorHandler().getClosestPlayer(block.getLocation(),
@@ -795,7 +1315,7 @@ public class NetherFarming implements Listener {
 		if (!entity.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
 			return;
 
-		if (event.getEntity() instanceof Player)
+		if (entity instanceof Player)
 			return;
 
 		if (entity instanceof LivingEntity) {
@@ -819,5 +1339,64 @@ public class NetherFarming implements Listener {
 				}
 			}
 		}
+	}
+
+	private @NonNull Material convertToConcrete(Material powderType) {
+		Material concrete;
+		switch (powderType) {
+		case WHITE_CONCRETE_POWDER:
+			concrete = Material.WHITE_CONCRETE;
+			break;
+		case BLACK_CONCRETE_POWDER:
+			concrete = Material.BLACK_CONCRETE;
+			break;
+		case BROWN_CONCRETE_POWDER:
+			concrete = Material.BROWN_CONCRETE;
+			break;
+		case GRAY_CONCRETE_POWDER:
+			concrete = Material.GRAY_CONCRETE;
+			break;
+		case LIGHT_GRAY_CONCRETE_POWDER:
+			concrete = Material.LIGHT_GRAY_CONCRETE;
+			break;
+		case BLUE_CONCRETE_POWDER:
+			concrete = Material.BLUE_CONCRETE;
+			break;
+		case LIGHT_BLUE_CONCRETE_POWDER:
+			concrete = Material.LIGHT_BLUE_CONCRETE;
+			break;
+		case CYAN_CONCRETE_POWDER:
+			concrete = Material.CYAN_CONCRETE;
+			break;
+		case GREEN_CONCRETE_POWDER:
+			concrete = Material.GREEN_CONCRETE;
+			break;
+		case LIME_CONCRETE_POWDER:
+			concrete = Material.LIME_CONCRETE;
+			break;
+		case RED_CONCRETE_POWDER:
+			concrete = Material.RED_CONCRETE;
+			break;
+		case YELLOW_CONCRETE_POWDER:
+			concrete = Material.YELLOW_CONCRETE;
+			break;
+		case ORANGE_CONCRETE_POWDER:
+			concrete = Material.ORANGE_CONCRETE;
+			break;
+		case PINK_CONCRETE_POWDER:
+			concrete = Material.PINK_CONCRETE;
+			break;
+		case PURPLE_CONCRETE_POWDER:
+			concrete = Material.PURPLE_CONCRETE;
+			break;
+		case MAGENTA_CONCRETE_POWDER:
+			concrete = Material.MAGENTA_CONCRETE;
+			break;
+		default:
+			concrete = powderType;
+			break;
+		}
+
+		return concrete;
 	}
 }

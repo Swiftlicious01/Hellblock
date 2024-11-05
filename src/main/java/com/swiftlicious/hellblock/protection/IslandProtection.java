@@ -170,7 +170,7 @@ public class IslandProtection {
 			wgFlag = Flags.WIND_CHARGE_BURST;
 			break;
 		default:
-			throw new IllegalArgumentException("The flag you defined cannot be converted into a WorldGuard flag.");
+			throw new IllegalArgumentException("The flag you defined can't be converted into a WorldGuard flag.");
 		}
 		return wgFlag;
 	}
@@ -186,7 +186,7 @@ public class IslandProtection {
 			wgFlag = Flags.FAREWELL_MESSAGE;
 			break;
 		default:
-			throw new IllegalArgumentException("The flag you defined cannot be converted into a WorldGuard flag.");
+			throw new IllegalArgumentException("The flag you defined can't be converted into a WorldGuard flag.");
 		}
 		return wgFlag;
 	}

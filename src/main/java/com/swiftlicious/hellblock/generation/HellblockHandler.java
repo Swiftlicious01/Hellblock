@@ -62,6 +62,7 @@ public class HellblockHandler {
 	public boolean worldguardProtected;
 	public boolean disableBedExplosions;
 	public boolean voidTeleport;
+	public boolean resetInventory;
 	public boolean entryMessageEnabled, farewellMessageEnabled;
 	public int protectionRange;
 	public List<String> chestItems;
@@ -78,21 +79,22 @@ public class HellblockHandler {
 	public HellblockHandler(HellblockPlugin plugin) {
 		this.instance = plugin;
 		this.worldName = instance.getConfig("config.yml").getString("general.world", "hellworld");
-		this.spawnSize = instance.getConfig("config.yml").getInt("general.spawnSize", 50);
+		this.spawnSize = instance.getConfig("config.yml").getInt("general.spawn-size", 25);
 		this.paster = instance.getConfig("config.yml").getString("hellblock.schematic-paster", "worldedit");
 		this.chestItems = instance.getConfig("config.yml").getStringList("hellblock.starter-chest");
 		this.blockLevelSystem = instance.getConfig("config.yml").getStringList("level-system.blocks");
 		this.height = instance.getConfig("config.yml").getInt("hellblock.height", 150);
 		this.islandOptions = instance.getConfig("config.yml").getStringList("hellblock.island-options");
 		this.distance = instance.getConfig("config.yml").getInt("hellblock.distance", 110);
-		this.worldguardProtected = instance.getConfig("config.yml").getBoolean("hellblock.worldguardProtect");
+		this.worldguardProtected = instance.getConfig("config.yml").getBoolean("hellblock.use-worldguard-protection");
+		this.resetInventory = instance.getConfig("config.yml").getBoolean("hellblock.clear-inventory-on-reset", true);
 		this.entryMessageEnabled = instance.getConfig("config.yml").getBoolean("hellblock.entry-message-enabled", true);
 		this.farewellMessageEnabled = instance.getConfig("config.yml").getBoolean("hellblock.farewell-message-enabled",
 				true);
 		this.disableBedExplosions = instance.getConfig("config.yml").getBoolean("hellblock.disable-bed-explosions",
 				true);
 		this.voidTeleport = instance.getConfig("config.yml").getBoolean("hellblock.void-teleport", true);
-		this.protectionRange = instance.getConfig("config.yml").getInt("hellblock.protectionRange", 105);
+		this.protectionRange = instance.getConfig("config.yml").getInt("hellblock.protection-range", 105);
 		this.activePlayers = new HashMap<>();
 		this.playersDirectory = new File(instance.getDataFolder() + File.separator + "players");
 		if (!this.playersDirectory.exists())
@@ -437,10 +439,15 @@ public class HellblockHandler {
 							pi.saveHellblockPlayer();
 							pi.resetHellblockData();
 							if (Bukkit.getPlayer(id) != null) {
+								Player player = Bukkit.getPlayer(id);
 								if (!forceReset)
-									instance.getAdventureManager().sendMessageWithPrefix(Bukkit.getPlayer(id),
+									instance.getAdventureManager().sendMessageWithPrefix(player,
 											"<red>Resetting your current hellblock. Please choose a new hellblock type to create!");
-								teleportToSpawn(Bukkit.getPlayer(id), true);
+								if (this.resetInventory) {
+									player.getInventory().clear();
+									player.getInventory().setArmorContents(null);
+								}
+								teleportToSpawn(player, true);
 							}
 							instance.getScheduler().runTaskSync(() -> {
 								blockChanges.forEach((change, type) -> {
@@ -487,8 +494,9 @@ public class HellblockHandler {
 	public CompletableFuture<BedrockLocator> locateBedrock(@NonNull UUID id) {
 		CompletableFuture<BedrockLocator> location = CompletableFuture.supplyAsync(() -> {
 			if (this.worldguardProtected) {
-				BedrockLocator bedrockLocator = new BedrockLocator(
-						new Location(getHellblockWorld(), 0.0D, (getHeight() + 1), 0.0D));
+				Location spawn = instance.getWorldGuardHandler().getSpawnCenter().toLocation(getHellblockWorld());
+				spawn.setY(getHellblockWorld().getHighestBlockYAt(spawn) + 1);
+				BedrockLocator bedrockLocator = new BedrockLocator(spawn);
 				CompletableFuture<Void> regionBlockIterator = instance.getWorldGuardHandler().getRegionBlocks(id)
 						.thenAccept((bedrockLocation) -> {
 							Location bedrock = bedrockLocation.stream()
@@ -504,7 +512,10 @@ public class HellblockHandler {
 														bedrock.getX(), highestBlock.getY() + 1.0D, bedrock.getZ())
 														.add(new Vector(0.5D, 0D, 0.5D)));
 											} else {
-												highestBlock.getRelative(BlockFace.DOWN).setType(Material.NETHERRACK);
+												if (highestBlock.getRelative(BlockFace.DOWN)
+														.getType() != Material.BEDROCK)
+													highestBlock.getRelative(BlockFace.DOWN)
+															.setType(Material.NETHERRACK);
 												highestBlock.setType(Material.AIR);
 												highestBlock.getRelative(BlockFace.UP).setType(Material.AIR);
 												bedrockLocator.setBedrockLocation(
@@ -517,7 +528,7 @@ public class HellblockHandler {
 				regionBlockIterator.join(); // Wait for the asynchronous operation to complete
 				return bedrockLocator;
 			} else {
-				return new BedrockLocator(new Location(getHellblockWorld(), 0.0D, (getHeight() + 1), 0.0D));
+				return new BedrockLocator(new Location(getHellblockWorld(), 0.0D, (this.height + 1), 0.0D));
 				// TODO: using plugin protection
 			}
 		});
@@ -706,8 +717,7 @@ public class HellblockHandler {
 	public boolean checkIfInSpawn(@NonNull Location location) {
 		if (this.worldguardProtected) {
 			if (instance.getWorldGuardHandler().getWorldGuardPlatform() == null) {
-				LogUtils.severe("Could not retrieve WorldGuard platform.");
-				return false;
+				throw new NullPointerException("Could not retrieve WorldGuard platform.");
 			}
 			RegionContainer container = instance.getWorldGuardHandler().getWorldGuardPlatform().getRegionContainer();
 			com.sk89q.worldedit.world.World world = BukkitAdapter.adapt(getHellblockWorld());

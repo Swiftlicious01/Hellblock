@@ -14,7 +14,7 @@ update-checker: false
 
 general:
   world: hellworld
-  spawnSize: 25
+  spawn-size: 25
 hellblock:
   can-transfer-islands: true
   party-size: 4
@@ -28,8 +28,9 @@ hellblock:
   height: 150
   distance: 110
   # If false, it will use default protection within the plugin.
-  worldguardProtect: true
-  protectionRange: 105
+  use-worldguard-protection: true
+  protection-range: 105
+  clear-inventory-on-reset: true
   # Won't delete the islands but will set them as an abandoned state which removes them from the island region 
   # and any trustees / party members as well. 
   abandon-after-days: 30
@@ -397,16 +398,16 @@ lava-rain-options:
   # How far from the player should the lava particles fall (setting this value too high may cause lag !)
   radius: 16
   # Chance to make fire appear on the ground when the lava is falling
-  fireChance: 1
+  fire-chance: 1
   # Every how many ticks should the task repeat (20 ticks is 1 second)
-  taskDelay: 3
+  task-delay: 3
   # Whether or not lava rain will damage not just players but other mobs / animals if not covered.
-  canHurtLivingCreatures: true
+  can-hurt-living-creatures: true
   # Whether tnt and tnt minecarts will explode if exposed to lava rain.
-  willTNTExplode: true
+  will-tnt-explode: true
 
 netherrack-generator-options:
-  playerSearchRadius: 4.0
+  player-search-radius: 4.0
   automation:
     pistons: false
   generation:
@@ -415,10 +416,10 @@ netherrack-generator-options:
       - 'NETHER_GOLD_ORE:1.5'
       - 'NETHER_QUARTZ_ORE:2'
     fallback: NETHERRACK
-    particleEffect: LARGE_SMOKE
-    generationSound: 'minecraft:entity.experience_orb.pickup'
-    canGenerateWhileLavaRaining: true
-    searchForPlayersNearby: true
+    particle-effect: LARGE_SMOKE
+    generation-sound: 'minecraft:entity.experience_orb.pickup'
+    can-generate-while-lava-raining: true
+    search-for-players-nearby: true
 
 lava-fishing-options:
   # Specifies the conditions required for the lava fishing mechanism to work.

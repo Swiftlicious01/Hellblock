@@ -81,6 +81,7 @@ public class NetherrackGenerator implements Listener {
 		if (!Arrays.asList(FACES).contains(event.getFace())) {
 			return;
 		}
+
 		GenMode mode = genModeManager.getGenMode();
 		Block toBlock = event.getToBlock();
 		Material toBlockMaterial = toBlock.getType();
@@ -96,7 +97,7 @@ public class NetherrackGenerator implements Listener {
 				// Checks if the block has been broken before and if it is a known gen location
 				if (!genManager.isGenLocationKnown(l) && mode.isSearchingForPlayersNearby()) {
 					double searchRadius = instance.getConfig("config.yml")
-							.getDouble("netherrack-generator-options.playerSearchRadius", 4D);
+							.getDouble("netherrack-generator-options.player-search-radius", 4D);
 					Collection<Player> playersNearby = l.getWorld().getNearbyPlayers(l, searchRadius, searchRadius,
 							searchRadius);
 					Player closestPlayer = getClosestPlayer(l, playersNearby);

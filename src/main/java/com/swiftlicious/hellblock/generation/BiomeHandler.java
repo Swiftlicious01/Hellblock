@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import org.bukkit.Chunk;
@@ -77,7 +76,7 @@ public class BiomeHandler {
 			}
 			if (hbPlayer.getBiomeCooldown() > 0) {
 				instance.getAdventureManager().sendMessageWithPrefix(player,
-						String.format("<red>You have recently changed your biome already, you must wait for %s!",
+						String.format("<red>You've recently changed your biome already, you must wait for %s!",
 								instance.getFormattedCooldown(hbPlayer.getBiomeCooldown())));
 				return;
 			}
@@ -114,13 +113,12 @@ public class BiomeHandler {
 				setHellblockBiome(region, biome);
 
 				hbPlayer.setHellblockBiome(biome);
-				hbPlayer.setBiomeCooldown(TimeUnit.SECONDS.toDays(1));
+				hbPlayer.setBiomeCooldown(86400L);
 				hbPlayer.saveHellblockPlayer();
 				instance.getCoopManager().updateParty(hbPlayer.getUUID(), HellblockData.BIOME, biome);
-				instance.getCoopManager().updateParty(hbPlayer.getUUID(), HellblockData.BIOME_COOLDOWN,
-						TimeUnit.SECONDS.toDays(1));
+				instance.getCoopManager().updateParty(hbPlayer.getUUID(), HellblockData.BIOME_COOLDOWN, 86400L);
 				instance.getAdventureManager().sendMessageWithPrefix(player, String.format(
-						"<red>You have changed the biome of your hellblock to <dark_red>%s<red>!", biome.getName()));
+						"<red>You've changed the biome of your hellblock to <dark_red>%s<red>!", biome.getName()));
 			} else {
 				// TODO: using plugin protection
 			}
