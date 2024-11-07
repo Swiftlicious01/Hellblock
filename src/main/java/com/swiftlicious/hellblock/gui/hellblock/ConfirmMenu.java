@@ -91,11 +91,7 @@ public class ConfirmMenu {
 					}
 				}
 			}, player.getLocation(), 1, TimeUnit.SECONDS);
-			HellblockPlugin.getInstance().getHellblockHandler().resetHellblock(player.getUniqueId(), false)
-					.thenRun(() -> {
-						HellblockPlugin.getInstance().getScheduler().runTaskSyncLater(
-								() -> new IslandChoiceMenu(player, true), player.getLocation(), 1, TimeUnit.SECONDS);
-					});
+			HellblockPlugin.getInstance().getHellblockHandler().resetHellblock(player.getUniqueId(), false);
 			HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
 					net.kyori.adventure.sound.Sound.Source.PLAYER,
 					net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);

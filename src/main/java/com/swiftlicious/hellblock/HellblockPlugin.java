@@ -286,6 +286,7 @@ public class HellblockPlugin extends JavaPlugin {
 			HellblockPlayer pi = new HellblockPlayer(id);
 			getHellblockHandler().addActivePlayer(player, pi);
 			pi.showBorder();
+			pi.startSpawningAnimals();
 			getNetherFarmingHandler().trackNetherFarms(pi);
 			getIslandLevelManager().loadCache(id);
 			getNetherrackGeneratorHandler().loadPistons(id);
@@ -303,6 +304,7 @@ public class HellblockPlugin extends JavaPlugin {
 											pi.getHomeLocation());
 								});
 							}
+						}).thenRunAsync(() -> {
 							ChunkUtils.teleportAsync(player, pi.getHomeLocation(), TeleportCause.PLUGIN);
 						});
 					} else {
@@ -442,6 +444,7 @@ public class HellblockPlugin extends JavaPlugin {
 				HellblockPlayer pi = getHellblockHandler().getActivePlayer(id);
 				pi.saveHellblockPlayer();
 				pi.hideBorder();
+				pi.stopSpawningAnimals();
 				getIslandLevelManager().saveCache(id);
 				getNetherrackGeneratorHandler().savePistons(id);
 				Player player = pi.getPlayer();

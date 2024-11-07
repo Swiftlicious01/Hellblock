@@ -4,9 +4,10 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Map.Entry;
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.StringUtils;
@@ -16,14 +17,13 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.player.PlayerTeleportEvent.TeleportCause;
 
-import com.google.common.cache.Cache;
-import com.google.common.cache.CacheBuilder;
 import com.google.common.io.Files;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.generation.HellBiome;
 import com.swiftlicious.hellblock.gui.hellblock.IslandChoiceMenu;
 import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
 import com.swiftlicious.hellblock.playerdata.HellblockPlayer.HellblockData;
+import com.swiftlicious.hellblock.scheduler.CancellableTask;
 import com.swiftlicious.hellblock.playerdata.UUIDFetcher;
 import com.swiftlicious.hellblock.utils.ChunkUtils;
 import com.swiftlicious.hellblock.utils.LocationUtils;
@@ -34,36 +34,56 @@ import dev.jorel.commandapi.CommandAPICommand;
 import dev.jorel.commandapi.CommandPermission;
 import dev.jorel.commandapi.arguments.ArgumentSuggestions;
 import dev.jorel.commandapi.arguments.StringArgument;
+import lombok.NonNull;
 
 public class HellblockUserCommand {
 
 	public static HellblockUserCommand INSTANCE = new HellblockUserCommand();
 
-	private static final Cache<UUID, Boolean> visitCache = CacheBuilder.newBuilder().expireAfterWrite(1, TimeUnit.HOURS)
-			.build();
-
-	private static final Cache<UUID, Boolean> confirmCache = CacheBuilder.newBuilder()
-			.expireAfterWrite(15, TimeUnit.SECONDS).build();
+	private final Map<UUID, Long> visitCache = new HashMap<>();
+	private final Map<UUID, Long> confirmCache = new HashMap<>();
 
 	public CommandAPICommand getResetCommand() {
 		return new CommandAPICommand("reset").withAliases("restart", "replace")
 				.withSubcommand(new CommandAPICommand("confirm").withPermission(CommandPermission.NONE)
 						.withPermission("hellblock.user")
-						.withRequirement(sender -> confirmCache.getIfPresent(((Player) sender).getUniqueId()) != null)
+						.withRequirement(sender -> confirmCache.containsKey(((Player) sender).getUniqueId()))
 						.executesPlayer((player, args) -> {
-							if (confirmCache.getIfPresent(player.getUniqueId()) == null) {
+							HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler()
+									.getActivePlayer(player);
+							if (!pi.hasHellblock()) {
+								HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+										"<red>You don't have a hellblock!");
+								return;
+							}
+							if (pi.isAbandoned()) {
+								HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+										"<red>This hellblock is abandoned, you can't do anything until it's recovered!");
+								return;
+							}
+							if (pi.getHellblockOwner() != null
+									&& !pi.getHellblockOwner().equals(player.getUniqueId())) {
+								HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+										"<red>Only the owner of the hellblock island can change this!");
+								return;
+							}
+							if (pi.getResetCooldown() > 0) {
+								HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+										String.format(
+												"<red>You've recently reset your hellblock already, you must wait for %s!",
+												HellblockPlugin.getInstance()
+														.getFormattedCooldown(pi.getResetCooldown())));
+								return;
+							}
+							if (!confirmCache.containsKey(player.getUniqueId())) {
 								HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 										"<red>You're not in the process of restarting your hellblock!");
 								return;
 							}
 
-							confirmCache.invalidate(player.getUniqueId());
-							HellblockPlugin.getInstance().getHellblockHandler()
-									.resetHellblock(player.getUniqueId(), false).thenRun(() -> {
-										HellblockPlugin.getInstance().getScheduler().runTaskSyncLater(
-												() -> new IslandChoiceMenu(player, true), player.getLocation(), 1,
-												TimeUnit.SECONDS);
-									});
+							HellblockPlugin.getInstance().getHellblockHandler().resetHellblock(player.getUniqueId(),
+									false);
+							CommandAPI.updateRequirements(player);
 						}))
 				.withPermission(CommandPermission.NONE).withPermission("hellblock.user")
 				.executesPlayer((player, args) -> {
@@ -90,16 +110,15 @@ public class HellblockUserCommand {
 										HellblockPlugin.getInstance().getFormattedCooldown(pi.getResetCooldown())));
 						return;
 					}
-
-					if (confirmCache.getIfPresent(player.getUniqueId()) != null) {
+					if (confirmCache.containsKey(player.getUniqueId())) {
 						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 								"<red>You're already in the process of restarting your hellblock, click confirm!");
 						return;
 					}
 
-					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-							"<red>Please click confirm to successfully restart your hellblock. <green><bold><click:run_command:/hellblock reset confirm>[CONFIRM]</click>");
-					confirmCache.put(player.getUniqueId(), true);
+					HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
+							"<red>Please click confirm to successfully restart your hellblock. <green><bold><click:run_command:/hellblock reset confirm><hover:show_text:'<yellow>Click here to confirm!'>[CONFIRM]</click>");
+					new ConfirmCacher(player.getUniqueId());
 					CommandAPI.updateRequirements(player);
 				});
 	}
@@ -299,6 +318,7 @@ public class HellblockUserCommand {
 														player.getUniqueId(), HellblockData.HOME, pi.getHomeLocation());
 											});
 								}
+							}).thenRunAsync(() -> {
 								HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 										"<red>Teleporting you to your hellblock!");
 								ChunkUtils.teleportAsync(player, pi.getHomeLocation(), TeleportCause.PLUGIN);
@@ -326,23 +346,26 @@ public class HellblockUserCommand {
 											"<red>This hellblock is not safe to visit right now!");
 									return;
 								}
+							}).thenRunAsync(() -> {
+								ChunkUtils.teleportAsync(player, ti.getHomeLocation(), TeleportCause.PLUGIN)
+										.thenRun(() -> {
+											if (!visitCache.containsKey(player.getUniqueId())) {
+												if (!(ti.getHellblockOwner().equals(player.getUniqueId())
+														|| ti.getHellblockParty().contains(player.getUniqueId())
+														|| ti.getWhoTrusted().contains(player.getUniqueId()))) {
+													ti.addTotalVisit();
+													HellblockPlugin.getInstance().getCoopManager().updateParty(id,
+															HellblockData.VISIT, 1);
+													new VisitCacher(player.getUniqueId());
+												}
+											}
+											HellblockPlugin.getInstance().getAdventureManager()
+													.sendMessageWithPrefix(player, String.format(
+															"<red>You are visiting <dark_red>%s<red>'s hellblock!",
+															user));
+										});
+								return;
 							});
-							ChunkUtils.teleportAsync(player, ti.getHomeLocation(), TeleportCause.PLUGIN).thenRun(() -> {
-								if (visitCache.getIfPresent(player.getUniqueId()) != null
-										&& !visitCache.getIfPresent(player.getUniqueId()).booleanValue()) {
-									if (!(ti.getHellblockOwner().equals(player.getUniqueId())
-											|| ti.getHellblockParty().contains(player.getUniqueId())
-											|| ti.getWhoTrusted().contains(player.getUniqueId()))) {
-										ti.addTotalVisit();
-										HellblockPlugin.getInstance().getCoopManager().updateParty(id,
-												HellblockData.VISIT, 1);
-										visitCache.put(player.getUniqueId(), true);
-									}
-								}
-								HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-										String.format("<red>You are visiting <dark_red>%s<red>'s hellblock!", user));
-							});
-							return;
 						} else {
 							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 									String.format(
@@ -382,6 +405,7 @@ public class HellblockUserCommand {
 														player.getUniqueId(), HellblockData.HOME, pi.getHomeLocation());
 											});
 								}
+							}).thenRunAsync(() -> {
 								HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 										"<red>Teleporting you to your hellblock!");
 								ChunkUtils.teleportAsync(player, pi.getHomeLocation(), TeleportCause.PLUGIN);
@@ -391,6 +415,47 @@ public class HellblockUserCommand {
 									"<red>Error teleporting you to your hellblock!");
 							throw new NullPointerException();
 						}
+					}
+				});
+	}
+
+	public CommandAPICommand getFixHomeCommand() {
+		return new CommandAPICommand("fixhome").withAliases("restorehome", "readjusthome")
+				.withPermission(CommandPermission.NONE).withPermission("hellblock.user")
+				.executesPlayer((player, args) -> {
+					HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
+					if (!pi.hasHellblock()) {
+						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+								"<red>You don't have a hellblock!");
+					} else {
+						if (pi.isAbandoned()) {
+							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+									"<red>This hellblock is abandoned, you can't do anything until it's recovered!");
+							return;
+						}
+						if (pi.getHellblockOwner() != null && !pi.getHellblockOwner().equals(player.getUniqueId())) {
+							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+									"<red>Only the owner of the hellblock island can change this!");
+							return;
+						}
+						if (pi.getHomeLocation() != null && !HellblockPlugin.getInstance().getHellblockHandler()
+								.checkIfInSpawn(pi.getHomeLocation())) {
+							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+									"<red>Your home location isn't in need of fixing!");
+							return;
+						}
+
+						HellblockPlugin.getInstance().getHellblockHandler().locateBedrock(player.getUniqueId())
+								.thenAccept((result) -> {
+									Location bedrock = result.getBedrockLocation();
+									bedrock.setY(HellblockPlugin.getInstance().getHellblockHandler().getHellblockWorld()
+											.getHighestBlockYAt(bedrock));
+									pi.setHome(bedrock);
+									HellblockPlugin.getInstance().getCoopManager().updateParty(player.getUniqueId(),
+											HellblockData.HOME, pi.getHomeLocation());
+									HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+											"<red>Your home location has been readjusted to your bedrock location!");
+								});
 					}
 				});
 	}
@@ -474,9 +539,11 @@ public class HellblockUserCommand {
 																HellblockData.HOME, ti.getHomeLocation());
 													});
 										}
+									}).thenRunAsync(() -> {
 										ChunkUtils.teleportAsync(Bukkit.getPlayer(user), ti.getHomeLocation(),
 												TeleportCause.PLUGIN);
 									});
+									;
 								} else {
 									HellblockPlugin.getInstance().getHellblockHandler()
 											.teleportToSpawn(Bukkit.getPlayer(user), true);
@@ -656,78 +723,79 @@ public class HellblockUserCommand {
 											"<red>The location you're standing at is not safe for a new home!");
 									return;
 								}
-							});
-							if (pi.getHomeLocation().getWorld() != null
-									&& pi.getHomeLocation().getWorld().getName().equals(player.getWorld().getName())
-									&& pi.getHomeLocation().getX() == player.getLocation().getX()
-									&& pi.getHomeLocation().getY() == player.getLocation().getY()
-									&& pi.getHomeLocation().getZ() == player.getLocation().getZ()
-									&& pi.getHomeLocation().getYaw() == player.getLocation().getYaw()) {
-								HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-										"<red>The location you're standing at is already set as your home!");
-								return;
-							}
-							pi.setHome(player.getLocation());
-							pi.saveHellblockPlayer();
-							for (HellblockPlayer active : HellblockPlugin.getInstance().getHellblockHandler()
-									.getActivePlayers().values()) {
-								if (active == null || active.getPlayer() == null)
-									continue;
-								if (active.getHellblockOwner().equals(player.getUniqueId())) {
-									active.setHome(pi.getHomeLocation());
+							}).thenRunAsync(() -> {
+								if (pi.getHomeLocation().getWorld() != null
+										&& pi.getHomeLocation().getWorld().getName().equals(player.getWorld().getName())
+										&& pi.getHomeLocation().getX() == player.getLocation().getX()
+										&& pi.getHomeLocation().getY() == player.getLocation().getY()
+										&& pi.getHomeLocation().getZ() == player.getLocation().getZ()
+										&& pi.getHomeLocation().getYaw() == player.getLocation().getYaw()) {
+									HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+											"<red>The location you're standing at is already set as your home!");
+									return;
 								}
-								active.saveHellblockPlayer();
-							}
-							for (File offline : HellblockPlugin.getInstance().getHellblockHandler()
-									.getPlayersDirectory().listFiles()) {
-								if (!offline.isFile() || !offline.getName().endsWith(".yml"))
-									continue;
-								String uuid = Files.getNameWithoutExtension(offline.getName());
-								UUID id = null;
-								try {
-									id = UUID.fromString(uuid);
-								} catch (IllegalArgumentException ignored) {
-									// ignored
-									continue;
+								pi.setHome(player.getLocation());
+								pi.saveHellblockPlayer();
+								for (HellblockPlayer active : HellblockPlugin.getInstance().getHellblockHandler()
+										.getActivePlayers().values()) {
+									if (active == null || active.getPlayer() == null)
+										continue;
+									if (active.getHellblockOwner().equals(player.getUniqueId())) {
+										active.setHome(pi.getHomeLocation());
+									}
+									active.saveHellblockPlayer();
 								}
-								if (id != null && HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers()
-										.keySet().contains(id))
-									continue;
-								YamlConfiguration offlineFile = YamlConfiguration.loadConfiguration(offline);
-								Location location = pi.getHomeLocation();
-								String world = location.getWorld().getName();
-								double x = location.getX();
-								double y = location.getY();
-								double z = location.getZ();
-								float yaw = location.getYaw();
-								float pitch = location.getPitch();
+								for (File offline : HellblockPlugin.getInstance().getHellblockHandler()
+										.getPlayersDirectory().listFiles()) {
+									if (!offline.isFile() || !offline.getName().endsWith(".yml"))
+										continue;
+									String uuid = Files.getNameWithoutExtension(offline.getName());
+									UUID id = null;
+									try {
+										id = UUID.fromString(uuid);
+									} catch (IllegalArgumentException ignored) {
+										// ignored
+										continue;
+									}
+									if (id != null && HellblockPlugin.getInstance().getHellblockHandler()
+											.getActivePlayers().keySet().contains(id))
+										continue;
+									YamlConfiguration offlineFile = YamlConfiguration.loadConfiguration(offline);
+									Location location = pi.getHomeLocation();
+									String world = location.getWorld().getName();
+									double x = location.getX();
+									double y = location.getY();
+									double z = location.getZ();
+									float yaw = location.getYaw();
+									float pitch = location.getPitch();
 
-								if (!(offlineFile.getString("player.home.world").equalsIgnoreCase(world)
-										|| offlineFile.getDouble("player.home.x") == x
-										|| offlineFile.getDouble("player.home.y") == y
-										|| offlineFile.getDouble("player.home.z") == z
-										|| (float) offlineFile.getDouble("player.home.yaw") == yaw
-										|| (float) offlineFile.getDouble("player.home.pitch") == pitch)) {
-									offlineFile.set("player.home.world", world);
-									offlineFile.set("player.home.x", x);
-									offlineFile.set("player.home.y", y);
-									offlineFile.set("player.home.z", z);
-									offlineFile.set("player.home.yaw", yaw);
-									offlineFile.set("player.home.pitch", pitch);
+									if (!(offlineFile.getString("player.home.world").equalsIgnoreCase(world)
+											|| offlineFile.getDouble("player.home.x") == x
+											|| offlineFile.getDouble("player.home.y") == y
+											|| offlineFile.getDouble("player.home.z") == z
+											|| (float) offlineFile.getDouble("player.home.yaw") == yaw
+											|| (float) offlineFile.getDouble("player.home.pitch") == pitch)) {
+										offlineFile.set("player.home.world", world);
+										offlineFile.set("player.home.x", x);
+										offlineFile.set("player.home.y", y);
+										offlineFile.set("player.home.z", z);
+										offlineFile.set("player.home.yaw", yaw);
+										offlineFile.set("player.home.pitch", pitch);
+									}
+									try {
+										offlineFile.save(offline);
+									} catch (IOException ex) {
+										LogUtils.warn(
+												String.format("Could not save the offline data file for %s", uuid), ex);
+										continue;
+									}
 								}
-								try {
-									offlineFile.save(offline);
-								} catch (IOException ex) {
-									LogUtils.warn(String.format("Could not save the offline data file for %s", uuid),
-											ex);
-									continue;
-								}
-							}
-							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-									String.format(
-											"<red>You've set your new hellblock home location to x:%s, y:%s, z:%s facing %s!",
-											player.getLocation().getBlockX(), player.getLocation().getBlockY(),
-											player.getLocation().getBlockZ(), LocationUtils.getFacing(player)));
+								HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+										String.format(
+												"<red>You've set your new hellblock home location to x:%s, y:%s, z:%s facing %s!",
+												player.getLocation().getBlockX(), player.getLocation().getBlockY(),
+												player.getLocation().getBlockZ(), LocationUtils.getFacing(player)));
+							});
 						} else {
 							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 									"<red>Error setting your home location!");
@@ -750,6 +818,8 @@ public class HellblockUserCommand {
 					HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 							"<red>/hellblock home: Teleport to your island home");
 					HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
+							"<red>/hellblock fixhome: Fix your home location if it has been set to spawn");
+					HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 							"<red>/hellblock sethome: Set the new home location of your island");
 					HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 							"<red>/hellblock lock/unlock: Change whether or not visitors can access your island");
@@ -763,5 +833,79 @@ public class HellblockUserCommand {
 					HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 							"<red>/hellblock top: View the hellblocks with the top levels");
 				});
+	}
+
+	private class ConfirmCacher implements Runnable {
+
+		private UUID playerUUID;
+		private final CancellableTask cancellableTask;
+
+		public ConfirmCacher(@NonNull UUID playerUUID) {
+			this.playerUUID = playerUUID;
+			confirmCache.putIfAbsent(playerUUID, 15L);
+			this.cancellableTask = HellblockPlugin.getInstance().getScheduler().runTaskSyncTimer(this, null, 0, 1 * 20);
+		}
+
+		@Override
+		public void run() {
+			Player player = Bukkit.getPlayer(playerUUID);
+			if (player == null || !player.isOnline()) {
+				cancelTask();
+				return;
+			}
+
+			if (!confirmCache.containsKey(playerUUID)) {
+				return;
+			}
+
+			confirmCache.replace(playerUUID, confirmCache.get(playerUUID).longValue() - 1);
+			if (confirmCache.get(playerUUID).longValue() == 0) {
+				confirmCache.remove(playerUUID);
+				CommandAPI.updateRequirements(player);
+				cancelTask();
+			}
+		}
+
+		public void cancelTask() {
+			if (!this.cancellableTask.isCancelled())
+				this.cancellableTask.cancel();
+		}
+	}
+
+	private class VisitCacher implements Runnable {
+
+		private UUID playerUUID;
+		private final CancellableTask cancellableTask;
+
+		public VisitCacher(@NonNull UUID playerUUID) {
+			this.playerUUID = playerUUID;
+			visitCache.putIfAbsent(playerUUID, 1L);
+			this.cancellableTask = HellblockPlugin.getInstance().getScheduler().runTaskSyncTimer(this, null, 0,
+					60 * 60 * 20L);
+		}
+
+		@Override
+		public void run() {
+			Player player = Bukkit.getPlayer(playerUUID);
+			if (player == null || !player.isOnline()) {
+				cancelTask();
+				return;
+			}
+
+			if (!visitCache.containsKey(playerUUID)) {
+				return;
+			}
+
+			visitCache.replace(playerUUID, visitCache.get(playerUUID).longValue() - 1);
+			if (visitCache.get(playerUUID).longValue() == 0) {
+				visitCache.remove(playerUUID);
+				cancelTask();
+			}
+		}
+
+		public void cancelTask() {
+			if (!this.cancellableTask.isCancelled())
+				this.cancellableTask.cancel();
+		}
 	}
 }

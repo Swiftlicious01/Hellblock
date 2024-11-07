@@ -82,12 +82,7 @@ public class LavaRain {
 					|| Tag.FIRE.isTagged(block.getType()) || block.getType() == Material.LAVA
 					|| block.getType() == Material.WATER || block.getType() == Material.COBWEB
 					|| block.getType() == Material.STRING || block.getType() == Material.FLOWER_POT
-					|| Tag.ITEMS_BOATS.isTagged(block.getType()) || Tag.ITEMS_CHEST_BOATS.isTagged(block.getType())
-					|| block.getType() == Material.MINECART || block.getType() == Material.CHEST_MINECART
-					|| block.getType() == Material.BAMBOO || block.getType() == Material.BAMBOO_RAFT
-					|| block.getType() == Material.FURNACE_MINECART || block.getType() == Material.HOPPER_MINECART
-					|| block.getType() == Material.BAMBOO_CHEST_RAFT
-					|| block.getType() == Material.COMMAND_BLOCK_MINECART || block.getType() == Material.NETHER_PORTAL
+					|| block.getType() == Material.BAMBOO || block.getType() == Material.NETHER_PORTAL
 					|| block.getType() == Material.END_PORTAL || block.getType() == Material.END_GATEWAY
 					|| block.getType() == Material.LADDER || block.getType() == Material.CHAIN
 					|| block.getType() == Material.CANDLE || block.getType() == Material.SEA_PICKLE
@@ -99,8 +94,7 @@ public class LavaRain {
 					|| block.getType() == Material.TURTLE_EGG || block.getType() == Material.SMALL_DRIPLEAF
 					|| block.getType() == Material.BIG_DRIPLEAF || block.getType() == Material.IRON_BARS
 					|| block.getType() == Material.POWDER_SNOW || block.getType() == Material.TRIPWIRE
-					|| block.getType() == Material.TRIPWIRE_HOOK || block.getType() == Material.TNT_MINECART
-					|| block.getType().toString().contains("GLASS_PANE"))
+					|| block.getType() == Material.TRIPWIRE_HOOK || block.getType().toString().contains("GLASS_PANE"))
 				continue;
 			// get first non-empty full block above player
 			highestBlock = block;

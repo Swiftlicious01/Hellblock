@@ -90,7 +90,7 @@ public class CoopManager {
 				instance.getAdventureManager().sendMessageWithPrefix(owner,
 						"<red>You've invited <dark_red>" + player.getName() + " <red>to your hellblock!");
 				instance.getAdventureManager().sendMessageWithPrefix(player, String.format(
-						"<dark_red>%s <red>invited you to their hellblock! <green><bold><click:run_command:/hellcoop accept %s>[ACCEPT]</click> <red><bold><click:run_command:/hellcoop decline %s>[DECLINE]</click> <reset><gray>It will expire in %s.",
+						"<dark_red>%s <red>invited you to their hellblock! <green><bold><click:run_command:/hellcoop accept %s><hover:show_text:'<yellow>Click here to accept!'>[ACCEPT]</click> <red><bold><click:run_command:/hellcoop decline %s><hover:show_text:'<yellow>Click here to decline!'>[DECLINE]</click> <reset><gray>It will expire in %s.",
 						owner.getName(), owner.getName(), owner.getName(),
 						instance.getFormattedCooldown(playerToInvite.getInvitations().get(owner.getUniqueId()))));
 			} else {
@@ -164,7 +164,7 @@ public class CoopManager {
 				}
 				long expirationLeft = invites.getValue().longValue();
 				instance.getAdventureManager().sendMessage(player, String.format(
-						"<red>Hellblock Invitation: <dark_red>%s <green><bold><click:run_command:/hellcoop accept %s>[ACCEPT]</click> <red><bold><click:run_command:/hellcoop decline %s>[DECLINE]</click> <reset><gray>It will expire in %s.",
+						"<red>Hellblock Invitation: <dark_red>%s <green><bold><click:run_command:/hellcoop accept %s><hover:show_text:'<yellow>Click here to accept!'>[ACCEPT]</click> <red><bold><click:run_command:/hellcoop decline %s><hover:show_text:'<yellow>Click here to decline!'>[DECLINE]</click> <reset><gray>It will expire in %s.",
 						owner.getName(), owner.getName(), owner.getName(),
 						instance.getFormattedCooldown(expirationLeft)));
 			}
@@ -232,6 +232,7 @@ public class CoopManager {
 				playerToAdd.setHellblockOwner(ownerID);
 				playerToAdd.setBannedPlayers(ti.getBannedPlayers());
 				playerToAdd.setLevel(ti.getLevel());
+				playerToAdd.setHellblockBoundingBox(ti.getHellblockBoundingBox());
 				playerToAdd.setHellblockBiome(ti.getHellblockBiome());
 				playerToAdd.setProtectionFlags(ti.getProtectionFlags());
 				playerToAdd.setLockedStatus(ti.getLockedStatus());
@@ -254,6 +255,7 @@ public class CoopManager {
 									playerToAdd.getHomeLocation());
 						});
 					}
+				}).thenRunAsync(() -> {
 					ChunkUtils.teleportAsync(player, playerToAdd.getHomeLocation(), TeleportCause.PLUGIN);
 				});
 				ti.addToHellblockParty(player.getUniqueId());
@@ -354,6 +356,7 @@ public class CoopManager {
 				ti.setHome(null);
 				ti.setTotalVisits(0);
 				ti.setLevel(0);
+				ti.setHellblockBoundingBox(null);
 				ti.setCreationTime(0L);
 				ti.setHellblockBiome(null);
 				ti.setLockedStatus(false);
@@ -489,6 +492,7 @@ public class CoopManager {
 				leavingPlayer.setLockedStatus(false);
 				leavingPlayer.setTotalVisits(0);
 				leavingPlayer.setLevel(0);
+				leavingPlayer.setHellblockBoundingBox(null);
 				leavingPlayer.setCreationTime(0L);
 				leavingPlayer.setResetCooldown(0L);
 				leavingPlayer.setBiomeCooldown(0L);
@@ -805,6 +809,7 @@ public class CoopManager {
 																HellblockData.HOME, vi.getHomeLocation());
 													});
 										}
+									}).thenRunAsync(() -> {
 										ChunkUtils.teleportAsync(vi.getPlayer(), vi.getHomeLocation(),
 												TeleportCause.PLUGIN);
 									});

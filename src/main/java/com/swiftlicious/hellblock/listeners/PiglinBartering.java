@@ -1,8 +1,13 @@
 package com.swiftlicious.hellblock.listeners;
 
-import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
+import java.util.UUID;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
@@ -10,53 +15,130 @@ import org.bukkit.entity.Piglin;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.entity.EntityPickupItemEvent;
 import org.bukkit.event.entity.PiglinBarterEvent;
+import org.bukkit.event.player.PlayerInteractEntityEvent;
+import org.bukkit.inventory.ItemStack;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.challenges.HellblockChallenge.ChallengeType;
 import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
+import com.swiftlicious.hellblock.utils.LogUtils;
+import com.swiftlicious.hellblock.utils.RandomUtils;
 
 public class PiglinBartering implements Listener {
 
 	private final HellblockPlugin instance;
 
-	private final Set<Material> netherBarteringItems;
+	private boolean clearPiglinBarterOutcome;
+	private final Map<Material, Integer> netherBarteringItems;
+
+	private final Map<UUID, Set<UUID>> barterTracker;
 
 	public PiglinBartering(HellblockPlugin plugin) {
 		instance = plugin;
-		this.netherBarteringItems = new HashSet<>();
+		this.clearPiglinBarterOutcome = instance.getConfig("config.yml")
+				.getBoolean("piglin-bartering.clear-default-outcome", true);
+		this.netherBarteringItems = new HashMap<>();
+		this.barterTracker = new LinkedHashMap<>();
 		Bukkit.getPluginManager().registerEvents(this, instance);
 	}
 
-	private Set<Material> getNetherBarteringItems() {
+	private Map<Material, Integer> getNetherBarteringItems() {
 		if (!this.netherBarteringItems.isEmpty())
 			return this.netherBarteringItems;
 		Set<String> barteringItems = new HashSet<>(
 				instance.getConfig("config.yml").getStringList("piglin-bartering.materials"));
 		for (String barterItem : barteringItems) {
-			Material mat = Material.getMaterial(barterItem);
-			if (mat == null)
+			String[] split = barterItem.split(":");
+			Material mat = Material.getMaterial(split[0].toUpperCase());
+			if (mat == null || mat == Material.AIR)
 				continue;
-			this.netherBarteringItems.add(mat);
+			int amount = 1;
+			try {
+				amount = Integer.parseInt(split[1]);
+			} catch (NumberFormatException ex) {
+				LogUtils.severe(String.format("Invalid quantity: %s!", split[1]));
+				continue;
+			}
+			this.netherBarteringItems.put(mat, amount);
 		}
 		return this.netherBarteringItems;
 	}
 
 	@EventHandler
-	public void onBarter(PiglinBarterEvent event) {
+	public void onGiveItemOfInterest(PlayerInteractEntityEvent event) {
+		final Player player = event.getPlayer();
+		if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+			return;
+		final UUID id = player.getUniqueId();
+		ItemStack inHand = player.getInventory().getItemInMainHand();
+		if (inHand.getType() != Material.GOLD_INGOT) {
+			inHand = player.getInventory().getItemInOffHand();
+		}
+		if (inHand.getType() != Material.GOLD_INGOT) {
+			if (event.getRightClicked() instanceof Piglin piglin) {
+				if (!piglin.isAdult())
+					return;
+				if (piglin.getEquipment().getItemInOffHand().getType() != Material.GOLD_INGOT) {
+					if (!barterTracker.containsKey(id))
+						barterTracker.put(id, new HashSet<>(Set.of(piglin.getUniqueId())));
+					else {
+						if (!barterTracker.get(id).contains(piglin.getUniqueId()))
+							barterTracker.get(id).add(piglin.getUniqueId());
+					}
+				}
+			}
+		}
+	}
+
+	@EventHandler
+	public void onPiglinPickUpItemOfInterest(EntityPickupItemEvent event) {
+		if (event.getEntity() instanceof Piglin piglin) {
+			if (!piglin.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+				return;
+			if (!piglin.isAdult())
+				return;
+			if (event.getItem().getItemStack().getType() == Material.GOLD_INGOT) {
+				UUID playerUUID = event.getItem().getThrower();
+				if (playerUUID != null && Bukkit.getPlayer(playerUUID) != null) {
+					if (!barterTracker.containsKey(playerUUID))
+						barterTracker.put(playerUUID, new HashSet<>(Set.of(piglin.getUniqueId())));
+					else {
+						if (!barterTracker.get(playerUUID).contains(piglin.getUniqueId()))
+							barterTracker.get(playerUUID).add(piglin.getUniqueId());
+					}
+				}
+			}
+		}
+	}
+
+	@EventHandler
+	public void onBarterWithPiglin(PiglinBarterEvent event) {
 		final Piglin piglin = event.getEntity();
 		if (!piglin.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
 			return;
 
-		if (!getNetherBarteringItems().isEmpty())
-			getNetherBarteringItems().forEach(barter -> piglin.addBarterMaterial(barter));
-		if (event.getOutcome().stream().filter(item -> getNetherBarteringItems().contains(item.getType())).findAny()
+		List<ItemStack> barteredItems = event.getOutcome();
+		if (this.clearPiglinBarterOutcome && !getNetherBarteringItems().isEmpty())
+			barteredItems.clear();
+		if (!getNetherBarteringItems().isEmpty()) {
+			getNetherBarteringItems().forEach((item, amount) -> {
+				barteredItems.add(new ItemStack(item, RandomUtils.generateRandomInt(1, amount)));
+			});
+		}
+
+		if (barteredItems.stream().filter(item -> getNetherBarteringItems().keySet().contains(item.getType())).findAny()
 				.isPresent()) {
-			Collection<Player> playersNearby = piglin.getWorld().getNearbyPlayers(piglin.getLocation(), 10, 10, 10);
-			Player player = instance.getNetherrackGeneratorHandler().getClosestPlayer(piglin.getLocation(),
-					playersNearby);
-			if (player != null) {
-				HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(player);
+			UUID playerUUID = null;
+			for (Entry<UUID, Set<UUID>> entry : barterTracker.entrySet()) {
+				if (entry.getValue().contains(piglin.getUniqueId())) {
+					playerUUID = entry.getKey();
+					break;
+				}
+			}
+			if (playerUUID != null) {
+				HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(playerUUID);
 				if (!pi.isChallengeActive(ChallengeType.NETHER_TRADING_CHALLENGE)
 						&& !pi.isChallengeCompleted(ChallengeType.NETHER_TRADING_CHALLENGE)) {
 					pi.beginChallengeProgression(ChallengeType.NETHER_TRADING_CHALLENGE);
@@ -66,6 +148,9 @@ public class PiglinBartering implements Listener {
 						pi.completeChallenge(ChallengeType.NETHER_TRADING_CHALLENGE);
 					}
 				}
+				barterTracker.get(playerUUID).remove(piglin.getUniqueId());
+				if (barterTracker.get(playerUUID).isEmpty())
+					barterTracker.remove(playerUUID);
 			}
 		}
 	}

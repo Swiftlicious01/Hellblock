@@ -76,14 +76,14 @@ public class HellblockAdminCommand {
 								HellblockPlugin.getInstance().getHellblockHandler().locateBedrock(id)
 										.thenAccept((bedrock) -> {
 											ti.setHome(bedrock.getBedrockLocation());
-											HellblockPlugin.getInstance().getCoopManager().updateParty(id, HellblockData.HOME,
-													ti.getHomeLocation());
+											HellblockPlugin.getInstance().getCoopManager().updateParty(id,
+													HellblockData.HOME, ti.getHomeLocation());
 										});
 							}
+						}).thenRunAsync(() -> {
 							ChunkUtils.teleportAsync(player, ti.getHomeLocation(), TeleportCause.PLUGIN).thenRun(() -> {
-								HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-										String.format("<red>You've been teleported to <dark_red>%s<red>'s hellblock!",
-												user));
+								HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player, String
+										.format("<red>You've been teleported to <dark_red>%s<red>'s hellblock!", user));
 							});
 						});
 						return;

@@ -52,7 +52,7 @@ public class SchematicMenu {
 						"x x x x x x x x d")
 				.addIngredient('x', Markers.CONTENT_LIST_SLOT_VERTICAL).addIngredient('#', new BackGroundItem())
 				.addIngredient('u', new ScrollUpItem()).addIngredient('d', new ScrollDownItem())
-				.addIngredient('b', new BackToChoicesItem()).setContent(items.stream().toList()).build();
+				.addIngredient('b', new BackToChoicesItem(isReset)).setContent(items.stream().toList()).build();
 
 		Window window = Window.single().setViewer(player)
 				.setTitle(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
@@ -116,15 +116,8 @@ public class SchematicMenu {
 							}
 						}
 					}, player.getLocation(), 1, TimeUnit.SECONDS);
-					HellblockPlugin.getInstance().getHellblockHandler()
-							.createHellblock(player, IslandOptions.SCHEMATIC, file.getName()).thenRun(() -> {
-								if (isReset) {
-									HellblockPlugin.getInstance().getHellblockHandler()
-											.getActivePlayer(player.getUniqueId()).setResetCooldown(86400L);
-									HellblockPlugin.getInstance().getHellblockHandler()
-											.getActivePlayer(player.getUniqueId()).saveHellblockPlayer();
-								}
-							});
+					HellblockPlugin.getInstance().getHellblockHandler().createHellblock(player, IslandOptions.SCHEMATIC,
+							file.getName(), isReset);
 					HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
 							net.kyori.adventure.sound.Sound.Source.PLAYER,
 							net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
@@ -150,6 +143,12 @@ public class SchematicMenu {
 
 	public class BackToChoicesItem extends AbstractItem {
 
+		private boolean isReset;
+
+		public BackToChoicesItem(boolean isReset) {
+			this.isReset = isReset;
+		}
+
 		@Override
 		public ItemProvider getItemProvider() {
 			return new ItemBuilder(Material.ORANGE_STAINED_GLASS_PANE)
@@ -160,7 +159,7 @@ public class SchematicMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			new IslandChoiceMenu(player, false);
+			new IslandChoiceMenu(player, isReset);
 			HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
 					net.kyori.adventure.sound.Sound.Source.PLAYER,
 					net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);

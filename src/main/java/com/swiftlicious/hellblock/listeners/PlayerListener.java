@@ -37,6 +37,7 @@ import org.bukkit.event.player.PlayerPortalEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.event.player.PlayerRespawnEvent.RespawnReason;
+import org.bukkit.event.player.PlayerTeleportEvent;
 import org.bukkit.event.player.PlayerTeleportEvent.TeleportCause;
 import org.bukkit.event.world.PortalCreateEvent;
 import org.bukkit.event.world.PortalCreateEvent.CreateReason;
@@ -44,6 +45,7 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
+import org.bukkit.util.BoundingBox;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.events.worldguard.RegionEnteredEvent;
@@ -102,6 +104,7 @@ public class PlayerListener implements Listener {
 		instance.getNetherrackGeneratorHandler().loadPistons(id);
 
 		pi.showBorder();
+		pi.startSpawningAnimals();
 
 		instance.getScheduler().runTaskSyncLater(() -> {
 			if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
@@ -122,6 +125,7 @@ public class PlayerListener implements Listener {
 														HellblockData.HOME, pi.getHomeLocation());
 											});
 								}
+							}).thenRunAsync(() -> {
 								ChunkUtils.teleportAsync(player, pi.getHomeLocation(), TeleportCause.PLUGIN);
 							});
 						} else {
@@ -149,6 +153,7 @@ public class PlayerListener implements Listener {
 													HellblockData.HOME, pi.getHomeLocation());
 										});
 							}
+						}).thenRunAsync(() -> {
 							ChunkUtils.teleportAsync(player, pi.getHomeLocation(), TeleportCause.PLUGIN);
 						});
 					} else {
@@ -222,6 +227,7 @@ public class PlayerListener implements Listener {
 		HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(id);
 
 		pi.hideBorder();
+		pi.stopSpawningAnimals();
 
 		if (pi.hasGlowstoneToolEffect() || pi.hasGlowstoneArmorEffect()) {
 			if (player.hasPotionEffect(PotionEffectType.NIGHT_VISION)) {
@@ -312,6 +318,7 @@ public class PlayerListener implements Listener {
 							instance.getCoopManager().updateParty(id, HellblockData.HOME, pi.getHomeLocation());
 						});
 					}
+				}).thenRunAsync(() -> {
 					ChunkUtils.teleportAsync(player, pi.getHomeLocation(), TeleportCause.PLUGIN);
 				});
 			} else {
@@ -332,6 +339,7 @@ public class PlayerListener implements Listener {
 							instance.getCoopManager().updateParty(id, HellblockData.HOME, pi.getHomeLocation());
 						});
 					}
+				}).thenRunAsync(() -> {
 					ChunkUtils.teleportAsync(player, pi.getHomeLocation(), TeleportCause.PLUGIN);
 				});
 			} else {
@@ -339,6 +347,121 @@ public class PlayerListener implements Listener {
 			}
 			instance.getAdventureManager().sendMessageWithPrefix(player,
 					"<red>This hellblock is locked at the moment, you're not allowed entry!");
+		}
+	}
+
+	@EventHandler
+	public void onLeaveHellblockBorders(PlayerMoveEvent event) {
+		final Player player = event.getPlayer();
+		if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+			return;
+		final UUID id = player.getUniqueId();
+		if (player.getLocation() == null)
+			return;
+		if (instance.getHellblockHandler().isWorldguardProtected()) {
+			if (instance.getHellblockHandler().checkIfInSpawn(player.getLocation()))
+				return;
+			if (instance.getCoopManager().getHellblockOwnerOfVisitingIsland(player) == null)
+				return;
+			HellblockPlayer ti = instance.getHellblockHandler()
+					.getActivePlayer(instance.getCoopManager().getHellblockOwnerOfVisitingIsland(player));
+			BoundingBox hellblockBounds = ti.getHellblockBoundingBox();
+			if (hellblockBounds != null) {
+				BoundingBox ignoreYValueBounds = new BoundingBox(hellblockBounds.getMinX(), Double.MIN_VALUE,
+						hellblockBounds.getMinZ(), hellblockBounds.getMaxX(), Double.MAX_VALUE,
+						hellblockBounds.getMaxZ());
+				BoundingBox playerBounds = player.getBoundingBox();
+				if (!ignoreYValueBounds.contains(playerBounds)) {
+					HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(id);
+					LocationUtils.isSafeLocationAsync(ti.getHomeLocation()).thenAccept((tiResult) -> {
+						if (!tiResult.booleanValue()) {
+							instance.getAdventureManager().sendMessageWithPrefix(player,
+									"<red>This hellblock home location was deemed not safe, teleporting to your hellblock instead!");
+
+							LocationUtils.isSafeLocationAsync(pi.getHomeLocation()).thenAccept((result) -> {
+								if (!result.booleanValue()) {
+									instance.getAdventureManager().sendMessageWithPrefix(player,
+											"<red>This hellblock home location was deemed not safe, resetting to bedrock location!");
+									instance.getHellblockHandler().locateBedrock(player.getUniqueId())
+											.thenAccept((bedrock) -> {
+												pi.setHome(bedrock.getBedrockLocation());
+												instance.getCoopManager().updateParty(player.getUniqueId(),
+														HellblockData.HOME, pi.getHomeLocation());
+											});
+								}
+							}).thenRunAsync(() -> {
+								ChunkUtils.teleportAsync(player, pi.getHomeLocation(), TeleportCause.PLUGIN);
+								instance.getAdventureManager().sendMessage(player,
+										"<red>You can't leave the hellblock borders.");
+							});
+						}
+						return;
+					}).thenRunAsync(() -> {
+						ChunkUtils.teleportAsync(player, ti.getHomeLocation(), TeleportCause.PLUGIN);
+						instance.getAdventureManager().sendMessage(player,
+								"<red>You can't leave the hellblock borders.");
+					});
+				}
+			}
+		}
+	}
+
+	@EventHandler
+	public void onTeleportOutsideBorders(PlayerTeleportEvent event) {
+		if (event.getCause() == TeleportCause.ENDER_PEARL || event.getCause() == TeleportCause.CHORUS_FRUIT
+				|| event.getCause() == TeleportCause.DISMOUNT) {
+			final Player player = event.getPlayer();
+			if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+				return;
+			final UUID id = player.getUniqueId();
+			if (player.getLocation() == null)
+				return;
+			if (instance.getHellblockHandler().isWorldguardProtected()) {
+				if (instance.getHellblockHandler().checkIfInSpawn(player.getLocation()))
+					return;
+				if (instance.getCoopManager().getHellblockOwnerOfVisitingIsland(player) == null)
+					return;
+				HellblockPlayer ti = instance.getHellblockHandler()
+						.getActivePlayer(instance.getCoopManager().getHellblockOwnerOfVisitingIsland(player));
+				BoundingBox hellblockBounds = ti.getHellblockBoundingBox();
+				if (hellblockBounds != null) {
+					BoundingBox ignoreYValueBounds = new BoundingBox(hellblockBounds.getMinX(), Double.MIN_VALUE,
+							hellblockBounds.getMinZ(), hellblockBounds.getMaxX(), Double.MAX_VALUE,
+							hellblockBounds.getMaxZ());
+					BoundingBox playerBounds = player.getBoundingBox();
+					if (!ignoreYValueBounds.contains(playerBounds)) {
+						HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(id);
+						LocationUtils.isSafeLocationAsync(ti.getHomeLocation()).thenAccept((tiResult) -> {
+							if (!tiResult.booleanValue()) {
+								instance.getAdventureManager().sendMessageWithPrefix(player,
+										"<red>This hellblock home location was deemed not safe, teleporting to your hellblock instead!");
+
+								LocationUtils.isSafeLocationAsync(pi.getHomeLocation()).thenAccept((result) -> {
+									if (!result.booleanValue()) {
+										instance.getAdventureManager().sendMessageWithPrefix(player,
+												"<red>This hellblock home location was deemed not safe, resetting to bedrock location!");
+										instance.getHellblockHandler().locateBedrock(player.getUniqueId())
+												.thenAccept((bedrock) -> {
+													pi.setHome(bedrock.getBedrockLocation());
+													instance.getCoopManager().updateParty(player.getUniqueId(),
+															HellblockData.HOME, pi.getHomeLocation());
+												});
+									}
+								}).thenRunAsync(() -> {
+									ChunkUtils.teleportAsync(player, pi.getHomeLocation(), TeleportCause.PLUGIN);
+									instance.getAdventureManager().sendMessage(player,
+											"<red>You can't leave the hellblock borders.");
+								});
+							}
+							return;
+						}).thenRunAsync(() -> {
+							ChunkUtils.teleportAsync(player, ti.getHomeLocation(), TeleportCause.PLUGIN);
+							instance.getAdventureManager().sendMessage(player,
+									"<red>You can't leave the hellblock borders.");
+						});
+					}
+				}
+			}
 		}
 	}
 
@@ -380,12 +503,14 @@ public class PlayerListener implements Listener {
 															HellblockData.HOME, pi.getHomeLocation());
 												});
 									}
+								}).thenRunAsync(() -> {
 									ChunkUtils.teleportAsync(player, pi.getHomeLocation(), TeleportCause.PLUGIN);
 								});
-								return;
 							}
+							return;
+						}).thenRunAsync(() -> {
+							ChunkUtils.teleportAsync(player, ti.getHomeLocation(), TeleportCause.PLUGIN);
 						});
-						ChunkUtils.teleportAsync(player, ti.getHomeLocation(), TeleportCause.PLUGIN);
 					} else {
 						LocationUtils.isSafeLocationAsync(pi.getHomeLocation()).thenAccept((result) -> {
 							if (!result.booleanValue()) {
@@ -612,6 +737,7 @@ public class PlayerListener implements Listener {
 									pi.getHomeLocation());
 						});
 					}
+				}).thenRunAsync(() -> {
 					event.setRespawnLocation(pi.getHomeLocation());
 				});
 			}
@@ -639,6 +765,7 @@ public class PlayerListener implements Listener {
 									pi.getHomeLocation());
 						});
 					}
+				}).thenRunAsync(() -> {
 					ChunkUtils.teleportAsync(player, pi.getHomeLocation(), TeleportCause.PLUGIN).thenRun(() -> {
 						player.setFallDistance(0.0F);
 					});
@@ -654,14 +781,15 @@ public class PlayerListener implements Listener {
 		final Player player = event.getPlayer();
 		if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
 			return;
-		player.getWorld().strikeLightningEffect(player.getLocation());
+		if (player.getLocation() != null)
+			player.getWorld().strikeLightningEffect(player.getLocation());
 		if (!event.getKeepInventory()) {
-			if (instance.getHellblockHandler().getActivePlayer(player).hasGlowstoneToolEffect()
-					|| instance.getHellblockHandler().getActivePlayer(player).hasGlowstoneArmorEffect()) {
+			HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(player);
+			if (pi.hasGlowstoneToolEffect() || pi.hasGlowstoneArmorEffect()) {
 				if (player.hasPotionEffect(PotionEffectType.NIGHT_VISION)) {
 					player.removePotionEffect(PotionEffectType.NIGHT_VISION);
-					instance.getHellblockHandler().getActivePlayer(player).isHoldingGlowstoneTool(false);
-					instance.getHellblockHandler().getActivePlayer(player).isWearingGlowstoneArmor(false);
+					pi.isHoldingGlowstoneTool(false);
+					pi.isWearingGlowstoneArmor(false);
 				}
 			}
 		}

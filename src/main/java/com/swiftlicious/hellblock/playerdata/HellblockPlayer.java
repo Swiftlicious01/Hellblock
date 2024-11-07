@@ -34,6 +34,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.FireworkMeta;
 import org.bukkit.persistence.PersistentDataType;
+import org.bukkit.util.BoundingBox;
 import org.jetbrains.annotations.Nullable;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
@@ -46,6 +47,7 @@ import com.swiftlicious.hellblock.coop.HellblockParty;
 import com.swiftlicious.hellblock.generation.HellBiome;
 import com.swiftlicious.hellblock.generation.HellblockBorderTask;
 import com.swiftlicious.hellblock.generation.IslandOptions;
+import com.swiftlicious.hellblock.listeners.NetherAnimalSpawningTask;
 import com.swiftlicious.hellblock.protection.HellblockFlag;
 import com.swiftlicious.hellblock.protection.HellblockFlag.AccessType;
 import com.swiftlicious.hellblock.protection.HellblockFlag.FlagType;
@@ -64,6 +66,8 @@ public class HellblockPlayer {
 	private UUID hellblockOwner;
 	private UUID linkedHellblock;
 	private HellblockBorderTask borderTask;
+	private NetherAnimalSpawningTask animalSpawningTask;
+	private BoundingBox hellblockBoundingBox;
 	private Set<UUID> hellblockParty;
 	private Set<UUID> whoHasTrusted;
 	private Set<UUID> bannedPlayers;
@@ -209,6 +213,15 @@ public class HellblockPlayer {
 			} else {
 				this.bannedPlayers = new HashSet<>();
 			}
+			if (this.getHellblockPlayer().contains("player.bounding-box")) {
+				double x1 = this.getHellblockPlayer().getDouble("player.bounding-box.min-x");
+				double y1 = HellblockPlugin.getInstance().getHellblockHandler().getHellblockWorld().getMinHeight();
+				double z1 = this.getHellblockPlayer().getDouble("player.bounding-box.min-z");
+				double x2 = this.getHellblockPlayer().getDouble("player.bounding-box.max-x");
+				double y2 = HellblockPlugin.getInstance().getHellblockHandler().getHellblockWorld().getMaxHeight();
+				double z2 = this.getHellblockPlayer().getDouble("player.bounding-box.max-z");
+				this.hellblockBoundingBox = new BoundingBox(x1, y1, z1, x2, y2, z2);
+			}
 			if (this.getHellblockPlayer().contains("player.protection-flags")) {
 				this.protectionFlags = new HashMap<>();
 				this.getHellblockPlayer().getConfigurationSection("player.protection-flags").getKeys(false)
@@ -226,11 +239,11 @@ public class HellblockPlayer {
 			this.hellblockLevel = 0.0F;
 			this.hellblockBiome = null;
 			this.hellblockLocation = null;
+			this.hellblockBoundingBox = null;
 			this.resetCooldown = 0L;
 			this.biomeCooldown = 0L;
 			this.creationTime = 0L;
 			this.totalVisitors = 0;
-			this.borderTask = null;
 			this.homeLocation = null;
 			this.hellblockOwner = null;
 			this.linkedHellblock = null;
@@ -345,6 +358,10 @@ public class HellblockPlayer {
 		String now = localDate.format(formatter);
 		return String.format("%s %s %s %s", localDate.getMonth().getDisplayName(TextStyle.FULL, Locale.ENGLISH),
 				localDate.getDayOfMonth(), localDate.getYear(), now);
+	}
+
+	public @Nullable BoundingBox getHellblockBoundingBox() {
+		return this.hellblockBoundingBox;
 	}
 
 	public @Nullable Map<UUID, Long> getInvitations() {
@@ -484,6 +501,21 @@ public class HellblockPlayer {
 			this.borderTask.cancelBorderShowcase();
 			this.borderTask = null;
 		}
+	}
+
+	public void startSpawningAnimals() {
+		this.animalSpawningTask = new NetherAnimalSpawningTask(HellblockPlugin.getInstance(), this.id);
+	}
+
+	public void stopSpawningAnimals() {
+		if (this.animalSpawningTask != null) {
+			this.animalSpawningTask.stopAnimalSpawning();
+			this.animalSpawningTask = null;
+		}
+	}
+
+	public void setHellblockBoundingBox(@Nullable BoundingBox box) {
+		this.hellblockBoundingBox = box;
 	}
 
 	public void setHellblockOwner(@Nullable UUID newOwner) {
@@ -797,6 +829,12 @@ public class HellblockPlayer {
 			if (this.hellblockOwner != null) {
 				this.getHellblockPlayer().set("player.owner", this.hellblockOwner.toString());
 			}
+			if (this.hellblockBoundingBox != null) {
+				this.getHellblockPlayer().set("player.bounding-box.min-x", this.hellblockBoundingBox.getMinX());
+				this.getHellblockPlayer().set("player.bounding-box.min-z", this.hellblockBoundingBox.getMinZ());
+				this.getHellblockPlayer().set("player.bounding-box.max-x", this.hellblockBoundingBox.getMaxX());
+				this.getHellblockPlayer().set("player.bounding-box.max-z", this.hellblockBoundingBox.getMaxZ());
+			}
 			if (this.linkedHellblock != null && !this.linkedHellblock.equals(this.id)
 					&& !this.hellblockParty.contains(this.linkedHellblock)) {
 				this.getHellblockPlayer().set("player.linked-hellblock", this.linkedHellblock.toString());
@@ -860,12 +898,13 @@ public class HellblockPlayer {
 	public void resetHellblockData() {
 		this.getHellblockPlayer().set("player.hasHellblock", false);
 		this.getHellblockPlayer().set("player.hellblock", null);
-		this.getHellblockPlayer().set("player.hellblock-id", null);
+		this.getHellblockPlayer().set("player.hellblock-id", getID() == 0 ? null : getID());
 		this.getHellblockPlayer().set("player.hellblock-level", null);
 		this.getHellblockPlayer().set("player.home", null);
 		this.getHellblockPlayer().set("player.owner", null);
 		this.getHellblockPlayer().set("player.biome", null);
 		this.getHellblockPlayer().set("player.party", null);
+		this.getHellblockPlayer().set("player.bounding-box", null);
 		this.getHellblockPlayer().set("player.creation-time", null);
 		this.getHellblockPlayer().set("player.total-visits", null);
 		this.getHellblockPlayer().set("player.locked-island", null);
@@ -910,11 +949,11 @@ public class HellblockPlayer {
 		}
 
 		this.getHellblockPlayer().set(path + ".world", world);
-		this.getHellblockPlayer().set(path + ".x", round(x, 2));
-		this.getHellblockPlayer().set(path + ".y", round(y, 2));
-		this.getHellblockPlayer().set(path + ".z", round(z, 2));
-		this.getHellblockPlayer().set(path + ".yaw", round(yaw, 2));
-		this.getHellblockPlayer().set(path + ".pitch", round(pitch, 2));
+		this.getHellblockPlayer().set(path + ".x", round(x, 3));
+		this.getHellblockPlayer().set(path + ".y", round(y, 3));
+		this.getHellblockPlayer().set(path + ".z", round(z, 3));
+		this.getHellblockPlayer().set(path + ".yaw", round(yaw, 3));
+		this.getHellblockPlayer().set(path + ".pitch", round(pitch, 3));
 	}
 
 	public @Nullable Location deserializeLocation(@NonNull String path) {

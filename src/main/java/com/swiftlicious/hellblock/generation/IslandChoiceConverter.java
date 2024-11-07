@@ -4,6 +4,7 @@ import java.util.concurrent.CompletableFuture;
 
 import org.bukkit.Location;
 import org.bukkit.World;
+import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.Nullable;
 
@@ -27,16 +28,17 @@ public class IslandChoiceConverter {
 
 	public CompletableFuture<Void> convertIslandChoice(@NonNull Player player, @NonNull Location location,
 			@Nullable String schematic) {
-		World world = instance.getHellblockHandler().getHellblockWorld();
-		double x = location.getX();
-		double y = location.getY();
-		double z = location.getZ();
 		HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(player);
+		World world = instance.getHellblockHandler().getHellblockWorld();
+		int x = location.getBlockX();
+		int y = instance.getHellblockHandler().getHeight();
+		int z = location.getBlockZ();
+		Block highest = world.getHighestBlockAt(x, z);
 		if (instance.getHellblockHandler().getIslandOptions().isEmpty()) {
 			LogUtils.severe(
 					"An error occurred while retrieving the options for hellblock islands to choose from. Defaulting to classic island.");
 			return instance.getIslandGenerator().generateClassicHellblock(location, player).thenRun(() -> {
-				pi.setHome(new Location(world, x - 4.0D, y + 3.0D, z - 1.0D));
+				pi.setHome(new Location(world, highest.getX() - 0.5, y + 3, highest.getZ() - 0.5, 90, 0));
 			});
 		}
 		IslandOptions choice = pi.getIslandChoice();
@@ -44,7 +46,7 @@ public class IslandChoiceConverter {
 		case IslandOptions.DEFAULT:
 			if (instance.getHellblockHandler().getIslandOptions().contains(IslandOptions.DEFAULT.getName())) {
 				return instance.getIslandGenerator().generateDefaultHellblock(location, player).thenRun(() -> {
-					pi.setHome(new Location(world, x, y + 6.0D, z - 1.0D));
+					pi.setHome(new Location(world, highest.getX() + 0.5, y + 5, highest.getZ() + 2.5, -175, 0));
 				});
 			} else {
 				instance.getAdventureManager().sendMessageWithPrefix(player,
@@ -53,7 +55,7 @@ public class IslandChoiceConverter {
 		case IslandOptions.CLASSIC:
 			if (instance.getHellblockHandler().getIslandOptions().contains(IslandOptions.CLASSIC.getName())) {
 				return instance.getIslandGenerator().generateClassicHellblock(location, player).thenRun(() -> {
-					pi.setHome(new Location(world, x - 4.0D, y + 3.0D, z - 1.0D));
+					pi.setHome(new Location(world, highest.getX() - 0.5, y + 3, highest.getZ() - 0.5, 90, 0));
 				});
 			} else {
 				instance.getAdventureManager().sendMessageWithPrefix(player,
@@ -74,7 +76,7 @@ public class IslandChoiceConverter {
 			if (schematicsAvailable) {
 				return instance.getIslandGenerator().generateHellblockSchematic(location, player, schematic)
 						.thenRun(() -> {
-							pi.setHome(new Location(world, x, world.getHighestBlockYAt(location), z));
+							pi.setHome(new Location(world, highest.getX() + 0.5, y + 5, highest.getZ() + 2.5, -175, 0));
 						});
 			} else {
 				instance.getAdventureManager().sendMessageWithPrefix(player,
@@ -82,7 +84,7 @@ public class IslandChoiceConverter {
 			}
 		default:
 			return instance.getIslandGenerator().generateClassicHellblock(location, player).thenRun(() -> {
-				pi.setHome(new Location(world, x - 4.0D, y + 3.0D, z - 1.0D));
+				pi.setHome(new Location(world, highest.getX() - 0.5, y + 3, highest.getZ() - 0.5, 90, 0));
 			});
 		}
 	}

@@ -92,11 +92,14 @@ public class InvitationMenu {
 					continue;
 				if (hbPlayer.getPlayer() == null || !hbPlayer.getPlayer().isOnline() || hbPlayer.hasHellblock())
 					continue;
+				if (hbPlayer.getInvitations() == null || hbPlayer.hasInvite(player.getUniqueId()))
+					continue;
 				SkullBuilder skullBuilder = null;
 				try {
 					skullBuilder = new SkullBuilder(hbPlayer.getUUID());
 				} catch (MojangApiException | IOException ex) {
 					LogUtils.warn(String.format("Unable to retrieve skull data for the player %s", username), ex);
+					continue;
 				}
 				itemList.add(new ItemInList(hbPlayer.getPlayer().getName(), skullBuilder, this));
 				continue;
@@ -105,6 +108,7 @@ public class InvitationMenu {
 				itemList.add(new ItemInList("???", new SkullBuilder(HeadTexture.of("MHF_QUESTION")), this));
 			} catch (MojangApiException | IOException ignored) {
 				// ignored
+				continue;
 			}
 		}
 		return itemList;

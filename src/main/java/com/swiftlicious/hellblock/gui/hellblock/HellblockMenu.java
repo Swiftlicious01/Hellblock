@@ -333,6 +333,7 @@ public class HellblockMenu {
 												HellblockData.HOME, pi.getHomeLocation());
 									});
 						}
+					}).thenRunAsync(() -> {
 						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 								"<red>Teleporting you to your hellblock!");
 						ChunkUtils.teleportAsync(player, pi.getHomeLocation(), TeleportCause.PLUGIN);

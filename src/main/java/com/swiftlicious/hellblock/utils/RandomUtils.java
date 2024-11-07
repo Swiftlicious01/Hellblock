@@ -6,6 +6,7 @@ import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 
 import org.bukkit.block.Biome;
+import org.bukkit.entity.EntityType;
 
 import com.swiftlicious.hellblock.generation.HellBiome;
 
@@ -161,5 +162,17 @@ public class RandomUtils {
 		List<HellBiome> biomes = Arrays.asList(HellBiome.values());
 		int randomIndex = getInstance().random.nextInt(biomes.size());
 		return Biome.valueOf(biomes.get(randomIndex).toString());
+	}
+
+	/**
+	 * Spawns a random animal.
+	 *
+	 * @return a random animal
+	 */
+	public static @NonNull EntityType spawnRandomAnimal() {
+		List<EntityType> entities = List.of(EntityType.PIG, EntityType.COW, EntityType.CHICKEN, EntityType.SHEEP,
+				EntityType.RABBIT);
+		int randomIndex = getInstance().random.nextInt(entities.size());
+		return entities.get(randomIndex);
 	}
 }

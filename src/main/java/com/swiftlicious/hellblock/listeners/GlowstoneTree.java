@@ -1,6 +1,7 @@
 package com.swiftlicious.hellblock.listeners;
 
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
@@ -10,12 +11,15 @@ import org.bukkit.Bukkit;
 import org.bukkit.Effect;
 import org.bukkit.Material;
 import org.bukkit.Tag;
+import org.bukkit.TreeType;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
+import org.bukkit.block.BlockState;
 import org.bukkit.block.data.type.Sapling;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.block.BlockPhysicsEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.world.StructureGrowEvent;
 import org.bukkit.inventory.ItemStack;
@@ -33,8 +37,16 @@ public class GlowstoneTree implements Listener {
 
 	private final HellblockPlugin instance;
 
+	private boolean growNaturalTrees;
+
+	private static final Set<TreeType> TREE_TYPES = Set.of(TreeType.TREE, TreeType.BIRCH, TreeType.ACACIA,
+			TreeType.JUNGLE, TreeType.DARK_OAK, TreeType.BIG_TREE, TreeType.CHERRY, TreeType.REDWOOD, TreeType.MANGROVE,
+			TreeType.TALL_REDWOOD, TreeType.SWAMP, TreeType.SMALL_JUNGLE, TreeType.TALL_BIRCH, TreeType.MEGA_PINE,
+			TreeType.MEGA_REDWOOD, TreeType.TALL_MANGROVE, TreeType.AZALEA);
+
 	public GlowstoneTree(HellblockPlugin plugin) {
 		instance = plugin;
+		this.growNaturalTrees = instance.getConfig("config.yml").getBoolean("hellblock.grow-natural-trees", false);
 		Bukkit.getPluginManager().registerEvents(this, instance);
 	}
 
@@ -43,7 +55,8 @@ public class GlowstoneTree implements Listener {
 		if (!event.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
 			return;
 
-		if (event.getLocation().getBlock().getRelative(BlockFace.DOWN).getType() == Material.SOUL_SAND) {
+		Material growing = event.getLocation().getBlock().getRelative(BlockFace.DOWN).getType();
+		if (growing == Material.SOUL_SAND) {
 			final Player player = event.getPlayer();
 			if (player != null && event.isFromBonemeal() && !event.getBlocks().isEmpty()
 					&& !event.getBlocks().stream().anyMatch(state -> state.getBlockData() instanceof Sapling)) {
@@ -61,6 +74,68 @@ public class GlowstoneTree implements Listener {
 
 			event.setCancelled(true);
 			instance.getIslandGenerator().generateGlowstoneTree(event.getLocation());
+		} else {
+			if (!this.growNaturalTrees) {
+				if (TREE_TYPES.contains(event.getSpecies())) {
+					final Player player = event.getPlayer();
+					// have to check this to prevent sapling bonemeal over a block and see it's not
+					// growing.
+					if (player != null && event.isFromBonemeal() && !event.getBlocks().isEmpty()
+							&& !event.getBlocks().stream().anyMatch(state -> state.getBlockData() instanceof Sapling)) {
+						HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(player);
+						if (!pi.isChallengeActive(ChallengeType.GLOWSTONE_TREE_CHALLENGE)
+								&& !pi.isChallengeCompleted(ChallengeType.GLOWSTONE_TREE_CHALLENGE)) {
+							pi.beginChallengeProgression(ChallengeType.GLOWSTONE_TREE_CHALLENGE);
+						} else {
+							pi.updateChallengeProgression(ChallengeType.GLOWSTONE_TREE_CHALLENGE, 1);
+							if (pi.isChallengeCompleted(ChallengeType.GLOWSTONE_TREE_CHALLENGE)) {
+								pi.completeChallenge(ChallengeType.GLOWSTONE_TREE_CHALLENGE);
+							}
+						}
+					}
+					Iterator<BlockState> blocks = event.getBlocks().iterator();
+
+					while (true) {
+						BlockState block;
+						do {
+							if (!blocks.hasNext()) {
+								return;
+							}
+
+							block = (BlockState) blocks.next();
+							if (Tag.LOGS_THAT_BURN.isTagged(block.getType())
+									|| Tag.SAPLINGS.isTagged(block.getType())) {
+								block.setType(Material.GRAVEL);
+							}
+							if (Tag.DIRT.isTagged(block.getType())) {
+								block.setType(growing);
+							}
+						} while (Tag.LEAVES.isTagged(block.getType()));
+
+						block.setType(Material.GLOWSTONE);
+					}
+				}
+			}
+		}
+	}
+
+	@EventHandler
+	public void onPlaceNextToSapling(BlockPhysicsEvent event) {
+		final Block block = event.getSourceBlock();
+		if (!block.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+			return;
+
+		if (block.getType() == Material.OAK_SAPLING) {
+			if (block.getRelative(BlockFace.DOWN).getType() == Material.SOUL_SAND) {
+				event.setCancelled(true);
+			}
+		}
+		for (BlockFace face : FACES) {
+			if (block.getRelative(face).getType() == Material.OAK_SAPLING) {
+				if (block.getRelative(face).getRelative(BlockFace.DOWN).getType() == Material.SOUL_SAND) {
+					event.setCancelled(true);
+				}
+			}
 		}
 	}
 
@@ -121,26 +196,21 @@ public class GlowstoneTree implements Listener {
 	}
 
 	private boolean canGrow(@NonNull Block block) {
-		boolean canGrow = true;
 		int centerX = block.getLocation().getBlockX();
 		int centerY = block.getLocation().getBlockY();
 		int centerZ = block.getLocation().getBlockZ();
-		for (int x = centerX - 1; x <= centerX + 1; x++) {
-			for (int y = centerY; y <= centerY + 5; y++) {
-				for (int z = centerZ - 1; z <= centerZ + 1; z++) {
-					if (!canGrowIn(block.getWorld().getBlockAt(x, y, z).getType())) {
-						canGrow = false;
-						break;
-					}
-				}
-			}
-		}
-		return canGrow;
+		for (int x = centerX - 2; x <= centerX + 2; x++)
+			for (int y = centerY + 1; y <= centerY + 5; y++)
+				for (int z = centerZ - 2; z <= centerZ + 2; z++)
+					if (!canGrowIn(block.getWorld().getBlockAt(x, y, z).getType()))
+						return false;
+
+		return true;
 	}
 
 	private boolean canGrowIn(Material material) {
-		return material == Material.GLOWSTONE || Tag.SAPLINGS.isTagged(material) || material.isAir()
-				|| material == Material.SNOW || material == Material.TALL_GRASS || material == Material.VINE;
+		return material == Material.GLOWSTONE || material.isAir() || material == Material.SNOW
+				|| material == Material.TALL_GRASS || material == Material.VINE;
 	}
 
 	// These are all the sides of the block

@@ -8,6 +8,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
@@ -24,6 +25,7 @@ import org.bukkit.block.BlockState;
 import org.bukkit.block.Dispenser;
 import org.bukkit.block.data.Ageable;
 import org.bukkit.block.data.Directional;
+import org.bukkit.block.data.type.Cocoa;
 import org.bukkit.block.data.type.Farmland;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.FallingBlock;
@@ -61,6 +63,7 @@ import com.sk89q.worldguard.protection.util.WorldEditRegionConverter;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.challenges.HellblockChallenge.ChallengeType;
 import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
+import com.swiftlicious.hellblock.scheduler.CancellableTask;
 import com.swiftlicious.hellblock.utils.LocationCache;
 import com.swiftlicious.hellblock.utils.RandomUtils;
 
@@ -422,6 +425,45 @@ public class NetherFarming implements Listener {
 	}
 
 	@EventHandler
+	public void onForceCocoaBeanPlacement(PlayerInteractEvent event) {
+		final Player player = event.getPlayer();
+		if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+			return;
+
+		if (event.getAction() != Action.RIGHT_CLICK_BLOCK)
+			return;
+
+		final Block block = event.getClickedBlock();
+		final Material cocoaBean = event.getMaterial();
+		final BlockFace face = event.getBlockFace();
+
+		if (!Arrays.asList(FACES).contains(face)) {
+			return;
+		}
+
+		if (block != null) {
+			if (cocoaBean == Material.COCOA_BEANS) {
+				if ((block.getType() == Material.CRIMSON_STEM || block.getType() == Material.WARPED_STEM)
+						&& block.getRelative(face).isEmpty()) {
+					event.setUseItemInHand(Result.ALLOW);
+					if (player.getGameMode() != GameMode.CREATIVE)
+						event.getItem()
+								.setAmount(event.getItem().getAmount() > 0 ? event.getItem().getAmount() - 1 : 0);
+					player.swingMainHand();
+					instance.getAdventureManager().sendSound(player, net.kyori.adventure.sound.Sound.Source.PLAYER,
+							net.kyori.adventure.key.Key.key("minecraft:block.wood.place"), 1, 1);
+					player.updateInventory();
+					block.getRelative(face).setType(Material.COCOA);
+					if (block.getRelative(face).getBlockData() instanceof Cocoa data) {
+						data.setFacing(face.getOppositeFace());
+						block.getRelative(face).setBlockData(data);
+					}
+				}
+			}
+		}
+	}
+
+	@EventHandler
 	public void onForceSugarCanePlacement(PlayerInteractEvent event) {
 		final Player player = event.getPlayer();
 		if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
@@ -439,7 +481,7 @@ public class NetherFarming implements Listener {
 					if (sugarCaneGrowBlocks.contains(block.getType()) && block.getRelative(face).isEmpty()) {
 						if (checkForLavaAroundSugarCane(block)) {
 							event.setUseItemInHand(Result.ALLOW);
-							if (player.getGameMode() == GameMode.SURVIVAL)
+							if (player.getGameMode() != GameMode.CREATIVE)
 								event.getItem().setAmount(
 										event.getItem().getAmount() > 0 ? event.getItem().getAmount() - 1 : 0);
 							player.swingMainHand();
@@ -453,7 +495,7 @@ public class NetherFarming implements Listener {
 					if (block.getType() == Material.SUGAR_CANE) {
 						if (checkForLavaAroundSugarCane(block.getRelative(BlockFace.DOWN))) {
 							event.setUseItemInHand(Result.ALLOW);
-							if (player.getGameMode() == GameMode.SURVIVAL)
+							if (player.getGameMode() != GameMode.CREATIVE)
 								event.getItem().setAmount(
 										event.getItem().getAmount() > 0 ? event.getItem().getAmount() - 1 : 0);
 							player.swingMainHand();
@@ -780,7 +822,7 @@ public class NetherFarming implements Listener {
 				&& block.getRelative(BlockFace.DOWN).getType() == Material.SUGAR_CANE) {
 			if (checkForLavaAroundSugarCane(block.getRelative(BlockFace.DOWN).getRelative(BlockFace.DOWN))) {
 				event.setCancelled(true);
-				if (player.getGameMode() == GameMode.SURVIVAL)
+				if (player.getGameMode() != GameMode.CREATIVE)
 					event.getItemInHand().setAmount(
 							event.getItemInHand().getAmount() > 0 ? event.getItemInHand().getAmount() - 1 : 0);
 				block.setType(Material.SUGAR_CANE);
@@ -1292,7 +1334,7 @@ public class NetherFarming implements Listener {
 		final Block block = event.getClickedBlock();
 		if (block != null) {
 			if (Tag.DIRT.isTagged(block.getType()) || block.getBlockData() instanceof Farmland) {
-				trackNetherFarms(instance.getHellblockHandler().getActivePlayer(player));
+				new FarmUpdater(player.getUniqueId());
 				if (event.getAction() == Action.PHYSICAL
 						&& (block.getBlockData() instanceof Farmland || block.getBlockData() instanceof Ageable)) {
 					if (this.blockCache.containsKey(LocationCache.getCachedLocation(block.getLocation()))) {
@@ -1398,5 +1440,34 @@ public class NetherFarming implements Listener {
 		}
 
 		return concrete;
+	}
+
+	private class FarmUpdater implements Runnable {
+
+		private final UUID playerUUID;
+		private final CancellableTask cancellableTask;
+
+		public FarmUpdater(@NonNull UUID playerUUID) {
+			this.playerUUID = playerUUID;
+			this.cancellableTask = instance.getScheduler().runTaskAsyncTimer(this, 0,
+					RandomUtils.generateRandomInt(3, 5), TimeUnit.MINUTES);
+		}
+
+		@Override
+		public void run() {
+			Player player = Bukkit.getPlayer(playerUUID);
+			if (player == null || !player.isOnline()) {
+				cancelTask();
+				return;
+			}
+
+			HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(player);
+			trackNetherFarms(pi);
+		}
+
+		public void cancelTask() {
+			if (!this.cancellableTask.isCancelled())
+				this.cancellableTask.cancel();
+		}
 	}
 }

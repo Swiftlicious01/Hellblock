@@ -78,19 +78,21 @@ public class NetherrackGenerator implements Listener {
 		if (!fromBlock.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
 			return;
 
-		if (!Arrays.asList(FACES).contains(event.getFace())) {
+		BlockFace face = event.getFace();
+		if (!Arrays.asList(FACES).contains(face)) {
 			return;
 		}
 
 		GenMode mode = genModeManager.getGenMode();
 		Block toBlock = event.getToBlock();
 		Material toBlockMaterial = toBlock.getType();
+		boolean normalGenerator = fromBlock.getRelative(face, 2).getType() == Material.LAVA
+				&& isFlowing(fromBlock.getRelative(face, 2));
 
 		if (fromBlockMaterial == Material.LAVA) {
 			// TODO: make other positioned generators work
 			if (toBlockMaterial.isAir() && !isLavaPool(toBlock.getLocation())
-					&& (fromBlock.getRelative(event.getFace(), 2).getType() == Material.LAVA
-							&& isFlowing(fromBlock.getRelative(event.getFace(), 2)))) {
+					&& (normalGenerator)) {
 				Location l = toBlock.getLocation();
 				if (l.getWorld() == null)
 					return;

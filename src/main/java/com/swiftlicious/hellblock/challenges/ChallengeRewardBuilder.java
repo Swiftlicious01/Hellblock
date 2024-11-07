@@ -71,6 +71,7 @@ public class ChallengeRewardBuilder {
 					level = Integer.parseInt(split[1]);
 				} catch (NumberFormatException ex) {
 					LogUtils.severe(String.format("Invalid quantity: %s!", split[1]));
+					continue;
 				}
 				reward.addEnchantment(enchantment, level, false);
 			}

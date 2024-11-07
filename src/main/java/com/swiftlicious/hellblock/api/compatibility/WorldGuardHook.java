@@ -3,23 +3,22 @@ package com.swiftlicious.hellblock.api.compatibility;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
+import org.bukkit.block.Block;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
+import org.bukkit.util.BoundingBox;
 import org.bukkit.util.Vector;
 
 import com.sk89q.worldedit.bukkit.BukkitAdapter;
@@ -51,16 +50,11 @@ public class WorldGuardHook {
 	@Getter
 	@Setter
 	private WorldGuardPlatform worldGuardPlatform;
-
-	@Getter
-	private final Map<UUID, Set<Location>> cachedRegion;
-
+	
 	public final static String SPAWN_REGION = "spawn";
 
 	public WorldGuardHook(HellblockPlugin plugin) {
 		instance = plugin;
-		this.cachedRegion = new HashMap<>();
-		instance.getScheduler().runTaskAsyncTimer(() -> this.cachedRegion.clear(), 1, 25, TimeUnit.MINUTES);
 	}
 
 	public CompletableFuture<Void> protectHellblock(@NonNull HellblockPlayer player) {
@@ -87,6 +81,10 @@ public class WorldGuardHook {
 				region.setOwners(owners);
 				region.setPriority(100);
 				updateHellblockMessages(player.getUUID(), region);
+				player.setHellblockBoundingBox(
+						new BoundingBox((double) region.getMinimumPoint().x(), (double) region.getMinimumPoint().y(),
+								(double) region.getMinimumPoint().z(), (double) region.getMaximumPoint().x(),
+								(double) region.getMaximumPoint().y(), (double) region.getMaximumPoint().z()));
 				ApplicableRegionSet set = regionManager
 						.getApplicableRegions(BlockVector3.at(player.getHellblockLocation().getX(),
 								player.getHellblockLocation().getY(), player.getHellblockLocation().getZ()));
@@ -275,11 +273,8 @@ public class WorldGuardHook {
 		return false;
 	}
 
-	public CompletableFuture<List<Location>> getRegionBlocks(@NonNull UUID id) {
-		CompletableFuture<List<Location>> locations = CompletableFuture.supplyAsync(() -> {
-			if (this.cachedRegion.containsKey(id)) {
-				return new ArrayList<>(this.cachedRegion.get(id));
-			}
+	public CompletableFuture<List<Block>> getRegionBlocks(@NonNull UUID id) {
+		CompletableFuture<List<Block>> blocks = CompletableFuture.supplyAsync(() -> {
 			World world = instance.getHellblockHandler().getHellblockWorld();
 			HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(id);
 			ProtectedRegion region = getRegion(id, pi.getID());
@@ -290,19 +285,19 @@ public class WorldGuardHook {
 			Location min = BukkitAdapter.adapt(world, region.getMinimumPoint());
 			Location max = BukkitAdapter.adapt(world, region.getMaximumPoint());
 
-			List<Location> regionBlocks = new ArrayList<>();
+			List<Block> regionBlocks = new ArrayList<>();
 			for (int x = min.getBlockX(); x <= max.getBlockX(); x++) {
 				for (int y = min.getBlockY(); y <= max.getBlockY(); y++) {
 					for (int z = min.getBlockZ(); z <= max.getBlockZ(); z++) {
-						regionBlocks.add(new Location(world, x, y, z));
+						Block block = world.getBlockAt(x, y, z);
+						regionBlocks.add(block);
 					}
 				}
 			}
-			this.cachedRegion.putIfAbsent(id, new HashSet<>((regionBlocks)));
 			return regionBlocks;
 		});
 
-		return locations;
+		return blocks;
 	}
 
 	public ProtectedRegion getRegion(@NonNull UUID playerUUID, int hellblockID) {

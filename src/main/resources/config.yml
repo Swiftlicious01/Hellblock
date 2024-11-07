@@ -37,6 +37,9 @@ hellblock:
   entry-message-enabled: true
   farewell-message-enabled: true
   disable-bed-explosions: true
+  # If set to true when a sapling is placed on dirt, grass, etc like normal a normal tree will spawn.
+  # Otherwise if false it will replace any tree that is grown with a glowstone tree.
+  grow-natural-trees: false
   void-teleport: true
   starter-chest: 
     inventory-name: '<dark_red>Hellblock Chest'
@@ -96,8 +99,12 @@ level-system:
     - 'NETHERITE_BLOCK:5'
 
 piglin-bartering:
+  # If set to true this will clear all default items and only the custom items added below will be dropped.
+  clear-default-outcome: true
+  # This won't change the default items that piglins barter but you can add custom items that are harder to get in the nether here.
+  # The number represents a random chance to get up to that number when bartering between 1 and x where x represents the number you input here.
   materials:
-    - 'WITHER_ROSE'
+    - 'WITHER_ROSE:3'
 
 brewing:
   nether-bottle:

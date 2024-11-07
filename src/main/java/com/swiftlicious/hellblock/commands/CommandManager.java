@@ -37,13 +37,13 @@ public class CommandManager implements CommandManagerInterface {
 		getMainCommand().withSubcommands(getOpenCommand(), HellblockAdminCommand.INSTANCE.getAdminCommand(),
 				GUIEditorCommand.INSTANCE.getEditorCommand(), DataCommand.INSTANCE.getDataCommand(),
 				HellblockUserCommand.INSTANCE.getResetCommand(), HellblockUserCommand.INSTANCE.getCreateCommand(),
-				HellblockUserCommand.INSTANCE.getHomeCommand(), HellblockUserCommand.INSTANCE.getBiomeCommand(),
-				HellblockUserCommand.INSTANCE.getLockCommand(), HellblockUserCommand.INSTANCE.getSetHomeCommand(),
-				HellblockUserCommand.INSTANCE.getInfoCommand(), HellblockUserCommand.INSTANCE.getHelpCommand(),
-				HellblockUserCommand.INSTANCE.getBanCommand(), HellblockUserCommand.INSTANCE.getUnbanCommand(),
-				HellblockUserCommand.INSTANCE.getTopCommand(), HellblockUserCommand.INSTANCE.getVisitCommand(),
-				getAboutCommand(), ItemCommand.INSTANCE.getItemCommand(), DebugCommand.INSTANCE.getDebugCommand())
-				.register();
+				HellblockUserCommand.INSTANCE.getHomeCommand(), HellblockUserCommand.INSTANCE.getFixHomeCommand(),
+				HellblockUserCommand.INSTANCE.getBiomeCommand(), HellblockUserCommand.INSTANCE.getLockCommand(),
+				HellblockUserCommand.INSTANCE.getSetHomeCommand(), HellblockUserCommand.INSTANCE.getInfoCommand(),
+				HellblockUserCommand.INSTANCE.getHelpCommand(), HellblockUserCommand.INSTANCE.getBanCommand(),
+				HellblockUserCommand.INSTANCE.getUnbanCommand(), HellblockUserCommand.INSTANCE.getTopCommand(),
+				HellblockUserCommand.INSTANCE.getVisitCommand(), getAboutCommand(),
+				ItemCommand.INSTANCE.getItemCommand(), DebugCommand.INSTANCE.getDebugCommand()).register();
 		HellblockCoopCommand.INSTANCE.getCoopCommand().register();
 		if (instance.getMarketManager().isEnable()) {
 			new CommandAPICommand("sellfish").withPermission("hellblock.sellfish").executesPlayer((player, args) -> {

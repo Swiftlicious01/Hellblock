@@ -41,15 +41,7 @@ public class IslandChoiceMenu {
 		} else {
 			HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 					"<red>The island options list is empty, creating classic hellblock!");
-			HellblockPlugin.getInstance().getHellblockHandler().createHellblock(player, IslandOptions.CLASSIC)
-					.thenRun(() -> {
-						if (isReset) {
-							HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player.getUniqueId())
-									.setResetCooldown(86400L);
-							HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player.getUniqueId())
-									.saveHellblockPlayer();
-						}
-					});
+			HellblockPlugin.getInstance().getHellblockHandler().createHellblock(player, IslandOptions.CLASSIC, isReset);
 		}
 	}
 
@@ -106,15 +98,8 @@ public class IslandChoiceMenu {
 						}
 					}
 				}, player.getLocation(), 1, TimeUnit.SECONDS);
-				HellblockPlugin.getInstance().getHellblockHandler().createHellblock(player, IslandOptions.DEFAULT)
-						.thenRun(() -> {
-							if (isReset) {
-								HellblockPlugin.getInstance().getHellblockHandler()
-										.getActivePlayer(player.getUniqueId()).setResetCooldown(86400L);
-								HellblockPlugin.getInstance().getHellblockHandler()
-										.getActivePlayer(player.getUniqueId()).saveHellblockPlayer();
-							}
-						});
+				HellblockPlugin.getInstance().getHellblockHandler().createHellblock(player, IslandOptions.DEFAULT,
+						isReset);
 				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
 						net.kyori.adventure.sound.Sound.Source.PLAYER,
 						net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
@@ -181,15 +166,8 @@ public class IslandChoiceMenu {
 						}
 					}
 				}, player.getLocation(), 1, TimeUnit.SECONDS);
-				HellblockPlugin.getInstance().getHellblockHandler().createHellblock(player, IslandOptions.CLASSIC)
-						.thenRun(() -> {
-							if (isReset) {
-								HellblockPlugin.getInstance().getHellblockHandler()
-										.getActivePlayer(player.getUniqueId()).setResetCooldown(86400L);
-								HellblockPlugin.getInstance().getHellblockHandler()
-										.getActivePlayer(player.getUniqueId()).saveHellblockPlayer();
-							}
-						});
+				HellblockPlugin.getInstance().getHellblockHandler().createHellblock(player, IslandOptions.CLASSIC,
+						isReset);
 				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
 						net.kyori.adventure.sound.Sound.Source.PLAYER,
 						net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);

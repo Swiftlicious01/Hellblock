@@ -6,6 +6,7 @@ import java.util.Map;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Color;
+import org.bukkit.GameRule;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.block.Block;
@@ -16,6 +17,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.inventory.CraftItemEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.PrepareItemCraftEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerItemConsumeEvent;
 import org.bukkit.inventory.BrewerInventory;
@@ -259,6 +261,28 @@ public class NetherBrewing implements Listener {
 				if (recipe instanceof CraftingRecipe craft) {
 					if (!player.hasDiscoveredRecipe(craft.getKey()))
 						player.discoverRecipe(craft.getKey());
+				}
+			}
+		}
+	}
+
+	@EventHandler
+	public void onLimitedCrafting(PrepareItemCraftEvent event) {
+		if (!this.nBottle)
+			return;
+		if (instance.getHellblockHandler().getHellblockWorld().getGameRuleValue(GameRule.DO_LIMITED_CRAFTING)) {
+			if (event.getView().getPlayer() instanceof Player player) {
+				if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName())) {
+					return;
+				}
+
+				Recipe recipe = event.getRecipe();
+				ItemStack result = recipe.getResult();
+				if (checkBrewingData(result) && getBrewingData(result)) {
+					if (recipe instanceof CraftingRecipe craft) {
+						if (!player.hasDiscoveredRecipe(craft.getKey()))
+							player.discoverRecipe(craft.getKey());
+					}
 				}
 			}
 		}

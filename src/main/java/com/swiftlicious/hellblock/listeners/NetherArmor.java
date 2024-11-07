@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Set;
 
 import org.bukkit.Bukkit;
+import org.bukkit.GameRule;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Registry;
@@ -15,6 +16,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockDispenseArmorEvent;
 import org.bukkit.event.inventory.CraftItemEvent;
+import org.bukkit.event.inventory.PrepareItemCraftEvent;
 import org.bukkit.inventory.CraftingRecipe;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.Recipe;
@@ -285,6 +287,7 @@ public class NetherArmor implements Listener {
 				level = Integer.parseInt(split[1]);
 			} catch (NumberFormatException ex) {
 				LogUtils.severe(String.format("Invalid quantity: %s!", split[1]));
+				continue;
 			}
 			armor.addEnchantment(enchantment, level, false);
 		}
@@ -318,6 +321,7 @@ public class NetherArmor implements Listener {
 				level = Integer.parseInt(split[1]);
 			} catch (NumberFormatException ex) {
 				LogUtils.severe(String.format("Invalid quantity: %s!", split[1]));
+				continue;
 			}
 			armor.addEnchantment(enchantment, level, false);
 		}
@@ -351,6 +355,7 @@ public class NetherArmor implements Listener {
 				level = Integer.parseInt(split[1]);
 			} catch (NumberFormatException ex) {
 				LogUtils.severe(String.format("Invalid quantity: %s!", split[1]));
+				continue;
 			}
 			armor.addEnchantment(enchantment, level, false);
 		}
@@ -384,6 +389,7 @@ public class NetherArmor implements Listener {
 				level = Integer.parseInt(split[1]);
 			} catch (NumberFormatException ex) {
 				LogUtils.severe(String.format("Invalid quantity: %s!", split[1]));
+				continue;
 			}
 			armor.addEnchantment(enchantment, level, false);
 		}
@@ -417,6 +423,7 @@ public class NetherArmor implements Listener {
 				level = Integer.parseInt(split[1]);
 			} catch (NumberFormatException ex) {
 				LogUtils.severe(String.format("Invalid quantity: %s!", split[1]));
+				continue;
 			}
 			armor.addEnchantment(enchantment, level, false);
 		}
@@ -451,6 +458,7 @@ public class NetherArmor implements Listener {
 				level = Integer.parseInt(split[1]);
 			} catch (NumberFormatException ex) {
 				LogUtils.severe(String.format("Invalid quantity: %s!", split[1]));
+				continue;
 			}
 			armor.addEnchantment(enchantment, level, false);
 		}
@@ -485,6 +493,7 @@ public class NetherArmor implements Listener {
 				level = Integer.parseInt(split[1]);
 			} catch (NumberFormatException ex) {
 				LogUtils.severe(String.format("Invalid quantity: %s!", split[1]));
+				continue;
 			}
 			armor.addEnchantment(enchantment, level, false);
 		}
@@ -519,6 +528,7 @@ public class NetherArmor implements Listener {
 				level = Integer.parseInt(split[1]);
 			} catch (NumberFormatException ex) {
 				LogUtils.severe(String.format("Invalid quantity: %s!", split[1]));
+				continue;
 			}
 			armor.addEnchantment(enchantment, level, false);
 		}
@@ -553,6 +563,7 @@ public class NetherArmor implements Listener {
 				level = Integer.parseInt(split[1]);
 			} catch (NumberFormatException ex) {
 				LogUtils.severe(String.format("Invalid quantity: %s!", split[1]));
+				continue;
 			}
 			armor.addEnchantment(enchantment, level, false);
 		}
@@ -586,6 +597,7 @@ public class NetherArmor implements Listener {
 				level = Integer.parseInt(split[1]);
 			} catch (NumberFormatException ex) {
 				LogUtils.severe(String.format("Invalid quantity: %s!", split[1]));
+				continue;
 			}
 			armor.addEnchantment(enchantment, level, false);
 		}
@@ -619,6 +631,7 @@ public class NetherArmor implements Listener {
 				level = Integer.parseInt(split[1]);
 			} catch (NumberFormatException ex) {
 				LogUtils.severe(String.format("Invalid quantity: %s!", split[1]));
+				continue;
 			}
 			armor.addEnchantment(enchantment, level, false);
 		}
@@ -652,6 +665,7 @@ public class NetherArmor implements Listener {
 				level = Integer.parseInt(split[1]);
 			} catch (NumberFormatException ex) {
 				LogUtils.severe(String.format("Invalid quantity: %s!", split[1]));
+				continue;
 			}
 			armor.addEnchantment(enchantment, level, false);
 		}
@@ -685,6 +699,7 @@ public class NetherArmor implements Listener {
 				level = Integer.parseInt(split[1]);
 			} catch (NumberFormatException ex) {
 				LogUtils.severe(String.format("Invalid quantity: %s!", split[1]));
+				continue;
 			}
 			armor.addEnchantment(enchantment, level, false);
 		}
@@ -718,6 +733,7 @@ public class NetherArmor implements Listener {
 				level = Integer.parseInt(split[1]);
 			} catch (NumberFormatException ex) {
 				LogUtils.severe(String.format("Invalid quantity: %s!", split[1]));
+				continue;
 			}
 			armor.addEnchantment(enchantment, level, false);
 		}
@@ -751,6 +767,7 @@ public class NetherArmor implements Listener {
 				level = Integer.parseInt(split[1]);
 			} catch (NumberFormatException ex) {
 				LogUtils.severe(String.format("Invalid quantity: %s!", split[1]));
+				continue;
 			}
 			armor.addEnchantment(enchantment, level, false);
 		}
@@ -784,6 +801,7 @@ public class NetherArmor implements Listener {
 				level = Integer.parseInt(split[1]);
 			} catch (NumberFormatException ex) {
 				LogUtils.severe(String.format("Invalid quantity: %s!", split[1]));
+				continue;
 			}
 			armor.addEnchantment(enchantment, level, false);
 		}
@@ -820,6 +838,39 @@ public class NetherArmor implements Listener {
 								}
 							}
 							player.discoverRecipe(craft.getKey());
+						}
+					}
+				}
+			}
+		}
+	}
+
+	@EventHandler
+	public void onLimitedCrafting(PrepareItemCraftEvent event) {
+		if (instance.getHellblockHandler().getHellblockWorld().getGameRuleValue(GameRule.DO_LIMITED_CRAFTING)) {
+			if (event.getView().getPlayer() instanceof Player player) {
+				if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName())) {
+					return;
+				}
+
+				Recipe recipe = event.getRecipe();
+				ItemStack result = recipe.getResult();
+				if (isNetherArmorEnabled(result)) {
+					if (checkArmorData(result) && getArmorData(result)) {
+						if (recipe instanceof CraftingRecipe craft) {
+							if (!player.hasDiscoveredRecipe(craft.getKey())) {
+								HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(player);
+								if (!pi.isChallengeActive(ChallengeType.NETHER_CRAFTING_CHALLENGE)
+										&& !pi.isChallengeCompleted(ChallengeType.NETHER_CRAFTING_CHALLENGE)) {
+									pi.beginChallengeProgression(ChallengeType.NETHER_CRAFTING_CHALLENGE);
+								} else {
+									pi.updateChallengeProgression(ChallengeType.NETHER_CRAFTING_CHALLENGE, 1);
+									if (pi.isChallengeCompleted(ChallengeType.NETHER_CRAFTING_CHALLENGE)) {
+										pi.completeChallenge(ChallengeType.NETHER_CRAFTING_CHALLENGE);
+									}
+								}
+								player.discoverRecipe(craft.getKey());
+							}
 						}
 					}
 				}

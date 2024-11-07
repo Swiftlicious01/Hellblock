@@ -63,7 +63,7 @@ public class IslandGenerator {
 			if (instance.getHellblockHandler().isWorldguardProtected()) {
 				instance.getSchematicManager()
 						.pasteSchematic(schematic, instance.getWorldGuardHandler().getRegion(pi.getUUID(), pi.getID()))
-						.thenRun(() -> {
+						.thenRunAsync(() -> {
 							for (int x = -15; x <= 15; ++x) {
 								for (int y = -15; y <= 15; ++y) {
 									for (int z = -15; z <= 15; ++z) {
@@ -83,7 +83,7 @@ public class IslandGenerator {
 									}
 								}
 							}
-						}).join();
+						});
 			}
 		});
 	}
@@ -174,7 +174,7 @@ public class IslandGenerator {
 								() -> this.generateChest(
 										new Location(world, (double) x, (double) chestY, (double) (z + 1)), player),
 								location);
-			}).join();
+			});
 		});
 	}
 
@@ -258,7 +258,7 @@ public class IslandGenerator {
 						.runTaskSync(() -> this.generateChest(
 								new Location(world, (double) (x - 5), (double) chestY, (double) (z - 1)), player),
 								location);
-			}).join();
+			});
 		});
 	}
 

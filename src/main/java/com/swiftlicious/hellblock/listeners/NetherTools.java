@@ -8,6 +8,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import org.bukkit.Bukkit;
+import org.bukkit.GameRule;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Registry;
@@ -22,6 +23,7 @@ import org.bukkit.event.inventory.CraftItemEvent;
 import org.bukkit.event.inventory.InventoryAction;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
+import org.bukkit.event.inventory.PrepareItemCraftEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent.Reason;
 import org.bukkit.event.inventory.InventoryType.SlotType;
 import org.bukkit.event.player.PlayerDropItemEvent;
@@ -334,6 +336,7 @@ public class NetherTools implements Listener {
 				level = Integer.parseInt(split[1]);
 			} catch (NumberFormatException ex) {
 				LogUtils.severe(String.format("Invalid quantity: %s!", split[1]));
+				continue;
 			}
 			tool.addEnchantment(enchantment, level, false);
 		}
@@ -368,6 +371,7 @@ public class NetherTools implements Listener {
 				level = Integer.parseInt(split[1]);
 			} catch (NumberFormatException ex) {
 				LogUtils.severe(String.format("Invalid quantity: %s!", split[1]));
+				continue;
 			}
 			tool.addEnchantment(enchantment, level, false);
 		}
@@ -402,6 +406,7 @@ public class NetherTools implements Listener {
 				level = Integer.parseInt(split[1]);
 			} catch (NumberFormatException ex) {
 				LogUtils.severe(String.format("Invalid quantity: %s!", split[1]));
+				continue;
 			}
 			tool.addEnchantment(enchantment, level, false);
 		}
@@ -436,6 +441,7 @@ public class NetherTools implements Listener {
 				level = Integer.parseInt(split[1]);
 			} catch (NumberFormatException ex) {
 				LogUtils.severe(String.format("Invalid quantity: %s!", split[1]));
+				continue;
 			}
 			tool.addEnchantment(enchantment, level, false);
 		}
@@ -470,6 +476,7 @@ public class NetherTools implements Listener {
 				level = Integer.parseInt(split[1]);
 			} catch (NumberFormatException ex) {
 				LogUtils.severe(String.format("Invalid quantity: %s!", split[1]));
+				continue;
 			}
 			tool.addEnchantment(enchantment, level, false);
 		}
@@ -504,6 +511,7 @@ public class NetherTools implements Listener {
 				level = Integer.parseInt(split[1]);
 			} catch (NumberFormatException ex) {
 				LogUtils.severe(String.format("Invalid quantity: %s!", split[1]));
+				continue;
 			}
 			tool.addEnchantment(enchantment, level, false);
 		}
@@ -539,6 +547,7 @@ public class NetherTools implements Listener {
 				level = Integer.parseInt(split[1]);
 			} catch (NumberFormatException ex) {
 				LogUtils.severe(String.format("Invalid quantity: %s!", split[1]));
+				continue;
 			}
 			tool.addEnchantment(enchantment, level, false);
 		}
@@ -574,6 +583,7 @@ public class NetherTools implements Listener {
 				level = Integer.parseInt(split[1]);
 			} catch (NumberFormatException ex) {
 				LogUtils.severe(String.format("Invalid quantity: %s!", split[1]));
+				continue;
 			}
 			tool.addEnchantment(enchantment, level, false);
 		}
@@ -609,6 +619,7 @@ public class NetherTools implements Listener {
 				level = Integer.parseInt(split[1]);
 			} catch (NumberFormatException ex) {
 				LogUtils.severe(String.format("Invalid quantity: %s!", split[1]));
+				continue;
 			}
 			tool.addEnchantment(enchantment, level, false);
 		}
@@ -644,6 +655,7 @@ public class NetherTools implements Listener {
 				level = Integer.parseInt(split[1]);
 			} catch (NumberFormatException ex) {
 				LogUtils.severe(String.format("Invalid quantity: %s!", split[1]));
+				continue;
 			}
 			tool.addEnchantment(enchantment, level, false);
 		}
@@ -679,6 +691,7 @@ public class NetherTools implements Listener {
 				level = Integer.parseInt(split[1]);
 			} catch (NumberFormatException ex) {
 				LogUtils.severe(String.format("Invalid quantity: %s!", split[1]));
+				continue;
 			}
 			tool.addEnchantment(enchantment, level, false);
 		}
@@ -713,6 +726,7 @@ public class NetherTools implements Listener {
 				level = Integer.parseInt(split[1]);
 			} catch (NumberFormatException ex) {
 				LogUtils.severe(String.format("Invalid quantity: %s!", split[1]));
+				continue;
 			}
 			tool.addEnchantment(enchantment, level, false);
 		}
@@ -747,6 +761,7 @@ public class NetherTools implements Listener {
 				level = Integer.parseInt(split[1]);
 			} catch (NumberFormatException ex) {
 				LogUtils.severe(String.format("Invalid quantity: %s!", split[1]));
+				continue;
 			}
 			tool.addEnchantment(enchantment, level, false);
 		}
@@ -781,6 +796,7 @@ public class NetherTools implements Listener {
 				level = Integer.parseInt(split[1]);
 			} catch (NumberFormatException ex) {
 				LogUtils.severe(String.format("Invalid quantity: %s!", split[1]));
+				continue;
 			}
 			tool.addEnchantment(enchantment, level, false);
 		}
@@ -815,6 +831,7 @@ public class NetherTools implements Listener {
 				level = Integer.parseInt(split[1]);
 			} catch (NumberFormatException ex) {
 				LogUtils.severe(String.format("Invalid quantity: %s!", split[1]));
+				continue;
 			}
 			tool.addEnchantment(enchantment, level, false);
 		}
@@ -849,6 +866,7 @@ public class NetherTools implements Listener {
 				level = Integer.parseInt(split[1]);
 			} catch (NumberFormatException ex) {
 				LogUtils.severe(String.format("Invalid quantity: %s!", split[1]));
+				continue;
 			}
 			tool.addEnchantment(enchantment, level, false);
 		}
@@ -883,6 +901,7 @@ public class NetherTools implements Listener {
 				level = Integer.parseInt(split[1]);
 			} catch (NumberFormatException ex) {
 				LogUtils.severe(String.format("Invalid quantity: %s!", split[1]));
+				continue;
 			}
 			tool.addEnchantment(enchantment, level, false);
 		}
@@ -917,6 +936,7 @@ public class NetherTools implements Listener {
 				level = Integer.parseInt(split[1]);
 			} catch (NumberFormatException ex) {
 				LogUtils.severe(String.format("Invalid quantity: %s!", split[1]));
+				continue;
 			}
 			tool.addEnchantment(enchantment, level, false);
 		}
@@ -951,6 +971,7 @@ public class NetherTools implements Listener {
 				level = Integer.parseInt(split[1]);
 			} catch (NumberFormatException ex) {
 				LogUtils.severe(String.format("Invalid quantity: %s!", split[1]));
+				continue;
 			}
 			tool.addEnchantment(enchantment, level, false);
 		}
@@ -985,6 +1006,7 @@ public class NetherTools implements Listener {
 				level = Integer.parseInt(split[1]);
 			} catch (NumberFormatException ex) {
 				LogUtils.severe(String.format("Invalid quantity: %s!", split[1]));
+				continue;
 			}
 			tool.addEnchantment(enchantment, level, false);
 		}
@@ -1022,6 +1044,39 @@ public class NetherTools implements Listener {
 								}
 							}
 							player.discoverRecipe(craft.getKey());
+						}
+					}
+				}
+			}
+		}
+	}
+
+	@EventHandler
+	public void onLimitedCrafting(PrepareItemCraftEvent event) {
+		if (instance.getHellblockHandler().getHellblockWorld().getGameRuleValue(GameRule.DO_LIMITED_CRAFTING)) {
+			if (event.getView().getPlayer() instanceof Player player) {
+				if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName())) {
+					return;
+				}
+
+				Recipe recipe = event.getRecipe();
+				ItemStack result = recipe.getResult();
+				if (isNetherToolEnabled(result)) {
+					if (checkToolData(result) && getToolData(result)) {
+						if (recipe instanceof CraftingRecipe craft) {
+							if (!player.hasDiscoveredRecipe(craft.getKey())) {
+								HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(player);
+								if (!pi.isChallengeActive(ChallengeType.NETHER_CRAFTING_CHALLENGE)
+										&& !pi.isChallengeCompleted(ChallengeType.NETHER_CRAFTING_CHALLENGE)) {
+									pi.beginChallengeProgression(ChallengeType.NETHER_CRAFTING_CHALLENGE);
+								} else {
+									pi.updateChallengeProgression(ChallengeType.NETHER_CRAFTING_CHALLENGE, 1);
+									if (pi.isChallengeCompleted(ChallengeType.NETHER_CRAFTING_CHALLENGE)) {
+										pi.completeChallenge(ChallengeType.NETHER_CRAFTING_CHALLENGE);
+									}
+								}
+								player.discoverRecipe(craft.getKey());
+							}
 						}
 					}
 				}
