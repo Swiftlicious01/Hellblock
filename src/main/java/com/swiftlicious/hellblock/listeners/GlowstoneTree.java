@@ -26,7 +26,7 @@ import org.bukkit.inventory.ItemStack;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.challenges.HellblockChallenge.ChallengeType;
-import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
+import com.swiftlicious.hellblock.player.OnlineUser;
 import com.swiftlicious.hellblock.utils.RandomUtils;
 
 import lombok.NonNull;
@@ -60,14 +60,20 @@ public class GlowstoneTree implements Listener {
 			final Player player = event.getPlayer();
 			if (player != null && event.isFromBonemeal() && !event.getBlocks().isEmpty()
 					&& !event.getBlocks().stream().anyMatch(state -> state.getBlockData() instanceof Sapling)) {
-				HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(player);
-				if (!pi.isChallengeActive(ChallengeType.GLOWSTONE_TREE_CHALLENGE)
-						&& !pi.isChallengeCompleted(ChallengeType.GLOWSTONE_TREE_CHALLENGE)) {
-					pi.beginChallengeProgression(ChallengeType.GLOWSTONE_TREE_CHALLENGE);
+				OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
+				if (onlineUser == null)
+					return;
+				if (!onlineUser.getHellblockData().isChallengeActive(ChallengeType.GLOWSTONE_TREE_CHALLENGE)
+						&& !onlineUser.getHellblockData()
+								.isChallengeCompleted(ChallengeType.GLOWSTONE_TREE_CHALLENGE)) {
+					onlineUser.getHellblockData().beginChallengeProgression(onlineUser.getPlayer(),
+							ChallengeType.GLOWSTONE_TREE_CHALLENGE);
 				} else {
-					pi.updateChallengeProgression(ChallengeType.GLOWSTONE_TREE_CHALLENGE, 1);
-					if (pi.isChallengeCompleted(ChallengeType.GLOWSTONE_TREE_CHALLENGE)) {
-						pi.completeChallenge(ChallengeType.GLOWSTONE_TREE_CHALLENGE);
+					onlineUser.getHellblockData().updateChallengeProgression(onlineUser.getPlayer(),
+							ChallengeType.GLOWSTONE_TREE_CHALLENGE, 1);
+					if (onlineUser.getHellblockData().isChallengeCompleted(ChallengeType.GLOWSTONE_TREE_CHALLENGE)) {
+						onlineUser.getHellblockData().completeChallenge(onlineUser.getPlayer(),
+								ChallengeType.GLOWSTONE_TREE_CHALLENGE);
 					}
 				}
 			}
@@ -82,14 +88,21 @@ public class GlowstoneTree implements Listener {
 					// growing.
 					if (player != null && event.isFromBonemeal() && !event.getBlocks().isEmpty()
 							&& !event.getBlocks().stream().anyMatch(state -> state.getBlockData() instanceof Sapling)) {
-						HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(player);
-						if (!pi.isChallengeActive(ChallengeType.GLOWSTONE_TREE_CHALLENGE)
-								&& !pi.isChallengeCompleted(ChallengeType.GLOWSTONE_TREE_CHALLENGE)) {
-							pi.beginChallengeProgression(ChallengeType.GLOWSTONE_TREE_CHALLENGE);
+						OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
+						if (onlineUser == null)
+							return;
+						if (!onlineUser.getHellblockData().isChallengeActive(ChallengeType.GLOWSTONE_TREE_CHALLENGE)
+								&& !onlineUser.getHellblockData()
+										.isChallengeCompleted(ChallengeType.GLOWSTONE_TREE_CHALLENGE)) {
+							onlineUser.getHellblockData().beginChallengeProgression(onlineUser.getPlayer(),
+									ChallengeType.GLOWSTONE_TREE_CHALLENGE);
 						} else {
-							pi.updateChallengeProgression(ChallengeType.GLOWSTONE_TREE_CHALLENGE, 1);
-							if (pi.isChallengeCompleted(ChallengeType.GLOWSTONE_TREE_CHALLENGE)) {
-								pi.completeChallenge(ChallengeType.GLOWSTONE_TREE_CHALLENGE);
+							onlineUser.getHellblockData().updateChallengeProgression(onlineUser.getPlayer(),
+									ChallengeType.GLOWSTONE_TREE_CHALLENGE, 1);
+							if (onlineUser.getHellblockData()
+									.isChallengeCompleted(ChallengeType.GLOWSTONE_TREE_CHALLENGE)) {
+								onlineUser.getHellblockData().completeChallenge(onlineUser.getPlayer(),
+										ChallengeType.GLOWSTONE_TREE_CHALLENGE);
 							}
 						}
 					}
@@ -150,7 +163,6 @@ public class GlowstoneTree implements Listener {
 		ItemStack inHand = event.getItem();
 		int randomChance = RandomUtils.generateRandomInt(1, 3);
 		if (inHand != null && block != null) {
-			HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(id);
 			if (event.getBlockFace() == BlockFace.UP && block.getType() == Material.SOUL_SAND
 					&& block.getRelative(BlockFace.UP).getType().isAir()) {
 				if (inHand.getType() == Material.GLOWSTONE_DUST) {
@@ -177,14 +189,23 @@ public class GlowstoneTree implements Listener {
 							RandomUtils.generateRandomInt(2, 5));
 					if (canGrow(block)) {
 						if (randomChance == RandomUtils.generateRandomInt(2, 4)) {
+							OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(id);
+							if (onlineUser == null)
+								return;
 							instance.getIslandGenerator().generateGlowstoneTree(block.getLocation()).thenRun(() -> {
-								if (!pi.isChallengeActive(ChallengeType.GLOWSTONE_TREE_CHALLENGE)
-										&& !pi.isChallengeCompleted(ChallengeType.GLOWSTONE_TREE_CHALLENGE)) {
-									pi.beginChallengeProgression(ChallengeType.GLOWSTONE_TREE_CHALLENGE);
+								if (!onlineUser.getHellblockData()
+										.isChallengeActive(ChallengeType.GLOWSTONE_TREE_CHALLENGE)
+										&& !onlineUser.getHellblockData()
+												.isChallengeCompleted(ChallengeType.GLOWSTONE_TREE_CHALLENGE)) {
+									onlineUser.getHellblockData().beginChallengeProgression(onlineUser.getPlayer(),
+											ChallengeType.GLOWSTONE_TREE_CHALLENGE);
 								} else {
-									pi.updateChallengeProgression(ChallengeType.GLOWSTONE_TREE_CHALLENGE, 1);
-									if (pi.isChallengeCompleted(ChallengeType.GLOWSTONE_TREE_CHALLENGE)) {
-										pi.completeChallenge(ChallengeType.GLOWSTONE_TREE_CHALLENGE);
+									onlineUser.getHellblockData().updateChallengeProgression(onlineUser.getPlayer(),
+											ChallengeType.GLOWSTONE_TREE_CHALLENGE, 1);
+									if (onlineUser.getHellblockData()
+											.isChallengeCompleted(ChallengeType.GLOWSTONE_TREE_CHALLENGE)) {
+										onlineUser.getHellblockData().completeChallenge(onlineUser.getPlayer(),
+												ChallengeType.GLOWSTONE_TREE_CHALLENGE);
 									}
 								}
 							});

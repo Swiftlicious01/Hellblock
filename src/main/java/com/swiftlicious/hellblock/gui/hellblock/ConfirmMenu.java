@@ -10,10 +10,12 @@ import org.bukkit.event.inventory.InventoryClickEvent;
 import org.jetbrains.annotations.NotNull;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.config.HBLocale;
 import com.swiftlicious.hellblock.gui.icon.BackGroundItem;
-import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
+import com.swiftlicious.hellblock.player.OnlineUser;
 import com.swiftlicious.hellblock.utils.wrappers.ShadedAdventureComponentWrapper;
 
+import lombok.NonNull;
 import xyz.xenondevs.invui.gui.Gui;
 import xyz.xenondevs.invui.item.ItemProvider;
 import xyz.xenondevs.invui.item.builder.ItemBuilder;
@@ -23,6 +25,13 @@ import xyz.xenondevs.invui.window.Window;
 public class ConfirmMenu {
 
 	public ConfirmMenu(Player player, String action) {
+
+		OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager().getOnlineUser(player.getUniqueId());
+		if (onlineUser == null) {
+			HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
+					"<red>Still loading your player data... please try again in a few seconds.");
+			return;
+		}
 
 		Gui gui = Gui.normal().setStructure(" # c # d # ").addIngredient('c', new ConfirmItem(action))
 				.addIngredient('d', new DenyItem(action)).addIngredient('#', new BackGroundItem()).build();
@@ -39,7 +48,7 @@ public class ConfirmMenu {
 
 		private final String action;
 
-		public ConfirmItem(String action) {
+		public ConfirmItem(@NonNull String action) {
 			this.action = action;
 		}
 
@@ -56,27 +65,43 @@ public class ConfirmMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
-			if (!pi.hasHellblock()) {
+			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+					.getOnlineUser(player.getUniqueId());
+			if (onlineUser == null)
+				return;
+			if (!onlineUser.getHellblockData().hasHellblock()) {
 				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-						"<red>You don't have a hellblock!");
+						HBLocale.MSG_Hellblock_Not_Found);
 				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
 						net.kyori.adventure.sound.Sound.Source.PLAYER,
 						net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 				return;
 			}
-			if (pi.getHellblockOwner() != null && !pi.getHellblockOwner().equals(player.getUniqueId())) {
+			if (onlineUser.getHellblockData().getOwnerUUID() == null) {
+				throw new NullPointerException("Owner reference returned null, please report this to the developer.");
+			}
+			if (onlineUser.getHellblockData().getOwnerUUID() != null
+					&& !onlineUser.getHellblockData().getOwnerUUID().equals(player.getUniqueId())) {
 				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-						"<red>You don't own this hellblock!");
+						HBLocale.MSG_Not_Owner_Of_Hellblock);
 				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
 						net.kyori.adventure.sound.Sound.Source.PLAYER,
 						net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 				return;
 			}
-			if (pi.getResetCooldown() > 0) {
+			if (onlineUser.getHellblockData().isAbandoned()) {
+				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+						HBLocale.MSG_Hellblock_Is_Abandoned);
+				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
+						net.kyori.adventure.sound.Sound.Source.PLAYER,
+						net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
+				return;
+			}
+			if (onlineUser.getHellblockData().getResetCooldown() > 0) {
 				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 						String.format("<red>You've recently reset your hellblock already, you must wait for %s!",
-								HellblockPlugin.getInstance().getFormattedCooldown(pi.getResetCooldown())));
+								HellblockPlugin.getInstance()
+										.getFormattedCooldown(onlineUser.getHellblockData().getResetCooldown())));
 				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
 						net.kyori.adventure.sound.Sound.Source.PLAYER,
 						net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);

@@ -48,7 +48,6 @@ public class HookCheckTimerTask implements Runnable {
 	private int jumpTimer;
 	private Entity hookedEntity;
 	private Loot loot;
-	@SuppressWarnings("unused")
 	private boolean inLava;
 
 	/**
@@ -274,5 +273,9 @@ public class HookCheckTimerTask implements Runnable {
 	 */
 	public boolean isFishHooked() {
 		return fishHooked;
+	}
+	
+	public boolean isHookInLava() {
+		return inLava;
 	}
 }

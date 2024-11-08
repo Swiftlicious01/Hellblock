@@ -1,4 +1,4 @@
-package com.swiftlicious.hellblock.playerdata;
+package com.swiftlicious.hellblock.player;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;

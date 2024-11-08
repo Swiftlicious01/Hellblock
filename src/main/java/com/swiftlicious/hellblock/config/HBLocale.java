@@ -21,7 +21,6 @@ public class HBLocale {
 
 	public static String MSG_Total_Size;
 	public static String MSG_Catch_Amount;
-	public static String MSG_Total_Score;
 	public static String MSG_Max_Size;
 	public static String MSG_No_Player;
 	public static String MSG_Prefix;
@@ -29,10 +28,16 @@ public class HBLocale {
 	public static String MSG_Item_Not_Exists;
 	public static String MSG_Get_Item;
 	public static String MSG_Give_Item;
+    public static String MSG_Never_Played;
+    public static String MSG_Unsafe_Modification;
 	public static String MSG_Data_Not_Loaded;
 	public static String MSG_Market_GUI_Open;
 	public static String MSG_Split_Char;
 	public static String MSG_Possible_Loots;
+	
+	public static String MSG_Hellblock_Not_Found;
+	public static String MSG_Hellblock_Is_Abandoned;
+	public static String MSG_Not_Owner_Of_Hellblock;
 	
 	public static String FORMAT_Day;
 	public static String FORMAT_Hour;
@@ -138,11 +143,12 @@ public class HBLocale {
 			MSG_No_Player = msgSection.getString("no-player");
 			MSG_Catch_Amount = msgSection.getString("goal-catch-amount");
 			MSG_Max_Size = msgSection.getString("goal-max-size");
-			MSG_Total_Score = msgSection.getString("goal-total-score");
 			MSG_Total_Size = msgSection.getString("goal-total-size");
 			MSG_Item_Not_Exists = msgSection.getString("item-not-exist");
 			MSG_Get_Item = msgSection.getString("get-item");
 			MSG_Give_Item = msgSection.getString("give-item");
+            MSG_Never_Played = msgSection.getString("never-played");
+            MSG_Unsafe_Modification = msgSection.getString("unsafe-modification");
 			MSG_Data_Not_Loaded = msgSection.getString("data-not-loaded");
 			MSG_Market_GUI_Open = msgSection.getString("open-market-gui");
 			MSG_Split_Char = msgSection.getString("split-char");
@@ -151,6 +157,9 @@ public class HBLocale {
 			FORMAT_Hour = msgSection.getString("format-hour");
 			FORMAT_Minute = msgSection.getString("format-minute");
 			FORMAT_Second = msgSection.getString("format-second");
+			MSG_Hellblock_Not_Found = msgSection.getString("hellblock-not-found");
+			MSG_Hellblock_Is_Abandoned = msgSection.getString("hellblock-is-abandoned");
+			MSG_Not_Owner_Of_Hellblock = msgSection.getString("not-owner-of-hellblock");
 		}
 		ConfigurationSection guiSection = locale.getConfigurationSection("gui");
 		if (guiSection != null) {

@@ -22,7 +22,7 @@ import org.bukkit.inventory.ItemStack;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.challenges.HellblockChallenge.ChallengeType;
-import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
+import com.swiftlicious.hellblock.player.OnlineUser;
 import com.swiftlicious.hellblock.utils.LogUtils;
 import com.swiftlicious.hellblock.utils.RandomUtils;
 
@@ -138,14 +138,20 @@ public class PiglinBartering implements Listener {
 				}
 			}
 			if (playerUUID != null) {
-				HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(playerUUID);
-				if (!pi.isChallengeActive(ChallengeType.NETHER_TRADING_CHALLENGE)
-						&& !pi.isChallengeCompleted(ChallengeType.NETHER_TRADING_CHALLENGE)) {
-					pi.beginChallengeProgression(ChallengeType.NETHER_TRADING_CHALLENGE);
+				OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(playerUUID);
+				if (onlineUser == null)
+					return;
+				if (!onlineUser.getHellblockData().isChallengeActive(ChallengeType.NETHER_TRADING_CHALLENGE)
+						&& !onlineUser.getHellblockData()
+								.isChallengeCompleted(ChallengeType.NETHER_TRADING_CHALLENGE)) {
+					onlineUser.getHellblockData().beginChallengeProgression(onlineUser.getPlayer(),
+							ChallengeType.NETHER_TRADING_CHALLENGE);
 				} else {
-					pi.updateChallengeProgression(ChallengeType.NETHER_TRADING_CHALLENGE, 1);
-					if (pi.isChallengeCompleted(ChallengeType.NETHER_TRADING_CHALLENGE)) {
-						pi.completeChallenge(ChallengeType.NETHER_TRADING_CHALLENGE);
+					onlineUser.getHellblockData().updateChallengeProgression(onlineUser.getPlayer(),
+							ChallengeType.NETHER_TRADING_CHALLENGE, 1);
+					if (onlineUser.getHellblockData().isChallengeCompleted(ChallengeType.NETHER_TRADING_CHALLENGE)) {
+						onlineUser.getHellblockData().completeChallenge(onlineUser.getPlayer(),
+								ChallengeType.NETHER_TRADING_CHALLENGE);
 					}
 				}
 				barterTracker.get(playerUUID).remove(piglin.getUniqueId());

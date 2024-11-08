@@ -34,7 +34,7 @@ import org.jetbrains.annotations.Nullable;
 
 import com.saicone.rtag.RtagItem;
 import com.swiftlicious.hellblock.HellblockPlugin;
-import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
+import com.swiftlicious.hellblock.player.OnlineUser;
 import com.swiftlicious.hellblock.utils.LogUtils;
 import com.swiftlicious.hellblock.utils.wrappers.ShadedAdventureComponentWrapper;
 
@@ -58,12 +58,13 @@ public class IslandGenerator {
 	public CompletableFuture<Void> generateHellblockSchematic(@NonNull Location location, @NonNull Player player,
 			@NonNull String schematic) {
 		return CompletableFuture.runAsync(() -> {
-			HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(player);
+			OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
+			if (onlineUser == null)
+				return;
 			World world = instance.getHellblockHandler().getHellblockWorld();
 			if (instance.getHellblockHandler().isWorldguardProtected()) {
-				instance.getSchematicManager()
-						.pasteSchematic(schematic, instance.getWorldGuardHandler().getRegion(pi.getUUID(), pi.getID()))
-						.thenRunAsync(() -> {
+				instance.getSchematicManager().pasteSchematic(schematic, instance.getWorldGuardHandler()
+						.getRegion(onlineUser.getUUID(), onlineUser.getHellblockData().getID())).thenRunAsync(() -> {
 							for (int x = -15; x <= 15; ++x) {
 								for (int y = -15; y <= 15; ++y) {
 									for (int z = -15; z <= 15; ++z) {
@@ -363,9 +364,10 @@ public class IslandGenerator {
 		int z = location.getBlockZ();
 		Block block = world.getBlockAt(x, y, z);
 		block.setType(Material.CHEST);
+		OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
 		Directional directional = (Directional) block.getBlockData();
-		directional.setFacing(
-				getChestDirection(location, instance.getHellblockHandler().getActivePlayer(player).getIslandChoice()));
+		if (onlineUser != null)
+			directional.setFacing(getChestDirection(location, onlineUser.getHellblockData().getIslandChoice()));
 		block.setBlockData(directional);
 		Chest chest = (Chest) block.getState();
 		String chestName = instance.getConfig("config.yml").getString("hellblock.starter-chest.inventory-name");

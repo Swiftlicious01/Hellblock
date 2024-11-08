@@ -16,7 +16,7 @@ import com.swiftlicious.hellblock.commands.sub.HellblockUserCommand;
 import com.swiftlicious.hellblock.commands.sub.ItemCommand;
 import com.swiftlicious.hellblock.config.HBLocale;
 import com.swiftlicious.hellblock.gui.hellblock.HellblockMenu;
-import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
+import com.swiftlicious.hellblock.player.OnlineUser;
 
 import dev.jorel.commandapi.CommandAPICommand;
 import dev.jorel.commandapi.CommandPermission;
@@ -62,10 +62,11 @@ public class CommandManager implements CommandManagerInterface {
 		if (command.getArguments().isEmpty()) {
 			command.withPermission(CommandPermission.NONE).withPermission("hellblock.user")
 					.executesPlayer((player, args) -> {
-						HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(player);
-						if (pi.isAbandoned()) {
-							instance.getAdventureManager().sendMessageWithPrefix(player,
-									"<red>This hellblock is abandoned, you can't do anything until it's recovered!");
+						OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+								.getOnlineUser(player.getUniqueId());
+						if (onlineUser == null) {
+							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
+									"<red>Still loading your player data... please try again in a few seconds.");
 							return;
 						}
 						new HellblockMenu(player);

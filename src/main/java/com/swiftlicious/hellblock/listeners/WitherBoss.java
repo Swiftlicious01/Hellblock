@@ -21,7 +21,7 @@ import org.bukkit.event.entity.EntityExplodeEvent;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.challenges.HellblockChallenge.ChallengeType;
-import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
+import com.swiftlicious.hellblock.player.OnlineUser;
 import com.swiftlicious.hellblock.utils.RandomUtils;
 
 import lombok.Getter;
@@ -138,14 +138,19 @@ public class WitherBoss implements Listener {
 		getWitherHandler().removeWither(wither);
 		if (wither.getKiller() != null) {
 			Player player = wither.getKiller();
-			HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(player);
-			if (!pi.isChallengeActive(ChallengeType.ENHANCED_WITHER_CHALLENGE)
-					&& !pi.isChallengeCompleted(ChallengeType.ENHANCED_WITHER_CHALLENGE)) {
-				pi.beginChallengeProgression(ChallengeType.ENHANCED_WITHER_CHALLENGE);
+			OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
+			if (onlineUser == null)
+				return;
+			if (!onlineUser.getHellblockData().isChallengeActive(ChallengeType.ENHANCED_WITHER_CHALLENGE)
+					&& !onlineUser.getHellblockData().isChallengeCompleted(ChallengeType.ENHANCED_WITHER_CHALLENGE)) {
+				onlineUser.getHellblockData().beginChallengeProgression(onlineUser.getPlayer(),
+						ChallengeType.ENHANCED_WITHER_CHALLENGE);
 			} else {
-				pi.updateChallengeProgression(ChallengeType.ENHANCED_WITHER_CHALLENGE, 1);
-				if (pi.isChallengeCompleted(ChallengeType.ENHANCED_WITHER_CHALLENGE)) {
-					pi.completeChallenge(ChallengeType.ENHANCED_WITHER_CHALLENGE);
+				onlineUser.getHellblockData().updateChallengeProgression(onlineUser.getPlayer(),
+						ChallengeType.ENHANCED_WITHER_CHALLENGE, 1);
+				if (onlineUser.getHellblockData().isChallengeCompleted(ChallengeType.ENHANCED_WITHER_CHALLENGE)) {
+					onlineUser.getHellblockData().completeChallenge(onlineUser.getPlayer(),
+							ChallengeType.ENHANCED_WITHER_CHALLENGE);
 				}
 			}
 		}

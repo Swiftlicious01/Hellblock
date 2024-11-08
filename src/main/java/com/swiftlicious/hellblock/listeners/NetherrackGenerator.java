@@ -1,7 +1,5 @@
 package com.swiftlicious.hellblock.listeners;
 
-import java.io.File;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -17,7 +15,6 @@ import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.block.data.Levelled;
-import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -39,7 +36,7 @@ import com.swiftlicious.hellblock.listeners.generator.GenMode;
 import com.swiftlicious.hellblock.listeners.generator.GenPiston;
 import com.swiftlicious.hellblock.listeners.generator.GeneratorManager;
 import com.swiftlicious.hellblock.listeners.generator.GeneratorModeManager;
-import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
+import com.swiftlicious.hellblock.player.OnlineUser;
 import com.swiftlicious.hellblock.utils.LogUtils;
 import com.swiftlicious.hellblock.utils.StringUtils;
 
@@ -91,8 +88,7 @@ public class NetherrackGenerator implements Listener {
 
 		if (fromBlockMaterial == Material.LAVA) {
 			// TODO: make other positioned generators work
-			if (toBlockMaterial.isAir() && !isLavaPool(toBlock.getLocation())
-					&& (normalGenerator)) {
+			if (toBlockMaterial.isAir() && !isLavaPool(toBlock.getLocation()) && (normalGenerator)) {
 				Location l = toBlock.getLocation();
 				if (l.getWorld() == null)
 					return;
@@ -137,6 +133,8 @@ public class NetherrackGenerator implements Listener {
 						result = getRandomResult();
 					} else if (mode.hasFallBackMaterial()) {
 						result = mode.getFallbackMaterial();
+					} else {
+						throw new NullPointerException("Couldn't produce any material during lava flow generation.");
 					}
 
 					GeneratorGenerateEvent genEvent = new GeneratorGenerateEvent(mode, result, uuid,
@@ -256,14 +254,20 @@ public class NetherrackGenerator implements Listener {
 			Bukkit.getPluginManager().callEvent(genEvent);
 			if (genEvent.isCancelled())
 				return;
-			HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(player);
-			if (!pi.isChallengeActive(ChallengeType.NETHERRACK_GENERATOR_CHALLENGE)
-					&& !pi.isChallengeCompleted(ChallengeType.NETHERRACK_GENERATOR_CHALLENGE)) {
-				pi.beginChallengeProgression(ChallengeType.NETHERRACK_GENERATOR_CHALLENGE);
+			OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
+			if (onlineUser == null)
+				return;
+			if (!onlineUser.getHellblockData().isChallengeActive(ChallengeType.NETHERRACK_GENERATOR_CHALLENGE)
+					&& !onlineUser.getHellblockData()
+							.isChallengeCompleted(ChallengeType.NETHERRACK_GENERATOR_CHALLENGE)) {
+				onlineUser.getHellblockData().beginChallengeProgression(onlineUser.getPlayer(),
+						ChallengeType.NETHERRACK_GENERATOR_CHALLENGE);
 			} else {
-				pi.updateChallengeProgression(ChallengeType.NETHERRACK_GENERATOR_CHALLENGE, 1);
-				if (pi.isChallengeCompleted(ChallengeType.NETHERRACK_GENERATOR_CHALLENGE)) {
-					pi.completeChallenge(ChallengeType.NETHERRACK_GENERATOR_CHALLENGE);
+				onlineUser.getHellblockData().updateChallengeProgression(onlineUser.getPlayer(),
+						ChallengeType.NETHERRACK_GENERATOR_CHALLENGE, 1);
+				if (onlineUser.getHellblockData().isChallengeCompleted(ChallengeType.NETHERRACK_GENERATOR_CHALLENGE)) {
+					onlineUser.getHellblockData().completeChallenge(onlineUser.getPlayer(),
+							ChallengeType.NETHERRACK_GENERATOR_CHALLENGE);
 				}
 			}
 			genManager.setPlayerForLocation(player.getUniqueId(), location, false);
@@ -321,6 +325,8 @@ public class NetherrackGenerator implements Listener {
 		for (String result : this.getGenerationResults()) {
 			String[] split = result.split(":");
 			Material type = Material.getMaterial(split[0].toUpperCase());
+			if (type == null || type == Material.AIR)
+				continue;
 			double chance = 0.0D;
 			try {
 				chance = Double.parseDouble(split[1]);
@@ -329,7 +335,7 @@ public class NetherrackGenerator implements Listener {
 						split[0]), ex);
 				continue;
 			}
-			results.put(type != null ? type : Material.NETHERRACK, chance);
+			results.put(type, chance);
 		}
 		return results;
 	}
@@ -366,15 +372,10 @@ public class NetherrackGenerator implements Listener {
 					locations.add(serializedLoc);
 			}
 			if (!locations.isEmpty()) {
-				HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(id);
-				File playerFile = pi.getPlayerFile();
-				YamlConfiguration playerConfig = pi.getHellblockPlayer();
-				playerConfig.set("player.pistons", locations);
-				try {
-					playerConfig.save(playerFile);
-				} catch (IOException ex) {
-					LogUtils.severe(String.format("Unable to save player file for %s!", pi.getPlayer().getName()), ex);
-				}
+				OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(id);
+				if (onlineUser == null)
+					return;
+				onlineUser.getPlayerData().setPistonLocations(locations);
 			}
 		}
 	}
@@ -383,36 +384,31 @@ public class NetherrackGenerator implements Listener {
 		if (!instance.getConfig("config.yml").getConfigurationSection("netherrack-generator-options.automation")
 				.getBoolean("pistons", false))
 			return;
-		HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(id);
-		File playerFile = pi.getPlayerFile();
-		YamlConfiguration playerConfig = pi.getHellblockPlayer();
-		List<String> locations = playerConfig.getStringList("player.pistons");
+		OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(id);
+		if (onlineUser == null)
+			return;
+		List<String> locations = onlineUser.getPlayerData().getPistonLocations();
 
-		for (String stringLoc : locations) {
-			Location loc = StringUtils.deserializeLoc(stringLoc);
-			if (loc == null) {
-				LogUtils.warn(
-						String.format("Unknown location in players folder under UUID: %s.pistons: ", id + stringLoc));
-				continue;
-			}
-			World world = loc.getWorld();
-			if (world == null) {
-				LogUtils.warn(String.format("Unknown world in players folder under UUID: %s.pistons: ", id, stringLoc));
-				continue;
-			}
-			if (loc.getWorld().getBlockAt(loc).getType() != Material.PISTON)
-				continue;
-			genManager.getKnownGenPistons().remove(loc);
-			GenPiston piston = new GenPiston(loc, id);
-			piston.setHasBeenUsed(true);
-			genManager.addKnownGenPiston(piston);
-			playerConfig.set("player.pistons", null);
-			try {
-				playerConfig.save(playerFile);
-			} catch (IOException ex) {
-				LogUtils.severe(String.format("Unable to save player file for %s!", pi.getPlayer().getName()), ex);
+		if (locations != null) {
+			for (String stringLoc : locations) {
+				Location loc = StringUtils.deserializeLoc(stringLoc);
+				if (loc == null) {
+					LogUtils.warn(String.format("Unknown piston location under UUID: %s: ", id) + stringLoc);
+					continue;
+				}
+				World world = loc.getWorld();
+				if (world == null) {
+					LogUtils.warn(String.format("Unknown piston world under UUID: %s: ", id) + stringLoc);
+					continue;
+				}
+				if (loc.getWorld().getBlockAt(loc).getType() != Material.PISTON)
+					continue;
+				genManager.getKnownGenPistons().remove(loc);
+				GenPiston piston = new GenPiston(loc, id);
+				piston.setHasBeenUsed(true);
+				genManager.addKnownGenPiston(piston);
+				onlineUser.getPlayerData().setPistonLocations(new ArrayList<>());
 			}
 		}
-
 	}
 }

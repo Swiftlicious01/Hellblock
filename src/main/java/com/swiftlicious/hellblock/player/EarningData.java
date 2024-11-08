@@ -1,4 +1,4 @@
-package com.swiftlicious.hellblock.playerdata;
+package com.swiftlicious.hellblock.player;
 
 import com.google.gson.annotations.SerializedName;
 
@@ -14,7 +14,23 @@ public class EarningData {
 		this.date = date;
 	}
 
+	public double getEarnings() {
+		return this.earnings;
+	}
+
+	public int getDate() {
+		return this.date;
+	}
+
+	public void setEarnings(double earnings) {
+		this.earnings = earnings;
+	}
+
+	public void setDate(int date) {
+		this.date = date;
+	}
+
 	public static EarningData empty() {
-		return new EarningData(0d, 0);
+		return new EarningData(0.0D, 0);
 	}
 }

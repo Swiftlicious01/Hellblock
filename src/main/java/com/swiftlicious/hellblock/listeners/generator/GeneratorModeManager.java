@@ -32,7 +32,7 @@ public class GeneratorModeManager {
 			Material fallbackMaterial = null;
 			if (section.contains("fallback")) {
 				fallbackMaterial = Material
-						.getMaterial(Objects.requireNonNull(section.getString("fallback", "NETHERRACK")).toUpperCase());
+						.getMaterial(Objects.requireNonNull(section.getString("fallback", "NETHERRACK").toUpperCase()));
 				if (fallbackMaterial == null) {
 					LogUtils.severe(
 							String.format("%s is not a valid fallback material.", section.getString("fallback")));

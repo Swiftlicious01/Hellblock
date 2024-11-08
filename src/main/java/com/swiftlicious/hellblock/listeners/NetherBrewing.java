@@ -39,7 +39,7 @@ import xyz.xenondevs.invui.item.builder.PotionBuilder;
 import com.saicone.rtag.RtagItem;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.challenges.HellblockChallenge.ChallengeType;
-import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
+import com.swiftlicious.hellblock.player.OnlineUser;
 import com.swiftlicious.hellblock.utils.RandomUtils;
 import com.swiftlicious.hellblock.utils.wrappers.ShadedAdventureComponentWrapper;
 
@@ -148,14 +148,20 @@ public class NetherBrewing implements Listener {
 				instance.getAdventureManager().sendSound(player, net.kyori.adventure.sound.Sound.Source.PLAYER,
 						net.kyori.adventure.key.Key.key("minecraft:item.bottle.fill"), 1, 1);
 				player.updateInventory();
-				HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(player);
-				if (!pi.isChallengeActive(ChallengeType.NETHER_BREWING_CHALLENGE)
-						&& !pi.isChallengeCompleted(ChallengeType.NETHER_BREWING_CHALLENGE)) {
-					pi.beginChallengeProgression(ChallengeType.NETHER_BREWING_CHALLENGE);
+				OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
+				if (onlineUser == null)
+					return;
+				if (!onlineUser.getHellblockData().isChallengeActive(ChallengeType.NETHER_BREWING_CHALLENGE)
+						&& !onlineUser.getHellblockData()
+								.isChallengeCompleted(ChallengeType.NETHER_BREWING_CHALLENGE)) {
+					onlineUser.getHellblockData().beginChallengeProgression(onlineUser.getPlayer(),
+							ChallengeType.NETHER_BREWING_CHALLENGE);
 				} else {
-					pi.updateChallengeProgression(ChallengeType.NETHER_BREWING_CHALLENGE, 1);
-					if (pi.isChallengeCompleted(ChallengeType.NETHER_BREWING_CHALLENGE)) {
-						pi.completeChallenge(ChallengeType.NETHER_BREWING_CHALLENGE);
+					onlineUser.getHellblockData().updateChallengeProgression(onlineUser.getPlayer(),
+							ChallengeType.NETHER_BREWING_CHALLENGE, 1);
+					if (onlineUser.getHellblockData().isChallengeCompleted(ChallengeType.NETHER_BREWING_CHALLENGE)) {
+						onlineUser.getHellblockData().completeChallenge(onlineUser.getPlayer(),
+								ChallengeType.NETHER_BREWING_CHALLENGE);
 					}
 				}
 			}
@@ -195,14 +201,20 @@ public class NetherBrewing implements Listener {
 						net.kyori.adventure.key.Key.key("minecraft:item.bottle.fill"), 1, 1);
 				player.updateInventory();
 				clicked.setType(Material.CAULDRON);
-				HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(player);
-				if (!pi.isChallengeActive(ChallengeType.NETHER_BREWING_CHALLENGE)
-						&& !pi.isChallengeCompleted(ChallengeType.NETHER_BREWING_CHALLENGE)) {
-					pi.beginChallengeProgression(ChallengeType.NETHER_BREWING_CHALLENGE);
+				OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
+				if (onlineUser == null)
+					return;
+				if (!onlineUser.getHellblockData().isChallengeActive(ChallengeType.NETHER_BREWING_CHALLENGE)
+						&& !onlineUser.getHellblockData()
+								.isChallengeCompleted(ChallengeType.NETHER_BREWING_CHALLENGE)) {
+					onlineUser.getHellblockData().beginChallengeProgression(onlineUser.getPlayer(),
+							ChallengeType.NETHER_BREWING_CHALLENGE);
 				} else {
-					pi.updateChallengeProgression(ChallengeType.NETHER_BREWING_CHALLENGE, 4);
-					if (pi.isChallengeCompleted(ChallengeType.NETHER_BREWING_CHALLENGE)) {
-						pi.completeChallenge(ChallengeType.NETHER_BREWING_CHALLENGE);
+					onlineUser.getHellblockData().updateChallengeProgression(onlineUser.getPlayer(),
+							ChallengeType.NETHER_BREWING_CHALLENGE, 4);
+					if (onlineUser.getHellblockData().isChallengeCompleted(ChallengeType.NETHER_BREWING_CHALLENGE)) {
+						onlineUser.getHellblockData().completeChallenge(onlineUser.getPlayer(),
+								ChallengeType.NETHER_BREWING_CHALLENGE);
 					}
 				}
 			}

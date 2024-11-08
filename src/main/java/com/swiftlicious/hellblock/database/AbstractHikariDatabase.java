@@ -15,8 +15,8 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
-import com.swiftlicious.hellblock.playerdata.EarningData;
-import com.swiftlicious.hellblock.playerdata.PlayerData;
+import com.swiftlicious.hellblock.player.EarningData;
+import com.swiftlicious.hellblock.player.PlayerData;
 import com.swiftlicious.hellblock.utils.LogUtils;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;

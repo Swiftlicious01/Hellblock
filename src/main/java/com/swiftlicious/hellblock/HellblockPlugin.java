@@ -1,7 +1,6 @@
 package com.swiftlicious.hellblock;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
@@ -14,7 +13,6 @@ import org.bukkit.OfflinePlayer;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.HandlerList;
-import org.bukkit.event.player.PlayerTeleportEvent.TeleportCause;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.potion.PotionEffectType;
 
@@ -24,12 +22,13 @@ import com.comphenix.protocol.PacketType;
 import com.comphenix.protocol.ProtocolLibrary;
 import com.comphenix.protocol.ProtocolManager;
 import com.comphenix.protocol.events.PacketContainer;
-import com.google.common.io.Files;
 import com.swiftlicious.hellblock.api.compatibility.Metrics;
 import com.swiftlicious.hellblock.api.compatibility.WorldEditHook;
 import com.swiftlicious.hellblock.api.compatibility.WorldGuardHook;
 import com.swiftlicious.hellblock.challenges.ChallengeRewardBuilder;
 import com.swiftlicious.hellblock.commands.CommandManager;
+import com.swiftlicious.hellblock.commands.sub.HellblockAdminCommand;
+import com.swiftlicious.hellblock.commands.sub.HellblockAdminCommand.PurgeCounter;
 import com.swiftlicious.hellblock.config.HBConfig;
 import com.swiftlicious.hellblock.config.HBLocale;
 import com.swiftlicious.hellblock.coop.CoopManager;
@@ -70,14 +69,13 @@ import com.swiftlicious.hellblock.listeners.fishing.HookManager;
 import com.swiftlicious.hellblock.listeners.rain.LavaRain;
 import com.swiftlicious.hellblock.loot.LootManager;
 import com.swiftlicious.hellblock.placeholders.PlaceholderManager;
-import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
-import com.swiftlicious.hellblock.playerdata.HellblockPlayer.HellblockData;
+import com.swiftlicious.hellblock.player.HellblockData;
+import com.swiftlicious.hellblock.player.OfflineUser;
+import com.swiftlicious.hellblock.player.OnlineUser;
 import com.swiftlicious.hellblock.protection.IslandProtection;
 import com.swiftlicious.hellblock.scheduler.Scheduler;
 import com.swiftlicious.hellblock.schematic.SchematicManager;
-import com.swiftlicious.hellblock.utils.ChunkUtils;
 import com.swiftlicious.hellblock.utils.ConfigUtils;
-import com.swiftlicious.hellblock.utils.LocationUtils;
 import com.swiftlicious.hellblock.utils.LogUtils;
 import com.swiftlicious.hellblock.utils.NumberUtils;
 import com.swiftlicious.hellblock.utils.ParseUtils;
@@ -214,10 +212,8 @@ public class HellblockPlugin extends JavaPlugin {
 		this.glowstoneTreeHandler = new GlowstoneTree(this);
 		this.infiniteLavaHandler = new InfiniteLava(this);
 		this.witherBossHandler = new WitherBoss(this);
-		this.playerListener = new PlayerListener(this);
 		this.worldEditHandler = new WorldEditHook();
 		this.worldGuardHandler = new WorldGuardHook(this);
-		this.hellblockHandler = new HellblockHandler(this);
 		this.biomeHandler = new BiomeHandler(this);
 		this.islandChoiceConverter = new IslandChoiceConverter(this);
 		this.coopManager = new CoopManager(this);
@@ -238,6 +234,8 @@ public class HellblockPlugin extends JavaPlugin {
 		this.placeholderManager = new PlaceholderManager(this);
 		this.requirementManager = new RequirementManager(this);
 		this.storageManager = new StorageManager(this);
+		this.playerListener = new PlayerListener(this);
+		this.hellblockHandler = new HellblockHandler(this);
 		this.integrationManager = new IntegrationManager(this);
 		this.hookManager = new HookManager(this);
 		this.chatCatcherManager = new ChatCatcherManager(this);
@@ -276,37 +274,30 @@ public class HellblockPlugin extends JavaPlugin {
 		double time3 = (time2 - time) / 1000;
 		LogUtils.info(String.format("Took %s seconds to setup Hellblock!", time3));
 
-		getHellblockHandler().getActivePlayers().clear();
-		Player[] playerArray;
-		int totalPlayers = (playerArray = Bukkit.getOnlinePlayers().toArray(new Player[0])).length;
-
-		for (int i = 0; i < totalPlayers; ++i) {
-			Player player = playerArray[i];
+		for (OnlineUser onlineUser : getStorageManager().getOnlineUsers()) {
+			if (onlineUser == null)
+				continue;
+			Player player = onlineUser.getPlayer();
 			UUID id = player.getUniqueId();
-			HellblockPlayer pi = new HellblockPlayer(id);
-			getHellblockHandler().addActivePlayer(player, pi);
-			pi.showBorder();
-			pi.startSpawningAnimals();
-			getNetherFarmingHandler().trackNetherFarms(pi);
+			onlineUser.showBorder();
+			onlineUser.startSpawningAnimals();
+			getNetherFarmingHandler().trackNetherFarms(onlineUser);
 			getIslandLevelManager().loadCache(id);
 			getNetherrackGeneratorHandler().loadPistons(id);
 			if (getCoopManager().getHellblockOwnerOfVisitingIsland(player) != null) {
 				if (getCoopManager().trackBannedPlayer(getCoopManager().getHellblockOwnerOfVisitingIsland(player),
 						id)) {
-					if (pi.hasHellblock()) {
-						LocationUtils.isSafeLocationAsync(pi.getHomeLocation()).thenAccept((result) -> {
-							if (!result.booleanValue()) {
-								getAdventureManager().sendMessageWithPrefix(player,
-										"<red>This hellblock home location was deemed not safe, resetting to bedrock location!");
-								getHellblockHandler().locateBedrock(player.getUniqueId()).thenAccept((bedrock) -> {
-									pi.setHome(bedrock.getBedrockLocation());
-									getCoopManager().updateParty(player.getUniqueId(), HellblockData.HOME,
-											pi.getHomeLocation());
+					if (onlineUser.getHellblockData().hasHellblock()) {
+						if (onlineUser.getHellblockData().getOwnerUUID() == null) {
+							throw new NullPointerException(
+									"Owner reference returned null, please report this to the developer.");
+						}
+						instance.getStorageManager()
+								.getOfflineUser(onlineUser.getHellblockData().getOwnerUUID(), HBConfig.lockData)
+								.thenAccept((owner) -> {
+									OfflineUser bannedOwner = owner.orElseThrow();
+									getCoopManager().makeHomeLocationSafe(bannedOwner, onlineUser);
 								});
-							}
-						}).thenRunAsync(() -> {
-							ChunkUtils.teleportAsync(player, pi.getHomeLocation(), TeleportCause.PLUGIN);
-						});
 					} else {
 						getHellblockHandler().teleportToSpawn(player, true);
 					}
@@ -316,19 +307,8 @@ public class HellblockPlugin extends JavaPlugin {
 
 		int purgeDays = getConfig("config.yml").getInt("hellblock.abandon-after-days", 30);
 		if (purgeDays > 0) {
-			for (File playerData : getHellblockHandler().getPlayersDirectory().listFiles()) {
-				if (!playerData.isFile() || !playerData.getName().endsWith(".yml"))
-					continue;
-				String uuid = Files.getNameWithoutExtension(playerData.getName());
-				UUID id = null;
-				try {
-					id = UUID.fromString(uuid);
-				} catch (IllegalArgumentException ignored) {
-					// ignored
-					continue;
-				}
-				if (id == null)
-					continue;
+			PurgeCounter purgeCount = HellblockAdminCommand.INSTANCE.new PurgeCounter();
+			for (UUID id : getStorageManager().getDataSource().getUniqueUsers(false)) {
 				if (!Bukkit.getOfflinePlayer(id).hasPlayedBefore())
 					continue;
 
@@ -339,66 +319,69 @@ public class HellblockPlugin extends JavaPlugin {
 				// Account for a timezone difference
 						TimeUnit.MILLISECONDS.toHours(19);
 				if (millisSinceLastLogin > TimeUnit.DAYS.toMillis(purgeDays)) {
-					YamlConfiguration playerConfig = YamlConfiguration.loadConfiguration(playerData);
-					if (playerConfig.getKeys(true).size() == 0)
-						continue;
-					String ownerID = playerConfig.getString("player.owner");
-					if (ownerID == null)
-						continue;
-					UUID ownerUUID = null;
-					try {
-						ownerUUID = UUID.fromString(ownerID);
-					} catch (IllegalArgumentException ignored) {
-						// ignored
-						continue;
-					}
-					if (ownerUUID == null)
-						continue;
-					if (getHellblockHandler().isHellblockOwner(id, ownerUUID)) {
-						float level = (float) playerConfig.getDouble("player.hellblock-level",
-								HellblockPlayer.DEFAULT_LEVEL);
-						if (level == HellblockPlayer.DEFAULT_LEVEL) {
+					getStorageManager().getOfflineUser(id, HBConfig.lockData).thenAccept((result) -> {
+						OfflineUser offlineUser = result.orElseThrow();
+						if (offlineUser.getHellblockData().hasHellblock()
+								&& offlineUser.getHellblockData().getOwnerUUID() != null) {
+							if (getHellblockHandler().isHellblockOwner(id,
+									offlineUser.getHellblockData().getOwnerUUID())) {
+								float level = offlineUser.getHellblockData().getLevel();
+								if (level == HellblockData.DEFAULT_LEVEL) {
 
-							playerConfig.set("player.abandoned", true);
-							try {
-								playerConfig.save(playerData);
-							} catch (IOException ex) {
-								LogUtils.warn(
-										String.format("Could not save the player data file as abandoned for %s", uuid),
-										ex);
-								continue;
-							}
-							int hellblockID = playerConfig.getInt("player.hellblock-id");
-							if (getWorldGuardHandler().getRegion(ownerUUID, hellblockID) != null) {
-								getWorldGuardHandler().updateHellblockMessages(ownerUUID,
-										getWorldGuardHandler().getRegion(ownerUUID, hellblockID));
-								getWorldGuardHandler().abandonIsland(ownerUUID,
-										getWorldGuardHandler().getRegion(ownerUUID, hellblockID));
+									offlineUser.getHellblockData().setAsAbandoned(true);
+									int hellblockID = offlineUser.getHellblockData().getID();
+									if (getWorldGuardHandler().getRegion(offlineUser.getHellblockData().getOwnerUUID(),
+											hellblockID) != null) {
+										getWorldGuardHandler()
+												.updateHellblockMessages(offlineUser.getHellblockData().getOwnerUUID(),
+														getWorldGuardHandler().getRegion(
+																offlineUser.getHellblockData().getOwnerUUID(),
+																hellblockID));
+										getWorldGuardHandler()
+												.abandonIsland(offlineUser.getHellblockData().getOwnerUUID(),
+														getWorldGuardHandler().getRegion(
+																offlineUser.getHellblockData().getOwnerUUID(),
+																hellblockID));
+										purgeCount.setPurgeCount(purgeCount.getPurgeCount() + 1);
+									}
+								}
 							}
 						}
+					}).join();
+				}
+			}
+			LogUtils.info(String.format("A total of %s hellblocks have been purged for being abandoned.",
+					purgeCount.getPurgeCount()));
+		}
+
+		getLavaRainHandler().startLavaRainProcess();
+		getScheduler().runTaskSyncLater(() -> getHellblockHandler().getHellblockWorld(), null, 5, TimeUnit.SECONDS);
+	}
+
+	@Override
+	public void onDisable() {
+		if (getStorageManager() != null) {
+			Iterator<OnlineUser> iterator = getStorageManager().getOnlineUsers().iterator();
+
+			while (iterator.hasNext()) {
+				OnlineUser onlineUser = iterator.next();
+				if (onlineUser == null)
+					continue;
+				onlineUser.hideBorder();
+				onlineUser.stopSpawningAnimals();
+				getIslandLevelManager().saveCache(onlineUser.getUUID());
+				getNetherrackGeneratorHandler().savePistons(onlineUser.getUUID());
+				Player player = onlineUser.getPlayer();
+				if (onlineUser.hasGlowstoneToolEffect() || onlineUser.hasGlowstoneArmorEffect()) {
+					if (player.hasPotionEffect(PotionEffectType.NIGHT_VISION)) {
+						player.removePotionEffect(PotionEffectType.NIGHT_VISION);
+						onlineUser.isHoldingGlowstoneTool(false);
+						onlineUser.isWearingGlowstoneArmor(false);
 					}
 				}
 			}
 		}
 
-		getLavaRainHandler().startLavaRainProcess();
-		getScheduler().runTaskSyncLater(() -> getHellblockHandler().getHellblockWorld(), null, 5, TimeUnit.SECONDS);
-		getScheduler().runTaskAsyncTimer(() -> {
-			if (getHellblockHandler().getActivePlayers().isEmpty())
-				return;
-			long finalTime = System.currentTimeMillis();
-			getHellblockHandler().getActivePlayers().values().stream()
-					.filter(hbPlayer -> hbPlayer.getPlayer() != null && hbPlayer.hasHellblock())
-					.forEach(HellblockPlayer::saveHellblockPlayer);
-			if (HBConfig.logDataSaving) {
-				LogUtils.info(String.format("Hellblock islands have all been saved. Took %sms.",
-						(System.currentTimeMillis() - finalTime)));
-			}
-		}, 5, 30, TimeUnit.MINUTES);
-	}
-
-	@Override
-	public void onDisable() {
 		CommandAPI.onDisable();
 		if (getLavaRainHandler() != null)
 			getLavaRainHandler().stopLavaRainProcess();
@@ -435,30 +418,6 @@ public class HellblockPlugin extends JavaPlugin {
 		if (this.chatCatcherManager != null)
 			this.chatCatcherManager.disable();
 		HandlerList.unregisterAll(this);
-
-		if (getHellblockHandler() != null && getHellblockHandler().getActivePlayers() != null) {
-			Iterator<UUID> iterator = getHellblockHandler().getActivePlayers().keySet().iterator();
-
-			while (iterator.hasNext()) {
-				UUID id = (UUID) iterator.next();
-				HellblockPlayer pi = getHellblockHandler().getActivePlayer(id);
-				pi.saveHellblockPlayer();
-				pi.hideBorder();
-				pi.stopSpawningAnimals();
-				getIslandLevelManager().saveCache(id);
-				getNetherrackGeneratorHandler().savePistons(id);
-				Player player = pi.getPlayer();
-				if (player == null || !player.isOnline())
-					continue;
-				if (pi.hasGlowstoneToolEffect() || pi.hasGlowstoneArmorEffect()) {
-					if (player.hasPotionEffect(PotionEffectType.NIGHT_VISION)) {
-						player.removePotionEffect(PotionEffectType.NIGHT_VISION);
-						pi.isHoldingGlowstoneTool(false);
-						pi.isWearingGlowstoneArmor(false);
-					}
-				}
-			}
-		}
 
 		if (instance != null)
 			instance = null;
@@ -510,8 +469,9 @@ public class HellblockPlugin extends JavaPlugin {
 		long hours = (seconds - seconds % 3600) / 3600;
 		long minutes = (seconds % 3600 - seconds % 3600 % 60) / 60;
 		seconds = seconds % 3600 % 60;
-		String formattedTime = String.format("%s%s%s", hours > 0 ? hours + "h" : "", minutes > 0 ? minutes + "m" : "",
-				seconds > 0 ? seconds + "s" : "");
+		String formattedTime = String.format("%s%s%s", hours > 0 ? hours + HBLocale.FORMAT_Hour : "",
+				minutes > 0 ? minutes + HBLocale.FORMAT_Minute : "",
+				seconds > 0 ? seconds + HBLocale.FORMAT_Second : "");
 		return formattedTime;
 	}
 

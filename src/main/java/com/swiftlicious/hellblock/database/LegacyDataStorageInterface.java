@@ -4,7 +4,7 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
-import com.swiftlicious.hellblock.playerdata.PlayerData;
+import com.swiftlicious.hellblock.player.PlayerData;
 
 public interface LegacyDataStorageInterface extends DataStorageInterface {
 

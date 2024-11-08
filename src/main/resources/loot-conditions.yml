@@ -9,9 +9,6 @@ global-group:
       list: []
       sub-groups:
         world_loots:
-          conditions:
-            environment:
-              - normal
           list:
             - 'cobblestone:+50'
             - 'stone:+30'
@@ -19,9 +16,6 @@ global-group:
             - 'diamond:+1'
             - 'flint:+6'
         nether_loots:
-          conditions:
-            environment:
-              - nether
           list:
             - 'netherrack:+20'
             - 'nether_brick:+12'

@@ -12,10 +12,13 @@ import org.bukkit.Tag;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
 import org.bukkit.util.BoundingBox;
 import org.bukkit.util.NumberConversions;
 import org.jetbrains.annotations.Nullable;
+
+import com.swiftlicious.hellblock.HellblockPlugin;
 
 import lombok.NonNull;
 
@@ -273,5 +276,56 @@ public class LocationUtils {
 			return "South East";
 		}
 		return "Error!";
+	}
+
+	public static void serializeLocation(@NonNull ConfigurationSection section, @Nullable Location location,
+			boolean includeExtras) {
+		String world = HellblockPlugin.getInstance().getHellblockHandler().getWorldName();
+		double x = 0.0D;
+		double y = (double) HellblockPlugin.getInstance().getHellblockHandler().getHeight();
+		double z = 0.0D;
+		float yaw = 90.0F;
+		float pitch = 0.0F;
+		if (location != null && location.getWorld() != null) {
+			world = location.getWorld().getName();
+			x = location.getX();
+			y = location.getY();
+			z = location.getZ();
+			yaw = location.getYaw();
+			pitch = location.getPitch();
+		}
+
+		section.set("world", world);
+		section.set("x", round(x, 3));
+		section.set("y", round(y, 3));
+		section.set("z", round(z, 3));
+		if (includeExtras) {
+			section.set("yaw", round(yaw, 3));
+			section.set("pitch", round(pitch, 3));
+		}
+	}
+
+	public static @Nullable Location deserializeLocation(@NonNull ConfigurationSection section) {
+		World world = Bukkit.getWorld(section.getString("world"));
+		if (world == null)
+			world = HellblockPlugin.getInstance().getHellblockHandler().getHellblockWorld();
+		double x = section.getDouble("x");
+		double y = section.getDouble("y");
+		double z = section.getDouble("z");
+		float yaw = (float) section.getDouble("yaw", 90);
+		float pitch = (float) section.getDouble("pitch", 0);
+		return new Location(world, x, y, z, yaw, pitch);
+	}
+
+	/**
+	 * Rounds the specified value to the amount of decimals specified
+	 *
+	 * @param value    to round
+	 * @param decimals count
+	 * @return value round to the decimal count specified
+	 */
+	public static double round(double value, int decimals) {
+		double p = Math.pow(10, decimals);
+		return Math.round(value * p) / p;
 	}
 }

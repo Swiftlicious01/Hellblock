@@ -10,7 +10,7 @@ import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.Nullable;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
-import com.swiftlicious.hellblock.playerdata.EarningData;
+import com.swiftlicious.hellblock.player.EarningData;
 import com.swiftlicious.hellblock.utils.InventoryUtils;
 import com.swiftlicious.hellblock.utils.ItemUtils;
 import com.swiftlicious.hellblock.utils.LogUtils;
@@ -41,8 +41,7 @@ public class MarketGUI {
 		this.itemsCharMap = new HashMap<>();
 		this.itemsSlotMap = new HashMap<>();
 		var holder = new MarketGUIHolder();
-		this.inventory = InventoryUtils.createInventory(holder,
-				manager.getLayout().length * 9,
+		this.inventory = InventoryUtils.createInventory(holder, manager.getLayout().length * 9,
 				HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(manager.getTitle()));
 		holder.setInventory(this.inventory);
 	}
@@ -144,17 +143,17 @@ public class MarketGUI {
 								"{money_formatted}", String.format("%.2f", totalWorth), "{player}", owner.getName(),
 								"{rest}",
 								HellblockPlugin.getInstance().getNumberUtils()
-										.money(earningLimit - earningData.earnings),
-								"{rest_formatted}", String.format("%.2f", (earningLimit - earningData.earnings)),
+										.money(earningLimit - earningData.getEarnings()),
+								"{rest_formatted}", String.format("%.2f", (earningLimit - earningData.getEarnings())),
 								"{sold-item-amount}", String.valueOf(soldAmount))));
-			} else if (earningLimit != -1 && (earningLimit - earningData.earnings < totalWorth)) {
+			} else if (earningLimit != -1 && (earningLimit - earningData.getEarnings() < totalWorth)) {
 				sellElement.setItemStack(manager.getSellIconLimitBuilder().build(owner,
 						Map.of("{money}", HellblockPlugin.getInstance().getNumberUtils().money(totalWorth),
 								"{money_formatted}", String.format("%.2f", totalWorth), "{player}", owner.getName(),
 								"{rest}",
 								HellblockPlugin.getInstance().getNumberUtils()
-										.money(earningLimit - earningData.earnings),
-								"{rest_formatted}", String.format("%.2f", (earningLimit - earningData.earnings)),
+										.money(earningLimit - earningData.getEarnings()),
+								"{rest_formatted}", String.format("%.2f", (earningLimit - earningData.getEarnings())),
 								"{sold-item-amount}", String.valueOf(soldAmount))));
 			} else {
 				sellElement.setItemStack(manager.getSellIconAllowBuilder().build(owner,
@@ -162,8 +161,8 @@ public class MarketGUI {
 								"{money_formatted}", String.format("%.2f", totalWorth), "{player}", owner.getName(),
 								"{rest}",
 								HellblockPlugin.getInstance().getNumberUtils()
-										.money(earningLimit - earningData.earnings),
-								"{rest_formatted}", String.format("%.2f", (earningLimit - earningData.earnings)),
+										.money(earningLimit - earningData.getEarnings()),
+								"{rest_formatted}", String.format("%.2f", (earningLimit - earningData.getEarnings())),
 								"{sold-item-amount}", String.valueOf(soldAmount))));
 			}
 		}
@@ -178,17 +177,17 @@ public class MarketGUI {
 								"{money_formatted}", String.format("%.2f", totalWorth), "{player}", owner.getName(),
 								"{rest}",
 								HellblockPlugin.getInstance().getNumberUtils()
-										.money(earningLimit - earningData.earnings),
-								"{rest_formatted}", String.format("%.2f", (earningLimit - earningData.earnings)),
+										.money(earningLimit - earningData.getEarnings()),
+								"{rest_formatted}", String.format("%.2f", (earningLimit - earningData.getEarnings())),
 								"{sold-item-amount}", String.valueOf(sellAmount))));
-			} else if (earningLimit != -1 && (earningLimit - earningData.earnings < totalWorth)) {
+			} else if (earningLimit != -1 && (earningLimit - earningData.getEarnings() < totalWorth)) {
 				sellAllElement.setItemStack(manager.getSellAllIconLimitBuilder().build(owner,
 						Map.of("{money}", HellblockPlugin.getInstance().getNumberUtils().money(totalWorth),
 								"{money_formatted}", String.format("%.2f", totalWorth), "{player}", owner.getName(),
 								"{rest}",
 								HellblockPlugin.getInstance().getNumberUtils()
-										.money(earningLimit - earningData.earnings),
-								"{rest_formatted}", String.format("%.2f", (earningLimit - earningData.earnings)),
+										.money(earningLimit - earningData.getEarnings()),
+								"{rest_formatted}", String.format("%.2f", (earningLimit - earningData.getEarnings())),
 								"{sold-item-amount}", String.valueOf(sellAmount))));
 			} else {
 				sellAllElement.setItemStack(manager.getSellAllIconAllowBuilder().build(owner,
@@ -196,8 +195,8 @@ public class MarketGUI {
 								"{money_formatted}", String.format("%.2f", totalWorth), "{player}", owner.getName(),
 								"{rest}",
 								HellblockPlugin.getInstance().getNumberUtils()
-										.money(earningLimit - earningData.earnings),
-								"{rest_formatted}", String.format("%.2f", (earningLimit - earningData.earnings)),
+										.money(earningLimit - earningData.getEarnings()),
+								"{rest_formatted}", String.format("%.2f", (earningLimit - earningData.getEarnings())),
 								"{sold-item-amount}", String.valueOf(sellAmount))));
 			}
 		}
@@ -218,7 +217,7 @@ public class MarketGUI {
 		double money = 0d;
 		MarketGUIElement itemElement = getElement(manager.getItemSlot());
 		if (itemElement == null) {
-            LogUtils.warn("No item slot available. Please check if GUI layout contains the item slot symbol.");
+			LogUtils.warn("No item slot available. Please check if GUI layout contains the item slot symbol.");
 			return money;
 		}
 		for (int slot : itemElement.getSlots()) {

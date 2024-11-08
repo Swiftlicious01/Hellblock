@@ -3,6 +3,7 @@ package com.swiftlicious.hellblock.listeners;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.UUID;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -27,7 +28,9 @@ import org.bukkit.event.entity.EntityDamageEvent;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.challenges.HellblockChallenge.ChallengeType;
-import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
+import com.swiftlicious.hellblock.config.HBConfig;
+import com.swiftlicious.hellblock.player.OfflineUser;
+import com.swiftlicious.hellblock.player.OnlineUser;
 import com.swiftlicious.hellblock.protection.HellblockFlag;
 import com.swiftlicious.hellblock.protection.HellblockFlag.AccessType;
 
@@ -110,39 +113,43 @@ public class NetherSnowGolem implements Listener {
 		return blocks;
 	}
 
-	public boolean spawnHellGolem(@NonNull Player player, @NonNull Location location) {
+	public void spawnHellGolem(@NonNull Player player, @NonNull UUID id, @NonNull Location location) {
 		if (location.getWorld() == null)
-			return false;
+			return;
 		if (!location.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
-			return false;
+			return;
 
-		Snowman hellGolem;
-		if (!checkHellGolemBuild(location).isEmpty() && !instance.getHellblockHandler().checkIfInSpawn(location)
-				&& instance.getHellblockHandler().getActivePlayer(player)
-						.getProtectionValue(HellblockFlag.FlagType.MOB_SPAWNING) == AccessType.ALLOW) {
-			List<Block> blocks = checkHellGolemBuild(location);
-			for (Block block : blocks) {
-				block.setType(Material.AIR);
-			}
-			hellGolem = (Snowman) location.getWorld().spawnEntity(location, EntityType.SNOW_GOLEM,
-					SpawnReason.BUILD_SNOWMAN);
-			hellGolem.setAware(true);
-			hellGolem.setDerp(false);
-			hellGolem.setVisualFire(true);
-			HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(player);
-			if (!pi.isChallengeActive(ChallengeType.NETHER_GOLEM_CHALLENGE)
-					&& !pi.isChallengeCompleted(ChallengeType.NETHER_GOLEM_CHALLENGE)) {
-				pi.beginChallengeProgression(ChallengeType.NETHER_GOLEM_CHALLENGE);
-			} else {
-				pi.updateChallengeProgression(ChallengeType.NETHER_GOLEM_CHALLENGE, 1);
-				if (pi.isChallengeCompleted(ChallengeType.NETHER_GOLEM_CHALLENGE)) {
-					pi.completeChallenge(ChallengeType.NETHER_GOLEM_CHALLENGE);
+		instance.getStorageManager().getOfflineUser(id, HBConfig.lockData).thenAccept((result) -> {
+			OfflineUser offlineUser = result.orElseThrow();
+			if (!checkHellGolemBuild(location).isEmpty() && !instance.getHellblockHandler().checkIfInSpawn(location)
+					&& offlineUser.getHellblockData()
+							.getProtectionValue(HellblockFlag.FlagType.MOB_SPAWNING) == AccessType.ALLOW) {
+				List<Block> blocks = checkHellGolemBuild(location);
+				for (Block block : blocks) {
+					block.setType(Material.AIR);
+				}
+				Snowman hellGolem = (Snowman) location.getWorld().spawnEntity(location, EntityType.SNOW_GOLEM,
+						SpawnReason.BUILD_SNOWMAN);
+				hellGolem.setAware(true);
+				hellGolem.setDerp(false);
+				hellGolem.setVisualFire(true);
+				OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
+				if (onlineUser == null)
+					return;
+				if (!onlineUser.getHellblockData().isChallengeActive(ChallengeType.NETHER_GOLEM_CHALLENGE)
+						&& !onlineUser.getHellblockData().isChallengeCompleted(ChallengeType.NETHER_GOLEM_CHALLENGE)) {
+					onlineUser.getHellblockData().beginChallengeProgression(onlineUser.getPlayer(),
+							ChallengeType.NETHER_GOLEM_CHALLENGE);
+				} else {
+					onlineUser.getHellblockData().updateChallengeProgression(onlineUser.getPlayer(),
+							ChallengeType.NETHER_GOLEM_CHALLENGE, 1);
+					if (onlineUser.getHellblockData().isChallengeCompleted(ChallengeType.NETHER_GOLEM_CHALLENGE)) {
+						onlineUser.getHellblockData().completeChallenge(onlineUser.getPlayer(),
+								ChallengeType.NETHER_GOLEM_CHALLENGE);
+					}
 				}
 			}
-			return true;
-		}
-
-		return false;
+		});
 	}
 
 	@EventHandler
@@ -152,7 +159,9 @@ public class NetherSnowGolem implements Listener {
 			return;
 
 		final Block block = event.getBlockPlaced();
-		spawnHellGolem(player, block.getLocation());
+		if (instance.getCoopManager().getHellblockOwnerOfVisitingIsland(player) != null)
+			spawnHellGolem(player, instance.getCoopManager().getHellblockOwnerOfVisitingIsland(player),
+					block.getLocation());
 	}
 
 	@EventHandler
@@ -165,8 +174,11 @@ public class NetherSnowGolem implements Listener {
 			Collection<Player> playersNearby = block.getWorld().getNearbyPlayers(block.getLocation(), 25, 25, 25);
 			Player player = instance.getNetherrackGeneratorHandler().getClosestPlayer(block.getLocation(),
 					playersNearby);
-			if (player != null)
-				spawnHellGolem(player, block.getLocation());
+			if (player != null) {
+				if (instance.getCoopManager().getHellblockOwnerOfVisitingIsland(player) != null)
+					spawnHellGolem(player, instance.getCoopManager().getHellblockOwnerOfVisitingIsland(player),
+							block.getLocation());
+			}
 		}
 	}
 

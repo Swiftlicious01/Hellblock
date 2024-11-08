@@ -3,7 +3,6 @@ package com.swiftlicious.hellblock.gui.hellblock;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map.Entry;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -18,7 +17,7 @@ import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.gui.icon.BackGroundItem;
 import com.swiftlicious.hellblock.gui.icon.NextPageItem;
 import com.swiftlicious.hellblock.gui.icon.PreviousPageItem;
-import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
+import com.swiftlicious.hellblock.player.OnlineUser;
 import com.swiftlicious.hellblock.utils.LogUtils;
 import com.swiftlicious.hellblock.utils.wrappers.ShadedAdventureComponentWrapper;
 
@@ -50,6 +49,14 @@ public class InvitationMenu {
 	}
 
 	public void updateMenu(String search) {
+
+		OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager().getOnlineUser(player.getUniqueId());
+		if (onlineUser == null) {
+			HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
+					"<red>Still loading your player data... please try again in a few seconds.");
+			return;
+		}
+		
 		var confirmIcon = new ConfirmIcon();
 		Item border = new SimpleItem(new ItemBuilder(Material.AIR));
 		Gui upperGui = Gui.normal().setStructure("a # b")
@@ -82,34 +89,33 @@ public class InvitationMenu {
 
 	public List<Item> getItemList() {
 		List<Item> itemList = new ArrayList<>();
-		for (Entry<UUID, HellblockPlayer> entry : HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers()
-				.entrySet()) {
-			UUID key = entry.getKey();
-			if (entry.getValue() instanceof HellblockPlayer hbPlayer) {
-				if (!username.equals(SEARCH))
-					continue;
-				if (key.equals(player.getUniqueId()))
-					continue;
-				if (hbPlayer.getPlayer() == null || !hbPlayer.getPlayer().isOnline() || hbPlayer.hasHellblock())
-					continue;
-				if (hbPlayer.getInvitations() == null || hbPlayer.hasInvite(player.getUniqueId()))
-					continue;
-				SkullBuilder skullBuilder = null;
-				try {
-					skullBuilder = new SkullBuilder(hbPlayer.getUUID());
-				} catch (MojangApiException | IOException ex) {
-					LogUtils.warn(String.format("Unable to retrieve skull data for the player %s", username), ex);
-					continue;
-				}
-				itemList.add(new ItemInList(hbPlayer.getPlayer().getName(), skullBuilder, this));
+		for (OnlineUser onlineUser : HellblockPlugin.getInstance().getStorageManager().getOnlineUsers()) {
+			if (onlineUser == null)
 				continue;
-			}
+			UUID key = onlineUser.getUUID();
+			if (!username.equals(SEARCH))
+				continue;
+			if (key.equals(player.getUniqueId()))
+				continue;
+			if (!onlineUser.isOnline() || onlineUser.getHellblockData().hasHellblock())
+				continue;
+			if (onlineUser.getHellblockData().getInvitations() == null
+					|| onlineUser.getHellblockData().hasInvite(player.getUniqueId()))
+				continue;
+			SkullBuilder skullBuilder = null;
 			try {
-				itemList.add(new ItemInList("???", new SkullBuilder(HeadTexture.of("MHF_QUESTION")), this));
-			} catch (MojangApiException | IOException ignored) {
-				// ignored
+				skullBuilder = new SkullBuilder(onlineUser.getUUID());
+			} catch (MojangApiException | IOException ex) {
+				LogUtils.warn(String.format("Unable to retrieve skull data for the player %s", username), ex);
 				continue;
 			}
+			itemList.add(new ItemInList(onlineUser.getName(), skullBuilder, this));
+			continue;
+		}
+		try {
+			itemList.add(new ItemInList("???", new SkullBuilder(HeadTexture.of("MHF_QUESTION")), this));
+		} catch (MojangApiException | IOException ignored) {
+			// ignored
 		}
 		return itemList;
 	}
@@ -152,12 +158,10 @@ public class InvitationMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			if (username != null && username.matches("^[a-zA-Z0-9_]+$")
-					&& HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers().values().stream()
-							.filter(hbPlayer -> hbPlayer.getPlayer() != null
-									&& !hbPlayer.getUUID().equals(player.getUniqueId()))
-							.map(hbPlayer -> hbPlayer.getPlayer().getName()).collect(Collectors.toList())
-							.contains(username)) {
+			if (username != null && username.matches("^[a-zA-Z0-9_]+$") && HellblockPlugin.getInstance()
+					.getStorageManager().getOnlineUsers().stream()
+					.filter(user -> user != null && user.isOnline() && !user.getUUID().equals(player.getUniqueId()))
+					.map(user -> user.getName()).collect(Collectors.toList()).contains(username)) {
 				SkullBuilder builder = null;
 				try {
 					builder = new SkullBuilder(username);
@@ -186,20 +190,23 @@ public class InvitationMenu {
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
 			if (username != null && username.matches("^[a-zA-Z0-9_]+$")
-					&& HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers().values().stream()
-							.filter(hbPlayer -> hbPlayer.getPlayer() != null && !hbPlayer.hasHellblock()
-									&& !hbPlayer.getUUID().equals(player.getUniqueId()))
-							.map(hbPlayer -> hbPlayer.getPlayer().getName()).collect(Collectors.toList())
-							.contains(username)) {
+					&& HellblockPlugin.getInstance().getStorageManager().getOnlineUsers().stream()
+							.filter(user -> user != null && user.isOnline() && !user.getHellblockData().hasHellblock()
+									&& !user.getUUID().equals(player.getUniqueId()))
+							.map(user -> user.getName()).collect(Collectors.toList()).contains(username)) {
 				if (Bukkit.getPlayer(username) == null || !Bukkit.getPlayer(username).isOnline()) {
 					LogUtils.warn(String.format("Unable to invite player %s because they returned null.", username));
 					return;
 				}
-				HellblockPlayer hbPlayer = HellblockPlugin.getInstance().getHellblockHandler()
-						.getActivePlayer(player.getUniqueId());
-				HellblockPlayer invitingPlayer = HellblockPlugin.getInstance().getHellblockHandler()
-						.getActivePlayer(Bukkit.getPlayer(username).getUniqueId());
-				HellblockPlugin.getInstance().getCoopManager().sendInvite(hbPlayer, invitingPlayer);
+				OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+						.getOnlineUser(player.getUniqueId());
+				if (onlineUser == null)
+					return;
+				OnlineUser invitingPlayer = HellblockPlugin.getInstance().getStorageManager()
+						.getOnlineUser(Bukkit.getPlayer(username).getUniqueId());
+				if (invitingPlayer == null)
+					return;
+				HellblockPlugin.getInstance().getCoopManager().sendInvite(onlineUser, invitingPlayer);
 				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
 						net.kyori.adventure.sound.Sound.Source.PLAYER,
 						net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);

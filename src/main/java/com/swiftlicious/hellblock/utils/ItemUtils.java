@@ -438,14 +438,14 @@ public class ItemUtils {
 		if (item == null || item.getType() == Material.AIR)
 			return false;
 
-		return new RtagItem(item).hasTag("HellblockData", "owner");
+		return new RtagItem(item).hasTag("HellblockInfo", "owner");
 	}
 
 	public static @Nullable String getOwnerData(@Nullable ItemStack item) {
 		if (item == null || item.getType() == Material.AIR)
 			return null;
 
-		return new RtagItem(item).getOptional("HellblockData", "owner").asString();
+		return new RtagItem(item).getOptional("HellblockInfo", "owner").asString();
 	}
 
 	public static @Nullable ItemStack setOwnerData(@Nullable ItemStack item, String data) {
@@ -453,7 +453,7 @@ public class ItemUtils {
 			return null;
 
 		return RtagItem.edit(item, tag -> {
-			tag.set(data, "HellblockData", "owner");
+			tag.set(data, "HellblockInfo", "owner");
 		});
 	}
 
@@ -461,7 +461,7 @@ public class ItemUtils {
 		if (item == null || item.getType() == Material.AIR)
 			return false;
 
-		return new RtagItem(item).remove("HellblockData");
+		return new RtagItem(item).remove("HellblockInfo");
 	}
 
 	public static RtagItem removeOwner(ItemStack itemStack) {

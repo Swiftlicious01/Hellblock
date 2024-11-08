@@ -23,8 +23,8 @@ import org.jetbrains.annotations.NotNull;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.config.HBConfig;
-import com.swiftlicious.hellblock.playerdata.OfflineUser;
-import com.swiftlicious.hellblock.playerdata.PlayerData;
+import com.swiftlicious.hellblock.player.OfflineUser;
+import com.swiftlicious.hellblock.player.PlayerData;
 import com.swiftlicious.hellblock.utils.LogUtils;
 
 /**

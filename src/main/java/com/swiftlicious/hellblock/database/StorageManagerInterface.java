@@ -8,9 +8,9 @@ import java.util.concurrent.CompletableFuture;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import com.swiftlicious.hellblock.playerdata.OfflineUser;
-import com.swiftlicious.hellblock.playerdata.OnlineUser;
-import com.swiftlicious.hellblock.playerdata.PlayerData;
+import com.swiftlicious.hellblock.player.OfflineUser;
+import com.swiftlicious.hellblock.player.OnlineUser;
+import com.swiftlicious.hellblock.player.PlayerData;
 
 public interface StorageManagerInterface {
 

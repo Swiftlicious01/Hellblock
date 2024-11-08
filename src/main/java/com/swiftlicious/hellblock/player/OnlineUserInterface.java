@@ -1,4 +1,4 @@
-package com.swiftlicious.hellblock.playerdata;
+package com.swiftlicious.hellblock.player;
 
 import org.bukkit.entity.Player;
 

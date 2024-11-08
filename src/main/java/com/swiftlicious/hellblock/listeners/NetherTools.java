@@ -40,7 +40,7 @@ import org.jetbrains.annotations.Nullable;
 import com.saicone.rtag.RtagItem;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.challenges.HellblockChallenge.ChallengeType;
-import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
+import com.swiftlicious.hellblock.player.OnlineUser;
 import com.swiftlicious.hellblock.utils.LogUtils;
 import com.swiftlicious.hellblock.utils.wrappers.ShadedAdventureComponentWrapper;
 
@@ -126,7 +126,7 @@ public class NetherTools implements Listener {
 
 	private final Set<Material> netherrackTools, glowstoneTools, quartzTools, netherstarTools;
 
-	private final Map<HellblockPlayer, Boolean> clickCache;
+	private final Map<OnlineUser, Boolean> clickCache;
 
 	private final Registry<Enchantment> enchantmentRegistry;
 
@@ -1033,14 +1033,22 @@ public class NetherTools implements Listener {
 				if (checkToolData(result) && getToolData(result)) {
 					if (recipe instanceof CraftingRecipe craft) {
 						if (!player.hasDiscoveredRecipe(craft.getKey())) {
-							HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(player);
-							if (!pi.isChallengeActive(ChallengeType.NETHER_CRAFTING_CHALLENGE)
-									&& !pi.isChallengeCompleted(ChallengeType.NETHER_CRAFTING_CHALLENGE)) {
-								pi.beginChallengeProgression(ChallengeType.NETHER_CRAFTING_CHALLENGE);
+							OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
+							if (onlineUser == null)
+								return;
+							if (!onlineUser.getHellblockData()
+									.isChallengeActive(ChallengeType.NETHER_CRAFTING_CHALLENGE)
+									&& !onlineUser.getHellblockData()
+											.isChallengeCompleted(ChallengeType.NETHER_CRAFTING_CHALLENGE)) {
+								onlineUser.getHellblockData().beginChallengeProgression(onlineUser.getPlayer(),
+										ChallengeType.NETHER_CRAFTING_CHALLENGE);
 							} else {
-								pi.updateChallengeProgression(ChallengeType.NETHER_CRAFTING_CHALLENGE, 1);
-								if (pi.isChallengeCompleted(ChallengeType.NETHER_CRAFTING_CHALLENGE)) {
-									pi.completeChallenge(ChallengeType.NETHER_CRAFTING_CHALLENGE);
+								onlineUser.getHellblockData().updateChallengeProgression(onlineUser.getPlayer(),
+										ChallengeType.NETHER_CRAFTING_CHALLENGE, 1);
+								if (onlineUser.getHellblockData()
+										.isChallengeCompleted(ChallengeType.NETHER_CRAFTING_CHALLENGE)) {
+									onlineUser.getHellblockData().completeChallenge(onlineUser.getPlayer(),
+											ChallengeType.NETHER_CRAFTING_CHALLENGE);
 								}
 							}
 							player.discoverRecipe(craft.getKey());
@@ -1065,14 +1073,23 @@ public class NetherTools implements Listener {
 					if (checkToolData(result) && getToolData(result)) {
 						if (recipe instanceof CraftingRecipe craft) {
 							if (!player.hasDiscoveredRecipe(craft.getKey())) {
-								HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(player);
-								if (!pi.isChallengeActive(ChallengeType.NETHER_CRAFTING_CHALLENGE)
-										&& !pi.isChallengeCompleted(ChallengeType.NETHER_CRAFTING_CHALLENGE)) {
-									pi.beginChallengeProgression(ChallengeType.NETHER_CRAFTING_CHALLENGE);
+								OnlineUser onlineUser = instance.getStorageManager()
+										.getOnlineUser(player.getUniqueId());
+								if (onlineUser == null)
+									return;
+								if (!onlineUser.getHellblockData()
+										.isChallengeActive(ChallengeType.NETHER_CRAFTING_CHALLENGE)
+										&& !onlineUser.getHellblockData()
+												.isChallengeCompleted(ChallengeType.NETHER_CRAFTING_CHALLENGE)) {
+									onlineUser.getHellblockData().beginChallengeProgression(onlineUser.getPlayer(),
+											ChallengeType.NETHER_CRAFTING_CHALLENGE);
 								} else {
-									pi.updateChallengeProgression(ChallengeType.NETHER_CRAFTING_CHALLENGE, 1);
-									if (pi.isChallengeCompleted(ChallengeType.NETHER_CRAFTING_CHALLENGE)) {
-										pi.completeChallenge(ChallengeType.NETHER_CRAFTING_CHALLENGE);
+									onlineUser.getHellblockData().updateChallengeProgression(onlineUser.getPlayer(),
+											ChallengeType.NETHER_CRAFTING_CHALLENGE, 1);
+									if (onlineUser.getHellblockData()
+											.isChallengeCompleted(ChallengeType.NETHER_CRAFTING_CHALLENGE)) {
+										onlineUser.getHellblockData().completeChallenge(onlineUser.getPlayer(),
+												ChallengeType.NETHER_CRAFTING_CHALLENGE);
 									}
 								}
 								player.discoverRecipe(craft.getKey());
@@ -1104,11 +1121,15 @@ public class NetherTools implements Listener {
 			}
 		}
 
+		OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
+		if (onlineUser == null)
+			return;
+
 		if (tool != null && tool.getType() == Material.AIR) {
-			if (instance.getHellblockHandler().getActivePlayer(player).hasGlowstoneToolEffect()) {
+			if (onlineUser.hasGlowstoneToolEffect()) {
 				if (player.hasPotionEffect(PotionEffectType.NIGHT_VISION)) {
-					instance.getHellblockHandler().getActivePlayer(player).isHoldingGlowstoneTool(false);
-					if (!instance.getHellblockHandler().getActivePlayer(player).hasGlowstoneArmorEffect()) {
+					onlineUser.isHoldingGlowstoneTool(false);
+					if (!onlineUser.hasGlowstoneArmorEffect()) {
 						player.removePotionEffect(PotionEffectType.NIGHT_VISION);
 					}
 				}
@@ -1118,13 +1139,13 @@ public class NetherTools implements Listener {
 
 		if (tool != null && checkNightVisionToolStatus(tool) && getNightVisionToolStatus(tool)) {
 			player.addPotionEffect(new PotionEffect(PotionEffectType.NIGHT_VISION, Integer.MAX_VALUE, 1));
-			instance.getHellblockHandler().getActivePlayer(player).isHoldingGlowstoneTool(true);
+			onlineUser.isHoldingGlowstoneTool(true);
 		} else {
 			if (!inOffHand) {
-				if (instance.getHellblockHandler().getActivePlayer(player).hasGlowstoneToolEffect()) {
+				if (onlineUser.hasGlowstoneToolEffect()) {
 					if (player.hasPotionEffect(PotionEffectType.NIGHT_VISION)) {
-						instance.getHellblockHandler().getActivePlayer(player).isHoldingGlowstoneTool(false);
-						if (!instance.getHellblockHandler().getActivePlayer(player).hasGlowstoneArmorEffect()) {
+						onlineUser.isHoldingGlowstoneTool(false);
+						if (!onlineUser.hasGlowstoneArmorEffect()) {
 							player.removePotionEffect(PotionEffectType.NIGHT_VISION);
 						}
 					}
@@ -1142,14 +1163,17 @@ public class NetherTools implements Listener {
 		if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
 			return;
 
+		OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
+		if (onlineUser == null)
+			return;
 		ItemStack tool = event.getMainHandItem();
 		if (tool.getType() == Material.AIR) {
 			tool = event.getOffHandItem();
 			if (tool.getType() == Material.AIR) {
-				if (instance.getHellblockHandler().getActivePlayer(player).hasGlowstoneToolEffect()) {
+				if (onlineUser.hasGlowstoneToolEffect()) {
 					if (player.hasPotionEffect(PotionEffectType.NIGHT_VISION)) {
-						instance.getHellblockHandler().getActivePlayer(player).isHoldingGlowstoneTool(false);
-						if (!instance.getHellblockHandler().getActivePlayer(player).hasGlowstoneArmorEffect()) {
+						onlineUser.isHoldingGlowstoneTool(false);
+						if (!onlineUser.hasGlowstoneArmorEffect()) {
 							player.removePotionEffect(PotionEffectType.NIGHT_VISION);
 						}
 					}
@@ -1160,12 +1184,12 @@ public class NetherTools implements Listener {
 
 		if (checkNightVisionToolStatus(tool) && getNightVisionToolStatus(tool)) {
 			player.addPotionEffect(new PotionEffect(PotionEffectType.NIGHT_VISION, Integer.MAX_VALUE, 1));
-			instance.getHellblockHandler().getActivePlayer(player).isHoldingGlowstoneTool(true);
+			onlineUser.isHoldingGlowstoneTool(true);
 		} else {
-			if (instance.getHellblockHandler().getActivePlayer(player).hasGlowstoneToolEffect()) {
+			if (onlineUser.hasGlowstoneToolEffect()) {
 				if (player.hasPotionEffect(PotionEffectType.NIGHT_VISION)) {
-					instance.getHellblockHandler().getActivePlayer(player).isHoldingGlowstoneTool(false);
-					if (!instance.getHellblockHandler().getActivePlayer(player).hasGlowstoneArmorEffect()) {
+					onlineUser.isHoldingGlowstoneTool(false);
+					if (!onlineUser.hasGlowstoneArmorEffect()) {
 						player.removePotionEffect(PotionEffectType.NIGHT_VISION);
 					}
 				}
@@ -1182,6 +1206,9 @@ public class NetherTools implements Listener {
 			if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
 				return;
 
+			OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
+			if (onlineUser == null)
+				return;
 			ItemStack tool = event.getItem().getItemStack();
 			instance.getScheduler().runTaskSyncLater(() -> {
 				boolean holdingItem;
@@ -1196,12 +1223,12 @@ public class NetherTools implements Listener {
 				if (holdingItem) {
 					if (checkNightVisionToolStatus(tool) && getNightVisionToolStatus(tool)) {
 						player.addPotionEffect(new PotionEffect(PotionEffectType.NIGHT_VISION, Integer.MAX_VALUE, 1));
-						instance.getHellblockHandler().getActivePlayer(player).isHoldingGlowstoneTool(true);
+						onlineUser.isHoldingGlowstoneTool(true);
 					} else {
-						if (instance.getHellblockHandler().getActivePlayer(player).hasGlowstoneToolEffect()) {
+						if (onlineUser.hasGlowstoneToolEffect()) {
 							if (player.hasPotionEffect(PotionEffectType.NIGHT_VISION)) {
-								instance.getHellblockHandler().getActivePlayer(player).isHoldingGlowstoneTool(false);
-								if (!instance.getHellblockHandler().getActivePlayer(player).hasGlowstoneArmorEffect()) {
+								onlineUser.isHoldingGlowstoneTool(false);
+								if (!onlineUser.hasGlowstoneArmorEffect()) {
 									player.removePotionEffect(PotionEffectType.NIGHT_VISION);
 								}
 							}
@@ -1221,12 +1248,15 @@ public class NetherTools implements Listener {
 		if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
 			return;
 
+		OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
+		if (onlineUser == null)
+			return;
 		ItemStack tool = event.getItemDrop().getItemStack();
 		if (checkNightVisionToolStatus(tool) && getNightVisionToolStatus(tool)) {
-			if (instance.getHellblockHandler().getActivePlayer(player).hasGlowstoneToolEffect()) {
+			if (onlineUser.hasGlowstoneToolEffect()) {
 				if (player.hasPotionEffect(PotionEffectType.NIGHT_VISION)) {
-					instance.getHellblockHandler().getActivePlayer(player).isHoldingGlowstoneTool(false);
-					if (!instance.getHellblockHandler().getActivePlayer(player).hasGlowstoneArmorEffect()) {
+					onlineUser.isHoldingGlowstoneTool(false);
+					if (!onlineUser.hasGlowstoneArmorEffect()) {
 						player.removePotionEffect(PotionEffectType.NIGHT_VISION);
 					}
 				}
@@ -1248,6 +1278,9 @@ public class NetherTools implements Listener {
 				return;
 			if (event.getClickedInventory() != null
 					&& event.getClickedInventory().equals(player.getOpenInventory().getBottomInventory())) {
+				OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
+				if (onlineUser == null)
+					return;
 				if (event.getSlotType() == SlotType.QUICKBAR) {
 
 					boolean rightClick = (event.isRightClick() && (event.getAction() == InventoryAction.PLACE_ONE
@@ -1273,16 +1306,13 @@ public class NetherTools implements Listener {
 							}
 
 							if (checkNightVisionToolStatus(inHand) && getNightVisionToolStatus(inHand)) {
-								this.clickCache.putIfAbsent(instance.getHellblockHandler().getActivePlayer(player),
-										true);
+								this.clickCache.putIfAbsent(onlineUser, true);
 							} else {
-								this.clickCache.putIfAbsent(instance.getHellblockHandler().getActivePlayer(player),
-										true);
-
+								this.clickCache.putIfAbsent(onlineUser, true);
 							}
 						}, player.getLocation(), 1, TimeUnit.MILLISECONDS);
 					} else {
-						this.clickCache.putIfAbsent(instance.getHellblockHandler().getActivePlayer(player), false);
+						this.clickCache.putIfAbsent(onlineUser, false);
 					}
 				} else if (event.getSlotType() == SlotType.CONTAINER) {
 
@@ -1308,16 +1338,14 @@ public class NetherTools implements Listener {
 							}
 
 							if (checkNightVisionToolStatus(inHand) && getNightVisionToolStatus(inHand)) {
-								this.clickCache.putIfAbsent(instance.getHellblockHandler().getActivePlayer(player),
-										true);
+								this.clickCache.putIfAbsent(onlineUser, true);
 							} else {
-								this.clickCache.putIfAbsent(instance.getHellblockHandler().getActivePlayer(player),
-										true);
+								this.clickCache.putIfAbsent(onlineUser, true);
 
 							}
 						}, player.getLocation(), 1, TimeUnit.MILLISECONDS);
 					} else {
-						this.clickCache.putIfAbsent(instance.getHellblockHandler().getActivePlayer(player), false);
+						this.clickCache.putIfAbsent(onlineUser, false);
 					}
 				}
 			}
@@ -1333,16 +1361,20 @@ public class NetherTools implements Listener {
 			if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
 				return;
 
+			OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
+			if (onlineUser == null)
+				return;
+
 			if (event.getReason() == Reason.PLAYER) {
 
 				ItemStack inHand = player.getInventory().getItemInMainHand();
 				if (inHand.getType() == Material.AIR) {
 					inHand = player.getInventory().getItemInOffHand();
 					if (inHand.getType() == Material.AIR) {
-						if (instance.getHellblockHandler().getActivePlayer(player).hasGlowstoneToolEffect()) {
+						if (onlineUser.hasGlowstoneToolEffect()) {
 							if (player.hasPotionEffect(PotionEffectType.NIGHT_VISION)) {
-								instance.getHellblockHandler().getActivePlayer(player).isHoldingGlowstoneTool(false);
-								if (!instance.getHellblockHandler().getActivePlayer(player).hasGlowstoneArmorEffect()) {
+								onlineUser.isHoldingGlowstoneTool(false);
+								if (!onlineUser.hasGlowstoneArmorEffect()) {
 									player.removePotionEffect(PotionEffectType.NIGHT_VISION);
 								}
 							}
@@ -1352,33 +1384,30 @@ public class NetherTools implements Listener {
 				}
 
 				instance.getScheduler().runTaskSyncLater(() -> {
-					if (this.clickCache.containsKey(instance.getHellblockHandler().getActivePlayer(player))) {
-						boolean glowstoneEffect = this.clickCache
-								.get(instance.getHellblockHandler().getActivePlayer(player)).booleanValue();
+					if (this.clickCache.containsKey(onlineUser)) {
+						boolean glowstoneEffect = this.clickCache.get(onlineUser).booleanValue();
 						if (glowstoneEffect) {
 							player.addPotionEffect(
 									new PotionEffect(PotionEffectType.NIGHT_VISION, Integer.MAX_VALUE, 1));
-							instance.getHellblockHandler().getActivePlayer(player).isHoldingGlowstoneTool(true);
+							onlineUser.isHoldingGlowstoneTool(true);
 						} else {
-							if (instance.getHellblockHandler().getActivePlayer(player).hasGlowstoneToolEffect()) {
+							if (onlineUser.hasGlowstoneToolEffect()) {
 								if (player.hasPotionEffect(PotionEffectType.NIGHT_VISION)) {
-									instance.getHellblockHandler().getActivePlayer(player)
-											.isHoldingGlowstoneTool(false);
-									if (!instance.getHellblockHandler().getActivePlayer(player)
-											.hasGlowstoneArmorEffect()) {
+									onlineUser.isHoldingGlowstoneTool(false);
+									if (!onlineUser.hasGlowstoneArmorEffect()) {
 										player.removePotionEffect(PotionEffectType.NIGHT_VISION);
 									}
 								}
 							}
 						}
-						this.clickCache.remove(instance.getHellblockHandler().getActivePlayer(player));
+						this.clickCache.remove(onlineUser);
 					}
 				}, player.getLocation(), 1, TimeUnit.MILLISECONDS);
 			} else {
-				if (instance.getHellblockHandler().getActivePlayer(player).hasGlowstoneToolEffect()) {
+				if (onlineUser.hasGlowstoneToolEffect()) {
 					if (player.hasPotionEffect(PotionEffectType.NIGHT_VISION)) {
-						instance.getHellblockHandler().getActivePlayer(player).isHoldingGlowstoneTool(false);
-						if (!instance.getHellblockHandler().getActivePlayer(player).hasGlowstoneArmorEffect()) {
+						onlineUser.isHoldingGlowstoneTool(false);
+						if (!onlineUser.hasGlowstoneArmorEffect()) {
 							player.removePotionEffect(PotionEffectType.NIGHT_VISION);
 						}
 					}

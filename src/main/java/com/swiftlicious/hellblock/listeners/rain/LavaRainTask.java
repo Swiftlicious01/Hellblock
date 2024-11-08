@@ -22,7 +22,7 @@ import org.bukkit.util.Vector;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.listeners.rain.LavaRain.LavaRainLocation;
-import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
+import com.swiftlicious.hellblock.player.OnlineUser;
 import com.swiftlicious.hellblock.scheduler.CancellableTask;
 import com.swiftlicious.hellblock.utils.RandomUtils;
 
@@ -62,9 +62,8 @@ public class LavaRainTask implements Runnable {
 		if (!instance.getLavaRainHandler().isEnabled())
 			return;
 
-		Iterator<Player> players = instance.getHellblockHandler().getActivePlayers().values().stream()
-				.filter(hbPlayer -> hbPlayer.getPlayer() != null && hbPlayer.getPlayer().isOnline())
-				.map(HellblockPlayer::getPlayer).iterator();
+		Iterator<Player> players = instance.getStorageManager().getOnlineUsers().stream()
+				.filter(user -> user != null && user.isOnline()).map(OnlineUser::getPlayer).iterator();
 
 		while (true) {
 

@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import org.bukkit.Bukkit;
@@ -36,7 +37,9 @@ import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import com.sk89q.worldguard.protection.regions.RegionContainer;
 import com.sk89q.worldguard.protection.regions.RegionQuery;
 import com.swiftlicious.hellblock.HellblockPlugin;
-import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
+import com.swiftlicious.hellblock.config.HBConfig;
+import com.swiftlicious.hellblock.player.OfflineUser;
+import com.swiftlicious.hellblock.player.OnlineUser;
 import com.swiftlicious.hellblock.protection.HellblockFlag;
 import com.swiftlicious.hellblock.utils.LogUtils;
 
@@ -50,14 +53,14 @@ public class WorldGuardHook {
 	@Getter
 	@Setter
 	private WorldGuardPlatform worldGuardPlatform;
-	
+
 	public final static String SPAWN_REGION = "spawn";
 
 	public WorldGuardHook(HellblockPlugin plugin) {
 		instance = plugin;
 	}
 
-	public CompletableFuture<Void> protectHellblock(@NonNull HellblockPlayer player) {
+	public CompletableFuture<Void> protectHellblock(@NonNull OnlineUser user) {
 		return CompletableFuture.runAsync(() -> {
 			try {
 				if (this.worldGuardPlatform == null) {
@@ -73,21 +76,23 @@ public class WorldGuardHook {
 				}
 				DefaultDomain owners = new DefaultDomain();
 				ProtectedRegion region = new ProtectedCuboidRegion(
-						String.format("%s_%s", player.getUUID().toString(), player.getID()),
-						getProtectionVectorLeft(player.getHellblockLocation()),
-						getProtectionVectorRight(player.getHellblockLocation()));
-				owners.addPlayer(player.getUUID());
+						String.format("%s_%s", user.getUUID().toString(), user.getHellblockData().getID()),
+						getProtectionVectorLeft(user.getHellblockData().getHellblockLocation()),
+						getProtectionVectorRight(user.getHellblockData().getHellblockLocation()));
 				region.setParent(regionManager.getRegion(ProtectedRegion.GLOBAL_REGION));
+				owners.addPlayer(user.getUUID());
 				region.setOwners(owners);
 				region.setPriority(100);
-				updateHellblockMessages(player.getUUID(), region);
-				player.setHellblockBoundingBox(
-						new BoundingBox((double) region.getMinimumPoint().x(), (double) region.getMinimumPoint().y(),
-								(double) region.getMinimumPoint().z(), (double) region.getMaximumPoint().x(),
-								(double) region.getMaximumPoint().y(), (double) region.getMaximumPoint().z()));
+				updateHellblockMessages(user.getUUID(), region);
+				user.getHellblockData()
+						.setBoundingBox(new BoundingBox((double) region.getMinimumPoint().x(),
+								(double) region.getMinimumPoint().y(), (double) region.getMinimumPoint().z(),
+								(double) region.getMaximumPoint().x(), (double) region.getMaximumPoint().y(),
+								(double) region.getMaximumPoint().z()));
 				ApplicableRegionSet set = regionManager
-						.getApplicableRegions(BlockVector3.at(player.getHellblockLocation().getX(),
-								player.getHellblockLocation().getY(), player.getHellblockLocation().getZ()));
+						.getApplicableRegions(BlockVector3.at(user.getHellblockData().getHellblockLocation().getX(),
+								user.getHellblockData().getHellblockLocation().getY(),
+								user.getHellblockData().getHellblockLocation().getZ()));
 				if (set.size() > 0) {
 					Iterator<ProtectedRegion> regions = set.iterator();
 
@@ -102,9 +107,9 @@ public class WorldGuardHook {
 
 				regionManager.addRegion(region);
 				regionManager.save();
-				instance.getCoopManager().changeLockStatus(player);
+				instance.getCoopManager().changeLockStatus(user);
 			} catch (Exception ex) {
-				LogUtils.severe(String.format("Unable to protect %s's hellblock!", player.getPlayer().getName()), ex);
+				LogUtils.severe(String.format("Unable to protect %s's hellblock!", user.getName()), ex);
 				return;
 			}
 		});
@@ -124,14 +129,23 @@ public class WorldGuardHook {
 							instance.getHellblockHandler().getWorldName()));
 					return;
 				}
-				HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(id);
-				String regionName = String.format("%s_%s", id.toString(), pi.getID());
-				ProtectedRegion region = regionManager.getRegion(regionName);
-				if (region != null) {
-					instance.getScheduler().runTaskSync(() -> clearEntities(region), pi.getHellblockLocation());
-					regionManager.removeRegion(regionName, RemovalStrategy.UNSET_PARENT_IN_CHILDREN);
-					regionManager.save();
-				}
+				instance.getStorageManager().getOfflineUser(id, HBConfig.lockData).thenAccept((result) -> {
+					OfflineUser offlineUser = result.orElseThrow();
+					String regionName = String.format("%s_%s", id.toString(), offlineUser.getHellblockData().getID());
+					ProtectedRegion region = regionManager.getRegion(regionName);
+					if (region != null) {
+						instance.getScheduler().runTaskSync(() -> clearEntities(region),
+								offlineUser.getHellblockData().getHellblockLocation());
+						regionManager.removeRegion(regionName, RemovalStrategy.UNSET_PARENT_IN_CHILDREN);
+						try {
+							regionManager.save();
+						} catch (Exception ex) {
+							LogUtils.severe(String.format("Unable to unprotect %s's hellblock!",
+									Bukkit.getPlayer(id).getName()), ex);
+							return;
+						}
+					}
+				});
 			} catch (Exception ex) {
 				LogUtils.severe(String.format("Unable to unprotect %s's hellblock!", Bukkit.getPlayer(id).getName()),
 						ex);
@@ -148,53 +162,89 @@ public class WorldGuardHook {
 	}
 
 	public void updateHellblockMessages(@NonNull UUID id, @NonNull ProtectedRegion region) {
-		HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(id);
-		String name = Bukkit.getOfflinePlayer(id).hasPlayedBefore() && Bukkit.getOfflinePlayer(id).getName() != null
-				? Bukkit.getOfflinePlayer(id).getName()
-				: null;
-		if (name == null) {
-			LogUtils.warn("Failed to retrieve player's username to update hellblock entry and farewell messages.");
-			return;
-		}
-		StringFlag greetFlag = instance.getIslandProtectionManager()
-				.convertToWorldGuardStringFlag(HellblockFlag.FlagType.GREET_MESSAGE);
-		if (instance.getHellblockHandler().isEntryMessageEnabled()) {
-			if (!pi.isAbandoned()) {
-				region.setFlag(greetFlag, String.format("&cYou're entering &4%s&c's Hellblock!", name));
+		OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(id);
+		if (onlineUser != null) {
+			String name = onlineUser.getName();
+			if (name == null) {
+				LogUtils.warn("Failed to retrieve player's username to update hellblock entry and farewell messages.");
+				return;
+			}
+			StringFlag greetFlag = instance.getIslandProtectionManager()
+					.convertToWorldGuardStringFlag(HellblockFlag.FlagType.GREET_MESSAGE);
+			if (instance.getHellblockHandler().isEntryMessageEnabled()) {
+				if (!onlineUser.getHellblockData().isAbandoned()) {
+					region.setFlag(greetFlag, String.format("&cYou're entering &4%s&c's Hellblock!", name));
+				} else {
+					region.setFlag(greetFlag, "&4** &cYou're entering an abandoned Hellblock! &4**");
+				}
 			} else {
-				region.setFlag(greetFlag, "&4** &cYou're entering an abandoned Hellblock! &4**");
+				region.setFlag(greetFlag, null);
+			}
+			StringFlag farewellFlag = instance.getIslandProtectionManager()
+					.convertToWorldGuardStringFlag(HellblockFlag.FlagType.FAREWELL_MESSAGE);
+			if (instance.getHellblockHandler().isFarewellMessageEnabled()) {
+				if (!onlineUser.getHellblockData().isAbandoned()) {
+					region.setFlag(farewellFlag, String.format("&cYou're leaving &4%s&c's Hellblock!", name));
+				} else {
+					region.setFlag(farewellFlag, "&4** &cYou're leaving an abandoned Hellblock! &4**");
+				}
+			} else {
+				region.setFlag(farewellFlag, null);
 			}
 		} else {
-			region.setFlag(greetFlag, null);
-		}
-		StringFlag farewellFlag = instance.getIslandProtectionManager()
-				.convertToWorldGuardStringFlag(HellblockFlag.FlagType.FAREWELL_MESSAGE);
-		if (instance.getHellblockHandler().isFarewellMessageEnabled()) {
-			if (!pi.isAbandoned()) {
-				region.setFlag(farewellFlag, String.format("&cYou're leaving &4%s&c's Hellblock!", name));
-			} else {
-				region.setFlag(farewellFlag, "&4** &cYou're leaving an abandoned Hellblock! &4**");
-			}
-		} else {
-			region.setFlag(farewellFlag, null);
+			instance.getStorageManager().getOfflineUser(id, HBConfig.lockData).thenAccept((result) -> {
+				OfflineUser offlineUser = result.orElseThrow();
+				String name = offlineUser.getName();
+				if (name == null) {
+					LogUtils.warn(
+							"Failed to retrieve player's username to update hellblock entry and farewell messages.");
+					return;
+				}
+				StringFlag greetFlag = instance.getIslandProtectionManager()
+						.convertToWorldGuardStringFlag(HellblockFlag.FlagType.GREET_MESSAGE);
+				if (instance.getHellblockHandler().isEntryMessageEnabled()) {
+					if (!offlineUser.getHellblockData().isAbandoned()) {
+						region.setFlag(greetFlag, String.format("&cYou're entering &4%s&c's Hellblock!", name));
+					} else {
+						region.setFlag(greetFlag, "&4** &cYou're entering an abandoned Hellblock! &4**");
+					}
+				} else {
+					region.setFlag(greetFlag, null);
+				}
+				StringFlag farewellFlag = instance.getIslandProtectionManager()
+						.convertToWorldGuardStringFlag(HellblockFlag.FlagType.FAREWELL_MESSAGE);
+				if (instance.getHellblockHandler().isFarewellMessageEnabled()) {
+					if (!offlineUser.getHellblockData().isAbandoned()) {
+						region.setFlag(farewellFlag, String.format("&cYou're leaving &4%s&c's Hellblock!", name));
+					} else {
+						region.setFlag(farewellFlag, "&4** &cYou're leaving an abandoned Hellblock! &4**");
+					}
+				} else {
+					region.setFlag(farewellFlag, null);
+				}
+			});
 		}
 	}
 
 	public void abandonIsland(@NonNull UUID id, @NonNull ProtectedRegion region) {
-		HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(id);
-		if (pi.isAbandoned()) {
-			region.getOwners().clear();
-			region.getMembers().clear();
-			region.setFlag(instance.getIslandProtectionManager().convertToWorldGuardFlag(HellblockFlag.FlagType.PVP),
-					StateFlag.State.DENY);
-			region.setFlag(instance.getIslandProtectionManager().convertToWorldGuardFlag(HellblockFlag.FlagType.BUILD),
-					StateFlag.State.DENY);
-			region.setFlag(instance.getIslandProtectionManager().convertToWorldGuardFlag(HellblockFlag.FlagType.ENTRY),
-					StateFlag.State.DENY);
-			region.setFlag(
-					instance.getIslandProtectionManager().convertToWorldGuardFlag(HellblockFlag.FlagType.MOB_SPAWNING),
-					StateFlag.State.DENY);
-		}
+		instance.getStorageManager().getOfflineUser(id, HBConfig.lockData).thenAccept((result) -> {
+			OfflineUser offlineUser = result.orElseThrow();
+			if (offlineUser.getHellblockData().isAbandoned()) {
+				region.getOwners().clear();
+				region.getMembers().clear();
+				region.setFlag(
+						instance.getIslandProtectionManager().convertToWorldGuardFlag(HellblockFlag.FlagType.PVP),
+						StateFlag.State.DENY);
+				region.setFlag(
+						instance.getIslandProtectionManager().convertToWorldGuardFlag(HellblockFlag.FlagType.BUILD),
+						StateFlag.State.DENY);
+				region.setFlag(
+						instance.getIslandProtectionManager().convertToWorldGuardFlag(HellblockFlag.FlagType.ENTRY),
+						StateFlag.State.DENY);
+				region.setFlag(instance.getIslandProtectionManager()
+						.convertToWorldGuardFlag(HellblockFlag.FlagType.MOB_SPAWNING), StateFlag.State.DENY);
+			}
+		});
 	}
 
 	public @NonNull BlockVector3 getProtectionVectorLeft(@NonNull Location loc) {
@@ -274,30 +324,32 @@ public class WorldGuardHook {
 	}
 
 	public CompletableFuture<List<Block>> getRegionBlocks(@NonNull UUID id) {
-		CompletableFuture<List<Block>> blocks = CompletableFuture.supplyAsync(() -> {
+		return CompletableFuture.supplyAsync((Supplier<List<Block>>) () -> {
 			World world = instance.getHellblockHandler().getHellblockWorld();
-			HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(id);
-			ProtectedRegion region = getRegion(id, pi.getID());
-			if (region == null) {
-				return new ArrayList<>();
-			}
+			RegionBlockSupplier regionBlockSupplier = new RegionBlockSupplier();
+			instance.getStorageManager().getOfflineUser(id, HBConfig.lockData).thenAccept((result) -> {
+				OfflineUser offlineUser = result.orElseThrow();
+				ProtectedRegion region = getRegion(id, offlineUser.getHellblockData().getID());
+				if (region == null) {
+					regionBlockSupplier.setRegionBlockSupplier(new ArrayList<>());
+				}
 
-			Location min = BukkitAdapter.adapt(world, region.getMinimumPoint());
-			Location max = BukkitAdapter.adapt(world, region.getMaximumPoint());
+				Location min = BukkitAdapter.adapt(world, region.getMinimumPoint());
+				Location max = BukkitAdapter.adapt(world, region.getMaximumPoint());
 
-			List<Block> regionBlocks = new ArrayList<>();
-			for (int x = min.getBlockX(); x <= max.getBlockX(); x++) {
-				for (int y = min.getBlockY(); y <= max.getBlockY(); y++) {
-					for (int z = min.getBlockZ(); z <= max.getBlockZ(); z++) {
-						Block block = world.getBlockAt(x, y, z);
-						regionBlocks.add(block);
+				List<Block> regionBlocks = new ArrayList<>();
+				for (int x = min.getBlockX(); x <= max.getBlockX(); x++) {
+					for (int y = min.getBlockY(); y <= max.getBlockY(); y++) {
+						for (int z = min.getBlockZ(); z <= max.getBlockZ(); z++) {
+							Block block = world.getBlockAt(x, y, z);
+							regionBlocks.add(block);
+						}
 					}
 				}
-			}
-			return regionBlocks;
+				regionBlockSupplier.setRegionBlockSupplier(regionBlocks);
+			});
+			return regionBlockSupplier.getRegionBlockSupplier();
 		});
-
-		return blocks;
 	}
 
 	public ProtectedRegion getRegion(@NonNull UUID playerUUID, int hellblockID) {
@@ -463,5 +515,17 @@ public class WorldGuardHook {
 	 */
 	public boolean isPlayerInAllRegions(@NonNull UUID playerUUID, String... regionName) {
 		return isPlayerInAllRegions(playerUUID, new HashSet<>(Arrays.asList(regionName)));
+	}
+
+	public class RegionBlockSupplier {
+		private List<Block> regionBlockSupplier;
+
+		public @NonNull List<Block> getRegionBlockSupplier() {
+			return this.regionBlockSupplier;
+		}
+
+		public void setRegionBlockSupplier(@NonNull List<Block> regionBlockSupplier) {
+			this.regionBlockSupplier = regionBlockSupplier;
+		}
 	}
 }

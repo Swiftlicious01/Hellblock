@@ -30,8 +30,8 @@ import org.jetbrains.annotations.Nullable;
 import com.saicone.rtag.RtagItem;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.creation.item.BuildableItem;
-import com.swiftlicious.hellblock.playerdata.EarningData;
-import com.swiftlicious.hellblock.playerdata.OnlineUser;
+import com.swiftlicious.hellblock.player.EarningData;
+import com.swiftlicious.hellblock.player.OnlineUser;
 import com.swiftlicious.hellblock.scheduler.CancellableTask;
 import com.swiftlicious.hellblock.utils.LogUtils;
 import com.swiftlicious.hellblock.utils.NBTUtils;
@@ -408,12 +408,12 @@ public class MarketManager implements MarketManagerInterface, Listener {
 				double earningLimit = getEarningLimit(player);
 				Condition condition = new Condition(player,
 						new HashMap<>(Map.of("{money}", instance.getNumberUtils().money(worth), "{rest}",
-								instance.getNumberUtils().money(earningLimit - data.earnings), "{money_formatted}",
+								instance.getNumberUtils().money(earningLimit - data.getEarnings()), "{money_formatted}",
 								String.format("%.2f", worth), "{rest_formatted}",
-								String.format("%.2f", (earningLimit - data.earnings)), "{sold-item-amount}",
+								String.format("%.2f", (earningLimit - data.getEarnings())), "{sold-item-amount}",
 								String.valueOf(amount))));
 				if (worth > 0) {
-					if (earningLimit != -1 && (earningLimit - data.earnings) < worth) {
+					if (earningLimit != -1 && (earningLimit - data.getEarnings()) < worth) {
 						// Can't earn more money
 						if (getSellLimitActions() != null) {
 							for (Action action : getSellLimitActions()) {
@@ -424,8 +424,8 @@ public class MarketManager implements MarketManagerInterface, Listener {
 						// Clear items and update earnings
 						gui.clearWorthyItems();
 						data.earnings += worth;
-						condition.insertArg("{rest}", instance.getNumberUtils().money(earningLimit - data.earnings));
-						condition.insertArg("{rest_formatted}", String.format("%.2f", (earningLimit - data.earnings)));
+						condition.insertArg("{rest}", instance.getNumberUtils().money(earningLimit - data.getEarnings()));
+						condition.insertArg("{rest_formatted}", String.format("%.2f", (earningLimit - data.getEarnings())));
 						if (getSellAllowActions() != null) {
 							for (Action action : getSellAllowActions()) {
 								action.trigger(condition);
@@ -446,12 +446,12 @@ public class MarketManager implements MarketManagerInterface, Listener {
 				double earningLimit = getEarningLimit(player);
 				Condition condition = new Condition(player,
 						new HashMap<>(Map.of("{money}", instance.getNumberUtils().money(worth), "{rest}",
-								instance.getNumberUtils().money(earningLimit - data.earnings), "{money_formatted}",
+								instance.getNumberUtils().money(earningLimit - data.getEarnings()), "{money_formatted}",
 								String.format("%.2f", worth), "{rest_formatted}",
-								String.format("%.2f", (earningLimit - data.earnings)), "{sold-item-amount}",
+								String.format("%.2f", (earningLimit - data.getEarnings())), "{sold-item-amount}",
 								String.valueOf(amount))));
 				if (worth > 0) {
-					if (earningLimit != -1 && (earningLimit - data.earnings) < worth) {
+					if (earningLimit != -1 && (earningLimit - data.getEarnings()) < worth) {
 						// Can't earn more money
 						if (getSellAllLimitActions() != null) {
 							for (Action action : getSellAllLimitActions()) {
@@ -462,8 +462,8 @@ public class MarketManager implements MarketManagerInterface, Listener {
 						// Clear items and update earnings
 						clearWorthyItems(player.getInventory());
 						data.earnings += worth;
-						condition.insertArg("{rest}", instance.getNumberUtils().money(earningLimit - data.earnings));
-						condition.insertArg("{rest_formatted}", String.format("%.2f", (earningLimit - data.earnings)));
+						condition.insertArg("{rest}", instance.getNumberUtils().money(earningLimit - data.getEarnings()));
+						condition.insertArg("{rest_formatted}", String.format("%.2f", (earningLimit - data.getEarnings())));
 						if (getSellAllAllowActions() != null) {
 							for (Action action : getSellAllAllowActions()) {
 								action.trigger(condition);

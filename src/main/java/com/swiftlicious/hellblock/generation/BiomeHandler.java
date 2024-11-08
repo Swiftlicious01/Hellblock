@@ -3,6 +3,8 @@ package com.swiftlicious.hellblock.generation;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
@@ -16,12 +18,12 @@ import org.jetbrains.annotations.NotNull;
 
 import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldedit.math.BlockVector3;
-import com.sk89q.worldguard.domains.DefaultDomain;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
-import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
-import com.swiftlicious.hellblock.playerdata.HellblockPlayer.HellblockData;
+import com.swiftlicious.hellblock.config.HBLocale;
+import com.swiftlicious.hellblock.player.OnlineUser;
+
 import lombok.NonNull;
 
 public class BiomeHandler {
@@ -32,78 +34,52 @@ public class BiomeHandler {
 		instance = plugin;
 	}
 
-	public @NonNull HellBiome convertBiomeToHellBiome(@NonNull Biome biome) {
-		HellBiome hellBiome = HellBiome.NETHER_WASTES;
-		switch (biome) {
-		case Biome.SOUL_SAND_VALLEY:
-			hellBiome = HellBiome.SOUL_SAND_VALLEY;
-			break;
-		case Biome.NETHER_WASTES:
-			hellBiome = HellBiome.NETHER_WASTES;
-			break;
-		case Biome.CRIMSON_FOREST:
-			hellBiome = HellBiome.CRIMSON_FOREST;
-			break;
-		case Biome.WARPED_FOREST:
-			hellBiome = HellBiome.WARPED_FOREST;
-			break;
-		case Biome.BASALT_DELTAS:
-			hellBiome = HellBiome.BASALT_DELTAS;
-			break;
-		default:
-			break;
-		}
-		return hellBiome;
-	}
-
-	public void changeHellblockBiome(@NonNull HellblockPlayer hbPlayer, @NonNull HellBiome biome) {
-		Player player = hbPlayer.getPlayer();
+	public void changeHellblockBiome(@NonNull OnlineUser user, @NonNull HellBiome biome) {
+		Player player = user.getPlayer();
 		if (player != null) {
-			if (!hbPlayer.hasHellblock()) {
-				instance.getAdventureManager().sendMessageWithPrefix(player,
-						"<red>You don't have a hellblock island! Create one with /hellblock create");
+			if (!user.getHellblockData().hasHellblock()) {
+				instance.getAdventureManager().sendMessageWithPrefix(player, HBLocale.MSG_Hellblock_Not_Found);
 				return;
 			}
-			if (hbPlayer.getHellblockOwner() == null) {
-				instance.getAdventureManager().sendMessageWithPrefix(player,
-						"<red>An error has occurred. Please report this to the developer.");
+			if (user.getHellblockData().isAbandoned()) {
+				instance.getAdventureManager().sendMessageWithPrefix(player, HBLocale.MSG_Hellblock_Is_Abandoned);
 				return;
 			}
-			if (hbPlayer.getHellblockOwner() != null && !hbPlayer.getHellblockOwner().equals(player.getUniqueId())) {
-				instance.getAdventureManager().sendMessageWithPrefix(player,
-						"<red>You don't own this hellblock island!");
+			if (user.getHellblockData().getOwnerUUID() == null) {
+				throw new NullPointerException("Owner reference returned null, please report this to the developer.");
+			}
+			if (user.getHellblockData().getOwnerUUID() != null
+					&& !user.getHellblockData().getOwnerUUID().equals(player.getUniqueId())) {
+				instance.getAdventureManager().sendMessageWithPrefix(player, HBLocale.MSG_Not_Owner_Of_Hellblock);
 				return;
 			}
-			if (hbPlayer.getBiomeCooldown() > 0) {
+			if (user.getHellblockData().getBiomeCooldown() > 0) {
 				instance.getAdventureManager().sendMessageWithPrefix(player,
 						String.format("<red>You've recently changed your biome already, you must wait for %s!",
-								instance.getFormattedCooldown(hbPlayer.getBiomeCooldown())));
+								instance.getFormattedCooldown(user.getHellblockData().getBiomeCooldown())));
 				return;
 			}
 
 			if (instance.getHellblockHandler().isWorldguardProtected()) {
 				ProtectedRegion region = instance.getWorldGuardHandler().getRegion(player.getUniqueId(),
-						hbPlayer.getID());
+						user.getHellblockData().getID());
 				if (region == null) {
-					instance.getAdventureManager().sendMessageWithPrefix(player,
-							"<red>You don't have a hellblock island! Create one with /hellblock create");
-					return;
+					throw new NullPointerException("Region returned null, please report this to the developer.");
 				}
-				DefaultDomain owners = region.getOwners();
+				Set<UUID> owners = region.getOwners().getUniqueIds();
 				if (!owners.contains(player.getUniqueId())) {
-					instance.getAdventureManager().sendMessageWithPrefix(player,
-							"<red>You don't own this hellblock island!");
+					instance.getAdventureManager().sendMessageWithPrefix(player, HBLocale.MSG_Not_Owner_Of_Hellblock);
 					return;
 				}
 
-				if (!region.contains(player.getLocation().getBlockX(), player.getLocation().getBlockY(),
-						player.getLocation().getBlockZ())) {
+				if (player.getLocation() != null && !region.contains(player.getLocation().getBlockX(),
+						player.getLocation().getBlockY(), player.getLocation().getBlockZ())) {
 					instance.getAdventureManager().sendMessageWithPrefix(player,
 							"<red>You must be on your hellblock to change the biome!");
 					return;
 				}
 
-				if (hbPlayer.getHomeLocation().getBlock().getBiome().getKey().getKey()
+				if (user.getHellblockData().getHomeLocation().getBlock().getBiome().getKey().getKey()
 						.equalsIgnoreCase(biome.toString().toLowerCase())) {
 					instance.getAdventureManager().sendMessageWithPrefix(player, String
 							.format("<red>Your hellblock biome is already set to <dark_red>%s<red>!", biome.getName()));
@@ -112,11 +88,8 @@ public class BiomeHandler {
 
 				setHellblockBiome(region, biome);
 
-				hbPlayer.setHellblockBiome(biome);
-				hbPlayer.setBiomeCooldown(86400L);
-				hbPlayer.saveHellblockPlayer();
-				instance.getCoopManager().updateParty(hbPlayer.getUUID(), HellblockData.BIOME, biome);
-				instance.getCoopManager().updateParty(hbPlayer.getUUID(), HellblockData.BIOME_COOLDOWN, 86400L);
+				user.getHellblockData().setBiome(biome);
+				user.getHellblockData().setBiomeCooldown(86400L);
 				instance.getAdventureManager().sendMessageWithPrefix(player, String.format(
 						"<red>You've changed the biome of your hellblock to <dark_red>%s<red>!", biome.getName()));
 			} else {
@@ -156,7 +129,7 @@ public class BiomeHandler {
 				for (int y = heightMin; y < heightMax; y += 4) {
 					for (int z = start.getBlockZ(); z < end.getBlockZ(); z++) {
 						Block block = new Location(world, x, y, z).getBlock();
-						if (convertBiomeToHellBiome(block.getBiome()) != biome)
+						if (HellBiome.valueOf(block.getBiome().toString()) != biome)
 							block.setBiome(Biome.valueOf(biome.toString().toUpperCase()));
 					}
 				}

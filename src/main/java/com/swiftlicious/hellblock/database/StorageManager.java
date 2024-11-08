@@ -10,6 +10,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 import org.bukkit.Bukkit;
+import org.bukkit.Material;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -17,6 +18,9 @@ import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -25,10 +29,11 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonSyntaxException;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.config.HBConfig;
-import com.swiftlicious.hellblock.playerdata.OfflineUser;
-import com.swiftlicious.hellblock.playerdata.OnlineUser;
-import com.swiftlicious.hellblock.playerdata.PlayerData;
+import com.swiftlicious.hellblock.player.OfflineUser;
+import com.swiftlicious.hellblock.player.OnlineUser;
+import com.swiftlicious.hellblock.player.PlayerData;
 import com.swiftlicious.hellblock.scheduler.CancellableTask;
+import com.swiftlicious.hellblock.utils.LocationUtils;
 import com.swiftlicious.hellblock.utils.LogUtils;
 
 /**
@@ -111,13 +116,13 @@ public class StorageManager implements StorageManagerInterface, Listener {
 		// Schedule periodic data saving if dataSaveInterval is configured
 		if (HBConfig.dataSaveInterval != -1 && HBConfig.dataSaveInterval != 0) {
 			this.timerSaveTask = instance.getScheduler().runTaskAsyncTimer(() -> {
-				if (HellblockPlugin.getInstance().getHellblockHandler().getActivePlayers().isEmpty())
+				if (this.onlineUserMap.values().isEmpty())
 					return;
-				long time1 = System.currentTimeMillis();
+				long finalTime = System.currentTimeMillis();
 				this.dataSource.updateManyPlayersData(this.onlineUserMap.values(), !HBConfig.lockData);
 				if (HBConfig.logDataSaving)
 					LogUtils.info(String.format("Data Saved for online players. Took %sms.",
-							(System.currentTimeMillis() - time1)));
+							(System.currentTimeMillis() - finalTime)));
 			}, HBConfig.dataSaveInterval, HBConfig.dataSaveInterval, TimeUnit.SECONDS);
 		}
 	}
@@ -227,6 +232,10 @@ public class StorageManager implements StorageManagerInterface, Listener {
 		Player player = event.getPlayer();
 		UUID uuid = player.getUniqueId();
 		locked.add(uuid);
+		if (player.hasPermission("hellblock.updates") && instance.isUpdateAvailable()) {
+			instance.getAdventureManager().sendMessageWithPrefix(player,
+					"<red>There is a new update available!: <dark_red><u>https://github.com/Swiftlicious01/Hellblock<!u>");
+		}
 		if (!hasRedis) {
 			waitForDataLockRelease(uuid, 1);
 		} else {
@@ -253,10 +262,35 @@ public class StorageManager implements StorageManagerInterface, Listener {
 		if (locked.contains(uuid))
 			return;
 
+		instance.getIslandLevelManager().saveCache(uuid);
+		instance.getNetherrackGeneratorHandler().savePistons(uuid);
+
 		OnlineUser onlineUser = onlineUserMap.remove(uuid);
 		if (onlineUser == null)
 			return;
 		PlayerData data = onlineUser.getPlayerData();
+
+		onlineUser.hideBorder();
+		onlineUser.stopSpawningAnimals();
+
+		if (onlineUser.hasGlowstoneToolEffect() || onlineUser.hasGlowstoneArmorEffect()) {
+			if (player.hasPotionEffect(PotionEffectType.NIGHT_VISION)) {
+				player.removePotionEffect(PotionEffectType.NIGHT_VISION);
+				onlineUser.isHoldingGlowstoneTool(false);
+				onlineUser.isWearingGlowstoneArmor(false);
+			}
+		}
+		if (instance.getPlayerListener().getCancellablePortal().containsKey(uuid)
+				&& instance.getPlayerListener().getCancellablePortal().get(uuid) != null) {
+			if (!instance.getPlayerListener().getCancellablePortal().get(uuid).isCancelled())
+				instance.getPlayerListener().getCancellablePortal().get(uuid).cancel();
+			instance.getPlayerListener().getCancellablePortal().remove(uuid);
+		}
+		if (instance.getPlayerListener().getLinkPortalCatcher().contains(uuid))
+			instance.getPlayerListener().getLinkPortalCatcher().remove(uuid);
+		// Cleanup
+		instance.getNetherrackGeneratorHandler().getGenManager().cleanupExpiredPistons(uuid);
+		instance.getNetherrackGeneratorHandler().getGenManager().cleanupExpiredLocations();
 
 		if (hasRedis) {
 			redisManager.setChangeServer(uuid).thenRun(() -> redisManager.updatePlayerData(uuid, data, true)
@@ -355,6 +389,113 @@ public class StorageManager implements StorageManagerInterface, Listener {
 		locked.remove(player.getUniqueId());
 		OnlineUser bukkitUser = new OnlineUser(player, playerData);
 		onlineUserMap.put(player.getUniqueId(), bukkitUser);
+		if (bukkitUser.getHellblockData().isAbandoned()) {
+			instance.getAdventureManager().sendMessageWithPrefix(player,
+					String.format("<red>Your hellblock was deemed abandoned for not logging in for the past %s days!",
+							instance.getConfig("config.yml").getInt("hellblock.abandon-after-days")));
+			instance.getAdventureManager().sendMessageWithPrefix(player,
+					"<red>You've lost access to your island, if you wish to recover it speak to an administrator.");
+		}
+
+		instance.getIslandLevelManager().loadCache(player.getUniqueId());
+		instance.getNetherrackGeneratorHandler().loadPistons(player.getUniqueId());
+
+		bukkitUser.showBorder();
+		bukkitUser.startSpawningAnimals();
+		instance.getNetherFarmingHandler().trackNetherFarms(bukkitUser);
+
+		if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+			return;
+
+		if (player.getLocation() != null) {
+			LocationUtils.isSafeLocationAsync(player.getLocation()).thenAccept((playerResult) -> {
+				if (!playerResult.booleanValue()) {
+					if (bukkitUser.getHellblockData().hasHellblock()) {
+						if (bukkitUser.getHellblockData().getOwnerUUID() == null) {
+							throw new NullPointerException(
+									"Owner reference returned null, please report this to the developer.");
+						}
+						instance.getStorageManager().getOfflineUser(bukkitUser.getHellblockData().getOwnerUUID(), false)
+								.thenAccept((owner) -> {
+									OfflineUser ownerUser = owner.get();
+									if (ownerUser.getHellblockData().getHomeLocation() != null) {
+										instance.getCoopManager().makeHomeLocationSafe(ownerUser, bukkitUser);
+									} else {
+										instance.getHellblockHandler().teleportToSpawn(player, false);
+									}
+								});
+					} else {
+						instance.getHellblockHandler().teleportToSpawn(player, false);
+					}
+				}
+			});
+		}
+
+		if (instance.getCoopManager().getHellblockOwnerOfVisitingIsland(player) != null) {
+			instance.getCoopManager()
+					.kickVisitorsIfLocked(instance.getCoopManager().getHellblockOwnerOfVisitingIsland(player));
+
+			if (instance.getCoopManager().trackBannedPlayer(
+					instance.getCoopManager().getHellblockOwnerOfVisitingIsland(player), player.getUniqueId())) {
+				if (bukkitUser.getHellblockData().hasHellblock()) {
+					if (bukkitUser.getHellblockData().getOwnerUUID() == null) {
+						throw new NullPointerException(
+								"Owner reference returned null, please report this to the developer.");
+					}
+					instance.getStorageManager().getOfflineUser(bukkitUser.getHellblockData().getOwnerUUID(), false)
+							.thenAccept((owner) -> {
+								OfflineUser ownerUser = owner.get();
+								instance.getCoopManager().makeHomeLocationSafe(ownerUser, bukkitUser);
+							});
+				} else {
+					instance.getHellblockHandler().teleportToSpawn(player, true);
+				}
+			}
+		}
+
+		if (bukkitUser.inUnsafeLocation()) {
+			instance.getHellblockHandler().teleportToSpawn(player, true);
+			bukkitUser.setInUnsafeLocation(false);
+			instance.getAdventureManager().sendMessageWithPrefix(player,
+					"<red>You logged out in an unsafe hellblock environment because it was reset or deleted.");
+		}
+
+		if (instance.getNetherArmorHandler().gsNightVisionArmor && instance.getNetherArmorHandler().gsArmor) {
+			ItemStack[] armorSet = player.getInventory().getArmorContents();
+			boolean checkArmor = false;
+			if (armorSet != null) {
+				for (ItemStack item : armorSet) {
+					if (item == null || item.getType() == Material.AIR)
+						continue;
+					if (instance.getNetherArmorHandler().checkNightVisionArmorStatus(item)
+							&& instance.getNetherArmorHandler().getNightVisionArmorStatus(item)) {
+						checkArmor = true;
+						break;
+					}
+				}
+
+				if (checkArmor) {
+					player.addPotionEffect(new PotionEffect(PotionEffectType.NIGHT_VISION, Integer.MAX_VALUE, 1));
+					bukkitUser.isWearingGlowstoneArmor(true);
+				}
+			}
+		}
+
+		if (instance.getNetherToolsHandler().gsNightVisionTool && instance.getNetherToolsHandler().gsTools) {
+			ItemStack tool = player.getInventory().getItemInMainHand();
+			if (tool.getType() == Material.AIR) {
+				tool = player.getInventory().getItemInOffHand();
+				if (tool.getType() == Material.AIR) {
+					return;
+				}
+			}
+
+			if (instance.getNetherToolsHandler().checkNightVisionToolStatus(tool)
+					&& instance.getNetherToolsHandler().getNightVisionToolStatus(tool)) {
+				player.addPotionEffect(new PotionEffect(PotionEffectType.NIGHT_VISION, Integer.MAX_VALUE, 1));
+				bukkitUser.isHoldingGlowstoneTool(true);
+			}
+		}
 	}
 
 	/**

@@ -15,7 +15,7 @@ import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.challenges.HellblockChallenge.ChallengeType;
 import com.swiftlicious.hellblock.challenges.ProgressBar;
 import com.swiftlicious.hellblock.gui.icon.BackGroundItem;
-import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
+import com.swiftlicious.hellblock.player.OnlineUser;
 import com.swiftlicious.hellblock.utils.wrappers.ShadedAdventureComponentWrapper;
 
 import xyz.xenondevs.invui.gui.Gui;
@@ -27,6 +27,13 @@ import xyz.xenondevs.invui.window.Window;
 public class ChallengesMenu {
 
 	public ChallengesMenu(Player player) {
+
+		OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager().getOnlineUser(player.getUniqueId());
+		if (onlineUser == null) {
+			HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
+					"<red>Still loading your player data... please try again in a few seconds.");
+			return;
+		}
 
 		Gui gui = Gui.normal().setStructure(" # 1 2 3 4 5 6 7 # ", " # # # 8 9 0 # # x ")
 				.addIngredient('#', new BackGroundItem()).addIngredient('x', new BackToMainMenuItem())
@@ -60,8 +67,8 @@ public class ChallengesMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(playerUUID);
-			if (pi.isChallengeCompleted(ChallengeType.NETHERRACK_GENERATOR_CHALLENGE)) {
+			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID);
+			if (onlineUser.getHellblockData().isChallengeCompleted(ChallengeType.NETHERRACK_GENERATOR_CHALLENGE)) {
 				return new ItemBuilder(Material.GOLDEN_PICKAXE).addAllItemFlags()
 						.addEnchantment(Enchantment.UNBREAKING, 1, false)
 						.setDisplayName(
@@ -79,7 +86,7 @@ public class ChallengesMenu {
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 										.getComponentFromMiniMessage(String.format(" "))),
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
-										.getComponentFromMiniMessage(String.format(!pi
+										.getComponentFromMiniMessage(String.format(!onlineUser.getHellblockData()
 												.isChallengeRewardClaimed(ChallengeType.NETHERRACK_GENERATOR_CHALLENGE)
 														? "<yellow>Click to claim your reward!"
 														: "<yellow>Reward Claimed!"))));
@@ -92,7 +99,8 @@ public class ChallengesMenu {
 						.addLoreLines(
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 										.getComponentFromMiniMessage(String.format("<dark_red>Progress: <gray>(%s/%s)",
-												pi.getChallengeProgress(ChallengeType.NETHERRACK_GENERATOR_CHALLENGE),
+												onlineUser.getHellblockData().getChallengeProgress(
+														ChallengeType.NETHERRACK_GENERATOR_CHALLENGE),
 												ChallengeType.NETHERRACK_GENERATOR_CHALLENGE.getNeededAmount()))),
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 										.getComponentFromMiniMessage(String.format("%s",
@@ -100,7 +108,7 @@ public class ChallengesMenu {
 														new ProgressBar(
 																ChallengeType.NETHERRACK_GENERATOR_CHALLENGE
 																		.getNeededAmount(),
-																pi.getChallengeProgress(
+																onlineUser.getHellblockData().getChallengeProgress(
 																		ChallengeType.NETHERRACK_GENERATOR_CHALLENGE)),
 														25)))));
 			}
@@ -109,9 +117,13 @@ public class ChallengesMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
-			if (pi.isChallengeCompleted(ChallengeType.NETHERRACK_GENERATOR_CHALLENGE)
-					&& !pi.isChallengeRewardClaimed(ChallengeType.NETHERRACK_GENERATOR_CHALLENGE)) {
+			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+					.getOnlineUser(player.getUniqueId());
+			if (onlineUser == null)
+				return;
+			if (onlineUser.getHellblockData().isChallengeCompleted(ChallengeType.NETHERRACK_GENERATOR_CHALLENGE)
+					&& !onlineUser.getHellblockData()
+							.isChallengeRewardClaimed(ChallengeType.NETHERRACK_GENERATOR_CHALLENGE)) {
 				ConfigurationSection section = HellblockPlugin.getInstance().getChallengeRewardBuilder()
 						.getRewardConfig()
 						.getConfigurationSection("rewards." + ChallengeType.NETHERRACK_GENERATOR_CHALLENGE.toString());
@@ -131,8 +143,8 @@ public class ChallengesMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(playerUUID);
-			if (pi.isChallengeCompleted(ChallengeType.GLOWSTONE_TREE_CHALLENGE)) {
+			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID);
+			if (onlineUser.getHellblockData().isChallengeCompleted(ChallengeType.GLOWSTONE_TREE_CHALLENGE)) {
 				return new ItemBuilder(Material.GLOWSTONE).addAllItemFlags()
 						.addEnchantment(Enchantment.UNBREAKING, 1, false)
 						.setDisplayName(
@@ -149,8 +161,8 @@ public class ChallengesMenu {
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 										.getComponentFromMiniMessage(String.format(" "))),
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
-										.getComponentFromMiniMessage(String.format(
-												!pi.isChallengeRewardClaimed(ChallengeType.GLOWSTONE_TREE_CHALLENGE)
+										.getComponentFromMiniMessage(String.format(!onlineUser.getHellblockData()
+												.isChallengeRewardClaimed(ChallengeType.GLOWSTONE_TREE_CHALLENGE)
 														? "<yellow>Click to claim your reward!"
 														: "<yellow>Reward Claimed!"))));
 			} else {
@@ -162,7 +174,8 @@ public class ChallengesMenu {
 						.addLoreLines(
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 										.getComponentFromMiniMessage(String.format("<dark_red>Progress: <gray>(%s/%s)",
-												pi.getChallengeProgress(ChallengeType.GLOWSTONE_TREE_CHALLENGE),
+												onlineUser.getHellblockData()
+														.getChallengeProgress(ChallengeType.GLOWSTONE_TREE_CHALLENGE),
 												ChallengeType.GLOWSTONE_TREE_CHALLENGE.getNeededAmount()))),
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 										.getComponentFromMiniMessage(String.format("%s",
@@ -170,7 +183,7 @@ public class ChallengesMenu {
 														new ProgressBar(
 																ChallengeType.GLOWSTONE_TREE_CHALLENGE
 																		.getNeededAmount(),
-																pi.getChallengeProgress(
+																onlineUser.getHellblockData().getChallengeProgress(
 																		ChallengeType.GLOWSTONE_TREE_CHALLENGE)),
 														25)))));
 			}
@@ -179,9 +192,13 @@ public class ChallengesMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
-			if (pi.isChallengeCompleted(ChallengeType.GLOWSTONE_TREE_CHALLENGE)
-					&& !pi.isChallengeRewardClaimed(ChallengeType.GLOWSTONE_TREE_CHALLENGE)) {
+			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+					.getOnlineUser(player.getUniqueId());
+			if (onlineUser == null)
+				return;
+			if (onlineUser.getHellblockData().isChallengeCompleted(ChallengeType.GLOWSTONE_TREE_CHALLENGE)
+					&& !onlineUser.getHellblockData()
+							.isChallengeRewardClaimed(ChallengeType.GLOWSTONE_TREE_CHALLENGE)) {
 				ConfigurationSection section = HellblockPlugin.getInstance().getChallengeRewardBuilder()
 						.getRewardConfig()
 						.getConfigurationSection("rewards." + ChallengeType.GLOWSTONE_TREE_CHALLENGE.toString());
@@ -201,8 +218,8 @@ public class ChallengesMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(playerUUID);
-			if (pi.isChallengeCompleted(ChallengeType.LAVA_FISHING_CHALLENGE)) {
+			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID);
+			if (onlineUser.getHellblockData().isChallengeCompleted(ChallengeType.LAVA_FISHING_CHALLENGE)) {
 				return new ItemBuilder(Material.FISHING_ROD).addAllItemFlags()
 						.addEnchantment(Enchantment.UNBREAKING, 1, false)
 						.setDisplayName(
@@ -218,8 +235,8 @@ public class ChallengesMenu {
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 										.getComponentFromMiniMessage(String.format(" "))),
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
-										.getComponentFromMiniMessage(String.format(
-												!pi.isChallengeRewardClaimed(ChallengeType.LAVA_FISHING_CHALLENGE)
+										.getComponentFromMiniMessage(String.format(!onlineUser.getHellblockData()
+												.isChallengeRewardClaimed(ChallengeType.LAVA_FISHING_CHALLENGE)
 														? "<yellow>Click to claim your reward!"
 														: "<yellow>Reward Claimed!"))));
 			} else {
@@ -231,22 +248,28 @@ public class ChallengesMenu {
 						.addLoreLines(
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 										.getComponentFromMiniMessage(String.format("<dark_red>Progress: <gray>(%s/%s)",
-												pi.getChallengeProgress(ChallengeType.LAVA_FISHING_CHALLENGE),
+												onlineUser.getHellblockData()
+														.getChallengeProgress(ChallengeType.LAVA_FISHING_CHALLENGE),
 												ChallengeType.LAVA_FISHING_CHALLENGE.getNeededAmount()))),
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
-										.getComponentFromMiniMessage(String.format("%s", ProgressBar.getProgressBar(
-												new ProgressBar(ChallengeType.LAVA_FISHING_CHALLENGE.getNeededAmount(),
-														pi.getChallengeProgress(ChallengeType.LAVA_FISHING_CHALLENGE)),
-												25)))));
+										.getComponentFromMiniMessage(String.format("%s",
+												ProgressBar.getProgressBar(new ProgressBar(
+														ChallengeType.LAVA_FISHING_CHALLENGE.getNeededAmount(),
+														onlineUser.getHellblockData().getChallengeProgress(
+																ChallengeType.LAVA_FISHING_CHALLENGE)),
+														25)))));
 			}
 		}
 
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
-			if (pi.isChallengeCompleted(ChallengeType.LAVA_FISHING_CHALLENGE)
-					&& !pi.isChallengeRewardClaimed(ChallengeType.LAVA_FISHING_CHALLENGE)) {
+			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+					.getOnlineUser(player.getUniqueId());
+			if (onlineUser == null)
+				return;
+			if (onlineUser.getHellblockData().isChallengeCompleted(ChallengeType.LAVA_FISHING_CHALLENGE)
+					&& !onlineUser.getHellblockData().isChallengeRewardClaimed(ChallengeType.LAVA_FISHING_CHALLENGE)) {
 				ConfigurationSection section = HellblockPlugin.getInstance().getChallengeRewardBuilder()
 						.getRewardConfig()
 						.getConfigurationSection("rewards." + ChallengeType.LAVA_FISHING_CHALLENGE.toString());
@@ -266,8 +289,8 @@ public class ChallengesMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(playerUUID);
-			if (pi.isChallengeCompleted(ChallengeType.NETHER_CRAFTING_CHALLENGE)) {
+			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID);
+			if (onlineUser.getHellblockData().isChallengeCompleted(ChallengeType.NETHER_CRAFTING_CHALLENGE)) {
 				return new ItemBuilder(Material.CRAFTING_TABLE).addAllItemFlags()
 						.addEnchantment(Enchantment.UNBREAKING, 1, false)
 						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
@@ -284,8 +307,8 @@ public class ChallengesMenu {
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 										.getComponentFromMiniMessage(String.format(" "))),
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
-										.getComponentFromMiniMessage(String.format(
-												!pi.isChallengeRewardClaimed(ChallengeType.NETHER_CRAFTING_CHALLENGE)
+										.getComponentFromMiniMessage(String.format(!onlineUser.getHellblockData()
+												.isChallengeRewardClaimed(ChallengeType.NETHER_CRAFTING_CHALLENGE)
 														? "<yellow>Click to claim your reward!"
 														: "<yellow>Reward Claimed!"))));
 			} else {
@@ -297,7 +320,8 @@ public class ChallengesMenu {
 						.addLoreLines(
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 										.getComponentFromMiniMessage(String.format("<dark_red>Progress: <gray>(%s/%s)",
-												pi.getChallengeProgress(ChallengeType.NETHER_CRAFTING_CHALLENGE),
+												onlineUser.getHellblockData()
+														.getChallengeProgress(ChallengeType.NETHER_CRAFTING_CHALLENGE),
 												ChallengeType.NETHER_CRAFTING_CHALLENGE.getNeededAmount()))),
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 										.getComponentFromMiniMessage(String.format("%s",
@@ -305,7 +329,7 @@ public class ChallengesMenu {
 														new ProgressBar(
 																ChallengeType.NETHER_CRAFTING_CHALLENGE
 																		.getNeededAmount(),
-																pi.getChallengeProgress(
+																onlineUser.getHellblockData().getChallengeProgress(
 																		ChallengeType.NETHER_CRAFTING_CHALLENGE)),
 														25)))));
 			}
@@ -314,9 +338,13 @@ public class ChallengesMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
-			if (pi.isChallengeCompleted(ChallengeType.NETHER_CRAFTING_CHALLENGE)
-					&& !pi.isChallengeRewardClaimed(ChallengeType.NETHER_CRAFTING_CHALLENGE)) {
+			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+					.getOnlineUser(player.getUniqueId());
+			if (onlineUser == null)
+				return;
+			if (onlineUser.getHellblockData().isChallengeCompleted(ChallengeType.NETHER_CRAFTING_CHALLENGE)
+					&& !onlineUser.getHellblockData()
+							.isChallengeRewardClaimed(ChallengeType.NETHER_CRAFTING_CHALLENGE)) {
 				ConfigurationSection section = HellblockPlugin.getInstance().getChallengeRewardBuilder()
 						.getRewardConfig()
 						.getConfigurationSection("rewards." + ChallengeType.NETHER_CRAFTING_CHALLENGE.toString());
@@ -336,8 +364,8 @@ public class ChallengesMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(playerUUID);
-			if (pi.isChallengeCompleted(ChallengeType.NETHER_GOLEM_CHALLENGE)) {
+			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID);
+			if (onlineUser.getHellblockData().isChallengeCompleted(ChallengeType.NETHER_GOLEM_CHALLENGE)) {
 				return new ItemBuilder(Material.SNOW_GOLEM_SPAWN_EGG).addAllItemFlags()
 						.addEnchantment(Enchantment.UNBREAKING, 1, false)
 						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
@@ -353,8 +381,8 @@ public class ChallengesMenu {
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 										.getComponentFromMiniMessage(String.format(" "))),
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
-										.getComponentFromMiniMessage(String.format(
-												!pi.isChallengeRewardClaimed(ChallengeType.NETHER_GOLEM_CHALLENGE)
+										.getComponentFromMiniMessage(String.format(!onlineUser.getHellblockData()
+												.isChallengeRewardClaimed(ChallengeType.NETHER_GOLEM_CHALLENGE)
 														? "<yellow>Click to claim your reward!"
 														: "<yellow>Reward Claimed!"))));
 			} else {
@@ -366,22 +394,28 @@ public class ChallengesMenu {
 						.addLoreLines(
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 										.getComponentFromMiniMessage(String.format("<dark_red>Progress: <gray>(%s/%s)",
-												pi.getChallengeProgress(ChallengeType.NETHER_GOLEM_CHALLENGE),
+												onlineUser.getHellblockData()
+														.getChallengeProgress(ChallengeType.NETHER_GOLEM_CHALLENGE),
 												ChallengeType.NETHER_GOLEM_CHALLENGE.getNeededAmount()))),
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
-										.getComponentFromMiniMessage(String.format("%s", ProgressBar.getProgressBar(
-												new ProgressBar(ChallengeType.NETHER_GOLEM_CHALLENGE.getNeededAmount(),
-														pi.getChallengeProgress(ChallengeType.NETHER_GOLEM_CHALLENGE)),
-												25)))));
+										.getComponentFromMiniMessage(String.format("%s",
+												ProgressBar.getProgressBar(new ProgressBar(
+														ChallengeType.NETHER_GOLEM_CHALLENGE.getNeededAmount(),
+														onlineUser.getHellblockData().getChallengeProgress(
+																ChallengeType.NETHER_GOLEM_CHALLENGE)),
+														25)))));
 			}
 		}
 
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
-			if (pi.isChallengeCompleted(ChallengeType.NETHER_GOLEM_CHALLENGE)
-					&& !pi.isChallengeRewardClaimed(ChallengeType.NETHER_GOLEM_CHALLENGE)) {
+			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+					.getOnlineUser(player.getUniqueId());
+			if (onlineUser == null)
+				return;
+			if (onlineUser.getHellblockData().isChallengeCompleted(ChallengeType.NETHER_GOLEM_CHALLENGE)
+					&& !onlineUser.getHellblockData().isChallengeRewardClaimed(ChallengeType.NETHER_GOLEM_CHALLENGE)) {
 				ConfigurationSection section = HellblockPlugin.getInstance().getChallengeRewardBuilder()
 						.getRewardConfig()
 						.getConfigurationSection("rewards." + ChallengeType.NETHER_GOLEM_CHALLENGE.toString());
@@ -401,8 +435,8 @@ public class ChallengesMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(playerUUID);
-			if (pi.isChallengeCompleted(ChallengeType.NETHER_BREWING_CHALLENGE)) {
+			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID);
+			if (onlineUser.getHellblockData().isChallengeCompleted(ChallengeType.NETHER_BREWING_CHALLENGE)) {
 				return new ItemBuilder(Material.GLASS_BOTTLE).addAllItemFlags()
 						.addEnchantment(Enchantment.UNBREAKING, 1, false)
 						.setDisplayName(
@@ -420,8 +454,8 @@ public class ChallengesMenu {
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 										.getComponentFromMiniMessage(String.format(" "))),
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
-										.getComponentFromMiniMessage(String.format(
-												!pi.isChallengeRewardClaimed(ChallengeType.NETHER_BREWING_CHALLENGE)
+										.getComponentFromMiniMessage(String.format(!onlineUser.getHellblockData()
+												.isChallengeRewardClaimed(ChallengeType.NETHER_BREWING_CHALLENGE)
 														? "<yellow>Click to claim your reward!"
 														: "<yellow>Reward Claimed!"))));
 			} else {
@@ -434,7 +468,8 @@ public class ChallengesMenu {
 						.addLoreLines(
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 										.getComponentFromMiniMessage(String.format("<dark_red>Progress: <gray>(%s/%s)",
-												pi.getChallengeProgress(ChallengeType.NETHER_BREWING_CHALLENGE),
+												onlineUser.getHellblockData()
+														.getChallengeProgress(ChallengeType.NETHER_BREWING_CHALLENGE),
 												ChallengeType.NETHER_BREWING_CHALLENGE.getNeededAmount()))),
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 										.getComponentFromMiniMessage(String.format("%s",
@@ -442,7 +477,7 @@ public class ChallengesMenu {
 														new ProgressBar(
 																ChallengeType.NETHER_BREWING_CHALLENGE
 																		.getNeededAmount(),
-																pi.getChallengeProgress(
+																onlineUser.getHellblockData().getChallengeProgress(
 																		ChallengeType.NETHER_BREWING_CHALLENGE)),
 														25)))));
 			}
@@ -451,9 +486,13 @@ public class ChallengesMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
-			if (pi.isChallengeCompleted(ChallengeType.NETHER_BREWING_CHALLENGE)
-					&& !pi.isChallengeRewardClaimed(ChallengeType.NETHER_BREWING_CHALLENGE)) {
+			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+					.getOnlineUser(player.getUniqueId());
+			if (onlineUser == null)
+				return;
+			if (onlineUser.getHellblockData().isChallengeCompleted(ChallengeType.NETHER_BREWING_CHALLENGE)
+					&& !onlineUser.getHellblockData()
+							.isChallengeRewardClaimed(ChallengeType.NETHER_BREWING_CHALLENGE)) {
 				ConfigurationSection section = HellblockPlugin.getInstance().getChallengeRewardBuilder()
 						.getRewardConfig()
 						.getConfigurationSection("rewards." + ChallengeType.NETHER_BREWING_CHALLENGE.toString());
@@ -473,8 +512,8 @@ public class ChallengesMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(playerUUID);
-			if (pi.isChallengeCompleted(ChallengeType.NETHER_TRADING_CHALLENGE)) {
+			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID);
+			if (onlineUser.getHellblockData().isChallengeCompleted(ChallengeType.NETHER_TRADING_CHALLENGE)) {
 				return new ItemBuilder(Material.GOLD_INGOT).addAllItemFlags()
 						.addEnchantment(Enchantment.UNBREAKING, 1, false)
 						.setDisplayName(new ShadedAdventureComponentWrapper(
@@ -491,8 +530,8 @@ public class ChallengesMenu {
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 										.getComponentFromMiniMessage(String.format(" "))),
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
-										.getComponentFromMiniMessage(String.format(
-												!pi.isChallengeRewardClaimed(ChallengeType.NETHER_TRADING_CHALLENGE)
+										.getComponentFromMiniMessage(String.format(!onlineUser.getHellblockData()
+												.isChallengeRewardClaimed(ChallengeType.NETHER_TRADING_CHALLENGE)
 														? "<yellow>Click to claim your reward!"
 														: "<yellow>Reward Claimed!"))));
 			} else {
@@ -504,7 +543,8 @@ public class ChallengesMenu {
 						.addLoreLines(
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 										.getComponentFromMiniMessage(String.format("<dark_red>Progress: <gray>(%s/%s)",
-												pi.getChallengeProgress(ChallengeType.NETHER_TRADING_CHALLENGE),
+												onlineUser.getHellblockData()
+														.getChallengeProgress(ChallengeType.NETHER_TRADING_CHALLENGE),
 												ChallengeType.NETHER_TRADING_CHALLENGE.getNeededAmount()))),
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 										.getComponentFromMiniMessage(String.format("%s",
@@ -512,7 +552,7 @@ public class ChallengesMenu {
 														new ProgressBar(
 																ChallengeType.NETHER_TRADING_CHALLENGE
 																		.getNeededAmount(),
-																pi.getChallengeProgress(
+																onlineUser.getHellblockData().getChallengeProgress(
 																		ChallengeType.NETHER_TRADING_CHALLENGE)),
 														25)))));
 			}
@@ -521,9 +561,13 @@ public class ChallengesMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
-			if (pi.isChallengeCompleted(ChallengeType.NETHER_TRADING_CHALLENGE)
-					&& !pi.isChallengeRewardClaimed(ChallengeType.NETHER_TRADING_CHALLENGE)) {
+			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+					.getOnlineUser(player.getUniqueId());
+			if (onlineUser == null)
+				return;
+			if (onlineUser.getHellblockData().isChallengeCompleted(ChallengeType.NETHER_TRADING_CHALLENGE)
+					&& !onlineUser.getHellblockData()
+							.isChallengeRewardClaimed(ChallengeType.NETHER_TRADING_CHALLENGE)) {
 				ConfigurationSection section = HellblockPlugin.getInstance().getChallengeRewardBuilder()
 						.getRewardConfig()
 						.getConfigurationSection("rewards." + ChallengeType.NETHER_TRADING_CHALLENGE.toString());
@@ -543,8 +587,8 @@ public class ChallengesMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(playerUUID);
-			if (pi.isChallengeCompleted(ChallengeType.ENHANCED_WITHER_CHALLENGE)) {
+			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID);
+			if (onlineUser.getHellblockData().isChallengeCompleted(ChallengeType.ENHANCED_WITHER_CHALLENGE)) {
 				return new ItemBuilder(Material.NETHER_STAR).addAllItemFlags()
 						.addEnchantment(Enchantment.UNBREAKING, 1, false)
 						.setDisplayName(
@@ -561,8 +605,8 @@ public class ChallengesMenu {
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 										.getComponentFromMiniMessage(String.format(" "))),
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
-										.getComponentFromMiniMessage(String.format(
-												!pi.isChallengeRewardClaimed(ChallengeType.ENHANCED_WITHER_CHALLENGE)
+										.getComponentFromMiniMessage(String.format(!onlineUser.getHellblockData()
+												.isChallengeRewardClaimed(ChallengeType.ENHANCED_WITHER_CHALLENGE)
 														? "<yellow>Click to claim your reward!"
 														: "<yellow>Reward Claimed!"))));
 			} else {
@@ -574,7 +618,8 @@ public class ChallengesMenu {
 						.addLoreLines(
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 										.getComponentFromMiniMessage(String.format("<dark_red>Progress: <gray>(%s/%s)",
-												pi.getChallengeProgress(ChallengeType.ENHANCED_WITHER_CHALLENGE),
+												onlineUser.getHellblockData()
+														.getChallengeProgress(ChallengeType.ENHANCED_WITHER_CHALLENGE),
 												ChallengeType.ENHANCED_WITHER_CHALLENGE.getNeededAmount()))),
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 										.getComponentFromMiniMessage(String.format("%s",
@@ -582,7 +627,7 @@ public class ChallengesMenu {
 														new ProgressBar(
 																ChallengeType.ENHANCED_WITHER_CHALLENGE
 																		.getNeededAmount(),
-																pi.getChallengeProgress(
+																onlineUser.getHellblockData().getChallengeProgress(
 																		ChallengeType.ENHANCED_WITHER_CHALLENGE)),
 														25)))));
 			}
@@ -591,9 +636,13 @@ public class ChallengesMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
-			if (pi.isChallengeCompleted(ChallengeType.ENHANCED_WITHER_CHALLENGE)
-					&& !pi.isChallengeRewardClaimed(ChallengeType.ENHANCED_WITHER_CHALLENGE)) {
+			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+					.getOnlineUser(player.getUniqueId());
+			if (onlineUser == null)
+				return;
+			if (onlineUser.getHellblockData().isChallengeCompleted(ChallengeType.ENHANCED_WITHER_CHALLENGE)
+					&& !onlineUser.getHellblockData()
+							.isChallengeRewardClaimed(ChallengeType.ENHANCED_WITHER_CHALLENGE)) {
 				ConfigurationSection section = HellblockPlugin.getInstance().getChallengeRewardBuilder()
 						.getRewardConfig()
 						.getConfigurationSection("rewards." + ChallengeType.ENHANCED_WITHER_CHALLENGE.toString());
@@ -613,8 +662,8 @@ public class ChallengesMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(playerUUID);
-			if (pi.isChallengeCompleted(ChallengeType.INFINITE_LAVA_CHALLENGE)) {
+			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID);
+			if (onlineUser.getHellblockData().isChallengeCompleted(ChallengeType.INFINITE_LAVA_CHALLENGE)) {
 				return new ItemBuilder(Material.LAVA_BUCKET).addAllItemFlags()
 						.addEnchantment(Enchantment.UNBREAKING, 1, false)
 						.setDisplayName(
@@ -631,8 +680,8 @@ public class ChallengesMenu {
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 										.getComponentFromMiniMessage(String.format(" "))),
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
-										.getComponentFromMiniMessage(String.format(
-												!pi.isChallengeRewardClaimed(ChallengeType.INFINITE_LAVA_CHALLENGE)
+										.getComponentFromMiniMessage(String.format(!onlineUser.getHellblockData()
+												.isChallengeRewardClaimed(ChallengeType.INFINITE_LAVA_CHALLENGE)
 														? "<yellow>Click to claim your reward!"
 														: "<yellow>Reward Claimed!"))));
 			} else {
@@ -644,14 +693,15 @@ public class ChallengesMenu {
 						.addLoreLines(
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 										.getComponentFromMiniMessage(String.format("<dark_red>Progress: <gray>(%s/%s)",
-												pi.getChallengeProgress(ChallengeType.INFINITE_LAVA_CHALLENGE),
+												onlineUser.getHellblockData()
+														.getChallengeProgress(ChallengeType.INFINITE_LAVA_CHALLENGE),
 												ChallengeType.INFINITE_LAVA_CHALLENGE.getNeededAmount()))),
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 										.getComponentFromMiniMessage(String.format("%s",
 												ProgressBar.getProgressBar(
 														new ProgressBar(
 																ChallengeType.INFINITE_LAVA_CHALLENGE.getNeededAmount(),
-																pi.getChallengeProgress(
+																onlineUser.getHellblockData().getChallengeProgress(
 																		ChallengeType.INFINITE_LAVA_CHALLENGE)),
 														25)))));
 			}
@@ -660,9 +710,12 @@ public class ChallengesMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
-			if (pi.isChallengeCompleted(ChallengeType.INFINITE_LAVA_CHALLENGE)
-					&& !pi.isChallengeRewardClaimed(ChallengeType.INFINITE_LAVA_CHALLENGE)) {
+			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+					.getOnlineUser(player.getUniqueId());
+			if (onlineUser == null)
+				return;
+			if (onlineUser.getHellblockData().isChallengeCompleted(ChallengeType.INFINITE_LAVA_CHALLENGE)
+					&& !onlineUser.getHellblockData().isChallengeRewardClaimed(ChallengeType.INFINITE_LAVA_CHALLENGE)) {
 				ConfigurationSection section = HellblockPlugin.getInstance().getChallengeRewardBuilder()
 						.getRewardConfig()
 						.getConfigurationSection("rewards." + ChallengeType.INFINITE_LAVA_CHALLENGE.toString());
@@ -682,8 +735,8 @@ public class ChallengesMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(playerUUID);
-			if (pi.isChallengeCompleted(ChallengeType.NETHER_FARM_CHALLENGE)) {
+			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID);
+			if (onlineUser.getHellblockData().isChallengeCompleted(ChallengeType.NETHER_FARM_CHALLENGE)) {
 				return new ItemBuilder(Material.NETHERITE_HOE).addAllItemFlags()
 						.addEnchantment(Enchantment.UNBREAKING, 1, false)
 						.setDisplayName(
@@ -700,8 +753,8 @@ public class ChallengesMenu {
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 										.getComponentFromMiniMessage(String.format(" "))),
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
-										.getComponentFromMiniMessage(String.format(
-												!pi.isChallengeRewardClaimed(ChallengeType.NETHER_FARM_CHALLENGE)
+										.getComponentFromMiniMessage(String.format(!onlineUser.getHellblockData()
+												.isChallengeRewardClaimed(ChallengeType.NETHER_FARM_CHALLENGE)
 														? "<yellow>Click to claim your reward!"
 														: "<yellow>Reward Claimed!"))));
 			} else {
@@ -714,22 +767,28 @@ public class ChallengesMenu {
 						.addLoreLines(
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 										.getComponentFromMiniMessage(String.format("<dark_red>Progress: <gray>(%s/%s)",
-												pi.getChallengeProgress(ChallengeType.NETHER_FARM_CHALLENGE),
+												onlineUser.getHellblockData()
+														.getChallengeProgress(ChallengeType.NETHER_FARM_CHALLENGE),
 												ChallengeType.NETHER_FARM_CHALLENGE.getNeededAmount()))),
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
-										.getComponentFromMiniMessage(String.format("%s", ProgressBar.getProgressBar(
-												new ProgressBar(ChallengeType.NETHER_FARM_CHALLENGE.getNeededAmount(),
-														pi.getChallengeProgress(ChallengeType.NETHER_FARM_CHALLENGE)),
-												25)))));
+										.getComponentFromMiniMessage(String.format("%s",
+												ProgressBar.getProgressBar(new ProgressBar(
+														ChallengeType.NETHER_FARM_CHALLENGE.getNeededAmount(),
+														onlineUser.getHellblockData().getChallengeProgress(
+																ChallengeType.NETHER_FARM_CHALLENGE)),
+														25)))));
 			}
 		}
 
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			HellblockPlayer pi = HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player);
-			if (pi.isChallengeCompleted(ChallengeType.NETHER_FARM_CHALLENGE)
-					&& !pi.isChallengeRewardClaimed(ChallengeType.NETHER_FARM_CHALLENGE)) {
+			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+					.getOnlineUser(player.getUniqueId());
+			if (onlineUser == null)
+				return;
+			if (onlineUser.getHellblockData().isChallengeCompleted(ChallengeType.NETHER_FARM_CHALLENGE)
+					&& !onlineUser.getHellblockData().isChallengeRewardClaimed(ChallengeType.NETHER_FARM_CHALLENGE)) {
 				ConfigurationSection section = HellblockPlugin.getInstance().getChallengeRewardBuilder()
 						.getRewardConfig()
 						.getConfigurationSection("rewards." + ChallengeType.NETHER_FARM_CHALLENGE.toString());

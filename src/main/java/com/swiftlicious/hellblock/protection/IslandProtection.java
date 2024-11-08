@@ -9,11 +9,10 @@ import com.sk89q.worldguard.protection.flags.StateFlag;
 import com.sk89q.worldguard.protection.flags.StringFlag;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import com.swiftlicious.hellblock.HellblockPlugin;
-import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
-import com.swiftlicious.hellblock.playerdata.HellblockPlayer.HellblockData;
+import com.swiftlicious.hellblock.config.HBLocale;
+import com.swiftlicious.hellblock.player.OnlineUser;
 import com.swiftlicious.hellblock.protection.HellblockFlag.AccessType;
 import com.swiftlicious.hellblock.protection.HellblockFlag.FlagType;
-import com.swiftlicious.hellblock.utils.LogUtils;
 
 import lombok.NonNull;
 
@@ -26,35 +25,32 @@ public class IslandProtection {
 	}
 
 	public boolean changeProtectionFlag(@NonNull UUID id, @NonNull HellblockFlag flag) {
-		HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(id);
-		if (pi.getPlayer() == null) {
-			LogUtils.warn("Player object returned null, please report this.");
-			throw new NullPointerException("Player returned null.");
-		}
-		if (pi.isAbandoned()) {
-			instance.getAdventureManager().sendMessageWithPrefix(pi.getPlayer(),
-					"<red>Your hellblock was deemed abandoned, you can't do anything until it's recovered!");
+		OnlineUser user = instance.getStorageManager().getOnlineUser(id);
+		if (user == null || !user.isOnline()) {
 			return false;
 		}
-		if (!pi.hasHellblock()) {
-			instance.getAdventureManager().sendMessageWithPrefix(pi.getPlayer(), "<red>You don't have a hellblock!");
+		if (user.getHellblockData().isAbandoned()) {
+			instance.getAdventureManager().sendMessageWithPrefix(user.getPlayer(), HBLocale.MSG_Hellblock_Is_Abandoned);
 			return false;
 		}
-		if (pi.getHellblockOwner() != null && !pi.getHellblockOwner().equals(id)) {
-			instance.getAdventureManager().sendMessageWithPrefix(pi.getPlayer(),
-					"<red>Only the owner of the hellblock island can change this!");
+		if (!user.getHellblockData().hasHellblock()) {
+			instance.getAdventureManager().sendMessageWithPrefix(user.getPlayer(), HBLocale.MSG_Hellblock_Not_Found);
+			return false;
+		}
+		if (user.getHellblockData().getOwnerUUID() == null) {
+			throw new NullPointerException("Owner reference returned null, please report this to the developer.");
+		}
+		if (user.getHellblockData().getOwnerUUID() != null && !user.getHellblockData().getOwnerUUID().equals(id)) {
+			instance.getAdventureManager().sendMessageWithPrefix(user.getPlayer(), HBLocale.MSG_Not_Owner_Of_Hellblock);
 			return false;
 		}
 		if (instance.getHellblockHandler().isWorldguardProtected()) {
-			ProtectedRegion region = instance.getWorldGuardHandler().getRegion(id, pi.getID());
+			ProtectedRegion region = instance.getWorldGuardHandler().getRegion(id, user.getHellblockData().getID());
 			if (region == null) {
-				LogUtils.warn("Region returned null, please report this.");
 				throw new NullPointerException("Region returned null.");
 			}
 
-			pi.setProtectionValue(flag);
-			pi.saveHellblockPlayer();
-			instance.getCoopManager().updateParty(id, HellblockData.PROTECTION_FLAG, flag);
+			user.getHellblockData().setProtectionValue(flag);
 			region.setFlag(convertToWorldGuardFlag(flag.getFlag()),
 					(flag.getStatus() == AccessType.ALLOW ? null : StateFlag.State.DENY));
 			return true;

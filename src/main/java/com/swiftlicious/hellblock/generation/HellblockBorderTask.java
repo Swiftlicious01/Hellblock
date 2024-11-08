@@ -7,7 +7,9 @@ import com.sk89q.worldguard.protection.flags.StateFlag.State;
 import com.sk89q.worldguard.protection.managers.RegionManager;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import com.swiftlicious.hellblock.HellblockPlugin;
-import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
+import com.swiftlicious.hellblock.config.HBConfig;
+import com.swiftlicious.hellblock.player.OfflineUser;
+import com.swiftlicious.hellblock.player.OnlineUser;
 import com.swiftlicious.hellblock.protection.HellblockFlag;
 import com.swiftlicious.hellblock.scheduler.CancellableTask;
 
@@ -50,31 +52,37 @@ public class HellblockBorderTask implements Runnable {
 			return;
 
 		if (instance.getHellblockHandler().isWorldguardProtected()) {
-			HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(playerUUID);
-			UUID owner = pi.getHellblockOwner();
+			OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(playerUUID);
+			if (onlineUser == null)
+				return;
+			UUID owner = onlineUser.getHellblockData().getOwnerUUID();
 			Set<ProtectedRegion> regions = instance.getWorldGuardHandler().getRegions(playerUUID);
-			ProtectedRegion hellblockRegion = instance.getWorldGuardHandler().getRegion(playerUUID, pi.getID());
+			ProtectedRegion hellblockRegion = instance.getWorldGuardHandler().getRegion(playerUUID,
+					onlineUser.getHellblockData().getID());
 			for (ProtectedRegion region : regions) {
 				if (region == null)
 					return;
 				if (region.equals(instance.getWorldGuardHandler().getSpawnRegion()))
 					continue;
 
-				if ((hellblockRegion != null && region.equals(hellblockRegion)) || (owner != null && instance
-						.getHellblockHandler().getActivePlayer(owner).getHellblockParty().contains(playerUUID))) {
-					spawnBorderParticles(player, region.getId(), new BlueBorder());
-				} else {
-					State flag = region.getFlag(instance.getIslandProtectionManager()
-							.convertToWorldGuardFlag(HellblockFlag.FlagType.ENTRY));
-					UUID ownerUUID = region.getOwners().getUniqueIds().stream().findFirst().orElse(null);
-					if ((flag == null || flag == StateFlag.State.ALLOW) || (ownerUUID != null
-							&& (!instance.getCoopManager().trackBannedPlayer(ownerUUID, playerUUID)
-									|| instance.getCoopManager().checkIfVisitorIsWelcome(player, ownerUUID)))) {
-						spawnBorderParticles(player, region.getId(), new GreenBorder());
+				instance.getStorageManager().getOfflineUser(owner, HBConfig.lockData).thenAccept((result) -> {
+					OfflineUser offlineUser = result.orElseThrow();
+					if ((hellblockRegion != null && region.equals(hellblockRegion))
+							|| (owner != null && offlineUser.getHellblockData().getParty().contains(playerUUID))) {
+						spawnBorderParticles(player, region.getId(), new BlueBorder());
 					} else {
-						spawnBorderParticles(player, region.getId(), new RedBorder());
+						State flag = region.getFlag(instance.getIslandProtectionManager()
+								.convertToWorldGuardFlag(HellblockFlag.FlagType.ENTRY));
+						UUID ownerUUID = region.getOwners().getUniqueIds().stream().findFirst().orElse(null);
+						if ((flag == null || flag == StateFlag.State.ALLOW) || (ownerUUID != null
+								&& (!instance.getCoopManager().trackBannedPlayer(ownerUUID, playerUUID)
+										|| instance.getCoopManager().checkIfVisitorIsWelcome(player, ownerUUID)))) {
+							spawnBorderParticles(player, region.getId(), new GreenBorder());
+						} else {
+							spawnBorderParticles(player, region.getId(), new RedBorder());
+						}
 					}
-				}
+				});
 			}
 		} else {
 			// TODO: using plugin protection

@@ -6,8 +6,8 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
-import com.swiftlicious.hellblock.playerdata.OfflineUser;
-import com.swiftlicious.hellblock.playerdata.PlayerData;
+import com.swiftlicious.hellblock.player.OfflineUser;
+import com.swiftlicious.hellblock.player.PlayerData;
 
 public interface DataStorageInterface {
 

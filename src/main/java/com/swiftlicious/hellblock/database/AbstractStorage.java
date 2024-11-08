@@ -6,8 +6,8 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
-import com.swiftlicious.hellblock.playerdata.OfflineUser;
-import com.swiftlicious.hellblock.playerdata.PlayerData;
+import com.swiftlicious.hellblock.player.OfflineUser;
+import com.swiftlicious.hellblock.player.PlayerData;
 
 /**
  * An abstract class that implements the DataStorageInterface and provides

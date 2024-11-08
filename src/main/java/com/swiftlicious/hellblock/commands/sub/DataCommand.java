@@ -10,7 +10,7 @@ import com.swiftlicious.hellblock.database.LegacyDataStorageInterface;
 import com.swiftlicious.hellblock.database.MariaDBHandler;
 import com.swiftlicious.hellblock.database.MySQLHandler;
 import com.swiftlicious.hellblock.database.YamlHandler;
-import com.swiftlicious.hellblock.playerdata.PlayerData;
+import com.swiftlicious.hellblock.player.PlayerData;
 import com.swiftlicious.hellblock.utils.LogUtils;
 import com.swiftlicious.hellblock.utils.extras.CompletableFutures;
 

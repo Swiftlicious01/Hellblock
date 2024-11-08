@@ -29,7 +29,7 @@ import com.destroystokyo.paper.event.player.PlayerArmorChangeEvent;
 import com.saicone.rtag.RtagItem;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.challenges.HellblockChallenge.ChallengeType;
-import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
+import com.swiftlicious.hellblock.player.OnlineUser;
 import com.swiftlicious.hellblock.utils.LogUtils;
 import com.swiftlicious.hellblock.utils.wrappers.ShadedAdventureComponentWrapper;
 
@@ -827,14 +827,22 @@ public class NetherArmor implements Listener {
 				if (checkArmorData(result) && getArmorData(result)) {
 					if (recipe instanceof CraftingRecipe craft) {
 						if (!player.hasDiscoveredRecipe(craft.getKey())) {
-							HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(player);
-							if (!pi.isChallengeActive(ChallengeType.NETHER_CRAFTING_CHALLENGE)
-									&& !pi.isChallengeCompleted(ChallengeType.NETHER_CRAFTING_CHALLENGE)) {
-								pi.beginChallengeProgression(ChallengeType.NETHER_CRAFTING_CHALLENGE);
+							OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
+							if (onlineUser == null)
+								return;
+							if (!onlineUser.getHellblockData()
+									.isChallengeActive(ChallengeType.NETHER_CRAFTING_CHALLENGE)
+									&& !onlineUser.getHellblockData()
+											.isChallengeCompleted(ChallengeType.NETHER_CRAFTING_CHALLENGE)) {
+								onlineUser.getHellblockData().beginChallengeProgression(onlineUser.getPlayer(),
+										ChallengeType.NETHER_CRAFTING_CHALLENGE);
 							} else {
-								pi.updateChallengeProgression(ChallengeType.NETHER_CRAFTING_CHALLENGE, 1);
-								if (pi.isChallengeCompleted(ChallengeType.NETHER_CRAFTING_CHALLENGE)) {
-									pi.completeChallenge(ChallengeType.NETHER_CRAFTING_CHALLENGE);
+								onlineUser.getHellblockData().updateChallengeProgression(onlineUser.getPlayer(),
+										ChallengeType.NETHER_CRAFTING_CHALLENGE, 1);
+								if (onlineUser.getHellblockData()
+										.isChallengeCompleted(ChallengeType.NETHER_CRAFTING_CHALLENGE)) {
+									onlineUser.getHellblockData().completeChallenge(onlineUser.getPlayer(),
+											ChallengeType.NETHER_CRAFTING_CHALLENGE);
 								}
 							}
 							player.discoverRecipe(craft.getKey());
@@ -859,14 +867,23 @@ public class NetherArmor implements Listener {
 					if (checkArmorData(result) && getArmorData(result)) {
 						if (recipe instanceof CraftingRecipe craft) {
 							if (!player.hasDiscoveredRecipe(craft.getKey())) {
-								HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(player);
-								if (!pi.isChallengeActive(ChallengeType.NETHER_CRAFTING_CHALLENGE)
-										&& !pi.isChallengeCompleted(ChallengeType.NETHER_CRAFTING_CHALLENGE)) {
-									pi.beginChallengeProgression(ChallengeType.NETHER_CRAFTING_CHALLENGE);
+								OnlineUser onlineUser = instance.getStorageManager()
+										.getOnlineUser(player.getUniqueId());
+								if (onlineUser == null)
+									return;
+								if (!onlineUser.getHellblockData()
+										.isChallengeActive(ChallengeType.NETHER_CRAFTING_CHALLENGE)
+										&& !onlineUser.getHellblockData()
+												.isChallengeCompleted(ChallengeType.NETHER_CRAFTING_CHALLENGE)) {
+									onlineUser.getHellblockData().beginChallengeProgression(onlineUser.getPlayer(),
+											ChallengeType.NETHER_CRAFTING_CHALLENGE);
 								} else {
-									pi.updateChallengeProgression(ChallengeType.NETHER_CRAFTING_CHALLENGE, 1);
-									if (pi.isChallengeCompleted(ChallengeType.NETHER_CRAFTING_CHALLENGE)) {
-										pi.completeChallenge(ChallengeType.NETHER_CRAFTING_CHALLENGE);
+									onlineUser.getHellblockData().updateChallengeProgression(onlineUser.getPlayer(),
+											ChallengeType.NETHER_CRAFTING_CHALLENGE, 1);
+									if (onlineUser.getHellblockData()
+											.isChallengeCompleted(ChallengeType.NETHER_CRAFTING_CHALLENGE)) {
+										onlineUser.getHellblockData().completeChallenge(onlineUser.getPlayer(),
+												ChallengeType.NETHER_CRAFTING_CHALLENGE);
 									}
 								}
 								player.discoverRecipe(craft.getKey());
@@ -888,13 +905,15 @@ public class NetherArmor implements Listener {
 		if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
 			return;
 
-		HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(player);
+		OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
+		if (onlineUser == null)
+			return;
 
 		ItemStack armor = event.getNewItem();
 		if (armor != null && armor.getType() != Material.AIR) {
 			if (checkNightVisionArmorStatus(armor) && getNightVisionArmorStatus(armor)) {
 				player.addPotionEffect(new PotionEffect(PotionEffectType.NIGHT_VISION, Integer.MAX_VALUE, 1));
-				pi.isWearingGlowstoneArmor(true);
+				onlineUser.isWearingGlowstoneArmor(true);
 			} else {
 				ItemStack[] armorSet = player.getInventory().getArmorContents();
 				boolean checkArmor = false;
@@ -908,10 +927,10 @@ public class NetherArmor implements Listener {
 						}
 					}
 				}
-				if (!checkArmor && pi.hasGlowstoneArmorEffect()) {
+				if (!checkArmor && onlineUser.hasGlowstoneArmorEffect()) {
 					if (player.hasPotionEffect(PotionEffectType.NIGHT_VISION)) {
-						pi.isWearingGlowstoneArmor(false);
-						if (!pi.hasGlowstoneToolEffect()) {
+						onlineUser.isWearingGlowstoneArmor(false);
+						if (!onlineUser.hasGlowstoneToolEffect()) {
 							player.removePotionEffect(PotionEffectType.NIGHT_VISION);
 						}
 					}
@@ -930,10 +949,10 @@ public class NetherArmor implements Listener {
 					}
 				}
 			}
-			if (!checkArmor && pi.hasGlowstoneArmorEffect()) {
+			if (!checkArmor && onlineUser.hasGlowstoneArmorEffect()) {
 				if (player.hasPotionEffect(PotionEffectType.NIGHT_VISION)) {
-					pi.isWearingGlowstoneArmor(false);
-					if (!pi.hasGlowstoneToolEffect()) {
+					onlineUser.isWearingGlowstoneArmor(false);
+					if (!onlineUser.hasGlowstoneToolEffect()) {
 						player.removePotionEffect(PotionEffectType.NIGHT_VISION);
 					}
 				}
@@ -950,11 +969,13 @@ public class NetherArmor implements Listener {
 			return;
 
 		if (event.getTargetEntity() instanceof Player player) {
-			HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(player);
+			OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
+			if (onlineUser == null)
+				return;
 			ItemStack armor = event.getItem();
 			if (checkNightVisionArmorStatus(armor) && getNightVisionArmorStatus(armor)) {
 				player.addPotionEffect(new PotionEffect(PotionEffectType.NIGHT_VISION, Integer.MAX_VALUE, 1));
-				pi.isWearingGlowstoneArmor(true);
+				onlineUser.isWearingGlowstoneArmor(true);
 			} else {
 				ItemStack[] armorSet = player.getInventory().getArmorContents();
 				boolean checkArmor = false;
@@ -968,10 +989,10 @@ public class NetherArmor implements Listener {
 						}
 					}
 				}
-				if (!checkArmor && pi.hasGlowstoneArmorEffect()) {
+				if (!checkArmor && onlineUser.hasGlowstoneArmorEffect()) {
 					if (player.hasPotionEffect(PotionEffectType.NIGHT_VISION)) {
-						pi.isWearingGlowstoneArmor(false);
-						if (!pi.hasGlowstoneToolEffect()) {
+						onlineUser.isWearingGlowstoneArmor(false);
+						if (!onlineUser.hasGlowstoneToolEffect()) {
 							player.removePotionEffect(PotionEffectType.NIGHT_VISION);
 						}
 					}

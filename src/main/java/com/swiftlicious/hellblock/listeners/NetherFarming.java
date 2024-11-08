@@ -62,7 +62,7 @@ import com.sk89q.worldguard.protection.util.WorldEditRegionConverter;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.challenges.HellblockChallenge.ChallengeType;
-import com.swiftlicious.hellblock.playerdata.HellblockPlayer;
+import com.swiftlicious.hellblock.player.OnlineUser;
 import com.swiftlicious.hellblock.scheduler.CancellableTask;
 import com.swiftlicious.hellblock.utils.LocationCache;
 import com.swiftlicious.hellblock.utils.RandomUtils;
@@ -76,7 +76,7 @@ public class NetherFarming implements Listener {
 	private final HellblockPlugin instance;
 
 	private final Map<Location, Integer> blockCache, revertCache, moistureCache;
-	private final Map<HellblockPlayer, Collection<Location>> regionFarmCache;
+	private final Map<OnlineUser, Collection<Location>> regionFarmCache;
 
 	public NetherFarming(HellblockPlugin plugin) {
 		instance = plugin;
@@ -87,9 +87,9 @@ public class NetherFarming implements Listener {
 		Bukkit.getPluginManager().registerEvents(this, instance);
 	}
 
-	public CompletableFuture<Void> trackNetherFarms(@NonNull HellblockPlayer hbPlayer) {
+	public CompletableFuture<Void> trackNetherFarms(@NonNull OnlineUser user) {
 		return CompletableFuture.runAsync(() -> {
-			Set<Block> farmBlocks = getFarmlandOnHellblock(hbPlayer);
+			Set<Block> farmBlocks = getFarmlandOnHellblock(user);
 			if (farmBlocks != null) {
 				Iterator<Block> islandBlocks = farmBlocks.iterator();
 				Block islandBlock;
@@ -132,14 +132,19 @@ public class NetherFarming implements Listener {
 										farm.setMoisture(farm.getMaximumMoisture());
 										updatingBlock.setBlockData(farm);
 										updatingBlock.getState().update();
-										if (!hbPlayer.isChallengeActive(ChallengeType.NETHER_FARM_CHALLENGE)
-												&& !hbPlayer
+										if (!user.getHellblockData()
+												.isChallengeActive(ChallengeType.NETHER_FARM_CHALLENGE)
+												&& !user.getHellblockData()
 														.isChallengeCompleted(ChallengeType.NETHER_FARM_CHALLENGE)) {
-											hbPlayer.beginChallengeProgression(ChallengeType.NETHER_FARM_CHALLENGE);
+											user.getHellblockData().beginChallengeProgression(user.getPlayer(),
+													ChallengeType.NETHER_FARM_CHALLENGE);
 										} else {
-											hbPlayer.updateChallengeProgression(ChallengeType.NETHER_FARM_CHALLENGE, 1);
-											if (hbPlayer.isChallengeCompleted(ChallengeType.NETHER_FARM_CHALLENGE)) {
-												hbPlayer.completeChallenge(ChallengeType.NETHER_FARM_CHALLENGE);
+											user.getHellblockData().updateChallengeProgression(user.getPlayer(),
+													ChallengeType.NETHER_FARM_CHALLENGE, 1);
+											if (user.getHellblockData()
+													.isChallengeCompleted(ChallengeType.NETHER_FARM_CHALLENGE)) {
+												user.getHellblockData().completeChallenge(user.getPlayer(),
+														ChallengeType.NETHER_FARM_CHALLENGE);
 											}
 										}
 										this.moistureCache.put(cache, farm.getMoisture());
@@ -261,22 +266,22 @@ public class NetherFarming implements Listener {
 		return lavaFound;
 	}
 
-	private @Nullable Set<Block> getFarmlandOnHellblock(@NonNull HellblockPlayer hbPlayer) {
-		Player player = hbPlayer.getPlayer();
-		if (player == null || !player.isOnline())
+	private @Nullable Set<Block> getFarmlandOnHellblock(@NonNull OnlineUser user) {
+		Player player = user.getPlayer();
+		if (!user.isOnline())
 			return null;
 		if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
 			return null;
 		if (instance.getHellblockHandler().isWorldguardProtected()) {
 			Set<Block> regionBlocks = new HashSet<>();
 			// lessen the load on the server
-			if (this.regionFarmCache.containsKey(hbPlayer) && this.regionFarmCache.get(hbPlayer) != null) {
-				Collection<Location> cached = this.regionFarmCache.get(hbPlayer);
+			if (this.regionFarmCache.containsKey(user) && this.regionFarmCache.get(user) != null) {
+				Collection<Location> cached = this.regionFarmCache.get(user);
 				for (Location cache : cached) {
 					Block cachedBlock = cache.getBlock();
 					regionBlocks.add(cachedBlock);
 				}
-				instance.getScheduler().runTaskAsyncLater(() -> resetRegionFarmCache(hbPlayer), 3, TimeUnit.MINUTES);
+				instance.getScheduler().runTaskAsyncLater(() -> resetRegionFarmCache(user), 3, TimeUnit.MINUTES);
 				return regionBlocks;
 			}
 			Set<ProtectedRegion> wgRegion = instance.getWorldGuardHandler().getRegions(player.getUniqueId());
@@ -304,11 +309,11 @@ public class NetherFarming implements Listener {
 
 			// before we finish all of the original code we must cache it all
 			// cache regions to keep it not thread heavy
-			if (!this.regionFarmCache.containsKey(hbPlayer)) {
+			if (!this.regionFarmCache.containsKey(user)) {
 				Collection<Location> localCache = new HashSet<>();
 				regionBlocks.forEach(
 						cachedBlock -> localCache.add(LocationCache.getCachedLocation(cachedBlock.getLocation())));
-				this.regionFarmCache.put(hbPlayer, localCache);
+				this.regionFarmCache.put(user, localCache);
 			}
 
 			return regionBlocks;
@@ -318,9 +323,9 @@ public class NetherFarming implements Listener {
 		return null;
 	}
 
-	private void resetRegionFarmCache(@NonNull HellblockPlayer hbPlayer) {
-		if (this.regionFarmCache.containsKey(hbPlayer)) {
-			this.regionFarmCache.remove(hbPlayer);
+	private void resetRegionFarmCache(@NonNull OnlineUser user) {
+		if (this.regionFarmCache.containsKey(user)) {
+			this.regionFarmCache.remove(user);
 		}
 	}
 
@@ -1100,7 +1105,7 @@ public class NetherFarming implements Listener {
 					Player player = instance.getNetherrackGeneratorHandler().getClosestPlayer(block.getLocation(),
 							playersNearby);
 					if (player != null)
-						trackNetherFarms(instance.getHellblockHandler().getActivePlayer(player));
+						trackNetherFarms(instance.getStorageManager().getOnlineUser(player.getUniqueId()));
 				} else {
 					if (this.blockCache.containsKey(LocationCache.getCachedLocation(block.getLocation()))) {
 						this.blockCache.remove(LocationCache.getCachedLocation(block.getLocation()));
@@ -1129,7 +1134,7 @@ public class NetherFarming implements Listener {
 			Player player = instance.getNetherrackGeneratorHandler().getClosestPlayer(block.getLocation(),
 					playersNearby);
 			if (player != null) {
-				trackNetherFarms(instance.getHellblockHandler().getActivePlayer(player));
+				trackNetherFarms(instance.getStorageManager().getOnlineUser(player.getUniqueId()));
 			}
 			if (this.blockCache.containsKey(LocationCache.getCachedLocation(block.getLocation()))) {
 				this.blockCache.remove(LocationCache.getCachedLocation(block.getLocation()));
@@ -1150,7 +1155,7 @@ public class NetherFarming implements Listener {
 			return;
 
 		if (event.getBucket() == Material.LAVA_BUCKET) {
-			trackNetherFarms(instance.getHellblockHandler().getActivePlayer(player));
+			trackNetherFarms(instance.getStorageManager().getOnlineUser(player.getUniqueId()));
 		}
 	}
 
@@ -1161,8 +1166,8 @@ public class NetherFarming implements Listener {
 			return;
 
 		if (event.getItemStack() != null && event.getItemStack().getType() == Material.LAVA_BUCKET) {
-			resetRegionFarmCache(instance.getHellblockHandler().getActivePlayer(player));
-			trackNetherFarms(instance.getHellblockHandler().getActivePlayer(player));
+			resetRegionFarmCache(instance.getStorageManager().getOnlineUser(player.getUniqueId()));
+			trackNetherFarms(instance.getStorageManager().getOnlineUser(player.getUniqueId()));
 		}
 	}
 
@@ -1182,8 +1187,8 @@ public class NetherFarming implements Listener {
 						Player player = instance.getNetherrackGeneratorHandler().getClosestPlayer(block.getLocation(),
 								playersNearby);
 						if (player != null) {
-							resetRegionFarmCache(instance.getHellblockHandler().getActivePlayer(player));
-							trackNetherFarms(instance.getHellblockHandler().getActivePlayer(player));
+							resetRegionFarmCache(instance.getStorageManager().getOnlineUser(player.getUniqueId()));
+							trackNetherFarms(instance.getStorageManager().getOnlineUser(player.getUniqueId()));
 						}
 					}
 				}
@@ -1202,8 +1207,8 @@ public class NetherFarming implements Listener {
 		if (player != null) {
 			for (Block lava : event.getBlocks()) {
 				if (lava.getType() == Material.LAVA) {
-					resetRegionFarmCache(instance.getHellblockHandler().getActivePlayer(player));
-					trackNetherFarms(instance.getHellblockHandler().getActivePlayer(player));
+					resetRegionFarmCache(instance.getStorageManager().getOnlineUser(player.getUniqueId()));
+					trackNetherFarms(instance.getStorageManager().getOnlineUser(player.getUniqueId()));
 				}
 			}
 		}
@@ -1217,7 +1222,7 @@ public class NetherFarming implements Listener {
 
 		if (block.getBlockData() instanceof Farmland || block.getBlockData() instanceof Ageable) {
 			final Player player = event.getPlayer();
-			trackNetherFarms(instance.getHellblockHandler().getActivePlayer(player));
+			trackNetherFarms(instance.getStorageManager().getOnlineUser(player.getUniqueId()));
 			if (block.getBlockData() instanceof Farmland) {
 				if (this.blockCache.containsKey(LocationCache.getCachedLocation(block.getLocation()))) {
 					this.blockCache.remove(LocationCache.getCachedLocation(block.getLocation()));
@@ -1240,12 +1245,12 @@ public class NetherFarming implements Listener {
 
 		final Player player = event.getPlayer();
 		if (block.getBlockData() instanceof Farmland || block.getBlockData() instanceof Ageable) {
-			trackNetherFarms(instance.getHellblockHandler().getActivePlayer(player));
+			trackNetherFarms(instance.getStorageManager().getOnlineUser(player.getUniqueId()));
 		}
 
 		if (event.getBlockReplacedState().getType() == Material.LAVA) {
-			resetRegionFarmCache(instance.getHellblockHandler().getActivePlayer(player));
-			trackNetherFarms(instance.getHellblockHandler().getActivePlayer(player));
+			resetRegionFarmCache(instance.getStorageManager().getOnlineUser(player.getUniqueId()));
+			trackNetherFarms(instance.getStorageManager().getOnlineUser(player.getUniqueId()));
 		}
 	}
 
@@ -1264,7 +1269,7 @@ public class NetherFarming implements Listener {
 				Player player = instance.getNetherrackGeneratorHandler().getClosestPlayer(block.getLocation(),
 						playersNearby);
 				if (player != null) {
-					trackNetherFarms(instance.getHellblockHandler().getActivePlayer(player));
+					trackNetherFarms(instance.getStorageManager().getOnlineUser(player.getUniqueId()));
 				}
 			} else {
 				if (this.moistureCache.containsKey(LocationCache.getCachedLocation(block.getLocation()))) {
@@ -1283,7 +1288,7 @@ public class NetherFarming implements Listener {
 		final List<BlockState> blocks = event.getBlocks();
 		for (BlockState block : blocks) {
 			if (block.getBlockData() instanceof Ageable) {
-				trackNetherFarms(instance.getHellblockHandler().getActivePlayer(player));
+				trackNetherFarms(instance.getStorageManager().getOnlineUser(player.getUniqueId()));
 			}
 		}
 	}
@@ -1296,7 +1301,7 @@ public class NetherFarming implements Listener {
 
 		final Block block = event.getHarvestedBlock();
 		if (block.getBlockData() instanceof Ageable) {
-			trackNetherFarms(instance.getHellblockHandler().getActivePlayer(player));
+			trackNetherFarms(instance.getStorageManager().getOnlineUser(player.getUniqueId()));
 		}
 	}
 
@@ -1311,7 +1316,7 @@ public class NetherFarming implements Listener {
 			Player player = instance.getNetherrackGeneratorHandler().getClosestPlayer(block.getLocation(),
 					playersNearby);
 			if (player != null) {
-				trackNetherFarms(instance.getHellblockHandler().getActivePlayer(player));
+				trackNetherFarms(instance.getStorageManager().getOnlineUser(player.getUniqueId()));
 			}
 		}
 	}
@@ -1367,7 +1372,7 @@ public class NetherFarming implements Listener {
 				Player player = instance.getNetherrackGeneratorHandler().getClosestPlayer(block.getLocation(),
 						playersNearby);
 				if (player != null)
-					trackNetherFarms(instance.getHellblockHandler().getActivePlayer(player));
+					trackNetherFarms(instance.getStorageManager().getOnlineUser(player.getUniqueId()));
 				if (block.getBlockData() instanceof Farmland) {
 					if (this.blockCache.containsKey(LocationCache.getCachedLocation(block.getLocation()))) {
 						this.blockCache.remove(LocationCache.getCachedLocation(block.getLocation()));
@@ -1455,14 +1460,13 @@ public class NetherFarming implements Listener {
 
 		@Override
 		public void run() {
-			Player player = Bukkit.getPlayer(playerUUID);
-			if (player == null || !player.isOnline()) {
+			OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(playerUUID);
+			if (!onlineUser.isOnline()) {
 				cancelTask();
 				return;
 			}
 
-			HellblockPlayer pi = instance.getHellblockHandler().getActivePlayer(player);
-			trackNetherFarms(pi);
+			trackNetherFarms(onlineUser);
 		}
 
 		public void cancelTask() {

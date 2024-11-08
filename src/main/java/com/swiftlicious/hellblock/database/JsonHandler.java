@@ -13,9 +13,10 @@ import java.util.concurrent.CompletableFuture;
 
 import org.bukkit.Bukkit;
 
+import com.google.common.io.Files;
 import com.google.gson.Gson;
 import com.swiftlicious.hellblock.HellblockPlugin;
-import com.swiftlicious.hellblock.playerdata.PlayerData;
+import com.swiftlicious.hellblock.player.PlayerData;
 
 /**
  * A data storage implementation that uses JSON files to store player data.
@@ -121,7 +122,7 @@ public class JsonHandler extends AbstractStorage {
 			File[] files = folder.listFiles();
 			if (files != null) {
 				for (File file : files) {
-					uuids.add(UUID.fromString(file.getName().substring(file.getName().length() - 5)));
+					uuids.add(UUID.fromString(Files.getNameWithoutExtension(file.getName())));
 				}
 			}
 		}

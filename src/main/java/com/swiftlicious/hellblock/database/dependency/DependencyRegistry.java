@@ -19,19 +19,4 @@ public class DependencyRegistry {
 	public static boolean isGsonRelocated() {
 		return JsonElement.class.getName().startsWith("com.swiftlicious");
 	}
-
-	private static boolean classExists(String className) {
-		try {
-			Class.forName(className);
-			return true;
-		} catch (ClassNotFoundException e) {
-			return false;
-		}
-	}
-
-	@SuppressWarnings("unused")
-	private static boolean slf4jPresent() {
-		return classExists("org.slf4j.Logger") && classExists("org.slf4j.LoggerFactory");
-	}
-
 }

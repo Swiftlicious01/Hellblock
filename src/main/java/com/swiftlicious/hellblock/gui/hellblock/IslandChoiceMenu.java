@@ -12,6 +12,7 @@ import org.jetbrains.annotations.NotNull;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.generation.IslandOptions;
 import com.swiftlicious.hellblock.gui.icon.BackGroundItem;
+import com.swiftlicious.hellblock.player.OnlineUser;
 import com.swiftlicious.hellblock.utils.wrappers.ShadedAdventureComponentWrapper;
 
 import xyz.xenondevs.invui.gui.Gui;
@@ -24,6 +25,13 @@ public class IslandChoiceMenu {
 
 	public IslandChoiceMenu(Player player, boolean isReset) {
 
+		OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager().getOnlineUser(player.getUniqueId());
+		if (onlineUser == null) {
+			HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
+					"<red>Still loading your player data... please try again in a few seconds.");
+			return;
+		}
+
 		if (!HellblockPlugin.getInstance().getHellblockHandler().getIslandOptions().isEmpty()) {
 			Gui gui = Gui.normal().setStructure("# d c s #").addIngredient('d', new DefaultIslandChoiceItem(isReset))
 					.addIngredient('c', new ClassicIslandChoiceItem(isReset))
@@ -33,9 +41,7 @@ public class IslandChoiceMenu {
 			Window window = Window.single().setViewer(player)
 					.setTitle(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 							.getComponentFromMiniMessage("<red>Hellblock Island Options")))
-					.setGui(gui).setCloseable(HellblockPlugin.getInstance().getHellblockHandler()
-							.getActivePlayer(player.getUniqueId()).hasHellblock())
-					.build();
+					.setGui(gui).setCloseable(onlineUser.getHellblockData().hasHellblock()).build();
 
 			window.open();
 		} else {
@@ -77,13 +83,16 @@ public class IslandChoiceMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
+			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+					.getOnlineUser(player.getUniqueId());
+			if (onlineUser == null)
+				return;
 			if (event.getCurrentItem() != null && event.getCurrentItem().getType() == Material.NETHERRACK) {
-				if (isReset && HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player)
-						.getResetCooldown() > 0) {
+				if (isReset && onlineUser.getHellblockData().getResetCooldown() > 0) {
 					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 							String.format("<red>You've recently reset your hellblock already, you must wait for %s!",
-									HellblockPlugin.getInstance().getFormattedCooldown(HellblockPlugin.getInstance()
-											.getHellblockHandler().getActivePlayer(player).getResetCooldown())));
+									HellblockPlugin.getInstance()
+											.getFormattedCooldown(onlineUser.getHellblockData().getResetCooldown())));
 					HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
 							net.kyori.adventure.sound.Sound.Source.PLAYER,
 							net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
@@ -145,13 +154,16 @@ public class IslandChoiceMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
+			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+					.getOnlineUser(player.getUniqueId());
+			if (onlineUser == null)
+				return;
 			if (event.getCurrentItem() != null && event.getCurrentItem().getType() == Material.SOUL_SAND) {
-				if (isReset && HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player)
-						.getResetCooldown() > 0) {
+				if (isReset && onlineUser.getHellblockData().getResetCooldown() > 0) {
 					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 							String.format("<red>You've recently reset your hellblock already, you must wait for %s!",
-									HellblockPlugin.getInstance().getFormattedCooldown(HellblockPlugin.getInstance()
-											.getHellblockHandler().getActivePlayer(player).getResetCooldown())));
+									HellblockPlugin.getInstance()
+											.getFormattedCooldown(onlineUser.getHellblockData().getResetCooldown())));
 					HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
 							net.kyori.adventure.sound.Sound.Source.PLAYER,
 							net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
@@ -223,13 +235,16 @@ public class IslandChoiceMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
+			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+					.getOnlineUser(player.getUniqueId());
+			if (onlineUser == null)
+				return;
 			if (event.getCurrentItem() != null && event.getCurrentItem().getType() == Material.MAP) {
-				if (isReset && HellblockPlugin.getInstance().getHellblockHandler().getActivePlayer(player)
-						.getResetCooldown() > 0) {
+				if (isReset && onlineUser.getHellblockData().getResetCooldown() > 0) {
 					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 							String.format("<red>You've recently reset your hellblock already, you must wait for %s!",
-									HellblockPlugin.getInstance().getFormattedCooldown(HellblockPlugin.getInstance()
-											.getHellblockHandler().getActivePlayer(player).getResetCooldown())));
+									HellblockPlugin.getInstance()
+											.getFormattedCooldown(onlineUser.getHellblockData().getResetCooldown())));
 					HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
 							net.kyori.adventure.sound.Sound.Source.PLAYER,
 							net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
