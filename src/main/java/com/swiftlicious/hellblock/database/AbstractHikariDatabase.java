@@ -4,6 +4,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -16,6 +17,7 @@ import org.bukkit.configuration.file.YamlConfiguration;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.player.EarningData;
+import com.swiftlicious.hellblock.player.HellblockData;
 import com.swiftlicious.hellblock.player.PlayerData;
 import com.swiftlicious.hellblock.utils.LogUtils;
 import com.zaxxer.hikari.HikariConfig;
@@ -40,7 +42,7 @@ public abstract class AbstractHikariDatabase extends AbstractSQLDatabase impleme
 			Class.forName(this.driverClass);
 		} catch (ClassNotFoundException e1) {
 			if (getStorageType() == StorageType.MariaDB) {
-				LogUtils.warn("No MariaDB driver is found");
+				LogUtils.warn("No MariaDB driver is found.");
 			} else if (getStorageType() == StorageType.MySQL) {
 				try {
 					Class.forName("com.mysql.jdbc.Driver.");
@@ -128,15 +130,17 @@ public abstract class AbstractHikariDatabase extends AbstractSQLDatabase impleme
 				var builder = PlayerData.builder().setName("");
 
 				PreparedStatement statement = connection
-						.prepareStatement(String.format(SqlConstants.SQL_SELECT_BY_UUID, getTableName("selldata")));
+						.prepareStatement(String.format(SqlConstants.SQL_SELECT_BY_UUID, getTableName("hbdata")));
 				statement.setString(1, uuid.toString());
 				ResultSet rs = statement.executeQuery();
 				if (rs.next()) {
+					// TODO: update with hellblock data
 					int date = rs.getInt("date");
 					double money = rs.getInt("money");
 					builder.setEarningData(new EarningData(money, date));
 				} else {
-					builder.setEarningData(EarningData.empty());
+					builder.setPistonLocations(new ArrayList<>()).setLevelBlockLocations(new ArrayList<>())
+							.setEarningData(EarningData.empty()).setHellblockData(HellblockData.empty());
 				}
 
 				future.complete(Optional.of(builder.build()));

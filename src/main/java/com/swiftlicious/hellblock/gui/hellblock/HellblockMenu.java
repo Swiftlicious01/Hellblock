@@ -191,62 +191,34 @@ public class HellblockMenu {
 			ItemBuilder itemBuilder = new ItemBuilder(Material.BARRIER)
 					.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
 							.getAdventureManager().getComponentFromMiniMessage("<red>Failed to Load")));
-			if (HellblockPlugin.getInstance().getStorageManager()
-					.getOnlineUser(onlineUser.getHellblockData().getOwnerUUID()) != null
-					&& HellblockPlugin.getInstance().getStorageManager()
-							.getOnlineUser(onlineUser.getHellblockData().getOwnerUUID()).isOnline()) {
-				OfflineUser ownerUser = HellblockPlugin.getInstance().getStorageManager()
-						.getOnlineUser(onlineUser.getHellblockData().getOwnerUUID());
-				itemBuilder.setMaterial(Material.EXPERIENCE_BOTTLE).addAllItemFlags()
-						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
-								.getAdventureManager().getComponentFromMiniMessage("<green>View your island level!")))
-						.addLoreLines(
-								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
-										.getComponentFromMiniMessage(String.format("<gold>Level: <yellow>%s",
-												ownerUser.getHellblockData().hasHellblock()
-														? ownerUser.getHellblockData().getLevel()
-														: 0))),
-								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
-										.getComponentFromMiniMessage(" ")),
-								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
-										.getComponentFromMiniMessage(String.format(
-												"<gold>Your overall rank is <yellow>%s",
-												(HellblockPlugin.getInstance().getIslandLevelManager()
-														.getLevelRank(ownerUser.getUUID()) > 0 ? "#"
-																+ HellblockPlugin.getInstance().getIslandLevelManager()
-																		.getLevelRank(ownerUser.getUUID())
-																: "Unranked")))));
-			} else {
-				HellblockPlugin.getInstance().getStorageManager()
-						.getOfflineUser(onlineUser.getHellblockData().getOwnerUUID(), HBConfig.lockData)
-						.thenAccept((result) -> {
-							OfflineUser ownerUser = result.orElseThrow();
-							itemBuilder.setMaterial(Material.EXPERIENCE_BOTTLE).addAllItemFlags()
-									.setDisplayName(new ShadedAdventureComponentWrapper(
-											HellblockPlugin.getInstance().getAdventureManager()
-													.getComponentFromMiniMessage("<green>View your island level!")))
-									.addLoreLines(
-											new ShadedAdventureComponentWrapper(
-													HellblockPlugin.getInstance().getAdventureManager()
-															.getComponentFromMiniMessage(String.format(
-																	"<gold>Level: <yellow>%s",
-																	ownerUser.getHellblockData().hasHellblock()
-																			? ownerUser.getHellblockData().getLevel()
-																			: 0))),
-											new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
-													.getAdventureManager().getComponentFromMiniMessage(" ")),
-											new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
-													.getAdventureManager()
-													.getComponentFromMiniMessage(String.format(
-															"<gold>Your overall rank is <yellow>%s",
-															(HellblockPlugin.getInstance().getIslandLevelManager()
-																	.getLevelRank(ownerUser.getUUID()) > 0
-																			? "#" + HellblockPlugin.getInstance()
-																					.getIslandLevelManager()
-																					.getLevelRank(ownerUser.getUUID())
-																			: "Unranked")))));
-						}).join();
-			}
+			HellblockPlugin.getInstance().getStorageManager()
+					.getOfflineUser(onlineUser.getHellblockData().getOwnerUUID(), HBConfig.lockData)
+					.thenAccept((result) -> {
+						OfflineUser ownerUser = result.orElseThrow();
+						itemBuilder.setMaterial(Material.EXPERIENCE_BOTTLE).addAllItemFlags()
+								.setDisplayName(new ShadedAdventureComponentWrapper(
+										HellblockPlugin.getInstance().getAdventureManager()
+												.getComponentFromMiniMessage("<green>View your island level!")))
+								.addLoreLines(
+										new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
+												.getAdventureManager()
+												.getComponentFromMiniMessage(String.format("<gold>Level: <yellow>%s",
+														ownerUser.getHellblockData().hasHellblock()
+																? ownerUser.getHellblockData().getLevel()
+																: 0))),
+										new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
+												.getAdventureManager().getComponentFromMiniMessage(" ")),
+										new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
+												.getAdventureManager()
+												.getComponentFromMiniMessage(String.format(
+														"<gold>Your overall rank is <yellow>%s",
+														(HellblockPlugin.getInstance().getIslandLevelManager()
+																.getLevelRank(ownerUser.getUUID()) > 0
+																		? "#" + HellblockPlugin.getInstance()
+																				.getIslandLevelManager()
+																				.getLevelRank(ownerUser.getUUID())
+																		: "Unranked")))));
+					}).join();
 			return itemBuilder;
 		}
 
@@ -536,7 +508,7 @@ public class HellblockMenu {
 										.makeHomeLocationSafe(ownerUser, onlineUser).thenRun(() -> {
 											HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(
 													player, "<red>Teleporting you to your hellblock!");
-											player.getWorld().playEffect(player.getLocation(), Effect.ENDER_SIGNAL, 1);
+											player.getWorld().playEffect(player.getLocation(), Effect.ENDER_SIGNAL, 5);
 											HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
 													net.kyori.adventure.sound.Sound.Source.PLAYER,
 													net.kyori.adventure.key.Key
@@ -549,6 +521,8 @@ public class HellblockMenu {
 								HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
 										net.kyori.adventure.sound.Sound.Source.PLAYER,
 										net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
+								throw new NullPointerException(
+										"Hellblock home location returned null, please report this to the developer.");
 							}
 						});
 			}

@@ -18,6 +18,7 @@ public class OfflineUser implements OfflineUserInterface {
 	private final String name;
 	private final EarningData earningData;
 	private final HellblockData hellblockData;
+	private final ChallengeData challengeData;
 	private final List<String> pistonLocations, levelBlockLocations;
 	private boolean unsafeLocation;
 	public static OfflineUser LOCKED_USER = new OfflineUser(UUID.randomUUID(), "-locked-", PlayerData.empty());
@@ -35,6 +36,7 @@ public class OfflineUser implements OfflineUserInterface {
 		this.uuid = uuid;
 		this.earningData = playerData.getEarningData();
 		this.hellblockData = playerData.getHellblockData();
+		this.challengeData = playerData.getChallengeData();
 		this.pistonLocations = playerData.getPistonLocations();
 		this.levelBlockLocations = playerData.getLevelBlockLocations();
 		int date = HellblockPlugin.getInstance().getMarketManager().getDate();
@@ -62,6 +64,11 @@ public class OfflineUser implements OfflineUserInterface {
 	@Override
 	public HellblockData getHellblockData() {
 		return hellblockData;
+	}
+
+	@Override
+	public ChallengeData getChallengeData() {
+		return challengeData;
 	}
 
 	@Override
@@ -93,6 +100,6 @@ public class OfflineUser implements OfflineUserInterface {
 		// Create a new PlayerData instance based on the stored information
 		return PlayerData.builder().setName(name).setLevelBlockLocations(levelBlockLocations)
 				.setPistonLocations(pistonLocations).setEarningData(earningData).setHellblockData(hellblockData)
-				.build();
+				.setChallengeData(challengeData).build();
 	}
 }

@@ -97,7 +97,7 @@ public class HellblockHandler {
 		this.schematicsDirectory = new File(instance.getDataFolder() + File.separator + "schematics");
 		if (!this.schematicsDirectory.exists())
 			this.schematicsDirectory.mkdirs();
-		startCountdowns();
+		instance.getScheduler().runTaskAsyncLater(() -> startCountdowns(), 5, TimeUnit.SECONDS);
 	}
 
 	public void startCountdowns() {
@@ -262,6 +262,9 @@ public class HellblockHandler {
 								});
 					});
 				});
+			}).thenRunAsync(() -> {
+				instance.getStorageManager().getDataSource().updateOrInsertPlayerData(onlineUser.getUUID(),
+						onlineUser.getPlayerData(), HBConfig.lockData);
 			});
 		});
 	}
@@ -303,6 +306,38 @@ public class HellblockHandler {
 						}
 					}).thenRunAsync(() -> {
 						unprotection.getUnprotectionTask().thenRunAsync(() -> {
+							Set<UUID> party = offlineUser.getHellblockData().getParty();
+							if (party != null && !party.isEmpty()) {
+								for (UUID uuid : party) {
+									Player member = Bukkit.getPlayer(uuid);
+									if (member != null && member.isOnline()) {
+										OnlineUser onlineMember = instance.getStorageManager().getOnlineUser(uuid);
+										if (onlineMember == null)
+											continue;
+										onlineMember.getHellblockData().resetHellblockData();
+										teleportToSpawn(member, true);
+										if (!forceReset) {
+											if (offlineUser.isOnline()) {
+												Player player = Bukkit.getPlayer(id);
+												instance.getAdventureManager().sendMessageWithPrefix(member,
+														String.format(
+																"<red>Your hellblock owner <dark_red>%s <red>has reset the island, so you've been removed.",
+																player.getName()));
+											}
+										} else {
+											instance.getAdventureManager().sendMessageWithPrefix(member,
+													"<red>The hellblock party you were a part of has been forcefully deleted.");
+										}
+									} else {
+										instance.getStorageManager().getOfflineUser(uuid, HBConfig.lockData)
+												.thenAccept((memberResult) -> {
+													OfflineUser offlineMember = memberResult.orElseThrow();
+													offlineMember.getHellblockData().resetHellblockData();
+													offlineMember.setInUnsafeLocation(true);
+												});
+									}
+								}
+							}
 							Set<UUID> visitors = instance.getCoopManager().getVisitors(id);
 							if (!visitors.isEmpty()) {
 								for (UUID uuid : visitors) {
@@ -336,51 +371,6 @@ public class HellblockHandler {
 									}
 								}
 							}
-							for (UUID trustedData : instance.getStorageManager().getDataSource()
-									.getUniqueUsers(false)) {
-
-								instance.getStorageManager().getOfflineUser(trustedData, HBConfig.lockData)
-										.thenAccept((trustedResult) -> {
-											OfflineUser offlineTrustee = trustedResult.orElseThrow();
-											if (offlineTrustee.getHellblockData().getTrusted().contains(id)) {
-												Set<UUID> trusted = offlineTrustee.getHellblockData().getTrusted();
-												trusted.remove(id);
-												offlineTrustee.getHellblockData().setTrusted(trusted);
-											}
-										});
-							}
-							Set<UUID> party = offlineUser.getHellblockData().getParty();
-							if (party != null && !party.isEmpty()) {
-								for (UUID uuid : party) {
-									Player member = Bukkit.getPlayer(uuid);
-									if (member != null && member.isOnline()) {
-										OnlineUser onlineMember = instance.getStorageManager().getOnlineUser(uuid);
-										if (onlineMember == null)
-											continue;
-										onlineMember.getHellblockData().resetHellblockData();
-										teleportToSpawn(member, true);
-										if (!forceReset) {
-											if (offlineUser.isOnline()) {
-												Player player = Bukkit.getPlayer(id);
-												instance.getAdventureManager().sendMessageWithPrefix(member,
-														String.format(
-																"<red>Your hellblock owner <dark_red>%s <red>has reset the island, so you've been removed.",
-																player.getName()));
-											}
-										} else {
-											instance.getAdventureManager().sendMessageWithPrefix(member,
-													"<red>The hellblock party you were a part of has been forcefully deleted.");
-										}
-									} else {
-										instance.getStorageManager().getOfflineUser(uuid, HBConfig.lockData)
-												.thenAccept((memberResult) -> {
-													OfflineUser offlineMember = memberResult.orElseThrow();
-													offlineMember.getHellblockData().resetHellblockData();
-													offlineMember.setInUnsafeLocation(true);
-												});
-									}
-								}
-							}
 							offlineUser.getHellblockData().resetHellblockData();
 							if (offlineUser.isOnline()) {
 								Player player = Bukkit.getPlayer(offlineUser.getUUID());
@@ -409,6 +399,9 @@ public class HellblockHandler {
 										new IslandChoiceMenu(player, true);
 									}, home, 1, TimeUnit.SECONDS);
 								}
+							} else {
+								instance.getStorageManager().getDataSource().updateOrInsertPlayerData(
+										offlineUser.getUUID(), offlineUser.getPlayerData(), HBConfig.lockData);
 							}
 						});
 					});

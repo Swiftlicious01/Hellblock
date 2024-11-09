@@ -9,7 +9,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.Map.Entry;
 import java.util.concurrent.CompletableFuture;
@@ -22,11 +21,12 @@ import org.bukkit.util.BoundingBox;
 
 import com.google.common.io.Files;
 import com.swiftlicious.hellblock.HellblockPlugin;
-import com.swiftlicious.hellblock.challenges.ChallengeData;
+import com.swiftlicious.hellblock.challenges.ChallengeResult;
 import com.swiftlicious.hellblock.challenges.HellblockChallenge.ChallengeType;
 import com.swiftlicious.hellblock.challenges.HellblockChallenge.CompletionStatus;
 import com.swiftlicious.hellblock.generation.HellBiome;
 import com.swiftlicious.hellblock.generation.IslandOptions;
+import com.swiftlicious.hellblock.player.ChallengeData;
 import com.swiftlicious.hellblock.player.EarningData;
 import com.swiftlicious.hellblock.player.HellblockData;
 import com.swiftlicious.hellblock.player.PlayerData;
@@ -78,7 +78,7 @@ public class YamlHandler extends AbstractStorage implements LegacyDataStorageInt
 		Set<UUID> party = new HashSet<>(), trusted = new HashSet<>(), banned = new HashSet<>();
 		Map<UUID, Long> invitations = new HashMap<>();
 		Map<FlagType, AccessType> flags = new HashMap<>();
-		Map<ChallengeType, Entry<CompletionStatus, ChallengeData>> challenges = new HashMap<>();
+		Map<ChallengeType, ChallengeResult> challenges = new HashMap<>();
 		data.getStringList("party").forEach(id -> party.add(UUID.fromString(id)));
 		data.getStringList("trusted").forEach(id -> trusted.add(UUID.fromString(id)));
 		data.getStringList("banned").forEach(id -> banned.add(UUID.fromString(id)));
@@ -102,8 +102,7 @@ public class YamlHandler extends AbstractStorage implements LegacyDataStorageInt
 				CompletionStatus completion = CompletionStatus.valueOf(data.getString("challenges." + key + ".status"));
 				int progress = data.getInt("challenges." + key + ".progress", challenge.getNeededAmount());
 				boolean claimedReward = data.getBoolean("challenges." + key + ".claimed-reward", false);
-				challenges.put(challenge, new SimpleEntry<CompletionStatus, ChallengeData>(completion,
-						new ChallengeData(progress, claimedReward)));
+				challenges.put(challenge, new ChallengeResult(completion, progress, claimedReward));
 			});
 		}
 		BoundingBox bounds = new BoundingBox(data.getDouble("bounds.min-x"),
@@ -123,7 +122,7 @@ public class YamlHandler extends AbstractStorage implements LegacyDataStorageInt
 						data.getString("owner") != null ? UUID.fromString(data.getString("owner")) : null,
 						data.getString("linked-hellblock") != null ? UUID.fromString(data.getString("linked-hellblock"))
 								: null,
-						bounds, party, trusted, banned, invitations, flags, challenges, location, home,
+						bounds, party, trusted, banned, invitations, flags, location, home,
 						data.getLong("creation-time", 0L), data.getInt("total-visitors", 0),
 						HellBiome.valueOf(data.getString("biome", "NETHER_WASTES").toUpperCase()),
 						data.getString("island-choice") != null
@@ -132,7 +131,7 @@ public class YamlHandler extends AbstractStorage implements LegacyDataStorageInt
 						data.getString("schematic"), data.getBoolean("locked", false),
 						data.getBoolean("abandoned", false), data.getLong("reset-cooldown", 0L),
 						data.getLong("biome-cooldown", 0L), data.getLong("transfer-cooldown", 0L)))
-				.setName(data.getString("name"))
+				.setChallengeData(new ChallengeData(challenges)).setName(data.getString("name"))
 				.setPistonLocations(instance.getConfig("config.yml")
 						.getConfigurationSection("netherrack-generator-options.automation").getBoolean("pistons", false)
 								? data.getStringList("pistons")
@@ -231,25 +230,25 @@ public class YamlHandler extends AbstractStorage implements LegacyDataStorageInt
 				data.set("flags", null);
 			}
 		}
-		if (playerData.getHellblockData().getChallenges() != null
-				&& !playerData.getHellblockData().getChallenges().isEmpty()) {
+		if (playerData.getChallengeData().getChallenges() != null
+				&& !playerData.getChallengeData().getChallenges().isEmpty()) {
 			if (data.getConfigurationSection("challenges") == null)
 				data.createSection("challenges");
-			for (Entry<ChallengeType, Entry<CompletionStatus, ChallengeData>> challenges : playerData.getHellblockData()
-					.getChallenges().entrySet()) {
-				if (challenges.getValue().getKey() == CompletionStatus.NOT_STARTED)
+			for (Entry<ChallengeType, ChallengeResult> challenges : playerData.getChallengeData().getChallenges()
+					.entrySet()) {
+				if (challenges.getValue().getStatus() == CompletionStatus.NOT_STARTED)
 					continue;
 				data.set("challenges." + challenges.getKey().toString() + ".status",
-						challenges.getValue().getKey().toString());
-				if (challenges.getValue().getKey() == CompletionStatus.IN_PROGRESS) {
+						challenges.getValue().getStatus().toString());
+				if (challenges.getValue().getStatus() == CompletionStatus.IN_PROGRESS) {
 					data.set("challenges." + challenges.getKey().toString() + ".progress",
-							challenges.getValue().getValue().getProgress());
+							challenges.getValue().getProgress());
 				}
-				if (challenges.getValue().getKey() == CompletionStatus.COMPLETED) {
+				if (challenges.getValue().getStatus() == CompletionStatus.COMPLETED) {
 					data.set("challenges." + challenges.getKey().toString() + ".progress", null);
-					if (challenges.getValue().getValue().isRewardClaimed()) {
+					if (challenges.getValue().isRewardClaimed()) {
 						data.set("challenges." + challenges.getKey().toString() + ".claimed-reward",
-								challenges.getValue().getValue().isRewardClaimed());
+								challenges.getValue().isRewardClaimed());
 					}
 				}
 			}
@@ -333,7 +332,7 @@ public class YamlHandler extends AbstractStorage implements LegacyDataStorageInt
 			Set<UUID> party = new HashSet<>(), trusted = new HashSet<>(), banned = new HashSet<>();
 			Map<UUID, Long> invitations = new HashMap<>();
 			Map<FlagType, AccessType> flags = new HashMap<>();
-			Map<ChallengeType, Entry<CompletionStatus, ChallengeData>> challenges = new HashMap<>();
+			Map<ChallengeType, ChallengeResult> challenges = new HashMap<>();
 			yaml.getStringList("party").forEach(s -> party.add(UUID.fromString(s)));
 			yaml.getStringList("trusted").forEach(s -> trusted.add(UUID.fromString(s)));
 			yaml.getStringList("banned").forEach(s -> banned.add(UUID.fromString(s)));
@@ -358,8 +357,7 @@ public class YamlHandler extends AbstractStorage implements LegacyDataStorageInt
 							.valueOf(yaml.getString("challenges." + key + ".status"));
 					int progress = yaml.getInt("challenges." + key + ".progress", challenge.getNeededAmount());
 					boolean claimedReward = yaml.getBoolean("challenges." + key + ".claimed-reward", false);
-					challenges.put(challenge, new SimpleEntry<CompletionStatus, ChallengeData>(completion,
-							new ChallengeData(progress, claimedReward)));
+					challenges.put(challenge, new ChallengeResult(completion, progress, claimedReward));
 				});
 			}
 			BoundingBox bounds = new BoundingBox(yaml.getDouble("bounds.min-x"),
@@ -373,7 +371,6 @@ public class YamlHandler extends AbstractStorage implements LegacyDataStorageInt
 			if (yaml.getConfigurationSection("location") != null)
 				location = LocationUtils.deserializeLocation(yaml.getConfigurationSection("location"));
 			builder.setEarningData(new EarningData(yaml.getDouble("earnings", 0.0), yaml.getInt("date")));
-			builder.setName(yaml.getString("name"));
 			builder.setPistonLocations(
 					instance.getConfig("config.yml").getConfigurationSection("netherrack-generator-options.automation")
 							.getBoolean("pistons", false) ? yaml.getStringList("pistons") : new ArrayList<>());
@@ -383,7 +380,7 @@ public class YamlHandler extends AbstractStorage implements LegacyDataStorageInt
 					yaml.getString("owner") != null ? UUID.fromString(yaml.getString("owner")) : null,
 					yaml.getString("linked-hellblock") != null ? UUID.fromString(yaml.getString("linked-hellblock"))
 							: null,
-					bounds, party, trusted, banned, invitations, flags, challenges, location, home,
+					bounds, party, trusted, banned, invitations, flags, location, home,
 					yaml.getLong("creation-time", 0L), yaml.getInt("total-visitors", 0),
 					yaml.getString("biome") != null ? HellBiome.valueOf(yaml.getString("biome").toUpperCase()) : null,
 					yaml.getString("island-choice") != null
@@ -392,6 +389,7 @@ public class YamlHandler extends AbstractStorage implements LegacyDataStorageInt
 					yaml.getString("schematic"), yaml.getBoolean("locked", false), yaml.getBoolean("abandoned", false),
 					yaml.getLong("reset-cooldown", 0L), yaml.getLong("biome-cooldown", 0L),
 					yaml.getLong("transfer-cooldown", 0L)));
+			builder.setChallengeData(new ChallengeData(challenges));
 		} else {
 			builder.setEarningData(EarningData.empty());
 			builder.setHellblockData(HellblockData.empty());

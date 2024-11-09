@@ -826,153 +826,81 @@ public class HellblockUserCommand {
 							throw new NullPointerException(
 									"Owner reference returned null, please report this to the developer.");
 						}
-						if (HellblockPlugin.getInstance().getStorageManager()
-								.getOnlineUser(onlineUser.getHellblockData().getOwnerUUID()) != null
-								&& HellblockPlugin.getInstance().getStorageManager()
-										.getOnlineUser(onlineUser.getHellblockData().getOwnerUUID()).isOnline()) {
-							OfflineUser ownerUser = HellblockPlugin.getInstance().getStorageManager()
-									.getOnlineUser(onlineUser.getHellblockData().getOwnerUUID());
-							if (ownerUser.getHellblockData().isAbandoned()) {
-								HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-										HBLocale.MSG_Hellblock_Is_Abandoned);
-								return;
-							}
-							String partyString = "", trustedString = "", bannedString = "";
-							for (UUID id : ownerUser.getHellblockData().getParty()) {
-								if (Bukkit.getOfflinePlayer(id).hasPlayedBefore()
-										&& Bukkit.getOfflinePlayer(id).getName() != null) {
-									partyString = "<dark_red>" + Bukkit.getOfflinePlayer(id).getName() + "<red>, ";
-								}
-							}
-							for (UUID id : ownerUser.getHellblockData().getTrusted()) {
-								if (Bukkit.getOfflinePlayer(id).hasPlayedBefore()
-										&& Bukkit.getOfflinePlayer(id).getName() != null) {
-									trustedString = "<dark_red>" + Bukkit.getOfflinePlayer(id).getName() + "<red>, ";
-								}
-							}
-							for (UUID id : ownerUser.getHellblockData().getBanned()) {
-								if (Bukkit.getOfflinePlayer(id).hasPlayedBefore()
-										&& Bukkit.getOfflinePlayer(id).getName() != null) {
-									bannedString = "<dark_red>" + Bukkit.getOfflinePlayer(id).getName() + "<red>, ";
-								}
-							}
-							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-									String.format("<dark_red>Hellblock Information (ID: <red>%s<dark_red>):",
-											ownerUser.getHellblockData().getID()));
-							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-									"<red>Owner: <dark_red>" + (ownerUser.getName() != null
-											&& Bukkit.getOfflinePlayer(ownerUser.getUUID()).hasPlayedBefore()
-													? ownerUser.getName()
-													: "Unknown"));
-							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-									"<red>Level: <dark_red>" + ownerUser.getHellblockData().getLevel());
-							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-									"<red>Creation Date: <dark_red>" + ownerUser.getHellblockData().getCreationTime());
-							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-									"<red>Visitor Status: <dark_red>"
-											+ (ownerUser.getHellblockData().isLocked() ? "Closed" : "Open"));
-							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-									"<red>Total Visits: <dark_red>" + ownerUser.getHellblockData().getTotalVisits());
-							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-									"<red>Island Type: <dark_red>" + StringUtils
-											.capitalize(ownerUser.getHellblockData().getIslandChoice().getName()));
-							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-									"<red>Biome: <dark_red>" + ownerUser.getHellblockData().getBiome().getName());
-							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-									"<red>Party Size: <dark_red>" + ownerUser.getHellblockData().getParty().size()
-											+ " <red>/<dark_red> "
-											+ HellblockPlugin.getInstance().getCoopManager().getPartySizeLimit());
-							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-									"<red>Party Members: <dark_red>" + (!partyString.isEmpty()
-											? partyString.substring(0, partyString.length() - 2)
-											: "None"));
-							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-									"<red>Trusted Members: <dark_red>" + (!trustedString.isEmpty()
-											? trustedString.substring(0, trustedString.length() - 2)
-											: "None"));
-							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-									"<red>Banned Players: <dark_red>" + (!bannedString.isEmpty()
-											? bannedString.substring(0, bannedString.length() - 2)
-											: "None"));
+						HellblockPlugin.getInstance().getStorageManager()
+								.getOfflineUser(onlineUser.getHellblockData().getOwnerUUID(), HBConfig.lockData)
+								.thenAccept((result) -> {
+									OfflineUser offlineUser = result.orElseThrow();
+									if (offlineUser.getHellblockData().isAbandoned()) {
+										HellblockPlugin.getInstance().getAdventureManager()
+												.sendMessageWithPrefix(player, HBLocale.MSG_Hellblock_Is_Abandoned);
+										return;
+									}
+									String partyString = "", trustedString = "", bannedString = "";
+									for (UUID id : offlineUser.getHellblockData().getParty()) {
+										if (Bukkit.getOfflinePlayer(id).hasPlayedBefore()
+												&& Bukkit.getOfflinePlayer(id).getName() != null) {
+											partyString = "<dark_red>" + Bukkit.getOfflinePlayer(id).getName()
+													+ "<red>, ";
+										}
+									}
+									for (UUID id : offlineUser.getHellblockData().getTrusted()) {
+										if (Bukkit.getOfflinePlayer(id).hasPlayedBefore()
+												&& Bukkit.getOfflinePlayer(id).getName() != null) {
+											trustedString = "<dark_red>" + Bukkit.getOfflinePlayer(id).getName()
+													+ "<red>, ";
+										}
+									}
+									for (UUID id : offlineUser.getHellblockData().getBanned()) {
+										if (Bukkit.getOfflinePlayer(id).hasPlayedBefore()
+												&& Bukkit.getOfflinePlayer(id).getName() != null) {
+											bannedString = "<dark_red>" + Bukkit.getOfflinePlayer(id).getName()
+													+ "<red>, ";
+										}
+									}
+									HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
+											String.format("<dark_red>Hellblock Information (ID: <red>%s<dark_red>):",
+													offlineUser.getHellblockData().getID()));
+									HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
+											"<red>Owner: <dark_red>" + (offlineUser.getName() != null
+													&& Bukkit.getOfflinePlayer(offlineUser.getUUID()).hasPlayedBefore()
+															? offlineUser.getName()
+															: "Unknown"));
+									HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
+											"<red>Level: <dark_red>" + offlineUser.getHellblockData().getLevel());
+									HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
+											"<red>Creation Date: <dark_red>"
+													+ offlineUser.getHellblockData().getCreationTime());
+									HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
+											"<red>Visitor Status: <dark_red>"
+													+ (offlineUser.getHellblockData().isLocked() ? "Closed" : "Open"));
+									HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
+											"<red>Total Visits: <dark_red>"
+													+ offlineUser.getHellblockData().getTotalVisits());
+									HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
+											"<red>Island Type: <dark_red>" + StringUtils.capitalize(
+													offlineUser.getHellblockData().getIslandChoice().getName()));
+									HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
+											"<red>Biome: <dark_red>"
+													+ offlineUser.getHellblockData().getBiome().getName());
+									HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
+											"<red>Party Size: <dark_red>"
+													+ offlineUser.getHellblockData().getParty().size()
+													+ " <red>/<dark_red> " + HellblockPlugin.getInstance()
+															.getCoopManager().getPartySizeLimit());
+									HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
+											"<red>Party Members: <dark_red>" + (!partyString.isEmpty()
+													? partyString.substring(0, partyString.length() - 2)
+													: "None"));
+									HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
+											"<red>Trusted Members: <dark_red>" + (!trustedString.isEmpty()
+													? trustedString.substring(0, trustedString.length() - 2)
+													: "None"));
+									HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
+											"<red>Banned Players: <dark_red>" + (!bannedString.isEmpty()
+													? bannedString.substring(0, bannedString.length() - 2)
+													: "None"));
+								});
 
-						} else {
-							HellblockPlugin.getInstance().getStorageManager()
-									.getOfflineUser(onlineUser.getHellblockData().getOwnerUUID(), HBConfig.lockData)
-									.thenAccept((result) -> {
-										OfflineUser offlineUser = result.orElseThrow();
-										if (offlineUser.getHellblockData().isAbandoned()) {
-											HellblockPlugin.getInstance().getAdventureManager()
-													.sendMessageWithPrefix(player, HBLocale.MSG_Hellblock_Is_Abandoned);
-											return;
-										}
-										String partyString = "", trustedString = "", bannedString = "";
-										for (UUID id : offlineUser.getHellblockData().getParty()) {
-											if (Bukkit.getOfflinePlayer(id).hasPlayedBefore()
-													&& Bukkit.getOfflinePlayer(id).getName() != null) {
-												partyString = "<dark_red>" + Bukkit.getOfflinePlayer(id).getName()
-														+ "<red>, ";
-											}
-										}
-										for (UUID id : offlineUser.getHellblockData().getTrusted()) {
-											if (Bukkit.getOfflinePlayer(id).hasPlayedBefore()
-													&& Bukkit.getOfflinePlayer(id).getName() != null) {
-												trustedString = "<dark_red>" + Bukkit.getOfflinePlayer(id).getName()
-														+ "<red>, ";
-											}
-										}
-										for (UUID id : offlineUser.getHellblockData().getBanned()) {
-											if (Bukkit.getOfflinePlayer(id).hasPlayedBefore()
-													&& Bukkit.getOfflinePlayer(id).getName() != null) {
-												bannedString = "<dark_red>" + Bukkit.getOfflinePlayer(id).getName()
-														+ "<red>, ";
-											}
-										}
-										HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-												String.format(
-														"<dark_red>Hellblock Information (ID: <red>%s<dark_red>):",
-														offlineUser.getHellblockData().getID()));
-										HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-												"<red>Owner: <dark_red>" + (offlineUser.getName() != null && Bukkit
-														.getOfflinePlayer(offlineUser.getUUID()).hasPlayedBefore()
-																? offlineUser.getName()
-																: "Unknown"));
-										HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-												"<red>Level: <dark_red>" + offlineUser.getHellblockData().getLevel());
-										HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-												"<red>Creation Date: <dark_red>"
-														+ offlineUser.getHellblockData().getCreationTime());
-										HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-												"<red>Visitor Status: <dark_red>"
-														+ (offlineUser.getHellblockData().isLocked() ? "Closed"
-																: "Open"));
-										HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-												"<red>Total Visits: <dark_red>"
-														+ offlineUser.getHellblockData().getTotalVisits());
-										HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-												"<red>Island Type: <dark_red>" + StringUtils.capitalize(
-														offlineUser.getHellblockData().getIslandChoice().getName()));
-										HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-												"<red>Biome: <dark_red>"
-														+ offlineUser.getHellblockData().getBiome().getName());
-										HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-												"<red>Party Size: <dark_red>"
-														+ offlineUser.getHellblockData().getParty().size()
-														+ " <red>/<dark_red> " + HellblockPlugin.getInstance()
-																.getCoopManager().getPartySizeLimit());
-										HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-												"<red>Party Members: <dark_red>" + (!partyString.isEmpty()
-														? partyString.substring(0, partyString.length() - 2)
-														: "None"));
-										HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-												"<red>Trusted Members: <dark_red>" + (!trustedString.isEmpty()
-														? trustedString.substring(0, trustedString.length() - 2)
-														: "None"));
-										HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-												"<red>Banned Players: <dark_red>" + (!bannedString.isEmpty()
-														? bannedString.substring(0, bannedString.length() - 2)
-														: "None"));
-									});
-						}
 					}
 				});
 	}

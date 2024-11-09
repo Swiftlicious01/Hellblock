@@ -337,7 +337,7 @@ public class IslandLevelHandler implements Listener {
 	}
 
 	public int getLevelRank(@NonNull UUID playerID) {
-		int rank = 9999;
+		RankTracker rank = new RankTracker(-1);
 		if (this.levelRankCache.containsKey(playerID)) {
 			return this.levelRankCache.get(playerID).intValue();
 		}
@@ -371,13 +371,34 @@ public class IslandLevelHandler implements Listener {
 
 		OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(playerID);
 		if (onlineUser == null)
-			return -1;
+			return rank.getRank();
+		if (onlineUser.getHellblockData().getOwnerUUID() == null)
+			throw new NullPointerException("Owner reference returned null, please report this to the developer.");
+		if (instance.getStorageManager().getOnlineUser(onlineUser.getHellblockData().getOwnerUUID()) != null && instance
+				.getStorageManager().getOnlineUser(onlineUser.getHellblockData().getOwnerUUID()).isOnline()) {
+			float level = instance.getStorageManager().getOnlineUser(onlineUser.getHellblockData().getOwnerUUID())
+					.getHellblockData().getLevel();
+			if (level <= HellblockData.DEFAULT_LEVEL) {
+				return rank.getRank();
+			}
+		} else {
+			instance.getStorageManager().getOfflineUser(onlineUser.getHellblockData().getOwnerUUID(), HBConfig.lockData)
+					.thenAccept((result) -> {
+						OfflineUser offlineUser = result.orElseThrow();
+						float level = offlineUser.getHellblockData().getLevel();
+						if (level <= HellblockData.DEFAULT_LEVEL) {
+							rank.setRank(-1);
+						}
+					}).join();
+			return rank.getRank();
+		}
 		Optional<UUID> position = levelsSorted.reversed().keySet().stream()
 				.filter(uuid -> Objects.equals(uuid, onlineUser.getHellblockData().getOwnerUUID())).findFirst();
-		rank = new LinkedList<>(levels.keySet()).indexOf(position.orElse(onlineUser.getHellblockData().getOwnerUUID()))
-				+ 1;
-		this.levelRankCache.putIfAbsent(playerID, rank);
-		return rank;
+		rank.setRank(
+				new LinkedList<>(levels.keySet()).indexOf(position.orElse(onlineUser.getHellblockData().getOwnerUUID()))
+						+ 1);
+		this.levelRankCache.putIfAbsent(playerID, rank.getRank());
+		return rank.getRank();
 	}
 
 	public LinkedHashMap<UUID, Float> getTopTenHellblocks() {
@@ -401,8 +422,9 @@ public class IslandLevelHandler implements Listener {
 					OfflineUser offlineUser = result.orElseThrow();
 					UUID ownerUUID = offlineUser.getHellblockData().getOwnerUUID();
 					float hellblockLevel = offlineUser.getHellblockData().getLevel();
-					if (ownerUUID != null && hellblockLevel > HellblockData.DEFAULT_LEVEL)
+					if (ownerUUID != null && hellblockLevel > HellblockData.DEFAULT_LEVEL) {
 						topHellblocks.putIfAbsent(ownerUUID, hellblockLevel);
+					}
 				}).join();
 			}
 		}
@@ -485,7 +507,23 @@ public class IslandLevelHandler implements Listener {
 		}
 	}
 
-	public class LevelBlockCache {
+	private class RankTracker {
+		private int rank;
+
+		public RankTracker(int rank) {
+			this.rank = rank;
+		}
+
+		public int getRank() {
+			return this.rank;
+		}
+
+		public void setRank(int rank) {
+			this.rank = rank;
+		}
+	}
+
+	private class LevelBlockCache {
 
 		private final Material type;
 		private final int x, y, z;

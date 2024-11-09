@@ -63,16 +63,16 @@ public class GlowstoneTree implements Listener {
 				OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
 				if (onlineUser == null)
 					return;
-				if (!onlineUser.getHellblockData().isChallengeActive(ChallengeType.GLOWSTONE_TREE_CHALLENGE)
-						&& !onlineUser.getHellblockData()
+				if (!onlineUser.getChallengeData().isChallengeActive(ChallengeType.GLOWSTONE_TREE_CHALLENGE)
+						&& !onlineUser.getChallengeData()
 								.isChallengeCompleted(ChallengeType.GLOWSTONE_TREE_CHALLENGE)) {
-					onlineUser.getHellblockData().beginChallengeProgression(onlineUser.getPlayer(),
+					onlineUser.getChallengeData().beginChallengeProgression(onlineUser.getPlayer(),
 							ChallengeType.GLOWSTONE_TREE_CHALLENGE);
 				} else {
-					onlineUser.getHellblockData().updateChallengeProgression(onlineUser.getPlayer(),
+					onlineUser.getChallengeData().updateChallengeProgression(onlineUser.getPlayer(),
 							ChallengeType.GLOWSTONE_TREE_CHALLENGE, 1);
-					if (onlineUser.getHellblockData().isChallengeCompleted(ChallengeType.GLOWSTONE_TREE_CHALLENGE)) {
-						onlineUser.getHellblockData().completeChallenge(onlineUser.getPlayer(),
+					if (onlineUser.getChallengeData().isChallengeCompleted(ChallengeType.GLOWSTONE_TREE_CHALLENGE)) {
+						onlineUser.getChallengeData().completeChallenge(onlineUser.getPlayer(),
 								ChallengeType.GLOWSTONE_TREE_CHALLENGE);
 					}
 				}
@@ -91,17 +91,17 @@ public class GlowstoneTree implements Listener {
 						OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
 						if (onlineUser == null)
 							return;
-						if (!onlineUser.getHellblockData().isChallengeActive(ChallengeType.GLOWSTONE_TREE_CHALLENGE)
-								&& !onlineUser.getHellblockData()
+						if (!onlineUser.getChallengeData().isChallengeActive(ChallengeType.GLOWSTONE_TREE_CHALLENGE)
+								&& !onlineUser.getChallengeData()
 										.isChallengeCompleted(ChallengeType.GLOWSTONE_TREE_CHALLENGE)) {
-							onlineUser.getHellblockData().beginChallengeProgression(onlineUser.getPlayer(),
+							onlineUser.getChallengeData().beginChallengeProgression(onlineUser.getPlayer(),
 									ChallengeType.GLOWSTONE_TREE_CHALLENGE);
 						} else {
-							onlineUser.getHellblockData().updateChallengeProgression(onlineUser.getPlayer(),
+							onlineUser.getChallengeData().updateChallengeProgression(onlineUser.getPlayer(),
 									ChallengeType.GLOWSTONE_TREE_CHALLENGE, 1);
-							if (onlineUser.getHellblockData()
+							if (onlineUser.getChallengeData()
 									.isChallengeCompleted(ChallengeType.GLOWSTONE_TREE_CHALLENGE)) {
-								onlineUser.getHellblockData().completeChallenge(onlineUser.getPlayer(),
+								onlineUser.getChallengeData().completeChallenge(onlineUser.getPlayer(),
 										ChallengeType.GLOWSTONE_TREE_CHALLENGE);
 							}
 						}
@@ -193,18 +193,18 @@ public class GlowstoneTree implements Listener {
 							if (onlineUser == null)
 								return;
 							instance.getIslandGenerator().generateGlowstoneTree(block.getLocation()).thenRun(() -> {
-								if (!onlineUser.getHellblockData()
+								if (!onlineUser.getChallengeData()
 										.isChallengeActive(ChallengeType.GLOWSTONE_TREE_CHALLENGE)
-										&& !onlineUser.getHellblockData()
+										&& !onlineUser.getChallengeData()
 												.isChallengeCompleted(ChallengeType.GLOWSTONE_TREE_CHALLENGE)) {
-									onlineUser.getHellblockData().beginChallengeProgression(onlineUser.getPlayer(),
+									onlineUser.getChallengeData().beginChallengeProgression(onlineUser.getPlayer(),
 											ChallengeType.GLOWSTONE_TREE_CHALLENGE);
 								} else {
-									onlineUser.getHellblockData().updateChallengeProgression(onlineUser.getPlayer(),
+									onlineUser.getChallengeData().updateChallengeProgression(onlineUser.getPlayer(),
 											ChallengeType.GLOWSTONE_TREE_CHALLENGE, 1);
-									if (onlineUser.getHellblockData()
+									if (onlineUser.getChallengeData()
 											.isChallengeCompleted(ChallengeType.GLOWSTONE_TREE_CHALLENGE)) {
-										onlineUser.getHellblockData().completeChallenge(onlineUser.getPlayer(),
+										onlineUser.getChallengeData().completeChallenge(onlineUser.getPlayer(),
 												ChallengeType.GLOWSTONE_TREE_CHALLENGE);
 									}
 								}

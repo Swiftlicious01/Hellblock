@@ -1,6 +1,5 @@
 package com.swiftlicious.hellblock.player;
 
-import java.util.AbstractMap.SimpleEntry;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -16,17 +15,11 @@ import java.util.UUID;
 import java.util.Map.Entry;
 
 import org.bukkit.Location;
-import org.bukkit.entity.Player;
 import org.bukkit.util.BoundingBox;
 import org.jetbrains.annotations.Nullable;
 
+import com.google.gson.annotations.Expose;
 import com.google.gson.annotations.SerializedName;
-import com.swiftlicious.hellblock.HellblockPlugin;
-import com.swiftlicious.hellblock.challenges.ChallengeData;
-import com.swiftlicious.hellblock.challenges.HellblockChallenge;
-import com.swiftlicious.hellblock.challenges.HellblockChallenge.ChallengeType;
-import com.swiftlicious.hellblock.challenges.HellblockChallenge.CompletionStatus;
-import com.swiftlicious.hellblock.challenges.ProgressBar;
 import com.swiftlicious.hellblock.coop.HellblockParty;
 import com.swiftlicious.hellblock.generation.HellBiome;
 import com.swiftlicious.hellblock.generation.IslandOptions;
@@ -38,52 +31,73 @@ import lombok.NonNull;
 
 public class HellblockData {
 
+	@Expose
 	@SerializedName("id")
 	public int id;
+	@Expose
 	@SerializedName("level")
 	public float level;
+	@Expose
 	@SerializedName("exists")
 	public boolean hasHellblock;
+	@Expose
 	@SerializedName("owner")
 	public UUID ownerUUID;
+	@Expose
 	@SerializedName("linked")
 	public UUID linkedUUID;
+	@Expose
 	@SerializedName("bounds")
 	public BoundingBox boundingBox;
+	@Expose
 	@SerializedName("party")
 	public Set<UUID> party;
+	@Expose
 	@SerializedName("trusted")
 	public Set<UUID> trusted;
+	@Expose
 	@SerializedName("banned")
 	public Set<UUID> banned;
+	@Expose
 	@SerializedName("invitations")
 	public Map<UUID, Long> invitations;
+	@Expose
 	@SerializedName("flags")
 	public Map<FlagType, AccessType> flags;
-	@SerializedName("challenges")
-	public Map<ChallengeType, Entry<CompletionStatus, ChallengeData>> challenges;
+	@Expose
 	@SerializedName("location")
 	public Location location;
+	@Expose
 	@SerializedName("home")
 	public Location home;
+	@Expose
 	@SerializedName("creation")
 	public long creationTime;
+	@Expose
 	@SerializedName("visitors")
 	public int visitors;
+	@Expose
 	@SerializedName("biome")
 	public HellBiome biome;
+	@Expose
 	@SerializedName("choice")
 	public IslandOptions choice;
+	@Expose
 	@SerializedName("schematic")
 	public String schematic;
+	@Expose
 	@SerializedName("locked")
 	public boolean locked;
+	@Expose
 	@SerializedName("abandoned")
 	public boolean abandoned;
+	@Expose
 	@SerializedName("resetcooldown")
 	public long resetCooldown;
+	@Expose
 	@SerializedName("biomecooldown")
 	public long biomeCooldown;
+	@Expose
 	@SerializedName("transfercooldown")
 	public long transferCooldown;
 
@@ -91,10 +105,9 @@ public class HellblockData {
 
 	public HellblockData(int id, float level, boolean hasHellblock, UUID ownerUUID, UUID linkedUUID,
 			BoundingBox boundingBox, Set<UUID> party, Set<UUID> trusted, Set<UUID> banned, Map<UUID, Long> invitations,
-			Map<FlagType, AccessType> flags, Map<ChallengeType, Entry<CompletionStatus, ChallengeData>> challenges,
-			Location location, Location home, long creationTime, int visitors, HellBiome biome, IslandOptions choice,
-			String schematic, boolean locked, boolean abandoned, long resetCooldown, long biomeCooldown,
-			long transferCooldown) {
+			Map<FlagType, AccessType> flags, Location location, Location home, long creationTime, int visitors,
+			HellBiome biome, IslandOptions choice, String schematic, boolean locked, boolean abandoned,
+			long resetCooldown, long biomeCooldown, long transferCooldown) {
 		this.id = id;
 		this.level = level;
 		this.hasHellblock = hasHellblock;
@@ -106,7 +119,6 @@ public class HellblockData {
 		this.banned = banned;
 		this.invitations = invitations;
 		this.flags = flags;
-		this.challenges = challenges;
 		this.location = location;
 		this.home = home;
 		this.creationTime = creationTime;
@@ -267,72 +279,11 @@ public class HellblockData {
 		return returnValue;
 	}
 
-	public @Nullable Map<ChallengeType, Entry<CompletionStatus, ChallengeData>> getChallenges() {
-		return this.challenges;
-	}
-
-	public int getChallengeProgress(@NonNull ChallengeType challenge) {
-		int progress = 0;
-		if (!this.challenges.isEmpty()) {
-			for (Entry<ChallengeType, Entry<CompletionStatus, ChallengeData>> challenges : this.challenges.entrySet()) {
-				if (challenges.getKey().getName().equalsIgnoreCase(challenge.getName())) {
-					if (challenges.getValue().getKey() == CompletionStatus.IN_PROGRESS) {
-						progress = challenges.getValue().getValue().getProgress();
-						break;
-					}
-				}
-			}
-		}
-		return progress;
-	}
-
-	public boolean isChallengeActive(@NonNull ChallengeType challenge) {
-		boolean active = false;
-		if (!this.challenges.isEmpty()) {
-			for (Entry<ChallengeType, Entry<CompletionStatus, ChallengeData>> challenges : this.challenges.entrySet()) {
-				if (challenges.getKey().getName().equalsIgnoreCase(challenge.getName())) {
-					active = challenges.getValue().getKey() == CompletionStatus.IN_PROGRESS;
-					break;
-				}
-			}
-		}
-		return active;
-	}
-
-	public boolean isChallengeCompleted(@NonNull ChallengeType challenge) {
-		boolean completed = false;
-		if (!this.challenges.isEmpty()) {
-			for (Entry<ChallengeType, Entry<CompletionStatus, ChallengeData>> challenges : this.challenges.entrySet()) {
-				if (challenges.getKey().getName().equalsIgnoreCase(challenge.getName())) {
-					completed = challenges.getValue().getValue().getProgress() >= challenge.getNeededAmount();
-					break;
-				}
-			}
-		}
-		return completed;
-	}
-
-	public boolean isChallengeRewardClaimed(@NonNull ChallengeType challenge) {
-		boolean claimed = false;
-		if (!this.challenges.isEmpty()) {
-			for (Entry<ChallengeType, Entry<CompletionStatus, ChallengeData>> challenges : this.challenges.entrySet()) {
-				if (challenges.getKey().getName().equalsIgnoreCase(challenge.getName())) {
-					if (challenges.getValue().getKey() == CompletionStatus.COMPLETED) {
-						if (challenges.getValue().getValue().getProgress() == challenge.getNeededAmount()) {
-							claimed = challenges.getValue().getValue().isRewardClaimed();
-							break;
-						}
-					}
-				}
-			}
-		}
-		return claimed;
-	}
-
 	public void setDefaultHellblockData(boolean hasHellblock, @Nullable Location hellblockLocation, int hellblockID) {
 		this.hasHellblock = hasHellblock;
 		this.location = hellblockLocation;
 		this.id = hellblockID;
+		// TODO: not working using storage yaml?
 		this.level = HellblockData.DEFAULT_LEVEL;
 		this.biome = HellBiome.NETHER_WASTES;
 	}
@@ -365,6 +316,7 @@ public class HellblockData {
 		this.home = null;
 		this.level = 0.0F;
 		this.party = new HashSet<>();
+		this.trusted = new HashSet<>();
 		this.banned = new HashSet<>();
 		this.flags = new HashMap<>();
 		this.invitations = new HashMap<>();
@@ -564,64 +516,8 @@ public class HellblockData {
 		}
 	}
 
-	public void setChallenges(@Nullable Map<ChallengeType, Entry<CompletionStatus, ChallengeData>> challenges) {
-		this.challenges = challenges;
-	}
-
-	public void setChallengeRewardAsClaimed(@NonNull ChallengeType challenge, boolean claimedReward) {
-		if (this.challenges.containsKey(challenge)
-				&& this.challenges.get(challenge).getKey() == CompletionStatus.COMPLETED) {
-			this.challenges.get(challenge).setValue(new ChallengeData(challenge.getNeededAmount(), true));
-		}
-	}
-
-	public void beginChallengeProgression(@NonNull Player player, @NonNull ChallengeType challenge) {
-		HellblockChallenge newChallenge = new HellblockChallenge(challenge, CompletionStatus.IN_PROGRESS, 1);
-		this.challenges.putIfAbsent(newChallenge.getChallengeType(), new SimpleEntry<CompletionStatus, ChallengeData>(
-				newChallenge.getCompletionStatus(), new ChallengeData(newChallenge.getProgress(), false)));
-		HellblockPlugin.getInstance().getAdventureManager().sendActionbar(player,
-				String.format("<yellow>Progress <gold>(%s/%s)<gray>: %s",
-						this.challenges.get(challenge).getValue().getProgress(), challenge.getNeededAmount(),
-						ProgressBar.getProgressBar(new ProgressBar(challenge.getNeededAmount(),
-								this.challenges.get(challenge).getValue().getProgress()), 25)));
-	}
-
-	public void updateChallengeProgression(@NonNull Player player, @NonNull ChallengeType challenge,
-			int progressToAdd) {
-		if (this.challenges.containsKey(challenge)
-				&& this.challenges.get(challenge).getKey() == CompletionStatus.IN_PROGRESS) {
-			this.challenges.get(challenge).setValue(new ChallengeData(
-					(this.challenges.get(challenge).getValue().getProgress() + progressToAdd), false));
-			HellblockPlugin.getInstance().getAdventureManager()
-					.sendActionbar(
-							player, String
-									.format("<yellow>Progress <gold>(%s/%s)<gray>: %s",
-											this.challenges.get(challenge).getValue().getProgress(),
-											challenge.getNeededAmount(),
-											ProgressBar.getProgressBar(
-													new ProgressBar(challenge.getNeededAmount(),
-															this.challenges.get(challenge).getValue().getProgress()),
-													25)));
-		}
-	}
-
-	public void completeChallenge(@NonNull Player player, @NonNull ChallengeType challenge) {
-		if (this.challenges.containsKey(challenge)
-				&& this.challenges.get(challenge).getKey() == CompletionStatus.IN_PROGRESS) {
-			this.challenges.remove(challenge);
-			HellblockChallenge completedChallenge = new HellblockChallenge(challenge, CompletionStatus.COMPLETED,
-					challenge.getNeededAmount());
-			this.challenges.putIfAbsent(completedChallenge.getChallengeType(),
-					new SimpleEntry<CompletionStatus, ChallengeData>(completedChallenge.getCompletionStatus(),
-							new ChallengeData(challenge.getNeededAmount(), false)));
-			HellblockPlugin.getInstance().getChallengeRewardBuilder().performChallengeCompletionActions(player,
-					challenge);
-		}
-	}
-
 	public static @NonNull HellblockData empty() {
 		return new HellblockData(0, 0.0F, false, null, null, null, new HashSet<>(), new HashSet<>(), new HashSet<>(),
-				new HashMap<>(), new HashMap<>(), new HashMap<>(), null, null, 0L, 0, null, null, null, false, false,
-				0L, 0L, 0L);
+				new HashMap<>(), new HashMap<>(), null, null, 0L, 0, null, null, null, false, false, 0L, 0L, 0L);
 	}
 }

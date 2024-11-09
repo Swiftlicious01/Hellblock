@@ -136,15 +136,15 @@ public class NetherSnowGolem implements Listener {
 				OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
 				if (onlineUser == null)
 					return;
-				if (!onlineUser.getHellblockData().isChallengeActive(ChallengeType.NETHER_GOLEM_CHALLENGE)
-						&& !onlineUser.getHellblockData().isChallengeCompleted(ChallengeType.NETHER_GOLEM_CHALLENGE)) {
-					onlineUser.getHellblockData().beginChallengeProgression(onlineUser.getPlayer(),
+				if (!onlineUser.getChallengeData().isChallengeActive(ChallengeType.NETHER_GOLEM_CHALLENGE)
+						&& !onlineUser.getChallengeData().isChallengeCompleted(ChallengeType.NETHER_GOLEM_CHALLENGE)) {
+					onlineUser.getChallengeData().beginChallengeProgression(onlineUser.getPlayer(),
 							ChallengeType.NETHER_GOLEM_CHALLENGE);
 				} else {
-					onlineUser.getHellblockData().updateChallengeProgression(onlineUser.getPlayer(),
+					onlineUser.getChallengeData().updateChallengeProgression(onlineUser.getPlayer(),
 							ChallengeType.NETHER_GOLEM_CHALLENGE, 1);
-					if (onlineUser.getHellblockData().isChallengeCompleted(ChallengeType.NETHER_GOLEM_CHALLENGE)) {
-						onlineUser.getHellblockData().completeChallenge(onlineUser.getPlayer(),
+					if (onlineUser.getChallengeData().isChallengeCompleted(ChallengeType.NETHER_GOLEM_CHALLENGE)) {
+						onlineUser.getChallengeData().completeChallenge(onlineUser.getPlayer(),
 								ChallengeType.NETHER_GOLEM_CHALLENGE);
 					}
 				}

@@ -34,6 +34,13 @@ public interface OfflineUserInterface {
 	HellblockData getHellblockData();
 
 	/**
+	 * Get the player's challenge data
+	 *
+	 * @return challenge data
+	 */
+	ChallengeData getChallengeData();
+
+	/**
 	 * Get the player's cached piston locations
 	 *
 	 * @return piston locations

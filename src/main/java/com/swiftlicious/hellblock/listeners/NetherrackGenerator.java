@@ -134,17 +134,18 @@ public class NetherrackGenerator implements Listener {
 					} else if (mode.hasFallBackMaterial()) {
 						result = mode.getFallbackMaterial();
 					} else {
-						throw new NullPointerException("Couldn't produce any material during lava flow generation.");
+						result = Material.NETHERRACK;
 					}
-
-					GeneratorGenerateEvent genEvent = new GeneratorGenerateEvent(mode, result, uuid,
+					
+					GeneratorGenerateEvent genEvent = new GeneratorGenerateEvent(mode, result != null ? result : Material.NETHERRACK, uuid,
 							toBlock.getLocation());
 					Bukkit.getPluginManager().callEvent(genEvent);
 					if (genEvent.isCancelled())
 						return;
 					event.setCancelled(true);
 					if (genEvent.getResult() == null) {
-						LogUtils.severe(String.format("Unknown material %s.", result.name()));
+						LogUtils.severe(
+								String.format("Unknown material: %s.", result.toString()));
 						return;
 					}
 					genEvent.getGenerationLocation().getBlock().setType(genEvent.getResult());
@@ -257,16 +258,16 @@ public class NetherrackGenerator implements Listener {
 			OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
 			if (onlineUser == null)
 				return;
-			if (!onlineUser.getHellblockData().isChallengeActive(ChallengeType.NETHERRACK_GENERATOR_CHALLENGE)
-					&& !onlineUser.getHellblockData()
+			if (!onlineUser.getChallengeData().isChallengeActive(ChallengeType.NETHERRACK_GENERATOR_CHALLENGE)
+					&& !onlineUser.getChallengeData()
 							.isChallengeCompleted(ChallengeType.NETHERRACK_GENERATOR_CHALLENGE)) {
-				onlineUser.getHellblockData().beginChallengeProgression(onlineUser.getPlayer(),
+				onlineUser.getChallengeData().beginChallengeProgression(onlineUser.getPlayer(),
 						ChallengeType.NETHERRACK_GENERATOR_CHALLENGE);
 			} else {
-				onlineUser.getHellblockData().updateChallengeProgression(onlineUser.getPlayer(),
+				onlineUser.getChallengeData().updateChallengeProgression(onlineUser.getPlayer(),
 						ChallengeType.NETHERRACK_GENERATOR_CHALLENGE, 1);
-				if (onlineUser.getHellblockData().isChallengeCompleted(ChallengeType.NETHERRACK_GENERATOR_CHALLENGE)) {
-					onlineUser.getHellblockData().completeChallenge(onlineUser.getPlayer(),
+				if (onlineUser.getChallengeData().isChallengeCompleted(ChallengeType.NETHERRACK_GENERATOR_CHALLENGE)) {
+					onlineUser.getChallengeData().completeChallenge(onlineUser.getPlayer(),
 							ChallengeType.NETHERRACK_GENERATOR_CHALLENGE);
 				}
 			}

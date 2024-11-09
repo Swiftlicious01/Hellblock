@@ -6,20 +6,29 @@ import java.util.List;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import com.google.gson.annotations.Expose;
 import com.google.gson.annotations.SerializedName;
 
 public class PlayerData {
 
+	@Expose
 	@SerializedName("name")
 	protected String name;
+	@Expose
 	@SerializedName("pistons")
 	protected List<String> pistonLocations;
+	@Expose
 	@SerializedName("levelblocks")
 	protected List<String> levelBlockLocations;
+	@Expose
 	@SerializedName("trade")
 	protected EarningData earningData;
+	@Expose
 	@SerializedName("hellblock")
 	protected HellblockData hellblockData;
+	@Expose
+	@SerializedName("challenges")
+	protected ChallengeData challengeData;
 
 	public static PlayerData LOCKED = empty();
 
@@ -29,7 +38,8 @@ public class PlayerData {
 
 	public static PlayerData empty() {
 		return new Builder().setName("").setLevelBlockLocations(new ArrayList<>()).setPistonLocations(new ArrayList<>())
-				.setEarningData(EarningData.empty()).setHellblockData(HellblockData.empty()).build();
+				.setEarningData(EarningData.empty()).setHellblockData(HellblockData.empty())
+				.setChallengeData(ChallengeData.empty()).build();
 	}
 
 	public static class Builder {
@@ -71,6 +81,12 @@ public class PlayerData {
 		}
 
 		@NotNull
+		public Builder setChallengeData(@Nullable ChallengeData challengeData) {
+			this.playerData.challengeData = challengeData;
+			return this;
+		}
+
+		@NotNull
 		public PlayerData build() {
 			return this.playerData;
 		}
@@ -82,6 +98,10 @@ public class PlayerData {
 
 	public HellblockData getHellblockData() {
 		return this.hellblockData;
+	}
+
+	public ChallengeData getChallengeData() {
+		return this.challengeData;
 	}
 
 	public String getName() {

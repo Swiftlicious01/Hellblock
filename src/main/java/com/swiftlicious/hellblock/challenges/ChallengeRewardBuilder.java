@@ -120,7 +120,7 @@ public class ChallengeRewardBuilder {
 			if (player.getInventory().firstEmpty() != -1) {
 				player.getInventory().addItem(data);
 				player.updateInventory();
-				onlineUser.getHellblockData().setChallengeRewardAsClaimed(challenge, true);
+				onlineUser.getChallengeData().setChallengeRewardAsClaimed(challenge, true);
 				instance.getAdventureManager().sendMessageWithPrefix(player,
 						"<red>You've claimed your challenge reward!");
 				instance.getAdventureManager().sendSound(player, net.kyori.adventure.sound.Sound.Source.PLAYER,
@@ -139,7 +139,7 @@ public class ChallengeRewardBuilder {
 				return;
 			}
 			player.giveExp(exp);
-			onlineUser.getHellblockData().setChallengeRewardAsClaimed(challenge, true);
+			onlineUser.getChallengeData().setChallengeRewardAsClaimed(challenge, true);
 			instance.getAdventureManager().sendMessageWithPrefix(player, "<red>You've claimed your challenge reward!");
 			instance.getAdventureManager().sendSound(player, net.kyori.adventure.sound.Sound.Source.PLAYER,
 					net.kyori.adventure.key.Key.key("minecraft:entity.ender_dragon.growl"), 1, 1);
@@ -157,7 +157,7 @@ public class ChallengeRewardBuilder {
 				return;
 			}
 			VaultHook.getEconomy().depositPlayer(player, money);
-			onlineUser.getHellblockData().setChallengeRewardAsClaimed(challenge, true);
+			onlineUser.getChallengeData().setChallengeRewardAsClaimed(challenge, true);
 			instance.getAdventureManager().sendMessageWithPrefix(player, "<red>You've claimed your challenge reward!");
 			instance.getAdventureManager().sendSound(player, net.kyori.adventure.sound.Sound.Source.PLAYER,
 					net.kyori.adventure.key.Key.key("minecraft:entity.ender_dragon.growl"), 1, 1);

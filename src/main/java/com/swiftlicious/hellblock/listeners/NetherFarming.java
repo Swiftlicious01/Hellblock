@@ -132,18 +132,18 @@ public class NetherFarming implements Listener {
 										farm.setMoisture(farm.getMaximumMoisture());
 										updatingBlock.setBlockData(farm);
 										updatingBlock.getState().update();
-										if (!user.getHellblockData()
+										if (!user.getChallengeData()
 												.isChallengeActive(ChallengeType.NETHER_FARM_CHALLENGE)
-												&& !user.getHellblockData()
+												&& !user.getChallengeData()
 														.isChallengeCompleted(ChallengeType.NETHER_FARM_CHALLENGE)) {
-											user.getHellblockData().beginChallengeProgression(user.getPlayer(),
+											user.getChallengeData().beginChallengeProgression(user.getPlayer(),
 													ChallengeType.NETHER_FARM_CHALLENGE);
 										} else {
-											user.getHellblockData().updateChallengeProgression(user.getPlayer(),
+											user.getChallengeData().updateChallengeProgression(user.getPlayer(),
 													ChallengeType.NETHER_FARM_CHALLENGE, 1);
-											if (user.getHellblockData()
+											if (user.getChallengeData()
 													.isChallengeCompleted(ChallengeType.NETHER_FARM_CHALLENGE)) {
-												user.getHellblockData().completeChallenge(user.getPlayer(),
+												user.getChallengeData().completeChallenge(user.getPlayer(),
 														ChallengeType.NETHER_FARM_CHALLENGE);
 											}
 										}

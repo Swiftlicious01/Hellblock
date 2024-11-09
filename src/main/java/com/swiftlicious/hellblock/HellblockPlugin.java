@@ -350,8 +350,9 @@ public class HellblockPlugin extends JavaPlugin {
 					}).join();
 				}
 			}
-			LogUtils.info(String.format("A total of %s hellblocks have been purged for being abandoned.",
-					purgeCount.getPurgeCount()));
+			if (purgeCount.getPurgeCount() > 0)
+				LogUtils.info(String.format("A total of %s hellblocks have been set as abandoned.",
+						purgeCount.getPurgeCount()));
 		}
 
 		getLavaRainHandler().startLavaRainProcess();

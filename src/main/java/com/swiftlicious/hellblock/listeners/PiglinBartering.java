@@ -141,16 +141,16 @@ public class PiglinBartering implements Listener {
 				OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(playerUUID);
 				if (onlineUser == null)
 					return;
-				if (!onlineUser.getHellblockData().isChallengeActive(ChallengeType.NETHER_TRADING_CHALLENGE)
-						&& !onlineUser.getHellblockData()
+				if (!onlineUser.getChallengeData().isChallengeActive(ChallengeType.NETHER_TRADING_CHALLENGE)
+						&& !onlineUser.getChallengeData()
 								.isChallengeCompleted(ChallengeType.NETHER_TRADING_CHALLENGE)) {
-					onlineUser.getHellblockData().beginChallengeProgression(onlineUser.getPlayer(),
+					onlineUser.getChallengeData().beginChallengeProgression(onlineUser.getPlayer(),
 							ChallengeType.NETHER_TRADING_CHALLENGE);
 				} else {
-					onlineUser.getHellblockData().updateChallengeProgression(onlineUser.getPlayer(),
+					onlineUser.getChallengeData().updateChallengeProgression(onlineUser.getPlayer(),
 							ChallengeType.NETHER_TRADING_CHALLENGE, 1);
-					if (onlineUser.getHellblockData().isChallengeCompleted(ChallengeType.NETHER_TRADING_CHALLENGE)) {
-						onlineUser.getHellblockData().completeChallenge(onlineUser.getPlayer(),
+					if (onlineUser.getChallengeData().isChallengeCompleted(ChallengeType.NETHER_TRADING_CHALLENGE)) {
+						onlineUser.getChallengeData().completeChallenge(onlineUser.getPlayer(),
 								ChallengeType.NETHER_TRADING_CHALLENGE);
 					}
 				}

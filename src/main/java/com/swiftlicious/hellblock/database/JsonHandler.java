@@ -14,7 +14,7 @@ import java.util.concurrent.CompletableFuture;
 import org.bukkit.Bukkit;
 
 import com.google.common.io.Files;
-import com.google.gson.Gson;
+
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.player.PlayerData;
 
@@ -72,9 +72,8 @@ public class JsonHandler extends AbstractStorage {
 	 * @param filepath The file path where the JSON file should be saved.
 	 */
 	public void saveToJsonFile(Object obj, File filepath) {
-		Gson gson = new Gson();
-		try (FileWriter file = new FileWriter(filepath)) {
-			gson.toJson(obj, file);
+		try (FileWriter file = new FileWriter(filepath, false)) {
+			HellblockPlugin.getInstance().getStorageManager().getGson().toJson(obj, file);
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
@@ -90,9 +89,8 @@ public class JsonHandler extends AbstractStorage {
 	 * @return The parsed object.
 	 */
 	public <T> T readFromJsonFile(File file, Class<T> classOfT) {
-		Gson gson = new Gson();
 		String jsonContent = new String(readFileToByteArray(file), StandardCharsets.UTF_8);
-		return gson.fromJson(jsonContent, classOfT);
+		return HellblockPlugin.getInstance().getStorageManager().getGson().fromJson(jsonContent, classOfT);
 	}
 
 	/**

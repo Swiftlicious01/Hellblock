@@ -3,7 +3,10 @@ package com.swiftlicious.hellblock.database;
 import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -27,14 +30,23 @@ import org.jetbrains.annotations.Nullable;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonSyntaxException;
+import com.google.gson.reflect.TypeToken;
 import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.challenges.ChallengeResult;
+import com.swiftlicious.hellblock.challenges.HellblockChallenge.ChallengeType;
 import com.swiftlicious.hellblock.config.HBConfig;
 import com.swiftlicious.hellblock.player.OfflineUser;
 import com.swiftlicious.hellblock.player.OnlineUser;
 import com.swiftlicious.hellblock.player.PlayerData;
+import com.swiftlicious.hellblock.protection.HellblockFlag.AccessType;
+import com.swiftlicious.hellblock.protection.HellblockFlag.FlagType;
 import com.swiftlicious.hellblock.scheduler.CancellableTask;
 import com.swiftlicious.hellblock.utils.LocationUtils;
 import com.swiftlicious.hellblock.utils.LogUtils;
+import com.swiftlicious.hellblock.utils.adapters.HellblockTypeAdapterFactory;
+import com.swiftlicious.hellblock.utils.adapters.ListSerializer;
+import com.swiftlicious.hellblock.utils.adapters.MapSerializer;
+import com.swiftlicious.hellblock.utils.adapters.SetSerializer;
 
 /**
  * This class implements the StorageManager interface and is responsible for
@@ -58,7 +70,29 @@ public class StorageManager implements StorageManagerInterface, Listener {
 		instance = plugin;
 		this.locked = new HashSet<>();
 		this.onlineUserMap = new ConcurrentHashMap<>();
-		this.gson = new GsonBuilder().create();
+		// Build the gson
+		// excludeFieldsWithoutExposeAnnotation - this means that every field to be
+		// stored should use @Expose
+		// enableComplexMapKeySerialization - forces GSON to use TypeAdapters even for
+		// Map keys
+		GsonBuilder builder = new GsonBuilder().excludeFieldsWithoutExposeAnnotation()
+				.enableComplexMapKeySerialization().setPrettyPrinting();
+		// Register map serializers
+		builder.registerTypeAdapter((new TypeToken<Map<ChallengeType, ChallengeResult>>() {
+		}).getType(), new MapSerializer<>(ChallengeType.class, ChallengeResult.class));
+		builder.registerTypeAdapter((new TypeToken<Map<UUID, Long>>() {
+		}).getType(), new MapSerializer<>(UUID.class, Long.class));
+		builder.registerTypeAdapter((new TypeToken<Map<FlagType, AccessType>>() {
+		}).getType(), new MapSerializer<>(FlagType.class, AccessType.class));
+		builder.registerTypeAdapter((new TypeToken<Set<UUID>>() {
+		}).getType(), new SetSerializer<>(UUID.class));
+		builder.registerTypeAdapter((new TypeToken<List<String>>() {
+		}).getType(), new ListSerializer<>(String.class));
+		// Register adapter factory
+		builder.registerTypeAdapterFactory(new HellblockTypeAdapterFactory());
+		// Allow characters like < or > without escaping them
+		builder.disableHtmlEscaping();
+		gson = builder.create();
 		Bukkit.getPluginManager().registerEvents(this, plugin);
 	}
 
@@ -150,6 +184,10 @@ public class StorageManager implements StorageManagerInterface, Listener {
 	@Override
 	public String getUniqueID() {
 		return uniqueID;
+	}
+
+	public Gson getGson() {
+		return gson;
 	}
 
 	/**

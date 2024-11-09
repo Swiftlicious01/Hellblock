@@ -1,11 +1,14 @@
 package com.swiftlicious.hellblock.player;
 
+import com.google.gson.annotations.Expose;
 import com.google.gson.annotations.SerializedName;
 
 public class EarningData {
 
+	@Expose
 	@SerializedName("earnings")
 	public double earnings;
+	@Expose
 	@SerializedName("date")
 	public int date;
 

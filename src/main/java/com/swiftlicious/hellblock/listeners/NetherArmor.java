@@ -830,18 +830,18 @@ public class NetherArmor implements Listener {
 							OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
 							if (onlineUser == null)
 								return;
-							if (!onlineUser.getHellblockData()
+							if (!onlineUser.getChallengeData()
 									.isChallengeActive(ChallengeType.NETHER_CRAFTING_CHALLENGE)
-									&& !onlineUser.getHellblockData()
+									&& !onlineUser.getChallengeData()
 											.isChallengeCompleted(ChallengeType.NETHER_CRAFTING_CHALLENGE)) {
-								onlineUser.getHellblockData().beginChallengeProgression(onlineUser.getPlayer(),
+								onlineUser.getChallengeData().beginChallengeProgression(onlineUser.getPlayer(),
 										ChallengeType.NETHER_CRAFTING_CHALLENGE);
 							} else {
-								onlineUser.getHellblockData().updateChallengeProgression(onlineUser.getPlayer(),
+								onlineUser.getChallengeData().updateChallengeProgression(onlineUser.getPlayer(),
 										ChallengeType.NETHER_CRAFTING_CHALLENGE, 1);
-								if (onlineUser.getHellblockData()
+								if (onlineUser.getChallengeData()
 										.isChallengeCompleted(ChallengeType.NETHER_CRAFTING_CHALLENGE)) {
-									onlineUser.getHellblockData().completeChallenge(onlineUser.getPlayer(),
+									onlineUser.getChallengeData().completeChallenge(onlineUser.getPlayer(),
 											ChallengeType.NETHER_CRAFTING_CHALLENGE);
 								}
 							}
@@ -871,18 +871,18 @@ public class NetherArmor implements Listener {
 										.getOnlineUser(player.getUniqueId());
 								if (onlineUser == null)
 									return;
-								if (!onlineUser.getHellblockData()
+								if (!onlineUser.getChallengeData()
 										.isChallengeActive(ChallengeType.NETHER_CRAFTING_CHALLENGE)
-										&& !onlineUser.getHellblockData()
+										&& !onlineUser.getChallengeData()
 												.isChallengeCompleted(ChallengeType.NETHER_CRAFTING_CHALLENGE)) {
-									onlineUser.getHellblockData().beginChallengeProgression(onlineUser.getPlayer(),
+									onlineUser.getChallengeData().beginChallengeProgression(onlineUser.getPlayer(),
 											ChallengeType.NETHER_CRAFTING_CHALLENGE);
 								} else {
-									onlineUser.getHellblockData().updateChallengeProgression(onlineUser.getPlayer(),
+									onlineUser.getChallengeData().updateChallengeProgression(onlineUser.getPlayer(),
 											ChallengeType.NETHER_CRAFTING_CHALLENGE, 1);
-									if (onlineUser.getHellblockData()
+									if (onlineUser.getChallengeData()
 											.isChallengeCompleted(ChallengeType.NETHER_CRAFTING_CHALLENGE)) {
-										onlineUser.getHellblockData().completeChallenge(onlineUser.getPlayer(),
+										onlineUser.getChallengeData().completeChallenge(onlineUser.getPlayer(),
 												ChallengeType.NETHER_CRAFTING_CHALLENGE);
 									}
 								}

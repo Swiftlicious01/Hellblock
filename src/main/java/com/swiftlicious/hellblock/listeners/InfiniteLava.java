@@ -67,15 +67,15 @@ public class InfiniteLava implements Listener {
 				OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
 				if (onlineUser == null)
 					return;
-				if (!onlineUser.getHellblockData().isChallengeActive(ChallengeType.INFINITE_LAVA_CHALLENGE)
-						&& !onlineUser.getHellblockData().isChallengeCompleted(ChallengeType.INFINITE_LAVA_CHALLENGE)) {
-					onlineUser.getHellblockData().beginChallengeProgression(onlineUser.getPlayer(),
+				if (!onlineUser.getChallengeData().isChallengeActive(ChallengeType.INFINITE_LAVA_CHALLENGE)
+						&& !onlineUser.getChallengeData().isChallengeCompleted(ChallengeType.INFINITE_LAVA_CHALLENGE)) {
+					onlineUser.getChallengeData().beginChallengeProgression(onlineUser.getPlayer(),
 							ChallengeType.INFINITE_LAVA_CHALLENGE);
 				} else {
-					onlineUser.getHellblockData().updateChallengeProgression(onlineUser.getPlayer(),
+					onlineUser.getChallengeData().updateChallengeProgression(onlineUser.getPlayer(),
 							ChallengeType.INFINITE_LAVA_CHALLENGE, 1);
-					if (onlineUser.getHellblockData().isChallengeCompleted(ChallengeType.INFINITE_LAVA_CHALLENGE)) {
-						onlineUser.getHellblockData().completeChallenge(onlineUser.getPlayer(),
+					if (onlineUser.getChallengeData().isChallengeCompleted(ChallengeType.INFINITE_LAVA_CHALLENGE)) {
+						onlineUser.getChallengeData().completeChallenge(onlineUser.getPlayer(),
 								ChallengeType.INFINITE_LAVA_CHALLENGE);
 					}
 				}

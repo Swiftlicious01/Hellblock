@@ -650,15 +650,15 @@ public class FishingManager implements Listener, FishingManagerInterface {
 			OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
 			if (onlineUser == null)
 				return;
-			if (!onlineUser.getHellblockData().isChallengeActive(ChallengeType.LAVA_FISHING_CHALLENGE)
-					&& !onlineUser.getHellblockData().isChallengeCompleted(ChallengeType.LAVA_FISHING_CHALLENGE)) {
-				onlineUser.getHellblockData().beginChallengeProgression(onlineUser.getPlayer(),
+			if (!onlineUser.getChallengeData().isChallengeActive(ChallengeType.LAVA_FISHING_CHALLENGE)
+					&& !onlineUser.getChallengeData().isChallengeCompleted(ChallengeType.LAVA_FISHING_CHALLENGE)) {
+				onlineUser.getChallengeData().beginChallengeProgression(onlineUser.getPlayer(),
 						ChallengeType.LAVA_FISHING_CHALLENGE);
 			} else {
-				onlineUser.getHellblockData().updateChallengeProgression(onlineUser.getPlayer(),
+				onlineUser.getChallengeData().updateChallengeProgression(onlineUser.getPlayer(),
 						ChallengeType.LAVA_FISHING_CHALLENGE, 1);
-				if (onlineUser.getHellblockData().isChallengeCompleted(ChallengeType.LAVA_FISHING_CHALLENGE)) {
-					onlineUser.getHellblockData().completeChallenge(onlineUser.getPlayer(),
+				if (onlineUser.getChallengeData().isChallengeCompleted(ChallengeType.LAVA_FISHING_CHALLENGE)) {
+					onlineUser.getChallengeData().completeChallenge(onlineUser.getPlayer(),
 							ChallengeType.LAVA_FISHING_CHALLENGE);
 				}
 			}
