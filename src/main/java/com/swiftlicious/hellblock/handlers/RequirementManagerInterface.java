@@ -1,14 +1,16 @@
 package com.swiftlicious.hellblock.handlers;
 
-import org.bukkit.configuration.ConfigurationSection;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import com.swiftlicious.hellblock.api.Reloadable;
 import com.swiftlicious.hellblock.utils.extras.Condition;
 import com.swiftlicious.hellblock.utils.extras.Requirement;
 import com.swiftlicious.hellblock.utils.factory.RequirementFactory;
 
-public interface RequirementManagerInterface {
+import dev.dejvokep.boostedyaml.block.implementation.Section;
+
+public interface RequirementManagerInterface extends Reloadable {
 
 	/**
 	 * Registers a custom requirement type with its corresponding factory.
@@ -38,7 +40,7 @@ public interface RequirementManagerInterface {
 	 * @return An array of Requirement objects based on the configuration section
 	 */
 	@Nullable
-	Requirement[] getRequirements(ConfigurationSection section, boolean advanced);
+	Requirement[] getRequirements(Section section, boolean advanced);
 
 	/**
 	 * If a requirement type exists
@@ -60,7 +62,7 @@ public interface RequirementManagerInterface {
 	 *         EmptyRequirement if the section is null or invalid.
 	 */
 	@NotNull
-	Requirement getRequirement(ConfigurationSection section, boolean advanced);
+	Requirement getRequirement(Section section, boolean advanced);
 
 	/**
 	 * Gets a requirement based on the provided type and value. If a valid

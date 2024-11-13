@@ -7,8 +7,6 @@ import java.util.List;
 import java.util.Map;
 
 import org.bukkit.Material;
-import org.bukkit.configuration.ConfigurationSection;
-import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
@@ -26,6 +24,8 @@ import com.swiftlicious.hellblock.gui.icon.PreviousPageItem;
 import com.swiftlicious.hellblock.utils.LogUtils;
 import com.swiftlicious.hellblock.utils.wrappers.ShadedAdventureComponentWrapper;
 
+import dev.dejvokep.boostedyaml.YamlDocument;
+import dev.dejvokep.boostedyaml.block.implementation.Section;
 import xyz.xenondevs.invui.gui.Gui;
 import xyz.xenondevs.invui.gui.PagedGui;
 import xyz.xenondevs.invui.gui.structure.Markers;
@@ -40,14 +40,14 @@ public class ItemSelector implements YamlPage {
 
 	private final String SEARCH;
 	private final Player player;
-	private final YamlConfiguration yaml;
+	private final YamlDocument yaml;
 	private String prefix;
 	private final File file;
 	private long coolDown;
 	private final String type;
 
 	public ItemSelector(Player player, File file, String type) {
-		this.yaml = YamlConfiguration.loadConfiguration(file);
+		this.yaml = HellblockPlugin.getInstance().getConfigManager().loadData(file);
 		this.player = player;
 		this.file = file;
 		this.type = type;
@@ -124,9 +124,9 @@ public class ItemSelector implements YamlPage {
 
 	public List<Item> getItemList() {
 		List<Item> itemList = new ArrayList<>();
-		for (Map.Entry<String, Object> entry : this.yaml.getValues(false).entrySet()) {
+		for (Map.Entry<String, Object> entry : this.yaml.getStringRouteMappedValues(false).entrySet()) {
 			String key = entry.getKey();
-			if (entry.getValue() instanceof ConfigurationSection section) {
+			if (entry.getValue() instanceof Section section) {
 				if (!prefix.equals(SEARCH) && !entry.getKey().startsWith(prefix))
 					continue;
 				String material = section.getString("material");
@@ -153,10 +153,10 @@ public class ItemSelector implements YamlPage {
 
 	public void openEditor(String key) {
 		switch (type) {
-		case "item" -> new SectionEditor(player, key, this, yaml.getConfigurationSection(key));
-		case "rod" -> new RodEditor(player, key, this, yaml.getConfigurationSection(key));
-		case "bait" -> new BaitEditor(player, key, this, yaml.getConfigurationSection(key));
-		case "hook" -> new HookEditor(player, key, this, yaml.getConfigurationSection(key));
+		case "item" -> new SectionEditor(player, key, this, yaml.getSection(key));
+		case "rod" -> new RodEditor(player, key, this, yaml.getSection(key));
+		case "bait" -> new BaitEditor(player, key, this, yaml.getSection(key));
+		case "hook" -> new HookEditor(player, key, this, yaml.getSection(key));
 		}
 	}
 

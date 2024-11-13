@@ -19,20 +19,20 @@ import org.bukkit.entity.Player;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.config.HBConfig;
-import com.swiftlicious.hellblock.player.OfflineUser;
+import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.protection.HellblockFlag;
 import com.swiftlicious.hellblock.protection.HellblockFlag.AccessType;
-import com.swiftlicious.hellblock.scheduler.CancellableTask;
+import com.swiftlicious.hellblock.scheduler.SchedulerTask;
 import com.swiftlicious.hellblock.utils.RandomUtils;
 
 import lombok.NonNull;
 
 public class NetherAnimalSpawningTask implements Runnable {
 
-	private final HellblockPlugin instance;
+	protected final HellblockPlugin instance;
 
 	private final UUID playerUUID;
-	private final CancellableTask cancellableTask;
+	private final SchedulerTask cancellableTask;
 
 	private final Set<Location> spawnCache;
 
@@ -42,7 +42,7 @@ public class NetherAnimalSpawningTask implements Runnable {
 		instance = plugin;
 		this.playerUUID = playerUUID;
 		this.spawnCache = new HashSet<>();
-		this.cancellableTask = instance.getScheduler().runTaskAsyncTimer(this, RandomUtils.generateRandomInt(1, 3),
+		this.cancellableTask = instance.getScheduler().asyncRepeating(this, RandomUtils.generateRandomInt(1, 3),
 				RandomUtils.generateRandomInt(1, 15), TimeUnit.MINUTES);
 	}
 
@@ -51,10 +51,10 @@ public class NetherAnimalSpawningTask implements Runnable {
 		Player player = Bukkit.getPlayer(playerUUID);
 		if (player == null || !player.isOnline() || player.getLocation() == null)
 			return;
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!player.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 
-		if (instance.getHellblockHandler().isWorldguardProtected()) {
+		if (HBConfig.worldguardProtected) {
 			if (instance.getHellblockHandler().checkIfInSpawn(player.getLocation()))
 				return;
 			if (instance.getLavaRainHandler().getLavaRainTask() != null
@@ -63,8 +63,8 @@ public class NetherAnimalSpawningTask implements Runnable {
 			UUID ownerUUID = instance.getCoopManager().getHellblockOwnerOfVisitingIsland(player);
 			if (ownerUUID == null)
 				return;
-			instance.getStorageManager().getOfflineUser(ownerUUID, HBConfig.lockData).thenAccept((result) -> {
-				OfflineUser offlineUser = result.orElseThrow();
+			instance.getStorageManager().getOfflineUserData(ownerUUID, HBConfig.lockData).thenAccept((result) -> {
+				UserData offlineUser = result.orElseThrow();
 				ProtectedRegion region = instance.getWorldGuardHandler().getRegion(ownerUUID,
 						offlineUser.getHellblockData().getID());
 				if (region == null)
@@ -94,13 +94,13 @@ public class NetherAnimalSpawningTask implements Runnable {
 								&& (spawn.getBlock().getRelative(BlockFace.UP).isEmpty()
 										|| spawn.getBlock().getRelative(BlockFace.UP).isPassable())
 								&& block.getLightLevel() > (byte) 9) {
-							instance.getScheduler().runTaskSync(
+							instance.getScheduler().executeSync(
 									() -> world.spawnEntity(spawn, RandomUtils.spawnRandomAnimal(), true), spawn);
 							spawnCache.add(block.getLocation());
 						}
 					}
 
-					instance.getScheduler().runTaskAsyncTimer(() -> spawnCache.clear(), 15, 30, TimeUnit.MINUTES);
+					instance.getScheduler().asyncRepeating(() -> spawnCache.clear(), 15, 30, TimeUnit.MINUTES);
 				});
 			});
 		} else {
@@ -109,7 +109,7 @@ public class NetherAnimalSpawningTask implements Runnable {
 	}
 
 	public void stopAnimalSpawning() {
-		if (!this.cancellableTask.isCancelled())
+		if (this.cancellableTask != null)
 			this.cancellableTask.cancel();
 	}
 }

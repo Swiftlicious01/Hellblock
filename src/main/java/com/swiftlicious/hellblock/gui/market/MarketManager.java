@@ -1,10 +1,12 @@
 package com.swiftlicious.hellblock.gui.market;
 
+import java.io.File;
 import java.util.Calendar;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -12,8 +14,6 @@ import java.util.concurrent.TimeUnit;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
-import org.bukkit.configuration.ConfigurationSection;
-import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.HandlerList;
@@ -31,18 +31,20 @@ import com.saicone.rtag.RtagItem;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.creation.item.BuildableItem;
 import com.swiftlicious.hellblock.player.EarningData;
-import com.swiftlicious.hellblock.player.OnlineUser;
-import com.swiftlicious.hellblock.scheduler.CancellableTask;
+import com.swiftlicious.hellblock.player.UserData;
+import com.swiftlicious.hellblock.scheduler.SchedulerTask;
 import com.swiftlicious.hellblock.utils.LogUtils;
 import com.swiftlicious.hellblock.utils.NBTUtils;
 import com.swiftlicious.hellblock.utils.extras.Action;
 import com.swiftlicious.hellblock.utils.extras.Condition;
 
+import dev.dejvokep.boostedyaml.YamlDocument;
+import dev.dejvokep.boostedyaml.block.implementation.Section;
 import net.objecthunter.exp4j.ExpressionBuilder;
 
 public class MarketManager implements MarketManagerInterface, Listener {
 
-	private final HellblockPlugin instance;
+	protected final HellblockPlugin instance;
 	private final Map<String, Double> priceMap;
 	private String[] layout;
 	private String title;
@@ -67,7 +69,7 @@ public class MarketManager implements MarketManagerInterface, Listener {
 	private boolean allowItemWithNoPrice;
 	private final ConcurrentMap<UUID, MarketGUI> marketGUIMap;
 	private boolean enable;
-	private CancellableTask resetEarningsTask;
+	private SchedulerTask resetEarningsTask;
 	private int date;
 
 	public MarketManager(HellblockPlugin plugin) {
@@ -78,33 +80,36 @@ public class MarketManager implements MarketManagerInterface, Listener {
 		this.date = getDate();
 	}
 
+	@Override
 	public void load() {
 		this.loadConfig();
 		Bukkit.getPluginManager().registerEvents(this, instance);
 		if (!enable)
 			return;
-		this.resetEarningsTask = instance.getScheduler().runTaskAsyncTimer(() -> {
+		this.resetEarningsTask = instance.getScheduler().asyncRepeating(() -> {
 			int now = getDate();
 			if (this.date != now) {
 				this.date = now;
-				for (OnlineUser onlineUser : instance.getStorageManager().getOnlineUsers()) {
-					onlineUser.getEarningData().date = now;
-					onlineUser.getEarningData().earnings = 0d;
+				for (UserData onlineUser : instance.getStorageManager().getOnlineUsers()) {
+					onlineUser.getEarningData().setDate(now);
+					onlineUser.getEarningData().setEarnings(0.0D);
 				}
 			}
 		}, 1, 1, TimeUnit.SECONDS);
 	}
-
+	
+	@Override
 	public void unload() {
 		HandlerList.unregisterAll(this);
 		this.priceMap.clear();
 		this.decorativeIcons.clear();
-		if (this.resetEarningsTask != null && !this.resetEarningsTask.isCancelled()) {
+		if (this.resetEarningsTask != null) {
 			this.resetEarningsTask.cancel();
 			this.resetEarningsTask = null;
 		}
 	}
-
+	
+	@Override
 	public void disable() {
 		unload();
 	}
@@ -187,7 +192,10 @@ public class MarketManager implements MarketManagerInterface, Listener {
 
 	// Load configuration from the plugin's config file
 	private void loadConfig() {
-		YamlConfiguration config = instance.getConfig("market.yml");
+		File marketFile = new File(instance.getDataFolder(), "market.yml");
+		if (!marketFile.exists())
+			marketFile.mkdirs();
+		YamlDocument config = instance.getConfigManager().loadData(marketFile);
 		this.enable = config.getBoolean("enable", true);
 		this.formula = config.getString("price-formula", "{base} + {bonus} * {size}");
 		if (!this.enable)
@@ -199,46 +207,43 @@ public class MarketManager implements MarketManagerInterface, Listener {
 		this.itemSlot = config.getString("item-slot.symbol", "I").charAt(0);
 		this.allowItemWithNoPrice = config.getBoolean("item-slot.allow-items-with-no-price", true);
 
-		ConfigurationSection sellAllSection = config.getConfigurationSection("sell-all-icons");
+		Section sellAllSection = config.getSection("sell-all-icons");
 		if (sellAllSection != null) {
 			this.sellAllSlot = sellAllSection.getString("symbol", "S").charAt(0);
 
 			this.sellAllIconAllowBuilder = instance.getItemManager()
-					.getItemBuilder(sellAllSection.getConfigurationSection("allow-icon"), "gui", "sell-all");
+					.getItemBuilder(sellAllSection.getSection("allow-icon"), "gui", "sell-all");
 			this.sellAllIconDenyBuilder = instance.getItemManager()
-					.getItemBuilder(sellAllSection.getConfigurationSection("deny-icon"), "gui", "sell-all");
+					.getItemBuilder(sellAllSection.getSection("deny-icon"), "gui", "sell-all");
 			this.sellAllIconLimitBuilder = instance.getItemManager()
-					.getItemBuilder(sellAllSection.getConfigurationSection("limit-icon"), "gui", "sell-all");
+					.getItemBuilder(sellAllSection.getSection("limit-icon"), "gui", "sell-all");
 
 			this.sellAllAllowActions = instance.getActionManager()
-					.getActions(sellAllSection.getConfigurationSection("allow-icon.action"));
+					.getActions(sellAllSection.getSection("allow-icon.action"));
 			this.sellAllDenyActions = instance.getActionManager()
-					.getActions(sellAllSection.getConfigurationSection("deny-icon.action"));
+					.getActions(sellAllSection.getSection("deny-icon.action"));
 			this.sellAllLimitActions = instance.getActionManager()
-					.getActions(sellAllSection.getConfigurationSection("limit-icon.action"));
+					.getActions(sellAllSection.getSection("limit-icon.action"));
 		}
 
-		ConfigurationSection sellSection = config.getConfigurationSection("sell-icons");
+		Section sellSection = config.getSection("sell-icons");
 		if (sellSection == null) {
 			// for old config compatibility
-			sellSection = config.getConfigurationSection("functional-icons");
+			sellSection = config.getSection("functional-icons");
 		}
 		if (sellSection != null) {
 			this.sellSlot = sellSection.getString("symbol", "B").charAt(0);
 
-			this.sellIconAllowBuilder = instance.getItemManager()
-					.getItemBuilder(sellSection.getConfigurationSection("allow-icon"), "gui", "allow");
-			this.sellIconDenyBuilder = instance.getItemManager()
-					.getItemBuilder(sellSection.getConfigurationSection("deny-icon"), "gui", "deny");
-			this.sellIconLimitBuilder = instance.getItemManager()
-					.getItemBuilder(sellSection.getConfigurationSection("limit-icon"), "gui", "limit");
+			this.sellIconAllowBuilder = instance.getItemManager().getItemBuilder(sellSection.getSection("allow-icon"),
+					"gui", "allow");
+			this.sellIconDenyBuilder = instance.getItemManager().getItemBuilder(sellSection.getSection("deny-icon"),
+					"gui", "deny");
+			this.sellIconLimitBuilder = instance.getItemManager().getItemBuilder(sellSection.getSection("limit-icon"),
+					"gui", "limit");
 
-			this.sellAllowActions = instance.getActionManager()
-					.getActions(sellSection.getConfigurationSection("allow-icon.action"));
-			this.sellDenyActions = instance.getActionManager()
-					.getActions(sellSection.getConfigurationSection("deny-icon.action"));
-			this.sellLimitActions = instance.getActionManager()
-					.getActions(sellSection.getConfigurationSection("limit-icon.action"));
+			this.sellAllowActions = instance.getActionManager().getActions(sellSection.getSection("allow-icon.action"));
+			this.sellDenyActions = instance.getActionManager().getActions(sellSection.getSection("deny-icon.action"));
+			this.sellLimitActions = instance.getActionManager().getActions(sellSection.getSection("limit-icon.action"));
 		}
 
 		this.earningLimitExpression = config.getBoolean("limitation.enable", true)
@@ -246,18 +251,18 @@ public class MarketManager implements MarketManagerInterface, Listener {
 				: "-1";
 
 		// Load item prices from the configuration
-		ConfigurationSection priceSection = config.getConfigurationSection("item-price");
+		Section priceSection = config.getSection("item-price");
 		if (priceSection != null) {
-			for (Map.Entry<String, Object> entry : priceSection.getValues(false).entrySet()) {
+			for (Map.Entry<String, Object> entry : priceSection.getStringRouteMappedValues(false).entrySet()) {
 				this.priceMap.put(entry.getKey(), instance.getConfigUtils().getDoubleValue(entry.getValue()));
 			}
 		}
 
 		// Load decorative icons from the configuration
-		ConfigurationSection decorativeSection = config.getConfigurationSection("decorative-icons");
+		Section decorativeSection = config.getSection("decorative-icons");
 		if (decorativeSection != null) {
-			for (Map.Entry<String, Object> entry : decorativeSection.getValues(false).entrySet()) {
-				if (entry.getValue() instanceof ConfigurationSection innerSection) {
+			for (Map.Entry<String, Object> entry : decorativeSection.getStringRouteMappedValues(false).entrySet()) {
+				if (entry.getValue() instanceof Section innerSection) {
 					char symbol = Objects.requireNonNull(innerSection.getString("symbol")).charAt(0);
 					var builder = instance.getItemManager().getItemBuilder(innerSection, "gui", entry.getKey());
 					decorativeIcons.put(symbol, builder);
@@ -275,13 +280,13 @@ public class MarketManager implements MarketManagerInterface, Listener {
 	public void openMarketGUI(Player player) {
 		if (!isEnable())
 			return;
-		OnlineUser user = instance.getStorageManager().getOnlineUser(player.getUniqueId());
-		if (user == null) {
+		Optional<UserData> user = instance.getStorageManager().getOnlineUser(player.getUniqueId());
+		if (user.isEmpty()) {
 			LogUtils.warn(String.format("Player %s's market data is not loaded yet.", player.getName()));
 			return;
 		}
 
-		MarketGUI gui = new MarketGUI(this, player, user.getEarningData());
+		MarketGUI gui = new MarketGUI(this, player, user.get().getEarningData());
 		gui.addElement(new MarketGUIElement(getItemSlot(), new ItemStack(Material.AIR)));
 		gui.addElement(new MarketDynamicGUIElement(getSellSlot(), new ItemStack(Material.AIR)));
 		gui.addElement(new MarketDynamicGUIElement(getSellAllSlot(), new ItemStack(Material.AIR)));
@@ -354,7 +359,7 @@ public class MarketManager implements MarketManagerInterface, Listener {
 			}
 		}
 
-		instance.getScheduler().runTaskSyncLater(gui::refresh, player.getLocation(), 50, TimeUnit.MILLISECONDS);
+		instance.getScheduler().sync().runLater(gui::refresh, 50, player.getLocation());
 	}
 
 	/**
@@ -386,9 +391,9 @@ public class MarketManager implements MarketManagerInterface, Listener {
 
 		if (clickedInv != player.getInventory()) {
 			EarningData data = gui.getEarningData();
-			if (data.date != getCachedDate()) {
-				data.date = getCachedDate();
-				data.earnings = 0;
+			if (data.getDate() != getCachedDate()) {
+				data.setDate(getCachedDate());
+				data.setEarnings(0.0D);
 			}
 
 			int slot = event.getSlot();
@@ -423,9 +428,11 @@ public class MarketManager implements MarketManagerInterface, Listener {
 					} else {
 						// Clear items and update earnings
 						gui.clearWorthyItems();
-						data.earnings += worth;
-						condition.insertArg("{rest}", instance.getNumberUtils().money(earningLimit - data.getEarnings()));
-						condition.insertArg("{rest_formatted}", String.format("%.2f", (earningLimit - data.getEarnings())));
+						data.setEarnings(data.getEarnings() + worth);
+						condition.insertArg("{rest}",
+								instance.getNumberUtils().money(earningLimit - data.getEarnings()));
+						condition.insertArg("{rest_formatted}",
+								String.format("%.2f", (earningLimit - data.getEarnings())));
 						if (getSellAllowActions() != null) {
 							for (Action action : getSellAllowActions()) {
 								action.trigger(condition);
@@ -461,9 +468,11 @@ public class MarketManager implements MarketManagerInterface, Listener {
 					} else {
 						// Clear items and update earnings
 						clearWorthyItems(player.getInventory());
-						data.earnings += worth;
-						condition.insertArg("{rest}", instance.getNumberUtils().money(earningLimit - data.getEarnings()));
-						condition.insertArg("{rest_formatted}", String.format("%.2f", (earningLimit - data.getEarnings())));
+						data.setEarnings(data.getEarnings() + worth);
+						condition.insertArg("{rest}",
+								instance.getNumberUtils().money(earningLimit - data.getEarnings()));
+						condition.insertArg("{rest_formatted}",
+								String.format("%.2f", (earningLimit - data.getEarnings())));
 						if (getSellAllAllowActions() != null) {
 							for (Action action : getSellAllAllowActions()) {
 								action.trigger(condition);
@@ -522,7 +531,7 @@ public class MarketManager implements MarketManagerInterface, Listener {
 		}
 
 		// Refresh the GUI
-		instance.getScheduler().runTaskSyncLater(gui::refresh, player.getLocation(), 50, TimeUnit.MILLISECONDS);
+		instance.getScheduler().sync().runLater(gui::refresh, 50, player.getLocation());
 	}
 
 	@Override

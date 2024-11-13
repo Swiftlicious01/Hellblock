@@ -1,4 +1,4 @@
-package com.swiftlicious.hellblock.database.dependency;
+package com.swiftlicious.hellblock.database.dependency.relocation;
 
 import java.io.File;
 import java.io.IOException;
@@ -10,6 +10,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import com.swiftlicious.hellblock.database.dependency.Dependency;
+import com.swiftlicious.hellblock.database.dependency.DependencyManager;
+import com.swiftlicious.hellblock.database.dependency.classloader.IsolatedClassLoader;
 
 /**
  * Handles class runtime relocation of packages in downloaded dependencies
@@ -42,8 +46,8 @@ public class RelocationHandler {
 			this.jarRelocatorRunMethod.setAccessible(true);
 		} catch (Exception e) {
 			try {
-				if (classLoader instanceof IsolatedClassLoader) {
-					((IsolatedClassLoader) classLoader).close();
+				if (classLoader instanceof IsolatedClassLoader isolatedClassLoader) {
+					isolatedClassLoader.close();
 				}
 			} catch (IOException ex) {
 				e.addSuppressed(ex);
@@ -63,5 +67,4 @@ public class RelocationHandler {
 		Object relocator = this.jarRelocatorConstructor.newInstance(input.toFile(), output.toFile(), mappings);
 		this.jarRelocatorRunMethod.invoke(relocator);
 	}
-
 }

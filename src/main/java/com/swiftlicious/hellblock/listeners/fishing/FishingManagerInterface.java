@@ -6,7 +6,9 @@ import org.bukkit.entity.FishHook;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.Nullable;
 
-public interface FishingManagerInterface {
+import com.swiftlicious.hellblock.api.Reloadable;
+
+public interface FishingManagerInterface extends Reloadable {
 
 	/**
 	 * Removes a fishing hook entity associated with a given player's UUID.

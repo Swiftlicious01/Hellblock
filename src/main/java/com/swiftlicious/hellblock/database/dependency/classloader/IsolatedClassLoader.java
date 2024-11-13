@@ -1,4 +1,4 @@
-package com.swiftlicious.hellblock.database.dependency;
+package com.swiftlicious.hellblock.database.dependency.classloader;
 
 import java.net.URL;
 import java.net.URLClassLoader;
@@ -7,8 +7,8 @@ import java.net.URLClassLoader;
  * A classloader "isolated" from the rest of the Minecraft server.
  *
  * <p>
- * Used to load specific CustomFishing dependencies without causing conflicts
- * with other plugins, or libraries provided by the server implementation.
+ * Used to load specific Hellblock dependencies without causing conflicts with
+ * other plugins, or libraries provided by the server implementation.
  * </p>
  */
 public class IsolatedClassLoader extends URLClassLoader {
@@ -27,5 +27,4 @@ public class IsolatedClassLoader extends URLClassLoader {
 		 */
 		super(urls, ClassLoader.getSystemClassLoader().getParent());
 	}
-
 }

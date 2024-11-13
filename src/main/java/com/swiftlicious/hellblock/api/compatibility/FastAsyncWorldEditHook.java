@@ -74,7 +74,7 @@ public class FastAsyncWorldEditHook implements SchematicPaster {
 								e.printStackTrace();
 							}
 							cachedClipboardFormat.putIfAbsent(file, format);
-							HellblockPlugin.getInstance().getScheduler().runTaskSync(() -> {
+							HellblockPlugin.getInstance().getScheduler().executeSync(() -> {
 								completableFuture.complete(null);
 							}, location);
 						}

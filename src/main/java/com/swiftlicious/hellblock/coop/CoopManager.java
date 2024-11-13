@@ -2,6 +2,7 @@ package com.swiftlicious.hellblock.coop;
 
 import java.util.HashSet;
 import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -22,8 +23,7 @@ import com.sk89q.worldguard.protection.regions.RegionContainer;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.config.HBConfig;
 import com.swiftlicious.hellblock.config.HBLocale;
-import com.swiftlicious.hellblock.player.OfflineUser;
-import com.swiftlicious.hellblock.player.OnlineUser;
+import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.protection.HellblockFlag;
 import com.swiftlicious.hellblock.utils.ChunkUtils;
 import com.swiftlicious.hellblock.utils.LocationUtils;
@@ -35,17 +35,13 @@ import lombok.NonNull;
 @Getter
 public class CoopManager {
 
-	private final HellblockPlugin instance;
-	private int partySizeLimit;
-	private boolean canTransferIsland;
+	protected final HellblockPlugin instance;
 
 	public CoopManager(HellblockPlugin plugin) {
 		instance = plugin;
-		this.partySizeLimit = instance.getConfig("config.yml").getInt("hellblock.party-size", 4);
-		this.canTransferIsland = instance.getConfig("config.yml").getBoolean("hellblock.can-transfer-islands", true);
 	}
 
-	public void sendInvite(@NonNull OnlineUser onlineUser, @NonNull OnlineUser playerToInvite) {
+	public void sendInvite(@NonNull UserData onlineUser, @NonNull UserData playerToInvite) {
 		Player owner = onlineUser.getPlayer();
 		Player player = playerToInvite.getPlayer();
 		if (owner != null) {
@@ -97,7 +93,7 @@ public class CoopManager {
 		}
 	}
 
-	public void rejectInvite(@NonNull UUID ownerID, @NonNull OnlineUser rejectingPlayer) {
+	public void rejectInvite(@NonNull UUID ownerID, @NonNull UserData rejectingPlayer) {
 		Player player = rejectingPlayer.getPlayer();
 		if (player != null) {
 			if (rejectingPlayer.getHellblockData().hasHellblock()) {
@@ -131,7 +127,7 @@ public class CoopManager {
 		}
 	}
 
-	public void listInvitations(@NonNull OnlineUser onlineUser) {
+	public void listInvitations(@NonNull UserData onlineUser) {
 		Player player = onlineUser.getPlayer();
 		if (player != null) {
 			if (onlineUser.getHellblockData().hasHellblock()) {
@@ -165,7 +161,7 @@ public class CoopManager {
 		}
 	}
 
-	public void addMemberToHellblock(@NonNull UUID ownerID, @NonNull OnlineUser playerToAdd) {
+	public void addMemberToHellblock(@NonNull UUID ownerID, @NonNull UserData playerToAdd) {
 		Player player = playerToAdd.getPlayer();
 		if (player != null) {
 			if (playerToAdd.getHellblockData().hasHellblock()) {
@@ -178,22 +174,22 @@ public class CoopManager {
 						"<red>You don't have an invite from this player!");
 				return;
 			}
-			instance.getStorageManager().getOfflineUser(ownerID, HBConfig.lockData).thenAccept((result) -> {
-				OfflineUser offlineUser = result.orElseThrow();
+			instance.getStorageManager().getOfflineUserData(ownerID, HBConfig.lockData).thenAccept((result) -> {
+				UserData offlineUser = result.orElseThrow();
 				if (offlineUser.getHellblockData().isAbandoned()) {
 					instance.getAdventureManager().sendMessageWithPrefix(player,
 							"<red>This hellblock is abandoned, you can't join it!");
 					return;
 				}
 
-				if (instance.getHellblockHandler().isWorldguardProtected()) {
+				if (HBConfig.worldguardProtected) {
 					ProtectedRegion region = instance.getWorldGuardHandler().getRegion(offlineUser.getUUID(),
 							offlineUser.getHellblockData().getID());
 					if (region == null) {
 						throw new NullPointerException("Region returned null, please report this to the developer.");
 					}
 					Set<UUID> party = offlineUser.getHellblockData().getParty();
-					if (party.size() >= this.partySizeLimit) {
+					if (party.size() >= HBConfig.partySizeLimit) {
 						instance.getAdventureManager().sendMessageWithPrefix(player,
 								"<red>The party size is already full for this hellblock!");
 						return;
@@ -229,15 +225,15 @@ public class CoopManager {
 		}
 	}
 
-	public void removeMemberFromHellblock(@NonNull OnlineUser onlineUser, @NonNull String input, @NonNull UUID id) {
+	public void removeMemberFromHellblock(@NonNull UserData onlineUser, @NonNull String input, @NonNull UUID id) {
 		Player owner = onlineUser.getPlayer();
 		if (owner != null) {
 			if (!onlineUser.getHellblockData().hasHellblock()) {
 				instance.getAdventureManager().sendMessageWithPrefix(owner, HBLocale.MSG_Hellblock_Not_Found);
 				return;
 			}
-			instance.getStorageManager().getOfflineUser(id, HBConfig.lockData).thenAccept((result) -> {
-				OfflineUser offlineUser = result.orElseThrow();
+			instance.getStorageManager().getOfflineUserData(id, HBConfig.lockData).thenAccept((result) -> {
+				UserData offlineUser = result.orElseThrow();
 				if (offlineUser.getHellblockData().getOwnerUUID() == null) {
 					throw new NullPointerException(
 							"Owner reference returned null, please report this to the developer.");
@@ -254,7 +250,7 @@ public class CoopManager {
 					return;
 				}
 
-				if (instance.getHellblockHandler().isWorldguardProtected()) {
+				if (HBConfig.worldguardProtected) {
 					ProtectedRegion region = instance.getWorldGuardHandler().getRegion(owner.getUniqueId(),
 							onlineUser.getHellblockData().getID());
 					if (region == null) {
@@ -288,7 +284,7 @@ public class CoopManager {
 		}
 	}
 
-	public void leaveHellblockParty(@NonNull OnlineUser leavingPlayer) {
+	public void leaveHellblockParty(@NonNull UserData leavingPlayer) {
 		Player player = leavingPlayer.getPlayer();
 		if (player != null) {
 			if (!leavingPlayer.getHellblockData().hasHellblock()) {
@@ -305,10 +301,10 @@ public class CoopManager {
 				return;
 			}
 			instance.getStorageManager()
-					.getOfflineUser(leavingPlayer.getHellblockData().getOwnerUUID(), HBConfig.lockData)
+					.getOfflineUserData(leavingPlayer.getHellblockData().getOwnerUUID(), HBConfig.lockData)
 					.thenAccept((result) -> {
-						OfflineUser offlineUser = result.orElseThrow();
-						if (instance.getHellblockHandler().isWorldguardProtected()) {
+						UserData offlineUser = result.orElseThrow();
+						if (HBConfig.worldguardProtected) {
 							ProtectedRegion region = instance.getWorldGuardHandler().getRegion(offlineUser.getUUID(),
 									offlineUser.getHellblockData().getID());
 							if (region == null) {
@@ -345,12 +341,12 @@ public class CoopManager {
 		}
 	}
 
-	public void transferOwnershipOfHellblock(@NonNull OnlineUser onlineUser, @NonNull OnlineUser playerToTransfer) {
+	public void transferOwnershipOfHellblock(@NonNull UserData onlineUser, @NonNull UserData playerToTransfer) {
 		Player owner = onlineUser.getPlayer();
 		Player player = playerToTransfer.getPlayer();
 		if (owner != null) {
 			if (player != null) {
-				if (!this.canTransferIsland) {
+				if (!HBConfig.transferIslands) {
 					instance.getAdventureManager().sendMessageWithPrefix(owner,
 							"<red>Transferring hellblock islands has been disabled!");
 					return;
@@ -382,7 +378,7 @@ public class CoopManager {
 							"<red>This player isn't a member of your hellblock party!");
 					return;
 				}
-				if (instance.getHellblockHandler().isWorldguardProtected()) {
+				if (HBConfig.worldguardProtected) {
 					ProtectedRegion region = instance.getWorldGuardHandler().getRegion(owner.getUniqueId(),
 							onlineUser.getHellblockData().getID());
 					if (region == null) {
@@ -418,9 +414,9 @@ public class CoopManager {
 					playerToTransfer.getHellblockData().setOwnerUUID(player.getUniqueId());
 					playerToTransfer.getHellblockData().kickFromParty(player.getUniqueId());
 					for (UUID partyData : playerToTransfer.getHellblockData().getParty()) {
-						instance.getStorageManager().getOfflineUser(partyData, HBConfig.lockData)
+						instance.getStorageManager().getOfflineUserData(partyData, HBConfig.lockData)
 								.thenAccept((result) -> {
-									OfflineUser offlineParty = result.orElseThrow();
+									UserData offlineParty = result.orElseThrow();
 									offlineParty.getHellblockData().setOwnerUUID(player.getUniqueId());
 								});
 					}
@@ -441,7 +437,7 @@ public class CoopManager {
 							.get(BukkitAdapter.adapt(instance.getHellblockHandler().getHellblockWorld()));
 					if (regionManager == null) {
 						LogUtils.severe(String.format("Could not get the WorldGuard region manager for the world: %s",
-								instance.getHellblockHandler().getWorldName()));
+								HBConfig.worldName));
 						return;
 					}
 
@@ -489,13 +485,13 @@ public class CoopManager {
 
 	public Set<UUID> getVisitors(@NonNull UUID id) {
 		Set<UUID> visitors = new HashSet<>();
-		instance.getStorageManager().getOfflineUser(id, HBConfig.lockData).thenAccept((result) -> {
-			OfflineUser offlineUser = result.orElseThrow();
-			if (instance.getHellblockHandler().isWorldguardProtected()) {
+		instance.getStorageManager().getOfflineUserData(id, HBConfig.lockData).thenAccept((result) -> {
+			UserData offlineUser = result.orElseThrow();
+			if (HBConfig.worldguardProtected) {
 				ProtectedRegion region = instance.getWorldGuardHandler().getRegion(id,
 						offlineUser.getHellblockData().getID());
 				if (region != null) {
-					for (OnlineUser user : instance.getStorageManager().getOnlineUsers()) {
+					for (UserData user : instance.getStorageManager().getOnlineUsers()) {
 						if (user == null)
 							continue;
 						if (user.isOnline()) {
@@ -516,8 +512,8 @@ public class CoopManager {
 		return visitors;
 	}
 
-	public boolean changeLockStatus(@NonNull OnlineUser onlineUser) {
-		if (instance.getHellblockHandler().isWorldguardProtected()) {
+	public boolean changeLockStatus(@NonNull UserData onlineUser) {
+		if (HBConfig.worldguardProtected) {
 			ProtectedRegion region = instance.getWorldGuardHandler().getRegion(onlineUser.getUUID(),
 					onlineUser.getHellblockData().getID());
 			if (region == null) {
@@ -533,7 +529,7 @@ public class CoopManager {
 	}
 
 	public @Nullable UUID getHellblockOwnerOfVisitingIsland(@NonNull Player player) {
-		if (instance.getHellblockHandler().isWorldguardProtected()) {
+		if (HBConfig.worldguardProtected) {
 			if (player.getLocation() == null)
 				return null;
 			if (instance.getHellblockHandler().checkIfInSpawn(player.getLocation()))
@@ -556,9 +552,9 @@ public class CoopManager {
 
 	public boolean checkIfVisitorIsWelcome(@NonNull Player player, @NonNull UUID id) {
 		VisitorTracker welcomedOnIsland = new VisitorTracker();
-		instance.getStorageManager().getOfflineUser(id, HBConfig.lockData).thenAccept((result) -> {
-			OfflineUser offlineUser = result.orElseThrow();
-			if (instance.getHellblockHandler().isWorldguardProtected()) {
+		instance.getStorageManager().getOfflineUserData(id, HBConfig.lockData).thenAccept((result) -> {
+			UserData offlineUser = result.orElseThrow();
+			if (HBConfig.worldguardProtected) {
 				ProtectedRegion region = instance.getWorldGuardHandler().getRegion(id,
 						offlineUser.getHellblockData().getID());
 				if (region == null) {
@@ -580,36 +576,37 @@ public class CoopManager {
 	}
 
 	public void kickVisitorsIfLocked(@NonNull UUID id) {
-		instance.getStorageManager().getOfflineUser(id, HBConfig.lockData).thenAccept((result) -> {
-			OfflineUser offlineUser = result.orElseThrow();
+		instance.getStorageManager().getOfflineUserData(id, HBConfig.lockData).thenAccept((result) -> {
+			UserData offlineUser = result.orElseThrow();
 			if (offlineUser.getHellblockData().isLocked()) {
-				if (instance.getHellblockHandler().isWorldguardProtected()) {
+				if (HBConfig.worldguardProtected) {
 					ProtectedRegion region = instance.getWorldGuardHandler().getRegion(id,
 							offlineUser.getHellblockData().getID());
 					if (region != null) {
 						Set<UUID> visitors = getVisitors(id);
 						for (UUID visitor : visitors) {
-							OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(visitor);
-							if (onlineUser == null)
+							Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(visitor);
+							if (onlineUser.isEmpty())
 								continue;
-							if (onlineUser.isOnline()) {
-								if (!checkIfVisitorIsWelcome(onlineUser.getPlayer(), id)) {
-									if (onlineUser.getHellblockData().hasHellblock()) {
-										if (onlineUser.getHellblockData().getOwnerUUID() == null) {
+							if (onlineUser.get().isOnline() && onlineUser.get().getPlayer() != null) {
+								if (!checkIfVisitorIsWelcome(onlineUser.get().getPlayer(), id)) {
+									if (onlineUser.get().getHellblockData().hasHellblock()) {
+										if (onlineUser.get().getHellblockData().getOwnerUUID() == null) {
 											throw new NullPointerException(
 													"Owner reference returned null, please report this to the developer.");
 										}
 										instance.getStorageManager()
-												.getOfflineUser(onlineUser.getHellblockData().getOwnerUUID(),
+												.getOfflineUserData(onlineUser.get().getHellblockData().getOwnerUUID(),
 														HBConfig.lockData)
 												.thenAccept((owner) -> {
-													OfflineUser visitorOwner = owner.orElseThrow();
-													makeHomeLocationSafe(visitorOwner, onlineUser);
+													UserData visitorOwner = owner.orElseThrow();
+													makeHomeLocationSafe(visitorOwner, onlineUser.get());
 												});
 									} else {
-										instance.getHellblockHandler().teleportToSpawn(onlineUser.getPlayer(), true);
+										instance.getHellblockHandler().teleportToSpawn(onlineUser.get().getPlayer(),
+												true);
 									}
-									instance.getAdventureManager().sendMessageWithPrefix(onlineUser.getPlayer(),
+									instance.getAdventureManager().sendMessageWithPrefix(onlineUser.get().getPlayer(),
 											"<red>The hellblock you are trying to enter has been locked from having visitors at the moment.");
 								}
 							}
@@ -622,11 +619,11 @@ public class CoopManager {
 		});
 	}
 
-	public boolean addTrustAccess(@NonNull OnlineUser onlineUser, @NonNull String input, @NonNull UUID id) {
+	public boolean addTrustAccess(@NonNull UserData onlineUser, @NonNull String input, @NonNull UUID id) {
 		if (!onlineUser.isOnline()) {
 			throw new NullPointerException("Player object returned null, please report this to the developer.");
 		}
-		if (instance.getHellblockHandler().isWorldguardProtected()) {
+		if (HBConfig.worldguardProtected) {
 			ProtectedRegion region = instance.getWorldGuardHandler().getRegion(onlineUser.getUUID(),
 					onlineUser.getHellblockData().getID());
 			if (region == null) {
@@ -646,11 +643,11 @@ public class CoopManager {
 		}
 	}
 
-	public boolean removeTrustAccess(@NonNull OnlineUser onlineUser, @NonNull String input, @NonNull UUID id) {
+	public boolean removeTrustAccess(@NonNull UserData onlineUser, @NonNull String input, @NonNull UUID id) {
 		if (!onlineUser.isOnline()) {
 			throw new NullPointerException("Player object returned null, please report this to the developer.");
 		}
-		if (instance.getHellblockHandler().isWorldguardProtected()) {
+		if (HBConfig.worldguardProtected) {
 			ProtectedRegion region = instance.getWorldGuardHandler().getRegion(onlineUser.getUUID(),
 					onlineUser.getHellblockData().getID());
 			if (region == null) {
@@ -672,9 +669,9 @@ public class CoopManager {
 
 	public boolean trackBannedPlayer(@NonNull UUID bannedFromUUID, @NonNull UUID playerUUID) {
 		BanTracker onBannedIsland = new BanTracker();
-		instance.getStorageManager().getOfflineUser(bannedFromUUID, HBConfig.lockData).thenAccept((result) -> {
-			OfflineUser offlineUser = result.orElseThrow();
-			if (instance.getHellblockHandler().isWorldguardProtected()) {
+		instance.getStorageManager().getOfflineUserData(bannedFromUUID, HBConfig.lockData).thenAccept((result) -> {
+			UserData offlineUser = result.orElseThrow();
+			if (HBConfig.worldguardProtected) {
 				int hellblockID = offlineUser.getHellblockData().getID();
 				ProtectedRegion region = instance.getWorldGuardHandler().getRegion(bannedFromUUID, hellblockID);
 				if (region == null) {
@@ -691,20 +688,22 @@ public class CoopManager {
 		return onBannedIsland.isBanned();
 	}
 
-	public CompletableFuture<Void> makeHomeLocationSafe(@NonNull OfflineUser offlineUser,
-			@NonNull OnlineUser onlineUser) {
+	public CompletableFuture<Void> makeHomeLocationSafe(@NonNull UserData offlineUser, @NonNull UserData onlineUser) {
 		return CompletableFuture.runAsync(() -> {
+			if (!onlineUser.isOnline()) {
+				throw new NullPointerException("Player object returned null, please report this to the developer.");
+			}
 			LocationUtils.isSafeLocationAsync(offlineUser.getHellblockData().getHomeLocation()).thenAccept((safe) -> {
 				if (!safe.booleanValue()) {
 					instance.getAdventureManager().sendMessageWithPrefix(onlineUser.getPlayer(),
 							"<red>This hellblock home location was deemed not safe, resetting to bedrock location!");
 					instance.getHellblockHandler().locateBedrock(offlineUser.getUUID()).thenAccept((bedrock) -> {
 						offlineUser.getHellblockData().setHomeLocation(bedrock.getBedrockLocation());
+					}).thenRunAsync(() -> {
+						ChunkUtils.teleportAsync(onlineUser.getPlayer(),
+								offlineUser.getHellblockData().getHomeLocation(), TeleportCause.PLUGIN);
 					});
 				}
-			}).thenRunAsync(() -> {
-				ChunkUtils.teleportAsync(onlineUser.getPlayer(), offlineUser.getHellblockData().getHomeLocation(),
-						TeleportCause.PLUGIN);
 			});
 		});
 	}

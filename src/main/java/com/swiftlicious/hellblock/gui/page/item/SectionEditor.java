@@ -3,7 +3,6 @@ package com.swiftlicious.hellblock.gui.page.item;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
 
 import com.swiftlicious.hellblock.gui.icon.property.item.AmountItem;
@@ -25,17 +24,18 @@ import com.swiftlicious.hellblock.gui.icon.property.item.UnbreakableItem;
 import com.swiftlicious.hellblock.gui.icon.property.loot.NickItem;
 import com.swiftlicious.hellblock.gui.icon.property.loot.ShowInFinderItem;
 
+import dev.dejvokep.boostedyaml.block.implementation.Section;
 import xyz.xenondevs.invui.item.Item;
 
 public class SectionEditor extends AbstractSectionEditor {
 
-    public SectionEditor(Player player, String key, ItemSelector itemSelector, ConfigurationSection section) {
+    public SectionEditor(Player player, String key, ItemSelector itemSelector, Section section) {
         super(player, itemSelector, section, key);
     }
 
     @Override
     public List<Item> getItemList() {
-        ArrayList<Item> items = new ArrayList<>();
+        List<Item> items = new ArrayList<>();
         items.add(new MaterialItem(this));
         items.add(new NickItem(this));
         items.add(new DisplayNameItem(this));

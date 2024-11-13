@@ -1,7 +1,7 @@
 package com.swiftlicious.hellblock.gui.hellblock;
 
-import java.util.concurrent.TimeUnit;
 import java.util.Iterator;
+import java.util.Optional;
 
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
@@ -12,7 +12,7 @@ import org.jetbrains.annotations.NotNull;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.config.HBLocale;
 import com.swiftlicious.hellblock.gui.icon.BackGroundItem;
-import com.swiftlicious.hellblock.player.OnlineUser;
+import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.utils.wrappers.ShadedAdventureComponentWrapper;
 
 import lombok.NonNull;
@@ -26,8 +26,9 @@ public class ConfirmMenu {
 
 	public ConfirmMenu(Player player, String action) {
 
-		OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager().getOnlineUser(player.getUniqueId());
-		if (onlineUser == null) {
+		Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
+				.getOnlineUser(player.getUniqueId());
+		if (onlineUser.isEmpty()) {
 			HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 					"<red>Still loading your player data... please try again in a few seconds.");
 			return;
@@ -65,11 +66,11 @@ public class ConfirmMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 					.getOnlineUser(player.getUniqueId());
-			if (onlineUser == null)
+			if (onlineUser.isEmpty())
 				return;
-			if (!onlineUser.getHellblockData().hasHellblock()) {
+			if (!onlineUser.get().getHellblockData().hasHellblock()) {
 				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 						HBLocale.MSG_Hellblock_Not_Found);
 				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
@@ -77,11 +78,11 @@ public class ConfirmMenu {
 						net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 				return;
 			}
-			if (onlineUser.getHellblockData().getOwnerUUID() == null) {
+			if (onlineUser.get().getHellblockData().getOwnerUUID() == null) {
 				throw new NullPointerException("Owner reference returned null, please report this to the developer.");
 			}
-			if (onlineUser.getHellblockData().getOwnerUUID() != null
-					&& !onlineUser.getHellblockData().getOwnerUUID().equals(player.getUniqueId())) {
+			if (onlineUser.get().getHellblockData().getOwnerUUID() != null
+					&& !onlineUser.get().getHellblockData().getOwnerUUID().equals(player.getUniqueId())) {
 				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 						HBLocale.MSG_Not_Owner_Of_Hellblock);
 				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
@@ -89,7 +90,7 @@ public class ConfirmMenu {
 						net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 				return;
 			}
-			if (onlineUser.getHellblockData().isAbandoned()) {
+			if (onlineUser.get().getHellblockData().isAbandoned()) {
 				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 						HBLocale.MSG_Hellblock_Is_Abandoned);
 				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
@@ -97,25 +98,25 @@ public class ConfirmMenu {
 						net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 				return;
 			}
-			if (onlineUser.getHellblockData().getResetCooldown() > 0) {
+			if (onlineUser.get().getHellblockData().getResetCooldown() > 0) {
 				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 						String.format("<red>You've recently reset your hellblock already, you must wait for %s!",
 								HellblockPlugin.getInstance()
-										.getFormattedCooldown(onlineUser.getHellblockData().getResetCooldown())));
+										.getFormattedCooldown(onlineUser.get().getHellblockData().getResetCooldown())));
 				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
 						net.kyori.adventure.sound.Sound.Source.PLAYER,
 						net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 				return;
 			}
 
-			HellblockPlugin.getInstance().getScheduler().runTaskSyncLater(() -> {
+			HellblockPlugin.getInstance().getScheduler().sync().runLater(() -> {
 				for (Iterator<Window> windows = getWindows().iterator(); windows.hasNext();) {
 					Window window = windows.next();
 					if (window.getViewerUUID().equals(player.getUniqueId())) {
 						window.close();
 					}
 				}
-			}, player.getLocation(), 1, TimeUnit.SECONDS);
+			}, 1 * 20L, player.getLocation());
 			HellblockPlugin.getInstance().getHellblockHandler().resetHellblock(player.getUniqueId(), false);
 			HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
 					net.kyori.adventure.sound.Sound.Source.PLAYER,

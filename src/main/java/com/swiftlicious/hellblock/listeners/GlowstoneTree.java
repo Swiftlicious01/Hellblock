@@ -4,6 +4,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -26,7 +27,8 @@ import org.bukkit.inventory.ItemStack;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.challenges.HellblockChallenge.ChallengeType;
-import com.swiftlicious.hellblock.player.OnlineUser;
+import com.swiftlicious.hellblock.config.HBConfig;
+import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.utils.RandomUtils;
 
 import lombok.NonNull;
@@ -35,9 +37,7 @@ import net.kyori.adventure.sound.Sound.Source;
 
 public class GlowstoneTree implements Listener {
 
-	private final HellblockPlugin instance;
-
-	private boolean growNaturalTrees;
+	protected final HellblockPlugin instance;
 
 	private static final Set<TreeType> TREE_TYPES = Set.of(TreeType.TREE, TreeType.BIRCH, TreeType.ACACIA,
 			TreeType.JUNGLE, TreeType.DARK_OAK, TreeType.BIG_TREE, TreeType.CHERRY, TreeType.REDWOOD, TreeType.MANGROVE,
@@ -46,13 +46,12 @@ public class GlowstoneTree implements Listener {
 
 	public GlowstoneTree(HellblockPlugin plugin) {
 		instance = plugin;
-		this.growNaturalTrees = instance.getConfig("config.yml").getBoolean("hellblock.grow-natural-trees", false);
 		Bukkit.getPluginManager().registerEvents(this, instance);
 	}
 
 	@EventHandler
 	public void onGlowTreeCreation(StructureGrowEvent event) {
-		if (!event.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!event.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 
 		Material growing = event.getLocation().getBlock().getRelative(BlockFace.DOWN).getType();
@@ -60,19 +59,20 @@ public class GlowstoneTree implements Listener {
 			final Player player = event.getPlayer();
 			if (player != null && event.isFromBonemeal() && !event.getBlocks().isEmpty()
 					&& !event.getBlocks().stream().anyMatch(state -> state.getBlockData() instanceof Sapling)) {
-				OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
-				if (onlineUser == null)
+				Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
+				if (onlineUser.isEmpty() || onlineUser.get().getPlayer() == null)
 					return;
-				if (!onlineUser.getChallengeData().isChallengeActive(ChallengeType.GLOWSTONE_TREE_CHALLENGE)
-						&& !onlineUser.getChallengeData()
+				if (!onlineUser.get().getChallengeData().isChallengeActive(ChallengeType.GLOWSTONE_TREE_CHALLENGE)
+						&& !onlineUser.get().getChallengeData()
 								.isChallengeCompleted(ChallengeType.GLOWSTONE_TREE_CHALLENGE)) {
-					onlineUser.getChallengeData().beginChallengeProgression(onlineUser.getPlayer(),
+					onlineUser.get().getChallengeData().beginChallengeProgression(onlineUser.get().getPlayer(),
 							ChallengeType.GLOWSTONE_TREE_CHALLENGE);
 				} else {
-					onlineUser.getChallengeData().updateChallengeProgression(onlineUser.getPlayer(),
+					onlineUser.get().getChallengeData().updateChallengeProgression(onlineUser.get().getPlayer(),
 							ChallengeType.GLOWSTONE_TREE_CHALLENGE, 1);
-					if (onlineUser.getChallengeData().isChallengeCompleted(ChallengeType.GLOWSTONE_TREE_CHALLENGE)) {
-						onlineUser.getChallengeData().completeChallenge(onlineUser.getPlayer(),
+					if (onlineUser.get().getChallengeData()
+							.isChallengeCompleted(ChallengeType.GLOWSTONE_TREE_CHALLENGE)) {
+						onlineUser.get().getChallengeData().completeChallenge(onlineUser.get().getPlayer(),
 								ChallengeType.GLOWSTONE_TREE_CHALLENGE);
 					}
 				}
@@ -81,27 +81,29 @@ public class GlowstoneTree implements Listener {
 			event.setCancelled(true);
 			instance.getIslandGenerator().generateGlowstoneTree(event.getLocation());
 		} else {
-			if (!this.growNaturalTrees) {
+			if (!HBConfig.growNaturalTrees) {
 				if (TREE_TYPES.contains(event.getSpecies())) {
 					final Player player = event.getPlayer();
 					// have to check this to prevent sapling bonemeal over a block and see it's not
 					// growing.
 					if (player != null && event.isFromBonemeal() && !event.getBlocks().isEmpty()
 							&& !event.getBlocks().stream().anyMatch(state -> state.getBlockData() instanceof Sapling)) {
-						OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
-						if (onlineUser == null)
+						Optional<UserData> onlineUser = instance.getStorageManager()
+								.getOnlineUser(player.getUniqueId());
+						if (onlineUser.isEmpty() || onlineUser.get().getPlayer() == null)
 							return;
-						if (!onlineUser.getChallengeData().isChallengeActive(ChallengeType.GLOWSTONE_TREE_CHALLENGE)
-								&& !onlineUser.getChallengeData()
+						if (!onlineUser.get().getChallengeData()
+								.isChallengeActive(ChallengeType.GLOWSTONE_TREE_CHALLENGE)
+								&& !onlineUser.get().getChallengeData()
 										.isChallengeCompleted(ChallengeType.GLOWSTONE_TREE_CHALLENGE)) {
-							onlineUser.getChallengeData().beginChallengeProgression(onlineUser.getPlayer(),
+							onlineUser.get().getChallengeData().beginChallengeProgression(onlineUser.get().getPlayer(),
 									ChallengeType.GLOWSTONE_TREE_CHALLENGE);
 						} else {
-							onlineUser.getChallengeData().updateChallengeProgression(onlineUser.getPlayer(),
+							onlineUser.get().getChallengeData().updateChallengeProgression(onlineUser.get().getPlayer(),
 									ChallengeType.GLOWSTONE_TREE_CHALLENGE, 1);
-							if (onlineUser.getChallengeData()
+							if (onlineUser.get().getChallengeData()
 									.isChallengeCompleted(ChallengeType.GLOWSTONE_TREE_CHALLENGE)) {
-								onlineUser.getChallengeData().completeChallenge(onlineUser.getPlayer(),
+								onlineUser.get().getChallengeData().completeChallenge(onlineUser.get().getPlayer(),
 										ChallengeType.GLOWSTONE_TREE_CHALLENGE);
 							}
 						}
@@ -135,7 +137,7 @@ public class GlowstoneTree implements Listener {
 	@EventHandler
 	public void onPlaceNextToSapling(BlockPhysicsEvent event) {
 		final Block block = event.getSourceBlock();
-		if (!block.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!block.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 
 		if (block.getType() == Material.OAK_SAPLING) {
@@ -155,7 +157,7 @@ public class GlowstoneTree implements Listener {
 	@EventHandler
 	public void onGlowstoneTreeGrowth(PlayerInteractEvent event) {
 		final Player player = event.getPlayer();
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!player.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 
 		final UUID id = player.getUniqueId();
@@ -189,23 +191,23 @@ public class GlowstoneTree implements Listener {
 							RandomUtils.generateRandomInt(2, 5));
 					if (canGrow(block)) {
 						if (randomChance == RandomUtils.generateRandomInt(2, 4)) {
-							OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(id);
-							if (onlineUser == null)
+							Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(id);
+							if (onlineUser.isEmpty() || onlineUser.get().getPlayer() == null)
 								return;
 							instance.getIslandGenerator().generateGlowstoneTree(block.getLocation()).thenRun(() -> {
-								if (!onlineUser.getChallengeData()
+								if (!onlineUser.get().getChallengeData()
 										.isChallengeActive(ChallengeType.GLOWSTONE_TREE_CHALLENGE)
-										&& !onlineUser.getChallengeData()
+										&& !onlineUser.get().getChallengeData()
 												.isChallengeCompleted(ChallengeType.GLOWSTONE_TREE_CHALLENGE)) {
-									onlineUser.getChallengeData().beginChallengeProgression(onlineUser.getPlayer(),
-											ChallengeType.GLOWSTONE_TREE_CHALLENGE);
+									onlineUser.get().getChallengeData().beginChallengeProgression(
+											onlineUser.get().getPlayer(), ChallengeType.GLOWSTONE_TREE_CHALLENGE);
 								} else {
-									onlineUser.getChallengeData().updateChallengeProgression(onlineUser.getPlayer(),
-											ChallengeType.GLOWSTONE_TREE_CHALLENGE, 1);
-									if (onlineUser.getChallengeData()
+									onlineUser.get().getChallengeData().updateChallengeProgression(
+											onlineUser.get().getPlayer(), ChallengeType.GLOWSTONE_TREE_CHALLENGE, 1);
+									if (onlineUser.get().getChallengeData()
 											.isChallengeCompleted(ChallengeType.GLOWSTONE_TREE_CHALLENGE)) {
-										onlineUser.getChallengeData().completeChallenge(onlineUser.getPlayer(),
-												ChallengeType.GLOWSTONE_TREE_CHALLENGE);
+										onlineUser.get().getChallengeData().completeChallenge(
+												onlineUser.get().getPlayer(), ChallengeType.GLOWSTONE_TREE_CHALLENGE);
 									}
 								}
 							});

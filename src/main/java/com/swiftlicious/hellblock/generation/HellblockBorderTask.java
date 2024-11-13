@@ -8,12 +8,12 @@ import com.sk89q.worldguard.protection.managers.RegionManager;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.config.HBConfig;
-import com.swiftlicious.hellblock.player.OfflineUser;
-import com.swiftlicious.hellblock.player.OnlineUser;
+import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.protection.HellblockFlag;
-import com.swiftlicious.hellblock.scheduler.CancellableTask;
+import com.swiftlicious.hellblock.scheduler.SchedulerTask;
 
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -27,10 +27,10 @@ import org.jetbrains.annotations.NotNull;
 
 public class HellblockBorderTask implements Runnable {
 
-	private final HellblockPlugin instance;
+	protected final HellblockPlugin instance;
 
 	private final UUID playerUUID;
-	private final CancellableTask cancellableTask;
+	private final SchedulerTask cancellableTask;
 
 	private static final int Y_HEIGHT_DIFFERENCE = 10;
 	private static final double Z_GAP = 2;
@@ -40,7 +40,7 @@ public class HellblockBorderTask implements Runnable {
 	public HellblockBorderTask(HellblockPlugin plugin, @NotNull UUID playerUUID) {
 		instance = plugin;
 		this.playerUUID = playerUUID;
-		this.cancellableTask = plugin.getScheduler().runTaskSyncTimer(this, null, 0, 20);
+		this.cancellableTask = plugin.getScheduler().sync().runRepeating(this, 0, 20, null);
 	}
 
 	@Override
@@ -48,25 +48,25 @@ public class HellblockBorderTask implements Runnable {
 		Player player = Bukkit.getPlayer(playerUUID);
 		if (player == null || !player.isOnline())
 			return;
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!player.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 
-		if (instance.getHellblockHandler().isWorldguardProtected()) {
-			OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(playerUUID);
-			if (onlineUser == null)
+		if (HBConfig.worldguardProtected) {
+			Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(playerUUID);
+			if (onlineUser.isEmpty())
 				return;
-			UUID owner = onlineUser.getHellblockData().getOwnerUUID();
+			UUID owner = onlineUser.get().getHellblockData().getOwnerUUID();
 			Set<ProtectedRegion> regions = instance.getWorldGuardHandler().getRegions(playerUUID);
 			ProtectedRegion hellblockRegion = instance.getWorldGuardHandler().getRegion(playerUUID,
-					onlineUser.getHellblockData().getID());
+					onlineUser.get().getHellblockData().getID());
 			for (ProtectedRegion region : regions) {
 				if (region == null)
 					return;
 				if (region.equals(instance.getWorldGuardHandler().getSpawnRegion()))
 					continue;
 
-				instance.getStorageManager().getOfflineUser(owner, HBConfig.lockData).thenAccept((result) -> {
-					OfflineUser offlineUser = result.orElseThrow();
+				instance.getStorageManager().getOfflineUserData(owner, HBConfig.lockData).thenAccept((result) -> {
+					UserData offlineUser = result.orElseThrow();
 					if ((hellblockRegion != null && region.equals(hellblockRegion))
 							|| (owner != null && offlineUser.getHellblockData().getParty().contains(playerUUID))) {
 						spawnBorderParticles(player, region.getId(), new BlueBorder());
@@ -90,7 +90,7 @@ public class HellblockBorderTask implements Runnable {
 	}
 
 	public void cancelBorderShowcase() {
-		if (!this.cancellableTask.isCancelled())
+		if (this.cancellableTask != null)
 			this.cancellableTask.cancel();
 	}
 
@@ -125,8 +125,8 @@ public class HellblockBorderTask implements Runnable {
 
 			for (int i = 0; i < seconds; i++) {
 				int delayTicks = i * 20;
-				HellblockPlugin.getInstance().getScheduler().runTaskSyncLater(
-						() -> onParticle(min, max, defaultLocation), player.getLocation(), delayTicks);
+				HellblockPlugin.getInstance().getScheduler().sync()
+						.runLater(() -> onParticle(min, max, defaultLocation), delayTicks, player.getLocation());
 			}
 		}
 

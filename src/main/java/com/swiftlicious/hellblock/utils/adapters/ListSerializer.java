@@ -10,11 +10,9 @@ import com.google.gson.JsonDeserializationContext;
 import com.google.gson.JsonDeserializer;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonNull;
-import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
 import com.google.gson.JsonSerializationContext;
 import com.google.gson.JsonSerializer;
-import com.google.gson.reflect.TypeToken;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 
@@ -43,12 +41,13 @@ public class ListSerializer<T> implements JsonSerializer<List<T>>, JsonDeseriali
 	public JsonElement serialize(List<T> list, Type type, JsonSerializationContext jsonSerializationContext) {
 		if (list == null || list.isEmpty())
 			return JsonNull.INSTANCE;
-		JsonObject jsonObject = new JsonObject();
+		JsonArray jsonArray = new JsonArray();
+		
+		for (T entry : list) {
+			jsonArray.add(jsonSerializationContext.serialize(entry));
+		}
 
-		jsonObject.add("collection", jsonSerializationContext.serialize(list, (new TypeToken<List<T>>() {
-		}).getType()));
-
-		return jsonObject;
+		return jsonArray;
 	}
 
 	/**
@@ -65,9 +64,9 @@ public class ListSerializer<T> implements JsonSerializer<List<T>>, JsonDeseriali
 			JsonDeserializationContext jsonDeserializationContext) throws JsonParseException {
 		Gson gson = HellblockPlugin.getInstance().getStorageManager().getGson();
 
-		JsonObject jsonObject = (JsonObject) jsonElement;
+		JsonArray jsonArray = (JsonArray) jsonElement;
 
-		JsonArray collection = jsonObject.get("collection").getAsJsonArray();
+		JsonArray collection = jsonArray.getAsJsonArray();
 
 		List<T> reAssembledArrayList = new ArrayList<>();
 		for (int i = 0; i < collection.size(); i++) {

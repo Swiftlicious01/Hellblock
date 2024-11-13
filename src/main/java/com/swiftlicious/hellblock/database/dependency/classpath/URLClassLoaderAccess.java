@@ -1,12 +1,15 @@
-package com.swiftlicious.hellblock.database.dependency;
+package com.swiftlicious.hellblock.database.dependency.classpath;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.net.URL;
 import java.net.URLClassLoader;
-import java.util.Collection;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Deque;
+import java.util.List;
 
-import lombok.NonNull;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * Provides access to {@link URLClassLoader}#addURL.
@@ -40,7 +43,7 @@ public abstract class URLClassLoaderAccess {
 	 *
 	 * @param url the URL to add
 	 */
-	public abstract void addURL(@NonNull URL url);
+	public abstract void addURL(@NotNull URL url);
 
 	private static void throwError(Throwable cause) throws UnsupportedOperationException {
 		throw new UnsupportedOperationException("Hellblock is unable to inject into the plugin URLClassLoader.\n"
@@ -75,7 +78,7 @@ public abstract class URLClassLoaderAccess {
 		}
 
 		@Override
-		public void addURL(@NonNull URL url) {
+		public void addURL(@NotNull URL url) {
 			try {
 				ADD_URL_METHOD.invoke(super.classLoader, url);
 			} catch (ReflectiveOperationException e) {
@@ -108,19 +111,19 @@ public abstract class URLClassLoaderAccess {
 			return UNSAFE != null;
 		}
 
-		private final Collection<URL> unopenedURLs;
-		private final Collection<URL> pathURLs;
+		private final Deque<URL> unopenedURLs;
+		private final List<URL> pathURLs;
 
 		@SuppressWarnings("unchecked")
 		Unsafe(URLClassLoader classLoader) {
 			super(classLoader);
 
-			Collection<URL> unopenedURLs;
-			Collection<URL> pathURLs;
+			Deque<URL> unopenedURLs;
+			List<URL> pathURLs;
 			try {
-				Object ucp = fetchField(URLClassLoader.class, classLoader, "ucp");
-				unopenedURLs = (Collection<URL>) fetchField(ucp.getClass(), ucp, "unopenedUrls");
-				pathURLs = (Collection<URL>) fetchField(ucp.getClass(), ucp, "path");
+				final Object ucp = fetchField(UNSAFE, URLClassLoader.class, classLoader, "ucp");
+				unopenedURLs = (ArrayDeque<URL>) fetchField(UNSAFE, ucp, "unopenedUrls");
+				pathURLs = (ArrayList<URL>) fetchField(UNSAFE, ucp, "path");
 			} catch (Throwable e) {
 				unopenedURLs = null;
 				pathURLs = null;
@@ -130,16 +133,21 @@ public abstract class URLClassLoaderAccess {
 			this.pathURLs = pathURLs;
 		}
 
-		@SuppressWarnings("deprecation")
-		private static Object fetchField(final Class<?> clazz, final Object object, final String name)
+		private static Object fetchField(final sun.misc.Unsafe unsafe, final Object object, final String name)
 				throws NoSuchFieldException {
-			Field field = clazz.getDeclaredField(name);
-			long offset = UNSAFE.objectFieldOffset(field);
-			return UNSAFE.getObject(object, offset);
+			return fetchField(unsafe, object.getClass(), object, name);
+		}
+
+		@SuppressWarnings("deprecation")
+		private static Object fetchField(final sun.misc.Unsafe unsafe, final Class<?> clazz, final Object object,
+				final String name) throws NoSuchFieldException {
+			final Field field = clazz.getDeclaredField(name);
+			final long offset = unsafe.objectFieldOffset(field);
+			return unsafe.getObject(object, offset);
 		}
 
 		@Override
-		public void addURL(@NonNull URL url) {
+		public void addURL(@NotNull URL url) {
 			if (this.unopenedURLs == null || this.pathURLs == null) {
 				URLClassLoaderAccess.throwError(new NullPointerException("unopenedURLs or pathURLs"));
 			}
@@ -159,9 +167,8 @@ public abstract class URLClassLoaderAccess {
 		}
 
 		@Override
-		public void addURL(@NonNull URL url) {
+		public void addURL(@NotNull URL url) {
 			URLClassLoaderAccess.throwError(null);
 		}
 	}
-
 }

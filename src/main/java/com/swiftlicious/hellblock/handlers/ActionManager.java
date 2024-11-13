@@ -14,24 +14,21 @@ import java.util.concurrent.TimeUnit;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.NamespacedKey;
-import org.bukkit.Registry;
-import org.bukkit.configuration.ConfigurationSection;
-import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.ExperienceOrb;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.potion.PotionEffect;
-import org.bukkit.potion.PotionType;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.api.compatibility.VaultHook;
+import com.swiftlicious.hellblock.config.HBConfig;
 import com.swiftlicious.hellblock.config.HBLocale;
 import com.swiftlicious.hellblock.loot.Loot;
 import com.swiftlicious.hellblock.loot.LootManager;
-import com.swiftlicious.hellblock.scheduler.CancellableTask;
+import com.swiftlicious.hellblock.scheduler.SchedulerTask;
 import com.swiftlicious.hellblock.utils.ArmorStandUtils;
 import com.swiftlicious.hellblock.utils.ItemUtils;
 import com.swiftlicious.hellblock.utils.LocationUtils;
@@ -43,15 +40,15 @@ import com.swiftlicious.hellblock.utils.extras.Pair;
 import com.swiftlicious.hellblock.utils.extras.Requirement;
 import com.swiftlicious.hellblock.utils.factory.ActionFactory;
 
-import io.papermc.paper.registry.RegistryAccess;
-import io.papermc.paper.registry.RegistryKey;
+import dev.dejvokep.boostedyaml.YamlDocument;
+import dev.dejvokep.boostedyaml.block.implementation.Section;
 import net.kyori.adventure.key.Key;
 import net.kyori.adventure.sound.Sound;
 
 public class ActionManager implements ActionManagerInterface {
 
-	private final HellblockPlugin instance;
-	private final HashMap<String, ActionFactory> actionFactoryMap;
+	protected final HellblockPlugin instance;
+	private final Map<String, ActionFactory> actionFactoryMap;
 
 	public ActionManager(HellblockPlugin plugin) {
 		instance = plugin;
@@ -87,15 +84,18 @@ public class ActionManager implements ActionManagerInterface {
 		this.registerTimerAction();
 	}
 
+	@Override
 	public void load() {
 		loadGlobalEventActions();
 	}
 
+	@Override
 	public void unload() {
 		if (instance.getGlobalSettings() != null)
 			instance.getGlobalSettings().unload();
 	}
 
+	@Override
 	public void disable() {
 		unload();
 		this.actionFactoryMap.clear();
@@ -103,8 +103,8 @@ public class ActionManager implements ActionManagerInterface {
 
 	// Method to load global event actions from the plugin's configuration file.
 	private void loadGlobalEventActions() {
-		YamlConfiguration config = instance.getConfig("config.yml");
-		instance.getGlobalSettings().loadEvents(config.getConfigurationSection("lava-fishing-options.global-events"));
+		YamlDocument config = HBConfig.getMainConfig();
+		instance.getGlobalSettings().loadEvents(config.getSection("lava-fishing-options.global-events"));
 	}
 
 	/**
@@ -139,17 +139,17 @@ public class ActionManager implements ActionManagerInterface {
 	}
 
 	/**
-	 * Retrieves an Action object based on the configuration provided in a
-	 * ConfigurationSection. This method reads the type of action from the section,
-	 * obtains the corresponding ActionFactory, and builds an Action object using
-	 * the specified values and chance.
+	 * Retrieves an Action object based on the configuration provided in a Section.
+	 * This method reads the type of action from the section, obtains the
+	 * corresponding ActionFactory, and builds an Action object using the specified
+	 * values and chance.
 	 *
-	 * @param section The ConfigurationSection containing the action configuration.
+	 * @param section The Section containing the action configuration.
 	 * @return An Action object created based on the configuration, or an
 	 *         EmptyAction instance if the action type is invalid.
 	 */
 	@Override
-	public Action getAction(ConfigurationSection section) {
+	public Action getAction(Section section) {
 		ActionFactory factory = getActionFactory(section.getString("type"));
 		if (factory == null) {
 			LogUtils.warn(String.format("Action type: %s doesn't exist.", section.getString("type")));
@@ -160,28 +160,27 @@ public class ActionManager implements ActionManagerInterface {
 	}
 
 	/**
-	 * Retrieves a mapping of ActionTriggers to arrays of Actions from a
-	 * ConfigurationSection. This method iterates through the provided
-	 * ConfigurationSection to extract action triggers and their associated arrays
-	 * of Actions.
+	 * Retrieves a mapping of ActionTriggers to arrays of Actions from a Section.
+	 * This method iterates through the provided Section to extract action triggers
+	 * and their associated arrays of Actions.
 	 *
-	 * @param section The ConfigurationSection containing action mappings.
+	 * @param section The Section containing action mappings.
 	 * @return A HashMap where keys are ActionTriggers and values are arrays of
 	 *         Action objects.
 	 */
 	@Override
 	@NotNull
-	public HashMap<ActionTrigger, Action[]> getActionMap(ConfigurationSection section) {
+	public Map<ActionTrigger, Action[]> getActionMap(Section section) {
 		// Create an empty HashMap to store the action mappings
-		HashMap<ActionTrigger, Action[]> actionMap = new HashMap<>();
+		Map<ActionTrigger, Action[]> actionMap = new HashMap<>();
 
-		// If the provided ConfigurationSection is null, return the empty actionMap
+		// If the provided Section is null, return the empty actionMap
 		if (section == null)
 			return actionMap;
 
-		// Iterate through all key-value pairs in the ConfigurationSection
-		for (Map.Entry<String, Object> entry : section.getValues(false).entrySet()) {
-			if (entry.getValue() instanceof ConfigurationSection innerSection) {
+		// Iterate through all key-value pairs in the Section
+		for (Map.Entry<String, Object> entry : section.getStringRouteMappedValues(false).entrySet()) {
+			if (entry.getValue() instanceof Section innerSection) {
 				// Convert the key to an ActionTrigger enum (assuming it's in uppercase English)
 				// and map it to an array of Actions obtained from the inner section
 				try {
@@ -196,25 +195,25 @@ public class ActionManager implements ActionManagerInterface {
 	}
 
 	/**
-	 * Retrieves an array of Action objects from a ConfigurationSection. This method
-	 * iterates through the provided ConfigurationSection to extract Action
-	 * configurations and build an array of Action objects.
+	 * Retrieves an array of Action objects from a Section. This method iterates
+	 * through the provided Section to extract Action configurations and build an
+	 * array of Action objects.
 	 *
-	 * @param section The ConfigurationSection containing action configurations.
+	 * @param section The Section containing action configurations.
 	 * @return An array of Action objects created based on the configurations in the
 	 *         section.
 	 */
 	@NotNull
 	@Override
-	public Action[] getActions(ConfigurationSection section) {
+	public Action[] getActions(Section section) {
 		// Create an ArrayList to store the Actions
-		ArrayList<Action> actionList = new ArrayList<>();
+		List<Action> actionList = new ArrayList<>();
 		if (section == null)
 			return actionList.toArray(new Action[0]);
 
-		// Iterate through all key-value pairs in the ConfigurationSection
-		for (Map.Entry<String, Object> entry : section.getValues(false).entrySet()) {
-			if (entry.getValue() instanceof ConfigurationSection innerSection) {
+		// Iterate through all key-value pairs in the Section
+		for (Map.Entry<String, Object> entry : section.getStringRouteMappedValues(false).entrySet()) {
+			if (entry.getValue() instanceof Section innerSection) {
 				Action action = getAction(innerSection);
 				if (action != null)
 					actionList.add(action);
@@ -238,18 +237,18 @@ public class ActionManager implements ActionManagerInterface {
 
 	/**
 	 * Retrieves a mapping of success times to corresponding arrays of actions from
-	 * a ConfigurationSection.
+	 * a Section.
 	 *
-	 * @param section The ConfigurationSection containing success times actions.
+	 * @param section The Section containing success times actions.
 	 * @return A HashMap where success times associated with actions.
 	 */
 	@Override
-	public HashMap<Integer, Action[]> getTimesActionMap(ConfigurationSection section) {
-		HashMap<Integer, Action[]> actionMap = new HashMap<>();
+	public Map<Integer, Action[]> getTimesActionMap(Section section) {
+		Map<Integer, Action[]> actionMap = new HashMap<>();
 		if (section == null)
 			return actionMap;
-		for (Map.Entry<String, Object> entry : section.getValues(false).entrySet()) {
-			if (entry.getValue() instanceof ConfigurationSection innerSection) {
+		for (Map.Entry<String, Object> entry : section.getStringRouteMappedValues(false).entrySet()) {
+			if (entry.getValue() instanceof Section innerSection) {
 				actionMap.put(Integer.parseInt(entry.getKey()), instance.getActionManager().getActions(innerSection));
 			}
 		}
@@ -284,14 +283,14 @@ public class ActionManager implements ActionManagerInterface {
 			};
 		});
 		registerAction("message-nearby", (args, chance) -> {
-			if (args instanceof ConfigurationSection section) {
+			if (args instanceof Section section) {
 				List<String> msg = section.getStringList("message");
 				int range = section.getInt("range");
 				return condition -> {
 					if (Math.random() > chance)
 						return;
 					Player owner = condition.getPlayer();
-					instance.getScheduler().runTaskSync(() -> {
+					instance.getScheduler().executeSync(() -> {
 						for (Player player : condition.getLocation().getWorld()
 								.getNearbyPlayers(condition.getLocation(), range, range, range)) {
 							double distance = LocationUtils.getDistance(player.getLocation(), condition.getLocation());
@@ -332,7 +331,7 @@ public class ActionManager implements ActionManagerInterface {
 					return;
 				List<String> replaced = instance.getPlaceholderManager().parse(condition.getPlayer(), cmd,
 						condition.getArgs());
-				instance.getScheduler().runTaskSync(() -> {
+				instance.getScheduler().executeSync(() -> {
 					for (String text : replaced) {
 						Bukkit.getServer().dispatchCommand(Bukkit.getConsoleSender(), text);
 					}
@@ -347,20 +346,20 @@ public class ActionManager implements ActionManagerInterface {
 				String random = cmd.get(ThreadLocalRandom.current().nextInt(cmd.size()));
 				random = instance.getPlaceholderManager().parse(condition.getPlayer(), random, condition.getArgs());
 				String finalRandom = random;
-				instance.getScheduler().runTaskSync(() -> {
+				instance.getScheduler().executeSync(() -> {
 					Bukkit.getServer().dispatchCommand(Bukkit.getConsoleSender(), finalRandom);
 				}, condition.getLocation());
 			};
 		});
 		registerAction("command-nearby", (args, chance) -> {
-			if (args instanceof ConfigurationSection section) {
+			if (args instanceof Section section) {
 				List<String> cmd = section.getStringList("command");
 				int range = section.getInt("range");
 				return condition -> {
 					if (Math.random() > chance)
 						return;
 					Player owner = condition.getPlayer();
-					instance.getScheduler().runTaskSync(() -> {
+					instance.getScheduler().executeSync(() -> {
 						for (Player player : condition.getLocation().getWorld()
 								.getNearbyPlayers(condition.getLocation(), range, range, range)) {
 							double distance = LocationUtils.getDistance(player.getLocation(), condition.getLocation());
@@ -413,14 +412,14 @@ public class ActionManager implements ActionManagerInterface {
 			};
 		});
 		registerAction("actionbar-nearby", (args, chance) -> {
-			if (args instanceof ConfigurationSection section) {
+			if (args instanceof Section section) {
 				String actionbar = section.getString("actionbar");
 				int range = section.getInt("range");
 				return condition -> {
 					if (Math.random() > chance)
 						return;
 					Player owner = condition.getPlayer();
-					instance.getScheduler().runTaskSync(() -> {
+					instance.getScheduler().executeSync(() -> {
 						for (Player player : condition.getLocation().getWorld()
 								.getNearbyPlayers(condition.getLocation(), range, range, range)) {
 							double distance = LocationUtils.getDistance(player.getLocation(), condition.getLocation());
@@ -496,7 +495,7 @@ public class ActionManager implements ActionManagerInterface {
 
 	private void registerHologramAction() {
 		registerAction("hologram", (args, chance) -> {
-			if (args instanceof ConfigurationSection section) {
+			if (args instanceof Section section) {
 				String text = section.getString("text", "");
 				int duration = section.getInt("duration", 20);
 				boolean position = section.getString("position", "other").equals("other");
@@ -510,7 +509,7 @@ public class ActionManager implements ActionManagerInterface {
 					Player owner = condition.getPlayer();
 					Location location = position ? condition.getLocation() : owner.getLocation();
 					if (range > 0) {
-						instance.getScheduler().runTaskSync(() -> {
+						instance.getScheduler().executeSync(() -> {
 							for (Player player : location.getWorld().getNearbyPlayers(location, range, range, range)) {
 								double distance = LocationUtils.getDistance(player.getLocation(), location);
 								if (distance <= range) {
@@ -537,7 +536,7 @@ public class ActionManager implements ActionManagerInterface {
 
 	private void registerItemAmountAction() {
 		registerAction("item-amount", (args, chance) -> {
-			if (args instanceof ConfigurationSection section) {
+			if (args instanceof Section section) {
 				boolean mainOrOff = section.getString("hand", "main").equalsIgnoreCase("main");
 				int amount = section.getInt("amount", 1);
 				return condition -> {
@@ -557,7 +556,7 @@ public class ActionManager implements ActionManagerInterface {
 
 	private void registerItemDurabilityAction() {
 		registerAction("durability", (args, chance) -> {
-			if (args instanceof ConfigurationSection section) {
+			if (args instanceof Section section) {
 				EquipmentSlot slot = EquipmentSlot
 						.valueOf(section.getString("slot", "hand").toUpperCase(Locale.ENGLISH));
 				int amount = section.getInt("amount", 1);
@@ -581,7 +580,7 @@ public class ActionManager implements ActionManagerInterface {
 
 	private void registerGiveItemAction() {
 		registerAction("give-item", (args, chance) -> {
-			if (args instanceof ConfigurationSection section) {
+			if (args instanceof Section section) {
 				String id = section.getString("item");
 				int amount = section.getInt("amount", 1);
 				return condition -> {
@@ -601,7 +600,7 @@ public class ActionManager implements ActionManagerInterface {
 
 	private void registerFakeItemAction() {
 		registerAction("fake-item", (args, chance) -> {
-			if (args instanceof ConfigurationSection section) {
+			if (args instanceof Section section) {
 				String[] itemSplit = section.getString("item", "").split(":", 2);
 				int duration = section.getInt("duration", 20);
 				boolean position = !section.getString("position", "player").equals("player");
@@ -625,7 +624,7 @@ public class ActionManager implements ActionManagerInterface {
 							instance.getPlaceholderManager().parse(owner, itemSplit[1], condition.getArgs()),
 							condition.getArgs());
 					if (range > 0) {
-						instance.getScheduler().runTaskSync(() -> {
+						instance.getScheduler().executeSync(() -> {
 							for (Player player : finalLocation.getWorld().getNearbyPlayers(finalLocation, range, range,
 									range)) {
 								double distance = LocationUtils.getDistance(player.getLocation(), finalLocation);
@@ -660,9 +659,9 @@ public class ActionManager implements ActionManagerInterface {
 	private void registerChainAction() {
 		registerAction("chain", (args, chance) -> {
 			List<Action> actions = new ArrayList<>();
-			if (args instanceof ConfigurationSection section) {
-				for (Map.Entry<String, Object> entry : section.getValues(false).entrySet()) {
-					if (entry.getValue() instanceof ConfigurationSection innerSection) {
+			if (args instanceof Section section) {
+				for (Map.Entry<String, Object> entry : section.getStringRouteMappedValues(false).entrySet()) {
+					if (entry.getValue() instanceof Section innerSection) {
 						actions.add(getAction(innerSection));
 					}
 				}
@@ -703,13 +702,13 @@ public class ActionManager implements ActionManagerInterface {
 			List<Action> actions = new ArrayList<>();
 			int delay;
 			boolean async;
-			if (args instanceof ConfigurationSection section) {
+			if (args instanceof Section section) {
 				delay = section.getInt("delay", 1);
 				async = section.getBoolean("async", false);
-				ConfigurationSection actionSection = section.getConfigurationSection("actions");
+				Section actionSection = section.getSection("actions");
 				if (actionSection != null) {
-					for (Map.Entry<String, Object> entry : actionSection.getValues(false).entrySet()) {
-						if (entry.getValue() instanceof ConfigurationSection innerSection) {
+					for (Map.Entry<String, Object> entry : actionSection.getStringRouteMappedValues(false).entrySet()) {
+						if (entry.getValue() instanceof Section innerSection) {
 							actions.add(getAction(innerSection));
 						}
 					}
@@ -722,17 +721,17 @@ public class ActionManager implements ActionManagerInterface {
 				if (Math.random() > chance)
 					return;
 				if (async) {
-					instance.getScheduler().runTaskSyncLater(() -> {
+					instance.getScheduler().asyncLater(() -> {
 						for (Action action : actions) {
 							action.trigger(condition);
 						}
-					}, condition.getLocation(), delay * 50L, TimeUnit.MILLISECONDS);
+					}, delay * 50L, TimeUnit.MILLISECONDS);
 				} else {
-					instance.getScheduler().runTaskSyncLater(() -> {
+					instance.getScheduler().sync().runLater(() -> {
 						for (Action action : actions) {
 							action.trigger(condition);
 						}
-					}, condition.getLocation(), delay * 50L, TimeUnit.MILLISECONDS);
+					}, delay * 50L, condition.getLocation());
 				}
 			};
 		});
@@ -745,15 +744,15 @@ public class ActionManager implements ActionManagerInterface {
 			int duration;
 			int period;
 			boolean async;
-			if (args instanceof ConfigurationSection section) {
+			if (args instanceof Section section) {
 				delay = section.getInt("delay", 2);
 				duration = section.getInt("duration", 20);
 				period = section.getInt("period", 2);
 				async = section.getBoolean("async", false);
-				ConfigurationSection actionSection = section.getConfigurationSection("actions");
+				Section actionSection = section.getSection("actions");
 				if (actionSection != null) {
-					for (Map.Entry<String, Object> entry : actionSection.getValues(false).entrySet()) {
-						if (entry.getValue() instanceof ConfigurationSection innerSection) {
+					for (Map.Entry<String, Object> entry : actionSection.getStringRouteMappedValues(false).entrySet()) {
+						if (entry.getValue() instanceof Section innerSection) {
 							actions.add(getAction(innerSection));
 						}
 					}
@@ -767,28 +766,28 @@ public class ActionManager implements ActionManagerInterface {
 			return condition -> {
 				if (Math.random() > chance)
 					return;
-				CancellableTask cancellableTask;
+				SchedulerTask cancellableTask;
 				if (async) {
-					cancellableTask = instance.getScheduler().runTaskAsyncTimer(() -> {
+					cancellableTask = instance.getScheduler().asyncRepeating(() -> {
 						for (Action action : actions) {
 							action.trigger(condition);
 						}
 					}, delay * 50L, period * 50L, TimeUnit.MILLISECONDS);
 				} else {
-					cancellableTask = instance.getScheduler().runTaskSyncTimer(() -> {
+					cancellableTask = instance.getScheduler().sync().runRepeating(() -> {
 						for (Action action : actions) {
 							action.trigger(condition);
 						}
-					}, condition.getLocation(), delay, period);
+					}, delay, period, condition.getLocation());
 				}
-				instance.getScheduler().runTaskSyncLater(cancellableTask::cancel, condition.getLocation(), duration);
+				instance.getScheduler().sync().runLater(cancellableTask::cancel, duration, condition.getLocation());
 			};
 		});
 	}
 
 	private void registerTitleAction() {
 		registerAction("title", (args, chance) -> {
-			if (args instanceof ConfigurationSection section) {
+			if (args instanceof Section section) {
 				String title = section.getString("title");
 				String subtitle = section.getString("subtitle");
 				int fadeIn = section.getInt("fade-in", 20);
@@ -809,7 +808,7 @@ public class ActionManager implements ActionManagerInterface {
 			}
 		});
 		registerAction("title-nearby", (args, chance) -> {
-			if (args instanceof ConfigurationSection section) {
+			if (args instanceof Section section) {
 				String title = section.getString("title");
 				String subtitle = section.getString("subtitle");
 				int fadeIn = section.getInt("fade-in", 20);
@@ -819,7 +818,7 @@ public class ActionManager implements ActionManagerInterface {
 				return condition -> {
 					if (Math.random() > chance)
 						return;
-					instance.getScheduler().runTaskSync(() -> {
+					instance.getScheduler().executeSync(() -> {
 						for (Player player : condition.getLocation().getWorld()
 								.getNearbyPlayers(condition.getLocation(), range, range, range)) {
 							double distance = LocationUtils.getDistance(player.getLocation(), condition.getLocation());
@@ -842,7 +841,7 @@ public class ActionManager implements ActionManagerInterface {
 			}
 		});
 		registerAction("random-title", (args, chance) -> {
-			if (args instanceof ConfigurationSection section) {
+			if (args instanceof Section section) {
 				List<String> titles = section.getStringList("titles");
 				if (titles.size() == 0)
 					titles.add("");
@@ -873,14 +872,11 @@ public class ActionManager implements ActionManagerInterface {
 
 	private void registerPotionAction() {
 		registerAction("potion-effect", (args, chance) -> {
-			if (args instanceof ConfigurationSection section) {
-				// Fetch the potion effect registry from the registry access
-				final Registry<PotionType> potionRegistry = RegistryAccess.registryAccess()
-						.getRegistry(RegistryKey.POTION);
-				@NotNull
+			if (args instanceof Section section) {
 				List<PotionEffect> effectTypes = Objects
-						.requireNonNull(potionRegistry.getOrThrow(NamespacedKey
-								.fromString(section.getString("type", "BLINDNESS").toUpperCase(Locale.ENGLISH))))
+						.requireNonNull(instance.getHellblockHandler().getPotionTypeRegistry()
+								.getOrThrow(NamespacedKey.fromString(
+										section.getString("type", "BLINDNESS").toUpperCase(Locale.ENGLISH))))
 						.getPotionEffects();
 				for (PotionEffect effect : effectTypes) {
 					PotionEffect potionEffect = new PotionEffect(effect.getType(), section.getInt("duration", 20),
@@ -914,10 +910,10 @@ public class ActionManager implements ActionManagerInterface {
 
 	private void registerSoundAction() {
 		registerAction("sound", (args, chance) -> {
-			if (args instanceof ConfigurationSection section) {
+			if (args instanceof Section section) {
 				Sound sound = Sound.sound(Key.key(section.getString("key")),
 						Sound.Source.valueOf(section.getString("source", "PLAYER").toUpperCase(Locale.ENGLISH)),
-						(float) section.getDouble("volume", 1), (float) section.getDouble("pitch", 1));
+						section.getFloat("volume", 1F), section.getFloat("pitch", 1F));
 				return condition -> {
 					if (Math.random() > chance)
 						return;
@@ -932,10 +928,10 @@ public class ActionManager implements ActionManagerInterface {
 
 	private void registerConditionalAction() {
 		registerAction("conditional", (args, chance) -> {
-			if (args instanceof ConfigurationSection section) {
-				Action[] actions = getActions(section.getConfigurationSection("actions"));
+			if (args instanceof Section section) {
+				Action[] actions = getActions(section.getSection("actions"));
 				Requirement[] requirements = instance.getRequirementManager()
-						.getRequirements(section.getConfigurationSection("conditions"), true);
+						.getRequirements(section.getSection("conditions"), true);
 				return condition -> {
 					if (Math.random() > chance)
 						return;
@@ -958,13 +954,13 @@ public class ActionManager implements ActionManagerInterface {
 
 	private void registerPriorityAction() {
 		registerAction("priority", (args, chance) -> {
-			if (args instanceof ConfigurationSection section) {
+			if (args instanceof Section section) {
 				List<Pair<Requirement[], Action[]>> conditionActionPairList = new ArrayList<>();
-				for (Map.Entry<String, Object> entry : section.getValues(false).entrySet()) {
-					if (entry.getValue() instanceof ConfigurationSection inner) {
-						Action[] actions = getActions(inner.getConfigurationSection("actions"));
+				for (Map.Entry<String, Object> entry : section.getStringRouteMappedValues(false).entrySet()) {
+					if (entry.getValue() instanceof Section inner) {
+						Action[] actions = getActions(inner.getSection("actions"));
 						Requirement[] requirements = instance.getRequirementManager()
-								.getRequirements(inner.getConfigurationSection("conditions"), false);
+								.getRequirements(inner.getSection("conditions"), false);
 						conditionActionPairList.add(Pair.of(requirements, actions));
 					}
 				}
@@ -994,7 +990,7 @@ public class ActionManager implements ActionManagerInterface {
 
 	private void registerPluginExpAction() {
 		registerAction("plugin-exp", (args, chance) -> {
-			if (args instanceof ConfigurationSection section) {
+			if (args instanceof Section section) {
 				String pluginName = section.getString("plugin");
 				var value = instance.getConfigUtils().getValue(section.get("exp"));
 				String target = section.getString("target");

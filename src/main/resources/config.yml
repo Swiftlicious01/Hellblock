@@ -1,7 +1,7 @@
 # HELLBLOCK CONFIGURATION #
 
 # Developer: @Swiftlicious
-config-version: '1'
+config-version: '${config_version}'
 
 # Debug
 debug: false
@@ -43,50 +43,51 @@ hellblock:
   void-teleport: true
   starter-chest: 
     inventory-name: '<dark_red>Hellblock Chest'
-    '1':
-      material: BROWN_MUSHROOM
-      amount: 1
-      slot: 3
-    '2':
-      material: OAK_SIGN
-      amount: 1
-      slot: 4
-    '3':
-      material: RED_MUSHROOM
-      amount: 1
-      slot: 5
-    '4':
-      material: OAK_SAPLING
-      amount: 1
-      slot: 9
-    '5':
-      material: LAVA_BUCKET
-      amount: 1
-      slot: 12
-    '6':
-      material: BUCKET
-      amount: 1
-      slot: 13
-    '7':
-      material: LAVA_BUCKET
-      amount: 1
-      slot: 14
-    '8':
-      material: GRASS_BLOCK
-      amount: 1
-      slot: 18
-    '9':
-      material: BONE
-      amount: 1
-      slot: 21
-    '10':
-      material: NETHER_WART
-      amount: 1
-      slot: 22
-    '11':
-      material: BONE
-      amount: 1
-      slot: 23
+	items:
+      '1':
+        material: BROWN_MUSHROOM
+        amount: 1
+        slot: 3
+      '2':
+        material: OAK_SIGN
+        amount: 1
+        slot: 4
+      '3':
+        material: RED_MUSHROOM
+        amount: 1
+        slot: 5
+      '4':
+        material: OAK_SAPLING
+        amount: 1
+        slot: 9
+      '5':
+        material: LAVA_BUCKET
+        amount: 1
+        slot: 12
+      '6':
+        material: BUCKET
+        amount: 1
+        slot: 13
+      '7':
+        material: LAVA_BUCKET
+        amount: 1
+        slot: 14
+      '8':
+        material: GRASS_BLOCK
+        amount: 1
+        slot: 18
+      '9':
+        material: BONE
+        amount: 1
+        slot: 21
+      '10':
+        material: NETHER_WART
+        amount: 1
+        slot: 22
+      '11':
+        material: BONE
+        amount: 1
+        slot: 23
 
 # You add the block material type and then the amount of levels you want it to add to the hellblock.
 # Example: 'cobblestone:5' will add 5 levels to the hellblock when cobblestone is placed. Doesn't matter if a trusted member, party member or owner places it.
@@ -572,16 +573,6 @@ other-settings:
     # It's recommended to use MiniMessage format. If you insist on using legacy color code "&", enable the support below.
     # Disable this would improve performance
     legacy-color-code-support: true
-
-    # Thread pool settings
-    thread-pool-settings:
-      # The size of the core Thread pool, that is, the size of the Thread pool when there is no task to execute
-      # Increase the size of corePoolSize when you are running a large server with many players fishing at the same time
-      corePoolSize: 10
-      # The maximum number of threads allowed to be created in the Thread pool. The current number of threads in the Thread pool will not exceed this value
-      maximumPoolSize: 10
-      # If a thread is idle for more than this attribute value, it will exit due to timeout
-      keepAliveTime: 30
 
     # Event priority: MONITOR HIGHEST HIGH NORMAL LOW LOWEST
     event-priority: NORMAL

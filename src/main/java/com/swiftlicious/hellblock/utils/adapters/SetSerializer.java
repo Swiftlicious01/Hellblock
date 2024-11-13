@@ -10,11 +10,9 @@ import com.google.gson.JsonDeserializationContext;
 import com.google.gson.JsonDeserializer;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonNull;
-import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
 import com.google.gson.JsonSerializationContext;
 import com.google.gson.JsonSerializer;
-import com.google.gson.reflect.TypeToken;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 
@@ -43,12 +41,13 @@ public class SetSerializer<T> implements JsonSerializer<Set<T>>, JsonDeserialize
 	public JsonElement serialize(Set<T> set, Type type, JsonSerializationContext jsonSerializationContext) {
 		if (set == null || set.isEmpty())
 			return JsonNull.INSTANCE;
-		JsonObject jsonObject = new JsonObject();
+		JsonArray jsonArray = new JsonArray();
 
-		jsonObject.add("collection", jsonSerializationContext.serialize(set, (new TypeToken<Set<T>>() {
-		}).getType()));
+		for (T entry : set) {
+			jsonArray.add(jsonSerializationContext.serialize(entry));
+		}
 
-		return jsonObject;
+		return jsonArray;
 	}
 
 	/**
@@ -65,9 +64,9 @@ public class SetSerializer<T> implements JsonSerializer<Set<T>>, JsonDeserialize
 			throws JsonParseException {
 		Gson gson = HellblockPlugin.getInstance().getStorageManager().getGson();
 
-		JsonObject jsonObject = (JsonObject) jsonElement;
+		JsonArray JsonArray = (JsonArray) jsonElement;
 
-		JsonArray collection = jsonObject.get("collection").getAsJsonArray();
+		JsonArray collection = JsonArray.getAsJsonArray();
 
 		Set<T> reAssembledHashSet = new HashSet<>();
 		for (int i = 0; i < collection.size(); i++) {

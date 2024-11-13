@@ -1,12 +1,14 @@
 package com.swiftlicious.hellblock.commands;
 
 import java.util.Collection;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.api.Reloadable;
 import com.swiftlicious.hellblock.commands.sub.DataCommand;
 import com.swiftlicious.hellblock.commands.sub.DebugCommand;
 import com.swiftlicious.hellblock.commands.sub.GUIEditorCommand;
@@ -16,17 +18,19 @@ import com.swiftlicious.hellblock.commands.sub.HellblockUserCommand;
 import com.swiftlicious.hellblock.commands.sub.ItemCommand;
 import com.swiftlicious.hellblock.config.HBLocale;
 import com.swiftlicious.hellblock.gui.hellblock.HellblockMenu;
-import com.swiftlicious.hellblock.player.OnlineUser;
+import com.swiftlicious.hellblock.player.UserData;
 
+import dev.jorel.commandapi.CommandAPI;
+import dev.jorel.commandapi.CommandAPIBukkitConfig;
 import dev.jorel.commandapi.CommandAPICommand;
 import dev.jorel.commandapi.CommandPermission;
 import dev.jorel.commandapi.arguments.EntitySelectorArgument;
 import dev.jorel.commandapi.arguments.UUIDArgument;
 import dev.jorel.commandapi.arguments.StringArgument;
 
-public class CommandManager implements CommandManagerInterface {
+public class CommandManager implements Reloadable {
 
-	private final HellblockPlugin instance;
+	protected final HellblockPlugin instance;
 
 	public CommandManager(HellblockPlugin plugin) {
 		this.instance = plugin;
@@ -34,6 +38,8 @@ public class CommandManager implements CommandManagerInterface {
 
 	@Override
 	public void load() {
+		if (!CommandAPI.isLoaded())
+			CommandAPI.onLoad(new CommandAPIBukkitConfig(instance).silentLogs(true));
 		getMainCommand().withSubcommands(getOpenCommand(), HellblockAdminCommand.INSTANCE.getAdminCommand(),
 				GUIEditorCommand.INSTANCE.getEditorCommand(), DataCommand.INSTANCE.getDataCommand(),
 				HellblockUserCommand.INSTANCE.getResetCommand(), HellblockUserCommand.INSTANCE.getCreateCommand(),
@@ -53,18 +59,14 @@ public class CommandManager implements CommandManagerInterface {
 		}
 	}
 
-	@Override
-	public void unload() {
-	}
-
 	private CommandAPICommand getMainCommand() {
 		CommandAPICommand command = new CommandAPICommand("hellblock").withAliases("hellisland");
 		if (command.getArguments().isEmpty()) {
 			command.withPermission(CommandPermission.NONE).withPermission("hellblock.user")
 					.executesPlayer((player, args) -> {
-						OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+						Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 								.getOnlineUser(player.getUniqueId());
-						if (onlineUser == null) {
+						if (onlineUser.isEmpty()) {
 							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 									"<red>Still loading your player data... please try again in a few seconds.");
 							return;

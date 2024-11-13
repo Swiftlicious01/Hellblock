@@ -1,36 +1,30 @@
 package com.swiftlicious.hellblock.database;
 
 import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Properties;
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
-import org.bukkit.configuration.ConfigurationSection;
-import org.bukkit.configuration.file.YamlConfiguration;
-
+import com.google.common.collect.ImmutableList;
 import com.swiftlicious.hellblock.HellblockPlugin;
-import com.swiftlicious.hellblock.player.EarningData;
-import com.swiftlicious.hellblock.player.HellblockData;
-import com.swiftlicious.hellblock.player.PlayerData;
 import com.swiftlicious.hellblock.utils.LogUtils;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
+
+import dev.dejvokep.boostedyaml.YamlDocument;
+import dev.dejvokep.boostedyaml.block.implementation.Section;
 
 /**
  * An abstract base class for SQL databases using the HikariCP connection pool,
  * which handles player data storage.
  */
-public abstract class AbstractHikariDatabase extends AbstractSQLDatabase implements LegacyDataStorageInterface {
+public abstract class AbstractHikariDatabase extends AbstractSQLDatabase {
 
 	private HikariDataSource dataSource;
-	private final String driverClass;
+	private String driverClass;
 	private final String sqlBrand;
 
 	public AbstractHikariDatabase(HellblockPlugin plugin) {
@@ -45,7 +39,7 @@ public abstract class AbstractHikariDatabase extends AbstractSQLDatabase impleme
 				LogUtils.warn("No MariaDB driver is found.");
 			} else if (getStorageType() == StorageType.MySQL) {
 				try {
-					Class.forName("com.mysql.jdbc.Driver.");
+					Class.forName("com.mysql.jdbc.Driver");
 				} catch (ClassNotFoundException e2) {
 					LogUtils.warn("No MySQL driver is found.");
 				}
@@ -58,9 +52,8 @@ public abstract class AbstractHikariDatabase extends AbstractSQLDatabase impleme
 	 * exist.
 	 */
 	@Override
-	public void initialize() {
-		YamlConfiguration config = HellblockPlugin.getInstance().getConfig("database.yml");
-		ConfigurationSection section = config.getConfigurationSection(sqlBrand);
+	public void initialize(YamlDocument config) {
+		Section section = config.getSection(sqlBrand);
 
 		if (section == null) {
 			LogUtils.warn(
@@ -69,7 +62,13 @@ public abstract class AbstractHikariDatabase extends AbstractSQLDatabase impleme
 		}
 
 		super.tablePrefix = section.getString("table-prefix", "hellblock");
-		HikariConfig hikariConfig = new HikariConfig();
+		HikariConfig hikariConfig;
+		try {
+			hikariConfig = new HikariConfig();
+		} catch (LinkageError e) {
+			handleClassloadingError(e, plugin);
+			throw e;
+		}
 		hikariConfig.setUsername(section.getString("user", "root"));
 		hikariConfig.setPassword(section.getString("password", "pa55w0rd"));
 		hikariConfig.setJdbcUrl(String.format("jdbc:%s://%s:%s/%s%s", sqlBrand.toLowerCase(Locale.ENGLISH),
@@ -86,9 +85,15 @@ public abstract class AbstractHikariDatabase extends AbstractSQLDatabase impleme
 		} catch (NoSuchMethodError ignored) {
 		}
 
+		// don't perform any initial connection validation - we subsequently call
+		// #getConnection
+		// to setup the schema anyways
+		hikariConfig.setInitializationFailTimeout(-1);
+
 		final Properties properties = new Properties();
-		properties.putAll(Map.of("cachePrepStmts", "true", "prepStmtCacheSize", "250", "prepStmtCacheSqlLimit", "2048",
-				"useServerPrepStmts", "true", "useLocalSessionState", "true", "useLocalTransactionState", "true"));
+		properties.putAll(Map.of("socketTimeout", String.valueOf(TimeUnit.SECONDS.toMillis(30)), "cachePrepStmts",
+				"true", "prepStmtCacheSize", "250", "prepStmtCacheSqlLimit", "2048", "useServerPrepStmts", "true",
+				"useLocalSessionState", "true", "useLocalTransactionState", "true"));
 		properties.putAll(Map.of("rewriteBatchedStatements", "true", "cacheResultSetMetadata", "true",
 				"cacheServerConfiguration", "true", "elideSetAutoCommits", "true", "maintainTimeStats", "false"));
 		hikariConfig.setDataSourceProperties(properties);
@@ -116,39 +121,34 @@ public abstract class AbstractHikariDatabase extends AbstractSQLDatabase impleme
 		return dataSource.getConnection();
 	}
 
-	/**
-	 * Retrieve legacy player data from the SQL database.
-	 *
-	 * @param uuid The UUID of the player.
-	 * @return A CompletableFuture containing the optional legacy player data.
-	 */
-	@Override
-	public CompletableFuture<Optional<PlayerData>> getLegacyPlayerData(UUID uuid) {
-		var future = new CompletableFuture<Optional<PlayerData>>();
-		HellblockPlugin.getInstance().getScheduler().runTaskAsync(() -> {
-			try (Connection connection = getConnection()) {
-				var builder = PlayerData.builder().setName("");
+	private static void handleClassloadingError(Throwable throwable, HellblockPlugin plugin) {
+		List<String> noteworthyClasses = ImmutableList.of("org.slf4j.LoggerFactory", "org.slf4j.ILoggerFactory",
+				"org.apache.logging.slf4j.Log4jLoggerFactory", "org.apache.logging.log4j.spi.LoggerContext",
+				"org.apache.logging.log4j.spi.AbstractLoggerAdapter", "org.slf4j.impl.StaticLoggerBinder",
+				"org.slf4j.helpers.MessageFormatter");
 
-				PreparedStatement statement = connection
-						.prepareStatement(String.format(SqlConstants.SQL_SELECT_BY_UUID, getTableName("hbdata")));
-				statement.setString(1, uuid.toString());
-				ResultSet rs = statement.executeQuery();
-				if (rs.next()) {
-					// TODO: update with hellblock data
-					int date = rs.getInt("date");
-					double money = rs.getInt("money");
-					builder.setEarningData(new EarningData(money, date));
-				} else {
-					builder.setPistonLocations(new ArrayList<>()).setLevelBlockLocations(new ArrayList<>())
-							.setEarningData(EarningData.empty()).setHellblockData(HellblockData.empty());
-				}
+		LogUtils.warn("A " + throwable.getClass().getSimpleName()
+				+ " has occurred whilst initialising Hikari. This is likely due to classloading conflicts between other plugins.");
+		LogUtils.warn(
+				"Please check for other plugins below (and try loading Hellblock without them installed) before reporting the issue.");
 
-				future.complete(Optional.of(builder.build()));
-			} catch (SQLException e) {
-				LogUtils.warn(String.format("Failed to get %s's data.", uuid), e);
-				future.completeExceptionally(e);
+		for (String className : noteworthyClasses) {
+			Class<?> clazz;
+			try {
+				clazz = Class.forName(className);
+			} catch (Exception e) {
+				continue;
 			}
-		});
-		return future;
+
+			ClassLoader loader = clazz.getClassLoader();
+			String loaderName;
+			try {
+				loaderName = plugin.identifyClassLoader(loader) + " (" + loader.toString() + ")";
+			} catch (Throwable e) {
+				loaderName = loader.toString();
+			}
+
+			LogUtils.warn("Class " + className + " has been loaded by: " + loaderName);
+		}
 	}
 }

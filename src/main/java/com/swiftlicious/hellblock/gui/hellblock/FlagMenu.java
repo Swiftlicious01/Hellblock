@@ -1,5 +1,6 @@
 package com.swiftlicious.hellblock.gui.hellblock;
 
+import java.util.Optional;
 import java.util.UUID;
 
 import org.bukkit.Material;
@@ -13,8 +14,9 @@ import org.codehaus.plexus.util.StringUtils;
 import org.jetbrains.annotations.NotNull;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.config.HBConfig;
 import com.swiftlicious.hellblock.gui.icon.BackGroundItem;
-import com.swiftlicious.hellblock.player.OnlineUser;
+import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.protection.HellblockFlag;
 import com.swiftlicious.hellblock.protection.HellblockFlag.AccessType;
 import com.swiftlicious.hellblock.utils.wrappers.ShadedAdventureComponentWrapper;
@@ -31,8 +33,9 @@ public class FlagMenu {
 
 	public FlagMenu(Player player) {
 
-		OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager().getOnlineUser(player.getUniqueId());
-		if (onlineUser == null) {
+		Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
+				.getOnlineUser(player.getUniqueId());
+		if (onlineUser.isEmpty()) {
 			HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 					"<red>Still loading your player data... please try again in a few seconds.");
 			return;
@@ -93,19 +96,21 @@ public class FlagMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				ItemBuilder item = new ItemBuilder(Material.STONE_PICKAXE).addAllItemFlags()
 						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
 								.getAdventureManager()
 								.getComponentFromMiniMessage(String.format("<aqua>%s Flag",
 										StringUtils.capitaliseAllWords(
 												HellblockFlag.FlagType.BLOCK_BREAK.getName().replace("-", " "))))))
-						.addLoreLines(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
-								.getAdventureManager()
-								.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s", HellblockPlugin
-										.getInstance().getStorageManager().getOnlineUser(playerUUID).getHellblockData()
-										.getProtectionValue(HellblockFlag.FlagType.BLOCK_BREAK).getReturnValue()))));
-				if (HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID).getHellblockData()
+						.addLoreLines(
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s",
+												HellblockPlugin.getInstance().getStorageManager()
+														.getOnlineUser(playerUUID).get().getHellblockData()
+														.getProtectionValue(HellblockFlag.FlagType.BLOCK_BREAK)
+														.getReturnValue()))));
+				if (HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID).get().getHellblockData()
 						.getProtectionValue(HellblockFlag.FlagType.BLOCK_BREAK) == AccessType.ALLOW) {
 					item.addEnchantment(Enchantment.UNBREAKING, 1, false);
 				}
@@ -118,14 +123,14 @@ public class FlagMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 					.getOnlineUser(player.getUniqueId());
-			if (onlineUser == null)
+			if (onlineUser.isEmpty())
 				return;
-			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				HellblockPlugin.getInstance().getIslandProtectionManager().changeProtectionFlag(player.getUniqueId(),
 						new HellblockFlag(HellblockFlag.FlagType.BLOCK_BREAK,
-								(onlineUser.getHellblockData()
+								(onlineUser.get().getHellblockData()
 										.getProtectionValue(HellblockFlag.FlagType.BLOCK_BREAK) == AccessType.ALLOW
 												? AccessType.DENY
 												: AccessType.ALLOW)));
@@ -149,19 +154,21 @@ public class FlagMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				ItemBuilder item = new ItemBuilder(Material.COBBLESTONE).addAllItemFlags()
 						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
 								.getAdventureManager()
 								.getComponentFromMiniMessage(String.format("<aqua>%s Flag",
 										StringUtils.capitaliseAllWords(
 												HellblockFlag.FlagType.BLOCK_PLACE.getName().replace("-", " "))))))
-						.addLoreLines(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
-								.getAdventureManager()
-								.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s", HellblockPlugin
-										.getInstance().getStorageManager().getOnlineUser(playerUUID).getHellblockData()
-										.getProtectionValue(HellblockFlag.FlagType.BLOCK_PLACE).getReturnValue()))));
-				if (HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID).getHellblockData()
+						.addLoreLines(
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s",
+												HellblockPlugin.getInstance().getStorageManager()
+														.getOnlineUser(playerUUID).get().getHellblockData()
+														.getProtectionValue(HellblockFlag.FlagType.BLOCK_PLACE)
+														.getReturnValue()))));
+				if (HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID).get().getHellblockData()
 						.getProtectionValue(HellblockFlag.FlagType.BLOCK_PLACE) == AccessType.ALLOW) {
 					item.addEnchantment(Enchantment.UNBREAKING, 1, false);
 				}
@@ -174,14 +181,14 @@ public class FlagMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 					.getOnlineUser(player.getUniqueId());
-			if (onlineUser == null)
+			if (onlineUser.isEmpty())
 				return;
-			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				HellblockPlugin.getInstance().getIslandProtectionManager().changeProtectionFlag(player.getUniqueId(),
 						new HellblockFlag(HellblockFlag.FlagType.BLOCK_PLACE,
-								(onlineUser.getHellblockData()
+								(onlineUser.get().getHellblockData()
 										.getProtectionValue(HellblockFlag.FlagType.BLOCK_PLACE) == AccessType.ALLOW
 												? AccessType.DENY
 												: AccessType.ALLOW)));
@@ -205,7 +212,7 @@ public class FlagMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				ItemBuilder item = new ItemBuilder(Material.IRON_SWORD).addAllItemFlags()
 						.setDisplayName(
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
@@ -216,9 +223,9 @@ public class FlagMenu {
 								.getAdventureManager()
 								.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s",
 										HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID)
-												.getHellblockData().getProtectionValue(HellblockFlag.FlagType.PVP)
+												.get().getHellblockData().getProtectionValue(HellblockFlag.FlagType.PVP)
 												.getReturnValue()))));
-				if (HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID).getHellblockData()
+				if (HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID).get().getHellblockData()
 						.getProtectionValue(HellblockFlag.FlagType.PVP) == AccessType.ALLOW) {
 					item.addEnchantment(Enchantment.UNBREAKING, 1, false);
 				}
@@ -231,14 +238,14 @@ public class FlagMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 					.getOnlineUser(player.getUniqueId());
-			if (onlineUser == null)
+			if (onlineUser.isEmpty())
 				return;
-			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				HellblockPlugin.getInstance().getIslandProtectionManager().changeProtectionFlag(player.getUniqueId(),
 						new HellblockFlag(HellblockFlag.FlagType.PVP,
-								(onlineUser.getHellblockData()
+								(onlineUser.get().getHellblockData()
 										.getProtectionValue(HellblockFlag.FlagType.PVP) == AccessType.ALLOW
 												? AccessType.DENY
 												: AccessType.ALLOW)));
@@ -262,19 +269,21 @@ public class FlagMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				ItemBuilder item = new ItemBuilder(Material.PORKCHOP).addAllItemFlags()
 						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
 								.getAdventureManager()
 								.getComponentFromMiniMessage(String.format("<aqua>%s Flag",
 										StringUtils.capitaliseAllWords(
 												HellblockFlag.FlagType.DAMAGE_ANIMALS.getName().replace("-", " "))))))
-						.addLoreLines(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
-								.getAdventureManager()
-								.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s", HellblockPlugin
-										.getInstance().getStorageManager().getOnlineUser(playerUUID).getHellblockData()
-										.getProtectionValue(HellblockFlag.FlagType.DAMAGE_ANIMALS).getReturnValue()))));
-				if (HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID).getHellblockData()
+						.addLoreLines(
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s",
+												HellblockPlugin.getInstance().getStorageManager()
+														.getOnlineUser(playerUUID).get().getHellblockData()
+														.getProtectionValue(HellblockFlag.FlagType.DAMAGE_ANIMALS)
+														.getReturnValue()))));
+				if (HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID).get().getHellblockData()
 						.getProtectionValue(HellblockFlag.FlagType.DAMAGE_ANIMALS) == AccessType.ALLOW) {
 					item.addEnchantment(Enchantment.UNBREAKING, 1, false);
 				}
@@ -287,14 +296,14 @@ public class FlagMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 					.getOnlineUser(player.getUniqueId());
-			if (onlineUser == null)
+			if (onlineUser.isEmpty())
 				return;
-			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				HellblockPlugin.getInstance().getIslandProtectionManager().changeProtectionFlag(player.getUniqueId(),
 						new HellblockFlag(HellblockFlag.FlagType.DAMAGE_ANIMALS,
-								(onlineUser.getHellblockData()
+								(onlineUser.get().getHellblockData()
 										.getProtectionValue(HellblockFlag.FlagType.DAMAGE_ANIMALS) == AccessType.ALLOW
 												? AccessType.DENY
 												: AccessType.ALLOW)));
@@ -318,19 +327,21 @@ public class FlagMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				ItemBuilder item = new ItemBuilder(Material.ZOMBIE_HEAD).addAllItemFlags()
 						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
 								.getAdventureManager()
 								.getComponentFromMiniMessage(String.format("<aqua>%s Flag",
 										StringUtils.capitaliseAllWords(
 												HellblockFlag.FlagType.MOB_DAMAGE.getName().replace("-", " "))))))
-						.addLoreLines(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
-								.getAdventureManager()
-								.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s", HellblockPlugin
-										.getInstance().getStorageManager().getOnlineUser(playerUUID).getHellblockData()
-										.getProtectionValue(HellblockFlag.FlagType.MOB_DAMAGE).getReturnValue()))));
-				if (HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID).getHellblockData()
+						.addLoreLines(
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s",
+												HellblockPlugin.getInstance().getStorageManager()
+														.getOnlineUser(playerUUID).get().getHellblockData()
+														.getProtectionValue(HellblockFlag.FlagType.MOB_DAMAGE)
+														.getReturnValue()))));
+				if (HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID).get().getHellblockData()
 						.getProtectionValue(HellblockFlag.FlagType.MOB_DAMAGE) == AccessType.ALLOW) {
 					item.addEnchantment(Enchantment.UNBREAKING, 1, false);
 				}
@@ -343,15 +354,15 @@ public class FlagMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 					.getOnlineUser(player.getUniqueId());
-			if (onlineUser == null)
+			if (onlineUser.isEmpty())
 				return;
-			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				HellblockPlugin.getInstance().getIslandProtectionManager()
 						.changeProtectionFlag(player.getUniqueId(),
 								new HellblockFlag(HellblockFlag.FlagType.MOB_DAMAGE,
-										(onlineUser.getHellblockData().getProtectionValue(
+										(onlineUser.get().getHellblockData().getProtectionValue(
 												HellblockFlag.FlagType.MOB_DAMAGE) == AccessType.ALLOW ? AccessType.DENY
 														: AccessType.ALLOW)));
 				new FlagMenu(player);
@@ -374,19 +385,21 @@ public class FlagMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				ItemBuilder item = new ItemBuilder(Material.SPAWNER).addAllItemFlags()
 						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
 								.getAdventureManager()
 								.getComponentFromMiniMessage(String.format("<aqua>%s Flag",
 										StringUtils.capitaliseAllWords(
 												HellblockFlag.FlagType.MOB_SPAWNING.getName().replace("-", " "))))))
-						.addLoreLines(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
-								.getAdventureManager()
-								.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s", HellblockPlugin
-										.getInstance().getStorageManager().getOnlineUser(playerUUID).getHellblockData()
-										.getProtectionValue(HellblockFlag.FlagType.MOB_SPAWNING).getReturnValue()))));
-				if (HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID).getHellblockData()
+						.addLoreLines(
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s",
+												HellblockPlugin.getInstance().getStorageManager()
+														.getOnlineUser(playerUUID).get().getHellblockData()
+														.getProtectionValue(HellblockFlag.FlagType.MOB_SPAWNING)
+														.getReturnValue()))));
+				if (HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID).get().getHellblockData()
 						.getProtectionValue(HellblockFlag.FlagType.MOB_SPAWNING) == AccessType.ALLOW) {
 					item.addEnchantment(Enchantment.UNBREAKING, 1, false);
 				}
@@ -399,14 +412,14 @@ public class FlagMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 					.getOnlineUser(player.getUniqueId());
-			if (onlineUser == null)
+			if (onlineUser.isEmpty())
 				return;
-			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				HellblockPlugin.getInstance().getIslandProtectionManager().changeProtectionFlag(player.getUniqueId(),
 						new HellblockFlag(HellblockFlag.FlagType.MOB_SPAWNING,
-								(onlineUser.getHellblockData()
+								(onlineUser.get().getHellblockData()
 										.getProtectionValue(HellblockFlag.FlagType.MOB_SPAWNING) == AccessType.ALLOW
 												? AccessType.DENY
 												: AccessType.ALLOW)));
@@ -430,19 +443,21 @@ public class FlagMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				ItemBuilder item = new ItemBuilder(Material.CHEST).addAllItemFlags()
 						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
 								.getAdventureManager()
 								.getComponentFromMiniMessage(String.format("<aqua>%s Flag",
 										StringUtils.capitaliseAllWords(
 												HellblockFlag.FlagType.CHEST_ACCESS.getName().replace("-", " "))))))
-						.addLoreLines(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
-								.getAdventureManager()
-								.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s", HellblockPlugin
-										.getInstance().getStorageManager().getOnlineUser(playerUUID).getHellblockData()
-										.getProtectionValue(HellblockFlag.FlagType.CHEST_ACCESS).getReturnValue()))));
-				if (HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID).getHellblockData()
+						.addLoreLines(
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s",
+												HellblockPlugin.getInstance().getStorageManager()
+														.getOnlineUser(playerUUID).get().getHellblockData()
+														.getProtectionValue(HellblockFlag.FlagType.CHEST_ACCESS)
+														.getReturnValue()))));
+				if (HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID).get().getHellblockData()
 						.getProtectionValue(HellblockFlag.FlagType.CHEST_ACCESS) == AccessType.ALLOW) {
 					item.addEnchantment(Enchantment.UNBREAKING, 1, false);
 				}
@@ -455,14 +470,14 @@ public class FlagMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 					.getOnlineUser(player.getUniqueId());
-			if (onlineUser == null)
+			if (onlineUser.isEmpty())
 				return;
-			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				HellblockPlugin.getInstance().getIslandProtectionManager().changeProtectionFlag(player.getUniqueId(),
 						new HellblockFlag(HellblockFlag.FlagType.CHEST_ACCESS,
-								(onlineUser.getHellblockData()
+								(onlineUser.get().getHellblockData()
 										.getProtectionValue(HellblockFlag.FlagType.CHEST_ACCESS) == AccessType.ALLOW
 												? AccessType.DENY
 												: AccessType.ALLOW)));
@@ -486,20 +501,21 @@ public class FlagMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				ItemBuilder item = new ItemBuilder(Material.LEVER).addAllItemFlags()
 						.setDisplayName(
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 										.getComponentFromMiniMessage(String.format("<aqua>%s Flag",
 												StringUtils.capitaliseAllWords(
 														HellblockFlag.FlagType.INTERACT.getName().replace("-", " "))))))
-						.addLoreLines(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
-								.getAdventureManager()
-								.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s",
-										HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID)
-												.getHellblockData().getProtectionValue(HellblockFlag.FlagType.INTERACT)
-												.getReturnValue()))));
-				if (HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID).getHellblockData()
+						.addLoreLines(
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s",
+												HellblockPlugin.getInstance().getStorageManager()
+														.getOnlineUser(playerUUID).get().getHellblockData()
+														.getProtectionValue(HellblockFlag.FlagType.INTERACT)
+														.getReturnValue()))));
+				if (HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID).get().getHellblockData()
 						.getProtectionValue(HellblockFlag.FlagType.INTERACT) == AccessType.ALLOW) {
 					item.addEnchantment(Enchantment.UNBREAKING, 1, false);
 				}
@@ -512,14 +528,14 @@ public class FlagMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 					.getOnlineUser(player.getUniqueId());
-			if (onlineUser == null)
+			if (onlineUser.isEmpty())
 				return;
-			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				HellblockPlugin.getInstance().getIslandProtectionManager().changeProtectionFlag(player.getUniqueId(),
 						new HellblockFlag(HellblockFlag.FlagType.INTERACT,
-								(onlineUser.getHellblockData()
+								(onlineUser.get().getHellblockData()
 										.getProtectionValue(HellblockFlag.FlagType.INTERACT) == AccessType.ALLOW
 												? AccessType.DENY
 												: AccessType.ALLOW)));
@@ -543,7 +559,7 @@ public class FlagMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				ItemBuilder item = new ItemBuilder(Material.OAK_DOOR).addAllItemFlags()
 						.setDisplayName(
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
@@ -554,9 +570,9 @@ public class FlagMenu {
 								.getAdventureManager()
 								.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s",
 										HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID)
-												.getHellblockData().getProtectionValue(HellblockFlag.FlagType.USE)
+												.get().getHellblockData().getProtectionValue(HellblockFlag.FlagType.USE)
 												.getReturnValue()))));
-				if (HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID).getHellblockData()
+				if (HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID).get().getHellblockData()
 						.getProtectionValue(HellblockFlag.FlagType.USE) == AccessType.ALLOW) {
 					item.addEnchantment(Enchantment.UNBREAKING, 1, false);
 				}
@@ -569,14 +585,14 @@ public class FlagMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 					.getOnlineUser(player.getUniqueId());
-			if (onlineUser == null)
+			if (onlineUser.isEmpty())
 				return;
-			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				HellblockPlugin.getInstance().getIslandProtectionManager().changeProtectionFlag(player.getUniqueId(),
 						new HellblockFlag(HellblockFlag.FlagType.USE,
-								(onlineUser.getHellblockData()
+								(onlineUser.get().getHellblockData()
 										.getProtectionValue(HellblockFlag.FlagType.USE) == AccessType.ALLOW
 												? AccessType.DENY
 												: AccessType.ALLOW)));
@@ -600,20 +616,21 @@ public class FlagMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				ItemBuilder item = new ItemBuilder(Material.ANVIL).addAllItemFlags()
 						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
 								.getAdventureManager()
 								.getComponentFromMiniMessage(String.format("<aqua>%s Flag",
 										StringUtils.capitaliseAllWords(
 												HellblockFlag.FlagType.USE_ANVIL.getName().replace("-", " "))))))
-						.addLoreLines(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
-								.getAdventureManager()
-								.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s",
-										HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID)
-												.getHellblockData().getProtectionValue(HellblockFlag.FlagType.USE_ANVIL)
-												.getReturnValue()))));
-				if (HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID).getHellblockData()
+						.addLoreLines(
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s",
+												HellblockPlugin.getInstance().getStorageManager()
+														.getOnlineUser(playerUUID).get().getHellblockData()
+														.getProtectionValue(HellblockFlag.FlagType.USE_ANVIL)
+														.getReturnValue()))));
+				if (HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID).get().getHellblockData()
 						.getProtectionValue(HellblockFlag.FlagType.USE_ANVIL) == AccessType.ALLOW) {
 					item.addEnchantment(Enchantment.UNBREAKING, 1, false);
 				}
@@ -626,15 +643,15 @@ public class FlagMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 					.getOnlineUser(player.getUniqueId());
-			if (onlineUser == null)
+			if (onlineUser.isEmpty())
 				return;
-			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				HellblockPlugin.getInstance().getIslandProtectionManager()
 						.changeProtectionFlag(player.getUniqueId(),
 								new HellblockFlag(HellblockFlag.FlagType.USE_ANVIL,
-										(onlineUser.getHellblockData().getProtectionValue(
+										(onlineUser.get().getHellblockData().getProtectionValue(
 												HellblockFlag.FlagType.USE_ANVIL) == AccessType.ALLOW ? AccessType.DENY
 														: AccessType.ALLOW)));
 				new FlagMenu(player);
@@ -657,19 +674,21 @@ public class FlagMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				ItemBuilder item = new ItemBuilder(Material.BIG_DRIPLEAF).addAllItemFlags()
 						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
 								.getAdventureManager()
 								.getComponentFromMiniMessage(String.format("<aqua>%s Flag",
 										StringUtils.capitaliseAllWords(
 												HellblockFlag.FlagType.USE_DRIPLEAF.getName().replace("-", " "))))))
-						.addLoreLines(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
-								.getAdventureManager()
-								.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s", HellblockPlugin
-										.getInstance().getStorageManager().getOnlineUser(playerUUID).getHellblockData()
-										.getProtectionValue(HellblockFlag.FlagType.USE_DRIPLEAF).getReturnValue()))));
-				if (HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID).getHellblockData()
+						.addLoreLines(
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s",
+												HellblockPlugin.getInstance().getStorageManager()
+														.getOnlineUser(playerUUID).get().getHellblockData()
+														.getProtectionValue(HellblockFlag.FlagType.USE_DRIPLEAF)
+														.getReturnValue()))));
+				if (HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID).get().getHellblockData()
 						.getProtectionValue(HellblockFlag.FlagType.USE_DRIPLEAF) == AccessType.ALLOW) {
 					item.addEnchantment(Enchantment.UNBREAKING, 1, false);
 				}
@@ -682,14 +701,14 @@ public class FlagMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 					.getOnlineUser(player.getUniqueId());
-			if (onlineUser == null)
+			if (onlineUser.isEmpty())
 				return;
-			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				HellblockPlugin.getInstance().getIslandProtectionManager().changeProtectionFlag(player.getUniqueId(),
 						new HellblockFlag(HellblockFlag.FlagType.USE_DRIPLEAF,
-								(onlineUser.getHellblockData()
+								(onlineUser.get().getHellblockData()
 										.getProtectionValue(HellblockFlag.FlagType.USE_DRIPLEAF) == AccessType.ALLOW
 												? AccessType.DENY
 												: AccessType.ALLOW)));
@@ -713,19 +732,21 @@ public class FlagMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				ItemBuilder item = new ItemBuilder(Material.MINECART).addAllItemFlags()
 						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
 								.getAdventureManager()
 								.getComponentFromMiniMessage(String.format("<aqua>%s Flag",
 										StringUtils.capitaliseAllWords(
 												HellblockFlag.FlagType.PLACE_VEHICLE.getName().replace("-", " "))))))
-						.addLoreLines(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
-								.getAdventureManager()
-								.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s", HellblockPlugin
-										.getInstance().getStorageManager().getOnlineUser(playerUUID).getHellblockData()
-										.getProtectionValue(HellblockFlag.FlagType.PLACE_VEHICLE).getReturnValue()))));
-				if (HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID).getHellblockData()
+						.addLoreLines(
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s",
+												HellblockPlugin.getInstance().getStorageManager()
+														.getOnlineUser(playerUUID).get().getHellblockData()
+														.getProtectionValue(HellblockFlag.FlagType.PLACE_VEHICLE)
+														.getReturnValue()))));
+				if (HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID).get().getHellblockData()
 						.getProtectionValue(HellblockFlag.FlagType.PLACE_VEHICLE) == AccessType.ALLOW) {
 					item.addEnchantment(Enchantment.UNBREAKING, 1, false);
 				}
@@ -738,14 +759,14 @@ public class FlagMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 					.getOnlineUser(player.getUniqueId());
-			if (onlineUser == null)
+			if (onlineUser.isEmpty())
 				return;
-			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				HellblockPlugin.getInstance().getIslandProtectionManager().changeProtectionFlag(player.getUniqueId(),
 						new HellblockFlag(HellblockFlag.FlagType.PLACE_VEHICLE,
-								(onlineUser.getHellblockData()
+								(onlineUser.get().getHellblockData()
 										.getProtectionValue(HellblockFlag.FlagType.PLACE_VEHICLE) == AccessType.ALLOW
 												? AccessType.DENY
 												: AccessType.ALLOW)));
@@ -769,7 +790,7 @@ public class FlagMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				ItemBuilder item = new ItemBuilder(Material.OAK_BOAT).addAllItemFlags()
 						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
 								.getAdventureManager()
@@ -780,10 +801,10 @@ public class FlagMenu {
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 										.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s",
 												HellblockPlugin.getInstance().getStorageManager()
-														.getOnlineUser(playerUUID).getHellblockData()
+														.getOnlineUser(playerUUID).get().getHellblockData()
 														.getProtectionValue(HellblockFlag.FlagType.DESTROY_VEHICLE)
 														.getReturnValue()))));
-				if (HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID).getHellblockData()
+				if (HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID).get().getHellblockData()
 						.getProtectionValue(HellblockFlag.FlagType.DESTROY_VEHICLE) == AccessType.ALLOW) {
 					item.addEnchantment(Enchantment.UNBREAKING, 1, false);
 				}
@@ -796,14 +817,14 @@ public class FlagMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 					.getOnlineUser(player.getUniqueId());
-			if (onlineUser == null)
+			if (onlineUser.isEmpty())
 				return;
-			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				HellblockPlugin.getInstance().getIslandProtectionManager().changeProtectionFlag(player.getUniqueId(),
 						new HellblockFlag(HellblockFlag.FlagType.DESTROY_VEHICLE,
-								(onlineUser.getHellblockData()
+								(onlineUser.get().getHellblockData()
 										.getProtectionValue(HellblockFlag.FlagType.DESTROY_VEHICLE) == AccessType.ALLOW
 												? AccessType.DENY
 												: AccessType.ALLOW)));
@@ -827,7 +848,7 @@ public class FlagMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				ItemBuilder item = new ItemBuilder(Material.SADDLE).addAllItemFlags()
 						.setDisplayName(
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
@@ -838,9 +859,9 @@ public class FlagMenu {
 								.getAdventureManager()
 								.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s",
 										HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID)
-												.getHellblockData().getProtectionValue(HellblockFlag.FlagType.RIDE)
-												.getReturnValue()))));
-				if (HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID).getHellblockData()
+												.get().getHellblockData()
+												.getProtectionValue(HellblockFlag.FlagType.RIDE).getReturnValue()))));
+				if (HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID).get().getHellblockData()
 						.getProtectionValue(HellblockFlag.FlagType.RIDE) == AccessType.ALLOW) {
 					item.addEnchantment(Enchantment.UNBREAKING, 1, false);
 				}
@@ -853,14 +874,14 @@ public class FlagMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 					.getOnlineUser(player.getUniqueId());
-			if (onlineUser == null)
+			if (onlineUser.isEmpty())
 				return;
-			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				HellblockPlugin.getInstance().getIslandProtectionManager().changeProtectionFlag(player.getUniqueId(),
 						new HellblockFlag(HellblockFlag.FlagType.RIDE,
-								(onlineUser.getHellblockData()
+								(onlineUser.get().getHellblockData()
 										.getProtectionValue(HellblockFlag.FlagType.RIDE) == AccessType.ALLOW
 												? AccessType.DENY
 												: AccessType.ALLOW)));
@@ -884,7 +905,7 @@ public class FlagMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				ItemBuilder item = new ItemBuilder(Material.ITEM_FRAME).addAllItemFlags()
 						.setDisplayName(
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
@@ -895,10 +916,10 @@ public class FlagMenu {
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 										.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s",
 												HellblockPlugin.getInstance().getStorageManager()
-														.getOnlineUser(playerUUID).getHellblockData()
+														.getOnlineUser(playerUUID).get().getHellblockData()
 														.getProtectionValue(HellblockFlag.FlagType.ITEM_FRAME_ROTATE)
 														.getReturnValue()))));
-				if (HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID).getHellblockData()
+				if (HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID).get().getHellblockData()
 						.getProtectionValue(HellblockFlag.FlagType.ITEM_FRAME_ROTATE) == AccessType.ALLOW) {
 					item.addEnchantment(Enchantment.UNBREAKING, 1, false);
 				}
@@ -911,14 +932,14 @@ public class FlagMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 					.getOnlineUser(player.getUniqueId());
-			if (onlineUser == null)
+			if (onlineUser.isEmpty())
 				return;
-			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				HellblockPlugin.getInstance().getIslandProtectionManager().changeProtectionFlag(player.getUniqueId(),
 						new HellblockFlag(HellblockFlag.FlagType.ITEM_FRAME_ROTATE,
-								(onlineUser.getHellblockData().getProtectionValue(
+								(onlineUser.get().getHellblockData().getProtectionValue(
 										HellblockFlag.FlagType.ITEM_FRAME_ROTATE) == AccessType.ALLOW ? AccessType.DENY
 												: AccessType.ALLOW)));
 				new FlagMenu(player);
@@ -941,19 +962,21 @@ public class FlagMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				ItemBuilder item = new ItemBuilder(Material.TURTLE_EGG).addAllItemFlags()
 						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
 								.getAdventureManager()
 								.getComponentFromMiniMessage(String.format("<aqua>%s Flag",
 										StringUtils.capitaliseAllWords(
 												HellblockFlag.FlagType.TRAMPLE_BLOCKS.getName().replace("-", " "))))))
-						.addLoreLines(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
-								.getAdventureManager()
-								.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s", HellblockPlugin
-										.getInstance().getStorageManager().getOnlineUser(playerUUID).getHellblockData()
-										.getProtectionValue(HellblockFlag.FlagType.TRAMPLE_BLOCKS).getReturnValue()))));
-				if (HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID).getHellblockData()
+						.addLoreLines(
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s",
+												HellblockPlugin.getInstance().getStorageManager()
+														.getOnlineUser(playerUUID).get().getHellblockData()
+														.getProtectionValue(HellblockFlag.FlagType.TRAMPLE_BLOCKS)
+														.getReturnValue()))));
+				if (HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID).get().getHellblockData()
 						.getProtectionValue(HellblockFlag.FlagType.TRAMPLE_BLOCKS) == AccessType.ALLOW) {
 					item.addEnchantment(Enchantment.UNBREAKING, 1, false);
 				}
@@ -966,14 +989,14 @@ public class FlagMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 					.getOnlineUser(player.getUniqueId());
-			if (onlineUser == null)
+			if (onlineUser.isEmpty())
 				return;
-			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				HellblockPlugin.getInstance().getIslandProtectionManager().changeProtectionFlag(player.getUniqueId(),
 						new HellblockFlag(HellblockFlag.FlagType.TRAMPLE_BLOCKS,
-								(onlineUser.getHellblockData()
+								(onlineUser.get().getHellblockData()
 										.getProtectionValue(HellblockFlag.FlagType.TRAMPLE_BLOCKS) == AccessType.ALLOW
 												? AccessType.DENY
 												: AccessType.ALLOW)));
@@ -997,19 +1020,21 @@ public class FlagMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				ItemBuilder item = new ItemBuilder(Material.FEATHER).addAllItemFlags()
 						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
 								.getAdventureManager()
 								.getComponentFromMiniMessage(String.format("<aqua>%s Flag",
 										StringUtils.capitaliseAllWords(
 												HellblockFlag.FlagType.FALL_DAMAGE.getName().replace("-", " "))))))
-						.addLoreLines(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
-								.getAdventureManager()
-								.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s", HellblockPlugin
-										.getInstance().getStorageManager().getOnlineUser(playerUUID).getHellblockData()
-										.getProtectionValue(HellblockFlag.FlagType.FALL_DAMAGE).getReturnValue()))));
-				if (HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID).getHellblockData()
+						.addLoreLines(
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s",
+												HellblockPlugin.getInstance().getStorageManager()
+														.getOnlineUser(playerUUID).get().getHellblockData()
+														.getProtectionValue(HellblockFlag.FlagType.FALL_DAMAGE)
+														.getReturnValue()))));
+				if (HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID).get().getHellblockData()
 						.getProtectionValue(HellblockFlag.FlagType.FALL_DAMAGE) == AccessType.ALLOW) {
 					item.addEnchantment(Enchantment.UNBREAKING, 1, false);
 				}
@@ -1022,14 +1047,14 @@ public class FlagMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 					.getOnlineUser(player.getUniqueId());
-			if (onlineUser == null)
+			if (onlineUser.isEmpty())
 				return;
-			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				HellblockPlugin.getInstance().getIslandProtectionManager().changeProtectionFlag(player.getUniqueId(),
 						new HellblockFlag(HellblockFlag.FlagType.FALL_DAMAGE,
-								(onlineUser.getHellblockData()
+								(onlineUser.get().getHellblockData()
 										.getProtectionValue(HellblockFlag.FlagType.FALL_DAMAGE) == AccessType.ALLOW
 												? AccessType.DENY
 												: AccessType.ALLOW)));
@@ -1053,7 +1078,7 @@ public class FlagMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				ItemBuilder item = new ItemBuilder(Material.FIREWORK_ROCKET).addAllItemFlags()
 						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
 								.getAdventureManager()
@@ -1064,10 +1089,10 @@ public class FlagMenu {
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 										.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s",
 												HellblockPlugin.getInstance().getStorageManager()
-														.getOnlineUser(playerUUID).getHellblockData()
+														.getOnlineUser(playerUUID).get().getHellblockData()
 														.getProtectionValue(HellblockFlag.FlagType.FIREWORK_DAMAGE)
 														.getReturnValue()))));
-				if (HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID).getHellblockData()
+				if (HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID).get().getHellblockData()
 						.getProtectionValue(HellblockFlag.FlagType.FIREWORK_DAMAGE) == AccessType.ALLOW) {
 					item.addEnchantment(Enchantment.UNBREAKING, 1, false);
 				}
@@ -1080,14 +1105,14 @@ public class FlagMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 					.getOnlineUser(player.getUniqueId());
-			if (onlineUser == null)
+			if (onlineUser.isEmpty())
 				return;
-			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				HellblockPlugin.getInstance().getIslandProtectionManager().changeProtectionFlag(player.getUniqueId(),
 						new HellblockFlag(HellblockFlag.FlagType.FIREWORK_DAMAGE,
-								(onlineUser.getHellblockData()
+								(onlineUser.get().getHellblockData()
 										.getProtectionValue(HellblockFlag.FlagType.FIREWORK_DAMAGE) == AccessType.ALLOW
 												? AccessType.DENY
 												: AccessType.ALLOW)));
@@ -1111,19 +1136,21 @@ public class FlagMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				ItemBuilder item = new ItemBuilder(Material.ENDER_PEARL).addAllItemFlags()
 						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
 								.getAdventureManager()
 								.getComponentFromMiniMessage(String.format("<aqua>%s Flag",
 										StringUtils.capitaliseAllWords(
 												HellblockFlag.FlagType.ENDERPEARL.getName().replace("-", " "))))))
-						.addLoreLines(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
-								.getAdventureManager()
-								.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s", HellblockPlugin
-										.getInstance().getStorageManager().getOnlineUser(playerUUID).getHellblockData()
-										.getProtectionValue(HellblockFlag.FlagType.ENDERPEARL).getReturnValue()))));
-				if (HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID).getHellblockData()
+						.addLoreLines(
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s",
+												HellblockPlugin.getInstance().getStorageManager()
+														.getOnlineUser(playerUUID).get().getHellblockData()
+														.getProtectionValue(HellblockFlag.FlagType.ENDERPEARL)
+														.getReturnValue()))));
+				if (HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID).get().getHellblockData()
 						.getProtectionValue(HellblockFlag.FlagType.ENDERPEARL) == AccessType.ALLOW) {
 					item.addEnchantment(Enchantment.UNBREAKING, 1, false);
 				}
@@ -1136,15 +1163,15 @@ public class FlagMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 					.getOnlineUser(player.getUniqueId());
-			if (onlineUser == null)
+			if (onlineUser.isEmpty())
 				return;
-			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				HellblockPlugin.getInstance().getIslandProtectionManager()
 						.changeProtectionFlag(player.getUniqueId(),
 								new HellblockFlag(HellblockFlag.FlagType.ENDERPEARL,
-										(onlineUser.getHellblockData().getProtectionValue(
+										(onlineUser.get().getHellblockData().getProtectionValue(
 												HellblockFlag.FlagType.ENDERPEARL) == AccessType.ALLOW ? AccessType.DENY
 														: AccessType.ALLOW)));
 				new FlagMenu(player);
@@ -1167,7 +1194,7 @@ public class FlagMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				ItemBuilder item = new ItemBuilder(Material.CHORUS_FRUIT).addAllItemFlags()
 						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
 								.getAdventureManager()
@@ -1178,10 +1205,10 @@ public class FlagMenu {
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 										.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s",
 												HellblockPlugin.getInstance().getStorageManager()
-														.getOnlineUser(playerUUID).getHellblockData()
+														.getOnlineUser(playerUUID).get().getHellblockData()
 														.getProtectionValue(HellblockFlag.FlagType.CHORUS_TELEPORT)
 														.getReturnValue()))));
-				if (HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID).getHellblockData()
+				if (HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID).get().getHellblockData()
 						.getProtectionValue(HellblockFlag.FlagType.CHORUS_TELEPORT) == AccessType.ALLOW) {
 					item.addEnchantment(Enchantment.UNBREAKING, 1, false);
 				}
@@ -1194,14 +1221,14 @@ public class FlagMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 					.getOnlineUser(player.getUniqueId());
-			if (onlineUser == null)
+			if (onlineUser.isEmpty())
 				return;
-			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				HellblockPlugin.getInstance().getIslandProtectionManager().changeProtectionFlag(player.getUniqueId(),
 						new HellblockFlag(HellblockFlag.FlagType.CHORUS_TELEPORT,
-								(onlineUser.getHellblockData()
+								(onlineUser.get().getHellblockData()
 										.getProtectionValue(HellblockFlag.FlagType.CHORUS_TELEPORT) == AccessType.ALLOW
 												? AccessType.DENY
 												: AccessType.ALLOW)));
@@ -1225,20 +1252,21 @@ public class FlagMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				ItemBuilder item = new ItemBuilder(Material.FLINT_AND_STEEL).addAllItemFlags()
 						.setDisplayName(
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 										.getComponentFromMiniMessage(String.format("<aqua>%s Flag",
 												StringUtils.capitaliseAllWords(
 														HellblockFlag.FlagType.LIGHTER.getName().replace("-", " "))))))
-						.addLoreLines(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
-								.getAdventureManager()
-								.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s",
-										HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID)
-												.getHellblockData().getProtectionValue(HellblockFlag.FlagType.LIGHTER)
-												.getReturnValue()))));
-				if (HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID).getHellblockData()
+						.addLoreLines(
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s",
+												HellblockPlugin.getInstance().getStorageManager()
+														.getOnlineUser(playerUUID).get().getHellblockData()
+														.getProtectionValue(HellblockFlag.FlagType.LIGHTER)
+														.getReturnValue()))));
+				if (HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID).get().getHellblockData()
 						.getProtectionValue(HellblockFlag.FlagType.LIGHTER) == AccessType.ALLOW) {
 					item.addEnchantment(Enchantment.UNBREAKING, 1, false);
 				}
@@ -1251,14 +1279,14 @@ public class FlagMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 					.getOnlineUser(player.getUniqueId());
-			if (onlineUser == null)
+			if (onlineUser.isEmpty())
 				return;
-			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				HellblockPlugin.getInstance().getIslandProtectionManager().changeProtectionFlag(player.getUniqueId(),
 						new HellblockFlag(HellblockFlag.FlagType.LIGHTER,
-								(onlineUser.getHellblockData()
+								(onlineUser.get().getHellblockData()
 										.getProtectionValue(HellblockFlag.FlagType.LIGHTER) == AccessType.ALLOW
 												? AccessType.DENY
 												: AccessType.ALLOW)));
@@ -1282,7 +1310,7 @@ public class FlagMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				ItemBuilder item = new ItemBuilder(Material.TNT).addAllItemFlags()
 						.setDisplayName(
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
@@ -1293,9 +1321,9 @@ public class FlagMenu {
 								.getAdventureManager()
 								.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s",
 										HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID)
-												.getHellblockData().getProtectionValue(HellblockFlag.FlagType.TNT)
+												.get().getHellblockData().getProtectionValue(HellblockFlag.FlagType.TNT)
 												.getReturnValue()))));
-				if (HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID).getHellblockData()
+				if (HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID).get().getHellblockData()
 						.getProtectionValue(HellblockFlag.FlagType.TNT) == AccessType.ALLOW) {
 					item.addEnchantment(Enchantment.UNBREAKING, 1, false);
 				}
@@ -1308,14 +1336,14 @@ public class FlagMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 					.getOnlineUser(player.getUniqueId());
-			if (onlineUser == null)
+			if (onlineUser.isEmpty())
 				return;
-			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				HellblockPlugin.getInstance().getIslandProtectionManager().changeProtectionFlag(player.getUniqueId(),
 						new HellblockFlag(HellblockFlag.FlagType.TNT,
-								(onlineUser.getHellblockData()
+								(onlineUser.get().getHellblockData()
 										.getProtectionValue(HellblockFlag.FlagType.TNT) == AccessType.ALLOW
 												? AccessType.DENY
 												: AccessType.ALLOW)));
@@ -1339,7 +1367,7 @@ public class FlagMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				ItemBuilder item = new ItemBuilder(Material.RED_BED).addAllItemFlags()
 						.setDisplayName(
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
@@ -1350,9 +1378,9 @@ public class FlagMenu {
 								.getAdventureManager()
 								.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s",
 										HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID)
-												.getHellblockData().getProtectionValue(HellblockFlag.FlagType.SLEEP)
-												.getReturnValue()))));
-				if (HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID).getHellblockData()
+												.get().getHellblockData()
+												.getProtectionValue(HellblockFlag.FlagType.SLEEP).getReturnValue()))));
+				if (HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID).get().getHellblockData()
 						.getProtectionValue(HellblockFlag.FlagType.SLEEP) == AccessType.ALLOW) {
 					item.addEnchantment(Enchantment.UNBREAKING, 1, false);
 				}
@@ -1365,14 +1393,14 @@ public class FlagMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 					.getOnlineUser(player.getUniqueId());
-			if (onlineUser == null)
+			if (onlineUser.isEmpty())
 				return;
-			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				HellblockPlugin.getInstance().getIslandProtectionManager().changeProtectionFlag(player.getUniqueId(),
 						new HellblockFlag(HellblockFlag.FlagType.SLEEP,
-								(onlineUser.getHellblockData()
+								(onlineUser.get().getHellblockData()
 										.getProtectionValue(HellblockFlag.FlagType.SLEEP) == AccessType.ALLOW
 												? AccessType.DENY
 												: AccessType.ALLOW)));
@@ -1396,7 +1424,7 @@ public class FlagMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				ItemBuilder item = new ItemBuilder(Material.RESPAWN_ANCHOR).addAllItemFlags()
 						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
 								.getAdventureManager()
@@ -1407,10 +1435,10 @@ public class FlagMenu {
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 										.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s",
 												HellblockPlugin.getInstance().getStorageManager()
-														.getOnlineUser(playerUUID).getHellblockData()
+														.getOnlineUser(playerUUID).get().getHellblockData()
 														.getProtectionValue(HellblockFlag.FlagType.RESPAWN_ANCHORS)
 														.getReturnValue()))));
-				if (HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID).getHellblockData()
+				if (HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID).get().getHellblockData()
 						.getProtectionValue(HellblockFlag.FlagType.RESPAWN_ANCHORS) == AccessType.ALLOW) {
 					item.addEnchantment(Enchantment.UNBREAKING, 1, false);
 				}
@@ -1423,14 +1451,14 @@ public class FlagMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 					.getOnlineUser(player.getUniqueId());
-			if (onlineUser == null)
+			if (onlineUser.isEmpty())
 				return;
-			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				HellblockPlugin.getInstance().getIslandProtectionManager().changeProtectionFlag(player.getUniqueId(),
 						new HellblockFlag(HellblockFlag.FlagType.RESPAWN_ANCHORS,
-								(onlineUser.getHellblockData()
+								(onlineUser.get().getHellblockData()
 										.getProtectionValue(HellblockFlag.FlagType.RESPAWN_ANCHORS) == AccessType.ALLOW
 												? AccessType.DENY
 												: AccessType.ALLOW)));
@@ -1454,7 +1482,7 @@ public class FlagMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				ItemBuilder item = new ItemBuilder(Material.WIND_CHARGE).addAllItemFlags()
 						.setDisplayName(
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
@@ -1465,10 +1493,10 @@ public class FlagMenu {
 								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 										.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s",
 												HellblockPlugin.getInstance().getStorageManager()
-														.getOnlineUser(playerUUID).getHellblockData()
+														.getOnlineUser(playerUUID).get().getHellblockData()
 														.getProtectionValue(HellblockFlag.FlagType.WIND_CHARGE_BURST)
 														.getReturnValue()))));
-				if (HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID).getHellblockData()
+				if (HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID).get().getHellblockData()
 						.getProtectionValue(HellblockFlag.FlagType.WIND_CHARGE_BURST) == AccessType.ALLOW) {
 					item.addEnchantment(Enchantment.UNBREAKING, 1, false);
 				}
@@ -1481,14 +1509,14 @@ public class FlagMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 					.getOnlineUser(player.getUniqueId());
-			if (onlineUser == null)
+			if (onlineUser.isEmpty())
 				return;
-			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				HellblockPlugin.getInstance().getIslandProtectionManager().changeProtectionFlag(player.getUniqueId(),
 						new HellblockFlag(HellblockFlag.FlagType.WIND_CHARGE_BURST,
-								(onlineUser.getHellblockData().getProtectionValue(
+								(onlineUser.get().getHellblockData().getProtectionValue(
 										HellblockFlag.FlagType.WIND_CHARGE_BURST) == AccessType.ALLOW ? AccessType.DENY
 												: AccessType.ALLOW)));
 				new FlagMenu(player);
@@ -1511,7 +1539,7 @@ public class FlagMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				PotionBuilder item = new PotionBuilder(PotionType.SPLASH)
 						.addEffect(new PotionEffect(PotionEffectType.SPEED, 1, 1)).addAllItemFlags()
 						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
@@ -1519,12 +1547,14 @@ public class FlagMenu {
 								.getComponentFromMiniMessage(String.format("<aqua>%s Flag",
 										StringUtils.capitaliseAllWords(
 												HellblockFlag.FlagType.POTION_SPLASH.getName().replace("-", " "))))))
-						.addLoreLines(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
-								.getAdventureManager()
-								.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s", HellblockPlugin
-										.getInstance().getStorageManager().getOnlineUser(playerUUID).getHellblockData()
-										.getProtectionValue(HellblockFlag.FlagType.POTION_SPLASH).getReturnValue()))));
-				if (HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID).getHellblockData()
+						.addLoreLines(
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s",
+												HellblockPlugin.getInstance().getStorageManager()
+														.getOnlineUser(playerUUID).get().getHellblockData()
+														.getProtectionValue(HellblockFlag.FlagType.POTION_SPLASH)
+														.getReturnValue()))));
+				if (HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID).get().getHellblockData()
 						.getProtectionValue(HellblockFlag.FlagType.POTION_SPLASH) == AccessType.ALLOW) {
 					item.addEnchantment(Enchantment.UNBREAKING, 1, false);
 				}
@@ -1537,14 +1567,14 @@ public class FlagMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 					.getOnlineUser(player.getUniqueId());
-			if (onlineUser == null)
+			if (onlineUser.isEmpty())
 				return;
-			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				HellblockPlugin.getInstance().getIslandProtectionManager().changeProtectionFlag(player.getUniqueId(),
 						new HellblockFlag(HellblockFlag.FlagType.POTION_SPLASH,
-								(onlineUser.getHellblockData()
+								(onlineUser.get().getHellblockData()
 										.getProtectionValue(HellblockFlag.FlagType.POTION_SPLASH) == AccessType.ALLOW
 												? AccessType.DENY
 												: AccessType.ALLOW)));
@@ -1568,19 +1598,21 @@ public class FlagMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				ItemBuilder item = new ItemBuilder(Material.SNOWBALL).addAllItemFlags()
 						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
 								.getAdventureManager()
 								.getComponentFromMiniMessage(String.format("<aqua>%s Flag",
 										StringUtils.capitaliseAllWords(
 												HellblockFlag.FlagType.SNOWMAN_TRAILS.getName().replace("-", " "))))))
-						.addLoreLines(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
-								.getAdventureManager()
-								.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s", HellblockPlugin
-										.getInstance().getStorageManager().getOnlineUser(playerUUID).getHellblockData()
-										.getProtectionValue(HellblockFlag.FlagType.SNOWMAN_TRAILS).getReturnValue()))));
-				if (HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID).getHellblockData()
+						.addLoreLines(
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s",
+												HellblockPlugin.getInstance().getStorageManager()
+														.getOnlineUser(playerUUID).get().getHellblockData()
+														.getProtectionValue(HellblockFlag.FlagType.SNOWMAN_TRAILS)
+														.getReturnValue()))));
+				if (HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID).get().getHellblockData()
 						.getProtectionValue(HellblockFlag.FlagType.SNOWMAN_TRAILS) == AccessType.ALLOW) {
 					item.addEnchantment(Enchantment.UNBREAKING, 1, false);
 				}
@@ -1593,14 +1625,14 @@ public class FlagMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 					.getOnlineUser(player.getUniqueId());
-			if (onlineUser == null)
+			if (onlineUser.isEmpty())
 				return;
-			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				HellblockPlugin.getInstance().getIslandProtectionManager().changeProtectionFlag(player.getUniqueId(),
 						new HellblockFlag(HellblockFlag.FlagType.SNOWMAN_TRAILS,
-								(onlineUser.getHellblockData()
+								(onlineUser.get().getHellblockData()
 										.getProtectionValue(HellblockFlag.FlagType.SNOWMAN_TRAILS) == AccessType.ALLOW
 												? AccessType.DENY
 												: AccessType.ALLOW)));
@@ -1624,19 +1656,21 @@ public class FlagMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				ItemBuilder item = new ItemBuilder(Material.END_STONE).addAllItemFlags()
 						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
 								.getAdventureManager()
 								.getComponentFromMiniMessage(String.format("<aqua>%s Flag",
 										StringUtils.capitaliseAllWords(
 												HellblockFlag.FlagType.ENDER_BUILD.getName().replace("-", " "))))))
-						.addLoreLines(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
-								.getAdventureManager()
-								.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s", HellblockPlugin
-										.getInstance().getStorageManager().getOnlineUser(playerUUID).getHellblockData()
-										.getProtectionValue(HellblockFlag.FlagType.ENDER_BUILD).getReturnValue()))));
-				if (HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID).getHellblockData()
+						.addLoreLines(
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s",
+												HellblockPlugin.getInstance().getStorageManager()
+														.getOnlineUser(playerUUID).get().getHellblockData()
+														.getProtectionValue(HellblockFlag.FlagType.ENDER_BUILD)
+														.getReturnValue()))));
+				if (HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID).get().getHellblockData()
 						.getProtectionValue(HellblockFlag.FlagType.ENDER_BUILD) == AccessType.ALLOW) {
 					item.addEnchantment(Enchantment.UNBREAKING, 1, false);
 				}
@@ -1649,14 +1683,14 @@ public class FlagMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 					.getOnlineUser(player.getUniqueId());
-			if (onlineUser == null)
+			if (onlineUser.isEmpty())
 				return;
-			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				HellblockPlugin.getInstance().getIslandProtectionManager().changeProtectionFlag(player.getUniqueId(),
 						new HellblockFlag(HellblockFlag.FlagType.ENDER_BUILD,
-								(onlineUser.getHellblockData()
+								(onlineUser.get().getHellblockData()
 										.getProtectionValue(HellblockFlag.FlagType.ENDER_BUILD) == AccessType.ALLOW
 												? AccessType.DENY
 												: AccessType.ALLOW)));
@@ -1680,19 +1714,21 @@ public class FlagMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				ItemBuilder item = new ItemBuilder(Material.GHAST_TEAR).addAllItemFlags()
 						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
 								.getAdventureManager()
 								.getComponentFromMiniMessage(String.format("<aqua>%s Flag",
 										StringUtils.capitaliseAllWords(
 												HellblockFlag.FlagType.GHAST_FIREBALL.getName().replace("-", " "))))))
-						.addLoreLines(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
-								.getAdventureManager()
-								.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s", HellblockPlugin
-										.getInstance().getStorageManager().getOnlineUser(playerUUID).getHellblockData()
-										.getProtectionValue(HellblockFlag.FlagType.GHAST_FIREBALL).getReturnValue()))));
-				if (HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID).getHellblockData()
+						.addLoreLines(
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s",
+												HellblockPlugin.getInstance().getStorageManager()
+														.getOnlineUser(playerUUID).get().getHellblockData()
+														.getProtectionValue(HellblockFlag.FlagType.GHAST_FIREBALL)
+														.getReturnValue()))));
+				if (HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID).get().getHellblockData()
 						.getProtectionValue(HellblockFlag.FlagType.GHAST_FIREBALL) == AccessType.ALLOW) {
 					item.addEnchantment(Enchantment.UNBREAKING, 1, false);
 				}
@@ -1705,14 +1741,14 @@ public class FlagMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 					.getOnlineUser(player.getUniqueId());
-			if (onlineUser == null)
+			if (onlineUser.isEmpty())
 				return;
-			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				HellblockPlugin.getInstance().getIslandProtectionManager().changeProtectionFlag(player.getUniqueId(),
 						new HellblockFlag(HellblockFlag.FlagType.GHAST_FIREBALL,
-								(onlineUser.getHellblockData()
+								(onlineUser.get().getHellblockData()
 										.getProtectionValue(HellblockFlag.FlagType.GHAST_FIREBALL) == AccessType.ALLOW
 												? AccessType.DENY
 												: AccessType.ALLOW)));
@@ -1736,19 +1772,21 @@ public class FlagMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				ItemBuilder item = new ItemBuilder(Material.GOLDEN_APPLE).addAllItemFlags()
 						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
 								.getAdventureManager()
 								.getComponentFromMiniMessage(String.format("<aqua>%s Flag",
 										StringUtils.capitaliseAllWords(
 												HellblockFlag.FlagType.HEALTH_REGEN.getName().replace("-", " "))))))
-						.addLoreLines(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
-								.getAdventureManager()
-								.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s", HellblockPlugin
-										.getInstance().getStorageManager().getOnlineUser(playerUUID).getHellblockData()
-										.getProtectionValue(HellblockFlag.FlagType.HEALTH_REGEN).getReturnValue()))));
-				if (HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID).getHellblockData()
+						.addLoreLines(
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s",
+												HellblockPlugin.getInstance().getStorageManager()
+														.getOnlineUser(playerUUID).get().getHellblockData()
+														.getProtectionValue(HellblockFlag.FlagType.HEALTH_REGEN)
+														.getReturnValue()))));
+				if (HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID).get().getHellblockData()
 						.getProtectionValue(HellblockFlag.FlagType.HEALTH_REGEN) == AccessType.ALLOW) {
 					item.addEnchantment(Enchantment.UNBREAKING, 1, false);
 				}
@@ -1761,14 +1799,14 @@ public class FlagMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 					.getOnlineUser(player.getUniqueId());
-			if (onlineUser == null)
+			if (onlineUser.isEmpty())
 				return;
-			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				HellblockPlugin.getInstance().getIslandProtectionManager().changeProtectionFlag(player.getUniqueId(),
 						new HellblockFlag(HellblockFlag.FlagType.HEALTH_REGEN,
-								(onlineUser.getHellblockData()
+								(onlineUser.get().getHellblockData()
 										.getProtectionValue(HellblockFlag.FlagType.HEALTH_REGEN) == AccessType.ALLOW
 												? AccessType.DENY
 												: AccessType.ALLOW)));
@@ -1792,19 +1830,21 @@ public class FlagMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				ItemBuilder item = new ItemBuilder(Material.ROTTEN_FLESH).addAllItemFlags()
 						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
 								.getAdventureManager()
 								.getComponentFromMiniMessage(String.format("<aqua>%s Flag",
 										StringUtils.capitaliseAllWords(
 												HellblockFlag.FlagType.HUNGER_DRAIN.getName().replace("-", " "))))))
-						.addLoreLines(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
-								.getAdventureManager()
-								.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s", HellblockPlugin
-										.getInstance().getStorageManager().getOnlineUser(playerUUID).getHellblockData()
-										.getProtectionValue(HellblockFlag.FlagType.HUNGER_DRAIN).getReturnValue()))));
-				if (HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID).getHellblockData()
+						.addLoreLines(
+								new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
+										.getComponentFromMiniMessage(String.format("<yellow>Allowed: <gold>%s",
+												HellblockPlugin.getInstance().getStorageManager()
+														.getOnlineUser(playerUUID).get().getHellblockData()
+														.getProtectionValue(HellblockFlag.FlagType.HUNGER_DRAIN)
+														.getReturnValue()))));
+				if (HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID).get().getHellblockData()
 						.getProtectionValue(HellblockFlag.FlagType.HUNGER_DRAIN) == AccessType.ALLOW) {
 					item.addEnchantment(Enchantment.UNBREAKING, 1, false);
 				}
@@ -1817,14 +1857,14 @@ public class FlagMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 					.getOnlineUser(player.getUniqueId());
-			if (onlineUser == null)
+			if (onlineUser.isEmpty())
 				return;
-			if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				HellblockPlugin.getInstance().getIslandProtectionManager().changeProtectionFlag(player.getUniqueId(),
 						new HellblockFlag(HellblockFlag.FlagType.HUNGER_DRAIN,
-								(onlineUser.getHellblockData()
+								(onlineUser.get().getHellblockData()
 										.getProtectionValue(HellblockFlag.FlagType.HUNGER_DRAIN) == AccessType.ALLOW
 												? AccessType.DENY
 												: AccessType.ALLOW)));

@@ -7,41 +7,31 @@ import java.net.URL;
 import java.net.URLConnection;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
-
-import com.google.common.io.ByteStreams;
 
 /**
  * Represents a repository which contains {@link Dependency}s.
  */
 public enum DependencyRepository {
 
+	/**
+	 * Maven Central
+	 */
 	MAVEN_CENTRAL("maven", "https://repo1.maven.org/maven2/") {
 		@Override
 		protected URLConnection openConnection(Dependency dependency) throws IOException {
 			URLConnection connection = super.openConnection(dependency);
-			connection.setConnectTimeout((int) TimeUnit.SECONDS.toMillis(5));
-			connection.setReadTimeout((int) TimeUnit.SECONDS.toMillis(5));
+            connection.setConnectTimeout((int) TimeUnit.SECONDS.toMillis(5));
+            connection.setReadTimeout((int) TimeUnit.SECONDS.toMillis(5));
 			return connection;
 		}
 	},
-
-	/**
-	 * Maven Central
-	 */
-	MAVEN_CENTRAL_MIRROR("aliyun", "https://maven.aliyun.com/repository/public/"),
-	/**
-	 * Code MC
-	 */
-	CODE_MC("codemc", "https://repo.codemc.io/repository/maven-public/"),
 	/**
 	 * xenondevs
 	 */
-	XENONDEVS("xenondevs", "https://repo.xenondevs.xyz/releases/"),
-	/**
-	 * Jitpack
-	 */
-	JITPACK("jitpack", "https://jitpack.io/");
+	XENONDEVS("xenondevs", "https://repo.xenondevs.xyz/releases/");
 
 	private final String url;
 	private final String id;
@@ -51,13 +41,18 @@ public enum DependencyRepository {
 		this.id = id;
 	}
 
-	public static DependencyRepository getByID(String id) {
+	public String getUrl() {
+		return url;
+	}
+
+	public static List<DependencyRepository> getByID(String id) {
+		List<DependencyRepository> repositories = new ArrayList<>();
 		for (DependencyRepository repository : values()) {
 			if (id.equals(repository.id)) {
-				return repository;
+				repositories.add(repository);
 			}
 		}
-		return null;
+		return repositories;
 	}
 
 	/**
@@ -83,7 +78,7 @@ public enum DependencyRepository {
 		try {
 			URLConnection connection = openConnection(dependency);
 			try (InputStream in = connection.getInputStream()) {
-				byte[] bytes = ByteStreams.toByteArray(in);
+				byte[] bytes = in.readAllBytes();
 				if (bytes.length == 0) {
 					throw new DependencyDownloadException("Empty stream");
 				}

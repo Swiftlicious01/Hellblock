@@ -187,7 +187,7 @@ public class ArmorStandUtils {
 		int id = new Random().nextInt(Integer.MAX_VALUE);
 		HellblockPlugin.getInstance().sendPackets(player, getSpawnPacket(id, location.clone().subtract(0, 1, 0)),
 				getMetaPacket(id), getEquipPacket(id, itemStack));
-		HellblockPlugin.getInstance().getScheduler().runTaskAsyncLater(
+		HellblockPlugin.getInstance().getScheduler().asyncLater(
 				() -> HellblockPlugin.getInstance().getProtocolManager().sendServerPacket(player, getDestroyPacket(id)),
 				seconds * 50L, TimeUnit.MILLISECONDS);
 	}
@@ -205,7 +205,7 @@ public class ArmorStandUtils {
 		int id = new Random().nextInt(Integer.MAX_VALUE);
 		HellblockPlugin.getInstance().sendPackets(player, getSpawnPacket(id, location.clone().subtract(0, 1, 0)),
 				getMetaPacket(id, component));
-		HellblockPlugin.getInstance().getScheduler().runTaskAsyncLater(
+		HellblockPlugin.getInstance().getScheduler().asyncLater(
 				() -> HellblockPlugin.getInstance().getProtocolManager().sendServerPacket(player, getDestroyPacket(id)),
 				seconds * 50L, TimeUnit.MILLISECONDS);
 	}

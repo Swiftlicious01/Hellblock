@@ -33,73 +33,73 @@ public class HellblockData {
 
 	@Expose
 	@SerializedName("id")
-	public int id;
+	protected int id;
 	@Expose
 	@SerializedName("level")
-	public float level;
+	protected float level;
 	@Expose
 	@SerializedName("exists")
-	public boolean hasHellblock;
+	protected boolean hasHellblock;
 	@Expose
 	@SerializedName("owner")
-	public UUID ownerUUID;
+	protected UUID ownerUUID;
 	@Expose
 	@SerializedName("linked")
-	public UUID linkedUUID;
+	protected UUID linkedUUID;
 	@Expose
 	@SerializedName("bounds")
-	public BoundingBox boundingBox;
+	protected BoundingBox boundingBox;
 	@Expose
 	@SerializedName("party")
-	public Set<UUID> party;
+	protected Set<UUID> party;
 	@Expose
 	@SerializedName("trusted")
-	public Set<UUID> trusted;
+	protected Set<UUID> trusted;
 	@Expose
 	@SerializedName("banned")
-	public Set<UUID> banned;
+	protected Set<UUID> banned;
 	@Expose
 	@SerializedName("invitations")
-	public Map<UUID, Long> invitations;
+	protected Map<UUID, Long> invitations;
 	@Expose
 	@SerializedName("flags")
-	public Map<FlagType, AccessType> flags;
+	protected Map<FlagType, AccessType> flags;
 	@Expose
 	@SerializedName("location")
-	public Location location;
+	protected Location location;
 	@Expose
 	@SerializedName("home")
-	public Location home;
+	protected Location home;
 	@Expose
 	@SerializedName("creation")
-	public long creationTime;
+	protected long creationTime;
 	@Expose
 	@SerializedName("visitors")
-	public int visitors;
+	protected int visitors;
 	@Expose
 	@SerializedName("biome")
-	public HellBiome biome;
+	protected HellBiome biome;
 	@Expose
 	@SerializedName("choice")
-	public IslandOptions choice;
+	protected IslandOptions choice;
 	@Expose
 	@SerializedName("schematic")
-	public String schematic;
+	protected String schematic;
 	@Expose
 	@SerializedName("locked")
-	public boolean locked;
+	protected boolean locked;
 	@Expose
 	@SerializedName("abandoned")
-	public boolean abandoned;
+	protected boolean abandoned;
 	@Expose
 	@SerializedName("resetcooldown")
-	public long resetCooldown;
+	protected long resetCooldown;
 	@Expose
 	@SerializedName("biomecooldown")
-	public long biomeCooldown;
+	protected long biomeCooldown;
 	@Expose
 	@SerializedName("transfercooldown")
-	public long transferCooldown;
+	protected long transferCooldown;
 
 	public final static float DEFAULT_LEVEL = 1.0F;
 
@@ -266,7 +266,7 @@ public class HellblockData {
 		return this.flags;
 	}
 
-	public AccessType getProtectionValue(@NonNull FlagType flag) {
+	public @NonNull AccessType getProtectionValue(@NonNull FlagType flag) {
 		AccessType returnValue = flag.getDefaultValue() ? AccessType.ALLOW : AccessType.DENY;
 		if (!this.flags.isEmpty()) {
 			for (Entry<FlagType, AccessType> flags : this.flags.entrySet()) {
@@ -283,12 +283,11 @@ public class HellblockData {
 		this.hasHellblock = hasHellblock;
 		this.location = hellblockLocation;
 		this.id = hellblockID;
-		// TODO: not working using storage yaml?
 		this.level = HellblockData.DEFAULT_LEVEL;
 		this.biome = HellBiome.NETHER_WASTES;
 	}
 
-	public void transferHellblockData(@NonNull OnlineUser transferee) {
+	public void transferHellblockData(@NonNull UserData transferee) {
 		this.id = transferee.getHellblockData().id;
 		this.hasHellblock = transferee.getHellblockData().hasHellblock;
 		this.location = transferee.getHellblockData().location;
@@ -516,8 +515,19 @@ public class HellblockData {
 		}
 	}
 
+	/**
+	 * Creates an instance of HellblockData with default values (empty values).
+	 *
+	 * @return a new instance of HellblockData with default values.
+	 */
 	public static @NonNull HellblockData empty() {
 		return new HellblockData(0, 0.0F, false, null, null, null, new HashSet<>(), new HashSet<>(), new HashSet<>(),
 				new HashMap<>(), new HashMap<>(), null, null, 0L, 0, null, null, null, false, false, 0L, 0L, 0L);
+	}
+
+	public @NonNull HellblockData copy() {
+		return new HellblockData(id, level, hasHellblock, ownerUUID, linkedUUID, boundingBox, party, trusted, banned,
+				invitations, flags, location, home, creationTime, visitors, biome, choice, schematic, locked, abandoned,
+				resetCooldown, biomeCooldown, transferCooldown);
 	}
 }

@@ -1,5 +1,6 @@
 package com.swiftlicious.hellblock.generation;
 
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
 import org.bukkit.Location;
@@ -9,14 +10,15 @@ import org.bukkit.entity.Player;
 import org.jetbrains.annotations.Nullable;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
-import com.swiftlicious.hellblock.player.OnlineUser;
+import com.swiftlicious.hellblock.config.HBConfig;
+import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.utils.LogUtils;
 
 import lombok.NonNull;
 
 public class IslandChoiceConverter {
 
-	private final HellblockPlugin instance;
+	protected final HellblockPlugin instance;
 
 	public IslandChoiceConverter(HellblockPlugin plugin) {
 		instance = plugin;
@@ -28,28 +30,28 @@ public class IslandChoiceConverter {
 
 	public CompletableFuture<Void> convertIslandChoice(@NonNull Player player, @NonNull Location location,
 			@Nullable String schematic) {
-		OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
-		if (onlineUser == null)
+		Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
+		if (onlineUser.isEmpty())
 			return CompletableFuture.completedFuture(null);
 		World world = instance.getHellblockHandler().getHellblockWorld();
 		int x = location.getBlockX();
-		int y = instance.getHellblockHandler().getHeight();
+		int y = HBConfig.height;
 		int z = location.getBlockZ();
 		Block highest = world.getHighestBlockAt(x, z);
-		if (instance.getHellblockHandler().getIslandOptions().isEmpty()) {
+		if (HBConfig.islandOptions.isEmpty()) {
 			LogUtils.severe(
 					"An error occurred while retrieving the options for hellblock islands to choose from. Defaulting to classic island.");
 			return instance.getIslandGenerator().generateClassicHellblock(location, player).thenRun(() -> {
-				onlineUser.getHellblockData()
+				onlineUser.get().getHellblockData()
 						.setHomeLocation(new Location(world, highest.getX() - 0.5, y + 3, highest.getZ() - 0.5, 90, 0));
 			});
 		}
-		IslandOptions choice = onlineUser.getHellblockData().getIslandChoice();
+		IslandOptions choice = onlineUser.get().getHellblockData().getIslandChoice();
 		switch (choice) {
 		case IslandOptions.DEFAULT:
-			if (instance.getHellblockHandler().getIslandOptions().contains(IslandOptions.DEFAULT.getName())) {
+			if (HBConfig.islandOptions.contains(IslandOptions.DEFAULT.getName())) {
 				return instance.getIslandGenerator().generateDefaultHellblock(location, player).thenRun(() -> {
-					onlineUser.getHellblockData().setHomeLocation(
+					onlineUser.get().getHellblockData().setHomeLocation(
 							new Location(world, highest.getX() + 0.5, y + 5, highest.getZ() + 2.5, -175, 0));
 				});
 			} else {
@@ -57,9 +59,9 @@ public class IslandChoiceConverter {
 						"<red>The default hellblock island type isn't available to generate!");
 			}
 		case IslandOptions.CLASSIC:
-			if (instance.getHellblockHandler().getIslandOptions().contains(IslandOptions.CLASSIC.getName())) {
+			if (HBConfig.islandOptions.contains(IslandOptions.CLASSIC.getName())) {
 				return instance.getIslandGenerator().generateClassicHellblock(location, player).thenRun(() -> {
-					onlineUser.getHellblockData().setHomeLocation(
+					onlineUser.get().getHellblockData().setHomeLocation(
 							new Location(world, highest.getX() - 0.5, y + 3, highest.getZ() - 0.5, 90, 0));
 				});
 			} else {
@@ -68,7 +70,7 @@ public class IslandChoiceConverter {
 			}
 		case IslandOptions.SCHEMATIC:
 			boolean schematicsAvailable = false;
-			for (String list : instance.getHellblockHandler().getIslandOptions()) {
+			for (String list : HBConfig.islandOptions) {
 				if (list.equalsIgnoreCase(IslandOptions.CLASSIC.getName())
 						|| list.equalsIgnoreCase(IslandOptions.DEFAULT.getName()))
 					continue;
@@ -81,7 +83,7 @@ public class IslandChoiceConverter {
 			if (schematicsAvailable) {
 				return instance.getIslandGenerator().generateHellblockSchematic(location, player, schematic)
 						.thenRun(() -> {
-							onlineUser.getHellblockData().setHomeLocation(
+							onlineUser.get().getHellblockData().setHomeLocation(
 									new Location(world, highest.getX() + 0.5, y + 5, highest.getZ() + 2.5, -175, 0));
 						});
 			} else {
@@ -90,7 +92,7 @@ public class IslandChoiceConverter {
 			}
 		default:
 			return instance.getIslandGenerator().generateClassicHellblock(location, player).thenRun(() -> {
-				onlineUser.getHellblockData()
+				onlineUser.get().getHellblockData()
 						.setHomeLocation(new Location(world, highest.getX() - 0.5, y + 3, highest.getZ() - 0.5, 90, 0));
 			});
 		}

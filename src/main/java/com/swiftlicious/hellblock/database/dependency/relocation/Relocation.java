@@ -1,9 +1,9 @@
-package com.swiftlicious.hellblock.database.dependency;
+package com.swiftlicious.hellblock.database.dependency.relocation;
 
 import java.util.Objects;
 
 public final class Relocation {
-	private static final String RELOCATION_PREFIX = "com.swiftlicious.hellblock.lib.";
+	private static final String RELOCATION_PREFIX = "com.swiftlicious.hellblock.libraries.";
 
 	public static Relocation of(String id, String pattern) {
 		return new Relocation(pattern.replace("{}", "."), RELOCATION_PREFIX + id);

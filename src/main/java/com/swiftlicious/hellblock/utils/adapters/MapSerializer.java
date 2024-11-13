@@ -1,13 +1,11 @@
 package com.swiftlicious.hellblock.utils.adapters;
 
 import java.lang.reflect.Type;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
+import java.util.Map.Entry;
 
 import com.google.gson.Gson;
-import com.google.gson.JsonArray;
 import com.google.gson.JsonDeserializationContext;
 import com.google.gson.JsonDeserializer;
 import com.google.gson.JsonElement;
@@ -16,7 +14,6 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
 import com.google.gson.JsonSerializationContext;
 import com.google.gson.JsonSerializer;
-import com.google.gson.reflect.TypeToken;
 import com.swiftlicious.hellblock.HellblockPlugin;
 
 public class MapSerializer<K, V> implements JsonSerializer<Map<K, V>>, JsonDeserializer<Map<K, V>> {
@@ -49,11 +46,9 @@ public class MapSerializer<K, V> implements JsonSerializer<Map<K, V>>, JsonDeser
 			return JsonNull.INSTANCE;
 		JsonObject jsonObject = new JsonObject();
 
-		jsonObject.add("keys", jsonSerializationContext.serialize(kvMap.keySet(), (new TypeToken<Set<K>>() {
-		}).getType()));
-
-		jsonObject.add("values", jsonSerializationContext.serialize(kvMap.values(), (new TypeToken<Collection<V>>() {
-		}).getType()));
+		for (Map.Entry<K, V> entry : kvMap.entrySet()) {
+			jsonObject.add(entry.getKey().toString(), jsonSerializationContext.serialize(entry.getValue()));
+		}
 
 		return jsonObject;
 	}
@@ -74,14 +69,10 @@ public class MapSerializer<K, V> implements JsonSerializer<Map<K, V>>, JsonDeser
 
 		JsonObject jsonObject = (JsonObject) jsonElement;
 
-		JsonArray keys = jsonObject.get("keys").getAsJsonArray();
-		JsonArray values = jsonObject.get("values").getAsJsonArray();
-
 		Map<K, V> reAssembledHashMap = new HashMap<>();
-		for (int i = 0; i < keys.size(); i++) {
-
-			reAssembledHashMap.put(gson.fromJson(keys.get(i), keysClassType),
-					gson.fromJson(values.get(i), valuesClassType));
+		for (Entry<String, JsonElement> entry : jsonObject.entrySet()) {
+			reAssembledHashMap.put(gson.fromJson(entry.getKey(), keysClassType),
+					gson.fromJson(entry.getValue(), valuesClassType));
 		}
 		return reAssembledHashMap;
 	}

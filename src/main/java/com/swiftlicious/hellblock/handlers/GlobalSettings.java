@@ -3,19 +3,20 @@ package com.swiftlicious.hellblock.handlers;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.bukkit.configuration.ConfigurationSection;
-
 import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.api.Reloadable;
 import com.swiftlicious.hellblock.effects.EffectModifier;
 import com.swiftlicious.hellblock.utils.extras.Action;
 import com.swiftlicious.hellblock.utils.extras.ActionTrigger;
 import com.swiftlicious.hellblock.utils.extras.Condition;
 
+import dev.dejvokep.boostedyaml.block.implementation.Section;
+
 /**
  * Represents global settings for actions related to fishing, loot, rods, and
  * bait.
  */
-public class GlobalSettings {
+public class GlobalSettings implements Reloadable {
 
 	private Map<ActionTrigger, Action[]> lootActions = new HashMap<>();
 	private Map<ActionTrigger, Action[]> rodActions = new HashMap<>();
@@ -28,11 +29,11 @@ public class GlobalSettings {
 	 *
 	 * @param section The configuration section to load settings from.
 	 */
-	public void loadEvents(ConfigurationSection section) {
+	public void loadEvents(Section section) {
 		if (section == null)
 			return;
-		for (Map.Entry<String, Object> entry : section.getValues(false).entrySet()) {
-			if (entry.getValue() instanceof ConfigurationSection inner) {
+		for (Map.Entry<String, Object> entry : section.getStringRouteMappedValues(false).entrySet()) {
+			if (entry.getValue() instanceof Section inner) {
 				Map<ActionTrigger, Action[]> map = HellblockPlugin.getInstance().getActionManager().getActionMap(inner);
 				switch (entry.getKey()) {
 				case "loot" -> lootActions = map;
@@ -55,6 +56,7 @@ public class GlobalSettings {
 	/**
 	 * Unloads global settings, clearing all action maps.
 	 */
+	@Override
 	public void unload() {
 		lootActions.clear();
 		rodActions.clear();

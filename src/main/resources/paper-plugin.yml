@@ -1,9 +1,8 @@
 main: com.swiftlicious.hellblock.HellblockPlugin
 name: Hellblock
-version: '${version}'
+version: '${project_version}'
 api-version: 1.20.5
 description: Skyblock in the nether!
-loader: com.swiftlicious.hellblock.HellblockPluginLoader
 website: https://github.com/Swiftlicious01/Hellblock
 authors: [ Swiftlicious ]
 folia-supported: true

@@ -1,7 +1,7 @@
 package com.swiftlicious.hellblock.gui.hellblock;
 
 import java.util.Iterator;
-import java.util.concurrent.TimeUnit;
+import java.util.Optional;
 
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
@@ -10,9 +10,10 @@ import org.bukkit.event.inventory.InventoryClickEvent;
 import org.jetbrains.annotations.NotNull;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.config.HBConfig;
 import com.swiftlicious.hellblock.generation.IslandOptions;
 import com.swiftlicious.hellblock.gui.icon.BackGroundItem;
-import com.swiftlicious.hellblock.player.OnlineUser;
+import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.utils.wrappers.ShadedAdventureComponentWrapper;
 
 import xyz.xenondevs.invui.gui.Gui;
@@ -25,14 +26,15 @@ public class IslandChoiceMenu {
 
 	public IslandChoiceMenu(Player player, boolean isReset) {
 
-		OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager().getOnlineUser(player.getUniqueId());
-		if (onlineUser == null) {
+		Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
+				.getOnlineUser(player.getUniqueId());
+		if (onlineUser.isEmpty()) {
 			HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 					"<red>Still loading your player data... please try again in a few seconds.");
 			return;
 		}
 
-		if (!HellblockPlugin.getInstance().getHellblockHandler().getIslandOptions().isEmpty()) {
+		if (!HBConfig.islandOptions.isEmpty()) {
 			Gui gui = Gui.normal().setStructure("# d c s #").addIngredient('d', new DefaultIslandChoiceItem(isReset))
 					.addIngredient('c', new ClassicIslandChoiceItem(isReset))
 					.addIngredient('s', new SchematicIslandChoiceItem(isReset)).addIngredient('#', new BackGroundItem())
@@ -41,7 +43,7 @@ public class IslandChoiceMenu {
 			Window window = Window.single().setViewer(player)
 					.setTitle(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 							.getComponentFromMiniMessage("<red>Hellblock Island Options")))
-					.setGui(gui).setCloseable(onlineUser.getHellblockData().hasHellblock()).build();
+					.setGui(gui).setCloseable(onlineUser.get().getHellblockData().hasHellblock()).build();
 
 			window.open();
 		} else {
@@ -61,8 +63,7 @@ public class IslandChoiceMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			if (HellblockPlugin.getInstance().getHellblockHandler().getIslandOptions()
-					.contains(IslandOptions.DEFAULT.getName())) {
+			if (HBConfig.islandOptions.contains(IslandOptions.DEFAULT.getName())) {
 				return new ItemBuilder(Material.NETHERRACK)
 						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
 								.getAdventureManager().getComponentFromMiniMessage("<red>Default Hellblock Island")))
@@ -83,22 +84,22 @@ public class IslandChoiceMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 					.getOnlineUser(player.getUniqueId());
-			if (onlineUser == null)
+			if (onlineUser.isEmpty())
 				return;
 			if (event.getCurrentItem() != null && event.getCurrentItem().getType() == Material.NETHERRACK) {
-				if (isReset && onlineUser.getHellblockData().getResetCooldown() > 0) {
+				if (isReset && onlineUser.get().getHellblockData().getResetCooldown() > 0) {
 					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 							String.format("<red>You've recently reset your hellblock already, you must wait for %s!",
-									HellblockPlugin.getInstance()
-											.getFormattedCooldown(onlineUser.getHellblockData().getResetCooldown())));
+									HellblockPlugin.getInstance().getFormattedCooldown(
+											onlineUser.get().getHellblockData().getResetCooldown())));
 					HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
 							net.kyori.adventure.sound.Sound.Source.PLAYER,
 							net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 					return;
 				}
-				HellblockPlugin.getInstance().getScheduler().runTaskSyncLater(() -> {
+				HellblockPlugin.getInstance().getScheduler().sync().runLater(() -> {
 					for (Iterator<Window> windows = getWindows().iterator(); windows.hasNext();) {
 						Window window = windows.next();
 						if (window.getViewerUUID().equals(player.getUniqueId())) {
@@ -106,7 +107,7 @@ public class IslandChoiceMenu {
 							window.close();
 						}
 					}
-				}, player.getLocation(), 1, TimeUnit.SECONDS);
+				}, 1 * 20L, player.getLocation());
 				HellblockPlugin.getInstance().getHellblockHandler().createHellblock(player, IslandOptions.DEFAULT,
 						isReset);
 				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
@@ -132,8 +133,7 @@ public class IslandChoiceMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			if (HellblockPlugin.getInstance().getHellblockHandler().getIslandOptions()
-					.contains(IslandOptions.CLASSIC.getName())) {
+			if (HBConfig.islandOptions.contains(IslandOptions.CLASSIC.getName())) {
 				return new ItemBuilder(Material.SOUL_SAND)
 						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
 								.getAdventureManager().getComponentFromMiniMessage("<red>Classic Hellblock Island")))
@@ -154,22 +154,22 @@ public class IslandChoiceMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 					.getOnlineUser(player.getUniqueId());
-			if (onlineUser == null)
+			if (onlineUser.isEmpty())
 				return;
 			if (event.getCurrentItem() != null && event.getCurrentItem().getType() == Material.SOUL_SAND) {
-				if (isReset && onlineUser.getHellblockData().getResetCooldown() > 0) {
+				if (isReset && onlineUser.get().getHellblockData().getResetCooldown() > 0) {
 					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 							String.format("<red>You've recently reset your hellblock already, you must wait for %s!",
-									HellblockPlugin.getInstance()
-											.getFormattedCooldown(onlineUser.getHellblockData().getResetCooldown())));
+									HellblockPlugin.getInstance().getFormattedCooldown(
+											onlineUser.get().getHellblockData().getResetCooldown())));
 					HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
 							net.kyori.adventure.sound.Sound.Source.PLAYER,
 							net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 					return;
 				}
-				HellblockPlugin.getInstance().getScheduler().runTaskSyncLater(() -> {
+				HellblockPlugin.getInstance().getScheduler().sync().runLater(() -> {
 					for (Iterator<Window> windows = getWindows().iterator(); windows.hasNext();) {
 						Window window = windows.next();
 						if (window.getViewerUUID().equals(player.getUniqueId())) {
@@ -177,7 +177,7 @@ public class IslandChoiceMenu {
 							window.close();
 						}
 					}
-				}, player.getLocation(), 1, TimeUnit.SECONDS);
+				}, 1 * 20L, player.getLocation());
 				HellblockPlugin.getInstance().getHellblockHandler().createHellblock(player, IslandOptions.CLASSIC,
 						isReset);
 				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
@@ -204,7 +204,7 @@ public class IslandChoiceMenu {
 		@Override
 		public ItemProvider getItemProvider() {
 			boolean schematicsAvailable = false;
-			for (String list : HellblockPlugin.getInstance().getHellblockHandler().getIslandOptions()) {
+			for (String list : HBConfig.islandOptions) {
 				if (list.equalsIgnoreCase(IslandOptions.CLASSIC.getName())
 						|| list.equalsIgnoreCase(IslandOptions.DEFAULT.getName()))
 					continue;
@@ -235,23 +235,23 @@ public class IslandChoiceMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 					.getOnlineUser(player.getUniqueId());
-			if (onlineUser == null)
+			if (onlineUser.isEmpty())
 				return;
 			if (event.getCurrentItem() != null && event.getCurrentItem().getType() == Material.MAP) {
-				if (isReset && onlineUser.getHellblockData().getResetCooldown() > 0) {
+				if (isReset && onlineUser.get().getHellblockData().getResetCooldown() > 0) {
 					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 							String.format("<red>You've recently reset your hellblock already, you must wait for %s!",
-									HellblockPlugin.getInstance()
-											.getFormattedCooldown(onlineUser.getHellblockData().getResetCooldown())));
+									HellblockPlugin.getInstance().getFormattedCooldown(
+											onlineUser.get().getHellblockData().getResetCooldown())));
 					HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
 							net.kyori.adventure.sound.Sound.Source.PLAYER,
 							net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 					return;
 				}
 				boolean schematicsAvailable = false;
-				for (String list : HellblockPlugin.getInstance().getHellblockHandler().getIslandOptions()) {
+				for (String list : HBConfig.islandOptions) {
 					if (list.equalsIgnoreCase(IslandOptions.CLASSIC.getName())
 							|| list.equalsIgnoreCase(IslandOptions.DEFAULT.getName()))
 						continue;

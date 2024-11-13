@@ -3,9 +3,9 @@ package com.swiftlicious.hellblock.listeners;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
@@ -45,9 +45,8 @@ import com.swiftlicious.hellblock.config.HBConfig;
 import com.swiftlicious.hellblock.events.worldguard.RegionEnteredEvent;
 import com.swiftlicious.hellblock.gui.hellblock.IslandChoiceMenu;
 import com.swiftlicious.hellblock.player.UUIDFetcher;
-import com.swiftlicious.hellblock.player.OfflineUser;
-import com.swiftlicious.hellblock.player.OnlineUser;
-import com.swiftlicious.hellblock.scheduler.CancellableTask;
+import com.swiftlicious.hellblock.player.UserData;
+import com.swiftlicious.hellblock.scheduler.SchedulerTask;
 import com.swiftlicious.hellblock.utils.ChunkUtils;
 import com.swiftlicious.hellblock.utils.LocationUtils;
 import io.papermc.paper.event.player.AsyncChatEvent;
@@ -58,9 +57,9 @@ import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 
 public class PlayerListener implements Listener {
 
-	private final HellblockPlugin instance;
+	protected final HellblockPlugin instance;
 	@Getter
-	private final Map<UUID, CancellableTask> cancellablePortal;
+	private final Map<UUID, SchedulerTask> cancellablePortal;
 	@Getter
 	private final Set<UUID> linkPortalCatcher;
 
@@ -73,10 +72,10 @@ public class PlayerListener implements Listener {
 
 	@EventHandler
 	public void onBedClick(PlayerBedFailEnterEvent event) {
-		if (!instance.getHellblockHandler().isDisableBedExplosions())
+		if (!HBConfig.disableBedExplosions)
 			return;
 		final Player player = event.getPlayer();
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!player.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 
 		Block bed = event.getBed();
@@ -90,7 +89,7 @@ public class PlayerListener implements Listener {
 	@EventHandler
 	public void onFireworkDamage(EntityDamageByEntityEvent event) {
 		if (event.getEntity() instanceof Player player) {
-			if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+			if (!player.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 				return;
 			if (event.getDamager() instanceof Firework firework) {
 				if (firework.getFireworkMeta().getPersistentDataContainer()
@@ -104,7 +103,7 @@ public class PlayerListener implements Listener {
 	@EventHandler
 	public void onFallingBlockLandOnSoulSand(EntityDropItemEvent event) {
 		if (event.getEntity() instanceof FallingBlock fallingBlock) {
-			if (!fallingBlock.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+			if (!fallingBlock.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 				return;
 			if (fallingBlock.getLocation().getBlock().getType() == Material.SOUL_SAND
 					&& fallingBlock.getLocation().getBlock().getRelative(BlockFace.UP).getType() != Material.LAVA) {
@@ -119,26 +118,26 @@ public class PlayerListener implements Listener {
 	@EventHandler
 	public void onRegionEnterIfBanned(RegionEnteredEvent event) {
 		final Player player = event.getPlayer();
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!player.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 		final UUID id = player.getUniqueId();
-		OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(id);
-		if (onlineUser == null)
+		Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(id);
+		if (onlineUser.isEmpty())
 			return;
 		UUID ownerUUID = event.getRegion().getOwners().getUniqueIds().stream().findFirst().orElse(null);
 		if (ownerUUID == null)
 			return;
 		if (instance.getCoopManager().trackBannedPlayer(ownerUUID, id)) {
-			if (onlineUser.getHellblockData().hasHellblock()) {
-				if (onlineUser.getHellblockData().getOwnerUUID() == null) {
+			if (onlineUser.get().getHellblockData().hasHellblock()) {
+				if (onlineUser.get().getHellblockData().getOwnerUUID() == null) {
 					throw new NullPointerException(
 							"Owner reference returned null, please report this to the developer.");
 				}
 				instance.getStorageManager()
-						.getOfflineUser(onlineUser.getHellblockData().getOwnerUUID(), HBConfig.lockData)
+						.getOfflineUserData(onlineUser.get().getHellblockData().getOwnerUUID(), HBConfig.lockData)
 						.thenAccept((owner) -> {
-							OfflineUser ownerUser = owner.orElseThrow();
-							instance.getCoopManager().makeHomeLocationSafe(ownerUser, onlineUser);
+							UserData ownerUser = owner.orElseThrow();
+							instance.getCoopManager().makeHomeLocationSafe(ownerUser, onlineUser.get());
 						});
 			} else {
 				instance.getHellblockHandler().teleportToSpawn(player, true);
@@ -148,16 +147,16 @@ public class PlayerListener implements Listener {
 		}
 
 		if (!instance.getCoopManager().checkIfVisitorIsWelcome(player, ownerUUID)) {
-			if (onlineUser.getHellblockData().hasHellblock()) {
-				if (onlineUser.getHellblockData().getOwnerUUID() == null) {
+			if (onlineUser.get().getHellblockData().hasHellblock()) {
+				if (onlineUser.get().getHellblockData().getOwnerUUID() == null) {
 					throw new NullPointerException(
 							"Owner reference returned null, please report this to the developer.");
 				}
 				instance.getStorageManager()
-						.getOfflineUser(onlineUser.getHellblockData().getOwnerUUID(), HBConfig.lockData)
+						.getOfflineUserData(onlineUser.get().getHellblockData().getOwnerUUID(), HBConfig.lockData)
 						.thenAccept((owner) -> {
-							OfflineUser ownerUser = owner.orElseThrow();
-							instance.getCoopManager().makeHomeLocationSafe(ownerUser, onlineUser);
+							UserData ownerUser = owner.orElseThrow();
+							instance.getCoopManager().makeHomeLocationSafe(ownerUser, onlineUser.get());
 						});
 			} else {
 				instance.getHellblockHandler().teleportToSpawn(player, true);
@@ -170,21 +169,21 @@ public class PlayerListener implements Listener {
 	@EventHandler
 	public void onLeaveHellblockBorders(PlayerMoveEvent event) {
 		final Player player = event.getPlayer();
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!player.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 		final UUID id = player.getUniqueId();
 		if (player.getLocation() == null)
 			return;
-		if (instance.getHellblockHandler().isWorldguardProtected()) {
+		if (HBConfig.worldguardProtected) {
 			if (instance.getHellblockHandler().checkIfInSpawn(player.getLocation()))
 				return;
 			if (instance.getCoopManager().getHellblockOwnerOfVisitingIsland(player) == null)
 				return;
 			instance.getStorageManager()
-					.getOfflineUser(instance.getCoopManager().getHellblockOwnerOfVisitingIsland(player),
+					.getOfflineUserData(instance.getCoopManager().getHellblockOwnerOfVisitingIsland(player),
 							HBConfig.lockData)
 					.thenAccept((result) -> {
-						OfflineUser offlineUser = result.orElseThrow();
+						UserData offlineUser = result.orElseThrow();
 						BoundingBox hellblockBounds = offlineUser.getHellblockData().getBoundingBox();
 						if (hellblockBounds != null) {
 							BoundingBox ignoreYValueBounds = new BoundingBox(hellblockBounds.getMinX(),
@@ -192,8 +191,8 @@ public class PlayerListener implements Listener {
 									Double.MAX_VALUE, hellblockBounds.getMaxZ());
 							BoundingBox playerBounds = player.getBoundingBox();
 							if (!ignoreYValueBounds.contains(playerBounds)) {
-								OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(id);
-								if (onlineUser == null)
+								Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(id);
+								if (onlineUser.isEmpty())
 									return;
 								LocationUtils.isSafeLocationAsync(offlineUser.getHellblockData().getHomeLocation())
 										.thenAccept((tiResult) -> {
@@ -201,17 +200,18 @@ public class PlayerListener implements Listener {
 												instance.getAdventureManager().sendMessageWithPrefix(player,
 														"<red>This hellblock home location was deemed not safe, teleporting to your hellblock instead!");
 
-												if (onlineUser.getHellblockData().getOwnerUUID() == null) {
+												if (onlineUser.get().getHellblockData().getOwnerUUID() == null) {
 													throw new NullPointerException(
 															"Owner reference returned null, please report this to the developer.");
 												}
 												instance.getStorageManager()
-														.getOfflineUser(onlineUser.getHellblockData().getOwnerUUID(),
+														.getOfflineUserData(
+																onlineUser.get().getHellblockData().getOwnerUUID(),
 																HBConfig.lockData)
 														.thenAccept((owner) -> {
-															OfflineUser ownerUser = owner.orElseThrow();
+															UserData ownerUser = owner.orElseThrow();
 															instance.getCoopManager()
-																	.makeHomeLocationSafe(ownerUser, onlineUser)
+																	.makeHomeLocationSafe(ownerUser, onlineUser.get())
 																	.thenRun(() -> instance.getAdventureManager()
 																			.sendMessage(player,
 																					"<red>You can't leave the hellblock borders."));
@@ -236,21 +236,21 @@ public class PlayerListener implements Listener {
 		if (event.getCause() == TeleportCause.ENDER_PEARL || event.getCause() == TeleportCause.CHORUS_FRUIT
 				|| event.getCause() == TeleportCause.DISMOUNT) {
 			final Player player = event.getPlayer();
-			if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+			if (!player.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 				return;
 			final UUID id = player.getUniqueId();
 			if (player.getLocation() == null)
 				return;
-			if (instance.getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				if (instance.getHellblockHandler().checkIfInSpawn(player.getLocation()))
 					return;
 				if (instance.getCoopManager().getHellblockOwnerOfVisitingIsland(player) == null)
 					return;
 				instance.getStorageManager()
-						.getOfflineUser(instance.getCoopManager().getHellblockOwnerOfVisitingIsland(player),
+						.getOfflineUserData(instance.getCoopManager().getHellblockOwnerOfVisitingIsland(player),
 								HBConfig.lockData)
 						.thenAccept((result) -> {
-							OfflineUser offlineUser = result.orElseThrow();
+							UserData offlineUser = result.orElseThrow();
 							BoundingBox hellblockBounds = offlineUser.getHellblockData().getBoundingBox();
 							if (hellblockBounds != null) {
 								BoundingBox ignoreYValueBounds = new BoundingBox(hellblockBounds.getMinX(),
@@ -258,8 +258,8 @@ public class PlayerListener implements Listener {
 										Double.MAX_VALUE, hellblockBounds.getMaxZ());
 								BoundingBox playerBounds = player.getBoundingBox();
 								if (!ignoreYValueBounds.contains(playerBounds)) {
-									OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(id);
-									if (onlineUser == null)
+									Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(id);
+									if (onlineUser.isEmpty())
 										return;
 									LocationUtils.isSafeLocationAsync(offlineUser.getHellblockData().getHomeLocation())
 											.thenAccept((tiResult) -> {
@@ -267,18 +267,19 @@ public class PlayerListener implements Listener {
 													instance.getAdventureManager().sendMessageWithPrefix(player,
 															"<red>This hellblock home location was deemed not safe, teleporting to your hellblock instead!");
 
-													if (onlineUser.getHellblockData().getOwnerUUID() == null) {
+													if (onlineUser.get().getHellblockData().getOwnerUUID() == null) {
 														throw new NullPointerException(
 																"Owner reference returned null, please report this to the developer.");
 													}
 													instance.getStorageManager()
-															.getOfflineUser(
-																	onlineUser.getHellblockData().getOwnerUUID(),
+															.getOfflineUserData(
+																	onlineUser.get().getHellblockData().getOwnerUUID(),
 																	HBConfig.lockData)
 															.thenAccept((owner) -> {
-																OfflineUser ownerUser = owner.orElseThrow();
+																UserData ownerUser = owner.orElseThrow();
 																instance.getCoopManager()
-																		.makeHomeLocationSafe(ownerUser, onlineUser)
+																		.makeHomeLocationSafe(ownerUser,
+																				onlineUser.get())
 																		.thenRun(() -> instance.getAdventureManager()
 																				.sendMessage(player,
 																						"<red>You can't leave the hellblock borders."));
@@ -305,21 +306,22 @@ public class PlayerListener implements Listener {
 		if (player.getWorld().getEnvironment() == Environment.NETHER
 				&& event.getCause() == TeleportCause.NETHER_PORTAL) {
 			event.setCancelled(true);
-			OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
-			if (onlineUser == null)
+			Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
+			if (onlineUser.isEmpty())
 				return;
-			CancellableTask portalTask = instance.getScheduler().runTaskSyncLater(() -> {
-				if (onlineUser.getHellblockData().hasHellblock()) {
-					if (onlineUser.getHellblockData().getLinkedUUID() != null) {
+			SchedulerTask portalTask = instance.getScheduler().sync().runLater(() -> {
+				if (onlineUser.get().getHellblockData().hasHellblock()) {
+					if (onlineUser.get().getHellblockData().getLinkedUUID() != null) {
 						instance.getStorageManager()
-								.getOfflineUser(onlineUser.getHellblockData().getLinkedUUID(), HBConfig.lockData)
+								.getOfflineUserData(onlineUser.get().getHellblockData().getLinkedUUID(),
+										HBConfig.lockData)
 								.thenAccept((result) -> {
-									OfflineUser offlineUser = result.orElseThrow();
+									UserData offlineUser = result.orElseThrow();
 									if (!offlineUser.getHellblockData().hasHellblock()
 											|| offlineUser.getHellblockData().isAbandoned()) {
 										instance.getAdventureManager().sendMessageWithPrefix(player,
 												"<red>This hellblock was reset or abandoned and can't be linked with.");
-										onlineUser.getHellblockData().setLinkedUUID(null);
+										onlineUser.get().getHellblockData().setLinkedUUID(null);
 										return;
 									}
 									if (offlineUser.getHellblockData().isLocked()) {
@@ -333,18 +335,18 @@ public class PlayerListener implements Listener {
 													instance.getAdventureManager().sendMessageWithPrefix(player,
 															"<red>This hellblock home location was deemed not safe, teleporting to your hellblock instead!");
 
-													if (onlineUser.getHellblockData().getOwnerUUID() == null) {
+													if (onlineUser.get().getHellblockData().getOwnerUUID() == null) {
 														throw new NullPointerException(
 																"Owner reference returned null, please report this to the developer.");
 													}
 													instance.getStorageManager()
-															.getOfflineUser(
-																	onlineUser.getHellblockData().getOwnerUUID(),
+															.getOfflineUserData(
+																	onlineUser.get().getHellblockData().getOwnerUUID(),
 																	HBConfig.lockData)
 															.thenAccept((owner) -> {
-																OfflineUser ownerUser = owner.orElseThrow();
-																instance.getCoopManager()
-																		.makeHomeLocationSafe(ownerUser, onlineUser);
+																UserData ownerUser = owner.orElseThrow();
+																instance.getCoopManager().makeHomeLocationSafe(
+																		ownerUser, onlineUser.get());
 															});
 												}
 												return;
@@ -355,28 +357,29 @@ public class PlayerListener implements Listener {
 											});
 								});
 					} else {
-						if (onlineUser.getHellblockData().getOwnerUUID() == null) {
+						if (onlineUser.get().getHellblockData().getOwnerUUID() == null) {
 							throw new NullPointerException(
 									"Owner reference returned null, please report this to the developer.");
 						}
 						instance.getStorageManager()
-								.getOfflineUser(onlineUser.getHellblockData().getOwnerUUID(), HBConfig.lockData)
+								.getOfflineUserData(onlineUser.get().getHellblockData().getOwnerUUID(),
+										HBConfig.lockData)
 								.thenAccept((owner) -> {
-									OfflineUser ownerUser = owner.orElseThrow();
-									instance.getCoopManager().makeHomeLocationSafe(ownerUser, onlineUser);
+									UserData ownerUser = owner.orElseThrow();
+									instance.getCoopManager().makeHomeLocationSafe(ownerUser, onlineUser.get());
 								});
 					}
 				} else {
 					new IslandChoiceMenu(player, false);
 				}
-			}, onlineUser.getHellblockData().getHomeLocation(), 5, TimeUnit.SECONDS);
+			}, 5 * 20, onlineUser.get().getHellblockData().getHomeLocation());
 			this.cancellablePortal.putIfAbsent(player.getUniqueId(), portalTask);
 		}
 	}
 
 	@EventHandler
 	public void onLinkPortal(PortalCreateEvent event) {
-		if (!event.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!event.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 		if (event.getWorld().getEnvironment() != Environment.NETHER)
 			return;
@@ -384,19 +387,20 @@ public class PlayerListener implements Listener {
 			return;
 		if (event.getEntity() != null && event.getEntity() instanceof Player player) {
 			final UUID id = player.getUniqueId();
-			OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(id);
-			if (onlineUser == null)
+			Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(id);
+			if (onlineUser.isEmpty())
 				return;
-			if (onlineUser.getHellblockData().hasHellblock()) {
+			if (onlineUser.get().getHellblockData().hasHellblock()) {
 				if (!this.linkPortalCatcher.contains(id)) {
 					instance.getAdventureManager().sendMessage(player,
 							"<red>Link your home nether portal to another player's hellblock if you wish or keep it as your own!");
 					instance.getAdventureManager().sendMessage(player,
 							"<red>You can always change this just by clicking on your nether portal!");
-					String owner = onlineUser.getHellblockData().getLinkedUUID() != null
-							? (Bukkit.getPlayer(onlineUser.getHellblockData().getLinkedUUID()) != null
-									? Bukkit.getPlayer(onlineUser.getHellblockData().getLinkedUUID()).getName()
-									: Bukkit.getOfflinePlayer(onlineUser.getHellblockData().getLinkedUUID()).getName())
+					String owner = onlineUser.get().getHellblockData().getLinkedUUID() != null
+							? (Bukkit.getPlayer(onlineUser.get().getHellblockData().getLinkedUUID()) != null
+									? Bukkit.getPlayer(onlineUser.get().getHellblockData().getLinkedUUID()).getName()
+									: Bukkit.getOfflinePlayer(onlineUser.get().getHellblockData().getLinkedUUID())
+											.getName())
 							: null;
 					instance.getAdventureManager().sendMessage(player,
 							"<red>Current Linked Hellblock: " + (owner != null ? owner : "None"));
@@ -413,26 +417,27 @@ public class PlayerListener implements Listener {
 	@EventHandler
 	public void onLinkPortal(PlayerInteractEvent event) {
 		final Player player = event.getPlayer();
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!player.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 		if (player.getWorld().getEnvironment() != Environment.NETHER)
 			return;
 		Block block = event.getClickedBlock();
 		if (block != null && block.getType() == Material.NETHER_PORTAL) {
 			final UUID id = player.getUniqueId();
-			OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(id);
-			if (onlineUser == null)
+			Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(id);
+			if (onlineUser.isEmpty())
 				return;
-			if (onlineUser.getHellblockData().hasHellblock()) {
+			if (onlineUser.get().getHellblockData().hasHellblock()) {
 				if (!this.linkPortalCatcher.contains(id)) {
 					instance.getAdventureManager().sendMessage(player,
 							"<red>Link your home nether portal to another player's hellblock if you wish or keep it as your own!");
 					instance.getAdventureManager().sendMessage(player,
 							"<red>You can always change this just by clicking on your nether portal!");
-					String owner = onlineUser.getHellblockData().getLinkedUUID() != null
-							? (Bukkit.getPlayer(onlineUser.getHellblockData().getLinkedUUID()) != null
-									? Bukkit.getPlayer(onlineUser.getHellblockData().getLinkedUUID()).getName()
-									: Bukkit.getOfflinePlayer(onlineUser.getHellblockData().getLinkedUUID()).getName())
+					String owner = onlineUser.get().getHellblockData().getLinkedUUID() != null
+							? (Bukkit.getPlayer(onlineUser.get().getHellblockData().getLinkedUUID()) != null
+									? Bukkit.getPlayer(onlineUser.get().getHellblockData().getLinkedUUID()).getName()
+									: Bukkit.getOfflinePlayer(onlineUser.get().getHellblockData().getLinkedUUID())
+											.getName())
 							: null;
 					instance.getAdventureManager().sendMessage(player,
 							"<red>Current Linked Hellblock: " + (owner != null ? owner : "None"));
@@ -451,8 +456,8 @@ public class PlayerListener implements Listener {
 		final Player player = event.getPlayer();
 		final UUID id = player.getUniqueId();
 		if (this.linkPortalCatcher.contains(id)) {
-			OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(id);
-			if (onlineUser == null)
+			Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(id);
+			if (onlineUser.isEmpty())
 				return;
 			event.setCancelled(true);
 			String username = PlainTextComponentSerializer.plainText().serialize(event.message());
@@ -464,9 +469,9 @@ public class PlayerListener implements Listener {
 			}
 			Player link = Bukkit.getPlayer(username);
 			if (link != null) {
-				if ((onlineUser.getHellblockData().getOwnerUUID() != null
-						&& onlineUser.getHellblockData().getOwnerUUID().equals(link.getUniqueId()))
-						|| onlineUser.getHellblockData().getParty().contains(link.getUniqueId())) {
+				if ((onlineUser.get().getHellblockData().getOwnerUUID() != null
+						&& onlineUser.get().getHellblockData().getOwnerUUID().equals(link.getUniqueId()))
+						|| onlineUser.get().getHellblockData().getParty().contains(link.getUniqueId())) {
 					instance.getAdventureManager().sendMessage(player,
 							"<red>The player you typed is a part of your hellblock already.");
 					instance.getAdventureManager().sendMessage(player,
@@ -474,26 +479,26 @@ public class PlayerListener implements Listener {
 					this.linkPortalCatcher.remove(id);
 					return;
 				}
-				OnlineUser linked = instance.getStorageManager().getOnlineUser(link.getUniqueId());
-				if (linked == null)
+				Optional<UserData> linked = instance.getStorageManager().getOnlineUser(link.getUniqueId());
+				if (linked.isEmpty())
 					return;
-				if (!linked.getHellblockData().hasHellblock() || linked.getHellblockData().isAbandoned()
-						|| linked.getHellblockData().getHomeLocation() == null) {
+				if (!linked.get().getHellblockData().hasHellblock() || linked.get().getHellblockData().isAbandoned()
+						|| linked.get().getHellblockData().getHomeLocation() == null) {
 					instance.getAdventureManager().sendMessageWithPrefix(player,
 							"<red>The player you typed in doesn't have a hellblock to link to!");
 					return;
 				}
-				if (linked.getHellblockData().isLocked()) {
+				if (linked.get().getHellblockData().isLocked()) {
 					instance.getAdventureManager().sendMessageWithPrefix(player,
 							"<red>This hellblock is locked at the moment so you can't link to it!");
 					return;
 				}
-				if (linked.getHellblockData().getBanned().contains(id)) {
+				if (linked.get().getHellblockData().getBanned().contains(id)) {
 					instance.getAdventureManager().sendMessageWithPrefix(player,
 							"<red>You're banned from this hellblock and can't link to it!");
 					return;
 				}
-				onlineUser.getHellblockData().setLinkedUUID(link.getUniqueId());
+				onlineUser.get().getHellblockData().setLinkedUUID(link.getUniqueId());
 				instance.getAdventureManager().sendMessageWithPrefix(player, String
 						.format("<red>You have linked your nether portal to <dark_red>%s<red>'s hellblock!", username));
 			} else {
@@ -508,9 +513,9 @@ public class PlayerListener implements Listener {
 							"<red>The player you typed in doesn't exist!");
 					return;
 				}
-				if ((onlineUser.getHellblockData().getOwnerUUID() != null
-						&& onlineUser.getHellblockData().getOwnerUUID().equals(linkID))
-						|| onlineUser.getHellblockData().getParty().contains(linkID)) {
+				if ((onlineUser.get().getHellblockData().getOwnerUUID() != null
+						&& onlineUser.get().getHellblockData().getOwnerUUID().equals(linkID))
+						|| onlineUser.get().getHellblockData().getParty().contains(linkID)) {
 					instance.getAdventureManager().sendMessage(player,
 							"<red>The player you typed is a part of your hellblock already.");
 					instance.getAdventureManager().sendMessage(player,
@@ -518,8 +523,8 @@ public class PlayerListener implements Listener {
 					this.linkPortalCatcher.remove(id);
 					return;
 				}
-				instance.getStorageManager().getOfflineUser(linkID, HBConfig.lockData).thenAccept((result) -> {
-					OfflineUser offlineUser = result.orElseThrow();
+				instance.getStorageManager().getOfflineUserData(linkID, HBConfig.lockData).thenAccept((result) -> {
+					UserData offlineUser = result.orElseThrow();
 					if (!offlineUser.getHellblockData().hasHellblock() || offlineUser.getHellblockData().isAbandoned()
 							|| offlineUser.getHellblockData().getHomeLocation() == null) {
 						instance.getAdventureManager().sendMessageWithPrefix(player,
@@ -536,7 +541,7 @@ public class PlayerListener implements Listener {
 								"<red>You're banned from this hellblock and can't link to it!");
 						return;
 					}
-					onlineUser.getHellblockData().setLinkedUUID(linkID);
+					onlineUser.get().getHellblockData().setLinkedUUID(linkID);
 					instance.getAdventureManager().sendMessageWithPrefix(player, String.format(
 							"<red>You've linked your nether portal to <dark_red>%s<red>'s hellblock!", username));
 				});
@@ -547,17 +552,17 @@ public class PlayerListener implements Listener {
 
 	@EventHandler(priority = EventPriority.HIGHEST)
 	public void onChangeWorld(PlayerChangedWorldEvent event) {
-		if (event.getFrom().getName().equals(instance.getHellblockHandler().getWorldName())) {
+		if (event.getFrom().getName().equals(HBConfig.worldName)) {
 			final Player player = event.getPlayer();
 			final UUID id = player.getUniqueId();
-			OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(id);
-			if (onlineUser == null)
+			Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(id);
+			if (onlineUser.isEmpty())
 				return;
-			if (onlineUser.hasGlowstoneToolEffect() || onlineUser.hasGlowstoneArmorEffect()) {
+			if (onlineUser.get().hasGlowstoneToolEffect() || onlineUser.get().hasGlowstoneArmorEffect()) {
 				if (player.hasPotionEffect(PotionEffectType.NIGHT_VISION)) {
 					player.removePotionEffect(PotionEffectType.NIGHT_VISION);
-					onlineUser.isHoldingGlowstoneTool(false);
-					onlineUser.isWearingGlowstoneArmor(false);
+					onlineUser.get().isHoldingGlowstoneTool(false);
+					onlineUser.get().isWearingGlowstoneArmor(false);
 				}
 			}
 		}
@@ -566,14 +571,13 @@ public class PlayerListener implements Listener {
 	@EventHandler
 	public void onMoveIfInPortal(PlayerMoveEvent event) {
 		final Player player = event.getPlayer();
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!player.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 		if (playerInPortal(player))
 			return;
 		final UUID id = player.getUniqueId();
 		if (this.cancellablePortal.containsKey(id) && this.cancellablePortal.get(id) != null) {
-			if (!this.cancellablePortal.get(id).isCancelled())
-				this.cancellablePortal.get(id).cancel();
+			this.cancellablePortal.get(id).cancel();
 			this.cancellablePortal.remove(id);
 		}
 	}
@@ -595,20 +599,21 @@ public class PlayerListener implements Listener {
 				&& player.getPotentialBedLocation().getBlock().getType() == Material.RESPAWN_ANCHOR)
 			return;
 		if (event.getRespawnReason() == RespawnReason.DEATH) {
-			OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
-			if (onlineUser == null)
+			Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
+			if (onlineUser.isEmpty())
 				return;
-			if (onlineUser.getHellblockData().hasHellblock()) {
-				if (onlineUser.getHellblockData().getOwnerUUID() == null) {
+			if (onlineUser.get().getHellblockData().hasHellblock()) {
+				if (onlineUser.get().getHellblockData().getOwnerUUID() == null) {
 					throw new NullPointerException(
 							"Owner reference returned null, please report this to the developer.");
 				}
 				instance.getStorageManager()
-						.getOfflineUser(onlineUser.getHellblockData().getOwnerUUID(), HBConfig.lockData)
+						.getOfflineUserData(onlineUser.get().getHellblockData().getOwnerUUID(), HBConfig.lockData)
 						.thenAccept((owner) -> {
-							OfflineUser ownerUser = owner.orElseThrow();
-							instance.getCoopManager().makeHomeLocationSafe(ownerUser, onlineUser).thenRun(
-									() -> event.setRespawnLocation(onlineUser.getHellblockData().getHomeLocation()));
+							UserData ownerUser = owner.orElseThrow();
+							instance.getCoopManager().makeHomeLocationSafe(ownerUser, onlineUser.get())
+									.thenRun(() -> event
+											.setRespawnLocation(onlineUser.get().getHellblockData().getHomeLocation()));
 						});
 			}
 		}
@@ -616,27 +621,26 @@ public class PlayerListener implements Listener {
 
 	@EventHandler
 	public void onFallInVoid(PlayerMoveEvent event) {
-		if (!instance.getHellblockHandler().isVoidTeleport())
+		if (!HBConfig.voidTeleport)
 			return;
 		final Player player = event.getPlayer();
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!player.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 		final UUID id = player.getUniqueId();
 		if (player.getLocation().getY() <= 0) {
-			OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(id);
-			if (onlineUser == null)
+			Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(id);
+			if (onlineUser.isEmpty())
 				return;
-			if (onlineUser.getHellblockData().hasHellblock()) {
-				if (onlineUser.getHellblockData().getOwnerUUID() == null) {
+			if (onlineUser.get().getHellblockData().hasHellblock()) {
+				if (onlineUser.get().getHellblockData().getOwnerUUID() == null) {
 					throw new NullPointerException(
 							"Owner reference returned null, please report this to the developer.");
 				}
 				instance.getStorageManager()
-						.getOfflineUser(onlineUser.getHellblockData().getOwnerUUID(), HBConfig.lockData)
+						.getOfflineUserData(onlineUser.get().getHellblockData().getOwnerUUID(), HBConfig.lockData)
 						.thenAccept((owner) -> {
-							OfflineUser ownerUser = owner.orElseThrow();
-							instance.getCoopManager()
-									.makeHomeLocationSafe(ownerUser, instance.getStorageManager().getOnlineUser(id))
+							UserData ownerUser = owner.orElseThrow();
+							instance.getCoopManager().makeHomeLocationSafe(ownerUser, onlineUser.get())
 									.thenRun(() -> player.setFallDistance(0.0F));
 						});
 			} else {
@@ -648,19 +652,19 @@ public class PlayerListener implements Listener {
 	@EventHandler
 	public void onDeath(PlayerDeathEvent event) {
 		final Player player = event.getPlayer();
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!player.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 		if (player.getLocation() != null)
 			player.getWorld().strikeLightningEffect(player.getLocation());
 		if (!event.getKeepInventory()) {
-			OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
-			if (onlineUser == null)
+			Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
+			if (onlineUser.isEmpty())
 				return;
-			if (onlineUser.hasGlowstoneToolEffect() || onlineUser.hasGlowstoneArmorEffect()) {
+			if (onlineUser.get().hasGlowstoneToolEffect() || onlineUser.get().hasGlowstoneArmorEffect()) {
 				if (player.hasPotionEffect(PotionEffectType.NIGHT_VISION)) {
 					player.removePotionEffect(PotionEffectType.NIGHT_VISION);
-					onlineUser.isHoldingGlowstoneTool(false);
-					onlineUser.isWearingGlowstoneArmor(false);
+					onlineUser.get().isHoldingGlowstoneTool(false);
+					onlineUser.get().isWearingGlowstoneArmor(false);
 				}
 			}
 		}

@@ -8,7 +8,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
-import com.swiftlicious.hellblock.scheduler.CancellableTask;
+import com.swiftlicious.hellblock.scheduler.SchedulerTask;
 import com.swiftlicious.hellblock.utils.FakeItemUtils;
 
 /**
@@ -16,7 +16,7 @@ import com.swiftlicious.hellblock.utils.FakeItemUtils;
  */
 public class BaitAnimationTask implements Runnable {
 
-	private final CancellableTask cancellableTask;
+	private final SchedulerTask cancellableTask;
 	private final int entityID;
 	private final Player player;
 	private final FishHook fishHook;
@@ -35,7 +35,7 @@ public class BaitAnimationTask implements Runnable {
 		entityID = ThreadLocalRandom.current().nextInt(Integer.MAX_VALUE);
 		plugin.sendPackets(player, FakeItemUtils.getSpawnPacket(entityID, fishHook.getLocation()),
 				FakeItemUtils.getMetaPacket(entityID, baitItem));
-		this.cancellableTask = plugin.getScheduler().runTaskAsyncTimer(this, 50, 50, TimeUnit.MILLISECONDS);
+		this.cancellableTask = plugin.getScheduler().asyncRepeating(this, 50, 50, TimeUnit.MILLISECONDS);
 	}
 
 	@Override

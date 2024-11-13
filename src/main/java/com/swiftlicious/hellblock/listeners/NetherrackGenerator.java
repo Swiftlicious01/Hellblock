@@ -6,6 +6,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.bukkit.Bukkit;
@@ -29,6 +30,7 @@ import org.jetbrains.annotations.Nullable;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.challenges.HellblockChallenge.ChallengeType;
+import com.swiftlicious.hellblock.config.HBConfig;
 import com.swiftlicious.hellblock.events.generator.GeneratorGenerateEvent;
 import com.swiftlicious.hellblock.events.generator.PlayerBreakGeneratedBlock;
 import com.swiftlicious.hellblock.listeners.generator.GenBlock;
@@ -36,7 +38,7 @@ import com.swiftlicious.hellblock.listeners.generator.GenMode;
 import com.swiftlicious.hellblock.listeners.generator.GenPiston;
 import com.swiftlicious.hellblock.listeners.generator.GeneratorManager;
 import com.swiftlicious.hellblock.listeners.generator.GeneratorModeManager;
-import com.swiftlicious.hellblock.player.OnlineUser;
+import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.utils.LogUtils;
 import com.swiftlicious.hellblock.utils.StringUtils;
 
@@ -47,13 +49,11 @@ import net.kyori.adventure.sound.Sound.Source;
 
 public class NetherrackGenerator implements Listener {
 
-	private final HellblockPlugin instance;
+	protected final HellblockPlugin instance;
 	@Getter
 	private final GeneratorManager genManager;
 	@Getter
 	private final GeneratorModeManager genModeManager;
-	@Getter
-	private final List<String> generationResults;
 
 	private final static BlockFace[] FACES = new BlockFace[] { BlockFace.NORTH, BlockFace.SOUTH, BlockFace.EAST,
 			BlockFace.WEST };
@@ -63,8 +63,6 @@ public class NetherrackGenerator implements Listener {
 		this.genManager = new GeneratorManager();
 		this.genModeManager = new GeneratorModeManager(instance);
 		this.genModeManager.loadFromConfig();
-		this.generationResults = instance.getConfig("config.yml")
-				.getConfigurationSection("netherrack-generator-options.generation").getStringList("blocks");
 		Bukkit.getPluginManager().registerEvents(this, instance);
 	}
 
@@ -72,7 +70,7 @@ public class NetherrackGenerator implements Listener {
 	public void onNetherrackGeneration(BlockFromToEvent event) {
 		Block fromBlock = event.getBlock();
 		Material fromBlockMaterial = fromBlock.getType();
-		if (!fromBlock.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!fromBlock.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 
 		BlockFace face = event.getFace();
@@ -94,10 +92,8 @@ public class NetherrackGenerator implements Listener {
 					return;
 				// Checks if the block has been broken before and if it is a known gen location
 				if (!genManager.isGenLocationKnown(l) && mode.isSearchingForPlayersNearby()) {
-					double searchRadius = instance.getConfig("config.yml")
-							.getDouble("netherrack-generator-options.player-search-radius", 4D);
-					Collection<Player> playersNearby = l.getWorld().getNearbyPlayers(l, searchRadius, searchRadius,
-							searchRadius);
+					Collection<Player> playersNearby = l.getWorld().getNearbyPlayers(l, HBConfig.searchRadius,
+							HBConfig.searchRadius, HBConfig.searchRadius);
 					Player closestPlayer = getClosestPlayer(l, playersNearby);
 					if (closestPlayer != null) {
 						genManager.addKnownGenLocation(l);
@@ -134,18 +130,18 @@ public class NetherrackGenerator implements Listener {
 					} else if (mode.hasFallBackMaterial()) {
 						result = mode.getFallbackMaterial();
 					} else {
-						result = Material.NETHERRACK;
+						mode.setFallbackMaterial(getResults().keySet().iterator().next());
 					}
-					
-					GeneratorGenerateEvent genEvent = new GeneratorGenerateEvent(mode, result != null ? result : Material.NETHERRACK, uuid,
+
+					GeneratorGenerateEvent genEvent = new GeneratorGenerateEvent(mode,
+							result != null ? result : getResults().keySet().iterator().next(), uuid,
 							toBlock.getLocation());
 					Bukkit.getPluginManager().callEvent(genEvent);
 					if (genEvent.isCancelled())
 						return;
 					event.setCancelled(true);
 					if (genEvent.getResult() == null) {
-						LogUtils.severe(
-								String.format("Unknown material: %s.", result.toString()));
+						LogUtils.severe(String.format("Unknown material: %s.", result.toString()));
 						return;
 					}
 					genEvent.getGenerationLocation().getBlock().setType(genEvent.getResult());
@@ -180,7 +176,7 @@ public class NetherrackGenerator implements Listener {
 
 	@EventHandler
 	public void onBlockChange(EntityChangeBlockEvent event) {
-		if (!event.getBlock().getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!event.getBlock().getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 		if (event.getEntityType() != EntityType.FALLING_BLOCK
 				|| !(event.getTo() == Material.AIR || event.getTo() == Material.LAVA))
@@ -195,10 +191,9 @@ public class NetherrackGenerator implements Listener {
 
 	@EventHandler
 	public void onPistonPush(BlockPistonExtendEvent event) {
-		if (!event.getBlock().getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!event.getBlock().getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
-		if (!instance.getConfig("config.yml").getConfigurationSection("netherrack-generator-options.automation")
-				.getBoolean("pistons", false))
+		if (!HBConfig.pistonAutomationEnabled)
 			return;
 		if (!genManager.getKnownGenPistons().containsKey(event.getBlock().getLocation()))
 			return;
@@ -212,7 +207,7 @@ public class NetherrackGenerator implements Listener {
 
 	@EventHandler
 	public void onBlockPlace(BlockPlaceEvent event) {
-		if (!event.getBlock().getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!event.getBlock().getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 
 		Location location = event.getBlock().getLocation();
@@ -222,8 +217,7 @@ public class NetherrackGenerator implements Listener {
 			genManager.getKnownGenLocations().remove(location);
 		}
 
-		if (!instance.getConfig("config.yml").getConfigurationSection("netherrack-generator-options.automation")
-				.getBoolean("pistons", false))
+		if (!HBConfig.pistonAutomationEnabled)
 			return;
 		if (event.getBlock().getType() != Material.PISTON)
 			return;
@@ -238,7 +232,7 @@ public class NetherrackGenerator implements Listener {
 
 	@EventHandler
 	public void onGeneratedBlockBreak(BlockBreakEvent event) {
-		if (!event.getBlock().getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!event.getBlock().getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 		Location location = event.getBlock().getLocation();
 		final Player player = event.getPlayer();
@@ -255,19 +249,20 @@ public class NetherrackGenerator implements Listener {
 			Bukkit.getPluginManager().callEvent(genEvent);
 			if (genEvent.isCancelled())
 				return;
-			OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
-			if (onlineUser == null)
+			Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
+			if (onlineUser.isEmpty() || onlineUser.get().getPlayer() == null)
 				return;
-			if (!onlineUser.getChallengeData().isChallengeActive(ChallengeType.NETHERRACK_GENERATOR_CHALLENGE)
-					&& !onlineUser.getChallengeData()
+			if (!onlineUser.get().getChallengeData().isChallengeActive(ChallengeType.NETHERRACK_GENERATOR_CHALLENGE)
+					&& !onlineUser.get().getChallengeData()
 							.isChallengeCompleted(ChallengeType.NETHERRACK_GENERATOR_CHALLENGE)) {
-				onlineUser.getChallengeData().beginChallengeProgression(onlineUser.getPlayer(),
+				onlineUser.get().getChallengeData().beginChallengeProgression(onlineUser.get().getPlayer(),
 						ChallengeType.NETHERRACK_GENERATOR_CHALLENGE);
 			} else {
-				onlineUser.getChallengeData().updateChallengeProgression(onlineUser.getPlayer(),
+				onlineUser.get().getChallengeData().updateChallengeProgression(onlineUser.get().getPlayer(),
 						ChallengeType.NETHERRACK_GENERATOR_CHALLENGE, 1);
-				if (onlineUser.getChallengeData().isChallengeCompleted(ChallengeType.NETHERRACK_GENERATOR_CHALLENGE)) {
-					onlineUser.getChallengeData().completeChallenge(onlineUser.getPlayer(),
+				if (onlineUser.get().getChallengeData()
+						.isChallengeCompleted(ChallengeType.NETHERRACK_GENERATOR_CHALLENGE)) {
+					onlineUser.get().getChallengeData().completeChallenge(onlineUser.get().getPlayer(),
 							ChallengeType.NETHERRACK_GENERATOR_CHALLENGE);
 				}
 			}
@@ -277,10 +272,9 @@ public class NetherrackGenerator implements Listener {
 
 	@EventHandler
 	public void onBlockExplode(BlockExplodeEvent event) {
-		if (!event.getBlock().getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!event.getBlock().getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
-		if (!instance.getConfig("config.yml").getConfigurationSection("netherrack-generator-options.automation")
-				.getBoolean("pistons", false))
+		if (!HBConfig.pistonAutomationEnabled)
 			return;
 		if (event.getBlock().getType() != Material.PISTON)
 			return;
@@ -323,7 +317,7 @@ public class NetherrackGenerator implements Listener {
 
 	public @NonNull Map<Material, Double> getResults() {
 		Map<Material, Double> results = new HashMap<>();
-		for (String result : this.getGenerationResults()) {
+		for (String result : HBConfig.generationResults) {
 			String[] split = result.split(":");
 			Material type = Material.getMaterial(split[0].toUpperCase());
 			if (type == null || type == Material.AIR)
@@ -356,8 +350,7 @@ public class NetherrackGenerator implements Listener {
 	}
 
 	public void savePistons(@NonNull UUID id) {
-		if (!instance.getConfig("config.yml").getConfigurationSection("netherrack-generator-options.automation")
-				.getBoolean("pistons", false))
+		if (!HBConfig.pistonAutomationEnabled)
 			return;
 		GenPiston[] generatedPistons = genManager.getGenPistonsByUUID(id);
 
@@ -373,22 +366,21 @@ public class NetherrackGenerator implements Listener {
 					locations.add(serializedLoc);
 			}
 			if (!locations.isEmpty()) {
-				OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(id);
-				if (onlineUser == null)
+				Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(id);
+				if (onlineUser.isEmpty())
 					return;
-				onlineUser.getPlayerData().setPistonLocations(locations);
+				onlineUser.get().getLocationCacheData().setPistonLocations(locations);
 			}
 		}
 	}
 
 	public void loadPistons(@NonNull UUID id) {
-		if (!instance.getConfig("config.yml").getConfigurationSection("netherrack-generator-options.automation")
-				.getBoolean("pistons", false))
+		if (!HBConfig.pistonAutomationEnabled)
 			return;
-		OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(id);
-		if (onlineUser == null)
+		Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(id);
+		if (onlineUser.isEmpty())
 			return;
-		List<String> locations = onlineUser.getPlayerData().getPistonLocations();
+		List<String> locations = onlineUser.get().getLocationCacheData().getPistonLocations();
 
 		if (locations != null) {
 			for (String stringLoc : locations) {
@@ -408,7 +400,7 @@ public class NetherrackGenerator implements Listener {
 				GenPiston piston = new GenPiston(loc, id);
 				piston.setHasBeenUsed(true);
 				genManager.addKnownGenPiston(piston);
-				onlineUser.getPlayerData().setPistonLocations(new ArrayList<>());
+				onlineUser.get().getLocationCacheData().setPistonLocations(new ArrayList<>());
 			}
 		}
 	}

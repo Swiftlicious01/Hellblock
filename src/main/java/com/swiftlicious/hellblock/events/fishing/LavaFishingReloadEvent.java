@@ -9,7 +9,7 @@ import com.swiftlicious.hellblock.HellblockPlugin;
 public class LavaFishingReloadEvent extends Event {
 
 	private static final HandlerList handlerList = new HandlerList();
-	private final HellblockPlugin instance;
+	protected final HellblockPlugin instance;
 
 	public LavaFishingReloadEvent(HellblockPlugin plugin) {
 		this.instance = plugin;

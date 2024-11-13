@@ -1,5 +1,7 @@
 package com.swiftlicious.hellblock.listeners;
 
+import java.util.Optional;
+
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
@@ -14,7 +16,8 @@ import org.bukkit.util.BlockIterator;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.challenges.HellblockChallenge.ChallengeType;
-import com.swiftlicious.hellblock.player.OnlineUser;
+import com.swiftlicious.hellblock.config.HBConfig;
+import com.swiftlicious.hellblock.player.UserData;
 
 import lombok.Getter;
 import lombok.NonNull;
@@ -22,23 +25,20 @@ import lombok.NonNull;
 @Getter
 public class InfiniteLava implements Listener {
 
-	private final HellblockPlugin instance;
-
-	private final boolean infiniteLavaEnabled;
+	protected final HellblockPlugin instance;
 
 	public InfiniteLava(HellblockPlugin plugin) {
 		instance = plugin;
-		this.infiniteLavaEnabled = instance.getConfig("config.yml").getBoolean("infinite-lava-options.enabled", true);
 		Bukkit.getPluginManager().registerEvents(this, instance);
 	}
 
 	@EventHandler
 	public void onInfiniteLavaFall(PlayerInteractEvent event) {
-		if (!isInfiniteLavaEnabled()) {
+		if (!HBConfig.infiniteLavaEnabled) {
 			return;
 		}
 		final Player player = event.getPlayer();
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!player.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 
 		ItemStack hand = event.getItem();
@@ -64,18 +64,20 @@ public class InfiniteLava implements Listener {
 				instance.getAdventureManager().sendSound(player, net.kyori.adventure.sound.Sound.Source.PLAYER,
 						net.kyori.adventure.key.Key.key("minecraft:item.bucket.fill_lava"), 1, 1);
 				player.updateInventory();
-				OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
-				if (onlineUser == null)
+				Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
+				if (onlineUser.isEmpty() || onlineUser.get().getPlayer() == null)
 					return;
-				if (!onlineUser.getChallengeData().isChallengeActive(ChallengeType.INFINITE_LAVA_CHALLENGE)
-						&& !onlineUser.getChallengeData().isChallengeCompleted(ChallengeType.INFINITE_LAVA_CHALLENGE)) {
-					onlineUser.getChallengeData().beginChallengeProgression(onlineUser.getPlayer(),
+				if (!onlineUser.get().getChallengeData().isChallengeActive(ChallengeType.INFINITE_LAVA_CHALLENGE)
+						&& !onlineUser.get().getChallengeData()
+								.isChallengeCompleted(ChallengeType.INFINITE_LAVA_CHALLENGE)) {
+					onlineUser.get().getChallengeData().beginChallengeProgression(onlineUser.get().getPlayer(),
 							ChallengeType.INFINITE_LAVA_CHALLENGE);
 				} else {
-					onlineUser.getChallengeData().updateChallengeProgression(onlineUser.getPlayer(),
+					onlineUser.get().getChallengeData().updateChallengeProgression(onlineUser.get().getPlayer(),
 							ChallengeType.INFINITE_LAVA_CHALLENGE, 1);
-					if (onlineUser.getChallengeData().isChallengeCompleted(ChallengeType.INFINITE_LAVA_CHALLENGE)) {
-						onlineUser.getChallengeData().completeChallenge(onlineUser.getPlayer(),
+					if (onlineUser.get().getChallengeData()
+							.isChallengeCompleted(ChallengeType.INFINITE_LAVA_CHALLENGE)) {
+						onlineUser.get().getChallengeData().completeChallenge(onlineUser.get().getPlayer(),
 								ChallengeType.INFINITE_LAVA_CHALLENGE);
 					}
 				}

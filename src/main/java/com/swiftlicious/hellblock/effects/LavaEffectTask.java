@@ -7,7 +7,7 @@ import org.bukkit.Particle;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.listeners.fishing.HookCheckTimerTask;
-import com.swiftlicious.hellblock.scheduler.CancellableTask;
+import com.swiftlicious.hellblock.scheduler.SchedulerTask;
 
 /**
  * A task responsible for creating a lava effect animation between two points.
@@ -18,7 +18,7 @@ public class LavaEffectTask implements Runnable {
 	private final Location endLoc;
 	private final Location controlLoc;
 	private int timer;
-	private final CancellableTask lavaTask;
+	private final SchedulerTask lavaTask;
 	private final HookCheckTimerTask hookCheckTimerTask;
 
 	/**
@@ -35,7 +35,7 @@ public class LavaEffectTask implements Runnable {
 		this.controlLoc = new Location(startLoc.getWorld(),
 				(startLoc.getX() + endLoc.getX()) / 2 + Math.random() * 12 - 6, startLoc.getY(),
 				(startLoc.getZ() + endLoc.getZ()) / 2 + Math.random() * 12 - 6);
-		this.lavaTask = HellblockPlugin.getInstance().getScheduler().runTaskAsyncTimer(this, delay * 50L, 50,
+		this.lavaTask = HellblockPlugin.getInstance().getScheduler().asyncRepeating(this, delay * 50L, 50,
 				TimeUnit.MILLISECONDS);
 	}
 
@@ -44,7 +44,7 @@ public class LavaEffectTask implements Runnable {
 		timer++;
 		if (timer > 60) {
 			lavaTask.cancel();
-			HellblockPlugin.getInstance().getScheduler().runTaskSync(hookCheckTimerTask::getHooked, startLoc);
+			HellblockPlugin.getInstance().getScheduler().executeSync(hookCheckTimerTask::getHooked, startLoc);
 		} else {
 			double t = (double) timer / 60;
 			Location particleLoc = endLoc.clone().multiply(Math.pow((1 - t), 2))
@@ -58,7 +58,7 @@ public class LavaEffectTask implements Runnable {
 	 * Cancels the lava effect task.
 	 */
 	public void cancel() {
-		if (lavaTask != null && !lavaTask.isCancelled())
+		if (!isCancelled())
 			lavaTask.cancel();
 	}
 
@@ -68,6 +68,6 @@ public class LavaEffectTask implements Runnable {
 	 * @return True if the task is cancelled, false otherwise.
 	 */
 	public boolean isCancelled() {
-		return lavaTask.isCancelled();
+		return lavaTask != null;
 	}
 }

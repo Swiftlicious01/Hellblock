@@ -2,6 +2,7 @@ package com.swiftlicious.hellblock.listeners;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 import org.bukkit.Bukkit;
 import org.bukkit.ExplosionResult;
@@ -21,7 +22,8 @@ import org.bukkit.event.entity.EntityExplodeEvent;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.challenges.HellblockChallenge.ChallengeType;
-import com.swiftlicious.hellblock.player.OnlineUser;
+import com.swiftlicious.hellblock.config.HBConfig;
+import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.utils.RandomUtils;
 
 import lombok.Getter;
@@ -29,40 +31,13 @@ import lombok.NonNull;
 
 public class WitherBoss implements Listener {
 
-	private final HellblockPlugin instance;
+	protected final HellblockPlugin instance;
 	@Getter
 	private final WitherHandler witherHandler;
-
-	private boolean randomWither;
-	private int witherHealthRangeMin;
-	private int witherHealthRangeMax;
-	private double witherStrengthRangeMin;
-	private double witherStrengthRangeMax;
-
-	private double witherStrength;
-	private int witherHealth;
 
 	public WitherBoss(HellblockPlugin plugin) {
 		instance = plugin;
 		this.witherHandler = new WitherHandler();
-		this.randomWither = instance.getConfig("config.yml").getBoolean("wither-stats.random-stats", true);
-		this.witherHealthRangeMin = instance.getConfig("config.yml").getInt("wither-stats.random-min-health", 200);
-		this.witherHealthRangeMax = instance.getConfig("config.yml").getInt("wither-stats.random-max-health", 500);
-		if (this.witherHealthRangeMin <= 0)
-			this.witherHealthRangeMin = 200;
-		if (this.witherHealthRangeMax <= 0)
-			this.witherHealthRangeMax = 500;
-		this.witherStrengthRangeMin = instance.getConfig("config.yml").getDouble("wither-stats.random-min-strength",
-				0.5);
-		this.witherStrengthRangeMax = instance.getConfig("config.yml").getDouble("wither-stats.random-max-strength",
-				2.5);
-		if (this.witherStrengthRangeMin <= 0)
-			this.witherStrengthRangeMin = 0.5;
-		if (this.witherStrengthRangeMax <= 0)
-			this.witherStrengthRangeMax = 2.5;
-
-		this.witherStrength = instance.getConfig("config.yml").getDouble("wither-stats.default-strength", 1.25);
-		this.witherHealth = instance.getConfig("config.yml").getInt("wither-stats.default-health", 300);
 		Bukkit.getPluginManager().registerEvents(this, instance);
 	}
 
@@ -70,7 +45,7 @@ public class WitherBoss implements Listener {
 	public void onWitherSpawn(CreatureSpawnEvent event) {
 		if (event.getLocation().getWorld() == null)
 			return;
-		if (!event.getLocation().getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!event.getLocation().getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 		if (event.getSpawnReason() != CreatureSpawnEvent.SpawnReason.BUILD_WITHER)
 			return;
@@ -79,15 +54,15 @@ public class WitherBoss implements Listener {
 
 		WitherStats witherStats = getWitherStats();
 		Wither wither = (Wither) event.getEntity();
-		wither.getAttribute(Attribute.GENERIC_MAX_HEALTH).setBaseValue(witherStats.getHealth());
-		wither.getAttribute(Attribute.GENERIC_ATTACK_DAMAGE).setBaseValue(witherStats.getStrength());
-		wither.getAttribute(Attribute.GENERIC_ARMOR).setBaseValue(witherStats.getStrength());
+		wither.getAttribute(Attribute.MAX_HEALTH).setBaseValue(witherStats.getHealth());
+		wither.getAttribute(Attribute.ATTACK_DAMAGE).setBaseValue(witherStats.getStrength());
+		wither.getAttribute(Attribute.ARMOR).setBaseValue(witherStats.getStrength());
 		wither.setHealth(witherStats.getHealth());
 		wither.setAware(true);
 		wither.setAggressive(true);
 		wither.setCanTravelThroughPortals(false);
 		int lowHealth = RandomUtils.generateRandomInt(15, 75);
-		instance.getScheduler().runTaskSyncTimer(() -> {
+		instance.getScheduler().sync().runRepeating(() -> {
 			if (wither.isDead() || !wither.isValid()) {
 				return;
 			}
@@ -99,14 +74,14 @@ public class WitherBoss implements Listener {
 			if (closestPlayer != null) {
 				wither.setTarget(closestPlayer);
 			}
-		}, event.getLocation(), 15 * 20, 30 * 20);
+		}, 15 * 20, 30 * 20, event.getLocation());
 
 		getWitherHandler().addWither(wither, witherStats);
 	}
 
 	@EventHandler
 	public void onWitherDestroyBlock(EntityChangeBlockEvent event) {
-		if (!event.getEntity().getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!event.getEntity().getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 		if (!(event.getEntityType() == EntityType.WITHER || event.getEntityType() == EntityType.WITHER_SKULL))
 			return;
@@ -118,7 +93,7 @@ public class WitherBoss implements Listener {
 
 	@EventHandler
 	public void onWitherExplode(EntityExplodeEvent event) {
-		if (!event.getLocation().getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!event.getLocation().getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 
 		if (event.getExplosionResult() != ExplosionResult.KEEP) {
@@ -130,7 +105,7 @@ public class WitherBoss implements Listener {
 
 	@EventHandler
 	public void onWitherDeath(EntityDeathEvent event) {
-		if (!event.getEntity().getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!event.getEntity().getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 		if (event.getEntityType() != EntityType.WITHER)
 			return;
@@ -138,18 +113,19 @@ public class WitherBoss implements Listener {
 		getWitherHandler().removeWither(wither);
 		if (wither.getKiller() != null) {
 			Player player = wither.getKiller();
-			OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
-			if (onlineUser == null)
+			Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
+			if (onlineUser.isEmpty() || onlineUser.get().getPlayer() == null)
 				return;
-			if (!onlineUser.getChallengeData().isChallengeActive(ChallengeType.ENHANCED_WITHER_CHALLENGE)
-					&& !onlineUser.getChallengeData().isChallengeCompleted(ChallengeType.ENHANCED_WITHER_CHALLENGE)) {
-				onlineUser.getChallengeData().beginChallengeProgression(onlineUser.getPlayer(),
+			if (!onlineUser.get().getChallengeData().isChallengeActive(ChallengeType.ENHANCED_WITHER_CHALLENGE)
+					&& !onlineUser.get().getChallengeData()
+							.isChallengeCompleted(ChallengeType.ENHANCED_WITHER_CHALLENGE)) {
+				onlineUser.get().getChallengeData().beginChallengeProgression(onlineUser.get().getPlayer(),
 						ChallengeType.ENHANCED_WITHER_CHALLENGE);
 			} else {
-				onlineUser.getChallengeData().updateChallengeProgression(onlineUser.getPlayer(),
+				onlineUser.get().getChallengeData().updateChallengeProgression(onlineUser.get().getPlayer(),
 						ChallengeType.ENHANCED_WITHER_CHALLENGE, 1);
-				if (onlineUser.getChallengeData().isChallengeCompleted(ChallengeType.ENHANCED_WITHER_CHALLENGE)) {
-					onlineUser.getChallengeData().completeChallenge(onlineUser.getPlayer(),
+				if (onlineUser.get().getChallengeData().isChallengeCompleted(ChallengeType.ENHANCED_WITHER_CHALLENGE)) {
+					onlineUser.get().getChallengeData().completeChallenge(onlineUser.get().getPlayer(),
 							ChallengeType.ENHANCED_WITHER_CHALLENGE);
 				}
 			}
@@ -158,7 +134,7 @@ public class WitherBoss implements Listener {
 
 	@EventHandler
 	public void onWitherDamage(EntityDamageByEntityEvent event) {
-		if (!event.getEntity().getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!event.getEntity().getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 		Wither wither;
 		if (event.getDamager().getType() == EntityType.WITHER_SKULL) {
@@ -181,7 +157,7 @@ public class WitherBoss implements Listener {
 	}
 
 	private @NonNull WitherStats getWitherStats() {
-		if (!this.randomWither)
+		if (!HBConfig.randomWither)
 			return new WitherStats(getWitherHealth(), getWitherStrength());
 		else {
 			int randomHealth = RandomUtils.generateRandomInt(getWitherHealthRangeMin(), getWitherHealthRangeMax());
@@ -193,27 +169,27 @@ public class WitherBoss implements Listener {
 	}
 
 	public double getWitherStrength() {
-		return witherStrength;
+		return HBConfig.witherStrength;
 	}
 
 	public int getWitherHealth() {
-		return witherHealth;
+		return HBConfig.witherHealth;
 	}
 
 	public int getWitherHealthRangeMin() {
-		return witherHealthRangeMin;
+		return HBConfig.witherHealthRangeMin;
 	}
 
 	public int getWitherHealthRangeMax() {
-		return witherHealthRangeMax;
+		return HBConfig.witherHealthRangeMax;
 	}
 
 	public double getWitherStrengthRangeMin() {
-		return witherStrengthRangeMin;
+		return HBConfig.witherStrengthRangeMin;
 	}
 
 	public double getWitherStrengthRangeMax() {
-		return witherStrengthRangeMax;
+		return HBConfig.witherStrengthRangeMax;
 	}
 
 	public class WitherHandler {

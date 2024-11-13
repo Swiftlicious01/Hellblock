@@ -21,9 +21,10 @@ import org.bukkit.util.BlockIterator;
 import org.bukkit.util.Vector;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.config.HBConfig;
 import com.swiftlicious.hellblock.listeners.rain.LavaRain.LavaRainLocation;
-import com.swiftlicious.hellblock.player.OnlineUser;
-import com.swiftlicious.hellblock.scheduler.CancellableTask;
+import com.swiftlicious.hellblock.player.UserData;
+import com.swiftlicious.hellblock.scheduler.SchedulerTask;
 import com.swiftlicious.hellblock.utils.RandomUtils;
 
 /**
@@ -32,9 +33,9 @@ import com.swiftlicious.hellblock.utils.RandomUtils;
  */
 public class LavaRainTask implements Runnable {
 
-	private final HellblockPlugin instance;
+	protected final HellblockPlugin instance;
 
-	private final CancellableTask cancellableTask;
+	private final SchedulerTask cancellableTask;
 	private boolean isRaining;
 	private long howLongRainLasts;
 	private boolean hasRainedRecently;
@@ -53,17 +54,16 @@ public class LavaRainTask implements Runnable {
 		this.isRaining = isRaining;
 		this.hasRainedRecently = hasRainedRecently;
 		this.howLongRainLasts = howLongRainLasts;
-		this.cancellableTask = plugin.getScheduler().runTaskSyncTimer(this, null, 0,
-				instance.getLavaRainHandler().getTaskDelay());
+		this.cancellableTask = plugin.getScheduler().sync().runRepeating(this, 0, HBConfig.lavaRainTaskDelay, null);
 	}
 
 	@Override
 	public void run() {
-		if (!instance.getLavaRainHandler().isEnabled())
+		if (!HBConfig.lavaRainEnabled)
 			return;
 
 		Iterator<Player> players = instance.getStorageManager().getOnlineUsers().stream()
-				.filter(user -> user != null && user.isOnline()).map(OnlineUser::getPlayer).iterator();
+				.filter(user -> user != null && user.isOnline()).map(UserData::getPlayer).iterator();
 
 		while (true) {
 
@@ -71,9 +71,8 @@ public class LavaRainTask implements Runnable {
 				if (!this.waitCache) {
 					setLavaRainStatus(false);
 					setHasLavaRainedRecently(true);
-					instance.getScheduler().runTaskAsyncLater(() -> setHasLavaRainedRecently(false), 5,
-							TimeUnit.MINUTES);
-					instance.getScheduler().runTaskAsyncLater(() -> {
+					instance.getScheduler().asyncLater(() -> setHasLavaRainedRecently(false), 5, TimeUnit.MINUTES);
+					instance.getScheduler().asyncLater(() -> {
 						setHowLongItWillLavaRainFor(RandomUtils.generateRandomInt(150, 300));
 						setLavaRainStatus(true);
 						this.waitCache = false;
@@ -99,15 +98,16 @@ public class LavaRainTask implements Runnable {
 				if (location == null)
 					return;
 				World world = player.getWorld();
-				Location add = location.clone().add((double) instance.getLavaRainHandler().getRadius(), 20.0D,
-						(double) instance.getLavaRainHandler().getRadius());
-				Location sub = location.clone().subtract((double) instance.getLavaRainHandler().getRadius(), 0.0D,
-						(double) instance.getLavaRainHandler().getRadius()).add(0.0D, 20.0D, 0.0D);
+				Location add = location.clone().add((double) HBConfig.lavaRainRadius, 20.0D,
+						(double) HBConfig.lavaRainRadius);
+				Location sub = location.clone()
+						.subtract((double) HBConfig.lavaRainRadius, 0.0D, (double) HBConfig.lavaRainRadius)
+						.add(0.0D, 20.0D, 0.0D);
 				LavaRainLocation lavaRainLocation = instance.getLavaRainHandler().new LavaRainLocation(add, sub);
 				Iterator<Block> blocks = lavaRainLocation.getBlocks();
 				Block block;
 				Block particleSpawn;
-				if (world.getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName())
+				if (world.getName().equalsIgnoreCase(HBConfig.worldName)
 						&& !instance.getHellblockHandler().checkIfInSpawn(location)) {
 					while (true) {
 						while (true) {
@@ -177,10 +177,9 @@ public class LavaRainTask implements Runnable {
 													.key("minecraft:block.pointed_dripstone.drip_lava"),
 											1, 1);
 								}
-							} while (Math
-									.random() >= (double) (instance.getLavaRainHandler().getFireChance() / 1000.0D));
+							} while (Math.random() >= (double) (HBConfig.lavaRainFireChance / 1000.0D));
 
-							if (Math.random() < (double) (instance.getLavaRainHandler().getFireChance() / 1000.0D)) {
+							if (Math.random() < (double) (HBConfig.lavaRainFireChance / 1000.0D)) {
 								for (Iterator<Block> fireIterator = lavaRainLocation.getBlocks(); fireIterator
 										.hasNext();) {
 									Block fire = fireIterator.next();
@@ -258,7 +257,7 @@ public class LavaRainTask implements Runnable {
 	 * Cancels the rain animation and cleans up resources.
 	 */
 	public void cancelAnimation() {
-		if (!this.cancellableTask.isCancelled())
+		if (this.cancellableTask != null)
 			this.cancellableTask.cancel();
 		this.isRaining = false;
 		this.howLongRainLasts = 0L;

@@ -43,7 +43,7 @@ sell-all-icons:
     display:
       name: '<#00CED1><b>● <!b>Ship the fish'
       lore:
-        - '<font:uniform><gradient:#E6E6FA:#48D1CC:#E6E6FA>You will get <green>{money_formatted}$</green> by selling the fish from inventory and bag</gradient></font>'
+        - '<font:uniform><gradient:#E6E6FA:#48D1CC:#E6E6FA>You will get <green>{money_formatted}$</green> by selling the fish from inventory</gradient></font>'
     action:
       sound_action:
         type: sound

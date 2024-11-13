@@ -17,14 +17,15 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 
 import org.bukkit.Bukkit;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
-import com.swiftlicious.hellblock.config.HBConfig;
-import com.swiftlicious.hellblock.player.OfflineUser;
 import com.swiftlicious.hellblock.player.PlayerData;
+import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.utils.LogUtils;
 
 /**
@@ -57,13 +58,13 @@ public abstract class AbstractSQLDatabase extends AbstractStorage {
 				for (String tableCreationStatement : databaseSchema) {
 					statement.execute(tableCreationStatement);
 				}
-			} catch (SQLException e) {
-				LogUtils.warn("Failed to create tables.", e);
+			} catch (SQLException ex) {
+				LogUtils.warn("Failed to create tables.", ex);
 			}
-		} catch (SQLException e) {
-			LogUtils.warn("Failed to get sql connection.", e);
-		} catch (IOException e) {
-			LogUtils.warn("Failed to get schema resource.", e);
+		} catch (SQLException ex) {
+			LogUtils.warn("Failed to get sql connection.", ex);
+		} catch (IOException ex) {
+			LogUtils.warn("Failed to get schema resource.", ex);
 		}
 	}
 
@@ -75,10 +76,10 @@ public abstract class AbstractSQLDatabase extends AbstractStorage {
 	 * @throws IOException If there is an error reading the schema resource.
 	 */
 	private String[] getSchema(@NotNull String fileName) throws IOException {
-		return replaceSchemaPlaceholder(new String(
-				Objects.requireNonNull(HellblockPlugin.getInstance().getResource("schema/" + fileName + ".sql"))
-						.readAllBytes(),
-				StandardCharsets.UTF_8)).split(";");
+		return replaceSchemaPlaceholder(
+				new String(Objects.requireNonNull(plugin.getResource("schema/" + fileName + ".sql")).readAllBytes(),
+						StandardCharsets.UTF_8))
+				.split(";");
 	}
 
 	/**
@@ -119,41 +120,47 @@ public abstract class AbstractSQLDatabase extends AbstractStorage {
 	 * @return A CompletableFuture containing the optional player data.
 	 */
 	@Override
-	public CompletableFuture<Optional<PlayerData>> getPlayerData(UUID uuid, boolean lock) {
+	public CompletableFuture<Optional<PlayerData>> getPlayerData(UUID uuid, boolean lock, Executor executor) {
 		var future = new CompletableFuture<Optional<PlayerData>>();
-		HellblockPlugin.getInstance().getScheduler().runTaskAsync(() -> {
+		if (executor == null)
+			executor = plugin.getScheduler().async();
+		executor.execute(() -> {
 			try (Connection connection = getConnection();
 					PreparedStatement statement = connection
 							.prepareStatement(String.format(SqlConstants.SQL_SELECT_BY_UUID, getTableName("data")))) {
 				statement.setString(1, uuid.toString());
 				ResultSet rs = statement.executeQuery();
 				if (rs.next()) {
+					final Blob blob = rs.getBlob("data");
+					final byte[] dataByteArray = blob.getBytes(1, (int) blob.length());
+					blob.free();
+					PlayerData data = plugin.getStorageManager().fromBytes(dataByteArray);
+					data.setUUID(uuid);
 					if (lock) {
 						int lockValue = rs.getInt(2);
-						if (lockValue != 0 && getCurrentSeconds() - HBConfig.dataSaveInterval <= lockValue) {
+						if (lockValue != 0 && getCurrentSeconds() - 30 <= lockValue) {
 							connection.close();
-							future.complete(Optional.of(PlayerData.LOCKED));
+							data.setLocked(true);
+							future.complete(Optional.of(data));
 							LogUtils.warn(String.format("Player %s's data is locked. Retrying...", uuid));
 							return;
 						}
 					}
-					final Blob blob = rs.getBlob("data");
-					final byte[] dataByteArray = blob.getBytes(1, (int) blob.length());
-					blob.free();
 					if (lock)
 						lockOrUnlockPlayerData(uuid, true);
-					future.complete(
-							Optional.of(HellblockPlugin.getInstance().getStorageManager().fromBytes(dataByteArray)));
+					future.complete(Optional.of(data));
 				} else if (Bukkit.getPlayer(uuid) != null) {
+					// the player is online
 					var data = PlayerData.empty();
-					insertPlayerData(uuid, data, lock);
+					data.setUUID(uuid);
+					insertPlayerData(uuid, data, lock, connection);
 					future.complete(Optional.of(data));
 				} else {
 					future.complete(Optional.empty());
 				}
-			} catch (SQLException e) {
-				LogUtils.warn(String.format("Failed to get %s's data.", uuid), e);
-				future.completeExceptionally(e);
+			} catch (SQLException ex) {
+				LogUtils.warn(String.format("Failed to get %s's data.", uuid), ex);
+				future.completeExceptionally(ex);
 			}
 		});
 		return future;
@@ -170,20 +177,19 @@ public abstract class AbstractSQLDatabase extends AbstractStorage {
 	@Override
 	public CompletableFuture<Boolean> updatePlayerData(UUID uuid, PlayerData playerData, boolean unlock) {
 		var future = new CompletableFuture<Boolean>();
-		HellblockPlugin.getInstance().getScheduler().runTaskAsync(() -> {
+		plugin.getScheduler().async().execute(() -> {
 			try (Connection connection = getConnection();
 					PreparedStatement statement = connection
 							.prepareStatement(String.format(SqlConstants.SQL_UPDATE_BY_UUID, getTableName("data")))) {
 				statement.setInt(1, unlock ? 0 : getCurrentSeconds());
-				statement.setBlob(2, new ByteArrayInputStream(
-						HellblockPlugin.getInstance().getStorageManager().toBytes(playerData)));
+				statement.setBlob(2, new ByteArrayInputStream(playerData.toBytes()));
 				statement.setString(3, uuid.toString());
 				statement.executeUpdate();
 				future.complete(true);
-				HellblockPlugin.getInstance().debug(String.format("SQL data saved for %s; unlock: %s", uuid, unlock));
-			} catch (SQLException e) {
-				LogUtils.warn(String.format("Failed to update %s's data.", uuid), e);
-				future.completeExceptionally(e);
+				plugin.debug(String.format("SQL data saved for %s; unlock: %s", uuid, unlock));
+			} catch (SQLException ex) {
+				LogUtils.warn(String.format("Failed to update %s's data.", uuid), ex);
+				future.completeExceptionally(ex);
 			}
 		});
 		return future;
@@ -196,26 +202,26 @@ public abstract class AbstractSQLDatabase extends AbstractStorage {
 	 * @param unlock Whether to unlock the player data after updating.
 	 */
 	@Override
-	public void updateManyPlayersData(Collection<? extends OfflineUser> users, boolean unlock) {
+	public void updateManyPlayersData(Collection<? extends UserData> users, boolean unlock) {
 		String sql = String.format(SqlConstants.SQL_UPDATE_BY_UUID, getTableName("data"));
 		try (Connection connection = getConnection()) {
 			connection.setAutoCommit(false);
 			try (PreparedStatement statement = connection.prepareStatement(sql)) {
-				for (OfflineUser user : users) {
+				for (UserData user : users) {
 					statement.setInt(1, unlock ? 0 : getCurrentSeconds());
-					statement.setBlob(2, new ByteArrayInputStream(
-							HellblockPlugin.getInstance().getStorageManager().toBytes(user.getPlayerData())));
+					statement.setBlob(2,
+							new ByteArrayInputStream(plugin.getStorageManager().toBytes(user.toPlayerData())));
 					statement.setString(3, user.getUUID().toString());
 					statement.addBatch();
 				}
 				statement.executeBatch();
 				connection.commit();
-			} catch (SQLException e) {
+			} catch (SQLException ex) {
 				connection.rollback();
-				LogUtils.warn("Failed to update data for online players.", e);
+				LogUtils.warn("Failed to update data for online players.", ex);
 			}
-		} catch (SQLException e) {
-			LogUtils.warn("Failed to get connection when saving online players' data.", e);
+		} catch (SQLException ex) {
+			LogUtils.warn("Failed to get connection when saving online players' data.", ex);
 		}
 	}
 
@@ -226,17 +232,16 @@ public abstract class AbstractSQLDatabase extends AbstractStorage {
 	 * @param playerData The player data to insert.
 	 * @param lock       Whether to lock the player data upon insertion.
 	 */
-	public void insertPlayerData(UUID uuid, PlayerData playerData, boolean lock) {
-		try (Connection connection = getConnection();
+	protected void insertPlayerData(UUID uuid, PlayerData playerData, boolean lock, @Nullable Connection previous) {
+		try (Connection connection = previous == null ? getConnection() : previous;
 				PreparedStatement statement = connection
 						.prepareStatement(String.format(SqlConstants.SQL_INSERT_DATA_BY_UUID, getTableName("data")))) {
 			statement.setString(1, uuid.toString());
 			statement.setInt(2, lock ? getCurrentSeconds() : 0);
-			statement.setBlob(3,
-					new ByteArrayInputStream(HellblockPlugin.getInstance().getStorageManager().toBytes(playerData)));
+			statement.setBlob(3, new ByteArrayInputStream(plugin.getStorageManager().toBytes(playerData)));
 			statement.execute();
-		} catch (SQLException e) {
-			LogUtils.warn(String.format("Failed to insert %s's data.", uuid), e);
+		} catch (SQLException ex) {
+			LogUtils.warn(String.format("Failed to insert %s's data.", uuid), ex);
 		}
 	}
 
@@ -254,8 +259,8 @@ public abstract class AbstractSQLDatabase extends AbstractStorage {
 			statement.setInt(1, lock ? getCurrentSeconds() : 0);
 			statement.setString(2, uuid.toString());
 			statement.execute();
-		} catch (SQLException e) {
-			LogUtils.warn(String.format("Failed to lock %s's data.", uuid), e);
+		} catch (SQLException ex) {
+			LogUtils.warn(String.format("Failed to lock %s's data.", uuid), ex);
 		}
 	}
 
@@ -271,20 +276,29 @@ public abstract class AbstractSQLDatabase extends AbstractStorage {
 	@Override
 	public CompletableFuture<Boolean> updateOrInsertPlayerData(UUID uuid, PlayerData playerData, boolean unlock) {
 		var future = new CompletableFuture<Boolean>();
-		HellblockPlugin.getInstance().getScheduler().runTaskAsync(() -> {
+		plugin.getScheduler().async().execute(() -> {
 			try (Connection connection = getConnection();
 					PreparedStatement statement = connection
 							.prepareStatement(String.format(SqlConstants.SQL_SELECT_BY_UUID, getTableName("data")))) {
 				statement.setString(1, uuid.toString());
 				ResultSet rs = statement.executeQuery();
 				if (rs.next()) {
-					updatePlayerData(uuid, playerData, unlock).thenRun(() -> future.complete(true));
+					try (PreparedStatement statement2 = connection
+							.prepareStatement(String.format(SqlConstants.SQL_UPDATE_BY_UUID, getTableName("data")))) {
+						statement2.setInt(1, unlock ? 0 : getCurrentSeconds());
+						statement2.setBlob(2, new ByteArrayInputStream(plugin.getStorageManager().toBytes(playerData)));
+						statement2.setString(3, uuid.toString());
+						statement2.executeUpdate();
+					} catch (SQLException ex) {
+						LogUtils.warn(String.format("Failed to update %s's data.", uuid), ex);
+					}
+					future.complete(true);
 				} else {
-					insertPlayerData(uuid, playerData, !unlock);
+					insertPlayerData(uuid, playerData, !unlock, connection);
 					future.complete(true);
 				}
-			} catch (SQLException e) {
-				LogUtils.warn(String.format("Failed to get %s's data.", uuid), e);
+			} catch (SQLException ex) {
+				LogUtils.warn(String.format("Failed to get %s's data.", uuid), ex);
 			}
 		});
 		return future;
@@ -293,24 +307,22 @@ public abstract class AbstractSQLDatabase extends AbstractStorage {
 	/**
 	 * Get a set of unique user UUIDs from the SQL database.
 	 *
-	 * @param legacy Whether to include legacy data in the retrieval.
 	 * @return A set of unique user UUIDs.
 	 */
 	@Override
-	public Set<UUID> getUniqueUsers(boolean legacy) {
+	public Set<UUID> getUniqueUsers() {
 		Set<UUID> uuids = new HashSet<>();
 		try (Connection connection = getConnection();
 				PreparedStatement statement = connection
-						.prepareStatement(String.format(SqlConstants.SQL_SELECT_ALL_UUID,
-								legacy ? getTableName("legacydata") : getTableName("data")))) {
+						.prepareStatement(String.format(SqlConstants.SQL_SELECT_ALL_UUID, getTableName("data")))) {
 			try (ResultSet rs = statement.executeQuery()) {
 				while (rs.next()) {
 					UUID uuid = UUID.fromString(rs.getString("uuid"));
 					uuids.add(uuid);
 				}
 			}
-		} catch (SQLException e) {
-			LogUtils.warn("Failed to get unique data.", e);
+		} catch (SQLException ex) {
+			LogUtils.warn("Failed to get unique data.", ex);
 		}
 		return uuids;
 	}

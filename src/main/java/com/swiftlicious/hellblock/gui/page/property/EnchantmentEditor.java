@@ -1,7 +1,6 @@
 package com.swiftlicious.hellblock.gui.page.property;
 
 import org.bukkit.Material;
-import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
@@ -13,6 +12,7 @@ import com.swiftlicious.hellblock.gui.SectionPage;
 import com.swiftlicious.hellblock.gui.icon.BackGroundItem;
 import com.swiftlicious.hellblock.utils.wrappers.ShadedAdventureComponentWrapper;
 
+import dev.dejvokep.boostedyaml.block.implementation.Section;
 import xyz.xenondevs.invui.gui.Gui;
 import xyz.xenondevs.invui.gui.PagedGui;
 import xyz.xenondevs.invui.gui.structure.Markers;
@@ -31,8 +31,8 @@ public class EnchantmentEditor {
 
 	private final Player player;
 	private final SectionPage parentPage;
-	private final ArrayList<String> enchantments;
-	private final ConfigurationSection section;
+	private final List<String> enchantments;
+	private final Section section;
 	private int index;
 	private final boolean store;
 
@@ -44,9 +44,9 @@ public class EnchantmentEditor {
 		this.index = 0;
 		this.enchantments = new ArrayList<>();
 		this.enchantments.add(HBLocale.GUI_SELECT_ONE_ENCHANTMENT);
-		ConfigurationSection eSection = section.getConfigurationSection(store ? "stored-enchantments" : "enchantments");
+		Section eSection = section.getSection(store ? "stored-enchantments" : "enchantments");
 		if (eSection != null)
-			for (Map.Entry<String, Object> entry : eSection.getValues(false).entrySet()) {
+			for (Map.Entry<String, Object> entry : eSection.getStringRouteMappedValues(false).entrySet()) {
 				this.enchantments.add(entry.getKey() + ":" + entry.getValue());
 			}
 		reOpen(0);
@@ -79,7 +79,7 @@ public class EnchantmentEditor {
 	}
 
 	public List<Item> getContents() {
-		ArrayList<Item> items = new ArrayList<>();
+		List<Item> items = new ArrayList<>();
 		int i = 1;
 		List<String> subList = enchantments.subList(1, enchantments.size());
 		for (String lore : subList) {

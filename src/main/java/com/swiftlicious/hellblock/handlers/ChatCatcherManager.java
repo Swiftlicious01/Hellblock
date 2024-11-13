@@ -10,15 +10,16 @@ import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerQuitEvent;
 
+import com.swiftlicious.hellblock.api.Reloadable;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.gui.SectionPage;
 import com.swiftlicious.hellblock.utils.extras.Pair;
 
 import io.papermc.paper.event.player.AsyncChatEvent;
 
-public class ChatCatcherManager implements Listener {
+public class ChatCatcherManager implements Reloadable, Listener {
 
-	private final HellblockPlugin instance;
+	protected final HellblockPlugin instance;
 	private final ConcurrentHashMap<UUID, Pair<String, SectionPage>> pageMap;
 
 	public ChatCatcherManager(HellblockPlugin plugin) {
@@ -26,15 +27,18 @@ public class ChatCatcherManager implements Listener {
 		this.instance = plugin;
 	}
 
+	@Override
 	public void load() {
 		Bukkit.getPluginManager().registerEvents(this, instance);
 	}
 
+	@Override
 	public void unload() {
 		this.pageMap.clear();
 		HandlerList.unregisterAll(this);
 	}
 
+	@Override
 	public void disable() {
 		unload();
 	}
@@ -55,7 +59,7 @@ public class ChatCatcherManager implements Listener {
 		if (pair == null)
 			return;
 		event.setCancelled(true);
-		instance.getScheduler().runTaskSync(() -> {
+		instance.getScheduler().executeSync(() -> {
 			pair.right().getSection().set(pair.left(), event.message());
 			pair.right().reOpen();
 		}, event.getPlayer().getLocation());

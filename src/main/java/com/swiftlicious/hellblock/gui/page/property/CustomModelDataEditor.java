@@ -1,7 +1,6 @@
 package com.swiftlicious.hellblock.gui.page.property;
 
 import org.bukkit.Material;
-import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
@@ -14,6 +13,7 @@ import com.swiftlicious.hellblock.gui.SectionPage;
 import com.swiftlicious.hellblock.gui.icon.BackGroundItem;
 import com.swiftlicious.hellblock.utils.wrappers.ShadedAdventureComponentWrapper;
 
+import dev.dejvokep.boostedyaml.block.implementation.Section;
 import xyz.xenondevs.invui.gui.Gui;
 import xyz.xenondevs.invui.gui.PagedGui;
 import xyz.xenondevs.invui.item.Item;
@@ -28,7 +28,7 @@ public class CustomModelDataEditor {
 	private final Player player;
 	private final SectionPage parentPage;
 	private String cmd;
-	private final ConfigurationSection section;
+	private final Section section;
 	private final String material;
 
 	public CustomModelDataEditor(Player player, SectionPage parentPage) {

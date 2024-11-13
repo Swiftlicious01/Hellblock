@@ -16,6 +16,7 @@ import xyz.xenondevs.invui.item.builder.ItemBuilder;
 import xyz.xenondevs.invui.item.impl.AbstractItem;
 
 import java.util.ArrayList;
+import java.util.List;
 
 public class Head64Item extends AbstractItem {
 
@@ -34,7 +35,7 @@ public class Head64Item extends AbstractItem {
 			itemBuilder.addLoreLines(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
 					.getAdventureManager().getComponentFromMiniMessage(HBLocale.GUI_CURRENT_VALUE)));
 			String head64 = itemPage.getSection().getString("head64", "");
-			ArrayList<String> list = new ArrayList<>();
+			List<String> list = new ArrayList<>();
 			for (int i = 0; i < head64.length(); i += 16) {
 				if (i + 16 > head64.length()) {
 					list.add(head64.substring(i));

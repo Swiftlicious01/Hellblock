@@ -7,7 +7,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 import org.bukkit.Material;
-import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
@@ -19,6 +18,7 @@ import com.swiftlicious.hellblock.utils.LogUtils;
 import com.swiftlicious.hellblock.utils.extras.Condition;
 import com.swiftlicious.hellblock.utils.extras.Key;
 
+import dev.dejvokep.boostedyaml.YamlDocument;
 import dev.jorel.commandapi.CommandAPICommand;
 import dev.jorel.commandapi.arguments.ArgumentSuggestions;
 import dev.jorel.commandapi.arguments.EntitySelectorArgument;
@@ -57,7 +57,7 @@ public class ItemCommand {
 						if (!file.exists()) {
 							file.createNewFile();
 						}
-						YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+						YamlDocument config = HellblockPlugin.getInstance().getConfigManager().loadData(file);
 						config.set(key + ".material", itemStack.getType().toString());
 						config.set(key + ".amount", itemStack.getAmount());
 						try {

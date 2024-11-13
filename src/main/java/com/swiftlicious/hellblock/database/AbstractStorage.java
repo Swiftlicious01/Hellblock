@@ -6,8 +6,10 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
-import com.swiftlicious.hellblock.player.OfflineUser;
 import com.swiftlicious.hellblock.player.PlayerData;
+import com.swiftlicious.hellblock.player.UserData;
+
+import dev.dejvokep.boostedyaml.YamlDocument;
 
 /**
  * An abstract class that implements the DataStorageInterface and provides
@@ -15,14 +17,14 @@ import com.swiftlicious.hellblock.player.PlayerData;
  */
 public abstract class AbstractStorage implements DataStorageInterface {
 
-	protected HellblockPlugin instance;
+	protected HellblockPlugin plugin;
 
 	public AbstractStorage(HellblockPlugin plugin) {
-		instance = plugin;
+		this.plugin = plugin;
 	}
 
 	@Override
-	public void initialize() {
+	public void initialize(YamlDocument config) {
 		// This method can be overridden in subclasses to perform initialization tasks
 		// specific to the storage type.
 	}
@@ -43,20 +45,12 @@ public abstract class AbstractStorage implements DataStorageInterface {
 	}
 
 	@Override
-	public void updateManyPlayersData(Collection<? extends OfflineUser> users, boolean unlock) {
-		// Update data for multiple players by iterating through the collection of
-		// OfflineUser objects.
-		for (OfflineUser user : users) {
-			this.updatePlayerData(user.getUUID(), user.getPlayerData(), unlock);
+	public void updateManyPlayersData(Collection<? extends UserData> users, boolean unlock) {
+		for (UserData user : users) {
+			this.updatePlayerData(user.getUUID(), user.toPlayerData(), unlock);
 		}
 	}
 
-	/**
-	 * Lock or unlock player data based on the provided UUID and lock flag.
-	 *
-	 * @param uuid The UUID of the player.
-	 * @param lock True to lock the player data, false to unlock it.
-	 */
 	public void lockOrUnlockPlayerData(UUID uuid, boolean lock) {
 		// Note: Only remote database would override this method
 	}

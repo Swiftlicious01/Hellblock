@@ -5,80 +5,91 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 
-import com.swiftlicious.hellblock.player.OfflineUser;
 import com.swiftlicious.hellblock.player.PlayerData;
+import com.swiftlicious.hellblock.player.UserData;
 
+import dev.dejvokep.boostedyaml.YamlDocument;
+
+/**
+ * Interface representing a provider for data storage.
+ */
 public interface DataStorageInterface {
 
 	/**
-	 * Initialize the data resource
+	 * Initializes the data storage provider with the given configuration.
+	 *
+	 * @param config the {@link YamlDocument} configuration for the storage provider
 	 */
-	void initialize();
+	void initialize(YamlDocument config);
 
 	/**
-	 * Close the data resource
+	 * Disables the data storage provider, performing any necessary cleanup.
 	 */
 	void disable();
 
 	/**
-	 * Get the storage data source type
+	 * Retrieves the type of storage used by this provider.
 	 *
-	 * @return {@link StorageType}
+	 * @return the {@link StorageType} of this provider
 	 */
 	StorageType getStorageType();
 
 	/**
-	 * Retrieve a player's data
+	 * Retrieves the player data for the specified UUID.
 	 *
-	 * @param uuid The UUID of the player.
-	 * @param lock Whether to lock the player data during retrieval.
-	 * @return A CompletableFuture containing the optional player data.
+	 * @param uuid     the UUID of the player
+	 * @param lock     whether to lock the player data for exclusive access
+	 * @param executor The executor, can be null
+	 * @return a {@link CompletableFuture} containing an {@link Optional} with the
+	 *         player data, or empty if not found
 	 */
-	CompletableFuture<Optional<PlayerData>> getPlayerData(UUID uuid, boolean lock);
+	CompletableFuture<Optional<PlayerData>> getPlayerData(UUID uuid, boolean lock, Executor executor);
 
 	/**
-	 * Update a player's data
+	 * Updates the player data for the specified UUID.
 	 *
-	 * @param uuid       The UUID of the player.
-	 * @param playerData The player data to update.
-	 * @param unlock     Whether to unlock the player data after updating.
-	 * @return A CompletableFuture indicating the success of the update.
+	 * @param uuid       the UUID of the player
+	 * @param playerData the {@link PlayerData} to be updated
+	 * @param unlock     whether to unlock the player data after updating
+	 * @return a {@link CompletableFuture} containing a boolean indicating success
+	 *         or failure
 	 */
 	CompletableFuture<Boolean> updatePlayerData(UUID uuid, PlayerData playerData, boolean unlock);
 
 	/**
-	 * Update or insert a player's data into the SQL database.
+	 * Updates or inserts the player data for the specified UUID.
 	 *
-	 * @param uuid       The UUID of the player.
-	 * @param playerData The player data to update or insert.
-	 * @param unlock     Whether to unlock the player data after updating or
-	 *                   inserting.
-	 * @return A CompletableFuture indicating the success of the operation.
+	 * @param uuid       the UUID of the player
+	 * @param playerData the {@link PlayerData} to be updated or inserted
+	 * @param unlock     whether to unlock the player data after updating or
+	 *                   inserting
+	 * @return a {@link CompletableFuture} containing a boolean indicating success
+	 *         or failure
 	 */
 	CompletableFuture<Boolean> updateOrInsertPlayerData(UUID uuid, PlayerData playerData, boolean unlock);
 
 	/**
-	 * Update data for multiple players
+	 * Updates the data for multiple players.
 	 *
-	 * @param users  A collection of OfflineUser objects representing players.
-	 * @param unlock Whether to unlock the player data after updating.
+	 * @param users  a collection of {@link UserData} to be updated
+	 * @param unlock whether to unlock the player data after updating
 	 */
-	void updateManyPlayersData(Collection<? extends OfflineUser> users, boolean unlock);
+	void updateManyPlayersData(Collection<? extends UserData> users, boolean unlock);
 
 	/**
-	 * Lock or unlock a player's data in the SQL database.
+	 * Locks or unlocks the player data for the specified UUID.
 	 *
-	 * @param uuid The UUID of the player.
-	 * @param lock Whether to lock or unlock the player data.
+	 * @param uuid the UUID of the player
+	 * @param lock whether to lock (true) or unlock (false) the player data
 	 */
 	void lockOrUnlockPlayerData(UUID uuid, boolean lock);
 
 	/**
-	 * Get a set of unique user UUIDs
+	 * Retrieves the set of unique user UUIDs.
 	 *
-	 * @param legacy Whether to include legacy data in the retrieval.
-	 * @return A set of unique user UUIDs.
+	 * @return a set of unique user UUIDs
 	 */
-	Set<UUID> getUniqueUsers(boolean legacy);
+	Set<UUID> getUniqueUsers();
 }

@@ -7,14 +7,13 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 
 import org.bson.Document;
 import org.bson.UuidRepresentation;
 import org.bson.conversions.Bson;
 import org.bson.types.Binary;
 import org.bukkit.Bukkit;
-import org.bukkit.configuration.ConfigurationSection;
-import org.bukkit.configuration.file.YamlConfiguration;
 
 import com.mongodb.ConnectionString;
 import com.mongodb.MongoClientSettings;
@@ -32,11 +31,15 @@ import com.mongodb.client.model.UpdateOneModel;
 import com.mongodb.client.model.UpdateOptions;
 import com.mongodb.client.model.Updates;
 import com.mongodb.client.result.UpdateResult;
+
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.config.HBConfig;
-import com.swiftlicious.hellblock.player.OfflineUser;
 import com.swiftlicious.hellblock.player.PlayerData;
+import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.utils.LogUtils;
+
+import dev.dejvokep.boostedyaml.YamlDocument;
+import dev.dejvokep.boostedyaml.block.implementation.Section;
 
 /**
  * An implementation of AbstractStorage that uses MongoDB for player data
@@ -57,9 +60,8 @@ public class MongoDBHandler extends AbstractStorage {
 	 * YAML configuration.
 	 */
 	@Override
-	public void initialize() {
-		YamlConfiguration config = HellblockPlugin.getInstance().getConfig("database.yml");
-		ConfigurationSection section = config.getConfigurationSection("MongoDB");
+	public void initialize(YamlDocument config) {
+		Section section = config.getSection("MongoDB");
 		if (section == null) {
 			LogUtils.warn(
 					"Failed to load database config. It seems that your config is broken. Please regenerate a new one.");
@@ -70,7 +72,8 @@ public class MongoDBHandler extends AbstractStorage {
 		var settings = MongoClientSettings.builder().uuidRepresentation(UuidRepresentation.STANDARD);
 		if (!section.getString("connection-uri", "").equals("")) {
 			settings.applyConnectionString(new ConnectionString(section.getString("connection-uri", "")));
-			mongoClient = MongoClients.create(settings.build());
+			this.mongoClient = MongoClients.create(settings.build());
+			this.database = mongoClient.getDatabase(section.getString("database", "minecraft"));
 			return;
 		}
 
@@ -129,29 +132,36 @@ public class MongoDBHandler extends AbstractStorage {
 	 * @return A CompletableFuture with an optional PlayerData.
 	 */
 	@Override
-	public CompletableFuture<Optional<PlayerData>> getPlayerData(UUID uuid, boolean lock) {
+	public CompletableFuture<Optional<PlayerData>> getPlayerData(UUID uuid, boolean lock, Executor executor) {
 		var future = new CompletableFuture<Optional<PlayerData>>();
-		HellblockPlugin.getInstance().getScheduler().runTaskAsync(() -> {
+		if (executor == null)
+			executor = plugin.getScheduler().async();
+		executor.execute(() -> {
 			MongoCollection<Document> collection = database.getCollection(getCollectionName("data"));
 			Document doc = collection.find(Filters.eq("uuid", uuid)).first();
 			if (doc == null) {
 				if (Bukkit.getPlayer(uuid) != null) {
 					if (lock)
 						lockOrUnlockPlayerData(uuid, true);
-					future.complete(Optional.of(PlayerData.empty()));
+					var data = PlayerData.empty();
+					data.setUUID(uuid);
+					future.complete(Optional.of(data));
 				} else {
 					future.complete(Optional.empty());
 				}
 			} else {
-				if (doc.getInteger("lock") != 0 && getCurrentSeconds() - HBConfig.dataSaveInterval <= doc.getInteger("lock")) {
-					future.complete(Optional.of(PlayerData.LOCKED));
+				Binary binary = (Binary) doc.get("data");
+				PlayerData data = plugin.getStorageManager().fromBytes(binary.getData());
+				data.setUUID(uuid);
+				if (doc.getInteger("lock") != 0
+						&& getCurrentSeconds() - HBConfig.dataSaveInterval <= doc.getInteger("lock")) {
+					data.setLocked(true);
+					future.complete(Optional.of(data));
 					return;
 				}
-				Binary binary = (Binary) doc.get("data");
 				if (lock)
 					lockOrUnlockPlayerData(uuid, true);
-				future.complete(
-						Optional.of(HellblockPlugin.getInstance().getStorageManager().fromBytes(binary.getData())));
+				future.complete(Optional.of(data));
 			}
 		});
 		return future;
@@ -168,17 +178,18 @@ public class MongoDBHandler extends AbstractStorage {
 	@Override
 	public CompletableFuture<Boolean> updatePlayerData(UUID uuid, PlayerData playerData, boolean unlock) {
 		var future = new CompletableFuture<Boolean>();
-		HellblockPlugin.getInstance().getScheduler().runTaskAsync(() -> {
+		plugin.getScheduler().async().execute(() -> {
 			MongoCollection<Document> collection = database.getCollection(getCollectionName("data"));
 			try {
 				Document query = new Document("uuid", uuid);
-				Bson updates = Updates.combine(Updates.set("lock", unlock ? 0 : getCurrentSeconds()), Updates.set(
-						"data", new Binary(HellblockPlugin.getInstance().getStorageManager().toBytes(playerData))));
+				Bson updates = Updates.combine(Updates.set("lock", unlock ? 0 : getCurrentSeconds()),
+						Updates.set("data", new Binary(playerData.toBytes())));
 				UpdateOptions options = new UpdateOptions().upsert(true);
 				UpdateResult result = collection.updateOne(query, updates, options);
 				future.complete(result.wasAcknowledged());
-			} catch (MongoException e) {
-				future.completeExceptionally(e);
+
+			} catch (MongoException ex) {
+				future.completeExceptionally(ex);
 			}
 		});
 		return future;
@@ -191,19 +202,19 @@ public class MongoDBHandler extends AbstractStorage {
 	 * @param unlock Flag indicating whether to unlock the data.
 	 */
 	@Override
-	public void updateManyPlayersData(Collection<? extends OfflineUser> users, boolean unlock) {
+	public void updateManyPlayersData(Collection<? extends UserData> users, boolean unlock) {
 		MongoCollection<Document> collection = database.getCollection(getCollectionName("data"));
 		try {
 			int lock = unlock ? 0 : getCurrentSeconds();
 			var list = users.stream().map(it -> new UpdateOneModel<Document>(new Document("uuid", it.getUUID()),
-					Updates.combine(Updates.set("lock", lock), Updates.set("data",
-							new Binary(HellblockPlugin.getInstance().getStorageManager().toBytes(it.getPlayerData())))),
+					Updates.combine(Updates.set("lock", lock),
+							Updates.set("data", new Binary(plugin.getStorageManager().toBytes(it.toPlayerData())))),
 					new UpdateOptions().upsert(true))).toList();
-			if (list.size() == 0)
+			if (list.isEmpty())
 				return;
 			collection.bulkWrite(list);
-		} catch (MongoException e) {
-			LogUtils.warn("Failed to update data for online players.", e);
+		} catch (MongoException ex) {
+			LogUtils.warn("Failed to update data for online players.", ex);
 		}
 	}
 
@@ -221,20 +232,18 @@ public class MongoDBHandler extends AbstractStorage {
 			Bson updates = Updates.combine(Updates.set("lock", !lock ? 0 : getCurrentSeconds()));
 			UpdateOptions options = new UpdateOptions().upsert(true);
 			collection.updateOne(query, updates, options);
-		} catch (MongoException e) {
-			LogUtils.warn("Failed to lock data for " + uuid, e);
+		} catch (MongoException ex) {
+			LogUtils.warn("Failed to lock data for " + uuid, ex);
 		}
 	}
 
 	/**
 	 * Get a set of unique player UUIDs from the MongoDB database.
 	 *
-	 * @param legacy Flag indicating whether to retrieve legacy data.
 	 * @return A set of unique player UUIDs.
 	 */
 	@Override
-	public Set<UUID> getUniqueUsers(boolean legacy) {
-		// no legacy files
+	public Set<UUID> getUniqueUsers() {
 		Set<UUID> uuids = new HashSet<>();
 		MongoCollection<Document> collection = database.getCollection(getCollectionName("data"));
 		try {
@@ -244,8 +253,8 @@ public class MongoDBHandler extends AbstractStorage {
 					uuids.add(cursor.next().get("uuid", UUID.class));
 				}
 			}
-		} catch (MongoException e) {
-			LogUtils.warn("Failed to get unique data.", e);
+		} catch (MongoException ex) {
+			LogUtils.warn("Failed to get unique data.", ex);
 		}
 		return uuids;
 	}

@@ -1,15 +1,16 @@
 package com.swiftlicious.hellblock.handlers;
 
-import java.util.HashMap;
+import java.util.Map;
 
-import org.bukkit.configuration.ConfigurationSection;
-
+import com.swiftlicious.hellblock.api.Reloadable;
 import com.swiftlicious.hellblock.utils.extras.Action;
 import com.swiftlicious.hellblock.utils.extras.ActionTrigger;
 import com.swiftlicious.hellblock.utils.extras.Condition;
 import com.swiftlicious.hellblock.utils.factory.ActionFactory;
 
-public interface ActionManagerInterface {
+import dev.dejvokep.boostedyaml.block.implementation.Section;
+
+public interface ActionManagerInterface extends Reloadable {
 
 	/**
 	 * Registers an ActionFactory for a specific action type. This method allows you
@@ -35,44 +36,44 @@ public interface ActionManagerInterface {
 
 	/**
 	 * Retrieves an Action object based on the configuration provided in a
-	 * ConfigurationSection. This method reads the type of action from the section,
+	 * Section. This method reads the type of action from the section,
 	 * obtains the corresponding ActionFactory, and builds an Action object using
 	 * the specified values and chance.
 	 * <p>
 	 * events: success: action_1: <- section ...
 	 *
-	 * @param section The ConfigurationSection containing the action configuration.
+	 * @param section The Section containing the action configuration.
 	 * @return An Action object created based on the configuration, or an
 	 *         EmptyAction instance if the action type is invalid.
 	 */
-	Action getAction(ConfigurationSection section);
+	Action getAction(Section section);
 
 	/**
 	 * Retrieves a mapping of ActionTriggers to arrays of Actions from a
-	 * ConfigurationSection. This method iterates through the provided
-	 * ConfigurationSection to extract action triggers and their associated arrays
+	 * Section. This method iterates through the provided
+	 * Section to extract action triggers and their associated arrays
 	 * of Actions.
 	 * <p>
 	 * events: <- section success: action_1: ...
 	 *
-	 * @param section The ConfigurationSection containing action mappings.
+	 * @param section The Section containing action mappings.
 	 * @return A HashMap where keys are ActionTriggers and values are arrays of
 	 *         Action objects.
 	 */
-	HashMap<ActionTrigger, Action[]> getActionMap(ConfigurationSection section);
+	Map<ActionTrigger, Action[]> getActionMap(Section section);
 
 	/**
-	 * Retrieves an array of Action objects from a ConfigurationSection. This method
-	 * iterates through the provided ConfigurationSection to extract Action
+	 * Retrieves an array of Action objects from a Section. This method
+	 * iterates through the provided Section to extract Action
 	 * configurations and build an array of Action objects.
 	 * <p>
 	 * events: success: <- section action_1: ...
 	 *
-	 * @param section The ConfigurationSection containing action configurations.
+	 * @param section The Section containing action configurations.
 	 * @return An array of Action objects created based on the configurations in the
 	 *         section.
 	 */
-	Action[] getActions(ConfigurationSection section);
+	Action[] getActions(Section section);
 
 	/**
 	 * Retrieves an ActionFactory associated with a specific action type.
@@ -85,14 +86,14 @@ public interface ActionManagerInterface {
 
 	/**
 	 * Retrieves a mapping of success times to corresponding arrays of actions from
-	 * a ConfigurationSection.
+	 * a Section.
 	 * <p>
 	 * events: success-times: <- section 1: action_1: ...
 	 *
-	 * @param section The ConfigurationSection containing success times actions.
+	 * @param section The Section containing success times actions.
 	 * @return A HashMap where success times associated with actions.
 	 */
-	HashMap<Integer, Action[]> getTimesActionMap(ConfigurationSection section);
+	Map<Integer, Action[]> getTimesActionMap(Section section);
 
 	/**
 	 * Triggers a list of actions with the given condition. If the list of actions

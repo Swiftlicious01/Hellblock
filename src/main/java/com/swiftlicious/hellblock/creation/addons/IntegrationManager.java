@@ -15,6 +15,7 @@ import com.sk89q.worldguard.WorldGuard;
 import com.sk89q.worldguard.bukkit.WorldGuardPlugin;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.api.compatibility.VaultHook;
+import com.swiftlicious.hellblock.config.HBConfig;
 import com.swiftlicious.hellblock.creation.addons.enchant.AdvancedEnchantments;
 import com.swiftlicious.hellblock.creation.addons.level.JobsReborn;
 import com.swiftlicious.hellblock.creation.entity.MythicMobsEntity;
@@ -24,7 +25,7 @@ import com.swiftlicious.hellblock.utils.LogUtils;
 
 public class IntegrationManager implements IntegrationManagerInterface {
 
-	private final HellblockPlugin instance;
+	protected final HellblockPlugin instance;
 	private final Map<String, LevelInterface> levelPluginMap;
 	private final Map<String, EnchantmentInterface> enchantmentPluginMap;
 
@@ -35,11 +36,13 @@ public class IntegrationManager implements IntegrationManagerInterface {
 		this.load();
 	}
 
+	@Override
 	public void disable() {
 		this.enchantmentPluginMap.clear();
 		this.levelPluginMap.clear();
 	}
 
+	@Override
 	public void load() {
 		if (instance.isHookedPluginEnabled("MythicMobs")) {
 			instance.getItemManager().registerItemLibrary(new MythicMobsItem());
@@ -76,7 +79,7 @@ public class IntegrationManager implements IntegrationManagerInterface {
 			}
 		}
 		if (instance.isHookedPluginEnabled("WorldGuard")) {
-			if (instance.getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				Plugin worldGuard = Bukkit.getPluginManager().getPlugin("WorldGuard");
 				if (worldGuard != null && worldGuard instanceof WorldGuardPlugin) {
 					String version = WorldGuard.getVersion();
@@ -189,7 +192,7 @@ public class IntegrationManager implements IntegrationManagerInterface {
 	 */
 	@Override
 	public List<String> getEnchantments(ItemStack itemStack) {
-		ArrayList<String> list = new ArrayList<>();
+		List<String> list = new ArrayList<>();
 		for (EnchantmentInterface enchantmentInterface : enchantmentPluginMap.values()) {
 			list.addAll(enchantmentInterface.getEnchants(itemStack));
 		}

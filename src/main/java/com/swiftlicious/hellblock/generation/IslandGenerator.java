@@ -1,9 +1,11 @@
 package com.swiftlicious.hellblock.generation;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -15,7 +17,6 @@ import org.bukkit.FireworkEffect.Type;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
-import org.bukkit.Registry;
 import org.bukkit.Tag;
 import org.bukkit.World;
 import org.bukkit.block.Block;
@@ -34,22 +35,22 @@ import org.jetbrains.annotations.Nullable;
 
 import com.saicone.rtag.RtagItem;
 import com.swiftlicious.hellblock.HellblockPlugin;
-import com.swiftlicious.hellblock.player.OnlineUser;
+import com.swiftlicious.hellblock.config.HBConfig;
+import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.utils.LogUtils;
 import com.swiftlicious.hellblock.utils.wrappers.ShadedAdventureComponentWrapper;
 
-import io.papermc.paper.registry.RegistryAccess;
-import io.papermc.paper.registry.RegistryKey;
 import lombok.NonNull;
 import xyz.xenondevs.invui.item.builder.BannerBuilder;
 import xyz.xenondevs.invui.item.builder.FireworkBuilder;
 import xyz.xenondevs.invui.item.builder.ItemBuilder;
 import xyz.xenondevs.invui.item.builder.PotionBuilder;
 import xyz.xenondevs.invui.item.builder.SkullBuilder;
+import xyz.xenondevs.invui.util.MojangApiUtils.MojangApiException;
 
 public class IslandGenerator {
 
-	private final HellblockPlugin instance;
+	protected final HellblockPlugin instance;
 
 	public IslandGenerator(HellblockPlugin plugin) {
 		this.instance = plugin;
@@ -58,13 +59,14 @@ public class IslandGenerator {
 	public CompletableFuture<Void> generateHellblockSchematic(@NonNull Location location, @NonNull Player player,
 			@NonNull String schematic) {
 		return CompletableFuture.runAsync(() -> {
-			OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
-			if (onlineUser == null)
+			Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
+			if (onlineUser.isEmpty())
 				return;
 			World world = instance.getHellblockHandler().getHellblockWorld();
-			if (instance.getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				instance.getSchematicManager().pasteSchematic(schematic, instance.getWorldGuardHandler()
-						.getRegion(onlineUser.getUUID(), onlineUser.getHellblockData().getID())).thenRunAsync(() -> {
+						.getRegion(onlineUser.get().getUUID(), onlineUser.get().getHellblockData().getID()))
+						.thenRunAsync(() -> {
 							for (int x = -15; x <= 15; ++x) {
 								for (int y = -15; y <= 15; ++y) {
 									for (int z = -15; z <= 15; ++z) {
@@ -73,7 +75,7 @@ public class IslandGenerator {
 											final int finalX = x;
 											final int finalY = y;
 											final int finalZ = z;
-											instance.getScheduler().runTaskSync(
+											instance.getScheduler().executeSync(
 													() -> this.generateChest(new Location(world,
 															(double) (location.getBlockX() + finalX),
 															(double) (location.getBlockY() + finalY),
@@ -165,13 +167,13 @@ public class IslandGenerator {
 			blockChanges.put(block, Material.SOUL_SAND);
 			block = world.getBlockAt(x, y, z);
 			blockChanges.put(block, Material.DIRT);
-			instance.getScheduler().runTaskSync(() -> blockChanges.forEach((change, type) -> change.setType(type)),
+			instance.getScheduler().executeSync(() -> blockChanges.forEach((change, type) -> change.setType(type)),
 					location);
 			y = (int) (location.getY() + 5.0D);
 			final int chestY = y;
 			this.generateGlowstoneTree(new Location(world, (double) x, (double) y, (double) z)).thenRun(() -> {
 				instance.getScheduler()
-						.runTaskSync(
+						.executeSync(
 								() -> this.generateChest(
 										new Location(world, (double) x, (double) chestY, (double) (z + 1)), player),
 								location);
@@ -250,13 +252,13 @@ public class IslandGenerator {
 			blockChanges.put(block, Material.DIRT);
 			block = world.getBlockAt(x - 1, y - 1, z - 1);
 			blockChanges.put(block, Material.BEDROCK);
-			instance.getScheduler().runTaskSync(() -> blockChanges.forEach((change, type) -> change.setType(type)),
+			instance.getScheduler().executeSync(() -> blockChanges.forEach((change, type) -> change.setType(type)),
 					location);
 			y = location.getBlockY() + 3;
 			final int chestY = y;
 			this.generateGlowstoneTree(new Location(world, (double) x, (double) y, (double) (z - 5))).thenRun(() -> {
 				instance.getScheduler()
-						.runTaskSync(() -> this.generateChest(
+						.executeSync(() -> this.generateChest(
 								new Location(world, (double) (x - 5), (double) chestY, (double) (z - 1)), player),
 								location);
 			});
@@ -352,7 +354,7 @@ public class IslandGenerator {
 			block = world.getBlockAt(x, y + 1, z);
 			if (block.getType().isAir())
 				blockChanges.put(block, Material.GLOWSTONE);
-			instance.getScheduler().runTaskSync(() -> blockChanges.forEach((change, type) -> change.setType(type)),
+			instance.getScheduler().executeSync(() -> blockChanges.forEach((change, type) -> change.setType(type)),
 					location);
 		});
 	}
@@ -364,13 +366,13 @@ public class IslandGenerator {
 		int z = location.getBlockZ();
 		Block block = world.getBlockAt(x, y, z);
 		block.setType(Material.CHEST);
-		OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
+		Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
 		Directional directional = (Directional) block.getBlockData();
-		if (onlineUser != null)
-			directional.setFacing(getChestDirection(location, onlineUser.getHellblockData().getIslandChoice()));
+		if (!onlineUser.isEmpty())
+			directional.setFacing(getChestDirection(location, onlineUser.get().getHellblockData().getIslandChoice()));
 		block.setBlockData(directional);
 		Chest chest = (Chest) block.getState();
-		String chestName = instance.getConfig("config.yml").getString("hellblock.starter-chest.inventory-name");
+		String chestName = HBConfig.chestInventoryName;
 		if (chestName != null && !chestName.isEmpty() && chestName.length() <= 35) {
 			chest.customName(instance.getAdventureManager().getComponentFromMiniMessage(chestName));
 		}
@@ -378,26 +380,15 @@ public class IslandGenerator {
 		inventory.clear();
 		chest.update();
 
-		final Registry<Enchantment> enchantmentRegistry = RegistryAccess.registryAccess()
-				.getRegistry(RegistryKey.ENCHANTMENT);
-
-		final Registry<PotionEffectType> potionRegistry = RegistryAccess.registryAccess()
-				.getRegistry(RegistryKey.MOB_EFFECT);
-
-		final Registry<PatternType> bannerRegistry = RegistryAccess.registryAccess()
-				.getRegistry(RegistryKey.BANNER_PATTERN);
-
-		for (String path : instance.getConfig("config.yml").getConfigurationSection("hellblock.starter-chest")
-				.getKeys(false)) {
-			if (path.equals("inventory-name") || !StringUtils.isNumeric(path))
+		for (Object path : HBConfig.chestItems.getKeys()) {
+			if (!StringUtils.isNumeric(path.toString()))
 				continue;
 			try {
-				String material = instance.getConfig("config.yml")
-						.getString("hellblock.starter-chest." + path + ".material", "AIR");
+				String material = HBConfig.chestItems.getString(path.toString() + ".material", "AIR");
 				if (material.equalsIgnoreCase("AIR") || material == null || material.isEmpty())
 					continue;
-				int amount = instance.getConfig("config.yml").getInt("hellblock.starter-chest." + path + ".amount", 1);
-				int slot = instance.getConfig("config.yml").getInt("hellblock.starter-chest." + path + ".slot");
+				int amount = HBConfig.chestItems.getInt(path.toString() + ".amount", 1);
+				int slot = HBConfig.chestItems.getInt(path.toString() + ".slot");
 				ItemBuilder item = new ItemBuilder(
 						Material.getMaterial(material.toUpperCase()) != null
 								? Material.getMaterial(material.toUpperCase())
@@ -408,15 +399,13 @@ public class IslandGenerator {
 				if (Tag.AIR.isTagged(item.get().getType()))
 					continue;
 
-				String displayName = instance.getConfig("config.yml")
-						.getString("hellblock.starter-chest." + path + ".name");
+				String displayName = HBConfig.chestItems.getString(path.toString() + ".name");
 				if (displayName != null && !displayName.isEmpty()) {
 					item.setDisplayName(new ShadedAdventureComponentWrapper(
 							instance.getAdventureManager().getComponentFromMiniMessage(displayName)));
 				}
 
-				List<String> lore = instance.getConfig("config.yml")
-						.getStringList("hellblock.starter-chest." + path + ".lore");
+				List<String> lore = HBConfig.chestItems.getStringList(path.toString() + ".lore");
 				if (lore != null && !lore.isEmpty()) {
 					for (String newLore : lore) {
 						item.addLoreLines(new ShadedAdventureComponentWrapper(
@@ -424,12 +413,11 @@ public class IslandGenerator {
 					}
 				}
 
-				List<String> enchantments = instance.getConfig("config.yml")
-						.getStringList("hellblock.starter-chest." + path + ".enchantments");
+				List<String> enchantments = HBConfig.chestItems.getStringList(path.toString() + ".enchantments");
 				if (enchantments != null && !enchantments.isEmpty()) {
 					for (String enchants : enchantments) {
 						String[] split = enchants.split(":");
-						Enchantment enchantment = enchantmentRegistry
+						Enchantment enchantment = instance.getHellblockHandler().getEnchantmentRegistry()
 								.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
 						int level = 1;
 						try {
@@ -442,29 +430,25 @@ public class IslandGenerator {
 					}
 				}
 
-				int damage = instance.getConfig("config.yml").getInt("hellblock.starter-chest." + path + ".damage");
+				int damage = HBConfig.chestItems.getInt(path.toString() + ".damage");
 				item.setDamage(damage >= 0 && damage <= item.get().getType().getMaxDurability() ? damage : 0);
 
-				int customModelData = instance.getConfig("config.yml")
-						.getInt("hellblock.starter-chest." + path + ".custom-model-data");
+				int customModelData = HBConfig.chestItems.getInt(path.toString() + ".custom-model-data");
 				item.setCustomModelData(customModelData);
 
-				boolean unbreakable = instance.getConfig("config.yml")
-						.getBoolean("hellblock.starter-chest." + path + ".unbreakable", false);
+				boolean unbreakable = HBConfig.chestItems.getBoolean(path.toString() + ".unbreakable", false);
 				item.setUnbreakable(unbreakable);
 
 				if (Material.getMaterial(material) == Material.POTION
 						|| Material.getMaterial(material) == Material.SPLASH_POTION
-						|| Material.getMaterial(material) == Material.LINGERING_POTION) {
+						|| Material.getMaterial(material) == Material.LINGERING_POTION
+						|| Material.getMaterial(material) == Material.TIPPED_ARROW) {
 					PotionBuilder pm = new PotionBuilder(item.get());
-					String potion = instance.getConfig("config.yml")
-							.getString("hellblock.starter-chest." + path + ".potion.effect");
-					int duration = instance.getConfig("config.yml")
-							.getInt("hellblock.starter-chest." + path + ".potion.duration");
-					int amplifier = instance.getConfig("config.yml")
-							.getInt("hellblock.starter-chest." + path + ".potion.amplifier");
-					PotionEffectType potionType = potion != null && !potion.isEmpty()
-							? potionRegistry.getOrThrow(NamespacedKey.fromString(potion.toLowerCase()))
+					String potion = HBConfig.chestItems.getString(path.toString() + ".potion.effect");
+					int duration = HBConfig.chestItems.getInt(path.toString() + ".potion.duration");
+					int amplifier = HBConfig.chestItems.getInt(path.toString() + ".potion.amplifier");
+					PotionEffectType potionType = potion != null && !potion.isEmpty() ? instance.getHellblockHandler()
+							.getPotionEffectRegistry().getOrThrow(NamespacedKey.fromString(potion.toLowerCase()))
 							: PotionEffectType.FIRE_RESISTANCE;
 					PotionEffect effect = new PotionEffect(potionType, duration * (20 * 60), amplifier);
 					pm.addEffect(effect);
@@ -478,13 +462,13 @@ public class IslandGenerator {
 				}
 
 				if (Material.getMaterial(material) == Material.PLAYER_HEAD) {
-					String skullUUID = instance.getConfig("config.yml")
-							.getString("hellblock.starter-chest." + path + ".skull.player-uuid");
+					String skullUUID = HBConfig.chestItems.getString(path.toString() + ".skull.player-uuid");
 					SkullBuilder sm = null;
 					try {
 						sm = new SkullBuilder(UUID.fromString(skullUUID));
-					} catch (IllegalArgumentException ex) {
-						LogUtils.warn("The UUID wasn't found to set for this player head texture.", ex);
+					} catch (IllegalArgumentException | MojangApiException | IOException ex) {
+						LogUtils.warn(String.format("The UUID %s wasn't found to set for this player head texture.",
+								skullUUID), ex);
 						continue;
 					}
 					if (sm != null) {
@@ -500,14 +484,13 @@ public class IslandGenerator {
 
 				if (Tag.ITEMS_BANNERS.isTagged(Material.getMaterial(material))) {
 					BannerBuilder bm = new BannerBuilder(item.get());
-					List<String> patterns = instance.getConfig("config.yml")
-							.getStringList("hellblock.starter-chest." + path + ".banner.patterns");
+					List<String> patterns = HBConfig.chestItems.getStringList(path.toString() + ".banner.patterns");
 					for (String pat : patterns) {
 						String[] split = pat.split(":");
 						String dyeColor = split[0];
 						String type = split[1];
-						PatternType patternType = type != null && !type.isEmpty()
-								? bannerRegistry.getOrThrow(NamespacedKey.fromString(type.toLowerCase()))
+						PatternType patternType = type != null && !type.isEmpty() ? instance.getHellblockHandler()
+								.getBannerRegistry().getOrThrow(NamespacedKey.fromString(type.toLowerCase()))
 								: PatternType.BASE;
 						Pattern pattern = new Pattern(DyeColor.valueOf(dyeColor), patternType);
 						bm.addPattern(pattern);
@@ -523,25 +506,21 @@ public class IslandGenerator {
 
 				if (Material.getMaterial(material) == Material.FIREWORK_ROCKET) {
 					FireworkBuilder fm = new FireworkBuilder(item.get());
-					int power = instance.getConfig("config.yml")
-							.getInt("hellblock.starter-chest." + path + ".firework.power");
+					int power = HBConfig.chestItems.getInt(path.toString() + ".firework.power");
 					fm.setPower(power);
-					for (String fireworkEffect : instance.getConfig("config.yml")
-							.getConfigurationSection("hellblock.starter-chest." + path + ".firework.effects")
-							.getKeys(false)) {
+					for (Object fireworkEffect : HBConfig.chestItems.getSection(path.toString() + ".firework.effects")
+							.getKeys()) {
 						FireworkEffect.Builder builder = FireworkEffect.builder();
-						String type = instance.getConfig("config.yml").getString(
-								"hellblock.starter-chest." + path + ".firework.effects." + fireworkEffect + ".type");
-						boolean flicker = instance.getConfig("config.yml").getBoolean(
-								"hellblock.starter-chest." + path + ".firework.effects." + fireworkEffect + ".flicker",
-								false);
-						boolean trail = instance.getConfig("config.yml").getBoolean(
-								"hellblock.starter-chest." + path + ".firework.effects." + fireworkEffect + ".trail",
-								false);
-						List<String> colors = instance.getConfig("config.yml").getStringList("hellblock.starter-chest."
-								+ path + ".firework.effects." + fireworkEffect + ".main-colors");
-						List<String> fades = instance.getConfig("config.yml").getStringList("hellblock.starter-chest."
-								+ path + ".firework.effects." + fireworkEffect + ".fade-colors");
+						String type = HBConfig.chestItems.getString(
+								path.toString() + ".firework.effects." + fireworkEffect.toString() + ".type");
+						boolean flicker = HBConfig.chestItems.getBoolean(
+								path.toString() + ".firework.effects." + fireworkEffect.toString() + ".flicker", false);
+						boolean trail = HBConfig.chestItems.getBoolean(
+								path.toString() + ".firework.effects." + fireworkEffect.toString() + ".trail", false);
+						List<String> colors = HBConfig.chestItems.getStringList(
+								path.toString() + ".firework.effects." + fireworkEffect.toString() + ".main-colors");
+						List<String> fades = HBConfig.chestItems.getStringList(
+								path.toString() + ".firework.effects." + fireworkEffect.toString() + ".fade-colors");
 						List<Color> mainColors = new ArrayList<>();
 						for (String color : colors) {
 							if (color.contains(":")) {
@@ -566,9 +545,14 @@ public class IslandGenerator {
 								fadeColors.add(instance.getNetherBrewingHandler().getColor(fade));
 							}
 						}
-						builder.flicker(flicker).trail(trail)
-								.with(type != null && !type.isEmpty() ? Type.valueOf(type) : Type.BURST)
-								.withColor(mainColors).withFade(fadeColors);
+						builder.flicker(flicker).trail(trail);
+						try {
+							builder.with(type != null && !type.isEmpty() ? Type.valueOf(type) : Type.BURST);
+							builder.withColor(mainColors).withFade(fadeColors);
+						} catch (IllegalArgumentException ex) {
+							LogUtils.warn("The type or color of this firework effect returned null.", ex);
+							continue;
+						}
 						fm.addFireworkEffect(builder.build());
 					}
 					ItemStack data = setChestData(fm.get(), true);
@@ -587,11 +571,9 @@ public class IslandGenerator {
 				} else {
 					inventory.addItem(data);
 				}
-			} catch (Exception ex) {
-				LogUtils.severe(
-						String.format("Unable to create the defined item for the starter chest: %s", instance
-								.getConfig("config.yml").getString("hellblock.starter-chest." + path + ".material")),
-						ex);
+			} catch (IllegalArgumentException ex) {
+				LogUtils.severe(String.format("Unable to create the defined item for the starter chest: %s",
+						HBConfig.chestItems.getString(path.toString() + ".material")), ex);
 				continue;
 			}
 		}

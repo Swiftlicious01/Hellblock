@@ -1,6 +1,6 @@
 package com.swiftlicious.hellblock;
 
-import java.io.File;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
@@ -9,14 +9,15 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 import org.bukkit.Bukkit;
+import org.bukkit.Location;
 import org.bukkit.OfflinePlayer;
-import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.HandlerList;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.potion.PotionEffectType;
 
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import com.comphenix.protocol.PacketType;
 import com.comphenix.protocol.ProtocolLibrary;
@@ -39,7 +40,8 @@ import com.swiftlicious.hellblock.creation.item.ItemManager;
 import com.swiftlicious.hellblock.database.StorageManager;
 import com.swiftlicious.hellblock.database.dependency.Dependency;
 import com.swiftlicious.hellblock.database.dependency.DependencyManager;
-import com.swiftlicious.hellblock.database.dependency.ReflectionClassPathAppender;
+import com.swiftlicious.hellblock.database.dependency.classpath.ClassPathAppender;
+import com.swiftlicious.hellblock.database.dependency.classpath.ReflectionClassPathAppender;
 import com.swiftlicious.hellblock.effects.EffectManager;
 import com.swiftlicious.hellblock.events.fishing.LavaFishingReloadEvent;
 import com.swiftlicious.hellblock.generation.BiomeHandler;
@@ -70,10 +72,10 @@ import com.swiftlicious.hellblock.listeners.rain.LavaRain;
 import com.swiftlicious.hellblock.loot.LootManager;
 import com.swiftlicious.hellblock.placeholders.PlaceholderManager;
 import com.swiftlicious.hellblock.player.HellblockData;
-import com.swiftlicious.hellblock.player.OfflineUser;
-import com.swiftlicious.hellblock.player.OnlineUser;
+import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.protection.IslandProtection;
-import com.swiftlicious.hellblock.scheduler.Scheduler;
+import com.swiftlicious.hellblock.scheduler.BukkitSchedulerAdapter;
+import com.swiftlicious.hellblock.scheduler.AbstractJavaScheduler;
 import com.swiftlicious.hellblock.schematic.SchematicManager;
 import com.swiftlicious.hellblock.utils.ConfigUtils;
 import com.swiftlicious.hellblock.utils.LogUtils;
@@ -83,12 +85,9 @@ import com.swiftlicious.hellblock.utils.ReflectionUtils;
 import com.swiftlicious.hellblock.utils.VersionManager;
 import com.swiftlicious.hellblock.utils.WeightUtils;
 
-import dev.jorel.commandapi.CommandAPI;
-import dev.jorel.commandapi.CommandAPIBukkitConfig;
-
+import io.papermc.lib.PaperLib;
 import lombok.Getter;
 import lombok.NonNull;
-import xyz.xenondevs.invui.InvUI;
 
 @Getter
 public class HellblockPlugin extends JavaPlugin {
@@ -118,6 +117,8 @@ public class HellblockPlugin extends JavaPlugin {
 	protected IslandLevelHandler islandLevelManager;
 	protected SchematicManager schematicManager;
 	protected ChallengeRewardBuilder challengeRewardBuilder;
+	protected HBConfig configManager;
+	protected HBLocale localeManager;
 
 	protected ConfigUtils configUtils;
 	protected WeightUtils weightUtils;
@@ -125,8 +126,9 @@ public class HellblockPlugin extends JavaPlugin {
 	protected ParseUtils parseUtils;
 
 	protected ProtocolManager protocolManager;
+	protected ClassPathAppender classPathAppender;
 
-	protected Scheduler scheduler;
+	protected AbstractJavaScheduler<Location> scheduler;
 	protected LootManager lootManager;
 	protected ActionManager actionManager;
 	protected HookManager hookManager;
@@ -151,15 +153,16 @@ public class HellblockPlugin extends JavaPlugin {
 
 	@Override
 	public void onLoad() {
-		if (!CommandAPI.isLoaded())
-			CommandAPI.onLoad(new CommandAPIBukkitConfig(this).usePluginNamespace().shouldHookPaperReload(true)
-					.silentLogs(true).verboseOutput(true));
-		this.dependencyManager = new DependencyManager(this, new ReflectionClassPathAppender(this.getClassLoader()));
-		this.dependencyManager.loadDependencies(new ArrayList<>(
-				List.of(Dependency.GSON, Dependency.SLF4J_API, Dependency.SLF4J_SIMPLE, Dependency.MYSQL_DRIVER,
-						Dependency.MARIADB_DRIVER, Dependency.MONGODB_DRIVER_SYNC, Dependency.MONGODB_DRIVER_CORE,
-						Dependency.MONGODB_DRIVER_BSON, Dependency.JEDIS, Dependency.BSTATS_BASE,
-						Dependency.BSTATS_BUKKIT, Dependency.H2_DRIVER, Dependency.SQLITE_DRIVER, Dependency.HIKARI)));
+		this.versionManager = new VersionManager(this);
+		this.scheduler = new BukkitSchedulerAdapter(this);
+		this.classPathAppender = new ReflectionClassPathAppender(getClass().getClassLoader());
+		this.dependencyManager = new DependencyManager(this);
+		this.dependencyManager.loadDependencies(List.of(Dependency.BOOSTED_YAML, Dependency.BSTATS_BASE,
+				Dependency.BSTATS_BUKKIT, Dependency.COMMAND_API, Dependency.EXP4J, Dependency.GSON,
+				Dependency.H2_DRIVER, Dependency.HIKARI_CP, Dependency.INV_UI, Dependency.INV_UI_ACCESS,
+				Dependency.INV_UI_NMS, Dependency.JEDIS, Dependency.MARIADB_DRIVER, Dependency.MONGODB_DRIVER_BSON,
+				Dependency.MONGODB_DRIVER_CORE, Dependency.MONGODB_DRIVER_SYNC, Dependency.MYSQL_DRIVER,
+				Dependency.SLF4J_API, Dependency.SLF4J_SIMPLE, Dependency.SQLITE_DRIVER));
 	}
 
 	@Override
@@ -170,22 +173,13 @@ public class HellblockPlugin extends JavaPlugin {
 			return;
 		}
 
-		if (!CommandAPI.isLoaded()) {
-			LogUtils.severe("CommandAPI wasn't initialized properly, Disabling plugin...");
-			Bukkit.getPluginManager().disablePlugin(this);
-			return;
-		}
-
-		CommandAPI.onEnable();
-
-		double time = System.currentTimeMillis();
+		double startTime = System.currentTimeMillis();
 
 		instance = this;
 
 		this.protocolManager = ProtocolLibrary.getProtocolManager();
-		this.versionManager = new VersionManager(this);
 
-		// TODO: possible backwards support
+		// TODO: possible backwards support up to 1.17
 		if (!this.versionManager.getSupportedVersions().contains(this.versionManager.getServerVersion())) {
 			LogUtils.severe("Hellblock currently only works on v1.20.5+ servers. Disabling plugin...");
 			Bukkit.getPluginManager().disablePlugin(this);
@@ -199,12 +193,14 @@ public class HellblockPlugin extends JavaPlugin {
 			return;
 		}
 
-		InvUI.getInstance().setPlugin(this);
-		ReflectionUtils.load();
-		HBConfig.load();
-		HBLocale.load();
+		PaperLib.suggestPaper(this);
 
-		this.scheduler = new Scheduler(this);
+		ReflectionUtils.load();
+		this.configManager = new HBConfig(this);
+		this.configManager.load();
+		this.localeManager = new HBLocale(this);
+		this.localeManager.load();
+
 		this.netherrackGeneratorHandler = new NetherrackGenerator(this);
 		this.lavaRainHandler = new LavaRain(this);
 		this.netherFarmingHandler = new NetherFarming(this);
@@ -270,13 +266,11 @@ public class HellblockPlugin extends JavaPlugin {
 			});
 		}
 
-		double time2 = System.currentTimeMillis();
-		double time3 = (time2 - time) / 1000;
-		LogUtils.info(String.format("Took %s seconds to setup Hellblock!", time3));
+		double finishedTime = System.currentTimeMillis();
+		double finalTime = (finishedTime - startTime) / 1000;
+		LogUtils.info(String.format("Took %s seconds to setup Hellblock!", finalTime));
 
-		for (OnlineUser onlineUser : getStorageManager().getOnlineUsers()) {
-			if (onlineUser == null)
-				continue;
+		for (UserData onlineUser : getStorageManager().getOnlineUsers()) {
 			Player player = onlineUser.getPlayer();
 			UUID id = player.getUniqueId();
 			onlineUser.showBorder();
@@ -293,9 +287,9 @@ public class HellblockPlugin extends JavaPlugin {
 									"Owner reference returned null, please report this to the developer.");
 						}
 						instance.getStorageManager()
-								.getOfflineUser(onlineUser.getHellblockData().getOwnerUUID(), HBConfig.lockData)
+								.getOfflineUserData(onlineUser.getHellblockData().getOwnerUUID(), HBConfig.lockData)
 								.thenAccept((owner) -> {
-									OfflineUser bannedOwner = owner.orElseThrow();
+									UserData bannedOwner = owner.orElseThrow();
 									getCoopManager().makeHomeLocationSafe(bannedOwner, onlineUser);
 								});
 					} else {
@@ -305,10 +299,10 @@ public class HellblockPlugin extends JavaPlugin {
 			}
 		}
 
-		int purgeDays = getConfig("config.yml").getInt("hellblock.abandon-after-days", 30);
+		int purgeDays = HBConfig.abandonAfterDays;
 		if (purgeDays > 0) {
 			PurgeCounter purgeCount = HellblockAdminCommand.INSTANCE.new PurgeCounter();
-			for (UUID id : getStorageManager().getDataSource().getUniqueUsers(false)) {
+			for (UUID id : getStorageManager().getDataSource().getUniqueUsers()) {
 				if (!Bukkit.getOfflinePlayer(id).hasPlayedBefore())
 					continue;
 
@@ -319,8 +313,8 @@ public class HellblockPlugin extends JavaPlugin {
 				// Account for a timezone difference
 						TimeUnit.MILLISECONDS.toHours(19);
 				if (millisSinceLastLogin > TimeUnit.DAYS.toMillis(purgeDays)) {
-					getStorageManager().getOfflineUser(id, HBConfig.lockData).thenAccept((result) -> {
-						OfflineUser offlineUser = result.orElseThrow();
+					getStorageManager().getOfflineUserData(id, HBConfig.lockData).thenAccept((result) -> {
+						UserData offlineUser = result.orElseThrow();
 						if (offlineUser.getHellblockData().hasHellblock()
 								&& offlineUser.getHellblockData().getOwnerUUID() != null) {
 							if (getHellblockHandler().isHellblockOwner(id,
@@ -356,17 +350,17 @@ public class HellblockPlugin extends JavaPlugin {
 		}
 
 		getLavaRainHandler().startLavaRainProcess();
-		getScheduler().runTaskSyncLater(() -> getHellblockHandler().getHellblockWorld(), null, 5, TimeUnit.SECONDS);
+		getScheduler().sync().runLater(() -> getHellblockHandler().getHellblockWorld(), 5 * 20, null);
 	}
 
 	@Override
 	public void onDisable() {
 		if (getStorageManager() != null) {
-			Iterator<OnlineUser> iterator = getStorageManager().getOnlineUsers().iterator();
+			Iterator<UserData> iterator = getStorageManager().getOnlineUsers().iterator();
 
 			while (iterator.hasNext()) {
-				OnlineUser onlineUser = iterator.next();
-				if (onlineUser == null)
+				UserData onlineUser = iterator.next();
+				if (!onlineUser.isOnline())
 					continue;
 				onlineUser.hideBorder();
 				onlineUser.stopSpawningAnimals();
@@ -383,41 +377,42 @@ public class HellblockPlugin extends JavaPlugin {
 			}
 		}
 
-		CommandAPI.onDisable();
-		if (getLavaRainHandler() != null)
-			getLavaRainHandler().stopLavaRainProcess();
+		if (this.lavaRainHandler != null)
+			this.lavaRainHandler.stopLavaRainProcess();
 		if (this.blockManager != null)
-			((BlockManager) this.blockManager).disable();
+			this.blockManager.disable();
 		if (this.effectManager != null)
-			((EffectManager) this.effectManager).disable();
+			this.effectManager.disable();
 		if (this.fishingManager != null)
-			((FishingManager) this.fishingManager).disable();
+			this.fishingManager.disable();
 		if (this.itemManager != null)
-			((ItemManager) this.itemManager).disable();
+			this.itemManager.disable();
 		if (this.lootManager != null)
-			((LootManager) this.lootManager).disable();
+			this.lootManager.disable();
 		if (this.marketManager != null)
-			((MarketManager) this.marketManager).disable();
+			this.marketManager.disable();
 		if (this.entityManager != null)
-			((EntityManager) this.entityManager).disable();
+			this.entityManager.disable();
 		if (this.requirementManager != null)
-			((RequirementManager) this.requirementManager).disable();
-		if (this.scheduler != null)
-			((Scheduler) this.scheduler).shutdown();
+			this.requirementManager.disable();
 		if (this.integrationManager != null)
-			((IntegrationManager) this.integrationManager).disable();
+			this.integrationManager.disable();
 		if (this.storageManager != null)
-			((StorageManager) this.storageManager).disable();
+			this.storageManager.disable();
 		if (this.placeholderManager != null)
-			((PlaceholderManager) this.placeholderManager).disable();
+			this.placeholderManager.disable();
 		if (this.actionManager != null)
-			((ActionManager) this.actionManager).disable();
+			this.actionManager.disable();
 		if (this.hookManager != null)
-			((HookManager) this.hookManager).disable();
+			this.hookManager.disable();
 		if (this.commandManager != null)
 			this.commandManager.unload();
 		if (this.chatCatcherManager != null)
 			this.chatCatcherManager.disable();
+		if (this.scheduler != null) {
+			this.scheduler.shutdownScheduler();
+			this.scheduler.shutdownExecutor();
+		}
 		HandlerList.unregisterAll(this);
 
 		if (instance != null)
@@ -428,30 +423,30 @@ public class HellblockPlugin extends JavaPlugin {
 	 * Reload the plugin
 	 */
 	public void reload() {
-		HBConfig.load();
-		getLavaRainHandler().stopLavaRainProcess();
-		((Scheduler) this.scheduler).reload();
-		((RequirementManager) this.requirementManager).unload();
-		((RequirementManager) this.requirementManager).load();
-		((ActionManager) this.actionManager).unload();
-		((ActionManager) this.actionManager).load();
-		((ItemManager) this.itemManager).unload();
-		((ItemManager) this.itemManager).load();
-		((LootManager) this.lootManager).unload();
-		((LootManager) this.lootManager).load();
-		((FishingManager) this.fishingManager).unload();
-		((FishingManager) this.fishingManager).load();
-		((EffectManager) this.effectManager).unload();
-		((EffectManager) this.effectManager).load();
-		((MarketManager) this.marketManager).unload();
-		((MarketManager) this.marketManager).load();
-		((BlockManager) this.blockManager).unload();
-		((BlockManager) this.blockManager).load();
-		((EntityManager) this.entityManager).unload();
-		((EntityManager) this.entityManager).load();
-		((StorageManager) this.storageManager).reload();
-		((HookManager) this.hookManager).unload();
-		((HookManager) this.hookManager).load();
+		this.configManager.load();
+		this.localeManager.load();
+		this.lavaRainHandler.stopLavaRainProcess();
+		this.requirementManager.unload();
+		this.requirementManager.load();
+		this.actionManager.unload();
+		this.actionManager.load();
+		this.itemManager.unload();
+		this.itemManager.load();
+		this.lootManager.unload();
+		this.lootManager.load();
+		this.fishingManager.unload();
+		this.fishingManager.load();
+		this.effectManager.unload();
+		this.effectManager.load();
+		this.marketManager.unload();
+		this.marketManager.load();
+		this.blockManager.unload();
+		this.blockManager.load();
+		this.entityManager.unload();
+		this.entityManager.load();
+		this.storageManager.reload();
+		this.hookManager.unload();
+		this.hookManager.load();
 		this.commandManager.unload();
 		this.commandManager.load();
 		this.chatCatcherManager.unload();
@@ -463,6 +458,9 @@ public class HellblockPlugin extends JavaPlugin {
 	}
 
 	public static HellblockPlugin getInstance() {
+		if (instance == null) {
+			throw new IllegalArgumentException("Plugin not initialized");
+		}
 		return instance;
 	}
 
@@ -474,19 +472,6 @@ public class HellblockPlugin extends JavaPlugin {
 				minutes > 0 ? minutes + HBLocale.FORMAT_Minute : "",
 				seconds > 0 ? seconds + HBLocale.FORMAT_Second : "");
 		return formattedTime;
-	}
-
-	/**
-	 * Retrieves a YAML configuration from a file within the plugin's data folder.
-	 *
-	 * @param file The name of the configuration file.
-	 * @return A YamlConfiguration object representing the configuration.
-	 */
-	public @NonNull YamlConfiguration getConfig(@NonNull String file) {
-		File config = new File(this.getDataFolder(), file);
-		if (!config.exists())
-			this.saveResource(file, false);
-		return YamlConfiguration.loadConfiguration(config);
 	}
 
 	/**
@@ -508,6 +493,18 @@ public class HellblockPlugin extends JavaPlugin {
 		if (!HBConfig.debug)
 			return;
 		LogUtils.info(message);
+	}
+
+	public @Nullable String identifyClassLoader(ClassLoader classLoader) throws ReflectiveOperationException {
+		Class<?> pluginClassLoaderClass = Class.forName("org.bukkit.plugin.java.PluginClassLoader");
+		if (pluginClassLoaderClass.isInstance(classLoader)) {
+			Method getPluginMethod = pluginClassLoaderClass.getDeclaredMethod("getPlugin");
+			getPluginMethod.setAccessible(true);
+
+			JavaPlugin plugin = (JavaPlugin) getPluginMethod.invoke(classLoader);
+			return plugin.getName();
+		}
+		return null;
 	}
 
 	/**

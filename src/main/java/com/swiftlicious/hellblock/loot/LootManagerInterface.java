@@ -1,17 +1,17 @@
 package com.swiftlicious.hellblock.loot;
 
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import com.swiftlicious.hellblock.api.Reloadable;
 import com.swiftlicious.hellblock.effects.Effect;
 import com.swiftlicious.hellblock.utils.extras.Condition;
 
-public interface LootManagerInterface {
+public interface LootManagerInterface extends Reloadable {
 
 	/**
 	 * Retrieves a list of loot IDs associated with a loot group key.
@@ -53,7 +53,7 @@ public interface LootManagerInterface {
 	 * @param condition The condition used to filter loot configurations.
 	 * @return A mapping of loot configuration keys to their associated weights.
 	 */
-	HashMap<String, Double> getLootWithWeight(Condition condition);
+	Map<String, Double> getLootWithWeight(Condition condition);
 
 	/**
 	 * Get a collection of possible loot keys based on a given condition.

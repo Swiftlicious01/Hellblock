@@ -8,12 +8,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.bukkit.configuration.ConfigurationSection;
-import org.bukkit.configuration.file.YamlConfiguration;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.config.HBConfig;
 import com.swiftlicious.hellblock.utils.LogUtils;
 import com.swiftlicious.hellblock.utils.extras.Key;
 import com.swiftlicious.hellblock.utils.extras.Pair;
@@ -22,9 +21,12 @@ import com.swiftlicious.hellblock.utils.extras.Requirement;
 import com.swiftlicious.hellblock.utils.extras.Value;
 import com.swiftlicious.hellblock.utils.extras.WeightModifier;
 
+import dev.dejvokep.boostedyaml.YamlDocument;
+import dev.dejvokep.boostedyaml.block.implementation.Section;
+
 public class EffectManager implements EffectManagerInterface {
 
-	private final HellblockPlugin instance;
+	protected final HellblockPlugin instance;
 
 	private final Map<Key, EffectCarrier> effectMap;
 
@@ -92,6 +94,7 @@ public class EffectManager implements EffectManagerInterface {
 		return effectMap.get(Key.of(namespace, id));
 	}
 
+	@Override
 	public void load() {
 		this.loadFiles();
 		this.loadGlobalEffects();
@@ -137,10 +140,10 @@ public class EffectManager implements EffectManagerInterface {
 	 * @param namespace The namespace to use when creating keys for EffectCarriers.
 	 */
 	private void loadSingleFile(File file, String namespace) {
-		YamlConfiguration yaml = YamlConfiguration.loadConfiguration(file);
-		for (Map.Entry<String, Object> entry : yaml.getValues(false).entrySet()) {
+		YamlDocument yaml = instance.getConfigManager().loadData(file);
+		for (Map.Entry<String, Object> entry : yaml.getStringRouteMappedValues(false).entrySet()) {
 			String value = entry.getKey();
-			if (entry.getValue() instanceof ConfigurationSection section) {
+			if (entry.getValue() instanceof Section section) {
 				Key key = Key.of(namespace, value);
 				EffectCarrier item = getEffectCarrierFromSection(key, section);
 				if (item != null)
@@ -150,29 +153,29 @@ public class EffectManager implements EffectManagerInterface {
 	}
 
 	/**
-	 * Parses a ConfigurationSection to create an EffectCarrier based on the
-	 * specified key and configuration.
+	 * Parses a Section to create an EffectCarrier based on the specified key and
+	 * configuration.
 	 *
 	 * @param key     The key that uniquely identifies the EffectCarrier.
-	 * @param section The ConfigurationSection containing the EffectCarrier
-	 *                configuration.
+	 * @param section The Section containing the EffectCarrier configuration.
 	 * @return An EffectCarrier instance based on the key and configuration, or null
 	 *         if the section is null.
 	 */
 	@Override
 	@Nullable
-	public EffectCarrier getEffectCarrierFromSection(Key key, ConfigurationSection section) {
+	public EffectCarrier getEffectCarrierFromSection(Key key, Section section) {
 		if (section == null)
 			return null;
 		return EffectCarrier.builder().key(key)
-				.requirements(instance.getRequirementManager()
-						.getRequirements(section.getConfigurationSection("requirements"), true))
-				.effect(getEffectModifiers(section.getConfigurationSection("effects")))
-				.actionMap(instance.getActionManager().getActionMap(section.getConfigurationSection("events"))).build();
+				.requirements(
+						instance.getRequirementManager().getRequirements(section.getSection("requirements"), true))
+				.effect(getEffectModifiers(section.getSection("effects")))
+				.actionMap(instance.getActionManager().getActionMap(section.getSection("events"))).build();
 	}
 
+	@Override
 	public void unload() {
-		HashMap<Key, EffectCarrier> temp = new HashMap<>(effectMap);
+		Map<Key, EffectCarrier> temp = new HashMap<>(effectMap);
 		effectMap.clear();
 		for (Map.Entry<Key, EffectCarrier> entry : temp.entrySet()) {
 			if (entry.getValue().isPersist()) {
@@ -193,19 +196,19 @@ public class EffectManager implements EffectManagerInterface {
 	}
 
 	/**
-	 * Parses a ConfigurationSection to retrieve an array of EffectModifiers.
+	 * Parses a Section to retrieve an array of EffectModifiers.
 	 *
-	 * @param section The ConfigurationSection to parse.
+	 * @param section The Section to parse.
 	 * @return An array of EffectModifiers based on the values found in the section.
 	 */
 	@NotNull
 	@Override
-	public EffectModifier[] getEffectModifiers(ConfigurationSection section) {
+	public EffectModifier[] getEffectModifiers(Section section) {
 		if (section == null)
 			return new EffectModifier[0];
-		ArrayList<EffectModifier> modifiers = new ArrayList<>();
-		for (Map.Entry<String, Object> entry : section.getValues(false).entrySet()) {
-			if (entry.getValue() instanceof ConfigurationSection inner) {
+		List<EffectModifier> modifiers = new ArrayList<>();
+		for (Map.Entry<String, Object> entry : section.getStringRouteMappedValues(false).entrySet()) {
+			if (entry.getValue() instanceof Section inner) {
 				EffectModifier effectModifier = getEffectModifier(inner);
 				if (effectModifier != null)
 					modifiers.add(effectModifier);
@@ -215,7 +218,7 @@ public class EffectManager implements EffectManagerInterface {
 	}
 
 	@Override
-	public BaseEffect getBaseEffect(ConfigurationSection section) {
+	public BaseEffect getBaseEffect(Section section) {
 		if (section == null)
 			return new BaseEffect(new PlainValue(0), new PlainValue(1d));
 		Value waitTime = section.contains("wait-time") ? instance.getConfigUtils().getValue(section.get("wait-time"))
@@ -227,8 +230,8 @@ public class EffectManager implements EffectManagerInterface {
 	}
 
 	private void loadGlobalEffects() {
-		YamlConfiguration config = instance.getConfig("config.yml");
-		ConfigurationSection section = config.getConfigurationSection("lava-fishing-options.global-effects");
+		YamlDocument config = HBConfig.getMainConfig();
+		Section section = config.getSection("lava-fishing-options.global-effects");
 		instance.getGlobalSettings().setEffects(getEffectModifiers(section));
 	}
 
@@ -259,16 +262,15 @@ public class EffectManager implements EffectManagerInterface {
 	}
 
 	/**
-	 * Parses a ConfigurationSection to create an EffectModifier based on the
-	 * specified type and configuration.
+	 * Parses a Section to create an EffectModifier based on the specified type and
+	 * configuration.
 	 *
-	 * @param section The ConfigurationSection containing the effect modifier
-	 *                configuration.
+	 * @param section The Section containing the effect modifier configuration.
 	 * @return An EffectModifier instance based on the type and configuration.
 	 */
 	@Override
 	@Nullable
-	public EffectModifier getEffectModifier(ConfigurationSection section) {
+	public EffectModifier getEffectModifier(Section section) {
 		String type = section.getString("type");
 		if (type == null)
 			return null;
@@ -335,8 +337,8 @@ public class EffectManager implements EffectManagerInterface {
 		}
 		case "conditional" -> {
 			Requirement[] requirements = instance.getRequirementManager()
-					.getRequirements(section.getConfigurationSection("conditions"), true);
-			EffectModifier[] modifiers = getEffectModifiers(section.getConfigurationSection("effects"));
+					.getRequirements(section.getSection("conditions"), true);
+			EffectModifier[] modifiers = getEffectModifiers(section.getSection("effects"));
 			return ((effect, condition) -> {
 				for (Requirement requirement : requirements)
 					if (!requirement.isConditionMet(condition))

@@ -5,9 +5,10 @@ import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 
+import com.swiftlicious.hellblock.api.Reloadable;
 import com.swiftlicious.hellblock.loot.Loot;
 
-public interface BlockManagerInterface {
+public interface BlockManagerInterface extends Reloadable {
 
 	/**
 	 * Registers a BlockLibrary instance. This method associates a BlockLibrary with

@@ -3,6 +3,7 @@ package com.swiftlicious.hellblock.gui.hellblock;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -17,7 +18,7 @@ import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.gui.icon.BackGroundItem;
 import com.swiftlicious.hellblock.gui.icon.NextPageItem;
 import com.swiftlicious.hellblock.gui.icon.PreviousPageItem;
-import com.swiftlicious.hellblock.player.OnlineUser;
+import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.utils.LogUtils;
 import com.swiftlicious.hellblock.utils.wrappers.ShadedAdventureComponentWrapper;
 
@@ -50,13 +51,14 @@ public class InvitationMenu {
 
 	public void updateMenu(String search) {
 
-		OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager().getOnlineUser(player.getUniqueId());
-		if (onlineUser == null) {
+		Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
+				.getOnlineUser(player.getUniqueId());
+		if (onlineUser.isEmpty()) {
 			HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 					"<red>Still loading your player data... please try again in a few seconds.");
 			return;
 		}
-		
+
 		var confirmIcon = new ConfirmIcon();
 		Item border = new SimpleItem(new ItemBuilder(Material.AIR));
 		Gui upperGui = Gui.normal().setStructure("a # b")
@@ -89,9 +91,7 @@ public class InvitationMenu {
 
 	public List<Item> getItemList() {
 		List<Item> itemList = new ArrayList<>();
-		for (OnlineUser onlineUser : HellblockPlugin.getInstance().getStorageManager().getOnlineUsers()) {
-			if (onlineUser == null)
-				continue;
+		for (UserData onlineUser : HellblockPlugin.getInstance().getStorageManager().getOnlineUsers()) {
 			UUID key = onlineUser.getUUID();
 			if (!username.equals(SEARCH))
 				continue;
@@ -198,15 +198,15 @@ public class InvitationMenu {
 					LogUtils.warn(String.format("Unable to invite player %s because they returned null.", username));
 					return;
 				}
-				OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+				Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 						.getOnlineUser(player.getUniqueId());
-				if (onlineUser == null)
+				if (onlineUser.isEmpty())
 					return;
-				OnlineUser invitingPlayer = HellblockPlugin.getInstance().getStorageManager()
+				Optional<UserData> invitingPlayer = HellblockPlugin.getInstance().getStorageManager()
 						.getOnlineUser(Bukkit.getPlayer(username).getUniqueId());
-				if (invitingPlayer == null)
+				if (invitingPlayer.isEmpty())
 					return;
-				HellblockPlugin.getInstance().getCoopManager().sendInvite(onlineUser, invitingPlayer);
+				HellblockPlugin.getInstance().getCoopManager().sendInvite(onlineUser.get(), invitingPlayer.get());
 				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
 						net.kyori.adventure.sound.Sound.Source.PLAYER,
 						net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);

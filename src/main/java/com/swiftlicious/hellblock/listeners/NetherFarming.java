@@ -7,6 +7,7 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -62,8 +63,9 @@ import com.sk89q.worldguard.protection.util.WorldEditRegionConverter;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.challenges.HellblockChallenge.ChallengeType;
-import com.swiftlicious.hellblock.player.OnlineUser;
-import com.swiftlicious.hellblock.scheduler.CancellableTask;
+import com.swiftlicious.hellblock.config.HBConfig;
+import com.swiftlicious.hellblock.player.UserData;
+import com.swiftlicious.hellblock.scheduler.SchedulerTask;
 import com.swiftlicious.hellblock.utils.LocationCache;
 import com.swiftlicious.hellblock.utils.RandomUtils;
 
@@ -73,10 +75,10 @@ import net.kyori.adventure.sound.Sound.Source;
 
 public class NetherFarming implements Listener {
 
-	private final HellblockPlugin instance;
+	protected final HellblockPlugin instance;
 
 	private final Map<Location, Integer> blockCache, revertCache, moistureCache;
-	private final Map<OnlineUser, Collection<Location>> regionFarmCache;
+	private final Map<UserData, Collection<Location>> regionFarmCache;
 
 	public NetherFarming(HellblockPlugin plugin) {
 		instance = plugin;
@@ -87,7 +89,7 @@ public class NetherFarming implements Listener {
 		Bukkit.getPluginManager().registerEvents(this, instance);
 	}
 
-	public CompletableFuture<Void> trackNetherFarms(@NonNull OnlineUser user) {
+	public CompletableFuture<Void> trackNetherFarms(@NonNull UserData user) {
 		return CompletableFuture.runAsync(() -> {
 			Set<Block> farmBlocks = getFarmlandOnHellblock(user);
 			if (farmBlocks != null) {
@@ -108,7 +110,7 @@ public class NetherFarming implements Listener {
 							|| (instance.getLavaRainHandler().getLavaRainTask() != null
 									&& instance.getLavaRainHandler().getLavaRainTask().isLavaRaining()
 									&& updatingBlock.getWorld().getHighestBlockAt(cache).isEmpty())) {
-						instance.getScheduler().runTaskSyncLater(() -> {
+						instance.getScheduler().sync().runLater(() -> {
 							if (!this.blockCache.containsKey(cache)) {
 								this.blockCache.put(cache, RandomUtils.generateRandomInt(15, 25));
 							}
@@ -132,19 +134,21 @@ public class NetherFarming implements Listener {
 										farm.setMoisture(farm.getMaximumMoisture());
 										updatingBlock.setBlockData(farm);
 										updatingBlock.getState().update();
-										if (!user.getChallengeData()
-												.isChallengeActive(ChallengeType.NETHER_FARM_CHALLENGE)
-												&& !user.getChallengeData()
-														.isChallengeCompleted(ChallengeType.NETHER_FARM_CHALLENGE)) {
-											user.getChallengeData().beginChallengeProgression(user.getPlayer(),
-													ChallengeType.NETHER_FARM_CHALLENGE);
-										} else {
-											user.getChallengeData().updateChallengeProgression(user.getPlayer(),
-													ChallengeType.NETHER_FARM_CHALLENGE, 1);
-											if (user.getChallengeData()
-													.isChallengeCompleted(ChallengeType.NETHER_FARM_CHALLENGE)) {
-												user.getChallengeData().completeChallenge(user.getPlayer(),
+										if (user.getPlayer() != null) {
+											if (!user.getChallengeData()
+													.isChallengeActive(ChallengeType.NETHER_FARM_CHALLENGE)
+													&& !user.getChallengeData().isChallengeCompleted(
+															ChallengeType.NETHER_FARM_CHALLENGE)) {
+												user.getChallengeData().beginChallengeProgression(user.getPlayer(),
 														ChallengeType.NETHER_FARM_CHALLENGE);
+											} else {
+												user.getChallengeData().updateChallengeProgression(user.getPlayer(),
+														ChallengeType.NETHER_FARM_CHALLENGE, 1);
+												if (user.getChallengeData()
+														.isChallengeCompleted(ChallengeType.NETHER_FARM_CHALLENGE)) {
+													user.getChallengeData().completeChallenge(user.getPlayer(),
+															ChallengeType.NETHER_FARM_CHALLENGE);
+												}
 											}
 										}
 										this.moistureCache.put(cache, farm.getMoisture());
@@ -158,9 +162,9 @@ public class NetherFarming implements Listener {
 									}
 								}
 							} while (this.blockCache.containsKey(cache) && this.blockCache.get(cache) != null);
-						}, cache, RandomUtils.generateRandomInt(15, 30), TimeUnit.SECONDS);
+						}, RandomUtils.generateRandomInt(15, 30) * 20L, cache);
 					} else {
-						instance.getScheduler().runTaskSyncLater(() -> {
+						instance.getScheduler().sync().runLater(() -> {
 							farm.setMoisture(farm.getMoisture() > 0 ? farm.getMoisture() - 1 : 0);
 							if (farm.getMoisture() == 0) {
 								if (!this.revertCache.containsKey(cache)) {
@@ -186,7 +190,7 @@ public class NetherFarming implements Listener {
 									}
 								} while (this.revertCache.containsKey(cache) && this.revertCache.get(cache) != null);
 							}
-						}, cache, RandomUtils.generateRandomInt(10, 15), TimeUnit.SECONDS);
+						}, RandomUtils.generateRandomInt(10, 15) * 20L, cache);
 					}
 				} while (hasDehydratedFarmland(farmBlocks) || hasUngrownCrops(farmBlocks));
 			}
@@ -201,7 +205,7 @@ public class NetherFarming implements Listener {
 		for (Block farm : blocks) {
 			if (farm == null || farm.getType() != Material.FARMLAND)
 				continue;
-			if (!farm.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+			if (!farm.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 				continue;
 
 			if (Tag.CROPS.isTagged(farm.getRelative(BlockFace.UP).getType())) {
@@ -226,7 +230,7 @@ public class NetherFarming implements Listener {
 		for (Block farm : blocks) {
 			if (farm == null || farm.getType() != Material.FARMLAND)
 				continue;
-			if (!farm.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+			if (!farm.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 				continue;
 
 			if (farm.getBlockData() instanceof Farmland) {
@@ -243,7 +247,7 @@ public class NetherFarming implements Listener {
 	private boolean checkForLavaAroundFarm(@Nullable Block block) {
 		if (block == null || block.isEmpty() || block.getType() != Material.FARMLAND)
 			return false;
-		if (!block.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!block.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return false;
 
 		boolean lavaFound = false;
@@ -266,13 +270,13 @@ public class NetherFarming implements Listener {
 		return lavaFound;
 	}
 
-	private @Nullable Set<Block> getFarmlandOnHellblock(@NonNull OnlineUser user) {
+	private @Nullable Set<Block> getFarmlandOnHellblock(@NonNull UserData user) {
 		Player player = user.getPlayer();
 		if (!user.isOnline())
 			return null;
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!player.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return null;
-		if (instance.getHellblockHandler().isWorldguardProtected()) {
+		if (HBConfig.worldguardProtected) {
 			Set<Block> regionBlocks = new HashSet<>();
 			// lessen the load on the server
 			if (this.regionFarmCache.containsKey(user) && this.regionFarmCache.get(user) != null) {
@@ -281,7 +285,7 @@ public class NetherFarming implements Listener {
 					Block cachedBlock = cache.getBlock();
 					regionBlocks.add(cachedBlock);
 				}
-				instance.getScheduler().runTaskAsyncLater(() -> resetRegionFarmCache(user), 3, TimeUnit.MINUTES);
+				instance.getScheduler().asyncLater(() -> resetRegionFarmCache(user), 3, TimeUnit.MINUTES);
 				return regionBlocks;
 			}
 			Set<ProtectedRegion> wgRegion = instance.getWorldGuardHandler().getRegions(player.getUniqueId());
@@ -323,7 +327,7 @@ public class NetherFarming implements Listener {
 		return null;
 	}
 
-	private void resetRegionFarmCache(@NonNull OnlineUser user) {
+	private void resetRegionFarmCache(@NonNull UserData user) {
 		if (this.regionFarmCache.containsKey(user)) {
 			this.regionFarmCache.remove(user);
 		}
@@ -339,7 +343,7 @@ public class NetherFarming implements Listener {
 	private boolean checkForLavaAroundSugarCane(@Nullable Block block) {
 		if (block == null || block.isEmpty() || !(sugarCaneGrowBlocks.contains(block.getType())))
 			return false;
-		if (!block.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!block.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return false;
 
 		boolean lavaFound = false;
@@ -356,7 +360,7 @@ public class NetherFarming implements Listener {
 	@EventHandler
 	public void onFlowConcretePowder(BlockFromToEvent event) {
 		final Block block = event.getBlock();
-		if (!block.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!block.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 
 		if (!Arrays.asList(FACES).contains(event.getFace())) {
@@ -379,7 +383,7 @@ public class NetherFarming implements Listener {
 	@EventHandler
 	public void onPlaceConcretePowder(BlockPlaceEvent event) {
 		final Block block = event.getBlockPlaced();
-		if (!block.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!block.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 
 		if (Tag.CONCRETE_POWDER.isTagged(block.getType())) {
@@ -397,16 +401,15 @@ public class NetherFarming implements Listener {
 	@EventHandler
 	public void onFallConcretePowder(EntityDropItemEvent event) {
 		if (event.getEntity() instanceof FallingBlock fallingBlock) {
-			if (!fallingBlock.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+			if (!fallingBlock.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 				return;
 			if (Tag.CONCRETE_POWDER.isTagged(fallingBlock.getBlockData().getMaterial())) {
 				Material powder = fallingBlock.getBlockData().getMaterial();
 				if (fallingBlock.getLocation().getBlock().getRelative(BlockFace.UP).getType() == Material.LAVA) {
 					event.setCancelled(true);
-					instance.getScheduler().runTaskSyncLater(
-							() -> fallingBlock.getLocation().getBlock().getRelative(BlockFace.UP)
-									.setType(convertToConcrete(powder)),
-							fallingBlock.getLocation(), 5, TimeUnit.MILLISECONDS);
+					instance.getScheduler().sync().runLater(() -> fallingBlock.getLocation().getBlock()
+							.getRelative(BlockFace.UP).setType(convertToConcrete(powder)), 5,
+							fallingBlock.getLocation());
 					instance.getAdventureManager().sendSound(fallingBlock.getLocation().getBlock().getLocation(),
 							Source.AMBIENT, Key.key("minecraft:block.lava.extinguish"), 1, 1);
 					fallingBlock.setDropItem(false);
@@ -414,9 +417,9 @@ public class NetherFarming implements Listener {
 					for (BlockFace face : FACES) {
 						if (fallingBlock.getLocation().getBlock().getRelative(face).getType() == Material.LAVA) {
 							event.setCancelled(true);
-							instance.getScheduler().runTaskSyncLater(
-									() -> fallingBlock.getLocation().getBlock().setType(convertToConcrete(powder)),
-									fallingBlock.getLocation(), 5, TimeUnit.MILLISECONDS);
+							instance.getScheduler().sync().runLater(
+									() -> fallingBlock.getLocation().getBlock().setType(convertToConcrete(powder)), 5,
+									fallingBlock.getLocation());
 							instance.getAdventureManager().sendSound(
 									fallingBlock.getLocation().getBlock().getLocation(), Source.AMBIENT,
 									Key.key("minecraft:block.lava.extinguish"), 1, 1);
@@ -432,7 +435,7 @@ public class NetherFarming implements Listener {
 	@EventHandler
 	public void onForceCocoaBeanPlacement(PlayerInteractEvent event) {
 		final Player player = event.getPlayer();
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!player.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 
 		if (event.getAction() != Action.RIGHT_CLICK_BLOCK)
@@ -471,7 +474,7 @@ public class NetherFarming implements Listener {
 	@EventHandler
 	public void onForceSugarCanePlacement(PlayerInteractEvent event) {
 		final Player player = event.getPlayer();
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!player.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 
 		if (event.getAction() != Action.RIGHT_CLICK_BLOCK)
@@ -519,7 +522,7 @@ public class NetherFarming implements Listener {
 	@EventHandler
 	public void onGrowSugarCane(BlockGrowEvent event) {
 		final Block block = event.getBlock();
-		if (!block.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!block.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 
 		if (block.isEmpty() && block.getRelative(BlockFace.DOWN).getType() == Material.SUGAR_CANE
@@ -586,7 +589,7 @@ public class NetherFarming implements Listener {
 				return;
 			} else {
 				event.setCancelled(true);
-				instance.getScheduler().runTaskSyncLater(() -> {
+				instance.getScheduler().sync().runLater(() -> {
 					block.getRelative(BlockFace.DOWN).setType(Material.AIR);
 					block.getWorld().spawnParticle(Particle.BLOCK, block.getRelative(BlockFace.DOWN).getLocation(), 5,
 							Material.SUGAR_CANE.createBlockData());
@@ -595,7 +598,7 @@ public class NetherFarming implements Listener {
 					instance.getAdventureManager().sendSound(block.getLocation(),
 							net.kyori.adventure.sound.Sound.Source.AMBIENT,
 							net.kyori.adventure.key.Key.key("minecraft:block.grass.break"), 1, 1);
-				}, block.getRelative(BlockFace.DOWN).getLocation(), 5, TimeUnit.MILLISECONDS);
+				}, 5, block.getRelative(BlockFace.DOWN).getLocation());
 				return;
 			}
 		}
@@ -604,7 +607,7 @@ public class NetherFarming implements Listener {
 	@EventHandler
 	public void onSugarCaneUpdate(BlockPhysicsEvent event) {
 		final Block block = event.getSourceBlock();
-		if (!block.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!block.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 
 		if (block.getType() == Material.SUGAR_CANE) {
@@ -635,7 +638,7 @@ public class NetherFarming implements Listener {
 	@EventHandler
 	public void onPistonExtendSugarCane(BlockPistonExtendEvent event) {
 		final Block block = event.getBlock();
-		if (!block.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!block.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 
 		for (Block lava : event.getBlocks()) {
@@ -703,7 +706,7 @@ public class NetherFarming implements Listener {
 	@EventHandler
 	public void onBreakSugarCane(BlockBreakEvent event) {
 		final Block block = event.getBlock();
-		if (!block.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!block.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 
 		final Player player = event.getPlayer();
@@ -799,7 +802,7 @@ public class NetherFarming implements Listener {
 	@EventHandler
 	public void onPlaceSugarCane(BlockPlaceEvent event) {
 		final Block block = event.getBlockPlaced();
-		if (!block.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!block.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 
 		final Player player = event.getPlayer();
@@ -925,7 +928,7 @@ public class NetherFarming implements Listener {
 	@EventHandler
 	public void onPickUpLavaWithDispenseSugarCane(BlockDispenseEvent event) {
 		final Block block = event.getBlock();
-		if (!block.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!block.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 
 		if (block.getState() instanceof Dispenser dispenser) {
@@ -1021,7 +1024,7 @@ public class NetherFarming implements Listener {
 	@EventHandler
 	public void onPickUpLavaNextToSugarCane(PlayerBucketFillEvent event) {
 		final Player player = event.getPlayer();
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!player.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 
 		if (event.getItemStack() != null && event.getItemStack().getType() == Material.LAVA_BUCKET) {
@@ -1090,7 +1093,7 @@ public class NetherFarming implements Listener {
 	@EventHandler
 	public void onBlockFade(BlockFadeEvent event) {
 		final Block block = event.getBlock();
-		if (!block.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!block.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 
 		if (block.getBlockData() instanceof Farmland) {
@@ -1104,8 +1107,12 @@ public class NetherFarming implements Listener {
 							25);
 					Player player = instance.getNetherrackGeneratorHandler().getClosestPlayer(block.getLocation(),
 							playersNearby);
-					if (player != null)
-						trackNetherFarms(instance.getStorageManager().getOnlineUser(player.getUniqueId()));
+					if (player != null) {
+						Optional<UserData> onlineUser = instance.getStorageManager()
+								.getOnlineUser(player.getUniqueId());
+						if (!onlineUser.isEmpty())
+							trackNetherFarms(onlineUser.get());
+					}
 				} else {
 					if (this.blockCache.containsKey(LocationCache.getCachedLocation(block.getLocation()))) {
 						this.blockCache.remove(LocationCache.getCachedLocation(block.getLocation()));
@@ -1124,7 +1131,7 @@ public class NetherFarming implements Listener {
 	@EventHandler
 	public void onBlockExplode(BlockExplodeEvent event) {
 		final Block block = event.getBlock();
-		if (!block.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!block.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 		if (event.getExplosionResult() != ExplosionResult.DESTROY)
 			return;
@@ -1134,7 +1141,9 @@ public class NetherFarming implements Listener {
 			Player player = instance.getNetherrackGeneratorHandler().getClosestPlayer(block.getLocation(),
 					playersNearby);
 			if (player != null) {
-				trackNetherFarms(instance.getStorageManager().getOnlineUser(player.getUniqueId()));
+				Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
+				if (!onlineUser.isEmpty())
+					trackNetherFarms(onlineUser.get());
 			}
 			if (this.blockCache.containsKey(LocationCache.getCachedLocation(block.getLocation()))) {
 				this.blockCache.remove(LocationCache.getCachedLocation(block.getLocation()));
@@ -1151,30 +1160,35 @@ public class NetherFarming implements Listener {
 	@EventHandler
 	public void onLavaPlace(PlayerBucketEmptyEvent event) {
 		final Player player = event.getPlayer();
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!player.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 
 		if (event.getBucket() == Material.LAVA_BUCKET) {
-			trackNetherFarms(instance.getStorageManager().getOnlineUser(player.getUniqueId()));
+			Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
+			if (!onlineUser.isEmpty())
+				trackNetherFarms(onlineUser.get());
 		}
 	}
 
 	@EventHandler
 	public void onLavaPickup(PlayerBucketFillEvent event) {
 		final Player player = event.getPlayer();
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!player.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 
 		if (event.getItemStack() != null && event.getItemStack().getType() == Material.LAVA_BUCKET) {
-			resetRegionFarmCache(instance.getStorageManager().getOnlineUser(player.getUniqueId()));
-			trackNetherFarms(instance.getStorageManager().getOnlineUser(player.getUniqueId()));
+			Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
+			if (!onlineUser.isEmpty()) {
+				resetRegionFarmCache(onlineUser.get());
+				trackNetherFarms(onlineUser.get());
+			}
 		}
 	}
 
 	@EventHandler
 	public void onPickUpLavaWithDispense(BlockDispenseEvent event) {
 		final Block block = event.getBlock();
-		if (!block.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!block.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 
 		if (block.getState() instanceof Dispenser dispenser) {
@@ -1187,8 +1201,12 @@ public class NetherFarming implements Listener {
 						Player player = instance.getNetherrackGeneratorHandler().getClosestPlayer(block.getLocation(),
 								playersNearby);
 						if (player != null) {
-							resetRegionFarmCache(instance.getStorageManager().getOnlineUser(player.getUniqueId()));
-							trackNetherFarms(instance.getStorageManager().getOnlineUser(player.getUniqueId()));
+							Optional<UserData> onlineUser = instance.getStorageManager()
+									.getOnlineUser(player.getUniqueId());
+							if (!onlineUser.isEmpty()) {
+								resetRegionFarmCache(onlineUser.get());
+								trackNetherFarms(onlineUser.get());
+							}
 						}
 					}
 				}
@@ -1199,7 +1217,7 @@ public class NetherFarming implements Listener {
 	@EventHandler
 	public void onPistonExtendIntoLava(BlockPistonExtendEvent event) {
 		final Block block = event.getBlock();
-		if (!block.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!block.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 
 		Collection<Player> playersNearby = block.getWorld().getNearbyPlayers(block.getLocation(), 25, 25, 25);
@@ -1207,8 +1225,11 @@ public class NetherFarming implements Listener {
 		if (player != null) {
 			for (Block lava : event.getBlocks()) {
 				if (lava.getType() == Material.LAVA) {
-					resetRegionFarmCache(instance.getStorageManager().getOnlineUser(player.getUniqueId()));
-					trackNetherFarms(instance.getStorageManager().getOnlineUser(player.getUniqueId()));
+					Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
+					if (!onlineUser.isEmpty()) {
+						resetRegionFarmCache(onlineUser.get());
+						trackNetherFarms(onlineUser.get());
+					}
 				}
 			}
 		}
@@ -1217,12 +1238,14 @@ public class NetherFarming implements Listener {
 	@EventHandler
 	public void onBlockBreak(BlockBreakEvent event) {
 		final Block block = event.getBlock();
-		if (!block.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!block.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 
 		if (block.getBlockData() instanceof Farmland || block.getBlockData() instanceof Ageable) {
 			final Player player = event.getPlayer();
-			trackNetherFarms(instance.getStorageManager().getOnlineUser(player.getUniqueId()));
+			Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
+			if (!onlineUser.isEmpty())
+				trackNetherFarms(onlineUser.get());
 			if (block.getBlockData() instanceof Farmland) {
 				if (this.blockCache.containsKey(LocationCache.getCachedLocation(block.getLocation()))) {
 					this.blockCache.remove(LocationCache.getCachedLocation(block.getLocation()));
@@ -1240,24 +1263,29 @@ public class NetherFarming implements Listener {
 	@EventHandler
 	public void onBlockPlace(BlockPlaceEvent event) {
 		final Block block = event.getBlock();
-		if (!block.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!block.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 
 		final Player player = event.getPlayer();
 		if (block.getBlockData() instanceof Farmland || block.getBlockData() instanceof Ageable) {
-			trackNetherFarms(instance.getStorageManager().getOnlineUser(player.getUniqueId()));
+			Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
+			if (!onlineUser.isEmpty())
+				trackNetherFarms(onlineUser.get());
 		}
 
 		if (event.getBlockReplacedState().getType() == Material.LAVA) {
-			resetRegionFarmCache(instance.getStorageManager().getOnlineUser(player.getUniqueId()));
-			trackNetherFarms(instance.getStorageManager().getOnlineUser(player.getUniqueId()));
+			Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
+			if (!onlineUser.isEmpty()) {
+				resetRegionFarmCache(onlineUser.get());
+				trackNetherFarms(onlineUser.get());
+			}
 		}
 	}
 
 	@EventHandler
 	public void onMoistureChange(MoistureChangeEvent event) {
 		final Block block = event.getBlock();
-		if (!block.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!block.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 
 		if (block.getBlockData() instanceof Farmland) {
@@ -1269,7 +1297,9 @@ public class NetherFarming implements Listener {
 				Player player = instance.getNetherrackGeneratorHandler().getClosestPlayer(block.getLocation(),
 						playersNearby);
 				if (player != null) {
-					trackNetherFarms(instance.getStorageManager().getOnlineUser(player.getUniqueId()));
+					Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
+					if (!onlineUser.isEmpty())
+						trackNetherFarms(onlineUser.get());
 				}
 			} else {
 				if (this.moistureCache.containsKey(LocationCache.getCachedLocation(block.getLocation()))) {
@@ -1282,13 +1312,15 @@ public class NetherFarming implements Listener {
 	@EventHandler
 	public void onBoneMeal(BlockFertilizeEvent event) {
 		final Player player = event.getPlayer();
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!player.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 
 		final List<BlockState> blocks = event.getBlocks();
 		for (BlockState block : blocks) {
 			if (block.getBlockData() instanceof Ageable) {
-				trackNetherFarms(instance.getStorageManager().getOnlineUser(player.getUniqueId()));
+				Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
+				if (!onlineUser.isEmpty())
+					trackNetherFarms(onlineUser.get());
 			}
 		}
 	}
@@ -1296,19 +1328,21 @@ public class NetherFarming implements Listener {
 	@EventHandler
 	public void onHarvest(PlayerHarvestBlockEvent event) {
 		final Player player = event.getPlayer();
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!player.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 
 		final Block block = event.getHarvestedBlock();
 		if (block.getBlockData() instanceof Ageable) {
-			trackNetherFarms(instance.getStorageManager().getOnlineUser(player.getUniqueId()));
+			Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
+			if (!onlineUser.isEmpty())
+				trackNetherFarms(onlineUser.get());
 		}
 	}
 
 	@EventHandler
 	public void onGrow(BlockGrowEvent event) {
 		final Block block = event.getBlock();
-		if (!block.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!block.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 
 		if (block.getBlockData() instanceof Ageable) {
@@ -1316,7 +1350,9 @@ public class NetherFarming implements Listener {
 			Player player = instance.getNetherrackGeneratorHandler().getClosestPlayer(block.getLocation(),
 					playersNearby);
 			if (player != null) {
-				trackNetherFarms(instance.getStorageManager().getOnlineUser(player.getUniqueId()));
+				Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
+				if (!onlineUser.isEmpty())
+					trackNetherFarms(onlineUser.get());
 			}
 		}
 	}
@@ -1324,7 +1360,7 @@ public class NetherFarming implements Listener {
 	@EventHandler
 	public void onFarmland(PlayerInteractEvent event) {
 		final Player player = event.getPlayer();
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!player.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 
 		if (!(event.getAction() == Action.RIGHT_CLICK_BLOCK || event.getAction() == Action.PHYSICAL)) {
@@ -1359,7 +1395,7 @@ public class NetherFarming implements Listener {
 	@EventHandler
 	public void onFarmlandEntity(EntityInteractEvent event) {
 		final Entity entity = event.getEntity();
-		if (!entity.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!entity.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 
 		if (entity instanceof Player)
@@ -1371,8 +1407,11 @@ public class NetherFarming implements Listener {
 				Collection<Player> playersNearby = block.getWorld().getNearbyPlayers(block.getLocation(), 25, 25, 25);
 				Player player = instance.getNetherrackGeneratorHandler().getClosestPlayer(block.getLocation(),
 						playersNearby);
-				if (player != null)
-					trackNetherFarms(instance.getStorageManager().getOnlineUser(player.getUniqueId()));
+				if (player != null) {
+					Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
+					if (!onlineUser.isEmpty())
+						trackNetherFarms(onlineUser.get());
+				}
 				if (block.getBlockData() instanceof Farmland) {
 					if (this.blockCache.containsKey(LocationCache.getCachedLocation(block.getLocation()))) {
 						this.blockCache.remove(LocationCache.getCachedLocation(block.getLocation()));
@@ -1450,27 +1489,27 @@ public class NetherFarming implements Listener {
 	private class FarmUpdater implements Runnable {
 
 		private final UUID playerUUID;
-		private final CancellableTask cancellableTask;
+		private final SchedulerTask cancellableTask;
 
 		public FarmUpdater(@NonNull UUID playerUUID) {
 			this.playerUUID = playerUUID;
-			this.cancellableTask = instance.getScheduler().runTaskAsyncTimer(this, 0,
-					RandomUtils.generateRandomInt(3, 5), TimeUnit.MINUTES);
+			this.cancellableTask = instance.getScheduler().asyncRepeating(this, 0, RandomUtils.generateRandomInt(3, 5),
+					TimeUnit.MINUTES);
 		}
 
 		@Override
 		public void run() {
-			OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(playerUUID);
-			if (!onlineUser.isOnline()) {
+			Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(playerUUID);
+			if (onlineUser.isEmpty() || !onlineUser.get().isOnline()) {
 				cancelTask();
 				return;
 			}
 
-			trackNetherFarms(onlineUser);
+			trackNetherFarms(onlineUser.get());
 		}
 
 		public void cancelTask() {
-			if (!this.cancellableTask.isCancelled())
+			if (this.cancellableTask != null)
 				this.cancellableTask.cancel();
 		}
 	}

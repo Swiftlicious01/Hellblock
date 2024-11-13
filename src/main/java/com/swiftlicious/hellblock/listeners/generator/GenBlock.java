@@ -6,6 +6,7 @@ import java.util.UUID;
 import org.bukkit.Location;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.config.HBConfig;
 
 public class GenBlock {
 	private final Location location;
@@ -41,8 +42,7 @@ public class GenBlock {
 	}
 
 	public boolean hasExpired() {
-		if (this.pistonPowered && HellblockPlugin.getInstance().getConfig("config.yml")
-				.getConfigurationSection("netherrack-generator-options.automation").getBoolean("pistons", false))
+		if (this.pistonPowered && HBConfig.pistonAutomationEnabled)
 			return false;
 		// Expire entries 4 seconds after they were created
 		// It only needs enough time for lava to flow and generator a new block

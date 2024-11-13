@@ -3,7 +3,9 @@ package com.swiftlicious.hellblock.listeners.fishing;
 import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.Nullable;
 
-public interface HookManagerInterface {
+import com.swiftlicious.hellblock.api.Reloadable;
+
+public interface HookManagerInterface extends Reloadable {
 
 	/**
 	 * Get the hook setting by its ID.

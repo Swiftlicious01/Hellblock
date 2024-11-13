@@ -6,6 +6,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -22,23 +23,21 @@ import org.bukkit.inventory.ItemStack;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.challenges.HellblockChallenge.ChallengeType;
-import com.swiftlicious.hellblock.player.OnlineUser;
+import com.swiftlicious.hellblock.config.HBConfig;
+import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.utils.LogUtils;
 import com.swiftlicious.hellblock.utils.RandomUtils;
 
 public class PiglinBartering implements Listener {
 
-	private final HellblockPlugin instance;
+	protected final HellblockPlugin instance;
 
-	private boolean clearPiglinBarterOutcome;
 	private final Map<Material, Integer> netherBarteringItems;
 
 	private final Map<UUID, Set<UUID>> barterTracker;
 
 	public PiglinBartering(HellblockPlugin plugin) {
 		instance = plugin;
-		this.clearPiglinBarterOutcome = instance.getConfig("config.yml")
-				.getBoolean("piglin-bartering.clear-default-outcome", true);
 		this.netherBarteringItems = new HashMap<>();
 		this.barterTracker = new LinkedHashMap<>();
 		Bukkit.getPluginManager().registerEvents(this, instance);
@@ -47,8 +46,7 @@ public class PiglinBartering implements Listener {
 	private Map<Material, Integer> getNetherBarteringItems() {
 		if (!this.netherBarteringItems.isEmpty())
 			return this.netherBarteringItems;
-		Set<String> barteringItems = new HashSet<>(
-				instance.getConfig("config.yml").getStringList("piglin-bartering.materials"));
+		Set<String> barteringItems = new HashSet<>(HBConfig.piglinBarteringItems);
 		for (String barterItem : barteringItems) {
 			String[] split = barterItem.split(":");
 			Material mat = Material.getMaterial(split[0].toUpperCase());
@@ -69,7 +67,7 @@ public class PiglinBartering implements Listener {
 	@EventHandler
 	public void onGiveItemOfInterest(PlayerInteractEntityEvent event) {
 		final Player player = event.getPlayer();
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!player.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 		final UUID id = player.getUniqueId();
 		ItemStack inHand = player.getInventory().getItemInMainHand();
@@ -95,7 +93,7 @@ public class PiglinBartering implements Listener {
 	@EventHandler
 	public void onPiglinPickUpItemOfInterest(EntityPickupItemEvent event) {
 		if (event.getEntity() instanceof Piglin piglin) {
-			if (!piglin.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+			if (!piglin.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 				return;
 			if (!piglin.isAdult())
 				return;
@@ -116,11 +114,11 @@ public class PiglinBartering implements Listener {
 	@EventHandler
 	public void onBarterWithPiglin(PiglinBarterEvent event) {
 		final Piglin piglin = event.getEntity();
-		if (!piglin.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!piglin.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 
 		List<ItemStack> barteredItems = event.getOutcome();
-		if (this.clearPiglinBarterOutcome && !getNetherBarteringItems().isEmpty())
+		if (HBConfig.clearPiglinBarterOutcome && !getNetherBarteringItems().isEmpty())
 			barteredItems.clear();
 		if (!getNetherBarteringItems().isEmpty()) {
 			getNetherBarteringItems().forEach((item, amount) -> {
@@ -138,19 +136,20 @@ public class PiglinBartering implements Listener {
 				}
 			}
 			if (playerUUID != null) {
-				OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(playerUUID);
-				if (onlineUser == null)
+				Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(playerUUID);
+				if (onlineUser.isEmpty() || onlineUser.get().getPlayer() == null)
 					return;
-				if (!onlineUser.getChallengeData().isChallengeActive(ChallengeType.NETHER_TRADING_CHALLENGE)
-						&& !onlineUser.getChallengeData()
+				if (!onlineUser.get().getChallengeData().isChallengeActive(ChallengeType.NETHER_TRADING_CHALLENGE)
+						&& !onlineUser.get().getChallengeData()
 								.isChallengeCompleted(ChallengeType.NETHER_TRADING_CHALLENGE)) {
-					onlineUser.getChallengeData().beginChallengeProgression(onlineUser.getPlayer(),
+					onlineUser.get().getChallengeData().beginChallengeProgression(onlineUser.get().getPlayer(),
 							ChallengeType.NETHER_TRADING_CHALLENGE);
 				} else {
-					onlineUser.getChallengeData().updateChallengeProgression(onlineUser.getPlayer(),
+					onlineUser.get().getChallengeData().updateChallengeProgression(onlineUser.get().getPlayer(),
 							ChallengeType.NETHER_TRADING_CHALLENGE, 1);
-					if (onlineUser.getChallengeData().isChallengeCompleted(ChallengeType.NETHER_TRADING_CHALLENGE)) {
-						onlineUser.getChallengeData().completeChallenge(onlineUser.getPlayer(),
+					if (onlineUser.get().getChallengeData()
+							.isChallengeCompleted(ChallengeType.NETHER_TRADING_CHALLENGE)) {
+						onlineUser.get().getChallengeData().completeChallenge(onlineUser.get().getPlayer(),
 								ChallengeType.NETHER_TRADING_CHALLENGE);
 					}
 				}

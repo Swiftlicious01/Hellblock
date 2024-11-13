@@ -1,7 +1,6 @@
 package com.swiftlicious.hellblock.gui.page.property;
 
 import org.bukkit.Material;
-import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
@@ -14,6 +13,7 @@ import com.swiftlicious.hellblock.gui.SectionPage;
 import com.swiftlicious.hellblock.gui.icon.BackGroundItem;
 import com.swiftlicious.hellblock.utils.wrappers.ShadedAdventureComponentWrapper;
 
+import dev.dejvokep.boostedyaml.block.implementation.Section;
 import xyz.xenondevs.invui.gui.Gui;
 import xyz.xenondevs.invui.gui.PagedGui;
 import xyz.xenondevs.invui.gui.structure.Markers;
@@ -32,7 +32,7 @@ public class MaterialEditor {
 	private final Player player;
 	private final SectionPage parentPage;
 	private String material;
-	private final ConfigurationSection section;
+	private final Section section;
 
 	public MaterialEditor(Player player, SectionPage parentPage) {
 		this.player = player;
@@ -69,14 +69,14 @@ public class MaterialEditor {
 	}
 
 	public List<Item> getCompatibilityItemList() {
-		ArrayList<Item> items = new ArrayList<>();
+		List<Item> items = new ArrayList<>();
 		for (String lib : ((ItemManager) HellblockPlugin.getInstance().getItemManager()).getItemLibraries()) {
 			switch (lib) {
 			case "MMOItems" ->
 				items.add(new SimpleItem(new ItemBuilder(Material.BELL).setDisplayName(lib + ":TYPE:ID")));
 			case "ItemsAdder" ->
 				items.add(new SimpleItem(new ItemBuilder(Material.BELL).setDisplayName(lib + ":namespace:id")));
-			case "vanilla", "CustomFishing" -> {
+			case "vanilla", "Hellblock" -> {
 			}
 			default -> items.add(new SimpleItem(new ItemBuilder(Material.BELL).setDisplayName(lib + ":ID")));
 			}

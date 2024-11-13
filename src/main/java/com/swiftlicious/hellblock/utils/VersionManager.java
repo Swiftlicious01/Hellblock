@@ -20,7 +20,7 @@ import com.swiftlicious.hellblock.HellblockPlugin;
 public class VersionManager implements VersionManagerInterface {
 
 	private final String serverVersion;
-	private final HellblockPlugin instance;
+	protected final HellblockPlugin instance;
 	private boolean isSpigot = false;
 	private boolean isPaper = false;
 	private boolean isFolia = false;
@@ -48,14 +48,15 @@ public class VersionManager implements VersionManagerInterface {
 				} catch (ClassNotFoundException noServerCoreFound) {
 					// could not find either paper or spigot.
 					Bukkit.getPluginManager().disablePlugin(plugin);
-					LogUtils.severe("Paper, Folia or Spigot could not be found running this server, disabling Hellblock.",
+					LogUtils.severe(
+							"Paper, Folia or Spigot could not be found running this server, disabling Hellblock.",
 							noServerCoreFound);
 					return;
 				}
 			}
 		}
 
-		this.supportedVersions = List.of("1.20.5", "1.21.1", "1.21.2", "1.21.3");
+		this.supportedVersions = List.of("1.20.5", "1.20.6", "1.21.1", "1.21.2", "1.21.3");
 		// Get the plugin version
 		this.pluginVersion = plugin.getPluginMeta().getVersion();
 	}
@@ -94,7 +95,7 @@ public class VersionManager implements VersionManagerInterface {
 	@Override
 	public CompletableFuture<Boolean> checkUpdate() {
 		CompletableFuture<Boolean> updateFuture = new CompletableFuture<>();
-		instance.getScheduler().runTaskAsync(() -> {
+		instance.getScheduler().executeAsync(() -> {
 			try {
 				URL url = URI.create("https://github.com/repo/Swiftlicious01/Hellblock/releases").toURL();
 				URLConnection conn = url.openConnection();

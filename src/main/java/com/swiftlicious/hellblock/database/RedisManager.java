@@ -1,5 +1,8 @@
 package com.swiftlicious.hellblock.database;
 
+import java.io.ByteArrayInputStream;
+import java.io.DataInputStream;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.HashMap;
@@ -10,16 +13,16 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 
-import org.bukkit.Location;
-import org.bukkit.configuration.ConfigurationSection;
-import org.bukkit.configuration.file.YamlConfiguration;
 import org.jetbrains.annotations.NotNull;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.player.PlayerData;
 import com.swiftlicious.hellblock.utils.LogUtils;
 
+import dev.dejvokep.boostedyaml.YamlDocument;
+import dev.dejvokep.boostedyaml.block.implementation.Section;
 import redis.clients.jedis.DefaultJedisClientConfig;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPool;
@@ -74,9 +77,8 @@ public class RedisManager extends AbstractStorage {
 	 * configuration.
 	 */
 	@Override
-	public void initialize() {
-		YamlConfiguration config = HellblockPlugin.getInstance().getConfig("database.yml");
-		ConfigurationSection section = config.getConfigurationSection("Redis");
+	public void initialize(YamlDocument config) {
+		Section section = config.getSection("Redis");
 		if (section == null) {
 			LogUtils.warn(
 					"Failed to load database config. It seems that your config is broken. Please regenerate a new one.");
@@ -108,8 +110,8 @@ public class RedisManager extends AbstractStorage {
 		try (Jedis jedis = jedisPool.getResource()) {
 			info = jedis.info();
 			LogUtils.info("Redis server connected.");
-		} catch (JedisException e) {
-			LogUtils.warn("Failed to connect redis.", e);
+		} catch (JedisException ex) {
+			LogUtils.warn("Failed to connect redis.", ex);
 			return;
 		}
 
@@ -139,15 +141,12 @@ public class RedisManager extends AbstractStorage {
 	/**
 	 * Send a message to Redis on a specified channel.
 	 *
-	 * @param server  The Redis channel to send the message to.
 	 * @param message The message to send.
 	 */
-	public void publishRedisMessage(@NotNull String server, @NotNull String message) {
-		message = server + ";" + message;
-		HellblockPlugin.getInstance().debug(String.format("Sent Redis message: %s", message));
+	public void publishRedisMessage(@NotNull String message) {
 		if (isNewerThan5) {
 			try (Jedis jedis = jedisPool.getResource()) {
-				HashMap<String, String> messages = new HashMap<>();
+				Map<String, String> messages = new HashMap<>();
 				messages.put("value", message);
 				jedis.xadd(getStream(), StreamEntryID.NEW_ENTRY, messages);
 			}
@@ -174,7 +173,11 @@ public class RedisManager extends AbstractStorage {
 						if (!channel.equals(getStream())) {
 							return;
 						}
-						handleMessage(message);
+						try {
+							handleMessage(message);
+						} catch (IOException ex) {
+							ex.printStackTrace();
+						}
 					}
 				}, getStream());
 			}
@@ -182,27 +185,31 @@ public class RedisManager extends AbstractStorage {
 		thread.start();
 	}
 
-	private void handleMessage(String message) {
-		LogUtils.info(String.format("Received Redis message: %s", message));
-		String[] split = message.split(";");
-		String server = split[0];
-		if (!"default".contains(server)) {
-			return;
-		}
-		String action = split[1];
-		HellblockPlugin.getInstance().getScheduler().runTaskSync(() -> {
+	private void handleMessage(String message) throws IOException {
+		DataInputStream input = new DataInputStream(new ByteArrayInputStream(message.getBytes(StandardCharsets.UTF_8)));
+		// String server = input.readUTF();
+		// if (!this.serverGroup.equals(server))
+		// return;
+		String type = input.readUTF();
+		switch (type) {
+		case "hellblock" -> {
+			String action = input.readUTF();
 			switch (action) {
 			case "start" -> {
-				//
+
 			}
 			case "end" -> {
-				//
+
 			}
 			case "stop" -> {
-				//
+
 			}
 			}
-		}, new Location(HellblockPlugin.getInstance().getHellblockHandler().getHellblockWorld(), 0, 0, 0));
+		}
+		case "online" -> {
+
+		}
+		}
 	}
 
 	@Override
@@ -218,12 +225,12 @@ public class RedisManager extends AbstractStorage {
 	 */
 	public CompletableFuture<Void> setChangeServer(UUID uuid) {
 		var future = new CompletableFuture<Void>();
-		HellblockPlugin.getInstance().getScheduler().runTaskAsync(() -> {
+		plugin.getScheduler().async().execute(() -> {
 			try (Jedis jedis = jedisPool.getResource()) {
 				jedis.setex(getRedisKey("hb_server", uuid), 10, new byte[0]);
 			}
 			future.complete(null);
-			LogUtils.info(String.format("Server data set for %s", uuid));
+			plugin.debug(String.format("Server data set for %s", uuid));
 		});
 		return future;
 	}
@@ -238,16 +245,16 @@ public class RedisManager extends AbstractStorage {
 	 */
 	public CompletableFuture<Boolean> getChangeServer(UUID uuid) {
 		var future = new CompletableFuture<Boolean>();
-		HellblockPlugin.getInstance().getScheduler().runTaskAsync(() -> {
+		plugin.getScheduler().async().execute(() -> {
 			try (Jedis jedis = jedisPool.getResource()) {
 				byte[] key = getRedisKey("hb_server", uuid);
 				if (jedis.get(key) != null) {
 					jedis.del(key);
 					future.complete(true);
-					LogUtils.info(String.format("Server data retrieved for %s; value: true", uuid));
+					plugin.debug(String.format("Server data retrieved for %s; value: true", uuid));
 				} else {
 					future.complete(false);
-					LogUtils.info(String.format("Server data retrieved for %s; value: false", uuid));
+					plugin.debug(String.format("Server data retrieved for %s; value: false", uuid));
 				}
 			}
 		});
@@ -262,24 +269,26 @@ public class RedisManager extends AbstractStorage {
 	 * @return A CompletableFuture with an optional PlayerData.
 	 */
 	@Override
-	public CompletableFuture<Optional<PlayerData>> getPlayerData(UUID uuid, boolean lock) {
+	public CompletableFuture<Optional<PlayerData>> getPlayerData(UUID uuid, boolean lock, Executor executor) {
 		var future = new CompletableFuture<Optional<PlayerData>>();
-		HellblockPlugin.getInstance().getScheduler().runTaskAsync(() -> {
+		if (executor == null)
+			executor = plugin.getScheduler().async();
+		executor.execute(() -> {
 			try (Jedis jedis = jedisPool.getResource()) {
 				byte[] key = getRedisKey("hb_data", uuid);
 				byte[] data = jedis.get(key);
 				jedis.del(key);
 				if (data != null) {
-					future.complete(Optional.of(HellblockPlugin.getInstance().getStorageManager().fromBytes(data)));
-					HellblockPlugin.getInstance()
-							.debug(String.format("Redis data retrieved for %s; normal data", uuid));
+					PlayerData playerData = plugin.getStorageManager().fromBytes(data);
+					playerData.setUUID(uuid);
+					plugin.debug(String.format("Redis data retrieved for %s; normal data", uuid));
 				} else {
 					future.complete(Optional.empty());
-					HellblockPlugin.getInstance().debug(String.format("Redis data retrieved for %s; empty data", uuid));
+					plugin.debug(String.format("Redis data retrieved for %s; empty data", uuid));
 				}
-			} catch (Exception e) {
+			} catch (Exception ex) {
 				future.complete(Optional.empty());
-				LogUtils.warn(String.format("Failed to get redis data for %s", uuid), e);
+				LogUtils.warn(String.format("Failed to get redis data for %s", uuid), ex);
 			}
 		});
 		return future;
@@ -296,12 +305,11 @@ public class RedisManager extends AbstractStorage {
 	@Override
 	public CompletableFuture<Boolean> updatePlayerData(UUID uuid, PlayerData playerData, boolean ignore) {
 		var future = new CompletableFuture<Boolean>();
-		HellblockPlugin.getInstance().getScheduler().runTaskAsync(() -> {
+		plugin.getScheduler().async().execute(() -> {
 			try (Jedis jedis = jedisPool.getResource()) {
-				jedis.setex(getRedisKey("hb_data", uuid), 10,
-						HellblockPlugin.getInstance().getStorageManager().toBytes(playerData));
+				jedis.setex(getRedisKey("hb_data", uuid), 10, playerData.toBytes());
 				future.complete(true);
-				LogUtils.info(String.format("Redis data set for %s", uuid));
+				plugin.debug(String.format("Redis data set for %s", uuid));
 			} catch (Exception e) {
 				future.complete(false);
 				LogUtils.warn(String.format("Failed to set redis data for player %s", uuid), e);
@@ -315,11 +323,10 @@ public class RedisManager extends AbstractStorage {
 	 * method is designed for importing and exporting so it would not actually be
 	 * called.
 	 *
-	 * @param legacy Flag indicating whether to retrieve legacy data (not used).
 	 * @return An empty set of UUIDs.
 	 */
 	@Override
-	public Set<UUID> getUniqueUsers(boolean legacy) {
+	public Set<UUID> getUniqueUsers() {
 		return new HashSet<>();
 	}
 
@@ -343,7 +350,7 @@ public class RedisManager extends AbstractStorage {
 		int major = Integer.parseInt(split[0]);
 		if (major < 7) {
 			LogUtils.warn(String.format("Detected that you are running an outdated Redis server. v%s.", version));
-			LogUtils.warn("It's recommended to update to avoid security vulnerabilities!");//
+			LogUtils.warn("It's recommended to update to avoid security vulnerabilities!");
 		}
 		return major >= 5;
 	}
@@ -368,29 +375,33 @@ public class RedisManager extends AbstractStorage {
 		public BlockingThreadTask() {
 			Thread thread = new Thread(() -> {
 				var map = new HashMap<String, StreamEntryID>();
-				map.put(getStream(), StreamEntryID.XGROUP_LAST_ENTRY);
+				map.put(getStream(), StreamEntryID.XREAD_NEW_ENTRY);
 				while (!this.stopped) {
 					try {
 						var connection = getJedis();
 						if (connection != null) {
 							var messages = connection.xread(XReadParams.xReadParams().count(1).block(2000), map);
 							connection.close();
-							if (messages != null && messages.size() != 0) {
+							if (messages != null && !messages.isEmpty()) {
 								for (Map.Entry<String, List<StreamEntry>> message : messages) {
 									if (message.getKey().equals(getStream())) {
 										var value = message.getValue().get(0).getFields().get("value");
-										handleMessage(value);
+										try {
+											handleMessage(value);
+										} catch (IOException ex) {
+											ex.printStackTrace();
+										}
 									}
 								}
 							}
 						} else {
 							Thread.sleep(2000);
 						}
-					} catch (Exception e) {
-						LogUtils.warn("Failed to connect redis. Try reconnecting 10s later.", e);
+					} catch (Exception ex) {
+						LogUtils.warn("Failed to connect redis. Try reconnecting 10s later", ex);
 						try {
 							Thread.sleep(10000);
-						} catch (InterruptedException ex) {
+						} catch (InterruptedException stop) {
 							this.stopped = true;
 						}
 					}

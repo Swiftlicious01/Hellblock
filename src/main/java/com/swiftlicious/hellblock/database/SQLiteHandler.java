@@ -12,16 +12,21 @@ import java.util.Optional;
 import java.util.Properties;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import org.bukkit.Bukkit;
-import org.bukkit.configuration.file.YamlConfiguration;
+import org.jetbrains.annotations.Nullable;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.swiftlicious.hellblock.HellblockPlugin;
-import com.swiftlicious.hellblock.config.HBConfig;
 import com.swiftlicious.hellblock.database.dependency.Dependency;
-import com.swiftlicious.hellblock.player.OfflineUser;
 import com.swiftlicious.hellblock.player.PlayerData;
+import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.utils.LogUtils;
+
+import dev.dejvokep.boostedyaml.YamlDocument;
 
 /**
  * An implementation of AbstractSQLDatabase that uses the SQLite database for
@@ -32,6 +37,7 @@ public class SQLiteHandler extends AbstractSQLDatabase {
 	private Connection connection;
 	private File databaseFile;
 	private Constructor<?> connectionConstructor;
+	private ExecutorService executor;
 
 	public SQLiteHandler(HellblockPlugin plugin) {
 		super(plugin);
@@ -41,19 +47,20 @@ public class SQLiteHandler extends AbstractSQLDatabase {
 	 * Initialize the SQLite database and connection based on the configuration.
 	 */
 	@Override
-	public void initialize() {
-		ClassLoader classLoader = HellblockPlugin.getInstance().getDependencyManager().obtainClassLoaderWith(
+	public void initialize(YamlDocument config) {
+		ClassLoader classLoader = plugin.getDependencyManager().obtainClassLoaderWith(
 				EnumSet.of(Dependency.SQLITE_DRIVER, Dependency.SLF4J_SIMPLE, Dependency.SLF4J_API));
 		try {
 			Class<?> connectionClass = classLoader.loadClass("org.sqlite.jdbc4.JDBC4Connection");
 			connectionConstructor = connectionClass.getConstructor(String.class, String.class, Properties.class);
-		} catch (ReflectiveOperationException e) {
-			throw new RuntimeException(e);
+		} catch (ReflectiveOperationException ex) {
+			throw new RuntimeException(ex);
 		}
 
-		YamlConfiguration config = HellblockPlugin.getInstance().getConfig("database.yml");
-		this.databaseFile = new File(HellblockPlugin.getInstance().getDataFolder() + File.separator + "schema",
-				config.getString("SQLite.file", "data") + ".db");
+		this.executor = Executors.newFixedThreadPool(1,
+				new ThreadFactoryBuilder().setNameFormat("hb-sqlite-%d").build());
+
+		this.databaseFile = new File(plugin.getDataFolder(), config.getString("SQLite.file", "data") + ".db");
 		super.tablePrefix = config.getString("SQLite.table-prefix", "hellblock");
 		super.createTableIfNotExist();
 	}
@@ -63,6 +70,9 @@ public class SQLiteHandler extends AbstractSQLDatabase {
 	 */
 	@Override
 	public void disable() {
+		if (executor != null) {
+			executor.shutdown();
+		}
 		try {
 			if (connection != null && !connection.isClosed())
 				connection.close();
@@ -95,11 +105,11 @@ public class SQLiteHandler extends AbstractSQLDatabase {
 			connection = (Connection) this.connectionConstructor.newInstance("jdbc:sqlite:" + databaseFile.toString(),
 					databaseFile.toString(), properties);
 			return connection;
-		} catch (ReflectiveOperationException e) {
-			if (e.getCause() instanceof SQLException) {
-				throw (SQLException) e.getCause();
+		} catch (ReflectiveOperationException ex) {
+			if (ex.getCause() instanceof SQLException) {
+				throw (SQLException) ex.getCause();
 			}
-			throw new RuntimeException(e);
+			throw new RuntimeException(ex);
 		}
 	}
 
@@ -111,36 +121,73 @@ public class SQLiteHandler extends AbstractSQLDatabase {
 	 * @return A CompletableFuture with an optional PlayerData.
 	 */
 	@Override
-	public CompletableFuture<Optional<PlayerData>> getPlayerData(UUID uuid, boolean lock) {
+	public CompletableFuture<Optional<PlayerData>> getPlayerData(UUID uuid, boolean lock, Executor executor) {
 		var future = new CompletableFuture<Optional<PlayerData>>();
-		HellblockPlugin.getInstance().getScheduler().runTaskAsync(() -> {
+		if (executor == null)
+			executor = this.executor;
+		executor.execute(() -> {
 			try (Connection connection = getConnection();
 					PreparedStatement statement = connection
 							.prepareStatement(String.format(SqlConstants.SQL_SELECT_BY_UUID, getTableName("data")))) {
 				statement.setString(1, uuid.toString());
 				ResultSet rs = statement.executeQuery();
 				if (rs.next()) {
+					final byte[] dataByteArray = rs.getBytes("data");
+					PlayerData data = plugin.getStorageManager().fromBytes(dataByteArray);
+					data.setUUID(uuid);
 					int lockValue = rs.getInt(2);
-					if (lockValue != 0 && getCurrentSeconds() - HBConfig.dataSaveInterval <= lockValue) {
+					if (lockValue != 0 && getCurrentSeconds() - 30 <= lockValue) {
 						connection.close();
-						future.complete(Optional.of(PlayerData.LOCKED));
+						data.setLocked(true);
+						future.complete(Optional.of(data));
 						return;
 					}
-					final byte[] dataByteArray = rs.getBytes("data");
 					if (lock)
 						lockOrUnlockPlayerData(uuid, true);
-					future.complete(
-							Optional.of(HellblockPlugin.getInstance().getStorageManager().fromBytes(dataByteArray)));
+					future.complete(Optional.of(data));
 				} else if (Bukkit.getPlayer(uuid) != null) {
 					var data = PlayerData.empty();
-					insertPlayerData(uuid, data, lock);
+					data.setUUID(uuid);
+					insertPlayerData(uuid, data, lock, connection);
 					future.complete(Optional.of(data));
 				} else {
 					future.complete(Optional.empty());
 				}
-			} catch (SQLException e) {
-				LogUtils.warn(String.format("Failed to get %s's data.", uuid), e);
-				future.completeExceptionally(e);
+			} catch (SQLException ex) {
+				LogUtils.warn(String.format("Failed to get %s's data.", uuid), ex);
+				future.completeExceptionally(ex);
+			}
+		});
+		return future;
+	}
+
+	@Override
+	public CompletableFuture<Boolean> updateOrInsertPlayerData(UUID uuid, PlayerData playerData, boolean unlock) {
+		var future = new CompletableFuture<Boolean>();
+		executor.execute(() -> {
+			try (Connection connection = getConnection();
+					PreparedStatement statement = connection
+							.prepareStatement(String.format(SqlConstants.SQL_SELECT_BY_UUID, getTableName("data")))) {
+				statement.setString(1, uuid.toString());
+				ResultSet rs = statement.executeQuery();
+				if (rs.next()) {
+					try (PreparedStatement statement2 = connection
+							.prepareStatement(String.format(SqlConstants.SQL_UPDATE_BY_UUID, getTableName("data")))) {
+						statement2.setInt(1, unlock ? 0 : getCurrentSeconds());
+						statement2.setBytes(2, plugin.getStorageManager().toBytes(playerData));
+						statement2.setString(3, uuid.toString());
+						statement2.executeUpdate();
+					} catch (SQLException ex) {
+						LogUtils.warn(String.format("Failed to update %s's data.", uuid), ex);
+					}
+					future.complete(true);
+				} else {
+					insertPlayerData(uuid, playerData, !unlock, connection);
+					future.complete(true);
+				}
+			} catch (SQLException ex) {
+				LogUtils.warn(String.format("Failed to get %s's data.", uuid), ex);
+				future.completeExceptionally(ex);
 			}
 		});
 		return future;
@@ -157,18 +204,18 @@ public class SQLiteHandler extends AbstractSQLDatabase {
 	@Override
 	public CompletableFuture<Boolean> updatePlayerData(UUID uuid, PlayerData playerData, boolean unlock) {
 		var future = new CompletableFuture<Boolean>();
-		HellblockPlugin.getInstance().getScheduler().runTaskAsync(() -> {
+		executor.execute(() -> {
 			try (Connection connection = getConnection();
 					PreparedStatement statement = connection
 							.prepareStatement(String.format(SqlConstants.SQL_UPDATE_BY_UUID, getTableName("data")))) {
 				statement.setInt(1, unlock ? 0 : getCurrentSeconds());
-				statement.setBytes(2, HellblockPlugin.getInstance().getStorageManager().toBytes(playerData));
+				statement.setBytes(2, playerData.toBytes());
 				statement.setString(3, uuid.toString());
 				statement.executeUpdate();
 				future.complete(true);
-			} catch (SQLException e) {
-				LogUtils.warn(String.format("Failed to update %s's data.", uuid), e);
-				future.completeExceptionally(e);
+			} catch (SQLException ex) {
+				LogUtils.warn(String.format("Failed to update %s's data.", uuid), ex);
+				future.completeExceptionally(ex);
 			}
 		});
 		return future;
@@ -177,30 +224,29 @@ public class SQLiteHandler extends AbstractSQLDatabase {
 	/**
 	 * Asynchronously update data for multiple players in the SQLite database.
 	 *
-	 * @param users  A collection of OfflineUser instances to update.
+	 * @param users  A collection of User instances to update.
 	 * @param unlock Flag indicating whether to unlock the data.
 	 */
 	@Override
-	public void updateManyPlayersData(Collection<? extends OfflineUser> users, boolean unlock) {
+	public void updateManyPlayersData(Collection<? extends UserData> users, boolean unlock) {
 		String sql = String.format(SqlConstants.SQL_UPDATE_BY_UUID, getTableName("data"));
 		try (Connection connection = getConnection()) {
 			connection.setAutoCommit(false);
 			try (PreparedStatement statement = connection.prepareStatement(sql)) {
-				for (OfflineUser user : users) {
+				for (UserData user : users) {
 					statement.setInt(1, unlock ? 0 : getCurrentSeconds());
-					statement.setBytes(2,
-							HellblockPlugin.getInstance().getStorageManager().toBytes(user.getPlayerData()));
+					statement.setBytes(2, plugin.getStorageManager().toBytes(user.toPlayerData()));
 					statement.setString(3, user.getUUID().toString());
 					statement.addBatch();
 				}
 				statement.executeBatch();
 				connection.commit();
-			} catch (SQLException e) {
+			} catch (SQLException ex) {
 				connection.rollback();
-				LogUtils.warn("Failed to update data for online players.", e);
+				LogUtils.warn("Failed to update data for online players.", ex);
 			}
-		} catch (SQLException e) {
-			LogUtils.warn("Failed to get connection when saving online players' data.", e);
+		} catch (SQLException ex) {
+			LogUtils.warn("Failed to get connection when saving online players' data.", ex);
 		}
 	}
 
@@ -212,16 +258,16 @@ public class SQLiteHandler extends AbstractSQLDatabase {
 	 * @param lock       Flag indicating whether to lock the data.
 	 */
 	@Override
-	public void insertPlayerData(UUID uuid, PlayerData playerData, boolean lock) {
-		try (Connection connection = getConnection();
+	protected void insertPlayerData(UUID uuid, PlayerData playerData, boolean lock, @Nullable Connection previous) {
+		try (Connection connection = previous == null ? getConnection() : previous;
 				PreparedStatement statement = connection
 						.prepareStatement(String.format(SqlConstants.SQL_INSERT_DATA_BY_UUID, getTableName("data")))) {
 			statement.setString(1, uuid.toString());
 			statement.setInt(2, lock ? getCurrentSeconds() : 0);
-			statement.setBytes(3, HellblockPlugin.getInstance().getStorageManager().toBytes(playerData));
+			statement.setBytes(3, plugin.getStorageManager().toBytes(playerData));
 			statement.execute();
-		} catch (SQLException e) {
-			LogUtils.warn(String.format("Failed to insert %s's data.", uuid), e);
+		} catch (SQLException ex) {
+			LogUtils.warn(String.format("Failed to insert %s's data.", uuid), ex);
 		}
 	}
 }

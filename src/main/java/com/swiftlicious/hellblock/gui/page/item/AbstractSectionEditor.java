@@ -3,7 +3,6 @@ package com.swiftlicious.hellblock.gui.page.item;
 import java.util.List;
 
 import org.bukkit.Material;
-import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
@@ -18,6 +17,7 @@ import com.swiftlicious.hellblock.gui.icon.NextPageItem;
 import com.swiftlicious.hellblock.gui.icon.PreviousPageItem;
 import com.swiftlicious.hellblock.utils.wrappers.ShadedAdventureComponentWrapper;
 
+import dev.dejvokep.boostedyaml.block.implementation.Section;
 import xyz.xenondevs.invui.gui.Gui;
 import xyz.xenondevs.invui.gui.PagedGui;
 import xyz.xenondevs.invui.gui.structure.Markers;
@@ -32,10 +32,10 @@ public abstract class AbstractSectionEditor implements SectionPage {
 
 	protected final Player player;
 	protected final ItemSelector itemSelector;
-	protected final ConfigurationSection section;
+	protected final Section section;
 	protected final String key;
 
-	public AbstractSectionEditor(Player player, ItemSelector itemSelector, ConfigurationSection section, String key) {
+	public AbstractSectionEditor(Player player, ItemSelector itemSelector, Section section, String key) {
 		this.player = player;
 		this.itemSelector = itemSelector;
 		this.section = section;
@@ -44,7 +44,7 @@ public abstract class AbstractSectionEditor implements SectionPage {
 	}
 
 	@Override
-	public ConfigurationSection getSection() {
+	public Section getSection() {
 		return section;
 	}
 

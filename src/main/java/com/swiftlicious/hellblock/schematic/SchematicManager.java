@@ -15,15 +15,17 @@ import org.bukkit.Material;
 import com.google.common.io.Files;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.api.Reloadable;
 import com.swiftlicious.hellblock.api.compatibility.FastAsyncWorldEditHook;
 import com.swiftlicious.hellblock.api.compatibility.WorldEditHook;
+import com.swiftlicious.hellblock.config.HBConfig;
 import com.swiftlicious.hellblock.utils.LogUtils;
 
 import lombok.NonNull;
 
-public class SchematicManager {
+public class SchematicManager implements Reloadable {
 
-	private final HellblockPlugin instance;
+	protected final HellblockPlugin instance;
 	public SchematicPaster schematicPaster;
 	public final Map<String, File> schematicFiles;
 	public final Set<String> availableSchematics;
@@ -64,6 +66,7 @@ public class SchematicManager {
 		}
 	}
 
+	@Override
 	public void reload() {
 		loadCache();
 		setPasterFromConfig();
@@ -71,7 +74,7 @@ public class SchematicManager {
 	}
 
 	private void setPasterFromConfig() {
-		String paster = instance.getHellblockHandler().getPaster();
+		String paster = HBConfig.paster;
 		if (availablePasters.containsKey(paster))
 			this.schematicPaster = availablePasters.get(paster);
 		else {
@@ -96,16 +99,16 @@ public class SchematicManager {
 		CompletableFuture<Void> completableFuture = new CompletableFuture<>();
 		Location location = instance.getWorldGuardHandler().getCenter(region)
 				.toLocation(instance.getHellblockHandler().getHellblockWorld());
-		location.add(0, instance.getHellblockHandler().getHeight(), 0);
+		location.add(0, HBConfig.height, 0);
 		File file = schematicFiles.getOrDefault(schematic, schematicFiles.values().stream().findFirst().orElse(null));
-		instance.getScheduler().runTaskSync(() -> {
+		instance.getScheduler().executeSync(() -> {
 			if (file == null) {
 				location.getBlock().setType(Material.BEDROCK);
 				LogUtils.warn(String.format("Could not find schematic %s.", schematic));
 			} else {
 				if (fawe) {
 					instance.getScheduler()
-							.runTaskAsync(() -> schematicPaster.pasteHellblock(file, location, completableFuture));
+							.executeAsync(() -> schematicPaster.pasteHellblock(file, location, completableFuture));
 				} else {
 					schematicPaster.pasteHellblock(file, location, completableFuture);
 				}

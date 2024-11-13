@@ -5,26 +5,28 @@ import java.util.Objects;
 
 import org.bukkit.Material;
 import org.bukkit.Particle;
-import org.bukkit.configuration.ConfigurationSection;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.config.HBConfig;
 import com.swiftlicious.hellblock.utils.LogUtils;
 
-public class GeneratorModeManager {
+import dev.dejvokep.boostedyaml.YamlDocument;
+import dev.dejvokep.boostedyaml.block.implementation.Section;
+import lombok.NonNull;
 
-	private final HellblockPlugin instance;
+public class GeneratorModeManager {
+	
 	private GenMode generatorMode;
 
 	public GeneratorModeManager(HellblockPlugin plugin) {
-		instance = plugin;
 		generatorMode = new GenMode(Material.NETHERRACK);
 	}
 
 	public void loadFromConfig() {
-		if (instance.getConfig("config.yml").contains("netherrack-generator-options.generation")) {
+		YamlDocument config = HBConfig.getMainConfig();
+		if (config.contains("netherrack-generator-options.generation")) {
 
-			ConfigurationSection section = instance.getConfig("config.yml")
-					.getConfigurationSection("netherrack-generator-options.generation");
+			Section section = config.getSection("netherrack-generator-options.generation");
 			if (section == null) {
 				LogUtils.severe("No generation mode section found.");
 				return;
@@ -67,7 +69,7 @@ public class GeneratorModeManager {
 		}
 	}
 
-	public GenMode getGenMode() {
+	public @NonNull GenMode getGenMode() {
 		return this.generatorMode;
 	}
 }

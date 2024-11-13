@@ -10,8 +10,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import org.bukkit.configuration.ConfigurationSection;
-import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -25,13 +23,16 @@ import com.swiftlicious.hellblock.utils.extras.Condition;
 import com.swiftlicious.hellblock.utils.extras.Pair;
 import com.swiftlicious.hellblock.utils.extras.WeightModifier;
 
+import dev.dejvokep.boostedyaml.YamlDocument;
+import dev.dejvokep.boostedyaml.block.implementation.Section;
+
 public class LootManager implements LootManagerInterface {
 
-	private final HellblockPlugin instance;
+	protected final HellblockPlugin instance;
 	// A map that associates loot IDs with their respective loot configurations.
-	private final HashMap<String, Loot> lootMap;
+	private final Map<String, Loot> lootMap;
 	// A map that associates loot group IDs with lists of loot IDs.
-	private final HashMap<String, List<String>> lootGroupMap;
+	private final Map<String, List<String>> lootGroupMap;
 
 	public LootManager(HellblockPlugin plugin) {
 		instance = plugin;
@@ -39,15 +40,18 @@ public class LootManager implements LootManagerInterface {
 		this.lootGroupMap = new HashMap<>();
 	}
 
+	@Override
 	public void load() {
 		this.loadLootsFromPluginFolder();
 	}
-
+	
+	@Override
 	public void unload() {
 		this.lootMap.clear();
 		this.lootGroupMap.clear();
 	}
-
+	
+	@Override
 	public void disable() {
 		unload();
 	}
@@ -137,7 +141,7 @@ public class LootManager implements LootManagerInterface {
 	 * @return A mapping of loot configuration keys to their associated weights.
 	 */
 	@Override
-	public HashMap<String, Double> getLootWithWeight(Condition condition) {
+	public Map<String, Double> getLootWithWeight(Condition condition) {
 		return ((RequirementManager) instance.getRequirementManager()).getLootWithWeight(condition);
 	}
 
@@ -209,9 +213,9 @@ public class LootManager implements LootManagerInterface {
 	 *                  "entity," "block").
 	 */
 	private void loadSingleFile(File file, String namespace) {
-		YamlConfiguration yaml = YamlConfiguration.loadConfiguration(file);
-		for (Map.Entry<String, Object> entry : yaml.getValues(false).entrySet()) {
-			if (entry.getValue() instanceof ConfigurationSection section) {
+		YamlDocument yaml = instance.getConfigManager().loadData(file);
+		for (Map.Entry<String, Object> entry : yaml.getStringRouteMappedValues(false).entrySet()) {
+			if (entry.getValue() instanceof Section section) {
 				var loot = getSingleSectionItem(file.getPath(), section, namespace, entry.getKey());
 				// Check for duplicate loot configurations and log an error if found.
 				if (lootMap.containsKey(entry.getKey())) {
@@ -232,23 +236,23 @@ public class LootManager implements LootManagerInterface {
 	}
 
 	/**
-	 * Creates a single loot configuration item from a ConfigurationSection.
+	 * Creates a single loot configuration item from a Section.
 	 *
-	 * @param section   The ConfigurationSection containing loot configuration data.
+	 * @param section   The Section containing loot configuration data.
 	 * @param namespace The namespace indicating the type of loot (e.g., "item,"
 	 *                  "entity," "block").
 	 * @param key       The unique key identifying the loot configuration.
 	 * @return A HBLoot object representing the loot configuration.
 	 */
-	private HBLoot getSingleSectionItem(String filePath, ConfigurationSection section, String namespace, String key) {
+	private HBLoot getSingleSectionItem(String filePath, Section section, String namespace, String key) {
 		return new HBLoot.Builder(key, LootType.valueOf(namespace.toUpperCase(Locale.ENGLISH))).filePath(filePath)
 				.showInFinder(section.getBoolean("show-in-fishfinder", HBConfig.globalShowInFinder))
-				.baseEffect(instance.getEffectManager().getBaseEffect(section.getConfigurationSection("effects")))
+				.baseEffect(instance.getEffectManager().getBaseEffect(section.getSection("effects")))
 				.lootGroup(instance.getConfigUtils().stringListArgs(section.get("group")).toArray(new String[0]))
 				.nick(section.getString("nick", section.getString("display.name", key)))
-				.addActions(instance.getActionManager().getActionMap(section.getConfigurationSection("events")))
-				.addTimesActions(instance.getActionManager()
-						.getTimesActionMap(section.getConfigurationSection("events.success-times")))
+				.addActions(instance.getActionManager().getActionMap(section.getSection("events")))
+				.addTimesActions(
+						instance.getActionManager().getTimesActionMap(section.getSection("events.success-times")))
 				.build();
 	}
 }

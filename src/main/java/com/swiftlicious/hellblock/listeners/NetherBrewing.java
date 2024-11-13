@@ -3,6 +3,7 @@ package com.swiftlicious.hellblock.listeners;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Color;
@@ -39,35 +40,27 @@ import xyz.xenondevs.invui.item.builder.PotionBuilder;
 import com.saicone.rtag.RtagItem;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.challenges.HellblockChallenge.ChallengeType;
-import com.swiftlicious.hellblock.player.OnlineUser;
+import com.swiftlicious.hellblock.config.HBConfig;
+import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.utils.RandomUtils;
 import com.swiftlicious.hellblock.utils.wrappers.ShadedAdventureComponentWrapper;
 
 public class NetherBrewing implements Listener {
 
-	private final HellblockPlugin instance;
+	protected final HellblockPlugin instance;
 
 	private final NamespacedKey brewingKey;
-
-	public boolean nBottle;
-	public String nBottleName;
-	public List<String> nBottleLore;
-	public String nBottleColor;
 
 	public NetherBrewing(HellblockPlugin plugin) {
 		this.instance = plugin;
 		this.brewingKey = new NamespacedKey(this.instance, "netherbottle");
-		this.nBottle = instance.getConfig("config.yml").getBoolean("brewing.nether-bottle.enable", true);
-		this.nBottleName = instance.getConfig("config.yml").getString("brewing.nether-bottle.potion.name");
-		this.nBottleColor = instance.getConfig("config.yml").getString("brewing.nether-bottle.potion.color", "RED");
-		this.nBottleLore = instance.getConfig("config.yml").getStringList("brewing.nether-bottle.potion.lore");
 		addBrewing();
 		Bukkit.getPluginManager().registerEvents(this, this.instance);
 	}
 
 	public void addBrewing() {
 		try {
-			if (this.nBottle) {
+			if (HBConfig.nBottle) {
 				Bukkit.removeRecipe(this.brewingKey);
 				Bukkit.addRecipe(netherBottle());
 			} else {
@@ -85,7 +78,7 @@ public class NetherBrewing implements Listener {
 		pmeta.setBasePotionType(PotionType.WATER);
 		bottle.setItemMeta(pmeta);
 
-		ShapedRecipe recipe = new ShapedRecipe(brewingKey, bottle);
+		ShapedRecipe recipe = new ShapedRecipe(this.brewingKey, bottle);
 		recipe.shape(new String[] { "GGG", "GBG", "GGG" });
 		recipe.setIngredient('G', Material.GLOWSTONE_DUST);
 		recipe.setIngredient('B', getPotionResult(1));
@@ -96,29 +89,29 @@ public class NetherBrewing implements Listener {
 		ItemBuilder potion = new ItemBuilder(Material.POTION, amount);
 
 		potion.setDisplayName(new ShadedAdventureComponentWrapper(
-				instance.getAdventureManager().getComponentFromMiniMessage(this.nBottleName)));
+				instance.getAdventureManager().getComponentFromMiniMessage(HBConfig.nBottleName)));
 
 		List<ComponentWrapper> lore = new ArrayList<>();
-		for (String newLore : this.nBottleLore) {
+		for (String newLore : HBConfig.nBottleLore) {
 			lore.add(new ShadedAdventureComponentWrapper(
 					instance.getAdventureManager().getComponentFromMiniMessage(newLore)));
 		}
 		potion.setLore(lore);
 
 		PotionBuilder pmeta = new PotionBuilder(potion.get());
-		pmeta.setColor(getColor(this.nBottleColor.toUpperCase()));
+		pmeta.setColor(getColor(HBConfig.nBottleColor.toUpperCase()));
 
-		ItemStack data = setBrewingData(pmeta.get(), this.nBottle);
+		ItemStack data = setBrewingData(pmeta.get(), HBConfig.nBottle);
 
 		return data;
 	}
 
 	@EventHandler
 	public void onLavaBottle(PlayerInteractEvent event) {
-		if (!this.nBottle)
+		if (!HBConfig.nBottle)
 			return;
 		Player player = event.getPlayer();
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName())) {
+		if (!player.getWorld().getName().equalsIgnoreCase(HBConfig.worldName)) {
 			return;
 		}
 
@@ -148,19 +141,20 @@ public class NetherBrewing implements Listener {
 				instance.getAdventureManager().sendSound(player, net.kyori.adventure.sound.Sound.Source.PLAYER,
 						net.kyori.adventure.key.Key.key("minecraft:item.bottle.fill"), 1, 1);
 				player.updateInventory();
-				OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
-				if (onlineUser == null)
+				Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
+				if (onlineUser.isEmpty() || onlineUser.get().getPlayer() == null)
 					return;
-				if (!onlineUser.getChallengeData().isChallengeActive(ChallengeType.NETHER_BREWING_CHALLENGE)
-						&& !onlineUser.getChallengeData()
+				if (!onlineUser.get().getChallengeData().isChallengeActive(ChallengeType.NETHER_BREWING_CHALLENGE)
+						&& !onlineUser.get().getChallengeData()
 								.isChallengeCompleted(ChallengeType.NETHER_BREWING_CHALLENGE)) {
-					onlineUser.getChallengeData().beginChallengeProgression(onlineUser.getPlayer(),
+					onlineUser.get().getChallengeData().beginChallengeProgression(onlineUser.get().getPlayer(),
 							ChallengeType.NETHER_BREWING_CHALLENGE);
 				} else {
-					onlineUser.getChallengeData().updateChallengeProgression(onlineUser.getPlayer(),
+					onlineUser.get().getChallengeData().updateChallengeProgression(onlineUser.get().getPlayer(),
 							ChallengeType.NETHER_BREWING_CHALLENGE, 1);
-					if (onlineUser.getChallengeData().isChallengeCompleted(ChallengeType.NETHER_BREWING_CHALLENGE)) {
-						onlineUser.getChallengeData().completeChallenge(onlineUser.getPlayer(),
+					if (onlineUser.get().getChallengeData()
+							.isChallengeCompleted(ChallengeType.NETHER_BREWING_CHALLENGE)) {
+						onlineUser.get().getChallengeData().completeChallenge(onlineUser.get().getPlayer(),
 								ChallengeType.NETHER_BREWING_CHALLENGE);
 					}
 				}
@@ -170,10 +164,10 @@ public class NetherBrewing implements Listener {
 
 	@EventHandler
 	public void onCauldronUpdate(PlayerInteractEvent event) {
-		if (!this.nBottle)
+		if (!HBConfig.nBottle)
 			return;
 		Player player = event.getPlayer();
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName())) {
+		if (!player.getWorld().getName().equalsIgnoreCase(HBConfig.worldName)) {
 			return;
 		}
 
@@ -201,19 +195,20 @@ public class NetherBrewing implements Listener {
 						net.kyori.adventure.key.Key.key("minecraft:item.bottle.fill"), 1, 1);
 				player.updateInventory();
 				clicked.setType(Material.CAULDRON);
-				OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
-				if (onlineUser == null)
+				Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
+				if (onlineUser.isEmpty() || onlineUser.get().getPlayer() == null)
 					return;
-				if (!onlineUser.getChallengeData().isChallengeActive(ChallengeType.NETHER_BREWING_CHALLENGE)
-						&& !onlineUser.getChallengeData()
+				if (!onlineUser.get().getChallengeData().isChallengeActive(ChallengeType.NETHER_BREWING_CHALLENGE)
+						&& !onlineUser.get().getChallengeData()
 								.isChallengeCompleted(ChallengeType.NETHER_BREWING_CHALLENGE)) {
-					onlineUser.getChallengeData().beginChallengeProgression(onlineUser.getPlayer(),
+					onlineUser.get().getChallengeData().beginChallengeProgression(onlineUser.get().getPlayer(),
 							ChallengeType.NETHER_BREWING_CHALLENGE);
 				} else {
-					onlineUser.getChallengeData().updateChallengeProgression(onlineUser.getPlayer(),
+					onlineUser.get().getChallengeData().updateChallengeProgression(onlineUser.get().getPlayer(),
 							ChallengeType.NETHER_BREWING_CHALLENGE, 4);
-					if (onlineUser.getChallengeData().isChallengeCompleted(ChallengeType.NETHER_BREWING_CHALLENGE)) {
-						onlineUser.getChallengeData().completeChallenge(onlineUser.getPlayer(),
+					if (onlineUser.get().getChallengeData()
+							.isChallengeCompleted(ChallengeType.NETHER_BREWING_CHALLENGE)) {
+						onlineUser.get().getChallengeData().completeChallenge(onlineUser.get().getPlayer(),
 								ChallengeType.NETHER_BREWING_CHALLENGE);
 					}
 				}
@@ -223,10 +218,10 @@ public class NetherBrewing implements Listener {
 
 	@EventHandler
 	public void onConsume(PlayerItemConsumeEvent event) {
-		if (!this.nBottle)
+		if (!HBConfig.nBottle)
 			return;
 		Player player = event.getPlayer();
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName())) {
+		if (!player.getWorld().getName().equalsIgnoreCase(HBConfig.worldName)) {
 			return;
 		}
 
@@ -238,10 +233,10 @@ public class NetherBrewing implements Listener {
 
 	@EventHandler
 	public void onClick(InventoryClickEvent event) {
-		if (!this.nBottle)
+		if (!HBConfig.nBottle)
 			return;
 		if (event.getWhoClicked() instanceof Player player) {
-			if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+			if (!player.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 				return;
 
 			Inventory clicked = event.getClickedInventory();
@@ -260,10 +255,10 @@ public class NetherBrewing implements Listener {
 
 	@EventHandler
 	public void onCrafting(CraftItemEvent event) {
-		if (!this.nBottle)
+		if (!HBConfig.nBottle)
 			return;
 		if (event.getView().getPlayer() instanceof Player player) {
-			if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName())) {
+			if (!player.getWorld().getName().equalsIgnoreCase(HBConfig.worldName)) {
 				return;
 			}
 
@@ -280,11 +275,11 @@ public class NetherBrewing implements Listener {
 
 	@EventHandler
 	public void onLimitedCrafting(PrepareItemCraftEvent event) {
-		if (!this.nBottle)
+		if (!HBConfig.nBottle)
 			return;
 		if (instance.getHellblockHandler().getHellblockWorld().getGameRuleValue(GameRule.DO_LIMITED_CRAFTING)) {
 			if (event.getView().getPlayer() instanceof Player player) {
-				if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName())) {
+				if (!player.getWorld().getName().equalsIgnoreCase(HBConfig.worldName)) {
 					return;
 				}
 

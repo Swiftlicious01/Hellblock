@@ -10,6 +10,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 
 import org.bukkit.Bukkit;
 
@@ -36,7 +37,7 @@ public class JsonHandler extends AbstractStorage {
 	}
 
 	@Override
-	public CompletableFuture<Optional<PlayerData>> getPlayerData(UUID uuid, boolean lock) {
+	public CompletableFuture<Optional<PlayerData>> getPlayerData(UUID uuid, boolean lock, Executor executor) {
 		File file = getPlayerDataFile(uuid);
 		PlayerData playerData;
 		if (file.exists()) {
@@ -62,7 +63,7 @@ public class JsonHandler extends AbstractStorage {
 	 * @return The file for the player's data.
 	 */
 	public File getPlayerDataFile(UUID uuid) {
-		return new File(HellblockPlugin.getInstance().getDataFolder(), "data" + File.separator + uuid + ".json");
+		return new File(plugin.getDataFolder(), "data" + File.separator + uuid + ".json");
 	}
 
 	/**
@@ -73,9 +74,9 @@ public class JsonHandler extends AbstractStorage {
 	 */
 	public void saveToJsonFile(Object obj, File filepath) {
 		try (FileWriter file = new FileWriter(filepath, false)) {
-			HellblockPlugin.getInstance().getStorageManager().getGson().toJson(obj, file);
-		} catch (IOException e) {
-			e.printStackTrace();
+			plugin.getStorageManager().getGson().toJson(obj, file);
+		} catch (IOException ex) {
+			ex.printStackTrace();
 		}
 	}
 
@@ -90,7 +91,7 @@ public class JsonHandler extends AbstractStorage {
 	 */
 	public <T> T readFromJsonFile(File file, Class<T> classOfT) {
 		String jsonContent = new String(readFileToByteArray(file), StandardCharsets.UTF_8);
-		return HellblockPlugin.getInstance().getStorageManager().getGson().fromJson(jsonContent, classOfT);
+		return plugin.getStorageManager().getGson().fromJson(jsonContent, classOfT);
 	}
 
 	/**
@@ -103,8 +104,8 @@ public class JsonHandler extends AbstractStorage {
 		byte[] fileBytes = new byte[(int) file.length()];
 		try (FileInputStream fis = new FileInputStream(file)) {
 			fis.read(fileBytes);
-		} catch (IOException e) {
-			e.printStackTrace();
+		} catch (IOException ex) {
+			ex.printStackTrace();
 		}
 		return fileBytes;
 	}
@@ -112,9 +113,8 @@ public class JsonHandler extends AbstractStorage {
 	// Retrieve a set of unique user UUIDs based on JSON data files in the 'data'
 	// folder.
 	@Override
-	public Set<UUID> getUniqueUsers(boolean legacy) {
-		// No legacy files
-		File folder = new File(HellblockPlugin.getInstance().getDataFolder(), "data");
+	public Set<UUID> getUniqueUsers() {
+		File folder = new File(plugin.getDataFolder(), "data");
 		Set<UUID> uuids = new HashSet<>();
 		if (folder.exists()) {
 			File[] files = folder.listFiles();

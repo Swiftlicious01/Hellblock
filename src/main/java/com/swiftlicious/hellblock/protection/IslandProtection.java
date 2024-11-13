@@ -1,5 +1,6 @@
 package com.swiftlicious.hellblock.protection;
 
+import java.util.Optional;
 import java.util.UUID;
 
 import org.jetbrains.annotations.Nullable;
@@ -9,8 +10,9 @@ import com.sk89q.worldguard.protection.flags.StateFlag;
 import com.sk89q.worldguard.protection.flags.StringFlag;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.config.HBConfig;
 import com.swiftlicious.hellblock.config.HBLocale;
-import com.swiftlicious.hellblock.player.OnlineUser;
+import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.protection.HellblockFlag.AccessType;
 import com.swiftlicious.hellblock.protection.HellblockFlag.FlagType;
 
@@ -18,39 +20,44 @@ import lombok.NonNull;
 
 public class IslandProtection {
 
-	private final HellblockPlugin instance;
+	protected final HellblockPlugin instance;
 
 	public IslandProtection(HellblockPlugin plugin) {
 		instance = plugin;
 	}
 
 	public boolean changeProtectionFlag(@NonNull UUID id, @NonNull HellblockFlag flag) {
-		OnlineUser user = instance.getStorageManager().getOnlineUser(id);
-		if (user == null || !user.isOnline()) {
+		Optional<UserData> user = instance.getStorageManager().getOnlineUser(id);
+		if (user.isEmpty() || !user.get().isOnline()) {
 			return false;
 		}
-		if (user.getHellblockData().isAbandoned()) {
-			instance.getAdventureManager().sendMessageWithPrefix(user.getPlayer(), HBLocale.MSG_Hellblock_Is_Abandoned);
+		if (user.get().getHellblockData().isAbandoned()) {
+			instance.getAdventureManager().sendMessageWithPrefix(user.get().getPlayer(),
+					HBLocale.MSG_Hellblock_Is_Abandoned);
 			return false;
 		}
-		if (!user.getHellblockData().hasHellblock()) {
-			instance.getAdventureManager().sendMessageWithPrefix(user.getPlayer(), HBLocale.MSG_Hellblock_Not_Found);
+		if (!user.get().getHellblockData().hasHellblock()) {
+			instance.getAdventureManager().sendMessageWithPrefix(user.get().getPlayer(),
+					HBLocale.MSG_Hellblock_Not_Found);
 			return false;
 		}
-		if (user.getHellblockData().getOwnerUUID() == null) {
+		if (user.get().getHellblockData().getOwnerUUID() == null) {
 			throw new NullPointerException("Owner reference returned null, please report this to the developer.");
 		}
-		if (user.getHellblockData().getOwnerUUID() != null && !user.getHellblockData().getOwnerUUID().equals(id)) {
-			instance.getAdventureManager().sendMessageWithPrefix(user.getPlayer(), HBLocale.MSG_Not_Owner_Of_Hellblock);
+		if (user.get().getHellblockData().getOwnerUUID() != null
+				&& !user.get().getHellblockData().getOwnerUUID().equals(id)) {
+			instance.getAdventureManager().sendMessageWithPrefix(user.get().getPlayer(),
+					HBLocale.MSG_Not_Owner_Of_Hellblock);
 			return false;
 		}
-		if (instance.getHellblockHandler().isWorldguardProtected()) {
-			ProtectedRegion region = instance.getWorldGuardHandler().getRegion(id, user.getHellblockData().getID());
+		if (HBConfig.worldguardProtected) {
+			ProtectedRegion region = instance.getWorldGuardHandler().getRegion(id,
+					user.get().getHellblockData().getID());
 			if (region == null) {
 				throw new NullPointerException("Region returned null.");
 			}
 
-			user.getHellblockData().setProtectionValue(flag);
+			user.get().getHellblockData().setProtectionValue(flag);
 			region.setFlag(convertToWorldGuardFlag(flag.getFlag()),
 					(flag.getStatus() == AccessType.ALLOW ? null : StateFlag.State.DENY));
 			return true;

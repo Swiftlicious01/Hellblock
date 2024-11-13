@@ -5,7 +5,9 @@ import java.util.List;
 import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.Nullable;
 
-public interface IntegrationManagerInterface {
+import com.swiftlicious.hellblock.api.Reloadable;
+
+public interface IntegrationManagerInterface extends Reloadable {
 
 	/**
 	 * Registers a level plugin with the specified name.

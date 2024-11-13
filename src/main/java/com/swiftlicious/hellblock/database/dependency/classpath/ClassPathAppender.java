@@ -1,4 +1,4 @@
-package com.swiftlicious.hellblock.database.dependency;
+package com.swiftlicious.hellblock.database.dependency.classpath;
 
 import java.nio.file.Path;
 

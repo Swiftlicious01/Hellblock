@@ -1,5 +1,6 @@
 package com.swiftlicious.hellblock.handlers;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.HashMap;
@@ -11,21 +12,18 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Queue;
+import java.util.Set;
 
 import org.bukkit.NamespacedKey;
-import org.bukkit.Registry;
-import org.bukkit.configuration.ConfigurationSection;
-import org.bukkit.configuration.MemorySection;
-import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.potion.PotionEffect;
-import org.bukkit.potion.PotionType;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.api.compatibility.VaultHook;
+import com.swiftlicious.hellblock.config.HBConfig;
 import com.swiftlicious.hellblock.creation.addons.LevelInterface;
 import com.swiftlicious.hellblock.loot.Loot;
 import com.swiftlicious.hellblock.utils.LogUtils;
@@ -38,14 +36,14 @@ import com.swiftlicious.hellblock.utils.extras.Pair;
 import com.swiftlicious.hellblock.utils.extras.Requirement;
 import com.swiftlicious.hellblock.utils.factory.RequirementFactory;
 
-import io.papermc.paper.registry.RegistryAccess;
-import io.papermc.paper.registry.RegistryKey;
+import dev.dejvokep.boostedyaml.YamlDocument;
+import dev.dejvokep.boostedyaml.block.implementation.Section;
 
 public class RequirementManager implements RequirementManagerInterface {
 
 	public Requirement[] fishingRequirements;
-	private final HellblockPlugin instance;
-	private final HashMap<String, RequirementFactory> requirementFactoryMap;
+	protected final HellblockPlugin instance;
+	private final Map<String, RequirementFactory> requirementFactoryMap;
 	private final LinkedHashMap<String, ConditionalElement> conditionalLootsMap;
 
 	public RequirementManager(HellblockPlugin plugin) {
@@ -55,14 +53,17 @@ public class RequirementManager implements RequirementManagerInterface {
 		this.registerInbuiltRequirements();
 	}
 
+	@Override
 	public void load() {
 		loadRequirementGroupFileConfig();
 	}
 
+	@Override
 	public void unload() {
 		this.conditionalLootsMap.clear();
 	}
 
+	@Override
 	public void disable() {
 		this.requirementFactoryMap.clear();
 		this.conditionalLootsMap.clear();
@@ -73,13 +74,16 @@ public class RequirementManager implements RequirementManagerInterface {
 	 */
 	public void loadRequirementGroupFileConfig() {
 		// Load mechanic requirements from the main configuration file
-		YamlConfiguration main = instance.getConfig("config.yml");
-		fishingRequirements = getRequirements(main.getConfigurationSection("lava-fishing-options.fishing-requirements"), true);
+		YamlDocument main = HBConfig.getMainConfig();
+		fishingRequirements = getRequirements(main.getSection("lava-fishing-options.fishing-requirements"), true);
 
 		// Load conditional loot data from the loot conditions configuration file
-		YamlConfiguration config = instance.getConfig("loot-conditions.yml");
-		for (Map.Entry<String, Object> entry : config.getValues(false).entrySet()) {
-			if (entry.getValue() instanceof ConfigurationSection section) {
+		File lootConditionsFile = new File(instance.getDataFolder(), "loot-conditions.yml");
+		if (!lootConditionsFile.exists())
+			lootConditionsFile.mkdirs();
+		YamlDocument config = instance.getConfigManager().loadData(lootConditionsFile);
+		for (Map.Entry<String, Object> entry : config.getStringRouteMappedValues(false).entrySet()) {
+			if (entry.getValue() instanceof Section section) {
 				conditionalLootsMap.put(entry.getKey(), getConditionalElements(section));
 			}
 		}
@@ -115,25 +119,24 @@ public class RequirementManager implements RequirementManagerInterface {
 	}
 
 	/**
-	 * Retrieves a ConditionalElement from a given ConfigurationSection.
+	 * Retrieves a ConditionalElement from a given Section.
 	 *
-	 * @param section The ConfigurationSection containing the conditional element
-	 *                data.
+	 * @param section The Section containing the conditional element data.
 	 * @return A ConditionalElement instance representing the data in the section.
 	 */
-	private ConditionalElement getConditionalElements(ConfigurationSection section) {
-		var sub = section.getConfigurationSection("sub-groups");
+	private ConditionalElement getConditionalElements(Section section) {
+		var sub = section.getSection("sub-groups");
 		if (sub == null) {
-			return new ConditionalElement(getRequirements(section.getConfigurationSection("conditions"), false),
+			return new ConditionalElement(getRequirements(section.getSection("conditions"), false),
 					instance.getConfigUtils().getModifiers(section.getStringList("list")), null);
 		} else {
-			HashMap<String, ConditionalElement> subElements = new HashMap<>();
-			for (Map.Entry<String, Object> entry : sub.getValues(false).entrySet()) {
-				if (entry.getValue() instanceof ConfigurationSection innerSection) {
+			Map<String, ConditionalElement> subElements = new HashMap<>();
+			for (Map.Entry<String, Object> entry : sub.getStringRouteMappedValues(false).entrySet()) {
+				if (entry.getValue() instanceof Section innerSection) {
 					subElements.put(entry.getKey(), getConditionalElements(innerSection));
 				}
 			}
-			return new ConditionalElement(getRequirements(section.getConfigurationSection("conditions"), false),
+			return new ConditionalElement(getRequirements(section.getSection("conditions"), false),
 					instance.getConfigUtils().getModifiers(section.getStringList("list")), subElements);
 		}
 	}
@@ -172,7 +175,7 @@ public class RequirementManager implements RequirementManagerInterface {
 		this.registerInListRequirement();
 	}
 
-	public HashMap<String, Double> getLootWithWeight(Condition condition) {
+	public Map<String, Double> getLootWithWeight(Condition condition) {
 		return getString2DoubleMap(condition, conditionalLootsMap);
 	}
 
@@ -187,14 +190,14 @@ public class RequirementManager implements RequirementManagerInterface {
 	 *         loot/game weights.
 	 */
 	@NotNull
-	private HashMap<String, Double> getString2DoubleMap(Condition condition,
+	private Map<String, Double> getString2DoubleMap(Condition condition,
 			LinkedHashMap<String, ConditionalElement> conditionalGamesMap) {
-		HashMap<String, Double> lootWeightMap = new HashMap<>();
-		Queue<HashMap<String, ConditionalElement>> lootQueue = new LinkedList<>();
+		Map<String, Double> lootWeightMap = new HashMap<>();
+		Queue<Map<String, ConditionalElement>> lootQueue = new LinkedList<>();
 		lootQueue.add(conditionalGamesMap);
 		Player player = condition.getPlayer();
 		while (!lootQueue.isEmpty()) {
-			HashMap<String, ConditionalElement> currentLootMap = lootQueue.poll();
+			Map<String, ConditionalElement> currentLootMap = lootQueue.poll();
 			for (ConditionalElement loots : currentLootMap.values()) {
 				if (RequirementManagerInterface.isRequirementMet(condition, loots.getRequirements())) {
 					loots.combine(player, lootWeightMap);
@@ -216,17 +219,17 @@ public class RequirementManager implements RequirementManagerInterface {
 	 */
 	@NotNull
 	@Override
-	public Requirement[] getRequirements(ConfigurationSection section, boolean advanced) {
+	public Requirement[] getRequirements(Section section, boolean advanced) {
 		List<Requirement> requirements = new ArrayList<>();
 		if (section == null) {
 			return requirements.toArray(new Requirement[0]);
 		}
-		for (Map.Entry<String, Object> entry : section.getValues(false).entrySet()) {
+		for (Map.Entry<String, Object> entry : section.getStringRouteMappedValues(false).entrySet()) {
 			String typeOrName = entry.getKey();
 			if (hasRequirement(typeOrName)) {
 				requirements.add(getRequirement(typeOrName, entry.getValue()));
 			} else {
-				requirements.add(getRequirement(section.getConfigurationSection(typeOrName), advanced));
+				requirements.add(getRequirement(section.getSection(typeOrName), advanced));
 			}
 		}
 		return requirements.toArray(new Requirement[0]);
@@ -248,17 +251,16 @@ public class RequirementManager implements RequirementManagerInterface {
 	 */
 	@NotNull
 	@Override
-	public Requirement getRequirement(ConfigurationSection section, boolean advanced) {
+	public Requirement getRequirement(Section section, boolean advanced) {
 		if (section == null)
 			return EmptyRequirement.EMPTY;
 		List<Action> actionList = null;
 		if (advanced) {
 			actionList = new ArrayList<>();
 			if (section.contains("not-met-actions")) {
-				for (Map.Entry<String, Object> entry : Objects
-						.requireNonNull(section.getConfigurationSection("not-met-actions")).getValues(false)
-						.entrySet()) {
-					if (entry.getValue() instanceof MemorySection inner) {
+				for (Map.Entry<String, Object> entry : Objects.requireNonNull(section.getSection("not-met-actions"))
+						.getStringRouteMappedValues(false).entrySet()) {
+					if (entry.getValue() instanceof Section inner) {
 						actionList.add(instance.getActionManager().getAction(inner));
 					}
 				}
@@ -268,7 +270,7 @@ public class RequirementManager implements RequirementManagerInterface {
 		}
 		String type = section.getString("type");
 		if (type == null) {
-			LogUtils.warn(String.format("No requirement type found at %s", section.getCurrentPath()));
+			LogUtils.warn(String.format("No requirement type found at %s", section.getRoot().getName()));
 			return EmptyRequirement.EMPTY;
 		}
 		var builder = getRequirementFactory(type);
@@ -331,7 +333,7 @@ public class RequirementManager implements RequirementManagerInterface {
 
 	private void registerGroupRequirement() {
 		registerRequirement("group", (args, actions, advanced) -> {
-			HashSet<String> arg = new HashSet<>(instance.getConfigUtils().stringListArgs(args));
+			Set<String> arg = new HashSet<>(instance.getConfigUtils().stringListArgs(args));
 			return condition -> {
 				String lootID = condition.getArg("{loot}");
 				Loot loot = instance.getLootManager().getLoot(lootID);
@@ -349,7 +351,7 @@ public class RequirementManager implements RequirementManagerInterface {
 			};
 		});
 		registerRequirement("!group", (args, actions, advanced) -> {
-			HashSet<String> arg = new HashSet<>(instance.getConfigUtils().stringListArgs(args));
+			Set<String> arg = new HashSet<>(instance.getConfigUtils().stringListArgs(args));
 			return condition -> {
 				String lootID = condition.getArg("{loot}");
 				Loot loot = instance.getLootManager().getLoot(lootID);
@@ -374,7 +376,7 @@ public class RequirementManager implements RequirementManagerInterface {
 
 	private void registerLootRequirement() {
 		registerRequirement("loot", (args, actions, advanced) -> {
-			HashSet<String> arg = new HashSet<>(instance.getConfigUtils().stringListArgs(args));
+			Set<String> arg = new HashSet<>(instance.getConfigUtils().stringListArgs(args));
 			return condition -> {
 				String lootID = condition.getArg("{loot}");
 				if (arg.contains(lootID))
@@ -385,7 +387,7 @@ public class RequirementManager implements RequirementManagerInterface {
 			};
 		});
 		registerRequirement("!loot", (args, actions, advanced) -> {
-			HashSet<String> arg = new HashSet<>(instance.getConfigUtils().stringListArgs(args));
+			Set<String> arg = new HashSet<>(instance.getConfigUtils().stringListArgs(args));
 			return condition -> {
 				String lootID = condition.getArg("{loot}");
 				if (!arg.contains(lootID))
@@ -415,7 +417,7 @@ public class RequirementManager implements RequirementManagerInterface {
 
 	private void registerOrRequirement() {
 		registerRequirement("||", (args, actions, advanced) -> {
-			if (args instanceof ConfigurationSection section) {
+			if (args instanceof Section section) {
 				Requirement[] requirements = getRequirements(section, advanced);
 				return condition -> {
 					for (Requirement requirement : requirements) {
@@ -436,7 +438,7 @@ public class RequirementManager implements RequirementManagerInterface {
 
 	private void registerAndRequirement() {
 		registerRequirement("&&", (args, actions, advanced) -> {
-			if (args instanceof ConfigurationSection section) {
+			if (args instanceof Section section) {
 				Requirement[] requirements = getRequirements(section, advanced);
 				return condition -> {
 					outer: {
@@ -535,7 +537,7 @@ public class RequirementManager implements RequirementManagerInterface {
 
 	private void registerDateRequirement() {
 		registerRequirement("date", (args, actions, advanced) -> {
-			HashSet<String> dates = new HashSet<>(instance.getConfigUtils().stringListArgs(args));
+			Set<String> dates = new HashSet<>(instance.getConfigUtils().stringListArgs(args));
 			return condition -> {
 				Calendar calendar = Calendar.getInstance();
 				String current = (calendar.get(Calendar.MONTH) + 1) + "/" + calendar.get(Calendar.DATE);
@@ -576,7 +578,7 @@ public class RequirementManager implements RequirementManagerInterface {
 
 	private void registerGreaterThanRequirement() {
 		registerRequirement(">=", (args, actions, advanced) -> {
-			if (args instanceof ConfigurationSection section) {
+			if (args instanceof Section section) {
 				String v1 = section.getString("value1", "");
 				String v2 = section.getString("value2", "");
 				return condition -> {
@@ -596,7 +598,7 @@ public class RequirementManager implements RequirementManagerInterface {
 			}
 		});
 		registerRequirement(">", (args, actions, advanced) -> {
-			if (args instanceof ConfigurationSection section) {
+			if (args instanceof Section section) {
 				String v1 = section.getString("value1", "");
 				String v2 = section.getString("value2", "");
 				return condition -> {
@@ -619,7 +621,7 @@ public class RequirementManager implements RequirementManagerInterface {
 
 	private void registerRegexRequirement() {
 		registerRequirement("regex", (args, actions, advanced) -> {
-			if (args instanceof ConfigurationSection section) {
+			if (args instanceof Section section) {
 				String v1 = section.getString("papi", "");
 				String v2 = section.getString("regex", "");
 				return condition -> {
@@ -638,7 +640,7 @@ public class RequirementManager implements RequirementManagerInterface {
 
 	private void registerNumberEqualRequirement() {
 		registerRequirement("==", (args, actions, advanced) -> {
-			if (args instanceof ConfigurationSection section) {
+			if (args instanceof Section section) {
 				String v1 = section.getString("value1", "");
 				String v2 = section.getString("value2", "");
 				return condition -> {
@@ -658,7 +660,7 @@ public class RequirementManager implements RequirementManagerInterface {
 			}
 		});
 		registerRequirement("!=", (args, actions, advanced) -> {
-			if (args instanceof ConfigurationSection section) {
+			if (args instanceof Section section) {
 				String v1 = section.getString("value1", "");
 				String v2 = section.getString("value2", "");
 				return condition -> {
@@ -681,7 +683,7 @@ public class RequirementManager implements RequirementManagerInterface {
 
 	private void registerLessThanRequirement() {
 		registerRequirement("<", (args, actions, advanced) -> {
-			if (args instanceof ConfigurationSection section) {
+			if (args instanceof Section section) {
 				String v1 = section.getString("value1", "");
 				String v2 = section.getString("value2", "");
 				return condition -> {
@@ -701,7 +703,7 @@ public class RequirementManager implements RequirementManagerInterface {
 			}
 		});
 		registerRequirement("<=", (args, actions, advanced) -> {
-			if (args instanceof ConfigurationSection section) {
+			if (args instanceof Section section) {
 				String v1 = section.getString("value1", "");
 				String v2 = section.getString("value2", "");
 				return condition -> {
@@ -724,7 +726,7 @@ public class RequirementManager implements RequirementManagerInterface {
 
 	private void registerStartWithRequirement() {
 		registerRequirement("startsWith", (args, actions, advanced) -> {
-			if (args instanceof ConfigurationSection section) {
+			if (args instanceof Section section) {
 				String v1 = section.getString("value1", "");
 				String v2 = section.getString("value2", "");
 				return condition -> {
@@ -744,7 +746,7 @@ public class RequirementManager implements RequirementManagerInterface {
 			}
 		});
 		registerRequirement("!startsWith", (args, actions, advanced) -> {
-			if (args instanceof ConfigurationSection section) {
+			if (args instanceof Section section) {
 				String v1 = section.getString("value1", "");
 				String v2 = section.getString("value2", "");
 				return condition -> {
@@ -767,7 +769,7 @@ public class RequirementManager implements RequirementManagerInterface {
 
 	private void registerEndWithRequirement() {
 		registerRequirement("endsWith", (args, actions, advanced) -> {
-			if (args instanceof ConfigurationSection section) {
+			if (args instanceof Section section) {
 				String v1 = section.getString("value1", "");
 				String v2 = section.getString("value2", "");
 				return condition -> {
@@ -787,7 +789,7 @@ public class RequirementManager implements RequirementManagerInterface {
 			}
 		});
 		registerRequirement("!endsWith", (args, actions, advanced) -> {
-			if (args instanceof ConfigurationSection section) {
+			if (args instanceof Section section) {
 				String v1 = section.getString("value1", "");
 				String v2 = section.getString("value2", "");
 				return condition -> {
@@ -810,7 +812,7 @@ public class RequirementManager implements RequirementManagerInterface {
 
 	private void registerContainRequirement() {
 		registerRequirement("contains", (args, actions, advanced) -> {
-			if (args instanceof ConfigurationSection section) {
+			if (args instanceof Section section) {
 				String v1 = section.getString("value1", "");
 				String v2 = section.getString("value2", "");
 				return condition -> {
@@ -830,7 +832,7 @@ public class RequirementManager implements RequirementManagerInterface {
 			}
 		});
 		registerRequirement("!contains", (args, actions, advanced) -> {
-			if (args instanceof ConfigurationSection section) {
+			if (args instanceof Section section) {
 				String v1 = section.getString("value1", "");
 				String v2 = section.getString("value2", "");
 				return condition -> {
@@ -853,7 +855,7 @@ public class RequirementManager implements RequirementManagerInterface {
 
 	private void registerInListRequirement() {
 		registerRequirement("in-list", (args, actions, advanced) -> {
-			if (args instanceof ConfigurationSection section) {
+			if (args instanceof Section section) {
 				String papi = section.getString("papi", "");
 				List<String> values = instance.getConfigUtils().stringListArgs(section.get("values"));
 				return condition -> {
@@ -872,7 +874,7 @@ public class RequirementManager implements RequirementManagerInterface {
 			}
 		});
 		registerRequirement("!in-list", (args, actions, advanced) -> {
-			if (args instanceof ConfigurationSection section) {
+			if (args instanceof Section section) {
 				String papi = section.getString("papi", "");
 				List<String> values = instance.getConfigUtils().stringListArgs(section.get("values"));
 				return condition -> {
@@ -894,7 +896,7 @@ public class RequirementManager implements RequirementManagerInterface {
 
 	private void registerEqualsRequirement() {
 		registerRequirement("equals", (args, actions, advanced) -> {
-			if (args instanceof ConfigurationSection section) {
+			if (args instanceof Section section) {
 				String v1 = section.getString("value1", "");
 				String v2 = section.getString("value2", "");
 				return condition -> {
@@ -914,7 +916,7 @@ public class RequirementManager implements RequirementManagerInterface {
 			}
 		});
 		registerRequirement("!equals", (args, actions, advanced) -> {
-			if (args instanceof ConfigurationSection section) {
+			if (args instanceof Section section) {
 				String v1 = section.getString("value1", "");
 				String v2 = section.getString("value2", "");
 				return condition -> {
@@ -962,7 +964,7 @@ public class RequirementManager implements RequirementManagerInterface {
 
 	private void registerItemInHandRequirement() {
 		registerRequirement("item-in-hand", (args, actions, advanced) -> {
-			if (args instanceof ConfigurationSection section) {
+			if (args instanceof Section section) {
 				boolean mainOrOff = section.getString("hand", "main").equalsIgnoreCase("main");
 				int amount = section.getInt("amount", 1);
 				List<String> items = instance.getConfigUtils().stringListArgs(section.get("item"));
@@ -1120,7 +1122,7 @@ public class RequirementManager implements RequirementManagerInterface {
 
 	private void registerPluginLevelRequirement() {
 		registerRequirement("plugin-level", (args, actions, advanced) -> {
-			if (args instanceof ConfigurationSection section) {
+			if (args instanceof Section section) {
 				String pluginName = section.getString("plugin");
 				int level = section.getInt("level");
 				String target = section.getString("target");
@@ -1149,10 +1151,8 @@ public class RequirementManager implements RequirementManagerInterface {
 		registerRequirement("potion-effect", (args, actions, advanced) -> {
 			String potions = (String) args;
 			String[] split = potions.split("(<=|>=|<|>|==)", 2);
-			// Fetch the potion effect registry from the registry access
-			final Registry<PotionType> potionRegistry = RegistryAccess.registryAccess().getRegistry(RegistryKey.POTION);
-			List<PotionEffect> effectTypes = potionRegistry.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()))
-					.getPotionEffects();
+			List<PotionEffect> effectTypes = instance.getHellblockHandler().getPotionTypeRegistry()
+					.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase())).getPotionEffects();
 			if (effectTypes.isEmpty()) {
 				LogUtils.warn(String.format("Potion effects don't exist: %s", split[0]));
 				return EmptyRequirement.EMPTY;

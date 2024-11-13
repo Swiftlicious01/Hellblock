@@ -23,7 +23,7 @@ import com.swiftlicious.hellblock.effects.LavaEffectTask;
 import com.swiftlicious.hellblock.events.fishing.FishHookLandEvent;
 import com.swiftlicious.hellblock.events.fishing.LavaFishingEvent;
 import com.swiftlicious.hellblock.loot.Loot;
-import com.swiftlicious.hellblock.scheduler.CancellableTask;
+import com.swiftlicious.hellblock.scheduler.SchedulerTask;
 import com.swiftlicious.hellblock.utils.extras.ActionTrigger;
 
 import net.kyori.adventure.sound.Sound;
@@ -35,7 +35,7 @@ import net.kyori.adventure.sound.Sound;
 public class HookCheckTimerTask implements Runnable {
 
 	private final FishingManager manager;
-	private final CancellableTask hookMovementTask;
+	private final SchedulerTask hookMovementTask;
 	private LavaEffectTask lavaFishingTask;
 	private final FishHook fishHook;
 	private final FishingPreparation fishingPreparation;
@@ -64,8 +64,8 @@ public class HookCheckTimerTask implements Runnable {
 		this.fishHook = fishHook;
 		this.initialEffect = initialEffect;
 		this.fishingPreparation = fishingPreparation;
-		this.hookMovementTask = HellblockPlugin.getInstance().getScheduler().runTaskSyncTimer(this,
-				fishHook.getLocation(), 1, 1);
+		this.hookMovementTask = HellblockPlugin.getInstance().getScheduler().sync().runRepeating(this, 1, 1,
+				fishHook.getLocation());
 		this.lureLevel = fishingPreparation.getRodItemStack().getEnchantmentLevel(Enchantment.LURE);
 		this.firstTime = true;
 		this.tempEffect = new FishingEffect();
@@ -241,7 +241,7 @@ public class HookCheckTimerTask implements Runnable {
 				Sound.Source.NEUTRAL,
 				net.kyori.adventure.key.Key.key("minecraft:block.pointed_dripstone.drip_lava_into_cauldron"), 1, 1);
 
-		HellblockPlugin.getInstance().getScheduler().runTaskAsyncLater(() -> {
+		HellblockPlugin.getInstance().getScheduler().asyncLater(() -> {
 			fishHooked = false;
 			reserve = false;
 		}, (2 * 20) * 50L, TimeUnit.MILLISECONDS);
@@ -274,7 +274,7 @@ public class HookCheckTimerTask implements Runnable {
 	public boolean isFishHooked() {
 		return fishHooked;
 	}
-	
+
 	public boolean isHookInLava() {
 		return inLava;
 	}

@@ -8,8 +8,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-import org.bukkit.configuration.ConfigurationSection;
-import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
@@ -24,6 +22,8 @@ import com.swiftlicious.hellblock.utils.extras.Tuple;
 import com.swiftlicious.hellblock.utils.extras.Value;
 import com.swiftlicious.hellblock.utils.extras.WeightModifier;
 
+import dev.dejvokep.boostedyaml.YamlDocument;
+import dev.dejvokep.boostedyaml.block.implementation.Section;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import net.objecthunter.exp4j.ExpressionBuilder;
 
@@ -185,11 +185,11 @@ public class ConfigUtils {
 	 * @return A list of enchantment pairs.
 	 */
 	@NotNull
-	public List<Pair<String, Short>> getEnchantmentPair(ConfigurationSection section) {
+	public List<Pair<String, Short>> getEnchantmentPair(Section section) {
 		List<Pair<String, Short>> list = new ArrayList<>();
 		if (section == null)
 			return list;
-		for (Map.Entry<String, Object> entry : section.getValues(false).entrySet()) {
+		for (Map.Entry<String, Object> entry : section.getStringRouteMappedValues(false).entrySet()) {
 			if (entry.getValue() instanceof Integer integer) {
 				list.add(Pair.of(entry.getKey(),
 						Short.parseShort(String.valueOf(Math.max(1, Math.min(Short.MAX_VALUE, integer))))));
@@ -198,21 +198,21 @@ public class ConfigUtils {
 		return list;
 	}
 
-	public List<Pair<Integer, Value>> getEnchantAmountPair(ConfigurationSection section) {
+	public List<Pair<Integer, Value>> getEnchantAmountPair(Section section) {
 		List<Pair<Integer, Value>> list = new ArrayList<>();
 		if (section == null)
 			return list;
-		for (Map.Entry<String, Object> entry : section.getValues(false).entrySet()) {
+		for (Map.Entry<String, Object> entry : section.getStringRouteMappedValues(false).entrySet()) {
 			list.add(Pair.of(Integer.parseInt(entry.getKey()), getValue(entry.getValue())));
 		}
 		return list;
 	}
 
-	public List<Pair<Pair<String, Short>, Value>> getEnchantPoolPair(ConfigurationSection section) {
+	public List<Pair<Pair<String, Short>, Value>> getEnchantPoolPair(Section section) {
 		List<Pair<Pair<String, Short>, Value>> list = new ArrayList<>();
 		if (section == null)
 			return list;
-		for (Map.Entry<String, Object> entry : section.getValues(false).entrySet()) {
+		for (Map.Entry<String, Object> entry : section.getStringRouteMappedValues(false).entrySet()) {
 			list.add(Pair.of(getEnchantmentPair(entry.getKey()), getValue(entry.getValue())));
 		}
 		return list;
@@ -233,12 +233,12 @@ public class ConfigUtils {
 	 * @return A list of enchantment tuples.
 	 */
 	@NotNull
-	public List<Tuple<Double, String, Short>> getEnchantmentTuple(ConfigurationSection section) {
+	public List<Tuple<Double, String, Short>> getEnchantmentTuple(Section section) {
 		List<Tuple<Double, String, Short>> list = new ArrayList<>();
 		if (section == null)
 			return list;
-		for (Map.Entry<String, Object> entry : section.getValues(false).entrySet()) {
-			if (entry.getValue() instanceof ConfigurationSection inner) {
+		for (Map.Entry<String, Object> entry : section.getStringRouteMappedValues(false).entrySet()) {
+			if (entry.getValue() instanceof Section inner) {
 				Tuple<Double, String, Short> tuple = Tuple.of(inner.getDouble("chance"), inner.getString("enchant"),
 						Short.valueOf(String.valueOf(inner.getInt("level"))));
 				list.add(tuple);
@@ -262,9 +262,9 @@ public class ConfigUtils {
 	 * Reads data from a YAML configuration file and creates it if it doesn't exist.
 	 *
 	 * @param file The file path
-	 * @return The YamlConfiguration
+	 * @return The YamlDocument
 	 */
-	public YamlConfiguration readData(File file) {
+	public YamlDocument readData(File file) {
 		if (!file.exists()) {
 			try {
 				file.getParentFile().mkdirs();
@@ -274,7 +274,7 @@ public class ConfigUtils {
 				LogUtils.warn("Failed to generate data files!</red>");
 			}
 		}
-		return YamlConfiguration.loadConfiguration(file);
+		return HellblockPlugin.getInstance().getConfigManager().loadData(file);
 	}
 
 	/**

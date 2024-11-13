@@ -5,10 +5,10 @@ import java.lang.reflect.Method;
 import java.sql.Connection;
 import java.util.EnumSet;
 
-import org.bukkit.configuration.file.YamlConfiguration;
-
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.database.dependency.Dependency;
+
+import dev.dejvokep.boostedyaml.YamlDocument;
 
 /**
  * An implementation of AbstractSQLDatabase that uses the H2 embedded database
@@ -28,24 +28,20 @@ public class H2Handler extends AbstractSQLDatabase {
 	 * Initialize the H2 database and connection pool based on the configuration.
 	 */
 	@Override
-	public void initialize() {
-		YamlConfiguration config = HellblockPlugin.getInstance().getConfig("database.yml");
-		File databaseFile = new File(HellblockPlugin.getInstance().getDataFolder() + File.separator
-				+ "schema",
-				config.getString("H2.file", "data.db"));
+	public void initialize(YamlDocument config) {
+		File databaseFile = new File(plugin.getDataFolder(), config.getString("H2.file", "data.db"));
 		super.tablePrefix = config.getString("H2.table-prefix", "hellblock");
 
 		final String url = String.format("jdbc:h2:%s", databaseFile.getAbsolutePath());
-		ClassLoader classLoader = HellblockPlugin.getInstance().getDependencyManager()
-				.obtainClassLoaderWith(EnumSet.of(Dependency.H2_DRIVER));
+		ClassLoader classLoader = plugin.getDependencyManager().obtainClassLoaderWith(EnumSet.of(Dependency.H2_DRIVER));
 		try {
 			Class<?> connectionClass = classLoader.loadClass("org.h2.jdbcx.JdbcConnectionPool");
 			Method createPoolMethod = connectionClass.getMethod("create", String.class, String.class, String.class);
 			this.connectionPool = createPoolMethod.invoke(null, url, "sa", "");
 			this.disposeMethod = connectionClass.getMethod("dispose");
 			this.getConnectionMethod = connectionClass.getMethod("getConnection");
-		} catch (ReflectiveOperationException e) {
-			throw new RuntimeException(e);
+		} catch (ReflectiveOperationException ex) {
+			throw new RuntimeException(ex);
 		}
 
 		super.createTableIfNotExist();
@@ -59,8 +55,8 @@ public class H2Handler extends AbstractSQLDatabase {
 		if (connectionPool != null) {
 			try {
 				disposeMethod.invoke(connectionPool);
-			} catch (ReflectiveOperationException e) {
-				e.printStackTrace();
+			} catch (ReflectiveOperationException ex) {
+				ex.printStackTrace();
 			}
 		}
 	}
@@ -74,8 +70,8 @@ public class H2Handler extends AbstractSQLDatabase {
 	public Connection getConnection() {
 		try {
 			return (Connection) getConnectionMethod.invoke(connectionPool);
-		} catch (ReflectiveOperationException e) {
-			throw new RuntimeException(e);
+		} catch (ReflectiveOperationException ex) {
+			throw new RuntimeException(ex);
 		}
 	}
 }

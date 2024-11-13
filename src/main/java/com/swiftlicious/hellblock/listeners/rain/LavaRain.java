@@ -13,38 +13,25 @@ import org.bukkit.entity.Player;
 import org.jetbrains.annotations.Nullable;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.config.HBConfig;
 import com.swiftlicious.hellblock.utils.RandomUtils;
 
-import lombok.Getter;
 import lombok.NonNull;
 
 public class LavaRain {
 
-	@Getter
-	private int radius, fireChance, taskDelay;
-	@Getter
-	private boolean enabled;
-	private boolean canHurtLivingCreatures, willTNTExplode;
-	@Getter
 	private LavaRainTask lavaRainTask;
 
-	private final HellblockPlugin instance;
+	protected final HellblockPlugin instance;
 
 	public LavaRain(HellblockPlugin plugin) {
 		instance = plugin;
-		this.radius = Math.abs(instance.getConfig("config.yml").getInt("lava-rain-options.radius", 16));
-		this.fireChance = Math.abs(instance.getConfig("config.yml").getInt("lava-rain-options.fire-chance", 1));
-		this.taskDelay = Math.abs(instance.getConfig("config.yml").getInt("lava-rain-options.task-delay", 3));
-		this.enabled = instance.getConfig("config.yml").getBoolean("lava-rain-options.enabled", true);
-		this.canHurtLivingCreatures = instance.getConfig("config.yml")
-				.getBoolean("lava-rain-options.can-hurt-living-creatures", true);
-		this.willTNTExplode = instance.getConfig("config.yml").getBoolean("lava-rain-options.will-tnt-explode", true);
 	}
 
 	public void startLavaRainProcess() {
-		if (!this.enabled)
+		if (!HBConfig.lavaRainEnabled)
 			return;
-		instance.getScheduler().runTaskAsyncLater(
+		instance.getScheduler().asyncLater(
 				() -> this.lavaRainTask = new LavaRainTask(instance, true, false,
 						RandomUtils.generateRandomInt(150, 250)),
 				RandomUtils.generateRandomInt(10, 15), TimeUnit.MINUTES);
@@ -57,12 +44,16 @@ public class LavaRain {
 		}
 	}
 
+	public @Nullable LavaRainTask getLavaRainTask() {
+		return this.lavaRainTask;
+	}
+
 	public boolean canHurtLivingCreatures() {
-		return this.canHurtLivingCreatures;
+		return HBConfig.canHurtLivingCreatures;
 	}
 
 	public boolean willTNTExplode() {
-		return this.willTNTExplode;
+		return HBConfig.willTNTExplode;
 	}
 
 	public @Nullable Block getHighestBlock(@Nullable Location location) {

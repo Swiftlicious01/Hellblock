@@ -1,12 +1,13 @@
 package com.swiftlicious.hellblock.api;
 
 import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import org.bukkit.entity.Player;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
-import com.swiftlicious.hellblock.scheduler.CancellableTask;
+import com.swiftlicious.hellblock.scheduler.SchedulerTask;
 
 /**
  * Manages and updates ActionBar messages for a specific player in a context.
@@ -18,10 +19,10 @@ public class ActionBarSender {
 	private int switchTimer;
 	private int counter;
 	private final DynamicText[] texts;
-	private CancellableTask senderTask;
+	private SchedulerTask senderTask;
 	private final ActionBarConfig config;
 	private boolean isShown;
-	private final HashMap<String, String> privatePlaceholders;
+	private final Map<String, String> privatePlaceholders;
 
 	/**
 	 * Creates a new ActionBarSender instance for a player.
@@ -57,7 +58,7 @@ public class ActionBarSender {
 	 */
 	public void show() {
 		this.isShown = true;
-		senderTask = HellblockPlugin.getInstance().getScheduler().runTaskAsyncTimer(() -> {
+		senderTask = HellblockPlugin.getInstance().getScheduler().asyncRepeating(() -> {
 			switchTimer++;
 			if (switchTimer > config.getSwitchInterval()) {
 				switchTimer = 0;
@@ -79,7 +80,7 @@ public class ActionBarSender {
 	 * Hides the ActionBar message from the player.
 	 */
 	public void hide() {
-		if (senderTask != null && !senderTask.isCancelled())
+		if (senderTask != null)
 			senderTask.cancel();
 		this.isShown = false;
 	}

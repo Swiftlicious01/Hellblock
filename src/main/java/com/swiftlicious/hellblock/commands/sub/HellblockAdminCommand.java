@@ -18,7 +18,7 @@ import com.swiftlicious.hellblock.api.compatibility.WorldGuardHook;
 import com.swiftlicious.hellblock.config.HBConfig;
 import com.swiftlicious.hellblock.config.HBLocale;
 import com.swiftlicious.hellblock.player.HellblockData;
-import com.swiftlicious.hellblock.player.OfflineUser;
+import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.player.UUIDFetcher;
 
 import com.swiftlicious.hellblock.utils.ChunkUtils;
@@ -44,7 +44,7 @@ public class HellblockAdminCommand {
 						new StringArgument("player").replaceSuggestions(ArgumentSuggestions.stringCollection(info -> {
 							if (info.sender() instanceof Player player) {
 								return HellblockPlugin.getInstance().getStorageManager().getOnlineUsers().stream()
-										.filter(onlineUser -> onlineUser != null && onlineUser.isOnline()
+										.filter(onlineUser -> onlineUser.isOnline()
 												&& onlineUser.getHellblockData().hasHellblock()
 												&& !onlineUser.getName().equalsIgnoreCase(player.getName()))
 										.map(onlineUser -> onlineUser.getName()).collect(Collectors.toList());
@@ -66,19 +66,19 @@ public class HellblockAdminCommand {
 								"<red>The player's hellblock you're trying to teleport to doesn't exist!");
 						return;
 					}
-					HellblockPlugin.getInstance().getStorageManager().getOfflineUser(id, HBConfig.lockData)
+					HellblockPlugin.getInstance().getStorageManager().getOfflineUserData(id, HBConfig.lockData)
 							.thenAccept((result) -> {
-								OfflineUser offlineUser = result.orElseThrow();
+								UserData offlineUser = result.orElseThrow();
 								if (offlineUser.getHellblockData().hasHellblock()) {
 									if (offlineUser.getHellblockData().getOwnerUUID() == null) {
 										throw new NullPointerException(
 												"Owner reference returned null, please report this to the developer.");
 									}
 									HellblockPlugin.getInstance().getStorageManager()
-											.getOfflineUser(offlineUser.getHellblockData().getOwnerUUID(),
+											.getOfflineUserData(offlineUser.getHellblockData().getOwnerUUID(),
 													HBConfig.lockData)
 											.thenAccept((owner) -> {
-												OfflineUser ownerUser = owner.orElseThrow();
+												UserData ownerUser = owner.orElseThrow();
 												World world = HellblockPlugin.getInstance().getHellblockHandler()
 														.getHellblockWorld();
 												int x = ownerUser.getHellblockData().getHellblockLocation().getBlockX();
@@ -106,7 +106,7 @@ public class HellblockAdminCommand {
 		return new CommandAPICommand(namespace).withPermission(CommandPermission.OP).withPermission("hellblock.admin")
 				.withArguments(new IntegerArgument("days")).executes((sender, args) -> {
 					int purgeDays = (int) args.get("days");
-					if (HellblockPlugin.getInstance().getStorageManager().getDataSource().getUniqueUsers(false)
+					if (HellblockPlugin.getInstance().getStorageManager().getDataSource().getUniqueUsers()
 							.size() == 0) {
 						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(sender,
 								"<red>No hellblock player data to purge available!");
@@ -118,8 +118,7 @@ public class HellblockAdminCommand {
 						return;
 					}
 					PurgeCounter purgeCount = new PurgeCounter();
-					for (UUID id : HellblockPlugin.getInstance().getStorageManager().getDataSource()
-							.getUniqueUsers(false)) {
+					for (UUID id : HellblockPlugin.getInstance().getStorageManager().getDataSource().getUniqueUsers()) {
 						if (!Bukkit.getOfflinePlayer(id).hasPlayedBefore())
 							continue;
 
@@ -130,9 +129,9 @@ public class HellblockAdminCommand {
 						// Account for a timezone difference
 								TimeUnit.MILLISECONDS.toHours(19);
 						if (millisSinceLastLogin > TimeUnit.DAYS.toMillis(purgeDays)) {
-							HellblockPlugin.getInstance().getStorageManager().getOfflineUser(id, HBConfig.lockData)
+							HellblockPlugin.getInstance().getStorageManager().getOfflineUserData(id, HBConfig.lockData)
 									.thenAccept((result) -> {
-										OfflineUser offlineUser = result.orElseThrow();
+										UserData offlineUser = result.orElseThrow();
 										if (offlineUser.getHellblockData().hasHellblock()
 												&& offlineUser.getHellblockData().getOwnerUUID() != null) {
 											if (HellblockPlugin.getInstance().getHellblockHandler().isHellblockOwner(id,
@@ -187,7 +186,7 @@ public class HellblockAdminCommand {
 						new StringArgument("player").replaceSuggestions(ArgumentSuggestions.stringCollection(info -> {
 							if (info.sender() instanceof Player player) {
 								return HellblockPlugin.getInstance().getStorageManager().getOnlineUsers().stream()
-										.filter(onlineUser -> onlineUser != null && onlineUser.isOnline()
+										.filter(onlineUser -> onlineUser.isOnline()
 												&& onlineUser.getHellblockData().hasHellblock()
 												&& !onlineUser.getName().equalsIgnoreCase(player.getName()))
 										.map(onlineUser -> onlineUser.getName()).collect(Collectors.toList());
@@ -209,9 +208,9 @@ public class HellblockAdminCommand {
 								"<red>The player's hellblock you're trying to delete doesn't exist!");
 						return;
 					}
-					HellblockPlugin.getInstance().getStorageManager().getOfflineUser(id, HBConfig.lockData)
+					HellblockPlugin.getInstance().getStorageManager().getOfflineUserData(id, HBConfig.lockData)
 							.thenAccept((result) -> {
-								OfflineUser offlineUser = result.orElseThrow();
+								UserData offlineUser = result.orElseThrow();
 								if (offlineUser.getHellblockData().hasHellblock()) {
 									HellblockPlugin.getInstance().getHellblockHandler().resetHellblock(id, true)
 											.thenRun(() -> {
@@ -234,14 +233,14 @@ public class HellblockAdminCommand {
 		return new CommandAPICommand(namespace).withPermission(CommandPermission.OP).withPermission("hellblock.admin")
 				.executesPlayer((player, args) -> {
 					if (!player.getWorld().getName()
-							.equalsIgnoreCase(HellblockPlugin.getInstance().getHellblockHandler().getWorldName())) {
+							.equalsIgnoreCase(HBConfig.worldName)) {
 						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 								"<red>You aren't in the correct world to generate the spawn!");
 						return;
 					}
 
 					World world = HellblockPlugin.getInstance().getHellblockHandler().getHellblockWorld();
-					if (HellblockPlugin.getInstance().getHellblockHandler().isWorldguardProtected()) {
+					if (HBConfig.worldguardProtected) {
 						com.sk89q.worldedit.world.World weWorld = BukkitAdapter.adapt(world);
 						if (HellblockPlugin.getInstance().getWorldGuardHandler().getWorldGuardPlatform() != null
 								&& HellblockPlugin.getInstance().getWorldGuardHandler().getWorldGuardPlatform()

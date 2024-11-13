@@ -1,5 +1,6 @@
 package com.swiftlicious.hellblock.gui.hellblock;
 
+import java.util.Optional;
 import java.util.UUID;
 
 import org.bukkit.Effect;
@@ -12,8 +13,7 @@ import org.jetbrains.annotations.NotNull;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.config.HBConfig;
 import com.swiftlicious.hellblock.config.HBLocale;
-import com.swiftlicious.hellblock.player.OfflineUser;
-import com.swiftlicious.hellblock.player.OnlineUser;
+import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.utils.wrappers.ShadedAdventureComponentWrapper;
 
 import xyz.xenondevs.invui.gui.Gui;
@@ -26,20 +26,21 @@ public class HellblockMenu {
 
 	public HellblockMenu(Player player) {
 
-		OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager().getOnlineUser(player.getUniqueId());
-		if (onlineUser == null) {
+		Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
+				.getOnlineUser(player.getUniqueId());
+		if (onlineUser.isEmpty()) {
 			HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 					"<red>Still loading your player data... please try again in a few seconds.");
 			return;
 		}
-		if (onlineUser.getHellblockData().hasHellblock()) {
-			if (onlineUser.getHellblockData().getOwnerUUID() == null) {
+		if (onlineUser.get().getHellblockData().hasHellblock()) {
+			if (onlineUser.get().getHellblockData().getOwnerUUID() == null) {
 				throw new NullPointerException("Owner reference returned null, please report this to the developer.");
 			}
 			HellblockPlugin.getInstance().getStorageManager()
-					.getOfflineUser(onlineUser.getHellblockData().getOwnerUUID(), HBConfig.lockData)
+					.getOfflineUserData(onlineUser.get().getHellblockData().getOwnerUUID(), HBConfig.lockData)
 					.thenAccept((result) -> {
-						OfflineUser offlineUser = result.orElseThrow();
+						UserData offlineUser = result.orElseThrow();
 						if (offlineUser.getHellblockData().isAbandoned()) {
 							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 									HBLocale.MSG_Hellblock_Is_Abandoned);
@@ -47,8 +48,8 @@ public class HellblockMenu {
 						}
 					}).thenRun(() -> {
 						Gui gui;
-						if (onlineUser.getHellblockData().getOwnerUUID() != null
-								&& onlineUser.getHellblockData().getOwnerUUID().equals(player.getUniqueId())) {
+						if (onlineUser.get().getHellblockData().getOwnerUUID() != null
+								&& onlineUser.get().getHellblockData().getOwnerUUID().equals(player.getUniqueId())) {
 							gui = Gui.normal().setStructure("t i c p b l f r x")
 									.addIngredient('i', new IslandLevelItem(player.getUniqueId()))
 									.addIngredient('t', new TeleportIslandItem())
@@ -95,9 +96,9 @@ public class HellblockMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 					.getOnlineUser(player.getUniqueId());
-			if (onlineUser == null) {
+			if (onlineUser.isEmpty()) {
 				HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 						"<red>Still loading your player data... please try again in a few seconds.");
 				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
@@ -105,13 +106,13 @@ public class HellblockMenu {
 						net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 				return;
 			}
-			if (onlineUser.getHellblockData().hasHellblock()) {
-				if (onlineUser.getHellblockData().getOwnerUUID() == null) {
+			if (onlineUser.get().getHellblockData().hasHellblock()) {
+				if (onlineUser.get().getHellblockData().getOwnerUUID() == null) {
 					throw new NullPointerException(
 							"Owner reference returned null, please report this to the developer.");
 				}
-				if (onlineUser.getHellblockData().getOwnerUUID() != null
-						&& !onlineUser.getHellblockData().getOwnerUUID().equals(player.getUniqueId())) {
+				if (onlineUser.get().getHellblockData().getOwnerUUID() != null
+						&& !onlineUser.get().getHellblockData().getOwnerUUID().equals(player.getUniqueId())) {
 					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 							HBLocale.MSG_Not_Owner_Of_Hellblock);
 					HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
@@ -119,7 +120,7 @@ public class HellblockMenu {
 							net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 					return;
 				}
-				if (onlineUser.getHellblockData().isAbandoned()) {
+				if (onlineUser.get().getHellblockData().isAbandoned()) {
 					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 							HBLocale.MSG_Hellblock_Is_Abandoned);
 					HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
@@ -157,9 +158,9 @@ public class HellblockMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 					.getOnlineUser(player.getUniqueId());
-			if (onlineUser == null) {
+			if (onlineUser.isEmpty()) {
 				HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 						"<red>Still loading your player data... please try again in a few seconds.");
 				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
@@ -184,17 +185,17 @@ public class HellblockMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID);
-			if (onlineUser.getHellblockData().getOwnerUUID() == null) {
+			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID);
+			if (onlineUser.get().getHellblockData().getOwnerUUID() == null) {
 				throw new NullPointerException("Owner reference returned null, please report this to the developer.");
 			}
 			ItemBuilder itemBuilder = new ItemBuilder(Material.BARRIER)
 					.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
 							.getAdventureManager().getComponentFromMiniMessage("<red>Failed to Load")));
 			HellblockPlugin.getInstance().getStorageManager()
-					.getOfflineUser(onlineUser.getHellblockData().getOwnerUUID(), HBConfig.lockData)
+					.getOfflineUserData(onlineUser.get().getHellblockData().getOwnerUUID(), HBConfig.lockData)
 					.thenAccept((result) -> {
-						OfflineUser ownerUser = result.orElseThrow();
+						UserData ownerUser = result.orElseThrow();
 						itemBuilder.setMaterial(Material.EXPERIENCE_BOTTLE).addAllItemFlags()
 								.setDisplayName(new ShadedAdventureComponentWrapper(
 										HellblockPlugin.getInstance().getAdventureManager()
@@ -238,14 +239,14 @@ public class HellblockMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			return new ItemBuilder(HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID)
+			return new ItemBuilder(HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID).get()
 					.getHellblockData().isLocked() ? Material.ENDER_CHEST : Material.CHEST)
 					.addAllItemFlags()
 					.setDisplayName(
 							new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 									.getComponentFromMiniMessage(String.format("<green>%s your Hellblock!",
 											(HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID)
-													.getHellblockData().isLocked() ? "Unlock" : "Lock")))))
+													.get().getHellblockData().isLocked() ? "Unlock" : "Lock")))))
 					.addLoreLines(new ShadedAdventureComponentWrapper(
 							HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
 									"<aqua>Click to change the visitor status of your hellblock!")));
@@ -254,9 +255,9 @@ public class HellblockMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 					.getOnlineUser(player.getUniqueId());
-			if (onlineUser == null) {
+			if (onlineUser.isEmpty()) {
 				HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 						"<red>Still loading your player data... please try again in a few seconds.");
 				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
@@ -264,13 +265,13 @@ public class HellblockMenu {
 						net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 				return;
 			}
-			if (onlineUser.getHellblockData().hasHellblock()) {
-				if (onlineUser.getHellblockData().getOwnerUUID() == null) {
+			if (onlineUser.get().getHellblockData().hasHellblock()) {
+				if (onlineUser.get().getHellblockData().getOwnerUUID() == null) {
 					throw new NullPointerException(
 							"Owner reference returned null, please report this to the developer.");
 				}
-				if (onlineUser.getHellblockData().getOwnerUUID() != null
-						&& !onlineUser.getHellblockData().getOwnerUUID().equals(player.getUniqueId())) {
+				if (onlineUser.get().getHellblockData().getOwnerUUID() != null
+						&& !onlineUser.get().getHellblockData().getOwnerUUID().equals(player.getUniqueId())) {
 					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 							HBLocale.MSG_Not_Owner_Of_Hellblock);
 					HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
@@ -278,7 +279,7 @@ public class HellblockMenu {
 							net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 					return;
 				}
-				if (onlineUser.getHellblockData().isAbandoned()) {
+				if (onlineUser.get().getHellblockData().isAbandoned()) {
 					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 							HBLocale.MSG_Hellblock_Is_Abandoned);
 					HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
@@ -286,13 +287,13 @@ public class HellblockMenu {
 							net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 					return;
 				}
-				onlineUser.getHellblockData().setLockedStatus(!onlineUser.getHellblockData().isLocked());
+				onlineUser.get().getHellblockData().setLockedStatus(!onlineUser.get().getHellblockData().isLocked());
 				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 						String.format("<red>You've just <dark_red>%s <red>your hellblock island!",
-								(onlineUser.getHellblockData().isLocked() ? "locked" : "unlocked")));
-				if (onlineUser.getHellblockData().isLocked()) {
+								(onlineUser.get().getHellblockData().isLocked() ? "locked" : "unlocked")));
+				if (onlineUser.get().getHellblockData().isLocked()) {
 					HellblockPlugin.getInstance().getCoopManager().kickVisitorsIfLocked(player.getUniqueId());
-					HellblockPlugin.getInstance().getCoopManager().changeLockStatus(onlineUser);
+					HellblockPlugin.getInstance().getCoopManager().changeLockStatus(onlineUser.get());
 				}
 				new HellblockMenu(player);
 				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
@@ -323,9 +324,9 @@ public class HellblockMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 					.getOnlineUser(player.getUniqueId());
-			if (onlineUser == null) {
+			if (onlineUser.isEmpty()) {
 				HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 						"<red>Still loading your player data... please try again in a few seconds.");
 				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
@@ -333,15 +334,15 @@ public class HellblockMenu {
 						net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 				return;
 			}
-			if (onlineUser.getHellblockData().hasHellblock()) {
-				if (onlineUser.getHellblockData().getOwnerUUID() == null) {
+			if (onlineUser.get().getHellblockData().hasHellblock()) {
+				if (onlineUser.get().getHellblockData().getOwnerUUID() == null) {
 					throw new NullPointerException(
 							"Owner reference returned null, please report this to the developer.");
 				}
 				HellblockPlugin.getInstance().getStorageManager()
-						.getOfflineUser(onlineUser.getHellblockData().getOwnerUUID(), HBConfig.lockData)
+						.getOfflineUserData(onlineUser.get().getHellblockData().getOwnerUUID(), HBConfig.lockData)
 						.thenAccept((owner) -> {
-							OfflineUser ownerUser = owner.orElseThrow();
+							UserData ownerUser = owner.orElseThrow();
 							if (ownerUser.getHellblockData().isAbandoned()) {
 								HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 										HBLocale.MSG_Hellblock_Is_Abandoned);
@@ -375,8 +376,8 @@ public class HellblockMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID);
-			if (onlineUser.getHellblockData().getBiomeCooldown() == 0) {
+			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID);
+			if (onlineUser.get().getHellblockData().getBiomeCooldown() == 0) {
 				return new ItemBuilder(Material.WARPED_FUNGUS).addAllItemFlags()
 						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
 								.getAdventureManager().getComponentFromMiniMessage("<green>Change island biome!")))
@@ -396,9 +397,9 @@ public class HellblockMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 					.getOnlineUser(player.getUniqueId());
-			if (onlineUser == null) {
+			if (onlineUser.isEmpty()) {
 				HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 						"<red>Still loading your player data... please try again in a few seconds.");
 				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
@@ -407,13 +408,13 @@ public class HellblockMenu {
 				return;
 			}
 			if (event.getCurrentItem() != null && event.getCurrentItem().getType() == Material.WARPED_FUNGUS) {
-				if (onlineUser.getHellblockData().hasHellblock()) {
-					if (onlineUser.getHellblockData().getOwnerUUID() == null) {
+				if (onlineUser.get().getHellblockData().hasHellblock()) {
+					if (onlineUser.get().getHellblockData().getOwnerUUID() == null) {
 						throw new NullPointerException(
 								"Owner reference returned null, please report this to the developer.");
 					}
-					if (onlineUser.getHellblockData().getOwnerUUID() != null
-							&& !onlineUser.getHellblockData().getOwnerUUID().equals(player.getUniqueId())) {
+					if (onlineUser.get().getHellblockData().getOwnerUUID() != null
+							&& !onlineUser.get().getHellblockData().getOwnerUUID().equals(player.getUniqueId())) {
 						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 								HBLocale.MSG_Not_Owner_Of_Hellblock);
 						HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
@@ -421,7 +422,7 @@ public class HellblockMenu {
 								net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 						return;
 					}
-					if (onlineUser.getHellblockData().isAbandoned()) {
+					if (onlineUser.get().getHellblockData().isAbandoned()) {
 						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 								HBLocale.MSG_Hellblock_Is_Abandoned);
 						HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
@@ -441,11 +442,11 @@ public class HellblockMenu {
 							net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 				}
 			} else {
-				if (onlineUser.getHellblockData().getBiomeCooldown() > 0) {
+				if (onlineUser.get().getHellblockData().getBiomeCooldown() > 0) {
 					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 							String.format("<red>You've recently changed your biome already, you must wait for %s!",
-									HellblockPlugin.getInstance()
-											.getFormattedCooldown(onlineUser.getHellblockData().getBiomeCooldown())));
+									HellblockPlugin.getInstance().getFormattedCooldown(
+											onlineUser.get().getHellblockData().getBiomeCooldown())));
 					HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
 							net.kyori.adventure.sound.Sound.Source.PLAYER,
 							net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
@@ -470,9 +471,9 @@ public class HellblockMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 					.getOnlineUser(player.getUniqueId());
-			if (onlineUser == null) {
+			if (onlineUser.isEmpty()) {
 				HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 						"<red>Still loading your player data... please try again in a few seconds.");
 				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
@@ -480,21 +481,21 @@ public class HellblockMenu {
 						net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 				return;
 			}
-			if (!onlineUser.getHellblockData().hasHellblock()) {
+			if (!onlineUser.get().getHellblockData().hasHellblock()) {
 				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 						HBLocale.MSG_Hellblock_Not_Found);
 				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
 						net.kyori.adventure.sound.Sound.Source.PLAYER,
 						net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 			} else {
-				if (onlineUser.getHellblockData().getOwnerUUID() == null) {
+				if (onlineUser.get().getHellblockData().getOwnerUUID() == null) {
 					throw new NullPointerException(
 							"Owner reference returned null, please report this to the developer.");
 				}
 				HellblockPlugin.getInstance().getStorageManager()
-						.getOfflineUser(onlineUser.getHellblockData().getOwnerUUID(), HBConfig.lockData)
+						.getOfflineUserData(onlineUser.get().getHellblockData().getOwnerUUID(), HBConfig.lockData)
 						.thenAccept((owner) -> {
-							OfflineUser ownerUser = owner.orElseThrow();
+							UserData ownerUser = owner.orElseThrow();
 							if (ownerUser.getHellblockData().isAbandoned()) {
 								HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 										HBLocale.MSG_Hellblock_Is_Abandoned);
@@ -505,7 +506,7 @@ public class HellblockMenu {
 							}
 							if (ownerUser.getHellblockData().getHomeLocation() != null) {
 								HellblockPlugin.getInstance().getCoopManager()
-										.makeHomeLocationSafe(ownerUser, onlineUser).thenRun(() -> {
+										.makeHomeLocationSafe(ownerUser, onlineUser.get()).thenRun(() -> {
 											HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(
 													player, "<red>Teleporting you to your hellblock!");
 											player.getWorld().playEffect(player.getLocation(), Effect.ENDER_SIGNAL, 5);
@@ -539,8 +540,8 @@ public class HellblockMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID);
-			if (onlineUser.getHellblockData().getResetCooldown() == 0) {
+			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID);
+			if (onlineUser.get().getHellblockData().getResetCooldown() == 0) {
 				return new ItemBuilder(Material.NETHER_BRICKS).addAllItemFlags()
 						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
 								.getAdventureManager().getComponentFromMiniMessage("<green>Reset your Hellblock!")))
@@ -560,9 +561,9 @@ public class HellblockMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 					.getOnlineUser(player.getUniqueId());
-			if (onlineUser == null) {
+			if (onlineUser.isEmpty()) {
 				HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 						"<red>Still loading your player data... please try again in a few seconds.");
 				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
@@ -571,12 +572,12 @@ public class HellblockMenu {
 				return;
 			}
 			if (event.getCurrentItem() != null && event.getCurrentItem().getType() == Material.NETHER_BRICKS) {
-				if (onlineUser.getHellblockData().getOwnerUUID() == null) {
+				if (onlineUser.get().getHellblockData().getOwnerUUID() == null) {
 					throw new NullPointerException(
 							"Owner reference returned null, please report this to the developer.");
 				}
-				if (onlineUser.getHellblockData().getOwnerUUID() != null
-						&& !onlineUser.getHellblockData().getOwnerUUID().equals(player.getUniqueId())) {
+				if (onlineUser.get().getHellblockData().getOwnerUUID() != null
+						&& !onlineUser.get().getHellblockData().getOwnerUUID().equals(player.getUniqueId())) {
 					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 							HBLocale.MSG_Not_Owner_Of_Hellblock);
 					HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
@@ -584,7 +585,7 @@ public class HellblockMenu {
 							net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 					return;
 				}
-				if (onlineUser.getHellblockData().isAbandoned()) {
+				if (onlineUser.get().getHellblockData().isAbandoned()) {
 					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 							HBLocale.MSG_Hellblock_Is_Abandoned);
 					HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
@@ -597,7 +598,7 @@ public class HellblockMenu {
 						net.kyori.adventure.sound.Sound.Source.PLAYER,
 						net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
 			} else {
-				if (onlineUser.getHellblockData().isAbandoned()) {
+				if (onlineUser.get().getHellblockData().isAbandoned()) {
 					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 							HBLocale.MSG_Hellblock_Is_Abandoned);
 					HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
@@ -605,12 +606,12 @@ public class HellblockMenu {
 							net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 					return;
 				}
-				if (onlineUser.getHellblockData().getOwnerUUID() == null) {
+				if (onlineUser.get().getHellblockData().getOwnerUUID() == null) {
 					throw new NullPointerException(
 							"Owner reference returned null, please report this to the developer.");
 				}
-				if (onlineUser.getHellblockData().getOwnerUUID() != null
-						&& !onlineUser.getHellblockData().getOwnerUUID().equals(player.getUniqueId())) {
+				if (onlineUser.get().getHellblockData().getOwnerUUID() != null
+						&& !onlineUser.get().getHellblockData().getOwnerUUID().equals(player.getUniqueId())) {
 					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 							HBLocale.MSG_Not_Owner_Of_Hellblock);
 					HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
@@ -618,11 +619,11 @@ public class HellblockMenu {
 							net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 					return;
 				}
-				if (onlineUser.getHellblockData().getResetCooldown() > 0) {
+				if (onlineUser.get().getHellblockData().getResetCooldown() > 0) {
 					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 							String.format("<red>You've recently reset your hellblock already, you must wait for %s!",
-									HellblockPlugin.getInstance()
-											.getFormattedCooldown(onlineUser.getHellblockData().getResetCooldown())));
+									HellblockPlugin.getInstance().getFormattedCooldown(
+											onlineUser.get().getHellblockData().getResetCooldown())));
 					HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
 							net.kyori.adventure.sound.Sound.Source.PLAYER,
 							net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);

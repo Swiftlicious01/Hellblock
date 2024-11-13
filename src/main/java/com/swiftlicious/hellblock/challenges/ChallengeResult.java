@@ -1,12 +1,20 @@
 package com.swiftlicious.hellblock.challenges;
 
+import com.google.gson.annotations.Expose;
+import com.google.gson.annotations.SerializedName;
 import com.swiftlicious.hellblock.challenges.HellblockChallenge.CompletionStatus;
 
 public class ChallengeResult {
 
-	private CompletionStatus status;
-	private int progress;
-	private boolean claimedReward;
+	@Expose
+	@SerializedName("status")
+	protected CompletionStatus status;
+	@Expose
+	@SerializedName("progress")
+	protected int progress;
+	@Expose
+	@SerializedName("claimed")
+	protected boolean claimedReward;
 
 	public ChallengeResult(CompletionStatus status, int progress, boolean claimedReward) {
 		this.status = status;

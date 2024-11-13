@@ -37,8 +37,7 @@ import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.config.HBConfig;
 import com.swiftlicious.hellblock.config.HBLocale;
 import com.swiftlicious.hellblock.player.HellblockData;
-import com.swiftlicious.hellblock.player.OfflineUser;
-import com.swiftlicious.hellblock.player.OnlineUser;
+import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.utils.LogUtils;
 import com.swiftlicious.hellblock.utils.StringUtils;
 
@@ -46,7 +45,7 @@ import lombok.NonNull;
 
 public class IslandLevelHandler implements Listener {
 
-	private final HellblockPlugin instance;
+	protected final HellblockPlugin instance;
 
 	private final Map<UUID, Collection<LevelBlockCache>> placedByPlayerCache;
 
@@ -60,7 +59,7 @@ public class IslandLevelHandler implements Listener {
 		this.topCache = new LinkedHashMap<>();
 		Bukkit.getPluginManager().registerEvents(this, instance);
 		clearCache();
-		instance.getScheduler().runTaskAsyncTimer(() -> {
+		instance.getScheduler().asyncRepeating(() -> {
 			this.levelRankCache.clear();
 			this.topCache.clear();
 		}, 1, 30, TimeUnit.MINUTES);
@@ -94,19 +93,19 @@ public class IslandLevelHandler implements Listener {
 
 			this.placedByPlayerCache.remove(id);
 			if (!locations.isEmpty()) {
-				OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(id);
-				if (onlineUser == null)
+				Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(id);
+				if (onlineUser.isEmpty())
 					return;
-				onlineUser.getPlayerData().setLevelBlockLocations(locations);
+				onlineUser.get().getLocationCacheData().setLevelBlockLocations(locations);
 			}
 		}
 	}
 
 	public void loadCache(@NonNull UUID id) {
-		OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(id);
-		if (onlineUser == null)
+		Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(id);
+		if (onlineUser.isEmpty())
 			return;
-		List<String> locations = onlineUser.getPlayerData().getLevelBlockLocations();
+		List<String> locations = onlineUser.get().getLocationCacheData().getLevelBlockLocations();
 		if (locations != null) {
 			Collection<LevelBlockCache> cacheCollection = new HashSet<>();
 			for (String cache : locations) {
@@ -133,7 +132,7 @@ public class IslandLevelHandler implements Listener {
 							loc.getBlockZ());
 					cacheCollection.add(newCache);
 				}
-				onlineUser.getPlayerData().setLevelBlockLocations(new ArrayList<>());
+				onlineUser.get().getLocationCacheData().setLevelBlockLocations(new ArrayList<>());
 				this.placedByPlayerCache.put(id, cacheCollection);
 			}
 		}
@@ -142,20 +141,20 @@ public class IslandLevelHandler implements Listener {
 	@EventHandler
 	public void onLevelPlace(BlockPlaceEvent event) {
 		final Block block = event.getBlockPlaced();
-		if (!block.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!block.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 
 		final Player player = event.getPlayer();
 		final UUID id = player.getUniqueId();
-		if (instance.getHellblockHandler().isWorldguardProtected()) {
+		if (HBConfig.worldguardProtected) {
 			ProtectedRegion region = instance.getWorldGuardHandler().getRegions(id).stream().findFirst().orElse(null);
 			if (region == null)
 				return;
 			UUID ownerID = region.getOwners().getUniqueIds().stream().findFirst().orElse(null);
 			if (ownerID == null)
 				return;
-			instance.getStorageManager().getOfflineUser(ownerID, HBConfig.lockData).thenAccept((result) -> {
-				OfflineUser offlineUser = result.orElseThrow();
+			instance.getStorageManager().getOfflineUserData(ownerID, HBConfig.lockData).thenAccept((result) -> {
+				UserData offlineUser = result.orElseThrow();
 				if (!offlineUser.getHellblockData().getEntireParty().getIslandMembers().contains(id))
 					return;
 
@@ -179,20 +178,20 @@ public class IslandLevelHandler implements Listener {
 	@EventHandler
 	public void onLevelBreak(BlockBreakEvent event) {
 		final Block block = event.getBlock();
-		if (!block.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!block.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 
 		final Player player = event.getPlayer();
 		final UUID id = player.getUniqueId();
-		if (instance.getHellblockHandler().isWorldguardProtected()) {
+		if (HBConfig.worldguardProtected) {
 			ProtectedRegion region = instance.getWorldGuardHandler().getRegions(id).stream().findFirst().orElse(null);
 			if (region == null)
 				return;
 			UUID ownerID = region.getOwners().getUniqueIds().stream().findFirst().orElse(null);
 			if (ownerID == null)
 				return;
-			instance.getStorageManager().getOfflineUser(ownerID, HBConfig.lockData).thenAccept((result) -> {
-				OfflineUser offlineUser = result.orElseThrow();
+			instance.getStorageManager().getOfflineUserData(ownerID, HBConfig.lockData).thenAccept((result) -> {
+				UserData offlineUser = result.orElseThrow();
 				if (!offlineUser.getHellblockData().getEntireParty().getIslandMembers().contains(id))
 					return;
 
@@ -225,14 +224,14 @@ public class IslandLevelHandler implements Listener {
 	@EventHandler
 	public void onLevelExplode(BlockExplodeEvent event) {
 		final Block block = event.getBlock();
-		if (!block.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!block.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 
 		Collection<Player> playersNearby = block.getWorld().getNearbyPlayers(block.getLocation(), 25, 25, 25);
 		Player player = instance.getNetherrackGeneratorHandler().getClosestPlayer(block.getLocation(), playersNearby);
 		if (player != null) {
 			final UUID id = player.getUniqueId();
-			if (instance.getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				ProtectedRegion region = instance.getWorldGuardHandler().getRegions(id).stream().findFirst()
 						.orElse(null);
 				if (region == null)
@@ -240,8 +239,8 @@ public class IslandLevelHandler implements Listener {
 				UUID ownerID = region.getOwners().getUniqueIds().stream().findFirst().orElse(null);
 				if (ownerID == null)
 					return;
-				instance.getStorageManager().getOfflineUser(ownerID, HBConfig.lockData).thenAccept((result) -> {
-					OfflineUser offlineUser = result.orElseThrow();
+				instance.getStorageManager().getOfflineUserData(ownerID, HBConfig.lockData).thenAccept((result) -> {
+					UserData offlineUser = result.orElseThrow();
 					if (!offlineUser.getHellblockData().getEntireParty().getIslandMembers().contains(id))
 						return;
 
@@ -275,14 +274,14 @@ public class IslandLevelHandler implements Listener {
 	@EventHandler
 	public void onLevelBurn(BlockBurnEvent event) {
 		final Block block = event.getBlock();
-		if (!block.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!block.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 
 		Collection<Player> playersNearby = block.getWorld().getNearbyPlayers(block.getLocation(), 25, 25, 25);
 		Player player = instance.getNetherrackGeneratorHandler().getClosestPlayer(block.getLocation(), playersNearby);
 		if (player != null) {
 			final UUID id = player.getUniqueId();
-			if (instance.getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				ProtectedRegion region = instance.getWorldGuardHandler().getRegions(id).stream().findFirst()
 						.orElse(null);
 				if (region == null)
@@ -290,8 +289,8 @@ public class IslandLevelHandler implements Listener {
 				UUID ownerID = region.getOwners().getUniqueIds().stream().findFirst().orElse(null);
 				if (ownerID == null)
 					return;
-				instance.getStorageManager().getOfflineUser(ownerID, HBConfig.lockData).thenAccept((result) -> {
-					OfflineUser offlineUser = result.orElseThrow();
+				instance.getStorageManager().getOfflineUserData(ownerID, HBConfig.lockData).thenAccept((result) -> {
+					UserData offlineUser = result.orElseThrow();
 					if (!offlineUser.getHellblockData().getEntireParty().getIslandMembers().contains(id))
 						return;
 
@@ -324,7 +323,7 @@ public class IslandLevelHandler implements Listener {
 
 	public Set<Material> getLevelBlockList() {
 		Set<Material> materialList = new HashSet<>();
-		final List<String> blockLevelSystem = instance.getHellblockHandler().getBlockLevelSystem();
+		final List<String> blockLevelSystem = HBConfig.blockLevelSystem;
 		for (String blockConversion : blockLevelSystem) {
 			String[] split = blockConversion.split(":");
 			Material block = Material.getMaterial(split[0].toUpperCase());
@@ -343,48 +342,38 @@ public class IslandLevelHandler implements Listener {
 		}
 
 		Map<UUID, Float> levels = new HashMap<>();
-		if (instance.getStorageManager().getDataSource().getUniqueUsers(false).isEmpty()) {
-			for (OnlineUser playerData : instance.getStorageManager().getOnlineUsers()) {
-				if (playerData == null)
-					continue;
-				UUID ownerUUID = playerData.getHellblockData().getOwnerUUID();
-				if (ownerUUID != null && playerData.getUUID().equals(ownerUUID)) {
-					float hellblockLevel = playerData.getHellblockData().getLevel();
+		for (UUID playerData : instance.getStorageManager().getDataSource().getUniqueUsers()) {
+			instance.getStorageManager().getOfflineUserData(playerData, HBConfig.lockData).thenAccept((result) -> {
+				UserData offlineUser = result.orElseThrow();
+				UUID ownerUUID = offlineUser.getHellblockData().getOwnerUUID();
+				if (ownerUUID != null && playerData.equals(ownerUUID)) {
+					float hellblockLevel = offlineUser.getHellblockData().getLevel();
 					levels.putIfAbsent(ownerUUID, hellblockLevel);
 				}
-			}
-		} else {
-			for (UUID playerData : instance.getStorageManager().getDataSource().getUniqueUsers(false)) {
-				instance.getStorageManager().getOfflineUser(playerData, HBConfig.lockData).thenAccept((result) -> {
-					OfflineUser offlineUser = result.orElseThrow();
-					UUID ownerUUID = offlineUser.getHellblockData().getOwnerUUID();
-					if (ownerUUID != null && playerData.equals(ownerUUID)) {
-						float hellblockLevel = offlineUser.getHellblockData().getLevel();
-						levels.putIfAbsent(ownerUUID, hellblockLevel);
-					}
-				}).join();
-			}
+			}).join();
 		}
 		LinkedHashMap<UUID, Float> levelsSorted = new LinkedHashMap<>();
 		levels.entrySet().stream().sorted(Map.Entry.comparingByValue())
 				.forEach(x -> levelsSorted.put(x.getKey(), x.getValue()));
 
-		OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(playerID);
-		if (onlineUser == null)
+		Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(playerID);
+		if (onlineUser.isEmpty())
 			return rank.getRank();
-		if (onlineUser.getHellblockData().getOwnerUUID() == null)
+		if (onlineUser.get().getHellblockData().getOwnerUUID() == null)
 			throw new NullPointerException("Owner reference returned null, please report this to the developer.");
-		if (instance.getStorageManager().getOnlineUser(onlineUser.getHellblockData().getOwnerUUID()) != null && instance
-				.getStorageManager().getOnlineUser(onlineUser.getHellblockData().getOwnerUUID()).isOnline()) {
-			float level = instance.getStorageManager().getOnlineUser(onlineUser.getHellblockData().getOwnerUUID())
-					.getHellblockData().getLevel();
+		if (instance.getStorageManager().getOnlineUser(onlineUser.get().getHellblockData().getOwnerUUID()) != null
+				&& instance.getStorageManager().getOnlineUser(onlineUser.get().getHellblockData().getOwnerUUID()).get()
+						.isOnline()) {
+			float level = instance.getStorageManager().getOnlineUser(onlineUser.get().getHellblockData().getOwnerUUID())
+					.get().getHellblockData().getLevel();
 			if (level <= HellblockData.DEFAULT_LEVEL) {
 				return rank.getRank();
 			}
 		} else {
-			instance.getStorageManager().getOfflineUser(onlineUser.getHellblockData().getOwnerUUID(), HBConfig.lockData)
+			instance.getStorageManager()
+					.getOfflineUserData(onlineUser.get().getHellblockData().getOwnerUUID(), HBConfig.lockData)
 					.thenAccept((result) -> {
-						OfflineUser offlineUser = result.orElseThrow();
+						UserData offlineUser = result.orElseThrow();
 						float level = offlineUser.getHellblockData().getLevel();
 						if (level <= HellblockData.DEFAULT_LEVEL) {
 							rank.setRank(-1);
@@ -393,10 +382,9 @@ public class IslandLevelHandler implements Listener {
 			return rank.getRank();
 		}
 		Optional<UUID> position = levelsSorted.reversed().keySet().stream()
-				.filter(uuid -> Objects.equals(uuid, onlineUser.getHellblockData().getOwnerUUID())).findFirst();
-		rank.setRank(
-				new LinkedList<>(levels.keySet()).indexOf(position.orElse(onlineUser.getHellblockData().getOwnerUUID()))
-						+ 1);
+				.filter(uuid -> Objects.equals(uuid, onlineUser.get().getHellblockData().getOwnerUUID())).findFirst();
+		rank.setRank(new LinkedList<>(levels.keySet())
+				.indexOf(position.orElse(onlineUser.get().getHellblockData().getOwnerUUID())) + 1);
 		this.levelRankCache.putIfAbsent(playerID, rank.getRank());
 		return rank.getRank();
 	}
@@ -406,27 +394,15 @@ public class IslandLevelHandler implements Listener {
 			return this.topCache;
 		}
 		Map<UUID, Float> topHellblocks = new HashMap<>();
-		if (instance.getStorageManager().getDataSource().getUniqueUsers(false).isEmpty()) {
-			for (OnlineUser playerData : instance.getStorageManager().getOnlineUsers()) {
-				if (playerData == null)
-					continue;
-				UUID ownerUUID = playerData.getHellblockData().getOwnerUUID();
-				float hellblockLevel = playerData.getHellblockData().getLevel();
+		for (UUID playerData : instance.getStorageManager().getDataSource().getUniqueUsers()) {
+			instance.getStorageManager().getOfflineUserData(playerData, HBConfig.lockData).thenAccept((result) -> {
+				UserData offlineUser = result.orElseThrow();
+				UUID ownerUUID = offlineUser.getHellblockData().getOwnerUUID();
+				float hellblockLevel = offlineUser.getHellblockData().getLevel();
 				if (ownerUUID != null && hellblockLevel > HellblockData.DEFAULT_LEVEL) {
 					topHellblocks.putIfAbsent(ownerUUID, hellblockLevel);
 				}
-			}
-		} else {
-			for (UUID playerData : instance.getStorageManager().getDataSource().getUniqueUsers(false)) {
-				instance.getStorageManager().getOfflineUser(playerData, HBConfig.lockData).thenAccept((result) -> {
-					OfflineUser offlineUser = result.orElseThrow();
-					UUID ownerUUID = offlineUser.getHellblockData().getOwnerUUID();
-					float hellblockLevel = offlineUser.getHellblockData().getLevel();
-					if (ownerUUID != null && hellblockLevel > HellblockData.DEFAULT_LEVEL) {
-						topHellblocks.putIfAbsent(ownerUUID, hellblockLevel);
-					}
-				}).join();
-			}
+			}).join();
 		}
 		LinkedHashMap<UUID, Float> topHellblocksSorted = new LinkedHashMap<>();
 		topHellblocks.entrySet().stream().sorted(Map.Entry.comparingByValue())
@@ -440,16 +416,16 @@ public class IslandLevelHandler implements Listener {
 		if (!cache.isPlacedByPlayer()) {
 			return;
 		}
-		final List<String> blockLevelSystem = instance.getHellblockHandler().getBlockLevelSystem();
-		if (instance.getHellblockHandler().isWorldguardProtected()) {
-			OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(id);
-			if (onlineUser == null)
+		final List<String> blockLevelSystem = HBConfig.blockLevelSystem;
+		if (HBConfig.worldguardProtected) {
+			Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(id);
+			if (onlineUser.isEmpty())
 				return;
 			ProtectedRegion region = null;
-			if (onlineUser.getHellblockData().getOwnerUUID() != null
-					&& onlineUser.getHellblockData().getOwnerUUID().equals(id)) {
+			if (onlineUser.get().getHellblockData().getOwnerUUID() != null
+					&& onlineUser.get().getHellblockData().getOwnerUUID().equals(id)) {
 				// is owner updating the island so get based off original id
-				region = instance.getWorldGuardHandler().getRegion(id, onlineUser.getHellblockData().getID());
+				region = instance.getWorldGuardHandler().getRegion(id, onlineUser.get().getHellblockData().getID());
 			} else {
 				// else is another player so just get the region they're in
 				ProtectedRegion defRegion = instance.getWorldGuardHandler().getRegions(id).stream().findAny()
@@ -461,45 +437,47 @@ public class IslandLevelHandler implements Listener {
 			if (region != null) {
 				UUID ownerUUID = region.getOwners().getUniqueIds().stream().findAny().orElse(null);
 				if (ownerUUID != null) {
-					instance.getStorageManager().getOfflineUser(ownerUUID, HBConfig.lockData).thenAccept((result) -> {
-						OfflineUser offlineUser = result.orElseThrow();
-						if (offlineUser.getHellblockData().isAbandoned()) {
-							if (Bukkit.getPlayer(id) != null)
-								instance.getAdventureManager().sendMessageWithPrefix(Bukkit.getPlayer(id),
-										HBLocale.MSG_Hellblock_Is_Abandoned);
-							return;
-						}
+					instance.getStorageManager().getOfflineUserData(ownerUUID, HBConfig.lockData)
+							.thenAccept((result) -> {
+								UserData offlineUser = result.orElseThrow();
+								if (offlineUser.getHellblockData().isAbandoned()) {
+									if (Bukkit.getPlayer(id) != null)
+										instance.getAdventureManager().sendMessageWithPrefix(Bukkit.getPlayer(id),
+												HBLocale.MSG_Hellblock_Is_Abandoned);
+									return;
+								}
 
-						for (String blockConversion : blockLevelSystem) {
-							String[] split = blockConversion.split(":");
-							Material block = Material.getMaterial(split[0].toUpperCase());
-							float level = 0.0F;
-							try {
-								level = Float.parseFloat(split[1]);
-							} catch (NumberFormatException ex) {
-								LogUtils.warn(String.format("The level defined for the block %s is not a valid number",
-										block.toString()), ex);
-								continue;
-							}
-							if (block != null && level > 0.0F) {
-								if (block == cache.getMaterial()) {
-									if (level == HellblockData.DEFAULT_LEVEL) {
-										if (placed) {
-											offlineUser.getHellblockData().increaseIslandLevel();
-										} else {
-											offlineUser.getHellblockData().decreaseIslandLevel();
-										}
-									} else {
-										if (placed) {
-											offlineUser.getHellblockData().addToLevel(level);
-										} else {
-											offlineUser.getHellblockData().removeFromLevel(level);
+								for (String blockConversion : blockLevelSystem) {
+									String[] split = blockConversion.split(":");
+									Material block = Material.getMaterial(split[0].toUpperCase());
+									float level = 0.0F;
+									try {
+										level = Float.parseFloat(split[1]);
+									} catch (NumberFormatException ex) {
+										LogUtils.warn(String.format(
+												"The level defined for the block %s is not a valid number",
+												block.toString()), ex);
+										continue;
+									}
+									if (block != null && level > 0.0F) {
+										if (block == cache.getMaterial()) {
+											if (level == HellblockData.DEFAULT_LEVEL) {
+												if (placed) {
+													offlineUser.getHellblockData().increaseIslandLevel();
+												} else {
+													offlineUser.getHellblockData().decreaseIslandLevel();
+												}
+											} else {
+												if (placed) {
+													offlineUser.getHellblockData().addToLevel(level);
+												} else {
+													offlineUser.getHellblockData().removeFromLevel(level);
+												}
+											}
 										}
 									}
 								}
-							}
-						}
-					});
+							});
 				}
 			}
 		} else {

@@ -4,16 +4,18 @@ import java.util.Map;
 import java.util.Set;
 
 import org.bukkit.Location;
-import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import com.swiftlicious.hellblock.api.Reloadable;
 import com.swiftlicious.hellblock.utils.extras.Condition;
 import com.swiftlicious.hellblock.utils.extras.Key;
 
-public interface ItemManagerInterface {
+import dev.dejvokep.boostedyaml.block.implementation.Section;
+
+public interface ItemManagerInterface extends Reloadable {
 
 	/**
 	 * Build an ItemStack with a specified namespace and value for a player.
@@ -94,18 +96,18 @@ public interface ItemManagerInterface {
 	String getAnyPluginItemID(ItemStack itemStack);
 
 	/**
-	 * Create a ItemBuilder instance for an item configuration section
+	 * Create a ItemBuilder instance for an item section
 	 * <p>
 	 * xxx_item: <- section material: xxx custom-model-data: xxx
 	 *
-	 * @param section The configuration section containing item settings.
+	 * @param section The section containing item settings.
 	 * @param type    The type of the item (e.g., "rod", "bait").
 	 * @param id      The unique identifier for the item.
 	 * @return A HBBuilder instance representing the configured item, or null if the
 	 *         section is null.
 	 */
 	@Nullable
-	ItemBuilder getItemBuilder(ConfigurationSection section, String type, String id);
+	ItemBuilder getItemBuilder(Section section, String type, String id);
 
 	/**
 	 * Get a set of all item keys for lava fishing.

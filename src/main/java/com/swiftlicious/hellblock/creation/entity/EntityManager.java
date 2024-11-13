@@ -8,8 +8,6 @@ import java.util.List;
 import java.util.Map;
 
 import org.bukkit.Location;
-import org.bukkit.configuration.ConfigurationSection;
-import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Entity;
 import org.bukkit.util.Vector;
 
@@ -17,9 +15,12 @@ import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.loot.Loot;
 import com.swiftlicious.hellblock.utils.LogUtils;
 
+import dev.dejvokep.boostedyaml.YamlDocument;
+import dev.dejvokep.boostedyaml.block.implementation.Section;
+
 public class EntityManager implements EntityManagerInterface {
 
-	private final HellblockPlugin instance;
+	protected final HellblockPlugin instance;
 	private final Map<String, EntityLibrary> entityLibraryMap;
 	private final Map<String, EntityConfig> entityConfigMap;
 
@@ -30,10 +31,12 @@ public class EntityManager implements EntityManagerInterface {
 		this.registerEntityLibrary(new VanillaEntity());
 	}
 
+	@Override
 	public void load() {
 		this.loadConfig();
 	}
 
+	@Override
 	public void unload() {
 		Map<String, EntityConfig> tempMap = new HashMap<>(this.entityConfigMap);
 		this.entityConfigMap.clear();
@@ -108,19 +111,19 @@ public class EntityManager implements EntityManagerInterface {
 	 * @param file The YAML file to load.
 	 */
 	private void loadSingleFile(File file) {
-		YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
-		for (Map.Entry<String, Object> entry : config.getValues(false).entrySet()) {
-			if (entry.getValue() instanceof ConfigurationSection section) {
+		YamlDocument config = instance.getConfigManager().loadData(file);
+		for (Map.Entry<String, Object> entry : config.getStringRouteMappedValues(false).entrySet()) {
+			if (entry.getValue() instanceof Section section) {
 				String entityID = section.getString("entity");
 				if (entityID == null) {
 					LogUtils.warn(String.format("Entity can't be null. File: %s; Section: %s", file.getAbsolutePath(),
-							section.getCurrentPath()));
+							section.getRoot().getName()));
 					continue;
 				}
-				HashMap<String, Object> propertyMap = new HashMap<>();
-				ConfigurationSection property = section.getConfigurationSection("properties");
+				Map<String, Object> propertyMap = new HashMap<>();
+				Section property = section.getSection("properties");
 				if (property != null) {
-					propertyMap.putAll(property.getValues(false));
+					propertyMap.putAll(property.getStringRouteMappedValues(false));
 				}
 				EntityConfig entityConfig = new EntityConfig.Builder().entityID(entityID).persist(false)
 						.horizontalVector(section.getDouble("velocity.horizontal", 1.1))
@@ -130,6 +133,7 @@ public class EntityManager implements EntityManagerInterface {
 		}
 	}
 
+	@Override
 	public void disable() {
 		unload();
 		this.entityConfigMap.clear();

@@ -37,8 +37,8 @@ public class StoredEnchantmentItem extends AbstractItem {
 		if (itemPage.getSection().contains("stored-enchantments")) {
 			itemBuilder.addLoreLines(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
 					.getAdventureManager().getComponentFromMiniMessage(HBLocale.GUI_CURRENT_VALUE)));
-			for (Map.Entry<String, Object> entry : itemPage.getSection().getConfigurationSection("stored-enchantments")
-					.getValues(false).entrySet()) {
+			for (Map.Entry<String, Object> entry : itemPage.getSection().getSection("stored-enchantments")
+					.getStringRouteMappedValues(false).entrySet()) {
 				itemBuilder.addLoreLines(new ShadedAdventureComponentWrapper(
 						HellblockPlugin.getInstance().getAdventureManager().getComponentFromMiniMessage(
 								" <gray>- <white>" + entry.getKey() + ":" + entry.getValue())));

@@ -10,8 +10,6 @@ import java.util.Map;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.Material;
-import org.bukkit.configuration.ConfigurationSection;
-import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.HandlerList;
@@ -24,6 +22,7 @@ import org.jetbrains.annotations.Nullable;
 
 import com.saicone.rtag.RtagItem;
 import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.config.HBConfig;
 import com.swiftlicious.hellblock.creation.item.ItemManager;
 import com.swiftlicious.hellblock.effects.EffectCarrier;
 import com.swiftlicious.hellblock.handlers.RequirementManagerInterface;
@@ -31,26 +30,32 @@ import com.swiftlicious.hellblock.utils.ItemUtils;
 import com.swiftlicious.hellblock.utils.LogUtils;
 import com.swiftlicious.hellblock.utils.extras.Condition;
 
+import dev.dejvokep.boostedyaml.YamlDocument;
+import dev.dejvokep.boostedyaml.block.implementation.Section;
+
 public class HookManager implements Listener, HookManagerInterface {
 
-	private final HellblockPlugin instance;
-	private final HashMap<String, HookSetting> hookSettingMap;
+	protected final HellblockPlugin instance;
+	private final Map<String, HookSetting> hookSettingMap;
 
 	public HookManager(HellblockPlugin plugin) {
 		instance = plugin;
 		this.hookSettingMap = new HashMap<>();
 	}
-
+	
+	@Override
 	public void load() {
 		Bukkit.getPluginManager().registerEvents(this, instance);
 		loadConfig();
 	}
-
+	
+	@Override
 	public void unload() {
 		HandlerList.unregisterAll(this);
 		hookSettingMap.clear();
 	}
-
+	
+	@Override
 	public void disable() {
 		unload();
 	}
@@ -166,9 +171,9 @@ public class HookManager implements Listener, HookManagerInterface {
 	 * @param file The configuration file to load.
 	 */
 	private void loadSingleFile(File file) {
-		YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
-		for (Map.Entry<String, Object> entry : config.getValues(false).entrySet()) {
-			if (entry.getValue() instanceof ConfigurationSection section) {
+		YamlDocument config = instance.getConfigManager().loadData(file);
+		for (Map.Entry<String, Object> entry : config.getStringRouteMappedValues(false).entrySet()) {
+			if (entry.getValue() instanceof Section section) {
 				if (!section.contains("max-durability")) {
 					LogUtils.warn(String.format("Please set max-durability to hook: %s", entry.getKey()));
 					continue;
@@ -294,7 +299,7 @@ public class HookManager implements Listener, HookManagerInterface {
 		if (!(event.getWhoClicked() instanceof Player))
 			return;
 		final Player player = (Player) event.getWhoClicked();
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!player.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 		if (event.getClickedInventory() == null || event.getClickedInventory() != player.getInventory())
 			return;

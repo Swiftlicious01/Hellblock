@@ -1,23 +1,33 @@
 package com.swiftlicious.hellblock.config;
 
-import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 
-import org.bukkit.configuration.ConfigurationSection;
-import org.bukkit.configuration.file.YamlConfiguration;
-
 import com.swiftlicious.hellblock.HellblockPlugin;
-import com.swiftlicious.hellblock.utils.LogUtils;
 
 import dev.dejvokep.boostedyaml.YamlDocument;
+import dev.dejvokep.boostedyaml.block.implementation.Section;
 import dev.dejvokep.boostedyaml.dvs.versioning.BasicVersioning;
+import dev.dejvokep.boostedyaml.libs.org.snakeyaml.engine.v2.common.ScalarStyle;
+import dev.dejvokep.boostedyaml.libs.org.snakeyaml.engine.v2.nodes.Tag;
 import dev.dejvokep.boostedyaml.settings.dumper.DumperSettings;
 import dev.dejvokep.boostedyaml.settings.general.GeneralSettings;
 import dev.dejvokep.boostedyaml.settings.loader.LoaderSettings;
 import dev.dejvokep.boostedyaml.settings.updater.UpdaterSettings;
+import dev.dejvokep.boostedyaml.utils.format.NodeRole;
 
-public class HBLocale {
+public class HBLocale extends ConfigHandler {
+
+	private static YamlDocument MESSAGE_CONFIG;
+
+	public static YamlDocument getMessageConfig() {
+		return MESSAGE_CONFIG;
+	}
+
+	public HBLocale(HellblockPlugin plugin) {
+		super(plugin);
+	}
 
 	public static String MSG_Total_Size;
 	public static String MSG_Catch_Amount;
@@ -28,22 +38,22 @@ public class HBLocale {
 	public static String MSG_Item_Not_Exists;
 	public static String MSG_Get_Item;
 	public static String MSG_Give_Item;
-    public static String MSG_Never_Played;
-    public static String MSG_Unsafe_Modification;
+	public static String MSG_Never_Played;
+	public static String MSG_Unsafe_Modification;
 	public static String MSG_Data_Not_Loaded;
 	public static String MSG_Market_GUI_Open;
 	public static String MSG_Split_Char;
 	public static String MSG_Possible_Loots;
-	
+
 	public static String MSG_Hellblock_Not_Found;
 	public static String MSG_Hellblock_Is_Abandoned;
 	public static String MSG_Not_Owner_Of_Hellblock;
-	
+
 	public static String FORMAT_Day;
 	public static String FORMAT_Hour;
 	public static String FORMAT_Minute;
 	public static String FORMAT_Second;
-	
+
 	public static String GUI_SCROLL_DOWN;
 	public static String GUI_SCROLL_UP;
 	public static String GUI_CANNOT_SCROLL_UP;
@@ -119,24 +129,32 @@ public class HBLocale {
 	public static String GUI_SET_NEW_KEY;
 	public static String GUI_EDIT_KEY;
 
-	public static void load() {
-		InputStream inputStream = HellblockPlugin.getInstance().getResource("messages.yml");
-		if (inputStream != null) {
-			try {
-				YamlDocument.create(new File(HellblockPlugin.getInstance().getDataFolder(), "messages.yml"),
-						inputStream, GeneralSettings.DEFAULT, LoaderSettings.builder().setAutoUpdate(true).build(),
-						DumperSettings.DEFAULT,
-						UpdaterSettings.builder().setVersioning(new BasicVersioning("config-version")).build());
-				inputStream.close();
-			} catch (IOException e) {
-				LogUtils.warn(e.getMessage());
-			}
+	@Override
+	public void load() {
+		try (InputStream inputStream = new FileInputStream(resolveConfig("messages.yml").toFile())) {
+			MESSAGE_CONFIG = YamlDocument.create(inputStream, instance.getResource("messages.yml".replace("\\", "/")),
+					GeneralSettings.builder().setRouteSeparator('.').setUseDefaults(false).build(),
+					LoaderSettings.builder().setAutoUpdate(true).build(),
+					DumperSettings.builder().setScalarFormatter((tag, value, role, def) -> {
+						if (role == NodeRole.KEY) {
+							return ScalarStyle.PLAIN;
+						} else {
+							return tag == Tag.STR ? ScalarStyle.DOUBLE_QUOTED : ScalarStyle.PLAIN;
+						}
+					}).build(),
+					UpdaterSettings.builder().setVersioning(new BasicVersioning("config-version")).build());
+			MESSAGE_CONFIG.save(resolveConfig("messages.yml").toFile());
+		} catch (IOException ex) {
+			throw new RuntimeException(ex);
 		}
-		loadSettings(HellblockPlugin.getInstance().getConfig("messages.yml"));
+
+		loadSettings();
 	}
 
-	private static void loadSettings(YamlConfiguration locale) {
-		ConfigurationSection msgSection = locale.getConfigurationSection("messages");
+	private void loadSettings() {
+		YamlDocument locale = getMessageConfig();
+
+		Section msgSection = locale.getSection("messages");
 		if (msgSection != null) {
 			MSG_Prefix = msgSection.getString("prefix");
 			MSG_Reload = msgSection.getString("reload");
@@ -147,8 +165,8 @@ public class HBLocale {
 			MSG_Item_Not_Exists = msgSection.getString("item-not-exist");
 			MSG_Get_Item = msgSection.getString("get-item");
 			MSG_Give_Item = msgSection.getString("give-item");
-            MSG_Never_Played = msgSection.getString("never-played");
-            MSG_Unsafe_Modification = msgSection.getString("unsafe-modification");
+			MSG_Never_Played = msgSection.getString("never-played");
+			MSG_Unsafe_Modification = msgSection.getString("unsafe-modification");
 			MSG_Data_Not_Loaded = msgSection.getString("data-not-loaded");
 			MSG_Market_GUI_Open = msgSection.getString("open-market-gui");
 			MSG_Split_Char = msgSection.getString("split-char");
@@ -161,7 +179,7 @@ public class HBLocale {
 			MSG_Hellblock_Is_Abandoned = msgSection.getString("hellblock-is-abandoned");
 			MSG_Not_Owner_Of_Hellblock = msgSection.getString("not-owner-of-hellblock");
 		}
-		ConfigurationSection guiSection = locale.getConfigurationSection("gui");
+		Section guiSection = locale.getSection("gui");
 		if (guiSection != null) {
 			GUI_SEARCH = guiSection.getString("search");
 			GUI_EDIT_KEY = guiSection.getString("edit-key");

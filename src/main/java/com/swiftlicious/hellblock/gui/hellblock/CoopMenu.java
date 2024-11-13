@@ -1,6 +1,7 @@
 package com.swiftlicious.hellblock.gui.hellblock;
 
 import java.io.IOException;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -15,8 +16,7 @@ import org.jetbrains.annotations.NotNull;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.config.HBConfig;
 import com.swiftlicious.hellblock.gui.icon.BackGroundItem;
-import com.swiftlicious.hellblock.player.OfflineUser;
-import com.swiftlicious.hellblock.player.OnlineUser;
+import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.player.UUIDFetcher;
 import com.swiftlicious.hellblock.utils.LogUtils;
 import com.swiftlicious.hellblock.utils.wrappers.ShadedAdventureComponentWrapper;
@@ -34,14 +34,15 @@ public class CoopMenu {
 
 	public CoopMenu(Player player) {
 
-		OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager().getOnlineUser(player.getUniqueId());
-		if (onlineUser == null) {
+		Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
+				.getOnlineUser(player.getUniqueId());
+		if (onlineUser.isEmpty()) {
 			HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 					"<red>Still loading your player data... please try again in a few seconds.");
 			return;
 		}
 
-		int maxPartySize = HellblockPlugin.getInstance().getCoopManager().getPartySizeLimit();
+		int maxPartySize = HBConfig.partySizeLimit;
 		StringBuilder partyLayout = new StringBuilder();
 		partyLayout.append(" o");
 		for (int i = 0; i < maxPartySize; i++) {
@@ -89,8 +90,8 @@ public class CoopMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID);
-			UUID owner = onlineUser.getHellblockData().getOwnerUUID();
+			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID);
+			UUID owner = onlineUser.get().getHellblockData().getOwnerUUID();
 			if (owner != null) {
 				try {
 					return new SkullBuilder(owner)
@@ -132,15 +133,15 @@ public class CoopMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID);
-			if (onlineUser.getHellblockData().getOwnerUUID() == null) {
+			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID);
+			if (onlineUser.get().getHellblockData().getOwnerUUID() == null) {
 				throw new NullPointerException("Owner reference returned null, please report this to the developer.");
 			}
 			PartyBuilder itemBuilder = new PartyBuilder();
 			HellblockPlugin.getInstance().getStorageManager()
-					.getOfflineUser(onlineUser.getHellblockData().getOwnerUUID(), HBConfig.lockData)
+					.getOfflineUserData(onlineUser.get().getHellblockData().getOwnerUUID(), HBConfig.lockData)
 					.thenAccept((owner) -> {
-						OfflineUser ownerUser = owner.orElseThrow();
+						UserData ownerUser = owner.orElseThrow();
 						Set<UUID> party = ownerUser.getHellblockData().getParty();
 						if (!party.isEmpty()) {
 							for (UUID uuid : party) {
@@ -193,19 +194,19 @@ public class CoopMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 					.getOnlineUser(player.getUniqueId());
-			if (onlineUser == null)
+			if (onlineUser.isEmpty())
 				return;
-			UUID owner = onlineUser.getHellblockData().getOwnerUUID();
+			UUID owner = onlineUser.get().getHellblockData().getOwnerUUID();
 			if (owner != null && owner.equals(player.getUniqueId())) {
 				if (event.getCurrentItem() != null && event.getCurrentItem().getType() == Material.PLAYER_HEAD) {
 					if (event.getCurrentItem().hasItemMeta() && event.getCurrentItem().getItemMeta().isUnbreakable()) {
 						new InvitationMenu(player);
 					} else {
 						if (!input.equals("Unknown")) {
-							HellblockPlugin.getInstance().getCoopManager().removeMemberFromHellblock(onlineUser, input,
-									UUIDFetcher.getUUID(input));
+							HellblockPlugin.getInstance().getCoopManager().removeMemberFromHellblock(onlineUser.get(),
+									input, UUIDFetcher.getUUID(input));
 							new CoopMenu(player);
 						}
 					}

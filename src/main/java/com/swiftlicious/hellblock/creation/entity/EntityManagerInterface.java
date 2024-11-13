@@ -2,9 +2,10 @@ package com.swiftlicious.hellblock.creation.entity;
 
 import org.bukkit.Location;
 
+import com.swiftlicious.hellblock.api.Reloadable;
 import com.swiftlicious.hellblock.loot.Loot;
 
-public interface EntityManagerInterface {
+public interface EntityManagerInterface extends Reloadable {
 
 	/**
 	 * Registers an entity library for use in the plugin.

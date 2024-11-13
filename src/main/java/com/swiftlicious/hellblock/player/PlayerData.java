@@ -1,130 +1,214 @@
 package com.swiftlicious.hellblock.player;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Objects;
+import java.util.UUID;
 
+import org.checkerframework.checker.nullness.qual.NonNull;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import com.google.gson.annotations.Expose;
 import com.google.gson.annotations.SerializedName;
+import com.swiftlicious.hellblock.HellblockPlugin;
 
 public class PlayerData {
+
+	public static final String DEFAULT_NAME = "";
+	public static final EarningData DEFAULT_EARNING = EarningData.empty();
+	public static final ChallengeData DEFAULT_CHALLENGE = ChallengeData.empty();
+	public static final HellblockData DEFAULT_HELLBLOCK = HellblockData.empty();
+	public static final LocationCacheData DEFAULT_LOCATION = LocationCacheData.empty();
 
 	@Expose
 	@SerializedName("name")
 	protected String name;
 	@Expose
-	@SerializedName("pistons")
-	protected List<String> pistonLocations;
-	@Expose
-	@SerializedName("levelblocks")
-	protected List<String> levelBlockLocations;
-	@Expose
 	@SerializedName("trade")
-	protected EarningData earningData;
+	protected EarningData earningData;;
+	@Expose
+	@SerializedName("challenges")
+	protected ChallengeData challengeData;
 	@Expose
 	@SerializedName("hellblock")
 	protected HellblockData hellblockData;
 	@Expose
-	@SerializedName("challenges")
-	protected ChallengeData challengeData;
+	@SerializedName("cachedlocations")
+	protected LocationCacheData locationCacheData;
 
-	public static PlayerData LOCKED = empty();
+	transient private UUID uuid;
+	transient private boolean locked;
+	transient private byte[] jsonBytes;
+
+	public PlayerData(UUID uuid, String name, EarningData earningData, ChallengeData challengeData,
+			HellblockData hellblockData, LocationCacheData locationCacheData, boolean isLocked) {
+		this.name = name;
+		this.earningData = earningData;
+		this.challengeData = challengeData;
+		this.hellblockData = hellblockData;
+		this.locationCacheData = locationCacheData;
+		this.locked = isLocked;
+		this.uuid = uuid;
+	}
 
 	public static Builder builder() {
 		return new Builder();
 	}
 
-	public static PlayerData empty() {
-		return new Builder().setName("").setLevelBlockLocations(new ArrayList<>()).setPistonLocations(new ArrayList<>())
-				.setEarningData(EarningData.empty()).setHellblockData(HellblockData.empty())
-				.setChallengeData(ChallengeData.empty()).build();
+	public static @NonNull PlayerData empty() {
+		return new Builder().setName(DEFAULT_NAME).setUUID(new UUID(0, 0)).setLocked(false)
+				.setLocationCacheData(DEFAULT_LOCATION).setEarningData(DEFAULT_EARNING)
+				.setHellblockData(DEFAULT_HELLBLOCK).setChallengeData(DEFAULT_CHALLENGE).build();
 	}
 
 	public static class Builder {
 
-		private final PlayerData playerData;
-
-		public Builder() {
-			this.playerData = new PlayerData();
-		}
+		private String name = DEFAULT_NAME;
+		private EarningData earningData = DEFAULT_EARNING;
+		private ChallengeData challengeData = DEFAULT_CHALLENGE;
+		private HellblockData hellblockData = DEFAULT_HELLBLOCK;
+		private LocationCacheData locationCacheData = DEFAULT_LOCATION;
+		private boolean isLocked = false;
+		private UUID uuid;
 
 		@NotNull
-		public Builder setName(@Nullable String name) {
-			this.playerData.name = name;
+		public Builder setName(@NotNull String name) {
+			this.name = name;
 			return this;
 		}
 
 		@NotNull
-		public Builder setLevelBlockLocations(@Nullable List<String> levelBlockLocations) {
-			this.playerData.levelBlockLocations = levelBlockLocations;
+		public Builder setUUID(@NotNull UUID uuid) {
+			this.uuid = uuid;
 			return this;
 		}
 
 		@NotNull
-		public Builder setPistonLocations(@Nullable List<String> pistonLocations) {
-			this.playerData.pistonLocations = pistonLocations;
+		public Builder setLocked(boolean locked) {
+			this.isLocked = locked;
 			return this;
 		}
 
 		@NotNull
 		public Builder setEarningData(@Nullable EarningData earningData) {
-			this.playerData.earningData = earningData;
-			return this;
-		}
-
-		@NotNull
-		public Builder setHellblockData(@Nullable HellblockData hellblockData) {
-			this.playerData.hellblockData = hellblockData;
+			this.earningData = earningData;
 			return this;
 		}
 
 		@NotNull
 		public Builder setChallengeData(@Nullable ChallengeData challengeData) {
-			this.playerData.challengeData = challengeData;
+			this.challengeData = challengeData;
 			return this;
 		}
 
 		@NotNull
-		public PlayerData build() {
-			return this.playerData;
+		public Builder setHellblockData(@Nullable HellblockData hellblockData) {
+			this.hellblockData = hellblockData;
+			return this;
+		}
+
+		@NotNull
+		public Builder setLocationCacheData(@Nullable LocationCacheData locationCacheData) {
+			this.locationCacheData = locationCacheData;
+			return this;
+		}
+
+		@NotNull
+		public @NonNull PlayerData build() {
+			return new PlayerData(Objects.requireNonNull(this.uuid), this.name, this.earningData, this.challengeData,
+					this.hellblockData, this.locationCacheData, this.isLocked);
 		}
 	}
 
-	public EarningData getEarningData() {
+	/**
+	 * Converts the player data to a byte array for saving purposes.
+	 * 
+	 * @return the player data as a byte array.
+	 */
+	public byte[] toBytes() {
+		if (this.jsonBytes == null) {
+			this.jsonBytes = HellblockPlugin.getInstance().getStorageManager().toBytes(this);
+		}
+		return this.jsonBytes;
+	}
+
+	/**
+	 * Gets the earnings data for the player.
+	 *
+	 * @return the earnings data.
+	 */
+	public @NonNull EarningData getEarningData() {
 		return this.earningData;
 	}
 
-	public HellblockData getHellblockData() {
-		return this.hellblockData;
-	}
-
-	public ChallengeData getChallengeData() {
+	/**
+	 * Gets the challenge data for the player.
+	 *
+	 * @return the challenge data.
+	 */
+	public @NonNull ChallengeData getChallengeData() {
 		return this.challengeData;
 	}
 
-	public String getName() {
+	/**
+	 * Gets the hellblock data for the player.
+	 *
+	 * @return the hellblock data.
+	 */
+	public @NonNull HellblockData getHellblockData() {
+		return this.hellblockData;
+	}
+
+	/**
+	 * Gets the location cache data for the player.
+	 *
+	 * @return the location cache data.
+	 */
+	public @NonNull LocationCacheData getLocationCacheData() {
+		return this.locationCacheData;
+	}
+
+	/**
+	 * Gets the name of the player.
+	 *
+	 * @return the player's name.
+	 */
+	public @NonNull String getName() {
 		return this.name;
 	}
 
-	public List<String> getPistonLocations() {
-		return this.pistonLocations;
-	}
-
-	public void setPistonLocations(List<String> pistonLocations) {
-		this.pistonLocations = pistonLocations;
-	}
-
-	public List<String> getLevelBlockLocations() {
-		return this.levelBlockLocations;
-	}
-
-	public void setLevelBlockLocations(List<String> levelBlockLocations) {
-		this.levelBlockLocations = levelBlockLocations;
-	}
-
+	/**
+	 * Gets if the data is locked
+	 *
+	 * @return locked or not
+	 */
 	public boolean isLocked() {
-		return this == LOCKED;
+		return this.locked;
+	}
+
+	/**
+	 * Set if the data is locked
+	 *
+	 * @param locked locked or not
+	 */
+	public void setLocked(boolean locked) {
+		this.locked = locked;
+	}
+
+	/**
+	 * Gets the uuid
+	 *
+	 * @return uuid
+	 */
+	public @NonNull UUID getUUID() {
+		return this.uuid;
+	}
+
+	/**
+	 * Set the uuid of the data
+	 *
+	 * @param uuid uuid
+	 */
+	public void setUUID(@NonNull UUID uuid) {
+		this.uuid = uuid;
 	}
 }

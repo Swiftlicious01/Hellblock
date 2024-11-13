@@ -1,6 +1,6 @@
 package com.swiftlicious.hellblock.utils;
 
-import org.bukkit.configuration.ConfigurationSection;
+import dev.dejvokep.boostedyaml.block.implementation.Section;
 
 /**
  * Utility class for generating offset characters based on a font configuration.
@@ -34,7 +34,7 @@ public class OffsetUtils {
 	 *
 	 * @param section The configuration section containing font settings.
 	 */
-	public static void loadConfig(ConfigurationSection section) {
+	public static void loadConfig(Section section) {
 		if (section != null) {
 			font = section.getString("font", "hellblock:offset_chars");
 			positive_1 = section.getString("1");

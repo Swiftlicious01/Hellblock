@@ -11,7 +11,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.TimeUnit;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Instrument;
@@ -33,8 +32,6 @@ import org.bukkit.block.data.type.Campfire;
 import org.bukkit.block.data.type.Farmland;
 import org.bukkit.block.data.type.NoteBlock;
 import org.bukkit.block.data.type.TurtleEgg;
-import org.bukkit.configuration.ConfigurationSection;
-import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.FallingBlock;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -54,9 +51,12 @@ import com.swiftlicious.hellblock.utils.LogUtils;
 import com.swiftlicious.hellblock.utils.extras.Pair;
 import com.swiftlicious.hellblock.utils.extras.Tuple;
 
+import dev.dejvokep.boostedyaml.YamlDocument;
+import dev.dejvokep.boostedyaml.block.implementation.Section;
+
 public class BlockManager implements BlockManagerInterface, Listener {
 
-	private final HellblockPlugin instance;
+	protected final HellblockPlugin instance;
 	private final Map<String, BlockLibrary> blockLibraryMap;
 	private BlockLibrary[] blockDetectionArray;
 	private final Map<String, BlockConfig> blockConfigMap;
@@ -75,12 +75,14 @@ public class BlockManager implements BlockManagerInterface, Listener {
 		this.registerBlockLibrary(new VanillaBlock());
 	}
 
+	@Override
 	public void load() {
 		this.loadConfig();
 		Bukkit.getPluginManager().registerEvents(this, instance);
 		this.resetBlockDetectionOrder();
 	}
 
+	@Override
 	public void unload() {
 		HandlerList.unregisterAll(this);
 		Map<String, BlockConfig> tempMap = new HashMap<>(this.blockConfigMap);
@@ -92,6 +94,7 @@ public class BlockManager implements BlockManagerInterface, Listener {
 		}
 	}
 
+	@Override
 	public void disable() {
 		this.blockLibraryMap.clear();
 	}
@@ -115,7 +118,7 @@ public class BlockManager implements BlockManagerInterface, Listener {
 	public void onBlockLands(EntityChangeBlockEvent event) {
 		if (event.isCancelled())
 			return;
-		if (!event.getBlock().getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!event.getBlock().getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 
 		// Retrieve a custom string value stored in the entity's persistent data
@@ -147,12 +150,12 @@ public class BlockManager implements BlockManagerInterface, Listener {
 		Location location = event.getBlock().getLocation();
 
 		// Apply block state modifiers from the BlockConfig to the block 1 tick later.
-		instance.getScheduler().runTaskSyncLater(() -> {
+		instance.getScheduler().sync().runLater(() -> {
 			BlockState state = location.getBlock().getState();
 			for (BlockStateModifier modifier : blockConfig.getStateModifierList()) {
 				modifier.apply(player, state);
 			}
-		}, location, 50, TimeUnit.MILLISECONDS);
+		}, 50, location);
 	}
 
 	/**
@@ -297,24 +300,24 @@ public class BlockManager implements BlockManagerInterface, Listener {
 	 * @param file The YAML file to load and process.
 	 */
 	private void loadSingleFile(File file) {
-		YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
-		for (Map.Entry<String, Object> entry : config.getValues(false).entrySet()) {
-			if (entry.getValue() instanceof ConfigurationSection section) {
+		YamlDocument config = instance.getConfigManager().loadData(file);
+		for (Map.Entry<String, Object> entry : config.getStringRouteMappedValues(false).entrySet()) {
+			if (entry.getValue() instanceof Section section) {
 
 				// Check if the "block" is null and log a warning if so.
 				String blockID = section.getString("block");
 				if (blockID == null) {
 					LogUtils.warn(String.format("Block can't be null. File: %s; Section: %s", file.getAbsolutePath(),
-							section.getCurrentPath()));
+							section.getRoot().getName()));
 					continue;
 				}
 				List<BlockDataModifier> dataModifiers = new ArrayList<>();
 				List<BlockStateModifier> stateModifiers = new ArrayList<>();
 
 				// If a "properties" section exists, process its entries.
-				ConfigurationSection property = section.getConfigurationSection("properties");
+				Section property = section.getSection("properties");
 				if (property != null) {
-					for (Map.Entry<String, Object> innerEntry : property.getValues(false).entrySet()) {
+					for (Map.Entry<String, Object> innerEntry : property.getStringRouteMappedValues(false).entrySet()) {
 						BlockDataModifierBuilder dataBuilder = dataBuilderMap.get(innerEntry.getKey());
 						if (dataBuilder != null) {
 							dataModifiers.add(dataBuilder.build(innerEntry.getValue()));
@@ -448,7 +451,7 @@ public class BlockManager implements BlockManagerInterface, Listener {
 
 	private void registerNoteBlock() {
 		this.registerBlockDataModifierBuilder("noteblock", (args) -> {
-			if (args instanceof ConfigurationSection section) {
+			if (args instanceof Section section) {
 				var instrument = Instrument.valueOf(section.getString("instrument"));
 				var note = new Note(section.getInt("note"));
 				return (player, blockData) -> {
@@ -488,14 +491,14 @@ public class BlockManager implements BlockManagerInterface, Listener {
 
 	private void registerStorage() {
 		this.registerBlockStateModifierBuilder("storage", (args) -> {
-			if (args instanceof ConfigurationSection section) {
+			if (args instanceof Section section) {
 				List<Tuple<Double, String, Pair<Integer, Integer>>> tempChanceList = new ArrayList<>();
-				for (Map.Entry<String, Object> entry : section.getValues(false).entrySet()) {
-					if (entry.getValue() instanceof ConfigurationSection inner) {
+				for (Map.Entry<String, Object> entry : section.getStringRouteMappedValues(false).entrySet()) {
+					if (entry.getValue() instanceof Section inner) {
 						String item = inner.getString("item");
 						Pair<Integer, Integer> amountPair = instance.getConfigUtils()
 								.splitStringIntegerArgs(inner.getString("amount", "1~1"), "~");
-						double chance = inner.getDouble("chance", 1);
+						double chance = inner.getDouble("chance", 1D);
 						tempChanceList.add(Tuple.of(chance, item, amountPair));
 					}
 				}

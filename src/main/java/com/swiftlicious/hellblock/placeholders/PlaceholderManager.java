@@ -9,21 +9,22 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import org.bukkit.OfflinePlayer;
-import org.bukkit.configuration.ConfigurationSection;
-import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.Nullable;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.config.HBConfig;
 
+import dev.dejvokep.boostedyaml.YamlDocument;
+import dev.dejvokep.boostedyaml.block.implementation.Section;
 import net.objecthunter.exp4j.ExpressionBuilder;
 
 public class PlaceholderManager implements PlaceholderManagerInterface {
 
-	private final HellblockPlugin instance;
+	protected final HellblockPlugin instance;
 	private final boolean hasPapi;
 	private final Pattern pattern;
-	private final HashMap<String, String> customPlaceholderMap;
+	private final Map<String, String> customPlaceholderMap;
 
 	public PlaceholderManager(HellblockPlugin plugin) {
 		instance = plugin;
@@ -37,10 +38,10 @@ public class PlaceholderManager implements PlaceholderManagerInterface {
 	}
 
 	public void loadCustomPlaceholders() {
-		YamlConfiguration config = instance.getConfig("config.yml");
-		ConfigurationSection section = config.getConfigurationSection("other-settings.placeholder-register");
+		YamlDocument config = HBConfig.getMainConfig();
+		Section section = config.getSection("other-settings.placeholder-register");
 		if (section != null) {
-			for (Map.Entry<String, Object> entry : section.getValues(false).entrySet()) {
+			for (Map.Entry<String, Object> entry : section.getStringRouteMappedValues(false).entrySet()) {
 				registerCustomPlaceholder(entry.getKey(), (String) entry.getValue());
 			}
 		}

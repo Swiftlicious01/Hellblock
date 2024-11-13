@@ -10,6 +10,8 @@ import java.util.stream.Collectors;
 
 import org.bukkit.Chunk;
 import org.bukkit.Location;
+import org.bukkit.NamespacedKey;
+import org.bukkit.Registry;
 import org.bukkit.World;
 import org.bukkit.block.Biome;
 import org.bukkit.block.Block;
@@ -21,20 +23,30 @@ import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.config.HBConfig;
 import com.swiftlicious.hellblock.config.HBLocale;
-import com.swiftlicious.hellblock.player.OnlineUser;
+import com.swiftlicious.hellblock.player.UserData;
 
+import io.papermc.paper.registry.RegistryAccess;
+import io.papermc.paper.registry.RegistryKey;
 import lombok.NonNull;
 
 public class BiomeHandler {
 
-	private final HellblockPlugin instance;
+	protected final HellblockPlugin instance;
+
+	private final Registry<Biome> biomeRegistry;
 
 	public BiomeHandler(HellblockPlugin plugin) {
 		instance = plugin;
+		this.biomeRegistry = RegistryAccess.registryAccess().getRegistry(RegistryKey.BIOME);
 	}
 
-	public void changeHellblockBiome(@NonNull OnlineUser user, @NonNull HellBiome biome) {
+	public Registry<Biome> getBiomeRegistry() {
+		return this.biomeRegistry;
+	}
+
+	public void changeHellblockBiome(@NonNull UserData user, @NonNull HellBiome biome) {
 		Player player = user.getPlayer();
 		if (player != null) {
 			if (!user.getHellblockData().hasHellblock()) {
@@ -60,7 +72,7 @@ public class BiomeHandler {
 				return;
 			}
 
-			if (instance.getHellblockHandler().isWorldguardProtected()) {
+			if (HBConfig.worldguardProtected) {
 				ProtectedRegion region = instance.getWorldGuardHandler().getRegion(player.getUniqueId(),
 						user.getHellblockData().getID());
 				if (region == null) {
@@ -130,7 +142,8 @@ public class BiomeHandler {
 					for (int z = start.getBlockZ(); z < end.getBlockZ(); z++) {
 						Block block = new Location(world, x, y, z).getBlock();
 						if (HellBiome.valueOf(block.getBiome().toString()) != biome)
-							block.setBiome(Biome.valueOf(biome.toString().toUpperCase()));
+							block.setBiome(
+									biomeRegistry.getOrThrow(NamespacedKey.fromString(biome.toString().toUpperCase())));
 					}
 				}
 			}

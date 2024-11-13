@@ -22,7 +22,7 @@ public class ChallengeData {
 
 	@Expose
 	@SerializedName("progression")
-	public Map<ChallengeType, ChallengeResult> challenges;
+	protected Map<ChallengeType, ChallengeResult> challenges;
 
 	public ChallengeData(Map<ChallengeType, ChallengeResult> challenges) {
 		this.challenges = challenges;
@@ -141,7 +141,16 @@ public class ChallengeData {
 		}
 	}
 
+	/**
+	 * Creates an instance of ChallengeData with default values (empty map).
+	 *
+	 * @return a new instance of ChallengeData with default values.
+	 */
 	public static @NonNull ChallengeData empty() {
 		return new ChallengeData(new HashMap<>());
+	}
+
+	public @NonNull ChallengeData copy() {
+		return new ChallengeData(challenges);
 	}
 }

@@ -1,5 +1,6 @@
 package com.swiftlicious.hellblock.gui.hellblock;
 
+import java.util.Optional;
 import java.util.UUID;
 
 import org.bukkit.Material;
@@ -13,7 +14,7 @@ import org.jetbrains.annotations.NotNull;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.generation.HellBiome;
 import com.swiftlicious.hellblock.gui.icon.BackGroundItem;
-import com.swiftlicious.hellblock.player.OnlineUser;
+import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.utils.wrappers.ShadedAdventureComponentWrapper;
 
 import xyz.xenondevs.invui.gui.Gui;
@@ -26,8 +27,9 @@ public class BiomeMenu {
 
 	public BiomeMenu(Player player) {
 
-		OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager().getOnlineUser(player.getUniqueId());
-		if (onlineUser == null) {
+		Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
+				.getOnlineUser(player.getUniqueId());
+		if (onlineUser.isEmpty()) {
 			HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 					"<red>Still loading your player data... please try again in a few seconds.");
 			return;
@@ -59,8 +61,8 @@ public class BiomeMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID);
-			if (onlineUser.getHellblockData().getBiome() == HellBiome.SOUL_SAND_VALLEY) {
+			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID);
+			if (onlineUser.get().getHellblockData().getBiome() == HellBiome.SOUL_SAND_VALLEY) {
 				return new ItemBuilder(Material.SOUL_SOIL).addEnchantment(Enchantment.UNBREAKING, 1, false)
 						.addItemFlags(ItemFlag.HIDE_ENCHANTS)
 						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
@@ -87,11 +89,11 @@ public class BiomeMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 					.getOnlineUser(player.getUniqueId());
-			if (onlineUser == null)
+			if (onlineUser.isEmpty())
 				return;
-			if (onlineUser.getHellblockData().getBiome() == HellBiome.SOUL_SAND_VALLEY) {
+			if (onlineUser.get().getHellblockData().getBiome() == HellBiome.SOUL_SAND_VALLEY) {
 				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 						String.format("<red>Your hellblock biome is already set to <dark_red>%s<red>!",
 								HellBiome.SOUL_SAND_VALLEY.getName()));
@@ -100,17 +102,17 @@ public class BiomeMenu {
 						net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 				return;
 			}
-			if (onlineUser.getHellblockData().getBiomeCooldown() > 0) {
+			if (onlineUser.get().getHellblockData().getBiomeCooldown() > 0) {
 				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 						String.format("<red>You've recently changed your hellbiome biome, you must wait for %s!",
 								HellblockPlugin.getInstance()
-										.getFormattedCooldown(onlineUser.getHellblockData().getBiomeCooldown())));
+										.getFormattedCooldown(onlineUser.get().getHellblockData().getBiomeCooldown())));
 				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
 						net.kyori.adventure.sound.Sound.Source.PLAYER,
 						net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 				return;
 			}
-			HellblockPlugin.getInstance().getBiomeHandler().changeHellblockBiome(onlineUser,
+			HellblockPlugin.getInstance().getBiomeHandler().changeHellblockBiome(onlineUser.get(),
 					HellBiome.SOUL_SAND_VALLEY);
 			HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
 					net.kyori.adventure.sound.Sound.Source.PLAYER,
@@ -129,8 +131,8 @@ public class BiomeMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID);
-			if (onlineUser.getHellblockData().getBiome() == HellBiome.CRIMSON_FOREST) {
+			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID);
+			if (onlineUser.get().getHellblockData().getBiome() == HellBiome.CRIMSON_FOREST) {
 				return new ItemBuilder(Material.CRIMSON_STEM).addEnchantment(Enchantment.UNBREAKING, 1, false)
 						.addItemFlags(ItemFlag.HIDE_ENCHANTS)
 						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
@@ -157,11 +159,11 @@ public class BiomeMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 					.getOnlineUser(player.getUniqueId());
-			if (onlineUser == null)
+			if (onlineUser.isEmpty())
 				return;
-			if (onlineUser.getHellblockData().getBiome() == HellBiome.CRIMSON_FOREST) {
+			if (onlineUser.get().getHellblockData().getBiome() == HellBiome.CRIMSON_FOREST) {
 				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 						String.format("<red>Your hellblock biome is already set to <dark_red>%s<red>!",
 								HellBiome.CRIMSON_FOREST.getName()));
@@ -170,17 +172,18 @@ public class BiomeMenu {
 						net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 				return;
 			}
-			if (onlineUser.getHellblockData().getBiomeCooldown() > 0) {
+			if (onlineUser.get().getHellblockData().getBiomeCooldown() > 0) {
 				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 						String.format("<red>You've recently changed your hellbiome biome, you must wait for %s!",
 								HellblockPlugin.getInstance()
-										.getFormattedCooldown(onlineUser.getHellblockData().getBiomeCooldown())));
+										.getFormattedCooldown(onlineUser.get().getHellblockData().getBiomeCooldown())));
 				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
 						net.kyori.adventure.sound.Sound.Source.PLAYER,
 						net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 				return;
 			}
-			HellblockPlugin.getInstance().getBiomeHandler().changeHellblockBiome(onlineUser, HellBiome.CRIMSON_FOREST);
+			HellblockPlugin.getInstance().getBiomeHandler().changeHellblockBiome(onlineUser.get(),
+					HellBiome.CRIMSON_FOREST);
 			HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
 					net.kyori.adventure.sound.Sound.Source.PLAYER,
 					net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
@@ -198,8 +201,8 @@ public class BiomeMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID);
-			if (onlineUser.getHellblockData().getBiome() == HellBiome.WARPED_FOREST) {
+			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID);
+			if (onlineUser.get().getHellblockData().getBiome() == HellBiome.WARPED_FOREST) {
 				return new ItemBuilder(Material.WARPED_STEM).addEnchantment(Enchantment.UNBREAKING, 1, false)
 						.addItemFlags(ItemFlag.HIDE_ENCHANTS)
 						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
@@ -227,11 +230,11 @@ public class BiomeMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 					.getOnlineUser(player.getUniqueId());
-			if (onlineUser == null)
+			if (onlineUser.isEmpty())
 				return;
-			if (onlineUser.getHellblockData().getBiome() == HellBiome.WARPED_FOREST) {
+			if (onlineUser.get().getHellblockData().getBiome() == HellBiome.WARPED_FOREST) {
 				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 						String.format("<red>Your hellblock biome is already set to <dark_red>%s<red>!",
 								HellBiome.WARPED_FOREST.getName()));
@@ -240,17 +243,18 @@ public class BiomeMenu {
 						net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 				return;
 			}
-			if (onlineUser.getHellblockData().getBiomeCooldown() > 0) {
+			if (onlineUser.get().getHellblockData().getBiomeCooldown() > 0) {
 				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 						String.format("<red>You've recently changed your hellbiome biome, you must wait for %s!",
 								HellblockPlugin.getInstance()
-										.getFormattedCooldown(onlineUser.getHellblockData().getBiomeCooldown())));
+										.getFormattedCooldown(onlineUser.get().getHellblockData().getBiomeCooldown())));
 				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
 						net.kyori.adventure.sound.Sound.Source.PLAYER,
 						net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 				return;
 			}
-			HellblockPlugin.getInstance().getBiomeHandler().changeHellblockBiome(onlineUser, HellBiome.WARPED_FOREST);
+			HellblockPlugin.getInstance().getBiomeHandler().changeHellblockBiome(onlineUser.get(),
+					HellBiome.WARPED_FOREST);
 			HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
 					net.kyori.adventure.sound.Sound.Source.PLAYER,
 					net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
@@ -268,8 +272,8 @@ public class BiomeMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID);
-			if (onlineUser.getHellblockData().getBiome() == HellBiome.NETHER_WASTES) {
+			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID);
+			if (onlineUser.get().getHellblockData().getBiome() == HellBiome.NETHER_WASTES) {
 				return new ItemBuilder(Material.NETHERRACK).addEnchantment(Enchantment.UNBREAKING, 1, false)
 						.addItemFlags(ItemFlag.HIDE_ENCHANTS)
 						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
@@ -296,11 +300,11 @@ public class BiomeMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 					.getOnlineUser(player.getUniqueId());
-			if (onlineUser == null)
+			if (onlineUser.isEmpty())
 				return;
-			if (onlineUser.getHellblockData().getBiome() == HellBiome.NETHER_WASTES) {
+			if (onlineUser.get().getHellblockData().getBiome() == HellBiome.NETHER_WASTES) {
 				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 						String.format("<red>Your hellblock biome is already set to <dark_red>%s<red>!",
 								HellBiome.NETHER_WASTES.getName()));
@@ -309,17 +313,18 @@ public class BiomeMenu {
 						net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 				return;
 			}
-			if (onlineUser.getHellblockData().getBiomeCooldown() > 0) {
+			if (onlineUser.get().getHellblockData().getBiomeCooldown() > 0) {
 				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 						String.format("<red>You've recently changed your hellbiome biome, you must wait for %s!",
 								HellblockPlugin.getInstance()
-										.getFormattedCooldown(onlineUser.getHellblockData().getBiomeCooldown())));
+										.getFormattedCooldown(onlineUser.get().getHellblockData().getBiomeCooldown())));
 				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
 						net.kyori.adventure.sound.Sound.Source.PLAYER,
 						net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 				return;
 			}
-			HellblockPlugin.getInstance().getBiomeHandler().changeHellblockBiome(onlineUser, HellBiome.NETHER_WASTES);
+			HellblockPlugin.getInstance().getBiomeHandler().changeHellblockBiome(onlineUser.get(),
+					HellBiome.NETHER_WASTES);
 			HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
 					net.kyori.adventure.sound.Sound.Source.PLAYER,
 					net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);
@@ -337,8 +342,8 @@ public class BiomeMenu {
 
 		@Override
 		public ItemProvider getItemProvider() {
-			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID);
-			if (onlineUser.getHellblockData().getBiome() == HellBiome.BASALT_DELTAS) {
+			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager().getOnlineUser(playerUUID);
+			if (onlineUser.get().getHellblockData().getBiome() == HellBiome.BASALT_DELTAS) {
 				return new ItemBuilder(Material.NETHERITE_BLOCK).addEnchantment(Enchantment.UNBREAKING, 1, false)
 						.addItemFlags(ItemFlag.HIDE_ENCHANTS)
 						.setDisplayName(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance()
@@ -365,11 +370,11 @@ public class BiomeMenu {
 		@Override
 		public void handleClick(@NotNull ClickType clickType, @NotNull Player player,
 				@NotNull InventoryClickEvent event) {
-			OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 					.getOnlineUser(player.getUniqueId());
-			if (onlineUser == null)
+			if (onlineUser.isEmpty())
 				return;
-			if (onlineUser.getHellblockData().getBiome() == HellBiome.BASALT_DELTAS) {
+			if (onlineUser.get().getHellblockData().getBiome() == HellBiome.BASALT_DELTAS) {
 				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 						String.format("<red>Your hellblock biome is already set to <dark_red>%s<red>!",
 								HellBiome.BASALT_DELTAS.getName()));
@@ -378,17 +383,18 @@ public class BiomeMenu {
 						net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 				return;
 			}
-			if (onlineUser.getHellblockData().getBiomeCooldown() > 0) {
+			if (onlineUser.get().getHellblockData().getBiomeCooldown() > 0) {
 				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 						String.format("<red>You've recently changed your hellbiome biome, you must wait for %s!",
 								HellblockPlugin.getInstance()
-										.getFormattedCooldown(onlineUser.getHellblockData().getBiomeCooldown())));
+										.getFormattedCooldown(onlineUser.get().getHellblockData().getBiomeCooldown())));
 				HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
 						net.kyori.adventure.sound.Sound.Source.PLAYER,
 						net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 				return;
 			}
-			HellblockPlugin.getInstance().getBiomeHandler().changeHellblockBiome(onlineUser, HellBiome.BASALT_DELTAS);
+			HellblockPlugin.getInstance().getBiomeHandler().changeHellblockBiome(onlineUser.get(),
+					HellBiome.BASALT_DELTAS);
 			HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
 					net.kyori.adventure.sound.Sound.Source.PLAYER,
 					net.kyori.adventure.key.Key.key("minecraft:ui.button.click"), 1, 1);

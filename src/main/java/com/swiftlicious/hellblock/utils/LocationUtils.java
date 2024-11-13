@@ -12,14 +12,15 @@ import org.bukkit.Tag;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
-import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
 import org.bukkit.util.BoundingBox;
 import org.bukkit.util.NumberConversions;
 import org.jetbrains.annotations.Nullable;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.config.HBConfig;
 
+import dev.dejvokep.boostedyaml.block.implementation.Section;
 import lombok.NonNull;
 
 public class LocationUtils {
@@ -278,11 +279,10 @@ public class LocationUtils {
 		return "Error!";
 	}
 
-	public static void serializeLocation(@NonNull ConfigurationSection section, @Nullable Location location,
-			boolean includeExtras) {
-		String world = HellblockPlugin.getInstance().getHellblockHandler().getWorldName();
+	public static void serializeLocation(@NonNull Section section, @Nullable Location location, boolean includeExtras) {
+		String world = HBConfig.worldName;
 		double x = 0.0D;
-		double y = (double) HellblockPlugin.getInstance().getHellblockHandler().getHeight();
+		double y = (double) HBConfig.height;
 		double z = 0.0D;
 		float yaw = 90.0F;
 		float pitch = 0.0F;
@@ -305,15 +305,15 @@ public class LocationUtils {
 		}
 	}
 
-	public static @Nullable Location deserializeLocation(@NonNull ConfigurationSection section) {
+	public static @Nullable Location deserializeLocation(@NonNull Section section) {
 		World world = Bukkit.getWorld(section.getString("world"));
 		if (world == null)
 			world = HellblockPlugin.getInstance().getHellblockHandler().getHellblockWorld();
 		double x = section.getDouble("x");
 		double y = section.getDouble("y");
 		double z = section.getDouble("z");
-		float yaw = (float) section.getDouble("yaw", 90);
-		float pitch = (float) section.getDouble("pitch", 0);
+		float yaw = section.getFloat("yaw", 90F);
+		float pitch = section.getFloat("pitch", 0F);
 		return new Location(world, x, y, z, yaw, pitch);
 	}
 

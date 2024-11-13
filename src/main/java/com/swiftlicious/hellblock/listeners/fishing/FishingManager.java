@@ -1,6 +1,7 @@
 package com.swiftlicious.hellblock.listeners.fishing;
 
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -34,7 +35,7 @@ import com.swiftlicious.hellblock.events.fishing.RodCastEvent;
 import com.swiftlicious.hellblock.handlers.RequirementManagerInterface;
 import com.swiftlicious.hellblock.loot.Loot;
 import com.swiftlicious.hellblock.loot.LootType;
-import com.swiftlicious.hellblock.player.OnlineUser;
+import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.utils.ItemUtils;
 import com.swiftlicious.hellblock.utils.LogUtils;
 import com.swiftlicious.hellblock.utils.extras.ActionTrigger;
@@ -44,7 +45,7 @@ import net.kyori.adventure.sound.Sound;
 
 public class FishingManager implements Listener, FishingManagerInterface {
 
-	private final HellblockPlugin instance;
+	protected final HellblockPlugin instance;
 	private final ConcurrentHashMap<UUID, FishHook> hookCacheMap;
 	private final ConcurrentHashMap<UUID, HookCheckTimerTask> hookCheckMap;
 	private final ConcurrentHashMap<UUID, TempFishingState> tempFishingStateMap;
@@ -57,11 +58,13 @@ public class FishingManager implements Listener, FishingManagerInterface {
 		this.hookCheckMap = new ConcurrentHashMap<>();
 		this.vanillaLootMap = new ConcurrentHashMap<>();
 	}
-
+	
+	@Override
 	public void load() {
 		Bukkit.getPluginManager().registerEvents(this, instance);
 	}
-
+	
+	@Override
 	public void unload() {
 		HandlerList.unregisterAll(this);
 		for (FishHook hook : hookCacheMap.values()) {
@@ -74,7 +77,8 @@ public class FishingManager implements Listener, FishingManagerInterface {
 		this.tempFishingStateMap.clear();
 		this.hookCheckMap.clear();
 	}
-
+	
+	@Override
 	public void disable() {
 		unload();
 	}
@@ -241,7 +245,7 @@ public class FishingManager implements Listener, FishingManagerInterface {
 	public boolean removeHook(UUID uuid) {
 		FishHook hook = hookCacheMap.remove(uuid);
 		if (hook != null && hook.isValid()) {
-			instance.getScheduler().runTaskSync(hook::remove, hook.getLocation());
+			instance.getScheduler().executeSync(hook::remove, hook.getLocation());
 			return true;
 		} else {
 			return false;
@@ -296,7 +300,7 @@ public class FishingManager implements Listener, FishingManagerInterface {
 	 */
 	private void onInGround(PlayerFishEvent event) {
 		final Player player = event.getPlayer();
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName())) {
+		if (!player.getWorld().getName().equalsIgnoreCase(HBConfig.worldName)) {
 			return;
 		}
 		FishHook hook = event.getHook();
@@ -321,7 +325,7 @@ public class FishingManager implements Listener, FishingManagerInterface {
 	 */
 	private void onFailAttempt(PlayerFishEvent event) {
 		final Player player = event.getPlayer();
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName())) {
+		if (!player.getWorld().getName().equalsIgnoreCase(HBConfig.worldName)) {
 			return;
 		}
 		FishHook hook = event.getHook();
@@ -346,7 +350,7 @@ public class FishingManager implements Listener, FishingManagerInterface {
 	 */
 	public void onCastRod(PlayerFishEvent event) {
 		var player = event.getPlayer();
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName())) {
+		if (!player.getWorld().getName().equalsIgnoreCase(HBConfig.worldName)) {
 			return;
 		}
 		var fishingPreparation = new FishingPreparation(player, instance);
@@ -396,7 +400,7 @@ public class FishingManager implements Listener, FishingManagerInterface {
 	 */
 	private void onCaughtEntity(PlayerFishEvent event) {
 		final Player player = event.getPlayer();
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName())) {
+		if (!player.getWorld().getName().equalsIgnoreCase(HBConfig.worldName)) {
 			return;
 		}
 		final UUID uuid = player.getUniqueId();
@@ -443,7 +447,7 @@ public class FishingManager implements Listener, FishingManagerInterface {
 	 */
 	private void onCaughtFish(PlayerFishEvent event) {
 		final Player player = event.getPlayer();
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName())) {
+		if (!player.getWorld().getName().equalsIgnoreCase(HBConfig.worldName)) {
 			return;
 		}
 		final UUID uuid = player.getUniqueId();
@@ -480,7 +484,7 @@ public class FishingManager implements Listener, FishingManagerInterface {
 	 */
 	private void onBite(PlayerFishEvent event) {
 		final Player player = event.getPlayer();
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName())) {
+		if (!player.getWorld().getName().equalsIgnoreCase(HBConfig.worldName)) {
 			return;
 		}
 		final UUID uuid = player.getUniqueId();
@@ -505,7 +509,7 @@ public class FishingManager implements Listener, FishingManagerInterface {
 	 */
 	private void onReelIn(PlayerFishEvent event) {
 		final Player player = event.getPlayer();
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName())) {
+		if (!player.getWorld().getName().equalsIgnoreCase(HBConfig.worldName)) {
 			return;
 		}
 		final UUID uuid = player.getUniqueId();
@@ -618,7 +622,7 @@ public class FishingManager implements Listener, FishingManagerInterface {
 					fishingPreparation.insertArg("{nick}",
 							"<lang:item.minecraft." + pair.left().getType().toString().toLowerCase() + ">");
 					for (int i = 0; i < amount; i++) {
-						instance.getScheduler().runTaskSyncLater(() -> {
+						instance.getScheduler().sync().runLater(() -> {
 							instance.getItemManager().dropItem(player, hook.getLocation(), player.getLocation(),
 									pair.left().clone(), fishingPreparation);
 							doSuccessActions(loot, fishingPreparation, player);
@@ -628,12 +632,12 @@ public class FishingManager implements Listener, FishingManagerInterface {
 										net.kyori.adventure.key.Key.key("minecraft:entity.experience_orb.pickup"), 1,
 										1);
 							}
-						}, hook.getLocation(), (long) HBConfig.multipleLootSpawnDelay * i);
+						}, (long) HBConfig.multipleLootSpawnDelay * i, hook.getLocation());
 					}
 				}
 			} else {
 				for (int i = 0; i < amount; i++) {
-					instance.getScheduler().runTaskSyncLater(() -> {
+					instance.getScheduler().sync().runLater(() -> {
 						ItemStack item = instance.getItemManager().build(player, "item", loot.getID(),
 								fishingPreparation.getArgs());
 						if (item == null) {
@@ -643,22 +647,23 @@ public class FishingManager implements Listener, FishingManagerInterface {
 						instance.getItemManager().dropItem(player, hook.getLocation(), player.getLocation(), item,
 								fishingPreparation);
 						doSuccessActions(loot, fishingPreparation, player);
-					}, hook.getLocation(), (long) HBConfig.multipleLootSpawnDelay * i);
+					}, (long) HBConfig.multipleLootSpawnDelay * i, hook.getLocation());
 				}
 			}
 
-			OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
-			if (onlineUser == null)
+			Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
+			if (onlineUser.isEmpty() || onlineUser.get().getPlayer() == null)
 				return;
-			if (!onlineUser.getChallengeData().isChallengeActive(ChallengeType.LAVA_FISHING_CHALLENGE)
-					&& !onlineUser.getChallengeData().isChallengeCompleted(ChallengeType.LAVA_FISHING_CHALLENGE)) {
-				onlineUser.getChallengeData().beginChallengeProgression(onlineUser.getPlayer(),
+			if (!onlineUser.get().getChallengeData().isChallengeActive(ChallengeType.LAVA_FISHING_CHALLENGE)
+					&& !onlineUser.get().getChallengeData()
+							.isChallengeCompleted(ChallengeType.LAVA_FISHING_CHALLENGE)) {
+				onlineUser.get().getChallengeData().beginChallengeProgression(onlineUser.get().getPlayer(),
 						ChallengeType.LAVA_FISHING_CHALLENGE);
 			} else {
-				onlineUser.getChallengeData().updateChallengeProgression(onlineUser.getPlayer(),
+				onlineUser.get().getChallengeData().updateChallengeProgression(onlineUser.get().getPlayer(),
 						ChallengeType.LAVA_FISHING_CHALLENGE, 1);
-				if (onlineUser.getChallengeData().isChallengeCompleted(ChallengeType.LAVA_FISHING_CHALLENGE)) {
-					onlineUser.getChallengeData().completeChallenge(onlineUser.getPlayer(),
+				if (onlineUser.get().getChallengeData().isChallengeCompleted(ChallengeType.LAVA_FISHING_CHALLENGE)) {
+					onlineUser.get().getChallengeData().completeChallenge(onlineUser.get().getPlayer(),
 							ChallengeType.LAVA_FISHING_CHALLENGE);
 				}
 			}

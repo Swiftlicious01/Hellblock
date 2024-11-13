@@ -1,6 +1,7 @@
 package com.swiftlicious.hellblock.loot;
 
 import java.util.HashMap;
+import java.util.Map;
 
 import org.jetbrains.annotations.NotNull;
 
@@ -13,8 +14,8 @@ public class HBLoot implements Loot {
 
 	private final String id;
 	private final LootType type;
-	private final HashMap<ActionTrigger, Action[]> actionMap;
-	private final HashMap<Integer, Action[]> successTimesActionMap;
+	private final Map<ActionTrigger, Action[]> actionMap;
+	private final Map<Integer, Action[]> successTimesActionMap;
 	private String nick;
 	private boolean showInFinder;
 	private boolean disableGlobalAction;
@@ -123,11 +124,11 @@ public class HBLoot implements Loot {
 		/**
 		 * Add actions triggered by multiple triggers.
 		 *
-		 * @param actionMap A map of triggers to actions.
+		 * @param map A map of triggers to actions.
 		 * @return The builder.
 		 */
-		public Builder addActions(HashMap<ActionTrigger, Action[]> actionMap) {
-			this.loot.actionMap.putAll(actionMap);
+		public Builder addActions(Map<ActionTrigger, Action[]> map) {
+			this.loot.actionMap.putAll(map);
 			return this;
 		}
 
@@ -149,7 +150,7 @@ public class HBLoot implements Loot {
 		 * @param actionMap A map of numbers of successes to actions.
 		 * @return The builder.
 		 */
-		public Builder addTimesActions(HashMap<Integer, Action[]> actionMap) {
+		public Builder addTimesActions(Map<Integer, Action[]> actionMap) {
 			this.loot.successTimesActionMap.putAll(actionMap);
 			return this;
 		}
@@ -220,7 +221,7 @@ public class HBLoot implements Loot {
 	}
 
 	@Override
-	public HashMap<Integer, Action[]> getSuccessTimesActionMap() {
+	public Map<Integer, Action[]> getSuccessTimesActionMap() {
 		return successTimesActionMap;
 	}
 }

@@ -9,9 +9,6 @@ import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
-import org.bukkit.Registry;
-import org.bukkit.configuration.ConfigurationSection;
-import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Item;
 import org.bukkit.entity.Player;
@@ -49,12 +46,12 @@ import com.swiftlicious.hellblock.utils.extras.Pair;
 import com.swiftlicious.hellblock.utils.extras.Tuple;
 import com.swiftlicious.hellblock.utils.extras.Value;
 
-import io.papermc.paper.registry.RegistryAccess;
-import io.papermc.paper.registry.RegistryKey;
+import dev.dejvokep.boostedyaml.YamlDocument;
+import dev.dejvokep.boostedyaml.block.implementation.Section;
 
 public class ItemManager implements ItemManagerInterface, Listener {
 
-	private final HellblockPlugin instance;
+	protected final HellblockPlugin instance;
 	private final Map<Key, BuildableItem> buildableItemMap;
 	private final Map<String, ItemLibrary> itemLibraryMap;
 	private ItemLibrary[] itemDetectionArray;
@@ -67,12 +64,14 @@ public class ItemManager implements ItemManagerInterface, Listener {
 		this.registerItemLibrary(new VanillaItem());
 	}
 
+	@Override
 	public void load() {
 		this.loadItemsFromPluginFolder();
 		Bukkit.getPluginManager().registerEvents(this, instance);
 		this.resetItemDetectionOrder();
 	}
 
+	@Override
 	public void unload() {
 		HandlerList.unregisterAll(this);
 		Map<Key, BuildableItem> tempMap = new HashMap<>(this.buildableItemMap);
@@ -109,6 +108,7 @@ public class ItemManager implements ItemManagerInterface, Listener {
 		return buildableItemMap.keySet();
 	}
 
+	@Override
 	public void disable() {
 		HandlerList.unregisterAll(this);
 		this.buildableItemMap.clear();
@@ -154,10 +154,10 @@ public class ItemManager implements ItemManagerInterface, Listener {
 	 *                  hook).
 	 */
 	private void loadSingleFile(File file, String namespace) {
-		YamlConfiguration yaml = YamlConfiguration.loadConfiguration(file);
-		for (Map.Entry<String, Object> entry : yaml.getValues(false).entrySet()) {
+		YamlDocument yaml = instance.getConfigManager().loadData(file);
+		for (Map.Entry<String, Object> entry : yaml.getStringRouteMappedValues(false).entrySet()) {
 			String value = entry.getKey();
-			if (entry.getValue() instanceof ConfigurationSection section) {
+			if (entry.getValue() instanceof Section section) {
 				Key key = Key.of(namespace, value);
 				if (buildableItemMap.containsKey(key)) {
 					LogUtils.severe(String.format("Duplicated item key found: %s.", key));
@@ -303,9 +303,9 @@ public class ItemManager implements ItemManagerInterface, Listener {
 	}
 
 	/**
-	 * Create a HBBuilder instance for an item configuration section
+	 * Create a HBBuilder instance for an item section
 	 *
-	 * @param section The configuration section containing item settings.
+	 * @param section The section containing item settings.
 	 * @param type    The type of the item (e.g., "rod", "bait").
 	 * @param id      The unique identifier for the item.
 	 * @return A HBBuilder instance representing the configured item, or null if the
@@ -313,7 +313,7 @@ public class ItemManager implements ItemManagerInterface, Listener {
 	 */
 	@Nullable
 	@Override
-	public HBBuilder getItemBuilder(ConfigurationSection section, String type, String id) {
+	public HBBuilder getItemBuilder(Section section, String type, String id) {
 		if (section == null)
 			return null;
 		String material = section.getString("material", type.equals("rod") ? "FISHING_ROD" : "PAPER");
@@ -326,29 +326,26 @@ public class ItemManager implements ItemManagerInterface, Listener {
 		}
 		itemHBBuilder.stackable(section.getBoolean("stackable", true))
 				.size(instance.getConfigUtils().getFloatPair(section.getString("size")))
-				.price((float) section.getDouble("price.base"), (float) section.getDouble("price.bonus"))
+				.price(section.getFloat("price.base"), section.getFloat("price.bonus"))
 				.customModelData(section.getInt("custom-model-data")).maxDurability(section.getInt("max-durability"))
-				.enchantment(
-						instance.getConfigUtils().getEnchantmentPair(section.getConfigurationSection("enchantments")),
-						false)
-				.enchantment(instance.getConfigUtils()
-						.getEnchantmentPair(section.getConfigurationSection("stored-enchantments")), true)
-				.enchantmentPool(
-						instance.getConfigUtils()
-								.getEnchantAmountPair(section.getConfigurationSection("enchantment-pool.amount")),
-						instance.getConfigUtils()
-								.getEnchantPoolPair(section.getConfigurationSection("enchantment-pool.pool")),
-						false)
-				.enchantmentPool(
-						instance.getConfigUtils().getEnchantAmountPair(
-								section.getConfigurationSection("stored-enchantment-pool.amount")),
-						instance.getConfigUtils().getEnchantPoolPair(
-								section.getConfigurationSection("stored-enchantment-pool.pool")),
+				.enchantment(instance.getConfigUtils().getEnchantmentPair(section.getSection("enchantments")), false)
+				.enchantment(instance.getConfigUtils().getEnchantmentPair(section.getSection("stored-enchantments")),
 						true)
-				.randomEnchantments(instance.getConfigUtils()
-						.getEnchantmentTuple(section.getConfigurationSection("random-enchantments")), false)
-				.randomEnchantments(instance.getConfigUtils()
-						.getEnchantmentTuple(section.getConfigurationSection("random-stored-enchantments")), true)
+				.enchantmentPool(
+						instance.getConfigUtils().getEnchantAmountPair(section.getSection("enchantment-pool.amount")),
+						instance.getConfigUtils().getEnchantPoolPair(section.getSection("enchantment-pool.pool")),
+						false)
+				.enchantmentPool(
+						instance.getConfigUtils()
+								.getEnchantAmountPair(section.getSection("stored-enchantment-pool.amount")),
+						instance.getConfigUtils()
+								.getEnchantPoolPair(section.getSection("stored-enchantment-pool.pool")),
+						true)
+				.randomEnchantments(
+						instance.getConfigUtils().getEnchantmentTuple(section.getSection("random-enchantments")), false)
+				.randomEnchantments(
+						instance.getConfigUtils().getEnchantmentTuple(section.getSection("random-stored-enchantments")),
+						true)
 				.tag(section.getBoolean("tag", true), type, id)
 				.randomDamage(section.getBoolean("random-durability", false))
 				.unbreakable(section.getBoolean("unbreakable", false))
@@ -458,7 +455,7 @@ public class ItemManager implements ItemManagerInterface, Listener {
 		}
 
 		itemEntity.setInvulnerable(true);
-		instance.getScheduler().runTaskAsyncLater(() -> {
+		instance.getScheduler().asyncLater(() -> {
 			if (itemEntity.isValid()) {
 				itemEntity.setInvulnerable(false);
 			}
@@ -648,7 +645,7 @@ public class ItemManager implements ItemManagerInterface, Listener {
 				return this;
 			editors.put("random-enchantment", (player, item, placeholders) -> {
 				RtagItem tagItem = new RtagItem(item);
-				HashSet<String> ids = new HashSet<>();
+				Set<String> ids = new HashSet<>();
 				Map<String, Integer> enchants = new HashMap<>();
 				for (Tuple<Double, String, Short> pair : enchantments) {
 					if (Math.random() < pair.left() && !ids.contains(pair.mid())) {
@@ -680,17 +677,13 @@ public class ItemManager implements ItemManagerInterface, Listener {
 				if (amount <= 0)
 					return;
 
-				HashSet<Enchantment> addedEnchantments = new HashSet<>();
+				Set<Enchantment> addedEnchantments = new HashSet<>();
 				Map<String, Integer> enchants = new HashMap<>();
 
 				List<Pair<Pair<String, Short>, Double>> cloned = new ArrayList<>(enchantments.size());
 				for (Pair<Pair<String, Short>, Value> rawValue : enchantments) {
 					cloned.add(Pair.of(rawValue.left(), rawValue.right().get(player, map)));
 				}
-
-				// Fetch the enchantment registry from the registry access
-				final Registry<Enchantment> enchantmentRegistry = RegistryAccess.registryAccess()
-						.getRegistry(RegistryKey.ENCHANTMENT);
 
 				int i = 0;
 				outer: while (i < amount && cloned.size() != 0) {
@@ -699,7 +692,8 @@ public class ItemManager implements ItemManagerInterface, Listener {
 					// Get the sharpness enchantment using its key.
 					// getOrThrow may be replaced with get if the registry may not contain said
 					// value
-					Enchantment enchantment = enchantmentRegistry
+					Enchantment enchantment = HellblockPlugin.getInstance().getHellblockHandler()
+							.getEnchantmentRegistry()
 							.getOrThrow(NamespacedKey.fromString(enchantPair.left().toLowerCase()));
 
 					if (enchantment == null) {
@@ -887,7 +881,7 @@ public class ItemManager implements ItemManagerInterface, Listener {
 	 */
 	@EventHandler(ignoreCancelled = true)
 	public void onPickUp(PlayerAttemptPickupItemEvent event) {
-		if (!event.getPlayer().getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!event.getPlayer().getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 		Player player = event.getPlayer();
 		ItemStack itemStack = event.getItem().getItemStack();
@@ -924,7 +918,7 @@ public class ItemManager implements ItemManagerInterface, Listener {
 	 */
 	@EventHandler(ignoreCancelled = true)
 	public void onConsumeItem(PlayerItemConsumeEvent event) {
-		if (!event.getPlayer().getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!event.getPlayer().getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 		ItemStack itemStack = event.getItem();
 		String id = getAnyPluginItemID(itemStack);
@@ -969,7 +963,7 @@ public class ItemManager implements ItemManagerInterface, Listener {
 	 */
 	@EventHandler(ignoreCancelled = true)
 	public void onMending(PlayerItemMendEvent event) {
-		if (!event.getPlayer().getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!event.getPlayer().getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 		ItemStack itemStack = event.getItem();
 		if (!isLavaFishingItem(itemStack))
@@ -985,7 +979,7 @@ public class ItemManager implements ItemManagerInterface, Listener {
 	 */
 	@EventHandler
 	public void onInteractWithItems(PlayerInteractEvent event) {
-		if (!event.getPlayer().getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!event.getPlayer().getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 		if (event.useItemInHand() == org.bukkit.event.Event.Result.DENY)
 			return;

@@ -5,9 +5,6 @@ package com.swiftlicious.hellblock.database.dependency;
  */
 public class DependencyDownloadException extends Exception {
 
-	/**
-	 * 
-	 */
 	private static final long serialVersionUID = -6369230146193750527L;
 
 	public DependencyDownloadException() {

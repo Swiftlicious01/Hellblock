@@ -1,6 +1,5 @@
 package com.swiftlicious.hellblock.database.dependency;
 
-import java.io.File;
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -10,17 +9,21 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.EnumMap;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.TimeZone;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 
-import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
-
-import com.google.common.collect.ImmutableSet;
 import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.database.dependency.classloader.IsolatedClassLoader;
+import com.swiftlicious.hellblock.database.dependency.classpath.ClassPathAppender;
+import com.swiftlicious.hellblock.database.dependency.relocation.Relocation;
+import com.swiftlicious.hellblock.database.dependency.relocation.RelocationHandler;
+import com.swiftlicious.hellblock.utils.FileUtils;
+import com.swiftlicious.hellblock.utils.LogUtils;
 
 /**
  * Loads and manages runtime dependencies for the plugin.
@@ -36,30 +39,27 @@ public class DependencyManager implements DependencyManagerInterface {
 	/** A map of dependencies which have already been loaded. */
 	private final EnumMap<Dependency, Path> loaded = new EnumMap<>(Dependency.class);
 	/** A map of isolated classloaders which have been created. */
-	private final Map<ImmutableSet<Dependency>, IsolatedClassLoader> loaders = new HashMap<>();
+	private final Map<Set<Dependency>, IsolatedClassLoader> loaders = new HashMap<>();
 	/** Cached relocation handler instance. */
-	private @MonotonicNonNull RelocationHandler relocationHandler = null;
+	private final RelocationHandler relocationHandler;
+	/** The executor to use when loading dependencies */
+	private final Executor loadingExecutor;
 
-	public DependencyManager(HellblockPlugin plugin, ClassPathAppender classPathAppender) {
+	public DependencyManager(HellblockPlugin plugin) {
 		this.registry = new DependencyRegistry();
 		this.cacheDirectory = setupCacheDirectory(plugin);
-		this.classPathAppender = classPathAppender;
-	}
-
-	private synchronized RelocationHandler getRelocationHandler() {
-		if (this.relocationHandler == null) {
-			this.relocationHandler = new RelocationHandler(this);
-		}
-		return this.relocationHandler;
+		this.classPathAppender = plugin.getClassPathAppender();
+		this.loadingExecutor = plugin.getScheduler().async();
+		this.relocationHandler = new RelocationHandler(this);
 	}
 
 	@Override
 	public ClassLoader obtainClassLoaderWith(Set<Dependency> dependencies) {
-		ImmutableSet<Dependency> set = ImmutableSet.copyOf(dependencies);
+		Set<Dependency> set = new HashSet<>(dependencies);
 
 		for (Dependency dependency : dependencies) {
 			if (!this.loaded.containsKey(dependency)) {
-				throw new IllegalStateException("Dependency " + dependency + " is not loaded.");
+				throw new IllegalStateException(String.format("Dependency %s is not loaded.", dependency));
 			}
 		}
 
@@ -72,8 +72,8 @@ public class DependencyManager implements DependencyManagerInterface {
 			URL[] urls = set.stream().map(this.loaded::get).map(file -> {
 				try {
 					return file.toUri().toURL();
-				} catch (MalformedURLException e) {
-					throw new RuntimeException(e);
+				} catch (MalformedURLException ex) {
+					throw new RuntimeException(ex);
 				}
 			}).toArray(URL[]::new);
 
@@ -93,18 +93,20 @@ public class DependencyManager implements DependencyManagerInterface {
 				continue;
 			}
 
-			try {
-				loadDependency(dependency);
-			} catch (Throwable e) {
-				new RuntimeException("Unable to load dependency " + dependency.name(), e).printStackTrace();
-			} finally {
-				latch.countDown();
-			}
+			this.loadingExecutor.execute(() -> {
+				try {
+					loadDependency(dependency);
+				} catch (Throwable ex) {
+					LogUtils.warn(String.format("Unable to load dependency %s", dependency.name()), ex);
+				} finally {
+					latch.countDown();
+				}
+			});
 		}
 
 		try {
 			latch.await();
-		} catch (InterruptedException e) {
+		} catch (InterruptedException ex) {
 			Thread.currentThread().interrupt();
 		}
 	}
@@ -124,7 +126,8 @@ public class DependencyManager implements DependencyManagerInterface {
 	}
 
 	private Path downloadDependency(Dependency dependency) throws DependencyDownloadException {
-		Path file = this.cacheDirectory.resolve(dependency.getFileName(null));
+		String fileName = dependency.getFileName(null);
+		Path file = this.cacheDirectory.resolve(fileName);
 
 		// if the file already exists, don't attempt to re-download it.
 		if (Files.exists(file)) {
@@ -132,29 +135,20 @@ public class DependencyManager implements DependencyManagerInterface {
 		}
 
 		DependencyDownloadException lastError = null;
-
 		String forceRepo = dependency.getRepo();
-		if (forceRepo == null) {
-			// attempt to download the dependency from each repo in order.
-			for (DependencyRepository repo : DependencyRepository.values()) {
-				if (repo.getId().equals("maven") && TimeZone.getDefault().getID().startsWith("Asia")) {
-					continue;
-				}
+		List<DependencyRepository> repository = DependencyRepository.getByID(forceRepo);
+		if (!repository.isEmpty()) {
+			int i = 0;
+			while (i < repository.size()) {
 				try {
-					repo.download(dependency, file);
+					LogUtils.info(String.format("Downloading dependency(%s) [%s	| %s]", fileName,
+							repository.get(i).getUrl(), dependency.getMavenRepoPath()));
+					repository.get(i).download(dependency, file);
+					LogUtils.info(String.format("Successfully downloaded %s", fileName));
 					return file;
-				} catch (DependencyDownloadException e) {
-					lastError = e;
-				}
-			}
-		} else {
-			DependencyRepository repository = DependencyRepository.getByID(forceRepo);
-			if (repository != null) {
-				try {
-					repository.download(dependency, file);
-					return file;
-				} catch (DependencyDownloadException e) {
-					lastError = e;
+				} catch (DependencyDownloadException ex) {
+					lastError = ex;
+					i++;
 				}
 			}
 		}
@@ -175,14 +169,21 @@ public class DependencyManager implements DependencyManagerInterface {
 			return remappedFile;
 		}
 
-		getRelocationHandler().remap(normalFile, remappedFile, rules);
+		LogUtils.info("Remapping " + dependency.getFileName(null));
+		relocationHandler.remap(normalFile, remappedFile, rules);
+		LogUtils.info("Successfully remapped " + dependency.getFileName(null));
 		return remappedFile;
 	}
 
 	private static Path setupCacheDirectory(HellblockPlugin plugin) {
-		File folder = new File(plugin.getDataFolder(), "libs");
-		folder.mkdirs();
-		return folder.toPath();
+		Path cacheDirectory = plugin.getDataFolder().toPath().toAbsolutePath().resolve("libs");
+		try {
+			FileUtils.createDirectoriesIfNotExists(cacheDirectory);
+		} catch (IOException ex) {
+			throw new RuntimeException("Unable to create libs directory", ex);
+		}
+
+		return cacheDirectory;
 	}
 
 	@Override
@@ -202,8 +203,7 @@ public class DependencyManager implements DependencyManagerInterface {
 		}
 
 		if (firstEx != null) {
-			firstEx.printStackTrace();
+			LogUtils.severe(firstEx.getMessage(), firstEx);
 		}
 	}
-
 }

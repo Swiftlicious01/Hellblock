@@ -1,6 +1,6 @@
 package com.swiftlicious.hellblock.loot;
 
-import java.util.HashMap;
+import java.util.Map;
 
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -90,5 +90,5 @@ public interface Loot {
 	 *
 	 * @return A map of actions triggered by success times.
 	 */
-	HashMap<Integer, Action[]> getSuccessTimesActionMap();
+	Map<Integer, Action[]> getSuccessTimesActionMap();
 }

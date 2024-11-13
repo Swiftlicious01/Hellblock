@@ -1,8 +1,10 @@
-package com.swiftlicious.hellblock.database.dependency;
+package com.swiftlicious.hellblock.database.dependency.classpath;
 
 import java.net.MalformedURLException;
 import java.net.URLClassLoader;
 import java.nio.file.Path;
+
+import com.swiftlicious.hellblock.HellblockPlugin;
 
 public class ReflectionClassPathAppender implements ClassPathAppender {
 	private final URLClassLoaderAccess classLoaderAccess;
@@ -15,6 +17,10 @@ public class ReflectionClassPathAppender implements ClassPathAppender {
 		}
 	}
 
+	public ReflectionClassPathAppender(HellblockPlugin plugin) throws IllegalStateException {
+		this(plugin.getClass().getClassLoader());
+	}
+
 	@Override
 	public void addJarToClasspath(Path file) {
 		try {
@@ -23,5 +29,4 @@ public class ReflectionClassPathAppender implements ClassPathAppender {
 			throw new RuntimeException(e);
 		}
 	}
-
 }

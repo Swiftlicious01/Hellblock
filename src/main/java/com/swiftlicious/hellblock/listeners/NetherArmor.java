@@ -2,13 +2,13 @@ package com.swiftlicious.hellblock.listeners;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 import org.bukkit.Bukkit;
 import org.bukkit.GameRule;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
-import org.bukkit.Registry;
 import org.bukkit.block.Block;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
@@ -29,161 +29,43 @@ import com.destroystokyo.paper.event.player.PlayerArmorChangeEvent;
 import com.saicone.rtag.RtagItem;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.challenges.HellblockChallenge.ChallengeType;
-import com.swiftlicious.hellblock.player.OnlineUser;
+import com.swiftlicious.hellblock.config.HBConfig;
+import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.utils.LogUtils;
 import com.swiftlicious.hellblock.utils.wrappers.ShadedAdventureComponentWrapper;
 
-import io.papermc.paper.registry.RegistryAccess;
-import io.papermc.paper.registry.RegistryKey;
 import xyz.xenondevs.inventoryaccess.component.ComponentWrapper;
 import xyz.xenondevs.invui.item.builder.ItemBuilder;
 
 public class NetherArmor implements Listener {
 
-	private final HellblockPlugin instance;
+	protected final HellblockPlugin instance;
 
 	private final NamespacedKey netherrackHelmetKey, netherrackChestplateKey, netherrackLeggingsKey, netherrackBootsKey,
 			glowstoneHelmetKey, glowstoneChestplateKey, glowstoneLeggingsKey, glowstoneBootsKey, quartzHelmetKey,
 			quartzChestplateKey, quartzLeggingsKey, quartzBootsKey, netherstarHelmetKey, netherstarChestplateKey,
 			netherstarLeggingsKey, netherstarBootsKey;
 
-	public boolean nrArmor;
-	public String nrHelmetName;
-	public List<String> nrHelmetLore;
-	public List<String> nrHelmetEnchants;
-	public String nrChestplateName;
-	public List<String> nrChestplateLore;
-	public List<String> nrChestplateEnchants;
-	public String nrLeggingsName;
-	public List<String> nrLeggingsLore;
-	public List<String> nrLeggingsEnchants;
-	public String nrBootsName;
-	public List<String> nrBootsLore;
-	public List<String> nrBootsEnchants;
-	public boolean gsArmor;
-	public boolean gsNightVisionArmor;
-	public String gsHelmetName;
-	public List<String> gsHelmetLore;
-	public List<String> gsHelmetEnchants;
-	public String gsChestplateName;
-	public List<String> gsChestplateLore;
-	public List<String> gsChestplateEnchants;
-	public String gsLeggingsName;
-	public List<String> gsLeggingsLore;
-	public List<String> gsLeggingsEnchants;
-	public String gsBootsName;
-	public List<String> gsBootsLore;
-	public List<String> gsBootsEnchants;
-	public boolean qzArmor;
-	public String qzHelmetName;
-	public List<String> qzHelmetLore;
-	public List<String> qzHelmetEnchants;
-	public String qzChestplateName;
-	public List<String> qzChestplateLore;
-	public List<String> qzChestplateEnchants;
-	public String qzLeggingsName;
-	public List<String> qzLeggingsLore;
-	public List<String> qzLeggingsEnchants;
-	public String qzBootsName;
-	public List<String> qzBootsLore;
-	public List<String> qzBootsEnchants;
-	public boolean nsArmor;
-	public String nsHelmetName;
-	public List<String> nsHelmetLore;
-	public List<String> nsHelmetEnchants;
-	public String nsChestplateName;
-	public List<String> nsChestplateLore;
-	public List<String> nsChestplateEnchants;
-	public String nsLeggingsName;
-	public List<String> nsLeggingsLore;
-	public List<String> nsLeggingsEnchants;
-	public String nsBootsName;
-	public List<String> nsBootsLore;
-	public List<String> nsBootsEnchants;
-
 	private final Set<Material> netherrackArmor, glowstoneArmor, quartzArmor, netherstarArmor;
 
-	private final Registry<Enchantment> enchantmentRegistry;
-
 	public NetherArmor(HellblockPlugin plugin) {
-		this.instance = plugin;
-		this.enchantmentRegistry = RegistryAccess.registryAccess().getRegistry(RegistryKey.ENCHANTMENT);
-		this.netherrackHelmetKey = new NamespacedKey(this.instance, "netherrackhelmet");
-		this.netherrackChestplateKey = new NamespacedKey(this.instance, "netherrackchestplate");
-		this.netherrackLeggingsKey = new NamespacedKey(this.instance, "netherrackleggings");
-		this.netherrackBootsKey = new NamespacedKey(this.instance, "netherrackboots");
-		this.glowstoneHelmetKey = new NamespacedKey(this.instance, "glowstonehelmet");
-		this.glowstoneChestplateKey = new NamespacedKey(this.instance, "glowstonechestplate");
-		this.glowstoneLeggingsKey = new NamespacedKey(this.instance, "glowstoneleggings");
-		this.glowstoneBootsKey = new NamespacedKey(this.instance, "glowstoneboots");
-		this.quartzHelmetKey = new NamespacedKey(this.instance, "quartzhelmet");
-		this.quartzChestplateKey = new NamespacedKey(this.instance, "quartzchestplate");
-		this.quartzLeggingsKey = new NamespacedKey(this.instance, "quartzleggings");
-		this.quartzBootsKey = new NamespacedKey(this.instance, "quartzboots");
-		this.netherstarHelmetKey = new NamespacedKey(this.instance, "netherstarhelmet");
-		this.netherstarChestplateKey = new NamespacedKey(this.instance, "netherstarchestplate");
-		this.netherstarLeggingsKey = new NamespacedKey(this.instance, "netherstarleggings");
-		this.netherstarBootsKey = new NamespacedKey(this.instance, "netherstarboots");
-		this.nrArmor = instance.getConfig("config.yml").getBoolean("armor.netherrack.enable", true);
-		this.nrHelmetName = instance.getConfig("config.yml").getString("armor.netherrack.helmet.name");
-		this.nrHelmetLore = instance.getConfig("config.yml").getStringList("armor.netherrack.helmet.lore");
-		this.nrHelmetEnchants = instance.getConfig("config.yml").getStringList("armor.netherrack.helmet.enchantments");
-		this.nrChestplateName = instance.getConfig("config.yml").getString("armor.netherrack.chestplate.name");
-		this.nrChestplateLore = instance.getConfig("config.yml").getStringList("armor.netherrack.chestplate.lore");
-		this.nrChestplateEnchants = instance.getConfig("config.yml")
-				.getStringList("armor.netherrack.chestplate.enchantments");
-		this.nrLeggingsName = instance.getConfig("config.yml").getString("armor.netherrack.leggings.name");
-		this.nrLeggingsLore = instance.getConfig("config.yml").getStringList("armor.netherrack.leggings.lore");
-		this.nrLeggingsEnchants = instance.getConfig("config.yml")
-				.getStringList("armor.netherrack.leggings.enchantments");
-		this.nrBootsName = instance.getConfig("config.yml").getString("armor.netherrack.boots.name");
-		this.nrBootsLore = instance.getConfig("config.yml").getStringList("armor.netherrack.boots.lore");
-		this.nrBootsEnchants = instance.getConfig("config.yml").getStringList("armor.netherrack.boots.enchantments");
-		this.gsArmor = instance.getConfig("config.yml").getBoolean("armor.glowstone.enable", true);
-		this.gsNightVisionArmor = instance.getConfig("config.yml").getBoolean("armor.glowstone.night-vision", true);
-		this.gsHelmetName = instance.getConfig("config.yml").getString("armor.glowstone.helmet.name");
-		this.gsHelmetLore = instance.getConfig("config.yml").getStringList("armor.glowstone.helmet.lore");
-		this.gsHelmetEnchants = instance.getConfig("config.yml").getStringList("armor.glowstone.helmet.enchantments");
-		this.gsChestplateName = instance.getConfig("config.yml").getString("armor.glowstone.chestplate.name");
-		this.gsChestplateLore = instance.getConfig("config.yml").getStringList("armor.glowstone.chestplate.lore");
-		this.gsChestplateEnchants = instance.getConfig("config.yml")
-				.getStringList("armor.glowstone.chestplate.enchantments");
-		this.gsLeggingsName = instance.getConfig("config.yml").getString("armor.glowstone.leggings.name");
-		this.gsLeggingsLore = instance.getConfig("config.yml").getStringList("armor.glowstone.leggings.lore");
-		this.gsLeggingsEnchants = instance.getConfig("config.yml")
-				.getStringList("armor.glowstone.leggings.enchantments");
-		this.gsBootsName = instance.getConfig("config.yml").getString("armor.glowstone.boots.name");
-		this.gsBootsLore = instance.getConfig("config.yml").getStringList("armor.glowstone.boots.lore");
-		this.gsBootsEnchants = instance.getConfig("config.yml").getStringList("armor.glowstone.boots.enchantments");
-		this.qzArmor = instance.getConfig("config.yml").getBoolean("armor.quartz.enable", true);
-		this.qzHelmetName = instance.getConfig("config.yml").getString("armor.quartz.helmet.name");
-		this.qzHelmetLore = instance.getConfig("config.yml").getStringList("armor.quartz.helmet.lore");
-		this.qzHelmetEnchants = instance.getConfig("config.yml").getStringList("armor.quartz.helmet.enchantments");
-		this.qzChestplateName = instance.getConfig("config.yml").getString("armor.quartz.chestplate.name");
-		this.qzChestplateLore = instance.getConfig("config.yml").getStringList("armor.quartz.chestplate.lore");
-		this.qzChestplateEnchants = instance.getConfig("config.yml")
-				.getStringList("armor.quartz.chestplate.enchantments");
-		this.qzLeggingsName = instance.getConfig("config.yml").getString("armor.quartz.leggings.name");
-		this.qzLeggingsLore = instance.getConfig("config.yml").getStringList("armor.quartz.leggings.lore");
-		this.qzLeggingsEnchants = instance.getConfig("config.yml").getStringList("armor.quartz.leggings.enchantments");
-		this.qzBootsName = instance.getConfig("config.yml").getString("armor.quartz.boots.name");
-		this.qzBootsLore = instance.getConfig("config.yml").getStringList("armor.quartz.boots.lore");
-		this.qzBootsEnchants = instance.getConfig("config.yml").getStringList("armor.quartz.boots.enchantments");
-		this.nsArmor = instance.getConfig("config.yml").getBoolean("armor.netherstar.enable", true);
-		this.nsHelmetName = instance.getConfig("config.yml").getString("armor.netherstar.helmet.name");
-		this.nsHelmetLore = instance.getConfig("config.yml").getStringList("armor.netherstar.helmet.lore");
-		this.nsHelmetEnchants = instance.getConfig("config.yml").getStringList("armor.netherstar.helmet.enchantments");
-		this.nsChestplateName = instance.getConfig("config.yml").getString("armor.netherstar.chestplate.name");
-		this.nsChestplateLore = instance.getConfig("config.yml").getStringList("armor.netherstar.chestplate.lore");
-		this.nsChestplateEnchants = instance.getConfig("config.yml")
-				.getStringList("armor.netherstar.chestplate.enchantments");
-		this.nsLeggingsName = instance.getConfig("config.yml").getString("armor.netherstar.leggings.name");
-		this.nsLeggingsLore = instance.getConfig("config.yml").getStringList("armor.netherstar.leggings.lore");
-		this.nsLeggingsEnchants = instance.getConfig("config.yml")
-				.getStringList("armor.netherstar.leggings.enchantments");
-		this.nsBootsName = instance.getConfig("config.yml").getString("armor.netherstar.boots.name");
-		this.nsBootsLore = instance.getConfig("config.yml").getStringList("armor.netherstar.boots.lore");
-		this.nsBootsEnchants = instance.getConfig("config.yml").getStringList("armor.netherstar.boots.enchantments");
+		instance = plugin;
+		this.netherrackHelmetKey = new NamespacedKey(instance, "netherrackhelmet");
+		this.netherrackChestplateKey = new NamespacedKey(instance, "netherrackchestplate");
+		this.netherrackLeggingsKey = new NamespacedKey(instance, "netherrackleggings");
+		this.netherrackBootsKey = new NamespacedKey(instance, "netherrackboots");
+		this.glowstoneHelmetKey = new NamespacedKey(instance, "glowstonehelmet");
+		this.glowstoneChestplateKey = new NamespacedKey(instance, "glowstonechestplate");
+		this.glowstoneLeggingsKey = new NamespacedKey(instance, "glowstoneleggings");
+		this.glowstoneBootsKey = new NamespacedKey(instance, "glowstoneboots");
+		this.quartzHelmetKey = new NamespacedKey(instance, "quartzhelmet");
+		this.quartzChestplateKey = new NamespacedKey(instance, "quartzchestplate");
+		this.quartzLeggingsKey = new NamespacedKey(instance, "quartzleggings");
+		this.quartzBootsKey = new NamespacedKey(instance, "quartzboots");
+		this.netherstarHelmetKey = new NamespacedKey(instance, "netherstarhelmet");
+		this.netherstarChestplateKey = new NamespacedKey(instance, "netherstarchestplate");
+		this.netherstarLeggingsKey = new NamespacedKey(instance, "netherstarleggings");
+		this.netherstarBootsKey = new NamespacedKey(instance, "netherstarboots");
 		this.netherrackArmor = Set.of(Material.LEATHER_HELMET, Material.LEATHER_CHESTPLATE, Material.LEATHER_LEGGINGS,
 				Material.LEATHER_BOOTS);
 		this.glowstoneArmor = Set.of(Material.GOLDEN_HELMET, Material.GOLDEN_CHESTPLATE, Material.GOLDEN_LEGGINGS,
@@ -193,12 +75,12 @@ public class NetherArmor implements Listener {
 		this.netherstarArmor = Set.of(Material.DIAMOND_HELMET, Material.DIAMOND_CHESTPLATE, Material.DIAMOND_LEGGINGS,
 				Material.DIAMOND_BOOTS);
 		addArmor();
-		Bukkit.getPluginManager().registerEvents(this, this.instance);
+		Bukkit.getPluginManager().registerEvents(this, instance);
 	}
 
 	public void addArmor() {
 		try {
-			if (this.nrArmor) {
+			if (HBConfig.nrArmor) {
 				Bukkit.removeRecipe(this.netherrackHelmetKey);
 				Bukkit.removeRecipe(this.netherrackChestplateKey);
 				Bukkit.removeRecipe(this.netherrackLeggingsKey);
@@ -214,7 +96,7 @@ public class NetherArmor implements Listener {
 				Bukkit.removeRecipe(this.netherrackBootsKey);
 			}
 
-			if (this.gsArmor) {
+			if (HBConfig.gsArmor) {
 				Bukkit.removeRecipe(this.glowstoneHelmetKey);
 				Bukkit.removeRecipe(this.glowstoneChestplateKey);
 				Bukkit.removeRecipe(this.glowstoneLeggingsKey);
@@ -230,7 +112,7 @@ public class NetherArmor implements Listener {
 				Bukkit.removeRecipe(this.glowstoneBootsKey);
 			}
 
-			if (this.qzArmor) {
+			if (HBConfig.qzArmor) {
 				Bukkit.removeRecipe(this.quartzHelmetKey);
 				Bukkit.removeRecipe(this.quartzChestplateKey);
 				Bukkit.removeRecipe(this.quartzLeggingsKey);
@@ -246,7 +128,7 @@ public class NetherArmor implements Listener {
 				Bukkit.removeRecipe(this.quartzBootsKey);
 			}
 
-			if (this.nsArmor) {
+			if (HBConfig.nsArmor) {
 				Bukkit.removeRecipe(this.netherstarHelmetKey);
 				Bukkit.removeRecipe(this.netherstarChestplateKey);
 				Bukkit.removeRecipe(this.netherstarLeggingsKey);
@@ -270,18 +152,19 @@ public class NetherArmor implements Listener {
 		ItemBuilder armor = new ItemBuilder(Material.LEATHER_HELMET, 1);
 
 		armor.setDisplayName(new ShadedAdventureComponentWrapper(
-				instance.getAdventureManager().getComponentFromMiniMessage(nrHelmetName)));
+				instance.getAdventureManager().getComponentFromMiniMessage(HBConfig.nrHelmetName)));
 
 		List<ComponentWrapper> lore = new ArrayList<>();
-		for (String newLore : nrHelmetLore) {
+		for (String newLore : HBConfig.nrHelmetLore) {
 			lore.add(new ShadedAdventureComponentWrapper(
 					instance.getAdventureManager().getComponentFromMiniMessage(newLore)));
 		}
 		armor.setLore(lore);
 
-		for (String enchants : nrHelmetEnchants) {
+		for (String enchants : HBConfig.nrHelmetEnchants) {
 			String[] split = enchants.split(":");
-			Enchantment enchantment = enchantmentRegistry.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
+			Enchantment enchantment = instance.getHellblockHandler().getEnchantmentRegistry()
+					.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
 			int level = 1;
 			try {
 				level = Integer.parseInt(split[1]);
@@ -292,9 +175,9 @@ public class NetherArmor implements Listener {
 			armor.addEnchantment(enchantment, level, false);
 		}
 
-		ItemStack data = setArmorData(armor.get(), nrArmor);
+		ItemStack data = setArmorData(armor.get(), HBConfig.nrArmor);
 
-		ShapedRecipe recipe = new ShapedRecipe(netherrackHelmetKey, data);
+		ShapedRecipe recipe = new ShapedRecipe(this.netherrackHelmetKey, data);
 		recipe.shape(new String[] { "NNN", "N N", "   " });
 		recipe.setIngredient('N', Material.NETHERRACK);
 		return recipe;
@@ -304,18 +187,19 @@ public class NetherArmor implements Listener {
 		ItemBuilder armor = new ItemBuilder(Material.LEATHER_CHESTPLATE, 1);
 
 		armor.setDisplayName(new ShadedAdventureComponentWrapper(
-				instance.getAdventureManager().getComponentFromMiniMessage(nrChestplateName)));
+				instance.getAdventureManager().getComponentFromMiniMessage(HBConfig.nrChestplateName)));
 
 		List<ComponentWrapper> lore = new ArrayList<>();
-		for (String newLore : nrChestplateLore) {
+		for (String newLore : HBConfig.nrChestplateLore) {
 			lore.add(new ShadedAdventureComponentWrapper(
 					instance.getAdventureManager().getComponentFromMiniMessage(newLore)));
 		}
 		armor.setLore(lore);
 
-		for (String enchants : nrChestplateEnchants) {
+		for (String enchants : HBConfig.nrChestplateEnchants) {
 			String[] split = enchants.split(":");
-			Enchantment enchantment = enchantmentRegistry.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
+			Enchantment enchantment = instance.getHellblockHandler().getEnchantmentRegistry()
+					.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
 			int level = 1;
 			try {
 				level = Integer.parseInt(split[1]);
@@ -326,9 +210,9 @@ public class NetherArmor implements Listener {
 			armor.addEnchantment(enchantment, level, false);
 		}
 
-		ItemStack data = setArmorData(armor.get(), nrArmor);
+		ItemStack data = setArmorData(armor.get(), HBConfig.nrArmor);
 
-		ShapedRecipe recipe = new ShapedRecipe(netherrackChestplateKey, data);
+		ShapedRecipe recipe = new ShapedRecipe(this.netherrackChestplateKey, data);
 		recipe.shape(new String[] { "N N", "NNN", "NNN" });
 		recipe.setIngredient('N', Material.NETHERRACK);
 		return recipe;
@@ -338,18 +222,19 @@ public class NetherArmor implements Listener {
 		ItemBuilder armor = new ItemBuilder(Material.LEATHER_LEGGINGS, 1);
 
 		armor.setDisplayName(new ShadedAdventureComponentWrapper(
-				instance.getAdventureManager().getComponentFromMiniMessage(nrLeggingsName)));
+				instance.getAdventureManager().getComponentFromMiniMessage(HBConfig.nrLeggingsName)));
 
 		List<ComponentWrapper> lore = new ArrayList<>();
-		for (String newLore : nrLeggingsLore) {
+		for (String newLore : HBConfig.nrLeggingsLore) {
 			lore.add(new ShadedAdventureComponentWrapper(
 					instance.getAdventureManager().getComponentFromMiniMessage(newLore)));
 		}
 		armor.setLore(lore);
 
-		for (String enchants : nrLeggingsEnchants) {
+		for (String enchants : HBConfig.nrLeggingsEnchants) {
 			String[] split = enchants.split(":");
-			Enchantment enchantment = enchantmentRegistry.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
+			Enchantment enchantment = instance.getHellblockHandler().getEnchantmentRegistry()
+					.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
 			int level = 1;
 			try {
 				level = Integer.parseInt(split[1]);
@@ -360,9 +245,9 @@ public class NetherArmor implements Listener {
 			armor.addEnchantment(enchantment, level, false);
 		}
 
-		ItemStack data = setArmorData(armor.get(), nrArmor);
+		ItemStack data = setArmorData(armor.get(), HBConfig.nrArmor);
 
-		ShapedRecipe recipe = new ShapedRecipe(netherrackLeggingsKey, data);
+		ShapedRecipe recipe = new ShapedRecipe(this.netherrackLeggingsKey, data);
 		recipe.shape(new String[] { "NNN", "N N", "N N" });
 		recipe.setIngredient('N', Material.NETHERRACK);
 		return recipe;
@@ -372,18 +257,19 @@ public class NetherArmor implements Listener {
 		ItemBuilder armor = new ItemBuilder(Material.LEATHER_BOOTS, 1);
 
 		armor.setDisplayName(new ShadedAdventureComponentWrapper(
-				instance.getAdventureManager().getComponentFromMiniMessage(nrBootsName)));
+				instance.getAdventureManager().getComponentFromMiniMessage(HBConfig.nrBootsName)));
 
 		List<ComponentWrapper> lore = new ArrayList<>();
-		for (String newLore : nrBootsLore) {
+		for (String newLore : HBConfig.nrBootsLore) {
 			lore.add(new ShadedAdventureComponentWrapper(
 					instance.getAdventureManager().getComponentFromMiniMessage(newLore)));
 		}
 		armor.setLore(lore);
 
-		for (String enchants : nrBootsEnchants) {
+		for (String enchants : HBConfig.nrBootsEnchants) {
 			String[] split = enchants.split(":");
-			Enchantment enchantment = enchantmentRegistry.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
+			Enchantment enchantment = instance.getHellblockHandler().getEnchantmentRegistry()
+					.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
 			int level = 1;
 			try {
 				level = Integer.parseInt(split[1]);
@@ -394,9 +280,9 @@ public class NetherArmor implements Listener {
 			armor.addEnchantment(enchantment, level, false);
 		}
 
-		ItemStack data = setArmorData(armor.get(), nrArmor);
+		ItemStack data = setArmorData(armor.get(), HBConfig.nrArmor);
 
-		ShapedRecipe recipe = new ShapedRecipe(netherrackBootsKey, data);
+		ShapedRecipe recipe = new ShapedRecipe(this.netherrackBootsKey, data);
 		recipe.shape(new String[] { "   ", "N N", "N N" });
 		recipe.setIngredient('N', Material.NETHERRACK);
 		return recipe;
@@ -406,18 +292,19 @@ public class NetherArmor implements Listener {
 		ItemBuilder armor = new ItemBuilder(Material.GOLDEN_HELMET, 1);
 
 		armor.setDisplayName(new ShadedAdventureComponentWrapper(
-				instance.getAdventureManager().getComponentFromMiniMessage(gsHelmetName)));
+				instance.getAdventureManager().getComponentFromMiniMessage(HBConfig.gsHelmetName)));
 
 		List<ComponentWrapper> lore = new ArrayList<>();
-		for (String newLore : gsHelmetLore) {
+		for (String newLore : HBConfig.gsHelmetLore) {
 			lore.add(new ShadedAdventureComponentWrapper(
 					instance.getAdventureManager().getComponentFromMiniMessage(newLore)));
 		}
 		armor.setLore(lore);
 
-		for (String enchants : gsHelmetEnchants) {
+		for (String enchants : HBConfig.gsHelmetEnchants) {
 			String[] split = enchants.split(":");
-			Enchantment enchantment = enchantmentRegistry.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
+			Enchantment enchantment = instance.getHellblockHandler().getEnchantmentRegistry()
+					.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
 			int level = 1;
 			try {
 				level = Integer.parseInt(split[1]);
@@ -428,10 +315,10 @@ public class NetherArmor implements Listener {
 			armor.addEnchantment(enchantment, level, false);
 		}
 
-		ItemStack data = setArmorData(armor.get(), gsArmor);
-		data = setNightVisionArmorStatus(data, gsNightVisionArmor);
+		ItemStack data = setArmorData(armor.get(), HBConfig.gsArmor);
+		data = setNightVisionArmorStatus(data, HBConfig.gsNightVisionArmor);
 
-		ShapedRecipe recipe = new ShapedRecipe(glowstoneHelmetKey, data);
+		ShapedRecipe recipe = new ShapedRecipe(this.glowstoneHelmetKey, data);
 		recipe.shape(new String[] { "NNN", "N N", "   " });
 		recipe.setIngredient('N', Material.GLOWSTONE);
 		return recipe;
@@ -441,18 +328,19 @@ public class NetherArmor implements Listener {
 		ItemBuilder armor = new ItemBuilder(Material.GOLDEN_CHESTPLATE, 1);
 
 		armor.setDisplayName(new ShadedAdventureComponentWrapper(
-				instance.getAdventureManager().getComponentFromMiniMessage(gsChestplateName)));
+				instance.getAdventureManager().getComponentFromMiniMessage(HBConfig.gsChestplateName)));
 
 		List<ComponentWrapper> lore = new ArrayList<>();
-		for (String newLore : gsChestplateLore) {
+		for (String newLore : HBConfig.gsChestplateLore) {
 			lore.add(new ShadedAdventureComponentWrapper(
 					instance.getAdventureManager().getComponentFromMiniMessage(newLore)));
 		}
 		armor.setLore(lore);
 
-		for (String enchants : gsChestplateEnchants) {
+		for (String enchants : HBConfig.gsChestplateEnchants) {
 			String[] split = enchants.split(":");
-			Enchantment enchantment = enchantmentRegistry.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
+			Enchantment enchantment = instance.getHellblockHandler().getEnchantmentRegistry()
+					.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
 			int level = 1;
 			try {
 				level = Integer.parseInt(split[1]);
@@ -463,10 +351,10 @@ public class NetherArmor implements Listener {
 			armor.addEnchantment(enchantment, level, false);
 		}
 
-		ItemStack data = setArmorData(armor.get(), gsArmor);
-		data = setNightVisionArmorStatus(data, gsNightVisionArmor);
+		ItemStack data = setArmorData(armor.get(), HBConfig.gsArmor);
+		data = setNightVisionArmorStatus(data, HBConfig.gsNightVisionArmor);
 
-		ShapedRecipe recipe = new ShapedRecipe(glowstoneChestplateKey, data);
+		ShapedRecipe recipe = new ShapedRecipe(this.glowstoneChestplateKey, data);
 		recipe.shape(new String[] { "N N", "NNN", "NNN" });
 		recipe.setIngredient('N', Material.GLOWSTONE);
 		return recipe;
@@ -476,18 +364,19 @@ public class NetherArmor implements Listener {
 		ItemBuilder armor = new ItemBuilder(Material.GOLDEN_LEGGINGS, 1);
 
 		armor.setDisplayName(new ShadedAdventureComponentWrapper(
-				instance.getAdventureManager().getComponentFromMiniMessage(gsLeggingsName)));
+				instance.getAdventureManager().getComponentFromMiniMessage(HBConfig.gsLeggingsName)));
 
 		List<ComponentWrapper> lore = new ArrayList<>();
-		for (String newLore : gsLeggingsLore) {
+		for (String newLore : HBConfig.gsLeggingsLore) {
 			lore.add(new ShadedAdventureComponentWrapper(
 					instance.getAdventureManager().getComponentFromMiniMessage(newLore)));
 		}
 		armor.setLore(lore);
 
-		for (String enchants : gsLeggingsEnchants) {
+		for (String enchants : HBConfig.gsLeggingsEnchants) {
 			String[] split = enchants.split(":");
-			Enchantment enchantment = enchantmentRegistry.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
+			Enchantment enchantment = instance.getHellblockHandler().getEnchantmentRegistry()
+					.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
 			int level = 1;
 			try {
 				level = Integer.parseInt(split[1]);
@@ -498,10 +387,10 @@ public class NetherArmor implements Listener {
 			armor.addEnchantment(enchantment, level, false);
 		}
 
-		ItemStack data = setArmorData(armor.get(), gsArmor);
-		data = setNightVisionArmorStatus(data, gsNightVisionArmor);
+		ItemStack data = setArmorData(armor.get(), HBConfig.gsArmor);
+		data = setNightVisionArmorStatus(data, HBConfig.gsNightVisionArmor);
 
-		ShapedRecipe recipe = new ShapedRecipe(glowstoneLeggingsKey, data);
+		ShapedRecipe recipe = new ShapedRecipe(this.glowstoneLeggingsKey, data);
 		recipe.shape(new String[] { "NNN", "N N", "N N" });
 		recipe.setIngredient('N', Material.GLOWSTONE);
 		return recipe;
@@ -511,18 +400,19 @@ public class NetherArmor implements Listener {
 		ItemBuilder armor = new ItemBuilder(Material.GOLDEN_BOOTS, 1);
 
 		armor.setDisplayName(new ShadedAdventureComponentWrapper(
-				instance.getAdventureManager().getComponentFromMiniMessage(gsBootsName)));
+				instance.getAdventureManager().getComponentFromMiniMessage(HBConfig.gsBootsName)));
 
 		List<ComponentWrapper> lore = new ArrayList<>();
-		for (String newLore : gsBootsLore) {
+		for (String newLore : HBConfig.gsBootsLore) {
 			lore.add(new ShadedAdventureComponentWrapper(
 					instance.getAdventureManager().getComponentFromMiniMessage(newLore)));
 		}
 		armor.setLore(lore);
 
-		for (String enchants : gsBootsEnchants) {
+		for (String enchants : HBConfig.gsBootsEnchants) {
 			String[] split = enchants.split(":");
-			Enchantment enchantment = enchantmentRegistry.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
+			Enchantment enchantment = instance.getHellblockHandler().getEnchantmentRegistry()
+					.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
 			int level = 1;
 			try {
 				level = Integer.parseInt(split[1]);
@@ -533,10 +423,10 @@ public class NetherArmor implements Listener {
 			armor.addEnchantment(enchantment, level, false);
 		}
 
-		ItemStack data = setArmorData(armor.get(), gsArmor);
-		data = setNightVisionArmorStatus(data, gsNightVisionArmor);
+		ItemStack data = setArmorData(armor.get(), HBConfig.gsArmor);
+		data = setNightVisionArmorStatus(data, HBConfig.gsNightVisionArmor);
 
-		ShapedRecipe recipe = new ShapedRecipe(glowstoneBootsKey, data);
+		ShapedRecipe recipe = new ShapedRecipe(this.glowstoneBootsKey, data);
 		recipe.shape(new String[] { "   ", "N N", "N N" });
 		recipe.setIngredient('N', Material.GLOWSTONE);
 		return recipe;
@@ -546,18 +436,19 @@ public class NetherArmor implements Listener {
 		ItemBuilder armor = new ItemBuilder(Material.IRON_HELMET, 1);
 
 		armor.setDisplayName(new ShadedAdventureComponentWrapper(
-				instance.getAdventureManager().getComponentFromMiniMessage(qzHelmetName)));
+				instance.getAdventureManager().getComponentFromMiniMessage(HBConfig.qzHelmetName)));
 
 		List<ComponentWrapper> lore = new ArrayList<>();
-		for (String newLore : qzHelmetLore) {
+		for (String newLore : HBConfig.qzHelmetLore) {
 			lore.add(new ShadedAdventureComponentWrapper(
 					instance.getAdventureManager().getComponentFromMiniMessage(newLore)));
 		}
 		armor.setLore(lore);
 
-		for (String enchants : qzHelmetEnchants) {
+		for (String enchants : HBConfig.qzHelmetEnchants) {
 			String[] split = enchants.split(":");
-			Enchantment enchantment = enchantmentRegistry.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
+			Enchantment enchantment = instance.getHellblockHandler().getEnchantmentRegistry()
+					.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
 			int level = 1;
 			try {
 				level = Integer.parseInt(split[1]);
@@ -568,9 +459,9 @@ public class NetherArmor implements Listener {
 			armor.addEnchantment(enchantment, level, false);
 		}
 
-		ItemStack data = setArmorData(armor.get(), qzArmor);
+		ItemStack data = setArmorData(armor.get(), HBConfig.qzArmor);
 
-		ShapedRecipe recipe = new ShapedRecipe(quartzHelmetKey, data);
+		ShapedRecipe recipe = new ShapedRecipe(this.quartzHelmetKey, data);
 		recipe.shape(new String[] { "NNN", "N N", "   " });
 		recipe.setIngredient('N', Material.QUARTZ);
 		return recipe;
@@ -580,18 +471,19 @@ public class NetherArmor implements Listener {
 		ItemBuilder armor = new ItemBuilder(Material.IRON_CHESTPLATE, 1);
 
 		armor.setDisplayName(new ShadedAdventureComponentWrapper(
-				instance.getAdventureManager().getComponentFromMiniMessage(qzChestplateName)));
+				instance.getAdventureManager().getComponentFromMiniMessage(HBConfig.qzChestplateName)));
 
 		List<ComponentWrapper> lore = new ArrayList<>();
-		for (String newLore : qzChestplateLore) {
+		for (String newLore : HBConfig.qzChestplateLore) {
 			lore.add(new ShadedAdventureComponentWrapper(
 					instance.getAdventureManager().getComponentFromMiniMessage(newLore)));
 		}
 		armor.setLore(lore);
 
-		for (String enchants : qzChestplateEnchants) {
+		for (String enchants : HBConfig.qzChestplateEnchants) {
 			String[] split = enchants.split(":");
-			Enchantment enchantment = enchantmentRegistry.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
+			Enchantment enchantment = instance.getHellblockHandler().getEnchantmentRegistry()
+					.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
 			int level = 1;
 			try {
 				level = Integer.parseInt(split[1]);
@@ -602,9 +494,9 @@ public class NetherArmor implements Listener {
 			armor.addEnchantment(enchantment, level, false);
 		}
 
-		ItemStack data = setArmorData(armor.get(), qzArmor);
+		ItemStack data = setArmorData(armor.get(), HBConfig.qzArmor);
 
-		ShapedRecipe recipe = new ShapedRecipe(quartzChestplateKey, data);
+		ShapedRecipe recipe = new ShapedRecipe(this.quartzChestplateKey, data);
 		recipe.shape(new String[] { "N N", "NNN", "NNN" });
 		recipe.setIngredient('N', Material.QUARTZ);
 		return recipe;
@@ -614,18 +506,19 @@ public class NetherArmor implements Listener {
 		ItemBuilder armor = new ItemBuilder(Material.IRON_LEGGINGS, 1);
 
 		armor.setDisplayName(new ShadedAdventureComponentWrapper(
-				instance.getAdventureManager().getComponentFromMiniMessage(qzLeggingsName)));
+				instance.getAdventureManager().getComponentFromMiniMessage(HBConfig.qzLeggingsName)));
 
 		List<ComponentWrapper> lore = new ArrayList<>();
-		for (String newLore : qzLeggingsLore) {
+		for (String newLore : HBConfig.qzLeggingsLore) {
 			lore.add(new ShadedAdventureComponentWrapper(
 					instance.getAdventureManager().getComponentFromMiniMessage(newLore)));
 		}
 		armor.setLore(lore);
 
-		for (String enchants : qzLeggingsEnchants) {
+		for (String enchants : HBConfig.qzLeggingsEnchants) {
 			String[] split = enchants.split(":");
-			Enchantment enchantment = enchantmentRegistry.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
+			Enchantment enchantment = instance.getHellblockHandler().getEnchantmentRegistry()
+					.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
 			int level = 1;
 			try {
 				level = Integer.parseInt(split[1]);
@@ -636,9 +529,9 @@ public class NetherArmor implements Listener {
 			armor.addEnchantment(enchantment, level, false);
 		}
 
-		ItemStack data = setArmorData(armor.get(), qzArmor);
+		ItemStack data = setArmorData(armor.get(), HBConfig.qzArmor);
 
-		ShapedRecipe recipe = new ShapedRecipe(quartzLeggingsKey, data);
+		ShapedRecipe recipe = new ShapedRecipe(this.quartzLeggingsKey, data);
 		recipe.shape(new String[] { "NNN", "N N", "N N" });
 		recipe.setIngredient('N', Material.QUARTZ);
 		return recipe;
@@ -648,18 +541,19 @@ public class NetherArmor implements Listener {
 		ItemBuilder armor = new ItemBuilder(Material.IRON_BOOTS, 1);
 
 		armor.setDisplayName(new ShadedAdventureComponentWrapper(
-				instance.getAdventureManager().getComponentFromMiniMessage(qzBootsName)));
+				instance.getAdventureManager().getComponentFromMiniMessage(HBConfig.qzBootsName)));
 
 		List<ComponentWrapper> lore = new ArrayList<>();
-		for (String newLore : qzBootsLore) {
+		for (String newLore : HBConfig.qzBootsLore) {
 			lore.add(new ShadedAdventureComponentWrapper(
 					instance.getAdventureManager().getComponentFromMiniMessage(newLore)));
 		}
 		armor.setLore(lore);
 
-		for (String enchants : qzBootsEnchants) {
+		for (String enchants : HBConfig.qzBootsEnchants) {
 			String[] split = enchants.split(":");
-			Enchantment enchantment = enchantmentRegistry.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
+			Enchantment enchantment = instance.getHellblockHandler().getEnchantmentRegistry()
+					.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
 			int level = 1;
 			try {
 				level = Integer.parseInt(split[1]);
@@ -670,9 +564,9 @@ public class NetherArmor implements Listener {
 			armor.addEnchantment(enchantment, level, false);
 		}
 
-		ItemStack data = setArmorData(armor.get(), qzArmor);
+		ItemStack data = setArmorData(armor.get(), HBConfig.qzArmor);
 
-		ShapedRecipe recipe = new ShapedRecipe(quartzBootsKey, data);
+		ShapedRecipe recipe = new ShapedRecipe(this.quartzBootsKey, data);
 		recipe.shape(new String[] { "   ", "N N", "N N" });
 		recipe.setIngredient('N', Material.QUARTZ);
 		return recipe;
@@ -682,18 +576,19 @@ public class NetherArmor implements Listener {
 		ItemBuilder armor = new ItemBuilder(Material.DIAMOND_HELMET, 1);
 
 		armor.setDisplayName(new ShadedAdventureComponentWrapper(
-				instance.getAdventureManager().getComponentFromMiniMessage(nsHelmetName)));
+				instance.getAdventureManager().getComponentFromMiniMessage(HBConfig.nsHelmetName)));
 
 		List<ComponentWrapper> lore = new ArrayList<>();
-		for (String newLore : nsHelmetLore) {
+		for (String newLore : HBConfig.nsHelmetLore) {
 			lore.add(new ShadedAdventureComponentWrapper(
 					instance.getAdventureManager().getComponentFromMiniMessage(newLore)));
 		}
 		armor.setLore(lore);
 
-		for (String enchants : nsHelmetEnchants) {
+		for (String enchants : HBConfig.nsHelmetEnchants) {
 			String[] split = enchants.split(":");
-			Enchantment enchantment = enchantmentRegistry.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
+			Enchantment enchantment = instance.getHellblockHandler().getEnchantmentRegistry()
+					.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
 			int level = 1;
 			try {
 				level = Integer.parseInt(split[1]);
@@ -704,9 +599,9 @@ public class NetherArmor implements Listener {
 			armor.addEnchantment(enchantment, level, false);
 		}
 
-		ItemStack data = setArmorData(armor.get(), nsArmor);
+		ItemStack data = setArmorData(armor.get(), HBConfig.nsArmor);
 
-		ShapedRecipe recipe = new ShapedRecipe(netherstarHelmetKey, data);
+		ShapedRecipe recipe = new ShapedRecipe(this.netherstarHelmetKey, data);
 		recipe.shape(new String[] { "NNN", "N N", "   " });
 		recipe.setIngredient('N', Material.NETHER_STAR);
 		return recipe;
@@ -716,18 +611,19 @@ public class NetherArmor implements Listener {
 		ItemBuilder armor = new ItemBuilder(Material.DIAMOND_CHESTPLATE, 1);
 
 		armor.setDisplayName(new ShadedAdventureComponentWrapper(
-				instance.getAdventureManager().getComponentFromMiniMessage(nsChestplateName)));
+				instance.getAdventureManager().getComponentFromMiniMessage(HBConfig.nsChestplateName)));
 
 		List<ComponentWrapper> lore = new ArrayList<>();
-		for (String newLore : nsChestplateLore) {
+		for (String newLore : HBConfig.nsChestplateLore) {
 			lore.add(new ShadedAdventureComponentWrapper(
 					instance.getAdventureManager().getComponentFromMiniMessage(newLore)));
 		}
 		armor.setLore(lore);
 
-		for (String enchants : nsChestplateEnchants) {
+		for (String enchants : HBConfig.nsChestplateEnchants) {
 			String[] split = enchants.split(":");
-			Enchantment enchantment = enchantmentRegistry.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
+			Enchantment enchantment = instance.getHellblockHandler().getEnchantmentRegistry()
+					.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
 			int level = 1;
 			try {
 				level = Integer.parseInt(split[1]);
@@ -738,9 +634,9 @@ public class NetherArmor implements Listener {
 			armor.addEnchantment(enchantment, level, false);
 		}
 
-		ItemStack data = setArmorData(armor.get(), nsArmor);
+		ItemStack data = setArmorData(armor.get(), HBConfig.nsArmor);
 
-		ShapedRecipe recipe = new ShapedRecipe(netherstarChestplateKey, data);
+		ShapedRecipe recipe = new ShapedRecipe(this.netherstarChestplateKey, data);
 		recipe.shape(new String[] { "N N", "NNN", "NNN" });
 		recipe.setIngredient('N', Material.NETHER_STAR);
 		return recipe;
@@ -750,18 +646,19 @@ public class NetherArmor implements Listener {
 		ItemBuilder armor = new ItemBuilder(Material.DIAMOND_LEGGINGS, 1);
 
 		armor.setDisplayName(new ShadedAdventureComponentWrapper(
-				instance.getAdventureManager().getComponentFromMiniMessage(nsLeggingsName)));
+				instance.getAdventureManager().getComponentFromMiniMessage(HBConfig.nsLeggingsName)));
 
 		List<ComponentWrapper> lore = new ArrayList<>();
-		for (String newLore : nsLeggingsLore) {
+		for (String newLore : HBConfig.nsLeggingsLore) {
 			lore.add(new ShadedAdventureComponentWrapper(
 					instance.getAdventureManager().getComponentFromMiniMessage(newLore)));
 		}
 		armor.setLore(lore);
 
-		for (String enchants : nsLeggingsEnchants) {
+		for (String enchants : HBConfig.nsLeggingsEnchants) {
 			String[] split = enchants.split(":");
-			Enchantment enchantment = enchantmentRegistry.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
+			Enchantment enchantment = instance.getHellblockHandler().getEnchantmentRegistry()
+					.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
 			int level = 1;
 			try {
 				level = Integer.parseInt(split[1]);
@@ -772,9 +669,9 @@ public class NetherArmor implements Listener {
 			armor.addEnchantment(enchantment, level, false);
 		}
 
-		ItemStack data = setArmorData(armor.get(), nsArmor);
+		ItemStack data = setArmorData(armor.get(), HBConfig.nsArmor);
 
-		ShapedRecipe recipe = new ShapedRecipe(netherstarLeggingsKey, data);
+		ShapedRecipe recipe = new ShapedRecipe(this.netherstarLeggingsKey, data);
 		recipe.shape(new String[] { "NNN", "N N", "N N" });
 		recipe.setIngredient('N', Material.NETHER_STAR);
 		return recipe;
@@ -784,18 +681,19 @@ public class NetherArmor implements Listener {
 		ItemBuilder armor = new ItemBuilder(Material.DIAMOND_BOOTS, 1);
 
 		armor.setDisplayName(new ShadedAdventureComponentWrapper(
-				instance.getAdventureManager().getComponentFromMiniMessage(nsBootsName)));
+				instance.getAdventureManager().getComponentFromMiniMessage(HBConfig.nsBootsName)));
 
 		List<ComponentWrapper> lore = new ArrayList<>();
-		for (String newLore : nsBootsLore) {
+		for (String newLore : HBConfig.nsBootsLore) {
 			lore.add(new ShadedAdventureComponentWrapper(
 					instance.getAdventureManager().getComponentFromMiniMessage(newLore)));
 		}
 		armor.setLore(lore);
 
-		for (String enchants : nsBootsEnchants) {
+		for (String enchants : HBConfig.nsBootsEnchants) {
 			String[] split = enchants.split(":");
-			Enchantment enchantment = enchantmentRegistry.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
+			Enchantment enchantment = instance.getHellblockHandler().getEnchantmentRegistry()
+					.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
 			int level = 1;
 			try {
 				level = Integer.parseInt(split[1]);
@@ -806,9 +704,9 @@ public class NetherArmor implements Listener {
 			armor.addEnchantment(enchantment, level, false);
 		}
 
-		ItemStack data = setArmorData(armor.get(), nsArmor);
+		ItemStack data = setArmorData(armor.get(), HBConfig.nsArmor);
 
-		ShapedRecipe recipe = new ShapedRecipe(netherstarBootsKey, data);
+		ShapedRecipe recipe = new ShapedRecipe(this.netherstarBootsKey, data);
 		recipe.shape(new String[] { "   ", "N N", "N N" });
 		recipe.setIngredient('N', Material.NETHER_STAR);
 		return recipe;
@@ -817,7 +715,7 @@ public class NetherArmor implements Listener {
 	@EventHandler
 	public void onCrafting(CraftItemEvent event) {
 		if (event.getView().getPlayer() instanceof Player player) {
-			if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName())) {
+			if (!player.getWorld().getName().equalsIgnoreCase(HBConfig.worldName)) {
 				return;
 			}
 
@@ -827,21 +725,22 @@ public class NetherArmor implements Listener {
 				if (checkArmorData(result) && getArmorData(result)) {
 					if (recipe instanceof CraftingRecipe craft) {
 						if (!player.hasDiscoveredRecipe(craft.getKey())) {
-							OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
-							if (onlineUser == null)
+							Optional<UserData> onlineUser = instance.getStorageManager()
+									.getOnlineUser(player.getUniqueId());
+							if (onlineUser.isEmpty() || onlineUser.get().getPlayer() == null)
 								return;
-							if (!onlineUser.getChallengeData()
+							if (!onlineUser.get().getChallengeData()
 									.isChallengeActive(ChallengeType.NETHER_CRAFTING_CHALLENGE)
-									&& !onlineUser.getChallengeData()
+									&& !onlineUser.get().getChallengeData()
 											.isChallengeCompleted(ChallengeType.NETHER_CRAFTING_CHALLENGE)) {
-								onlineUser.getChallengeData().beginChallengeProgression(onlineUser.getPlayer(),
-										ChallengeType.NETHER_CRAFTING_CHALLENGE);
+								onlineUser.get().getChallengeData().beginChallengeProgression(
+										onlineUser.get().getPlayer(), ChallengeType.NETHER_CRAFTING_CHALLENGE);
 							} else {
-								onlineUser.getChallengeData().updateChallengeProgression(onlineUser.getPlayer(),
-										ChallengeType.NETHER_CRAFTING_CHALLENGE, 1);
-								if (onlineUser.getChallengeData()
+								onlineUser.get().getChallengeData().updateChallengeProgression(
+										onlineUser.get().getPlayer(), ChallengeType.NETHER_CRAFTING_CHALLENGE, 1);
+								if (onlineUser.get().getChallengeData()
 										.isChallengeCompleted(ChallengeType.NETHER_CRAFTING_CHALLENGE)) {
-									onlineUser.getChallengeData().completeChallenge(onlineUser.getPlayer(),
+									onlineUser.get().getChallengeData().completeChallenge(onlineUser.get().getPlayer(),
 											ChallengeType.NETHER_CRAFTING_CHALLENGE);
 								}
 							}
@@ -857,7 +756,7 @@ public class NetherArmor implements Listener {
 	public void onLimitedCrafting(PrepareItemCraftEvent event) {
 		if (instance.getHellblockHandler().getHellblockWorld().getGameRuleValue(GameRule.DO_LIMITED_CRAFTING)) {
 			if (event.getView().getPlayer() instanceof Player player) {
-				if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName())) {
+				if (!player.getWorld().getName().equalsIgnoreCase(HBConfig.worldName)) {
 					return;
 				}
 
@@ -867,23 +766,23 @@ public class NetherArmor implements Listener {
 					if (checkArmorData(result) && getArmorData(result)) {
 						if (recipe instanceof CraftingRecipe craft) {
 							if (!player.hasDiscoveredRecipe(craft.getKey())) {
-								OnlineUser onlineUser = instance.getStorageManager()
+								Optional<UserData> onlineUser = instance.getStorageManager()
 										.getOnlineUser(player.getUniqueId());
-								if (onlineUser == null)
+								if (onlineUser.isEmpty() || onlineUser.get().getPlayer() == null)
 									return;
-								if (!onlineUser.getChallengeData()
+								if (!onlineUser.get().getChallengeData()
 										.isChallengeActive(ChallengeType.NETHER_CRAFTING_CHALLENGE)
-										&& !onlineUser.getChallengeData()
+										&& !onlineUser.get().getChallengeData()
 												.isChallengeCompleted(ChallengeType.NETHER_CRAFTING_CHALLENGE)) {
-									onlineUser.getChallengeData().beginChallengeProgression(onlineUser.getPlayer(),
-											ChallengeType.NETHER_CRAFTING_CHALLENGE);
+									onlineUser.get().getChallengeData().beginChallengeProgression(
+											onlineUser.get().getPlayer(), ChallengeType.NETHER_CRAFTING_CHALLENGE);
 								} else {
-									onlineUser.getChallengeData().updateChallengeProgression(onlineUser.getPlayer(),
-											ChallengeType.NETHER_CRAFTING_CHALLENGE, 1);
-									if (onlineUser.getChallengeData()
+									onlineUser.get().getChallengeData().updateChallengeProgression(
+											onlineUser.get().getPlayer(), ChallengeType.NETHER_CRAFTING_CHALLENGE, 1);
+									if (onlineUser.get().getChallengeData()
 											.isChallengeCompleted(ChallengeType.NETHER_CRAFTING_CHALLENGE)) {
-										onlineUser.getChallengeData().completeChallenge(onlineUser.getPlayer(),
-												ChallengeType.NETHER_CRAFTING_CHALLENGE);
+										onlineUser.get().getChallengeData().completeChallenge(
+												onlineUser.get().getPlayer(), ChallengeType.NETHER_CRAFTING_CHALLENGE);
 									}
 								}
 								player.discoverRecipe(craft.getKey());
@@ -897,23 +796,23 @@ public class NetherArmor implements Listener {
 
 	@EventHandler
 	public void onArmorChange(PlayerArmorChangeEvent event) {
-		if (!this.gsNightVisionArmor || !this.gsArmor)
+		if (!HBConfig.gsNightVisionArmor || !HBConfig.gsArmor)
 			return;
 
 		Player player = event.getPlayer();
 
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!player.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 
-		OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
-		if (onlineUser == null)
+		Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
+		if (onlineUser.isEmpty())
 			return;
 
 		ItemStack armor = event.getNewItem();
 		if (armor != null && armor.getType() != Material.AIR) {
 			if (checkNightVisionArmorStatus(armor) && getNightVisionArmorStatus(armor)) {
 				player.addPotionEffect(new PotionEffect(PotionEffectType.NIGHT_VISION, Integer.MAX_VALUE, 1));
-				onlineUser.isWearingGlowstoneArmor(true);
+				onlineUser.get().isWearingGlowstoneArmor(true);
 			} else {
 				ItemStack[] armorSet = player.getInventory().getArmorContents();
 				boolean checkArmor = false;
@@ -927,10 +826,10 @@ public class NetherArmor implements Listener {
 						}
 					}
 				}
-				if (!checkArmor && onlineUser.hasGlowstoneArmorEffect()) {
+				if (!checkArmor && onlineUser.get().hasGlowstoneArmorEffect()) {
 					if (player.hasPotionEffect(PotionEffectType.NIGHT_VISION)) {
-						onlineUser.isWearingGlowstoneArmor(false);
-						if (!onlineUser.hasGlowstoneToolEffect()) {
+						onlineUser.get().isWearingGlowstoneArmor(false);
+						if (!onlineUser.get().hasGlowstoneToolEffect()) {
 							player.removePotionEffect(PotionEffectType.NIGHT_VISION);
 						}
 					}
@@ -949,10 +848,10 @@ public class NetherArmor implements Listener {
 					}
 				}
 			}
-			if (!checkArmor && onlineUser.hasGlowstoneArmorEffect()) {
+			if (!checkArmor && onlineUser.get().hasGlowstoneArmorEffect()) {
 				if (player.hasPotionEffect(PotionEffectType.NIGHT_VISION)) {
-					onlineUser.isWearingGlowstoneArmor(false);
-					if (!onlineUser.hasGlowstoneToolEffect()) {
+					onlineUser.get().isWearingGlowstoneArmor(false);
+					if (!onlineUser.get().hasGlowstoneToolEffect()) {
 						player.removePotionEffect(PotionEffectType.NIGHT_VISION);
 					}
 				}
@@ -962,20 +861,20 @@ public class NetherArmor implements Listener {
 
 	@EventHandler
 	public void onDispenseArmor(BlockDispenseArmorEvent event) {
-		if (!this.gsNightVisionArmor || !this.gsArmor)
+		if (!HBConfig.gsNightVisionArmor || !HBConfig.gsArmor)
 			return;
 		final Block block = event.getBlock();
-		if (!block.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!block.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 
 		if (event.getTargetEntity() instanceof Player player) {
-			OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
-			if (onlineUser == null)
+			Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
+			if (onlineUser.isEmpty())
 				return;
 			ItemStack armor = event.getItem();
 			if (checkNightVisionArmorStatus(armor) && getNightVisionArmorStatus(armor)) {
 				player.addPotionEffect(new PotionEffect(PotionEffectType.NIGHT_VISION, Integer.MAX_VALUE, 1));
-				onlineUser.isWearingGlowstoneArmor(true);
+				onlineUser.get().isWearingGlowstoneArmor(true);
 			} else {
 				ItemStack[] armorSet = player.getInventory().getArmorContents();
 				boolean checkArmor = false;
@@ -989,10 +888,10 @@ public class NetherArmor implements Listener {
 						}
 					}
 				}
-				if (!checkArmor && onlineUser.hasGlowstoneArmorEffect()) {
+				if (!checkArmor && onlineUser.get().hasGlowstoneArmorEffect()) {
 					if (player.hasPotionEffect(PotionEffectType.NIGHT_VISION)) {
-						onlineUser.isWearingGlowstoneArmor(false);
-						if (!onlineUser.hasGlowstoneToolEffect()) {
+						onlineUser.get().isWearingGlowstoneArmor(false);
+						if (!onlineUser.get().hasGlowstoneToolEffect()) {
 							player.removePotionEffect(PotionEffectType.NIGHT_VISION);
 						}
 					}
@@ -1052,9 +951,9 @@ public class NetherArmor implements Listener {
 			return false;
 
 		Material mat = item.getType();
-		return ((this.nrArmor && this.netherrackArmor.contains(mat))
-				|| (this.gsArmor && this.glowstoneArmor.contains(mat))
-				|| (this.qzArmor && this.quartzArmor.contains(mat))
-				|| (this.nsArmor && this.netherstarArmor.contains(mat)));
+		return ((HBConfig.nrArmor && this.netherrackArmor.contains(mat))
+				|| (HBConfig.gsArmor && this.glowstoneArmor.contains(mat))
+				|| (HBConfig.qzArmor && this.quartzArmor.contains(mat))
+				|| (HBConfig.nsArmor && this.netherstarArmor.contains(mat)));
 	}
 }

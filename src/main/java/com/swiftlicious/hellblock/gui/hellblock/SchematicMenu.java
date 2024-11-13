@@ -4,7 +4,7 @@ import java.io.File;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.Iterator;
-import java.util.concurrent.TimeUnit;
+import java.util.Optional;
 
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
@@ -14,10 +14,11 @@ import org.jetbrains.annotations.NotNull;
 
 import com.google.common.io.Files;
 import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.config.HBConfig;
 import com.swiftlicious.hellblock.generation.IslandOptions;
 import com.swiftlicious.hellblock.gui.icon.BackGroundItem;
 import com.swiftlicious.hellblock.gui.icon.ScrollUpItem;
-import com.swiftlicious.hellblock.player.OnlineUser;
+import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.gui.icon.ScrollDownItem;
 import com.swiftlicious.hellblock.utils.wrappers.ShadedAdventureComponentWrapper;
 
@@ -34,8 +35,9 @@ public class SchematicMenu {
 
 	public SchematicMenu(Player player, boolean isReset) {
 
-		OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager().getOnlineUser(player.getUniqueId());
-		if (onlineUser == null) {
+		Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
+				.getOnlineUser(player.getUniqueId());
+		if (onlineUser.isEmpty()) {
 			HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 					"<red>Still loading your player data... please try again in a few seconds.");
 			return;
@@ -45,9 +47,7 @@ public class SchematicMenu {
 		Deque<Item> items = new ArrayDeque<>();
 		if (files != null) {
 			for (File file : files) {
-				if (file.isFile()
-						&& HellblockPlugin.getInstance().getHellblockHandler().getIslandOptions()
-								.contains(Files.getNameWithoutExtension(file.getName()))
+				if (file.isFile() && HBConfig.islandOptions.contains(Files.getNameWithoutExtension(file.getName()))
 						&& (player.hasPermission("hellblock.schematic.*") || player
 								.hasPermission("hellblock.schematic." + Files.getNameWithoutExtension(file.getName())))
 						&& (file.getName().endsWith(".schematic") || file.getName().endsWith(".schem"))) {
@@ -66,7 +66,7 @@ public class SchematicMenu {
 		Window window = Window.single().setViewer(player)
 				.setTitle(new ShadedAdventureComponentWrapper(HellblockPlugin.getInstance().getAdventureManager()
 						.getComponentFromMiniMessage("<red>Hellblock Island Schematics")))
-				.setGui(gui).setCloseable(onlineUser.getHellblockData().hasHellblock()).build();
+				.setGui(gui).setCloseable(onlineUser.get().getHellblockData().hasHellblock()).build();
 
 		window.open();
 	}
@@ -100,24 +100,23 @@ public class SchematicMenu {
 				@NotNull InventoryClickEvent event) {
 			if (player.hasPermission("hellblock.schematic.*")
 					|| player.hasPermission("hellblock.schematic." + Files.getNameWithoutExtension(file.getName()))) {
-				if (HellblockPlugin.getInstance().getHellblockHandler().getIslandOptions()
-						.contains(Files.getNameWithoutExtension(file.getName()))) {
-					OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+				if (HBConfig.islandOptions.contains(Files.getNameWithoutExtension(file.getName()))) {
+					Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 							.getOnlineUser(player.getUniqueId());
-					if (onlineUser == null)
+					if (onlineUser.isEmpty())
 						return;
-					if (isReset && onlineUser.getHellblockData().getResetCooldown() > 0) {
+					if (isReset && onlineUser.get().getHellblockData().getResetCooldown() > 0) {
 						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 								String.format(
 										"<red>You've recently reset your hellblock already, you must wait for %s!",
 										HellblockPlugin.getInstance().getFormattedCooldown(
-												onlineUser.getHellblockData().getResetCooldown())));
+												onlineUser.get().getHellblockData().getResetCooldown())));
 						HellblockPlugin.getInstance().getAdventureManager().sendSound(player,
 								net.kyori.adventure.sound.Sound.Source.PLAYER,
 								net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
 						return;
 					}
-					HellblockPlugin.getInstance().getScheduler().runTaskSyncLater(() -> {
+					HellblockPlugin.getInstance().getScheduler().sync().runLater(() -> {
 						for (Iterator<Window> windows = getWindows().iterator(); windows.hasNext();) {
 							Window window = windows.next();
 							if (window.getViewerUUID().equals(player.getUniqueId())) {
@@ -125,7 +124,7 @@ public class SchematicMenu {
 								window.close();
 							}
 						}
-					}, player.getLocation(), 1, TimeUnit.SECONDS);
+					}, 1 * 20L, player.getLocation());
 					HellblockPlugin.getInstance().getHellblockHandler().createHellblock(player, IslandOptions.SCHEMATIC,
 							file.getName(), isReset);
 					HellblockPlugin.getInstance().getAdventureManager().sendSound(player,

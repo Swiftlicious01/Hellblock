@@ -1,12 +1,14 @@
 package com.swiftlicious.hellblock.effects;
 
-import org.bukkit.configuration.ConfigurationSection;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import com.swiftlicious.hellblock.api.Reloadable;
 import com.swiftlicious.hellblock.utils.extras.Key;
 
-public interface EffectManagerInterface {
+import dev.dejvokep.boostedyaml.block.implementation.Section;
+
+public interface EffectManagerInterface extends Reloadable {
 
 	/**
 	 * Registers an EffectCarrier with a unique Key.
@@ -49,18 +51,17 @@ public interface EffectManagerInterface {
 	EffectCarrier getEffectCarrier(String namespace, String id);
 
 	/**
-	 * Parses a ConfigurationSection to create an EffectCarrier based on the
-	 * specified key and configuration.
+	 * Parses a Section to create an EffectCarrier based on the specified key and
+	 * configuration.
 	 * <p>
 	 * xxx_item: <- section effects: ... events: ...
 	 *
 	 * @param key     The key that uniquely identifies the EffectCarrier.
-	 * @param section The ConfigurationSection containing the EffectCarrier
-	 *                configuration.
+	 * @param section The Section containing the EffectCarrier configuration.
 	 * @return An EffectCarrier instance based on the key and configuration, or null
 	 *         if the section is null.
 	 */
-	EffectCarrier getEffectCarrierFromSection(Key key, ConfigurationSection section);
+	EffectCarrier getEffectCarrierFromSection(Key key, Section section);
 
 	/**
 	 * Retrieves the initial FishingEffect that represents no special effects.
@@ -71,28 +72,27 @@ public interface EffectManagerInterface {
 	FishingEffect getInitialEffect();
 
 	/**
-	 * Parses a ConfigurationSection to retrieve an array of EffectModifiers.
+	 * Parses a Section to retrieve an array of EffectModifiers.
 	 * <p>
 	 * effects: <- section effect_1: type: xxx value: xxx
 	 *
-	 * @param section The ConfigurationSection to parse.
+	 * @param section The Section to parse.
 	 * @return An array of EffectModifiers based on the values found in the section.
 	 */
 	@NotNull
-	EffectModifier[] getEffectModifiers(ConfigurationSection section);
+	EffectModifier[] getEffectModifiers(Section section);
 
-	BaseEffect getBaseEffect(ConfigurationSection section);
+	BaseEffect getBaseEffect(Section section);
 
 	/**
-	 * Parses a ConfigurationSection to create an EffectModifier based on the
-	 * specified type and configuration.
+	 * Parses a Section to create an EffectModifier based on the specified type and
+	 * configuration.
 	 * <p>
 	 * effects: effect_1: <- section type: xxx value: xxx
 	 *
-	 * @param section The ConfigurationSection containing the effect modifier
-	 *                configuration.
+	 * @param section The Section containing the effect modifier configuration.
 	 * @return An EffectModifier instance based on the type and configuration.
 	 */
 	@Nullable
-	EffectModifier getEffectModifier(ConfigurationSection section);
+	EffectModifier getEffectModifier(Section section);
 }

@@ -4,14 +4,13 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 
 import org.bukkit.Bukkit;
 import org.bukkit.GameRule;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
-import org.bukkit.Registry;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Event.Result;
@@ -40,99 +39,29 @@ import org.jetbrains.annotations.Nullable;
 import com.saicone.rtag.RtagItem;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.challenges.HellblockChallenge.ChallengeType;
-import com.swiftlicious.hellblock.player.OnlineUser;
+import com.swiftlicious.hellblock.config.HBConfig;
+import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.utils.LogUtils;
 import com.swiftlicious.hellblock.utils.wrappers.ShadedAdventureComponentWrapper;
 
-import io.papermc.paper.registry.RegistryAccess;
-import io.papermc.paper.registry.RegistryKey;
 import xyz.xenondevs.inventoryaccess.component.ComponentWrapper;
 import xyz.xenondevs.invui.item.builder.ItemBuilder;
 
 public class NetherTools implements Listener {
 
-	private final HellblockPlugin instance;
+	protected final HellblockPlugin instance;
 
 	private final NamespacedKey netherrackPickaxeKey, netherrackAxeKey, netherrackShovelKey, netherrackHoeKey,
 			netherrackSwordKey, glowstonePickaxeKey, glowstoneAxeKey, glowstoneShovelKey, glowstoneHoeKey,
 			glowstoneSwordKey, quartzPickaxeKey, quartzAxeKey, quartzShovelKey, quartzHoeKey, quartzSwordKey,
 			netherstarPickaxeKey, netherstarAxeKey, netherstarShovelKey, netherstarHoeKey, netherstarSwordKey;
 
-	public boolean nrTools;
-	public String nrPickaxeName;
-	public List<String> nrPickaxeLore;
-	public List<String> nrPickaxeEnchants;
-	public String nrAxeName;
-	public List<String> nrAxeLore;
-	public List<String> nrAxeEnchants;
-	public String nrShovelName;
-	public List<String> nrShovelLore;
-	public List<String> nrShovelEnchants;
-	public String nrHoeName;
-	public List<String> nrHoeLore;
-	public List<String> nrHoeEnchants;
-	public String nrSwordName;
-	public List<String> nrSwordLore;
-	public List<String> nrSwordEnchants;
-	public boolean gsTools;
-	public boolean gsNightVisionTool;
-	public String gsPickaxeName;
-	public List<String> gsPickaxeLore;
-	public List<String> gsPickaxeEnchants;
-	public String gsAxeName;
-	public List<String> gsAxeLore;
-	public List<String> gsAxeEnchants;
-	public String gsShovelName;
-	public List<String> gsShovelLore;
-	public List<String> gsShovelEnchants;
-	public String gsHoeName;
-	public List<String> gsHoeLore;
-	public List<String> gsHoeEnchants;
-	public String gsSwordName;
-	public List<String> gsSwordLore;
-	public List<String> gsSwordEnchants;
-	public boolean qzTools;
-	public String qzPickaxeName;
-	public List<String> qzPickaxeLore;
-	public List<String> qzPickaxeEnchants;
-	public String qzAxeName;
-	public List<String> qzAxeLore;
-	public List<String> qzAxeEnchants;
-	public String qzShovelName;
-	public List<String> qzShovelLore;
-	public List<String> qzShovelEnchants;
-	public String qzHoeName;
-	public List<String> qzHoeLore;
-	public List<String> qzHoeEnchants;
-	public String qzSwordName;
-	public List<String> qzSwordLore;
-	public List<String> qzSwordEnchants;
-	public boolean nsTools;
-	public String nsPickaxeName;
-	public List<String> nsPickaxeLore;
-	public List<String> nsPickaxeEnchants;
-	public String nsAxeName;
-	public List<String> nsAxeLore;
-	public List<String> nsAxeEnchants;
-	public String nsShovelName;
-	public List<String> nsShovelLore;
-	public List<String> nsShovelEnchants;
-	public String nsHoeName;
-	public List<String> nsHoeLore;
-	public List<String> nsHoeEnchants;
-	public String nsSwordName;
-	public List<String> nsSwordLore;
-	public List<String> nsSwordEnchants;
-
 	private final Set<Material> netherrackTools, glowstoneTools, quartzTools, netherstarTools;
 
-	private final Map<OnlineUser, Boolean> clickCache;
-
-	private final Registry<Enchantment> enchantmentRegistry;
+	private final Map<UserData, Boolean> clickCache;
 
 	public NetherTools(HellblockPlugin plugin) {
 		this.instance = plugin;
-		this.enchantmentRegistry = RegistryAccess.registryAccess().getRegistry(RegistryKey.ENCHANTMENT);
 		this.clickCache = new HashMap<>();
 		this.netherrackPickaxeKey = new NamespacedKey(this.instance, "netherrackpickaxe");
 		this.netherrackAxeKey = new NamespacedKey(this.instance, "netherrackaxe");
@@ -154,73 +83,6 @@ public class NetherTools implements Listener {
 		this.netherstarShovelKey = new NamespacedKey(this.instance, "netherstarshovel");
 		this.netherstarHoeKey = new NamespacedKey(this.instance, "netherstarhoe");
 		this.netherstarSwordKey = new NamespacedKey(this.instance, "netherstarsword");
-		this.nrTools = instance.getConfig("config.yml").getBoolean("tools.netherrack.enable", true);
-		this.nrPickaxeName = instance.getConfig("config.yml").getString("tools.netherrack.pickaxe.name");
-		this.nrPickaxeLore = instance.getConfig("config.yml").getStringList("tools.netherrack.pickaxe.lore");
-		this.nrPickaxeEnchants = instance.getConfig("config.yml")
-				.getStringList("tools.netherrack.pickaxe.enchantments");
-		this.nrAxeName = instance.getConfig("config.yml").getString("tools.netherrack.axe.name");
-		this.nrAxeLore = instance.getConfig("config.yml").getStringList("tools.netherrack.axe.lore");
-		this.nrAxeEnchants = instance.getConfig("config.yml").getStringList("tools.netherrack.axe.enchantments");
-		this.nrShovelName = instance.getConfig("config.yml").getString("tools.netherrack.shovel.name");
-		this.nrShovelLore = instance.getConfig("config.yml").getStringList("tools.netherrack.shovel.lore");
-		this.nrShovelEnchants = instance.getConfig("config.yml").getStringList("tools.netherrack.shovel.enchantments");
-		this.nrHoeName = instance.getConfig("config.yml").getString("tools.netherrack.hoe.name");
-		this.nrHoeLore = instance.getConfig("config.yml").getStringList("tools.netherrack.hoe.lore");
-		this.nrHoeEnchants = instance.getConfig("config.yml").getStringList("tools.netherrack.hoe.enchantments");
-		this.nrSwordName = instance.getConfig("config.yml").getString("tools.netherrack.sword.name");
-		this.nrSwordLore = instance.getConfig("config.yml").getStringList("tools.netherrack.sword.lore");
-		this.nrSwordEnchants = instance.getConfig("config.yml").getStringList("tools.netherrack.sword.enchantments");
-		this.gsTools = instance.getConfig("config.yml").getBoolean("tools.glowstone.enable", true);
-		this.gsNightVisionTool = instance.getConfig("config.yml").getBoolean("tools.glowstone.night-vision", true);
-		this.gsPickaxeName = instance.getConfig("config.yml").getString("tools.glowstone.pickaxe.name");
-		this.gsPickaxeLore = instance.getConfig("config.yml").getStringList("tools.glowstone.pickaxe.lore");
-		this.gsPickaxeEnchants = instance.getConfig("config.yml").getStringList("tools.glowstone.pickaxe.enchantments");
-		this.gsAxeName = instance.getConfig("config.yml").getString("tools.glowstone.axe.name");
-		this.gsAxeLore = instance.getConfig("config.yml").getStringList("tools.glowstone.axe.lore");
-		this.gsAxeEnchants = instance.getConfig("config.yml").getStringList("tools.glowstone.axe.enchantments");
-		this.gsShovelName = instance.getConfig("config.yml").getString("tools.glowstone.shovel.name");
-		this.gsShovelLore = instance.getConfig("config.yml").getStringList("tools.glowstone.shovel.lore");
-		this.gsShovelEnchants = instance.getConfig("config.yml").getStringList("tools.glowstone.shovel.enchantments");
-		this.gsHoeName = instance.getConfig("config.yml").getString("tools.glowstone.hoe.name");
-		this.gsHoeLore = instance.getConfig("config.yml").getStringList("tools.glowstone.hoe.lore");
-		this.gsHoeEnchants = instance.getConfig("config.yml").getStringList("tools.glowstone.hoe.enchantments");
-		this.gsSwordName = instance.getConfig("config.yml").getString("tools.glowstone.sword.name");
-		this.gsSwordLore = instance.getConfig("config.yml").getStringList("tools.glowstone.sword.lore");
-		this.gsSwordEnchants = instance.getConfig("config.yml").getStringList("tools.glowstone.sword.enchantments");
-		this.qzTools = instance.getConfig("config.yml").getBoolean("tools.quartz.enable", true);
-		this.qzPickaxeName = instance.getConfig("config.yml").getString("tools.quartz.pickaxe.name");
-		this.qzPickaxeLore = instance.getConfig("config.yml").getStringList("tools.quartz.pickaxe.lore");
-		this.qzPickaxeEnchants = instance.getConfig("config.yml").getStringList("tools.quartz.pickaxe.enchantments");
-		this.qzAxeName = instance.getConfig("config.yml").getString("tools.quartz.axe.name");
-		this.qzAxeLore = instance.getConfig("config.yml").getStringList("tools.quartz.axe.lore");
-		this.qzAxeEnchants = instance.getConfig("config.yml").getStringList("tools.quartz.axe.enchantments");
-		this.qzShovelName = instance.getConfig("config.yml").getString("tools.quartz.shovel.name");
-		this.qzShovelLore = instance.getConfig("config.yml").getStringList("tools.quartz.shovel.lore");
-		this.qzShovelEnchants = instance.getConfig("config.yml").getStringList("tools.quartz.shovel.enchantments");
-		this.qzHoeName = instance.getConfig("config.yml").getString("tools.quartz.hoe.name");
-		this.qzHoeLore = instance.getConfig("config.yml").getStringList("tools.quartz.hoe.lore");
-		this.qzHoeEnchants = instance.getConfig("config.yml").getStringList("tools.quartz.hoe.enchantments");
-		this.qzSwordName = instance.getConfig("config.yml").getString("tools.quartz.sword.name");
-		this.qzSwordLore = instance.getConfig("config.yml").getStringList("tools.quartz.sword.lore");
-		this.qzSwordEnchants = instance.getConfig("config.yml").getStringList("tools.quartz.sword.enchantments");
-		this.nsTools = instance.getConfig("config.yml").getBoolean("tools.netherstar.enable", true);
-		this.nsPickaxeName = instance.getConfig("config.yml").getString("tools.netherstar.pickaxe.name");
-		this.nsPickaxeLore = instance.getConfig("config.yml").getStringList("tools.netherstar.pickaxe.lore");
-		this.nsPickaxeEnchants = instance.getConfig("config.yml")
-				.getStringList("tools.netherstar.pickaxe.enchantments");
-		this.nsAxeName = instance.getConfig("config.yml").getString("tools.netherstar.axe.name");
-		this.nsAxeLore = instance.getConfig("config.yml").getStringList("tools.netherstar.axe.lore");
-		this.nsAxeEnchants = instance.getConfig("config.yml").getStringList("tools.netherstar.axe.enchantments");
-		this.nsShovelName = instance.getConfig("config.yml").getString("tools.netherstar.shovel.name");
-		this.nsShovelLore = instance.getConfig("config.yml").getStringList("tools.netherstar.shovel.lore");
-		this.nsShovelEnchants = instance.getConfig("config.yml").getStringList("tools.netherstar.shovel.enchantments");
-		this.nsHoeName = instance.getConfig("config.yml").getString("tools.netherstar.hoe.name");
-		this.nsHoeLore = instance.getConfig("config.yml").getStringList("tools.netherstar.hoe.lore");
-		this.nsHoeEnchants = instance.getConfig("config.yml").getStringList("tools.netherstar.hoe.enchantments");
-		this.nsSwordName = instance.getConfig("config.yml").getString("tools.netherstar.sword.name");
-		this.nsSwordLore = instance.getConfig("config.yml").getStringList("tools.netherstar.sword.lore");
-		this.nsSwordEnchants = instance.getConfig("config.yml").getStringList("tools.netherstar.sword.enchantments");
 		this.netherrackTools = Set.of(Material.STONE_PICKAXE, Material.STONE_AXE, Material.STONE_SHOVEL,
 				Material.STONE_HOE, Material.STONE_SWORD);
 		this.glowstoneTools = Set.of(Material.GOLDEN_PICKAXE, Material.GOLDEN_AXE, Material.GOLDEN_SHOVEL,
@@ -235,7 +97,7 @@ public class NetherTools implements Listener {
 
 	public void addTools() {
 		try {
-			if (this.nrTools) {
+			if (HBConfig.nrTools) {
 				Bukkit.removeRecipe(this.netherrackPickaxeKey);
 				Bukkit.removeRecipe(this.netherrackAxeKey);
 				Bukkit.removeRecipe(this.netherrackShovelKey);
@@ -254,7 +116,7 @@ public class NetherTools implements Listener {
 				Bukkit.removeRecipe(this.netherrackSwordKey);
 			}
 
-			if (this.gsTools) {
+			if (HBConfig.gsTools) {
 				Bukkit.removeRecipe(this.glowstonePickaxeKey);
 				Bukkit.removeRecipe(this.glowstoneAxeKey);
 				Bukkit.removeRecipe(this.glowstoneShovelKey);
@@ -273,7 +135,7 @@ public class NetherTools implements Listener {
 				Bukkit.removeRecipe(this.glowstoneSwordKey);
 			}
 
-			if (this.qzTools) {
+			if (HBConfig.qzTools) {
 				Bukkit.removeRecipe(this.quartzPickaxeKey);
 				Bukkit.removeRecipe(this.quartzAxeKey);
 				Bukkit.removeRecipe(this.quartzShovelKey);
@@ -292,7 +154,7 @@ public class NetherTools implements Listener {
 				Bukkit.removeRecipe(this.quartzSwordKey);
 			}
 
-			if (this.nsTools) {
+			if (HBConfig.nsTools) {
 				Bukkit.removeRecipe(this.netherstarPickaxeKey);
 				Bukkit.removeRecipe(this.netherstarAxeKey);
 				Bukkit.removeRecipe(this.netherstarShovelKey);
@@ -319,18 +181,19 @@ public class NetherTools implements Listener {
 		ItemBuilder tool = new ItemBuilder(Material.STONE_PICKAXE, 1);
 
 		tool.setDisplayName(new ShadedAdventureComponentWrapper(
-				instance.getAdventureManager().getComponentFromMiniMessage(nrPickaxeName)));
+				instance.getAdventureManager().getComponentFromMiniMessage(HBConfig.nrPickaxeName)));
 
 		List<ComponentWrapper> lore = new ArrayList<>();
-		for (String newLore : nrPickaxeLore) {
+		for (String newLore : HBConfig.nrPickaxeLore) {
 			lore.add(new ShadedAdventureComponentWrapper(
 					instance.getAdventureManager().getComponentFromMiniMessage(newLore)));
 		}
 		tool.setLore(lore);
 
-		for (String enchants : nrPickaxeEnchants) {
+		for (String enchants : HBConfig.nrPickaxeEnchants) {
 			String[] split = enchants.split(":");
-			Enchantment enchantment = enchantmentRegistry.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
+			Enchantment enchantment = instance.getHellblockHandler().getEnchantmentRegistry()
+					.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
 			int level = 1;
 			try {
 				level = Integer.parseInt(split[1]);
@@ -341,9 +204,9 @@ public class NetherTools implements Listener {
 			tool.addEnchantment(enchantment, level, false);
 		}
 
-		ItemStack data = setToolData(tool.get(), nrTools);
+		ItemStack data = setToolData(tool.get(), HBConfig.nrTools);
 
-		ShapedRecipe recipe = new ShapedRecipe(netherrackPickaxeKey, data);
+		ShapedRecipe recipe = new ShapedRecipe(this.netherrackPickaxeKey, data);
 		recipe.shape(new String[] { "NNN", " B ", " B " });
 		recipe.setIngredient('N', Material.NETHERRACK);
 		recipe.setIngredient('B', Material.BONE);
@@ -354,18 +217,19 @@ public class NetherTools implements Listener {
 		ItemBuilder tool = new ItemBuilder(Material.STONE_AXE, 1);
 
 		tool.setDisplayName(new ShadedAdventureComponentWrapper(
-				instance.getAdventureManager().getComponentFromMiniMessage(nrAxeName)));
+				instance.getAdventureManager().getComponentFromMiniMessage(HBConfig.nrAxeName)));
 
 		List<ComponentWrapper> lore = new ArrayList<>();
-		for (String newLore : nrAxeLore) {
+		for (String newLore : HBConfig.nrAxeLore) {
 			lore.add(new ShadedAdventureComponentWrapper(
 					instance.getAdventureManager().getComponentFromMiniMessage(newLore)));
 		}
 		tool.setLore(lore);
 
-		for (String enchants : nrAxeEnchants) {
+		for (String enchants : HBConfig.nrAxeEnchants) {
 			String[] split = enchants.split(":");
-			Enchantment enchantment = enchantmentRegistry.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
+			Enchantment enchantment = instance.getHellblockHandler().getEnchantmentRegistry()
+					.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
 			int level = 1;
 			try {
 				level = Integer.parseInt(split[1]);
@@ -376,9 +240,9 @@ public class NetherTools implements Listener {
 			tool.addEnchantment(enchantment, level, false);
 		}
 
-		ItemStack data = setToolData(tool.get(), nrTools);
+		ItemStack data = setToolData(tool.get(), HBConfig.nrTools);
 
-		ShapedRecipe recipe = new ShapedRecipe(netherrackAxeKey, data);
+		ShapedRecipe recipe = new ShapedRecipe(this.netherrackAxeKey, data);
 		recipe.shape(new String[] { "NN ", "NB ", " B " });
 		recipe.setIngredient('N', Material.NETHERRACK);
 		recipe.setIngredient('B', Material.BONE);
@@ -389,18 +253,19 @@ public class NetherTools implements Listener {
 		ItemBuilder tool = new ItemBuilder(Material.STONE_SHOVEL, 1);
 
 		tool.setDisplayName(new ShadedAdventureComponentWrapper(
-				instance.getAdventureManager().getComponentFromMiniMessage(nrShovelName)));
+				instance.getAdventureManager().getComponentFromMiniMessage(HBConfig.nrShovelName)));
 
 		List<ComponentWrapper> lore = new ArrayList<>();
-		for (String newLore : nrShovelLore) {
+		for (String newLore : HBConfig.nrShovelLore) {
 			lore.add(new ShadedAdventureComponentWrapper(
 					instance.getAdventureManager().getComponentFromMiniMessage(newLore)));
 		}
 		tool.setLore(lore);
 
-		for (String enchants : nrShovelEnchants) {
+		for (String enchants : HBConfig.nrShovelEnchants) {
 			String[] split = enchants.split(":");
-			Enchantment enchantment = enchantmentRegistry.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
+			Enchantment enchantment = instance.getHellblockHandler().getEnchantmentRegistry()
+					.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
 			int level = 1;
 			try {
 				level = Integer.parseInt(split[1]);
@@ -411,9 +276,9 @@ public class NetherTools implements Listener {
 			tool.addEnchantment(enchantment, level, false);
 		}
 
-		ItemStack data = setToolData(tool.get(), nrTools);
+		ItemStack data = setToolData(tool.get(), HBConfig.nrTools);
 
-		ShapedRecipe recipe = new ShapedRecipe(netherrackShovelKey, data);
+		ShapedRecipe recipe = new ShapedRecipe(this.netherrackShovelKey, data);
 		recipe.shape(new String[] { " N ", " B ", " B " });
 		recipe.setIngredient('N', Material.NETHERRACK);
 		recipe.setIngredient('B', Material.BONE);
@@ -424,18 +289,19 @@ public class NetherTools implements Listener {
 		ItemBuilder tool = new ItemBuilder(Material.STONE_HOE, 1);
 
 		tool.setDisplayName(new ShadedAdventureComponentWrapper(
-				instance.getAdventureManager().getComponentFromMiniMessage(nrHoeName)));
+				instance.getAdventureManager().getComponentFromMiniMessage(HBConfig.nrHoeName)));
 
 		List<ComponentWrapper> lore = new ArrayList<>();
-		for (String newLore : nrHoeLore) {
+		for (String newLore : HBConfig.nrHoeLore) {
 			lore.add(new ShadedAdventureComponentWrapper(
 					instance.getAdventureManager().getComponentFromMiniMessage(newLore)));
 		}
 		tool.setLore(lore);
 
-		for (String enchants : nrHoeEnchants) {
+		for (String enchants : HBConfig.nrHoeEnchants) {
 			String[] split = enchants.split(":");
-			Enchantment enchantment = enchantmentRegistry.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
+			Enchantment enchantment = instance.getHellblockHandler().getEnchantmentRegistry()
+					.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
 			int level = 1;
 			try {
 				level = Integer.parseInt(split[1]);
@@ -446,9 +312,9 @@ public class NetherTools implements Listener {
 			tool.addEnchantment(enchantment, level, false);
 		}
 
-		ItemStack data = setToolData(tool.get(), nrTools);
+		ItemStack data = setToolData(tool.get(), HBConfig.nrTools);
 
-		ShapedRecipe recipe = new ShapedRecipe(netherrackHoeKey, data);
+		ShapedRecipe recipe = new ShapedRecipe(this.netherrackHoeKey, data);
 		recipe.shape(new String[] { "NN ", " B ", " B " });
 		recipe.setIngredient('N', Material.NETHERRACK);
 		recipe.setIngredient('B', Material.BONE);
@@ -459,18 +325,19 @@ public class NetherTools implements Listener {
 		ItemBuilder tool = new ItemBuilder(Material.STONE_SWORD, 1);
 
 		tool.setDisplayName(new ShadedAdventureComponentWrapper(
-				instance.getAdventureManager().getComponentFromMiniMessage(nrSwordName)));
+				instance.getAdventureManager().getComponentFromMiniMessage(HBConfig.nrSwordName)));
 
 		List<ComponentWrapper> lore = new ArrayList<>();
-		for (String newLore : nrSwordLore) {
+		for (String newLore : HBConfig.nrSwordLore) {
 			lore.add(new ShadedAdventureComponentWrapper(
 					instance.getAdventureManager().getComponentFromMiniMessage(newLore)));
 		}
 		tool.setLore(lore);
 
-		for (String enchants : nrSwordEnchants) {
+		for (String enchants : HBConfig.nrSwordEnchants) {
 			String[] split = enchants.split(":");
-			Enchantment enchantment = enchantmentRegistry.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
+			Enchantment enchantment = instance.getHellblockHandler().getEnchantmentRegistry()
+					.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
 			int level = 1;
 			try {
 				level = Integer.parseInt(split[1]);
@@ -481,9 +348,9 @@ public class NetherTools implements Listener {
 			tool.addEnchantment(enchantment, level, false);
 		}
 
-		ItemStack data = setToolData(tool.get(), nrTools);
+		ItemStack data = setToolData(tool.get(), HBConfig.nrTools);
 
-		ShapedRecipe recipe = new ShapedRecipe(netherrackSwordKey, data);
+		ShapedRecipe recipe = new ShapedRecipe(this.netherrackSwordKey, data);
 		recipe.shape(new String[] { " N ", " N ", " B " });
 		recipe.setIngredient('N', Material.NETHERRACK);
 		recipe.setIngredient('B', Material.BONE);
@@ -494,18 +361,19 @@ public class NetherTools implements Listener {
 		ItemBuilder tool = new ItemBuilder(Material.GOLDEN_PICKAXE, 1);
 
 		tool.setDisplayName(new ShadedAdventureComponentWrapper(
-				instance.getAdventureManager().getComponentFromMiniMessage(gsPickaxeName)));
+				instance.getAdventureManager().getComponentFromMiniMessage(HBConfig.gsPickaxeName)));
 
 		List<ComponentWrapper> lore = new ArrayList<>();
-		for (String newLore : gsPickaxeLore) {
+		for (String newLore : HBConfig.gsPickaxeLore) {
 			lore.add(new ShadedAdventureComponentWrapper(
 					instance.getAdventureManager().getComponentFromMiniMessage(newLore)));
 		}
 		tool.setLore(lore);
 
-		for (String enchants : gsPickaxeEnchants) {
+		for (String enchants : HBConfig.gsPickaxeEnchants) {
 			String[] split = enchants.split(":");
-			Enchantment enchantment = enchantmentRegistry.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
+			Enchantment enchantment = instance.getHellblockHandler().getEnchantmentRegistry()
+					.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
 			int level = 1;
 			try {
 				level = Integer.parseInt(split[1]);
@@ -516,10 +384,10 @@ public class NetherTools implements Listener {
 			tool.addEnchantment(enchantment, level, false);
 		}
 
-		ItemStack data = setToolData(tool.get(), gsTools);
-		data = setNightVisionToolStatus(data, gsNightVisionTool);
+		ItemStack data = setToolData(tool.get(), HBConfig.gsTools);
+		data = setNightVisionToolStatus(data, HBConfig.gsNightVisionTool);
 
-		ShapedRecipe recipe = new ShapedRecipe(glowstonePickaxeKey, data);
+		ShapedRecipe recipe = new ShapedRecipe(this.glowstonePickaxeKey, data);
 		recipe.shape(new String[] { "NNN", " B ", " B " });
 		recipe.setIngredient('N', Material.GLOWSTONE);
 		recipe.setIngredient('B', Material.BONE);
@@ -530,18 +398,19 @@ public class NetherTools implements Listener {
 		ItemBuilder tool = new ItemBuilder(Material.GOLDEN_AXE, 1);
 
 		tool.setDisplayName(new ShadedAdventureComponentWrapper(
-				instance.getAdventureManager().getComponentFromMiniMessage(gsAxeName)));
+				instance.getAdventureManager().getComponentFromMiniMessage(HBConfig.gsAxeName)));
 
 		List<ComponentWrapper> lore = new ArrayList<>();
-		for (String newLore : gsAxeLore) {
+		for (String newLore : HBConfig.gsAxeLore) {
 			lore.add(new ShadedAdventureComponentWrapper(
 					instance.getAdventureManager().getComponentFromMiniMessage(newLore)));
 		}
 		tool.setLore(lore);
 
-		for (String enchants : gsAxeEnchants) {
+		for (String enchants : HBConfig.gsAxeEnchants) {
 			String[] split = enchants.split(":");
-			Enchantment enchantment = enchantmentRegistry.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
+			Enchantment enchantment = instance.getHellblockHandler().getEnchantmentRegistry()
+					.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
 			int level = 1;
 			try {
 				level = Integer.parseInt(split[1]);
@@ -552,10 +421,10 @@ public class NetherTools implements Listener {
 			tool.addEnchantment(enchantment, level, false);
 		}
 
-		ItemStack data = setToolData(tool.get(), gsTools);
-		data = setNightVisionToolStatus(data, gsNightVisionTool);
+		ItemStack data = setToolData(tool.get(), HBConfig.gsTools);
+		data = setNightVisionToolStatus(data, HBConfig.gsNightVisionTool);
 
-		ShapedRecipe recipe = new ShapedRecipe(glowstoneAxeKey, data);
+		ShapedRecipe recipe = new ShapedRecipe(this.glowstoneAxeKey, data);
 		recipe.shape(new String[] { "NN ", "NB ", " B " });
 		recipe.setIngredient('N', Material.GLOWSTONE);
 		recipe.setIngredient('B', Material.BONE);
@@ -566,18 +435,19 @@ public class NetherTools implements Listener {
 		ItemBuilder tool = new ItemBuilder(Material.GOLDEN_SHOVEL, 1);
 
 		tool.setDisplayName(new ShadedAdventureComponentWrapper(
-				instance.getAdventureManager().getComponentFromMiniMessage(gsShovelName)));
+				instance.getAdventureManager().getComponentFromMiniMessage(HBConfig.gsShovelName)));
 
 		List<ComponentWrapper> lore = new ArrayList<>();
-		for (String newLore : gsShovelLore) {
+		for (String newLore : HBConfig.gsShovelLore) {
 			lore.add(new ShadedAdventureComponentWrapper(
 					instance.getAdventureManager().getComponentFromMiniMessage(newLore)));
 		}
 		tool.setLore(lore);
 
-		for (String enchants : gsShovelEnchants) {
+		for (String enchants : HBConfig.gsShovelEnchants) {
 			String[] split = enchants.split(":");
-			Enchantment enchantment = enchantmentRegistry.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
+			Enchantment enchantment = instance.getHellblockHandler().getEnchantmentRegistry()
+					.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
 			int level = 1;
 			try {
 				level = Integer.parseInt(split[1]);
@@ -588,10 +458,10 @@ public class NetherTools implements Listener {
 			tool.addEnchantment(enchantment, level, false);
 		}
 
-		ItemStack data = setToolData(tool.get(), gsTools);
-		data = setNightVisionToolStatus(data, gsNightVisionTool);
+		ItemStack data = setToolData(tool.get(), HBConfig.gsTools);
+		data = setNightVisionToolStatus(data, HBConfig.gsNightVisionTool);
 
-		ShapedRecipe recipe = new ShapedRecipe(glowstoneShovelKey, data);
+		ShapedRecipe recipe = new ShapedRecipe(this.glowstoneShovelKey, data);
 		recipe.shape(new String[] { " N ", " B ", " B " });
 		recipe.setIngredient('N', Material.GLOWSTONE);
 		recipe.setIngredient('B', Material.BONE);
@@ -602,18 +472,19 @@ public class NetherTools implements Listener {
 		ItemBuilder tool = new ItemBuilder(Material.GOLDEN_HOE, 1);
 
 		tool.setDisplayName(new ShadedAdventureComponentWrapper(
-				instance.getAdventureManager().getComponentFromMiniMessage(gsHoeName)));
+				instance.getAdventureManager().getComponentFromMiniMessage(HBConfig.gsHoeName)));
 
 		List<ComponentWrapper> lore = new ArrayList<>();
-		for (String newLore : gsHoeLore) {
+		for (String newLore : HBConfig.gsHoeLore) {
 			lore.add(new ShadedAdventureComponentWrapper(
 					instance.getAdventureManager().getComponentFromMiniMessage(newLore)));
 		}
 		tool.setLore(lore);
 
-		for (String enchants : gsHoeEnchants) {
+		for (String enchants : HBConfig.gsHoeEnchants) {
 			String[] split = enchants.split(":");
-			Enchantment enchantment = enchantmentRegistry.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
+			Enchantment enchantment = instance.getHellblockHandler().getEnchantmentRegistry()
+					.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
 			int level = 1;
 			try {
 				level = Integer.parseInt(split[1]);
@@ -624,10 +495,10 @@ public class NetherTools implements Listener {
 			tool.addEnchantment(enchantment, level, false);
 		}
 
-		ItemStack data = setToolData(tool.get(), gsTools);
-		data = setNightVisionToolStatus(data, gsNightVisionTool);
+		ItemStack data = setToolData(tool.get(), HBConfig.gsTools);
+		data = setNightVisionToolStatus(data, HBConfig.gsNightVisionTool);
 
-		ShapedRecipe recipe = new ShapedRecipe(glowstoneHoeKey, data);
+		ShapedRecipe recipe = new ShapedRecipe(this.glowstoneHoeKey, data);
 		recipe.shape(new String[] { "NN ", " B ", " B " });
 		recipe.setIngredient('N', Material.GLOWSTONE);
 		recipe.setIngredient('B', Material.BONE);
@@ -638,18 +509,19 @@ public class NetherTools implements Listener {
 		ItemBuilder tool = new ItemBuilder(Material.GOLDEN_SWORD, 1);
 
 		tool.setDisplayName(new ShadedAdventureComponentWrapper(
-				instance.getAdventureManager().getComponentFromMiniMessage(gsSwordName)));
+				instance.getAdventureManager().getComponentFromMiniMessage(HBConfig.gsSwordName)));
 
 		List<ComponentWrapper> lore = new ArrayList<>();
-		for (String newLore : gsSwordLore) {
+		for (String newLore : HBConfig.gsSwordLore) {
 			lore.add(new ShadedAdventureComponentWrapper(
 					instance.getAdventureManager().getComponentFromMiniMessage(newLore)));
 		}
 		tool.setLore(lore);
 
-		for (String enchants : gsSwordEnchants) {
+		for (String enchants : HBConfig.gsSwordEnchants) {
 			String[] split = enchants.split(":");
-			Enchantment enchantment = enchantmentRegistry.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
+			Enchantment enchantment = instance.getHellblockHandler().getEnchantmentRegistry()
+					.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
 			int level = 1;
 			try {
 				level = Integer.parseInt(split[1]);
@@ -660,10 +532,10 @@ public class NetherTools implements Listener {
 			tool.addEnchantment(enchantment, level, false);
 		}
 
-		ItemStack data = setToolData(tool.get(), gsTools);
-		data = setNightVisionToolStatus(data, gsNightVisionTool);
+		ItemStack data = setToolData(tool.get(), HBConfig.gsTools);
+		data = setNightVisionToolStatus(data, HBConfig.gsNightVisionTool);
 
-		ShapedRecipe recipe = new ShapedRecipe(glowstoneSwordKey, data);
+		ShapedRecipe recipe = new ShapedRecipe(this.glowstoneSwordKey, data);
 		recipe.shape(new String[] { " N ", " N ", " B " });
 		recipe.setIngredient('N', Material.GLOWSTONE);
 		recipe.setIngredient('B', Material.BONE);
@@ -674,18 +546,19 @@ public class NetherTools implements Listener {
 		ItemBuilder tool = new ItemBuilder(Material.IRON_PICKAXE, 1);
 
 		tool.setDisplayName(new ShadedAdventureComponentWrapper(
-				instance.getAdventureManager().getComponentFromMiniMessage(qzPickaxeName)));
+				instance.getAdventureManager().getComponentFromMiniMessage(HBConfig.qzPickaxeName)));
 
 		List<ComponentWrapper> lore = new ArrayList<>();
-		for (String newLore : qzPickaxeLore) {
+		for (String newLore : HBConfig.qzPickaxeLore) {
 			lore.add(new ShadedAdventureComponentWrapper(
 					instance.getAdventureManager().getComponentFromMiniMessage(newLore)));
 		}
 		tool.setLore(lore);
 
-		for (String enchants : qzPickaxeEnchants) {
+		for (String enchants : HBConfig.qzPickaxeEnchants) {
 			String[] split = enchants.split(":");
-			Enchantment enchantment = enchantmentRegistry.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
+			Enchantment enchantment = instance.getHellblockHandler().getEnchantmentRegistry()
+					.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
 			int level = 1;
 			try {
 				level = Integer.parseInt(split[1]);
@@ -696,9 +569,9 @@ public class NetherTools implements Listener {
 			tool.addEnchantment(enchantment, level, false);
 		}
 
-		ItemStack data = setToolData(tool.get(), qzTools);
+		ItemStack data = setToolData(tool.get(), HBConfig.qzTools);
 
-		ShapedRecipe recipe = new ShapedRecipe(quartzPickaxeKey, data);
+		ShapedRecipe recipe = new ShapedRecipe(this.quartzPickaxeKey, data);
 		recipe.shape(new String[] { "NNN", " B ", " B " });
 		recipe.setIngredient('N', Material.QUARTZ);
 		recipe.setIngredient('B', Material.BONE);
@@ -709,18 +582,19 @@ public class NetherTools implements Listener {
 		ItemBuilder tool = new ItemBuilder(Material.IRON_AXE, 1);
 
 		tool.setDisplayName(new ShadedAdventureComponentWrapper(
-				instance.getAdventureManager().getComponentFromMiniMessage(qzAxeName)));
+				instance.getAdventureManager().getComponentFromMiniMessage(HBConfig.qzAxeName)));
 
 		List<ComponentWrapper> lore = new ArrayList<>();
-		for (String newLore : qzAxeLore) {
+		for (String newLore : HBConfig.qzAxeLore) {
 			lore.add(new ShadedAdventureComponentWrapper(
 					instance.getAdventureManager().getComponentFromMiniMessage(newLore)));
 		}
 		tool.setLore(lore);
 
-		for (String enchants : qzAxeEnchants) {
+		for (String enchants : HBConfig.qzAxeEnchants) {
 			String[] split = enchants.split(":");
-			Enchantment enchantment = enchantmentRegistry.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
+			Enchantment enchantment = instance.getHellblockHandler().getEnchantmentRegistry()
+					.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
 			int level = 1;
 			try {
 				level = Integer.parseInt(split[1]);
@@ -731,9 +605,9 @@ public class NetherTools implements Listener {
 			tool.addEnchantment(enchantment, level, false);
 		}
 
-		ItemStack data = setToolData(tool.get(), qzTools);
+		ItemStack data = setToolData(tool.get(), HBConfig.qzTools);
 
-		ShapedRecipe recipe = new ShapedRecipe(quartzAxeKey, data);
+		ShapedRecipe recipe = new ShapedRecipe(this.quartzAxeKey, data);
 		recipe.shape(new String[] { "NN ", "NB ", " B " });
 		recipe.setIngredient('N', Material.QUARTZ);
 		recipe.setIngredient('B', Material.BONE);
@@ -744,18 +618,19 @@ public class NetherTools implements Listener {
 		ItemBuilder tool = new ItemBuilder(Material.IRON_SHOVEL, 1);
 
 		tool.setDisplayName(new ShadedAdventureComponentWrapper(
-				instance.getAdventureManager().getComponentFromMiniMessage(qzShovelName)));
+				instance.getAdventureManager().getComponentFromMiniMessage(HBConfig.qzShovelName)));
 
 		List<ComponentWrapper> lore = new ArrayList<>();
-		for (String newLore : qzShovelLore) {
+		for (String newLore : HBConfig.qzShovelLore) {
 			lore.add(new ShadedAdventureComponentWrapper(
 					instance.getAdventureManager().getComponentFromMiniMessage(newLore)));
 		}
 		tool.setLore(lore);
 
-		for (String enchants : qzShovelEnchants) {
+		for (String enchants : HBConfig.qzShovelEnchants) {
 			String[] split = enchants.split(":");
-			Enchantment enchantment = enchantmentRegistry.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
+			Enchantment enchantment = instance.getHellblockHandler().getEnchantmentRegistry()
+					.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
 			int level = 1;
 			try {
 				level = Integer.parseInt(split[1]);
@@ -766,9 +641,9 @@ public class NetherTools implements Listener {
 			tool.addEnchantment(enchantment, level, false);
 		}
 
-		ItemStack data = setToolData(tool.get(), qzTools);
+		ItemStack data = setToolData(tool.get(), HBConfig.qzTools);
 
-		ShapedRecipe recipe = new ShapedRecipe(quartzShovelKey, data);
+		ShapedRecipe recipe = new ShapedRecipe(this.quartzShovelKey, data);
 		recipe.shape(new String[] { " N ", " B ", " B " });
 		recipe.setIngredient('N', Material.QUARTZ);
 		recipe.setIngredient('B', Material.BONE);
@@ -779,18 +654,19 @@ public class NetherTools implements Listener {
 		ItemBuilder tool = new ItemBuilder(Material.IRON_HOE, 1);
 
 		tool.setDisplayName(new ShadedAdventureComponentWrapper(
-				instance.getAdventureManager().getComponentFromMiniMessage(qzHoeName)));
+				instance.getAdventureManager().getComponentFromMiniMessage(HBConfig.qzHoeName)));
 
 		List<ComponentWrapper> lore = new ArrayList<>();
-		for (String newLore : qzHoeLore) {
+		for (String newLore : HBConfig.qzHoeLore) {
 			lore.add(new ShadedAdventureComponentWrapper(
 					instance.getAdventureManager().getComponentFromMiniMessage(newLore)));
 		}
 		tool.setLore(lore);
 
-		for (String enchants : qzHoeEnchants) {
+		for (String enchants : HBConfig.qzHoeEnchants) {
 			String[] split = enchants.split(":");
-			Enchantment enchantment = enchantmentRegistry.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
+			Enchantment enchantment = instance.getHellblockHandler().getEnchantmentRegistry()
+					.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
 			int level = 1;
 			try {
 				level = Integer.parseInt(split[1]);
@@ -801,9 +677,9 @@ public class NetherTools implements Listener {
 			tool.addEnchantment(enchantment, level, false);
 		}
 
-		ItemStack data = setToolData(tool.get(), qzTools);
+		ItemStack data = setToolData(tool.get(), HBConfig.qzTools);
 
-		ShapedRecipe recipe = new ShapedRecipe(quartzHoeKey, data);
+		ShapedRecipe recipe = new ShapedRecipe(this.quartzHoeKey, data);
 		recipe.shape(new String[] { "NN ", " B ", " B " });
 		recipe.setIngredient('N', Material.QUARTZ);
 		recipe.setIngredient('B', Material.BONE);
@@ -814,18 +690,19 @@ public class NetherTools implements Listener {
 		ItemBuilder tool = new ItemBuilder(Material.IRON_SWORD, 1);
 
 		tool.setDisplayName(new ShadedAdventureComponentWrapper(
-				instance.getAdventureManager().getComponentFromMiniMessage(qzSwordName)));
+				instance.getAdventureManager().getComponentFromMiniMessage(HBConfig.qzSwordName)));
 
 		List<ComponentWrapper> lore = new ArrayList<>();
-		for (String newLore : qzSwordLore) {
+		for (String newLore : HBConfig.qzSwordLore) {
 			lore.add(new ShadedAdventureComponentWrapper(
 					instance.getAdventureManager().getComponentFromMiniMessage(newLore)));
 		}
 		tool.setLore(lore);
 
-		for (String enchants : qzSwordEnchants) {
+		for (String enchants : HBConfig.qzSwordEnchants) {
 			String[] split = enchants.split(":");
-			Enchantment enchantment = enchantmentRegistry.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
+			Enchantment enchantment = instance.getHellblockHandler().getEnchantmentRegistry()
+					.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
 			int level = 1;
 			try {
 				level = Integer.parseInt(split[1]);
@@ -836,9 +713,9 @@ public class NetherTools implements Listener {
 			tool.addEnchantment(enchantment, level, false);
 		}
 
-		ItemStack data = setToolData(tool.get(), qzTools);
+		ItemStack data = setToolData(tool.get(), HBConfig.qzTools);
 
-		ShapedRecipe recipe = new ShapedRecipe(quartzSwordKey, data);
+		ShapedRecipe recipe = new ShapedRecipe(this.quartzSwordKey, data);
 		recipe.shape(new String[] { " N ", " N ", " B " });
 		recipe.setIngredient('N', Material.QUARTZ);
 		recipe.setIngredient('B', Material.BONE);
@@ -849,18 +726,19 @@ public class NetherTools implements Listener {
 		ItemBuilder tool = new ItemBuilder(Material.DIAMOND_PICKAXE, 1);
 
 		tool.setDisplayName(new ShadedAdventureComponentWrapper(
-				instance.getAdventureManager().getComponentFromMiniMessage(nsPickaxeName)));
+				instance.getAdventureManager().getComponentFromMiniMessage(HBConfig.nsPickaxeName)));
 
 		List<ComponentWrapper> lore = new ArrayList<>();
-		for (String newLore : nsPickaxeLore) {
+		for (String newLore : HBConfig.nsPickaxeLore) {
 			lore.add(new ShadedAdventureComponentWrapper(
 					instance.getAdventureManager().getComponentFromMiniMessage(newLore)));
 		}
 		tool.setLore(lore);
 
-		for (String enchants : nsPickaxeEnchants) {
+		for (String enchants : HBConfig.nsPickaxeEnchants) {
 			String[] split = enchants.split(":");
-			Enchantment enchantment = enchantmentRegistry.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
+			Enchantment enchantment = instance.getHellblockHandler().getEnchantmentRegistry()
+					.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
 			int level = 1;
 			try {
 				level = Integer.parseInt(split[1]);
@@ -871,9 +749,9 @@ public class NetherTools implements Listener {
 			tool.addEnchantment(enchantment, level, false);
 		}
 
-		ItemStack data = setToolData(tool.get(), nsTools);
+		ItemStack data = setToolData(tool.get(), HBConfig.nsTools);
 
-		ShapedRecipe recipe = new ShapedRecipe(netherstarPickaxeKey, data);
+		ShapedRecipe recipe = new ShapedRecipe(this.netherstarPickaxeKey, data);
 		recipe.shape(new String[] { "NNN", " B ", " B " });
 		recipe.setIngredient('N', Material.NETHER_STAR);
 		recipe.setIngredient('B', Material.BONE);
@@ -884,18 +762,19 @@ public class NetherTools implements Listener {
 		ItemBuilder tool = new ItemBuilder(Material.DIAMOND_AXE, 1);
 
 		tool.setDisplayName(new ShadedAdventureComponentWrapper(
-				instance.getAdventureManager().getComponentFromMiniMessage(nsAxeName)));
+				instance.getAdventureManager().getComponentFromMiniMessage(HBConfig.nsAxeName)));
 
 		List<ComponentWrapper> lore = new ArrayList<>();
-		for (String newLore : nsAxeLore) {
+		for (String newLore : HBConfig.nsAxeLore) {
 			lore.add(new ShadedAdventureComponentWrapper(
 					instance.getAdventureManager().getComponentFromMiniMessage(newLore)));
 		}
 		tool.setLore(lore);
 
-		for (String enchants : nsAxeEnchants) {
+		for (String enchants : HBConfig.nsAxeEnchants) {
 			String[] split = enchants.split(":");
-			Enchantment enchantment = enchantmentRegistry.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
+			Enchantment enchantment = instance.getHellblockHandler().getEnchantmentRegistry()
+					.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
 			int level = 1;
 			try {
 				level = Integer.parseInt(split[1]);
@@ -906,9 +785,9 @@ public class NetherTools implements Listener {
 			tool.addEnchantment(enchantment, level, false);
 		}
 
-		ItemStack data = setToolData(tool.get(), nsTools);
+		ItemStack data = setToolData(tool.get(), HBConfig.nsTools);
 
-		ShapedRecipe recipe = new ShapedRecipe(netherstarAxeKey, data);
+		ShapedRecipe recipe = new ShapedRecipe(this.netherstarAxeKey, data);
 		recipe.shape(new String[] { "NN ", "NB ", " B " });
 		recipe.setIngredient('N', Material.NETHER_STAR);
 		recipe.setIngredient('B', Material.BONE);
@@ -919,18 +798,19 @@ public class NetherTools implements Listener {
 		ItemBuilder tool = new ItemBuilder(Material.DIAMOND_SHOVEL, 1);
 
 		tool.setDisplayName(new ShadedAdventureComponentWrapper(
-				instance.getAdventureManager().getComponentFromMiniMessage(nsShovelName)));
+				instance.getAdventureManager().getComponentFromMiniMessage(HBConfig.nsShovelName)));
 
 		List<ComponentWrapper> lore = new ArrayList<>();
-		for (String newLore : nsShovelLore) {
+		for (String newLore : HBConfig.nsShovelLore) {
 			lore.add(new ShadedAdventureComponentWrapper(
 					instance.getAdventureManager().getComponentFromMiniMessage(newLore)));
 		}
 		tool.setLore(lore);
 
-		for (String enchants : nsShovelEnchants) {
+		for (String enchants : HBConfig.nsShovelEnchants) {
 			String[] split = enchants.split(":");
-			Enchantment enchantment = enchantmentRegistry.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
+			Enchantment enchantment = instance.getHellblockHandler().getEnchantmentRegistry()
+					.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
 			int level = 1;
 			try {
 				level = Integer.parseInt(split[1]);
@@ -941,9 +821,9 @@ public class NetherTools implements Listener {
 			tool.addEnchantment(enchantment, level, false);
 		}
 
-		ItemStack data = setToolData(tool.get(), nsTools);
+		ItemStack data = setToolData(tool.get(), HBConfig.nsTools);
 
-		ShapedRecipe recipe = new ShapedRecipe(netherstarShovelKey, data);
+		ShapedRecipe recipe = new ShapedRecipe(this.netherstarShovelKey, data);
 		recipe.shape(new String[] { " N ", " B ", " B " });
 		recipe.setIngredient('N', Material.NETHER_STAR);
 		recipe.setIngredient('B', Material.BONE);
@@ -954,18 +834,19 @@ public class NetherTools implements Listener {
 		ItemBuilder tool = new ItemBuilder(Material.DIAMOND_HOE, 1);
 
 		tool.setDisplayName(new ShadedAdventureComponentWrapper(
-				instance.getAdventureManager().getComponentFromMiniMessage(nsHoeName)));
+				instance.getAdventureManager().getComponentFromMiniMessage(HBConfig.nsHoeName)));
 
 		List<ComponentWrapper> lore = new ArrayList<>();
-		for (String newLore : nsHoeLore) {
+		for (String newLore : HBConfig.nsHoeLore) {
 			lore.add(new ShadedAdventureComponentWrapper(
 					instance.getAdventureManager().getComponentFromMiniMessage(newLore)));
 		}
 		tool.setLore(lore);
 
-		for (String enchants : nsHoeEnchants) {
+		for (String enchants : HBConfig.nsHoeEnchants) {
 			String[] split = enchants.split(":");
-			Enchantment enchantment = enchantmentRegistry.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
+			Enchantment enchantment = instance.getHellblockHandler().getEnchantmentRegistry()
+					.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
 			int level = 1;
 			try {
 				level = Integer.parseInt(split[1]);
@@ -976,9 +857,9 @@ public class NetherTools implements Listener {
 			tool.addEnchantment(enchantment, level, false);
 		}
 
-		ItemStack data = setToolData(tool.get(), nsTools);
+		ItemStack data = setToolData(tool.get(), HBConfig.nsTools);
 
-		ShapedRecipe recipe = new ShapedRecipe(netherstarHoeKey, data);
+		ShapedRecipe recipe = new ShapedRecipe(this.netherstarHoeKey, data);
 		recipe.shape(new String[] { "NN ", " B ", " B " });
 		recipe.setIngredient('N', Material.NETHER_STAR);
 		recipe.setIngredient('B', Material.BONE);
@@ -989,18 +870,19 @@ public class NetherTools implements Listener {
 		ItemBuilder tool = new ItemBuilder(Material.DIAMOND_SWORD, 1);
 
 		tool.setDisplayName(new ShadedAdventureComponentWrapper(
-				instance.getAdventureManager().getComponentFromMiniMessage(nsSwordName)));
+				instance.getAdventureManager().getComponentFromMiniMessage(HBConfig.nsSwordName)));
 
 		List<ComponentWrapper> lore = new ArrayList<>();
-		for (String newLore : nsSwordLore) {
+		for (String newLore : HBConfig.nsSwordLore) {
 			lore.add(new ShadedAdventureComponentWrapper(
 					instance.getAdventureManager().getComponentFromMiniMessage(newLore)));
 		}
 		tool.setLore(lore);
 
-		for (String enchants : nsSwordEnchants) {
+		for (String enchants : HBConfig.nsSwordEnchants) {
 			String[] split = enchants.split(":");
-			Enchantment enchantment = enchantmentRegistry.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
+			Enchantment enchantment = instance.getHellblockHandler().getEnchantmentRegistry()
+					.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
 			int level = 1;
 			try {
 				level = Integer.parseInt(split[1]);
@@ -1011,9 +893,9 @@ public class NetherTools implements Listener {
 			tool.addEnchantment(enchantment, level, false);
 		}
 
-		ItemStack data = setToolData(tool.get(), nsTools);
+		ItemStack data = setToolData(tool.get(), HBConfig.nsTools);
 
-		ShapedRecipe recipe = new ShapedRecipe(netherstarSwordKey, data);
+		ShapedRecipe recipe = new ShapedRecipe(this.netherstarSwordKey, data);
 		recipe.shape(new String[] { " N ", " N ", " B " });
 		recipe.setIngredient('N', Material.NETHER_STAR);
 		recipe.setIngredient('B', Material.BONE);
@@ -1023,7 +905,7 @@ public class NetherTools implements Listener {
 	@EventHandler
 	public void onCrafting(CraftItemEvent event) {
 		if (event.getView().getPlayer() instanceof Player player) {
-			if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName())) {
+			if (!player.getWorld().getName().equalsIgnoreCase(HBConfig.worldName)) {
 				return;
 			}
 
@@ -1033,21 +915,22 @@ public class NetherTools implements Listener {
 				if (checkToolData(result) && getToolData(result)) {
 					if (recipe instanceof CraftingRecipe craft) {
 						if (!player.hasDiscoveredRecipe(craft.getKey())) {
-							OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
-							if (onlineUser == null)
+							Optional<UserData> onlineUser = instance.getStorageManager()
+									.getOnlineUser(player.getUniqueId());
+							if (onlineUser.isEmpty() || onlineUser.get().getPlayer() == null)
 								return;
-							if (!onlineUser.getChallengeData()
+							if (!onlineUser.get().getChallengeData()
 									.isChallengeActive(ChallengeType.NETHER_CRAFTING_CHALLENGE)
-									&& !onlineUser.getChallengeData()
+									&& !onlineUser.get().getChallengeData()
 											.isChallengeCompleted(ChallengeType.NETHER_CRAFTING_CHALLENGE)) {
-								onlineUser.getChallengeData().beginChallengeProgression(onlineUser.getPlayer(),
-										ChallengeType.NETHER_CRAFTING_CHALLENGE);
+								onlineUser.get().getChallengeData().beginChallengeProgression(
+										onlineUser.get().getPlayer(), ChallengeType.NETHER_CRAFTING_CHALLENGE);
 							} else {
-								onlineUser.getChallengeData().updateChallengeProgression(onlineUser.getPlayer(),
-										ChallengeType.NETHER_CRAFTING_CHALLENGE, 1);
-								if (onlineUser.getChallengeData()
+								onlineUser.get().getChallengeData().updateChallengeProgression(
+										onlineUser.get().getPlayer(), ChallengeType.NETHER_CRAFTING_CHALLENGE, 1);
+								if (onlineUser.get().getChallengeData()
 										.isChallengeCompleted(ChallengeType.NETHER_CRAFTING_CHALLENGE)) {
-									onlineUser.getChallengeData().completeChallenge(onlineUser.getPlayer(),
+									onlineUser.get().getChallengeData().completeChallenge(onlineUser.get().getPlayer(),
 											ChallengeType.NETHER_CRAFTING_CHALLENGE);
 								}
 							}
@@ -1063,7 +946,7 @@ public class NetherTools implements Listener {
 	public void onLimitedCrafting(PrepareItemCraftEvent event) {
 		if (instance.getHellblockHandler().getHellblockWorld().getGameRuleValue(GameRule.DO_LIMITED_CRAFTING)) {
 			if (event.getView().getPlayer() instanceof Player player) {
-				if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName())) {
+				if (!player.getWorld().getName().equalsIgnoreCase(HBConfig.worldName)) {
 					return;
 				}
 
@@ -1073,23 +956,23 @@ public class NetherTools implements Listener {
 					if (checkToolData(result) && getToolData(result)) {
 						if (recipe instanceof CraftingRecipe craft) {
 							if (!player.hasDiscoveredRecipe(craft.getKey())) {
-								OnlineUser onlineUser = instance.getStorageManager()
+								Optional<UserData> onlineUser = instance.getStorageManager()
 										.getOnlineUser(player.getUniqueId());
-								if (onlineUser == null)
+								if (onlineUser.isEmpty() || onlineUser.get().getPlayer() == null)
 									return;
-								if (!onlineUser.getChallengeData()
+								if (!onlineUser.get().getChallengeData()
 										.isChallengeActive(ChallengeType.NETHER_CRAFTING_CHALLENGE)
-										&& !onlineUser.getChallengeData()
+										&& !onlineUser.get().getChallengeData()
 												.isChallengeCompleted(ChallengeType.NETHER_CRAFTING_CHALLENGE)) {
-									onlineUser.getChallengeData().beginChallengeProgression(onlineUser.getPlayer(),
-											ChallengeType.NETHER_CRAFTING_CHALLENGE);
+									onlineUser.get().getChallengeData().beginChallengeProgression(
+											onlineUser.get().getPlayer(), ChallengeType.NETHER_CRAFTING_CHALLENGE);
 								} else {
-									onlineUser.getChallengeData().updateChallengeProgression(onlineUser.getPlayer(),
-											ChallengeType.NETHER_CRAFTING_CHALLENGE, 1);
-									if (onlineUser.getChallengeData()
+									onlineUser.get().getChallengeData().updateChallengeProgression(
+											onlineUser.get().getPlayer(), ChallengeType.NETHER_CRAFTING_CHALLENGE, 1);
+									if (onlineUser.get().getChallengeData()
 											.isChallengeCompleted(ChallengeType.NETHER_CRAFTING_CHALLENGE)) {
-										onlineUser.getChallengeData().completeChallenge(onlineUser.getPlayer(),
-												ChallengeType.NETHER_CRAFTING_CHALLENGE);
+										onlineUser.get().getChallengeData().completeChallenge(
+												onlineUser.get().getPlayer(), ChallengeType.NETHER_CRAFTING_CHALLENGE);
 									}
 								}
 								player.discoverRecipe(craft.getKey());
@@ -1103,11 +986,11 @@ public class NetherTools implements Listener {
 
 	@EventHandler
 	public void onSlotChange(PlayerItemHeldEvent event) {
-		if (!this.gsNightVisionTool || !this.gsTools)
+		if (!HBConfig.gsNightVisionTool || !HBConfig.gsTools)
 			return;
 		Player player = event.getPlayer();
 
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!player.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 
 		ItemStack tool = player.getInventory().getItem(event.getNewSlot());
@@ -1121,15 +1004,15 @@ public class NetherTools implements Listener {
 			}
 		}
 
-		OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
-		if (onlineUser == null)
+		Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
+		if (onlineUser.isEmpty())
 			return;
 
 		if (tool != null && tool.getType() == Material.AIR) {
-			if (onlineUser.hasGlowstoneToolEffect()) {
+			if (onlineUser.get().hasGlowstoneToolEffect()) {
 				if (player.hasPotionEffect(PotionEffectType.NIGHT_VISION)) {
-					onlineUser.isHoldingGlowstoneTool(false);
-					if (!onlineUser.hasGlowstoneArmorEffect()) {
+					onlineUser.get().isHoldingGlowstoneTool(false);
+					if (!onlineUser.get().hasGlowstoneArmorEffect()) {
 						player.removePotionEffect(PotionEffectType.NIGHT_VISION);
 					}
 				}
@@ -1139,13 +1022,13 @@ public class NetherTools implements Listener {
 
 		if (tool != null && checkNightVisionToolStatus(tool) && getNightVisionToolStatus(tool)) {
 			player.addPotionEffect(new PotionEffect(PotionEffectType.NIGHT_VISION, Integer.MAX_VALUE, 1));
-			onlineUser.isHoldingGlowstoneTool(true);
+			onlineUser.get().isHoldingGlowstoneTool(true);
 		} else {
 			if (!inOffHand) {
-				if (onlineUser.hasGlowstoneToolEffect()) {
+				if (onlineUser.get().hasGlowstoneToolEffect()) {
 					if (player.hasPotionEffect(PotionEffectType.NIGHT_VISION)) {
-						onlineUser.isHoldingGlowstoneTool(false);
-						if (!onlineUser.hasGlowstoneArmorEffect()) {
+						onlineUser.get().isHoldingGlowstoneTool(false);
+						if (!onlineUser.get().hasGlowstoneArmorEffect()) {
 							player.removePotionEffect(PotionEffectType.NIGHT_VISION);
 						}
 					}
@@ -1156,24 +1039,24 @@ public class NetherTools implements Listener {
 
 	@EventHandler
 	public void onSwapHand(PlayerSwapHandItemsEvent event) {
-		if (!this.gsNightVisionTool || !this.gsTools)
+		if (!HBConfig.gsNightVisionTool || !HBConfig.gsTools)
 			return;
 		Player player = event.getPlayer();
 
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!player.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 
-		OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
-		if (onlineUser == null)
+		Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
+		if (onlineUser.isEmpty())
 			return;
 		ItemStack tool = event.getMainHandItem();
 		if (tool.getType() == Material.AIR) {
 			tool = event.getOffHandItem();
 			if (tool.getType() == Material.AIR) {
-				if (onlineUser.hasGlowstoneToolEffect()) {
+				if (onlineUser.get().hasGlowstoneToolEffect()) {
 					if (player.hasPotionEffect(PotionEffectType.NIGHT_VISION)) {
-						onlineUser.isHoldingGlowstoneTool(false);
-						if (!onlineUser.hasGlowstoneArmorEffect()) {
+						onlineUser.get().isHoldingGlowstoneTool(false);
+						if (!onlineUser.get().hasGlowstoneArmorEffect()) {
 							player.removePotionEffect(PotionEffectType.NIGHT_VISION);
 						}
 					}
@@ -1184,12 +1067,12 @@ public class NetherTools implements Listener {
 
 		if (checkNightVisionToolStatus(tool) && getNightVisionToolStatus(tool)) {
 			player.addPotionEffect(new PotionEffect(PotionEffectType.NIGHT_VISION, Integer.MAX_VALUE, 1));
-			onlineUser.isHoldingGlowstoneTool(true);
+			onlineUser.get().isHoldingGlowstoneTool(true);
 		} else {
-			if (onlineUser.hasGlowstoneToolEffect()) {
+			if (onlineUser.get().hasGlowstoneToolEffect()) {
 				if (player.hasPotionEffect(PotionEffectType.NIGHT_VISION)) {
-					onlineUser.isHoldingGlowstoneTool(false);
-					if (!onlineUser.hasGlowstoneArmorEffect()) {
+					onlineUser.get().isHoldingGlowstoneTool(false);
+					if (!onlineUser.get().hasGlowstoneArmorEffect()) {
 						player.removePotionEffect(PotionEffectType.NIGHT_VISION);
 					}
 				}
@@ -1199,18 +1082,18 @@ public class NetherTools implements Listener {
 
 	@EventHandler
 	public void onPickup(EntityPickupItemEvent event) {
-		if (!this.gsNightVisionTool || !this.gsTools)
+		if (!HBConfig.gsNightVisionTool || !HBConfig.gsTools)
 			return;
 
 		if (event.getEntity() instanceof Player player) {
-			if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+			if (!player.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 				return;
 
-			OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
-			if (onlineUser == null)
+			Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
+			if (onlineUser.isEmpty())
 				return;
 			ItemStack tool = event.getItem().getItemStack();
-			instance.getScheduler().runTaskSyncLater(() -> {
+			instance.getScheduler().sync().runLater(() -> {
 				boolean holdingItem;
 				if (player.getInventory().getItemInMainHand().equals(tool)) {
 					holdingItem = true;
@@ -1223,40 +1106,40 @@ public class NetherTools implements Listener {
 				if (holdingItem) {
 					if (checkNightVisionToolStatus(tool) && getNightVisionToolStatus(tool)) {
 						player.addPotionEffect(new PotionEffect(PotionEffectType.NIGHT_VISION, Integer.MAX_VALUE, 1));
-						onlineUser.isHoldingGlowstoneTool(true);
+						onlineUser.get().isHoldingGlowstoneTool(true);
 					} else {
-						if (onlineUser.hasGlowstoneToolEffect()) {
+						if (onlineUser.get().hasGlowstoneToolEffect()) {
 							if (player.hasPotionEffect(PotionEffectType.NIGHT_VISION)) {
-								onlineUser.isHoldingGlowstoneTool(false);
-								if (!onlineUser.hasGlowstoneArmorEffect()) {
+								onlineUser.get().isHoldingGlowstoneTool(false);
+								if (!onlineUser.get().hasGlowstoneArmorEffect()) {
 									player.removePotionEffect(PotionEffectType.NIGHT_VISION);
 								}
 							}
 						}
 					}
 				}
-			}, player.getLocation(), 1, TimeUnit.MILLISECONDS);
+			}, 1, player.getLocation());
 		}
 	}
 
 	@EventHandler
 	public void onDrop(PlayerDropItemEvent event) {
-		if (!this.gsNightVisionTool || !this.gsTools)
+		if (!HBConfig.gsNightVisionTool || !HBConfig.gsTools)
 			return;
 
 		Player player = event.getPlayer();
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+		if (!player.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 
-		OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
-		if (onlineUser == null)
+		Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
+		if (onlineUser.isEmpty())
 			return;
 		ItemStack tool = event.getItemDrop().getItemStack();
 		if (checkNightVisionToolStatus(tool) && getNightVisionToolStatus(tool)) {
-			if (onlineUser.hasGlowstoneToolEffect()) {
+			if (onlineUser.get().hasGlowstoneToolEffect()) {
 				if (player.hasPotionEffect(PotionEffectType.NIGHT_VISION)) {
-					onlineUser.isHoldingGlowstoneTool(false);
-					if (!onlineUser.hasGlowstoneArmorEffect()) {
+					onlineUser.get().isHoldingGlowstoneTool(false);
+					if (!onlineUser.get().hasGlowstoneArmorEffect()) {
 						player.removePotionEffect(PotionEffectType.NIGHT_VISION);
 					}
 				}
@@ -1266,7 +1149,7 @@ public class NetherTools implements Listener {
 
 	@EventHandler
 	public void onClick(InventoryClickEvent event) {
-		if (!this.gsNightVisionTool || !this.gsTools)
+		if (!HBConfig.gsNightVisionTool || !HBConfig.gsTools)
 			return;
 
 		if (event.getResult() != Result.ALLOW) {
@@ -1274,12 +1157,12 @@ public class NetherTools implements Listener {
 		}
 
 		if (event.getWhoClicked() instanceof Player player) {
-			if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+			if (!player.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 				return;
 			if (event.getClickedInventory() != null
 					&& event.getClickedInventory().equals(player.getOpenInventory().getBottomInventory())) {
-				OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
-				if (onlineUser == null)
+				Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
+				if (onlineUser.isEmpty())
 					return;
 				if (event.getSlotType() == SlotType.QUICKBAR) {
 
@@ -1296,7 +1179,7 @@ public class NetherTools implements Listener {
 						return;
 
 					if (checkNightVisionToolStatus(tool) && getNightVisionToolStatus(tool)) {
-						instance.getScheduler().runTaskSyncLater(() -> {
+						instance.getScheduler().sync().runLater(() -> {
 							ItemStack inHand = player.getInventory().getItemInMainHand();
 							if (inHand.getType() == Material.AIR) {
 								inHand = player.getInventory().getItemInOffHand();
@@ -1306,13 +1189,13 @@ public class NetherTools implements Listener {
 							}
 
 							if (checkNightVisionToolStatus(inHand) && getNightVisionToolStatus(inHand)) {
-								this.clickCache.putIfAbsent(onlineUser, true);
+								this.clickCache.putIfAbsent(onlineUser.get(), true);
 							} else {
-								this.clickCache.putIfAbsent(onlineUser, true);
+								this.clickCache.putIfAbsent(onlineUser.get(), true);
 							}
-						}, player.getLocation(), 1, TimeUnit.MILLISECONDS);
+						}, 1, player.getLocation());
 					} else {
-						this.clickCache.putIfAbsent(onlineUser, false);
+						this.clickCache.putIfAbsent(onlineUser.get(), false);
 					}
 				} else if (event.getSlotType() == SlotType.CONTAINER) {
 
@@ -1328,7 +1211,7 @@ public class NetherTools implements Listener {
 					}
 
 					if (checkNightVisionToolStatus(tool) && getNightVisionToolStatus(tool)) {
-						instance.getScheduler().runTaskSyncLater(() -> {
+						instance.getScheduler().sync().runLater(() -> {
 							ItemStack inHand = player.getInventory().getItemInMainHand();
 							if (inHand.getType() == Material.AIR) {
 								inHand = player.getInventory().getItemInOffHand();
@@ -1338,14 +1221,14 @@ public class NetherTools implements Listener {
 							}
 
 							if (checkNightVisionToolStatus(inHand) && getNightVisionToolStatus(inHand)) {
-								this.clickCache.putIfAbsent(onlineUser, true);
+								this.clickCache.putIfAbsent(onlineUser.get(), true);
 							} else {
-								this.clickCache.putIfAbsent(onlineUser, true);
+								this.clickCache.putIfAbsent(onlineUser.get(), true);
 
 							}
-						}, player.getLocation(), 1, TimeUnit.MILLISECONDS);
+						}, 1, player.getLocation());
 					} else {
-						this.clickCache.putIfAbsent(onlineUser, false);
+						this.clickCache.putIfAbsent(onlineUser.get(), false);
 					}
 				}
 			}
@@ -1354,15 +1237,15 @@ public class NetherTools implements Listener {
 
 	@EventHandler
 	public void onClose(InventoryCloseEvent event) {
-		if (!this.gsNightVisionTool || !this.gsTools)
+		if (!HBConfig.gsNightVisionTool || !HBConfig.gsTools)
 			return;
 
 		if (event.getPlayer() instanceof Player player) {
-			if (!player.getWorld().getName().equalsIgnoreCase(instance.getHellblockHandler().getWorldName()))
+			if (!player.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 				return;
 
-			OnlineUser onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
-			if (onlineUser == null)
+			Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
+			if (onlineUser.isEmpty())
 				return;
 
 			if (event.getReason() == Reason.PLAYER) {
@@ -1371,10 +1254,10 @@ public class NetherTools implements Listener {
 				if (inHand.getType() == Material.AIR) {
 					inHand = player.getInventory().getItemInOffHand();
 					if (inHand.getType() == Material.AIR) {
-						if (onlineUser.hasGlowstoneToolEffect()) {
+						if (onlineUser.get().hasGlowstoneToolEffect()) {
 							if (player.hasPotionEffect(PotionEffectType.NIGHT_VISION)) {
-								onlineUser.isHoldingGlowstoneTool(false);
-								if (!onlineUser.hasGlowstoneArmorEffect()) {
+								onlineUser.get().isHoldingGlowstoneTool(false);
+								if (!onlineUser.get().hasGlowstoneArmorEffect()) {
 									player.removePotionEffect(PotionEffectType.NIGHT_VISION);
 								}
 							}
@@ -1383,31 +1266,31 @@ public class NetherTools implements Listener {
 					}
 				}
 
-				instance.getScheduler().runTaskSyncLater(() -> {
-					if (this.clickCache.containsKey(onlineUser)) {
-						boolean glowstoneEffect = this.clickCache.get(onlineUser).booleanValue();
+				instance.getScheduler().sync().runLater(() -> {
+					if (this.clickCache.containsKey(onlineUser.get())) {
+						boolean glowstoneEffect = this.clickCache.get(onlineUser.get()).booleanValue();
 						if (glowstoneEffect) {
 							player.addPotionEffect(
 									new PotionEffect(PotionEffectType.NIGHT_VISION, Integer.MAX_VALUE, 1));
-							onlineUser.isHoldingGlowstoneTool(true);
+							onlineUser.get().isHoldingGlowstoneTool(true);
 						} else {
-							if (onlineUser.hasGlowstoneToolEffect()) {
+							if (onlineUser.get().hasGlowstoneToolEffect()) {
 								if (player.hasPotionEffect(PotionEffectType.NIGHT_VISION)) {
-									onlineUser.isHoldingGlowstoneTool(false);
-									if (!onlineUser.hasGlowstoneArmorEffect()) {
+									onlineUser.get().isHoldingGlowstoneTool(false);
+									if (!onlineUser.get().hasGlowstoneArmorEffect()) {
 										player.removePotionEffect(PotionEffectType.NIGHT_VISION);
 									}
 								}
 							}
 						}
-						this.clickCache.remove(onlineUser);
+						this.clickCache.remove(onlineUser.get());
 					}
-				}, player.getLocation(), 1, TimeUnit.MILLISECONDS);
+				}, 1, player.getLocation());
 			} else {
-				if (onlineUser.hasGlowstoneToolEffect()) {
+				if (onlineUser.get().hasGlowstoneToolEffect()) {
 					if (player.hasPotionEffect(PotionEffectType.NIGHT_VISION)) {
-						onlineUser.isHoldingGlowstoneTool(false);
-						if (!onlineUser.hasGlowstoneArmorEffect()) {
+						onlineUser.get().isHoldingGlowstoneTool(false);
+						if (!onlineUser.get().hasGlowstoneArmorEffect()) {
 							player.removePotionEffect(PotionEffectType.NIGHT_VISION);
 						}
 					}
@@ -1467,9 +1350,9 @@ public class NetherTools implements Listener {
 			return false;
 
 		Material mat = item.getType();
-		return ((this.nrTools && this.netherrackTools.contains(mat))
-				|| (this.gsTools && this.glowstoneTools.contains(mat))
-				|| (this.qzTools && this.quartzTools.contains(mat))
-				|| (this.nsTools && this.netherstarTools.contains(mat)));
+		return ((HBConfig.nrTools && this.netherrackTools.contains(mat))
+				|| (HBConfig.gsTools && this.glowstoneTools.contains(mat))
+				|| (HBConfig.qzTools && this.quartzTools.contains(mat))
+				|| (HBConfig.nsTools && this.netherstarTools.contains(mat)));
 	}
 }

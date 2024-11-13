@@ -5,6 +5,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -19,11 +20,10 @@ import com.swiftlicious.hellblock.config.HBConfig;
 import com.swiftlicious.hellblock.config.HBLocale;
 import com.swiftlicious.hellblock.generation.HellBiome;
 import com.swiftlicious.hellblock.gui.hellblock.IslandChoiceMenu;
-import com.swiftlicious.hellblock.player.OfflineUser;
-import com.swiftlicious.hellblock.player.OnlineUser;
+import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.player.UUIDFetcher;
 
-import com.swiftlicious.hellblock.scheduler.CancellableTask;
+import com.swiftlicious.hellblock.scheduler.SchedulerTask;
 import com.swiftlicious.hellblock.utils.ChunkUtils;
 import com.swiftlicious.hellblock.utils.LocationUtils;
 import dev.jorel.commandapi.CommandAPI;
@@ -46,39 +46,39 @@ public class HellblockUserCommand {
 						.withPermission("hellblock.user")
 						.withRequirement(sender -> confirmCache.containsKey(((Player) sender).getUniqueId()))
 						.executesPlayer((player, args) -> {
-							OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+							Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 									.getOnlineUser(player.getUniqueId());
-							if (onlineUser == null) {
+							if (onlineUser.isEmpty()) {
 								HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 										"<red>Still loading your player data... please try again in a few seconds.");
 								return;
 							}
-							if (!onlineUser.getHellblockData().hasHellblock()) {
+							if (!onlineUser.get().getHellblockData().hasHellblock()) {
 								HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 										HBLocale.MSG_Hellblock_Not_Found);
 								return;
 							}
-							if (onlineUser.getHellblockData().getOwnerUUID() == null) {
+							if (onlineUser.get().getHellblockData().getOwnerUUID() == null) {
 								throw new NullPointerException(
 										"Owner reference returned null, please report this to the developer.");
 							}
-							if (onlineUser.getHellblockData().getOwnerUUID() != null
-									&& !onlineUser.getHellblockData().getOwnerUUID().equals(player.getUniqueId())) {
+							if (onlineUser.get().getHellblockData().getOwnerUUID() != null && !onlineUser.get()
+									.getHellblockData().getOwnerUUID().equals(player.getUniqueId())) {
 								HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 										HBLocale.MSG_Not_Owner_Of_Hellblock);
 								return;
 							}
-							if (onlineUser.getHellblockData().isAbandoned()) {
+							if (onlineUser.get().getHellblockData().isAbandoned()) {
 								HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 										HBLocale.MSG_Hellblock_Is_Abandoned);
 								return;
 							}
-							if (onlineUser.getHellblockData().getResetCooldown() > 0) {
+							if (onlineUser.get().getHellblockData().getResetCooldown() > 0) {
 								HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 										String.format(
 												"<red>You've recently reset your hellblock already, you must wait for %s!",
 												HellblockPlugin.getInstance().getFormattedCooldown(
-														onlineUser.getHellblockData().getResetCooldown())));
+														onlineUser.get().getHellblockData().getResetCooldown())));
 								return;
 							}
 							if (!confirmCache.containsKey(player.getUniqueId())) {
@@ -93,39 +93,39 @@ public class HellblockUserCommand {
 						}))
 				.withPermission(CommandPermission.NONE).withPermission("hellblock.user")
 				.executesPlayer((player, args) -> {
-					OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+					Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 							.getOnlineUser(player.getUniqueId());
-					if (onlineUser == null) {
+					if (onlineUser.isEmpty()) {
 						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 								"<red>Still loading your player data... please try again in a few seconds.");
 						return;
 					}
-					if (!onlineUser.getHellblockData().hasHellblock()) {
+					if (!onlineUser.get().getHellblockData().hasHellblock()) {
 						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 								HBLocale.MSG_Hellblock_Not_Found);
 						return;
 					}
-					if (onlineUser.getHellblockData().getOwnerUUID() == null) {
+					if (onlineUser.get().getHellblockData().getOwnerUUID() == null) {
 						throw new NullPointerException(
 								"Owner reference returned null, please report this to the developer.");
 					}
-					if (onlineUser.getHellblockData().getOwnerUUID() != null
-							&& !onlineUser.getHellblockData().getOwnerUUID().equals(player.getUniqueId())) {
+					if (onlineUser.get().getHellblockData().getOwnerUUID() != null
+							&& !onlineUser.get().getHellblockData().getOwnerUUID().equals(player.getUniqueId())) {
 						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 								HBLocale.MSG_Not_Owner_Of_Hellblock);
 						return;
 					}
-					if (onlineUser.getHellblockData().isAbandoned()) {
+					if (onlineUser.get().getHellblockData().isAbandoned()) {
 						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 								HBLocale.MSG_Hellblock_Is_Abandoned);
 						return;
 					}
-					if (onlineUser.getHellblockData().getResetCooldown() > 0) {
+					if (onlineUser.get().getHellblockData().getResetCooldown() > 0) {
 						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 								String.format(
 										"<red>You've recently reset your hellblock already, you must wait for %s!",
 										HellblockPlugin.getInstance().getFormattedCooldown(
-												onlineUser.getHellblockData().getResetCooldown())));
+												onlineUser.get().getHellblockData().getResetCooldown())));
 						return;
 					}
 					if (confirmCache.containsKey(player.getUniqueId())) {
@@ -144,32 +144,33 @@ public class HellblockUserCommand {
 	public CommandAPICommand getCreateCommand() {
 		return new CommandAPICommand("create").withPermission(CommandPermission.NONE).withPermission("hellblock.user")
 				.executesPlayer((player, args) -> {
-					OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+					Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 							.getOnlineUser(player.getUniqueId());
-					if (onlineUser == null) {
+					if (onlineUser.isEmpty()) {
 						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 								"<red>Still loading your player data... please try again in a few seconds.");
 						return;
 					}
-					if (!onlineUser.getHellblockData().hasHellblock()) {
-						if (onlineUser.getHellblockData().getResetCooldown() > 0) {
+					if (!onlineUser.get().getHellblockData().hasHellblock()) {
+						if (onlineUser.get().getHellblockData().getResetCooldown() > 0) {
 							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 									String.format(
 											"<red>You've recently reset your hellblock already, you must wait for %s!",
 											HellblockPlugin.getInstance().getFormattedCooldown(
-													onlineUser.getHellblockData().getResetCooldown())));
+													onlineUser.get().getHellblockData().getResetCooldown())));
 							return;
 						}
 						new IslandChoiceMenu(player, false);
 					} else {
-						if (onlineUser.getHellblockData().getOwnerUUID() == null) {
+						if (onlineUser.get().getHellblockData().getOwnerUUID() == null) {
 							throw new NullPointerException(
 									"Owner reference returned null, please report this to the developer.");
 						}
 						HellblockPlugin.getInstance().getStorageManager()
-								.getOfflineUser(onlineUser.getHellblockData().getOwnerUUID(), HBConfig.lockData)
+								.getOfflineUserData(onlineUser.get().getHellblockData().getOwnerUUID(),
+										HBConfig.lockData)
 								.thenAccept((result) -> {
-									OfflineUser offlineUser = result.orElseThrow();
+									UserData offlineUser = result.orElseThrow();
 									if (offlineUser.getHellblockData().isAbandoned()) {
 										HellblockPlugin.getInstance().getAdventureManager()
 												.sendMessageWithPrefix(player, HBLocale.MSG_Hellblock_Is_Abandoned);
@@ -192,36 +193,37 @@ public class HellblockUserCommand {
 	public CommandAPICommand getLockCommand() {
 		return new CommandAPICommand("lock").withAliases("unlock").withPermission(CommandPermission.NONE)
 				.withPermission("hellblock.user").executesPlayer((player, args) -> {
-					OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+					Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 							.getOnlineUser(player.getUniqueId());
-					if (onlineUser == null) {
+					if (onlineUser.isEmpty()) {
 						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 								"<red>Still loading your player data... please try again in a few seconds.");
 						return;
 					}
-					if (onlineUser.getHellblockData().hasHellblock()) {
-						if (onlineUser.getHellblockData().getOwnerUUID() == null) {
+					if (onlineUser.get().getHellblockData().hasHellblock()) {
+						if (onlineUser.get().getHellblockData().getOwnerUUID() == null) {
 							throw new NullPointerException(
 									"Owner reference returned null, please report this to the developer.");
 						}
-						if (onlineUser.getHellblockData().getOwnerUUID() != null
-								&& !onlineUser.getHellblockData().getOwnerUUID().equals(player.getUniqueId())) {
+						if (onlineUser.get().getHellblockData().getOwnerUUID() != null
+								&& !onlineUser.get().getHellblockData().getOwnerUUID().equals(player.getUniqueId())) {
 							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 									HBLocale.MSG_Not_Owner_Of_Hellblock);
 							return;
 						}
-						if (onlineUser.getHellblockData().isAbandoned()) {
+						if (onlineUser.get().getHellblockData().isAbandoned()) {
 							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 									HBLocale.MSG_Hellblock_Is_Abandoned);
 							return;
 						}
-						onlineUser.getHellblockData().setLockedStatus(!onlineUser.getHellblockData().isLocked());
+						onlineUser.get().getHellblockData()
+								.setLockedStatus(!onlineUser.get().getHellblockData().isLocked());
 						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 								String.format("<red>You've just <dark_red>%s <red>your hellblock island!",
-										(onlineUser.getHellblockData().isLocked() ? "locked" : "unlocked")));
-						if (onlineUser.getHellblockData().isLocked()) {
+										(onlineUser.get().getHellblockData().isLocked() ? "locked" : "unlocked")));
+						if (onlineUser.get().getHellblockData().isLocked()) {
 							HellblockPlugin.getInstance().getCoopManager().kickVisitorsIfLocked(player.getUniqueId());
-							HellblockPlugin.getInstance().getCoopManager().changeLockStatus(onlineUser);
+							HellblockPlugin.getInstance().getCoopManager().changeLockStatus(onlineUser.get());
 						}
 					} else {
 						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
@@ -233,9 +235,9 @@ public class HellblockUserCommand {
 	public CommandAPICommand getTopCommand() {
 		return new CommandAPICommand("top").withPermission(CommandPermission.NONE).withPermission("hellblock.user")
 				.executesPlayer((player, args) -> {
-					OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+					Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 							.getOnlineUser(player.getUniqueId());
-					if (onlineUser == null) {
+					if (onlineUser.isEmpty()) {
 						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 								"<red>Still loading your player data... please try again in a few seconds.");
 						return;
@@ -276,25 +278,25 @@ public class HellblockUserCommand {
 						ArgumentSuggestions.stringCollection(info -> Arrays.stream(HellBiome.values())
 								.map(biome -> biome.toString()).collect(Collectors.toList()))))
 				.executesPlayer((player, args) -> {
-					OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+					Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 							.getOnlineUser(player.getUniqueId());
-					if (onlineUser == null) {
+					if (onlineUser.isEmpty()) {
 						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 								"<red>Still loading your player data... please try again in a few seconds.");
 						return;
 					}
-					if (onlineUser.getHellblockData().hasHellblock()) {
-						if (onlineUser.getHellblockData().getOwnerUUID() == null) {
+					if (onlineUser.get().getHellblockData().hasHellblock()) {
+						if (onlineUser.get().getHellblockData().getOwnerUUID() == null) {
 							throw new NullPointerException(
 									"Owner reference returned null, please report this to the developer.");
 						}
-						if (onlineUser.getHellblockData().getOwnerUUID() != null
-								&& !onlineUser.getHellblockData().getOwnerUUID().equals(player.getUniqueId())) {
+						if (onlineUser.get().getHellblockData().getOwnerUUID() != null
+								&& !onlineUser.get().getHellblockData().getOwnerUUID().equals(player.getUniqueId())) {
 							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 									HBLocale.MSG_Not_Owner_Of_Hellblock);
 							return;
 						}
-						if (onlineUser.getHellblockData().isAbandoned()) {
+						if (onlineUser.get().getHellblockData().isAbandoned()) {
 							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 									HBLocale.MSG_Hellblock_Is_Abandoned);
 							return;
@@ -307,13 +309,13 @@ public class HellblockUserCommand {
 							return;
 						}
 						HellBiome biome = HellBiome.valueOf(newBiome);
-						if (onlineUser.getHellblockData().getBiome() == biome) {
+						if (onlineUser.get().getHellblockData().getBiome() == biome) {
 							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 									String.format("<red>Your hellblock biome is already set to <dark_red>%s<red>!",
 											biome.getName()));
 							return;
 						}
-						HellblockPlugin.getInstance().getBiomeHandler().changeHellblockBiome(onlineUser, biome);
+						HellblockPlugin.getInstance().getBiomeHandler().changeHellblockBiome(onlineUser.get(), biome);
 					} else {
 						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 								HBLocale.MSG_Hellblock_Not_Found);
@@ -327,25 +329,26 @@ public class HellblockUserCommand {
 				.withPermission("hellblock.user").withArguments(
 						new StringArgument("player").replaceSuggestions(ArgumentSuggestions.stringCollection(info -> {
 							if (info.sender() instanceof Player player) {
-								OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+								Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 										.getOnlineUser(player.getUniqueId());
-								if (onlineUser == null)
+								if (onlineUser.isEmpty())
 									return Collections.emptyList();
 								return HellblockPlugin.getInstance().getStorageManager().getOnlineUsers().stream()
 										.filter(user -> user != null && user.isOnline()
 												&& user.getHellblockData().hasHellblock()
 												&& user.getHellblockData().getHomeLocation() != null
-												&& !onlineUser.getHellblockData().getParty().contains(user.getUUID())
-												&& !user.getName().equalsIgnoreCase(onlineUser.getName()))
+												&& !onlineUser.get().getHellblockData().getParty()
+														.contains(user.getUUID())
+												&& !user.getName().equalsIgnoreCase(onlineUser.get().getName()))
 										.map(user -> user.getName()).collect(Collectors.toList());
 							} else {
 								return Collections.emptyList();
 							}
 						})))
 				.executesPlayer((player, args) -> {
-					OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+					Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 							.getOnlineUser(player.getUniqueId());
-					if (onlineUser == null) {
+					if (onlineUser.isEmpty()) {
 						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 								"<red>Still loading your player data... please try again in a few seconds.");
 						return;
@@ -368,25 +371,25 @@ public class HellblockUserCommand {
 								"<red>You're banned from this hellblock island and can't visit it!");
 						return;
 					}
-					HellblockPlugin.getInstance().getStorageManager().getOfflineUser(id, HBConfig.lockData)
+					HellblockPlugin.getInstance().getStorageManager().getOfflineUserData(id, HBConfig.lockData)
 							.thenAccept((result) -> {
-								OfflineUser offlineUser = result.orElseThrow();
+								UserData offlineUser = result.orElseThrow();
 								if (id.equals(player.getUniqueId())
 										|| offlineUser.getHellblockData().getParty().contains(player.getUniqueId())) {
-									if (!onlineUser.getHellblockData().hasHellblock()) {
+									if (!onlineUser.get().getHellblockData().hasHellblock()) {
 										HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(
 												player, "<red>That player doesn't have a hellblock!");
 										return;
 									}
-									if (onlineUser.getHellblockData().getOwnerUUID() == null) {
+									if (onlineUser.get().getHellblockData().getOwnerUUID() == null) {
 										throw new NullPointerException(
 												"Owner reference returned null, please report this to the developer.");
 									}
 									HellblockPlugin.getInstance().getStorageManager()
-											.getOfflineUser(onlineUser.getHellblockData().getOwnerUUID(),
+											.getOfflineUserData(onlineUser.get().getHellblockData().getOwnerUUID(),
 													HBConfig.lockData)
 											.thenAccept((owner) -> {
-												OfflineUser ownerUser = owner.orElseThrow();
+												UserData ownerUser = owner.orElseThrow();
 												if (ownerUser.getHellblockData().isAbandoned()) {
 													HellblockPlugin.getInstance().getAdventureManager()
 															.sendMessageWithPrefix(player,
@@ -395,7 +398,7 @@ public class HellblockUserCommand {
 												}
 												if (ownerUser.getHellblockData().getHomeLocation() != null) {
 													HellblockPlugin.getInstance().getCoopManager()
-															.makeHomeLocationSafe(ownerUser, onlineUser)
+															.makeHomeLocationSafe(ownerUser, onlineUser.get())
 															.thenRun(() -> HellblockPlugin.getInstance()
 																	.getAdventureManager().sendMessageWithPrefix(player,
 																			"<red>Teleporting you to your hellblock!"));
@@ -416,10 +419,10 @@ public class HellblockUserCommand {
 												"Owner reference returned null, please report this to the developer.");
 									}
 									HellblockPlugin.getInstance().getStorageManager()
-											.getOfflineUser(offlineUser.getHellblockData().getOwnerUUID(),
+											.getOfflineUserData(offlineUser.getHellblockData().getOwnerUUID(),
 													HBConfig.lockData)
 											.thenAccept((owner) -> {
-												OfflineUser ownerUser = owner.orElseThrow();
+												UserData ownerUser = owner.orElseThrow();
 												if (ownerUser.getHellblockData().isAbandoned()) {
 													HellblockPlugin.getInstance().getAdventureManager()
 															.sendMessageWithPrefix(player,
@@ -513,26 +516,27 @@ public class HellblockUserCommand {
 	public CommandAPICommand getHomeCommand() {
 		return new CommandAPICommand("home").withAliases("teleport", "tp").withPermission(CommandPermission.NONE)
 				.withPermission("hellblock.user").executesPlayer((player, args) -> {
-					OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+					Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 							.getOnlineUser(player.getUniqueId());
-					if (onlineUser == null) {
+					if (onlineUser.isEmpty()) {
 						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 								"<red>Still loading your player data... please try again in a few seconds.");
 						return;
 					}
-					if (!onlineUser.getHellblockData().hasHellblock()) {
+					if (!onlineUser.get().getHellblockData().hasHellblock()) {
 						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 								HBLocale.MSG_Hellblock_Not_Found);
 						return;
 					} else {
-						if (onlineUser.getHellblockData().getOwnerUUID() == null) {
+						if (onlineUser.get().getHellblockData().getOwnerUUID() == null) {
 							throw new NullPointerException(
 									"Owner reference returned null, please report this to the developer.");
 						}
 						HellblockPlugin.getInstance().getStorageManager()
-								.getOfflineUser(onlineUser.getHellblockData().getOwnerUUID(), HBConfig.lockData)
+								.getOfflineUserData(onlineUser.get().getHellblockData().getOwnerUUID(),
+										HBConfig.lockData)
 								.thenAccept((owner) -> {
-									OfflineUser ownerUser = owner.orElseThrow();
+									UserData ownerUser = owner.orElseThrow();
 									if (ownerUser.getHellblockData().isAbandoned()) {
 										HellblockPlugin.getInstance().getAdventureManager()
 												.sendMessageWithPrefix(player, HBLocale.MSG_Hellblock_Is_Abandoned);
@@ -540,7 +544,7 @@ public class HellblockUserCommand {
 									}
 									if (ownerUser.getHellblockData().getHomeLocation() != null) {
 										HellblockPlugin.getInstance().getCoopManager()
-												.makeHomeLocationSafe(ownerUser, onlineUser)
+												.makeHomeLocationSafe(ownerUser, onlineUser.get())
 												.thenRun(() -> HellblockPlugin.getInstance().getAdventureManager()
 														.sendMessageWithPrefix(player,
 																"<red>Teleporting you to your hellblock!"));
@@ -559,36 +563,36 @@ public class HellblockUserCommand {
 		return new CommandAPICommand("fixhome").withAliases("restorehome", "readjusthome")
 				.withPermission(CommandPermission.NONE).withPermission("hellblock.user")
 				.executesPlayer((player, args) -> {
-					OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+					Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 							.getOnlineUser(player.getUniqueId());
-					if (onlineUser == null) {
+					if (onlineUser.isEmpty()) {
 						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 								"<red>Still loading your player data... please try again in a few seconds.");
 						return;
 					}
-					if (!onlineUser.getHellblockData().hasHellblock()) {
+					if (!onlineUser.get().getHellblockData().hasHellblock()) {
 						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 								HBLocale.MSG_Hellblock_Not_Found);
 						return;
 					} else {
-						if (onlineUser.getHellblockData().getOwnerUUID() == null) {
+						if (onlineUser.get().getHellblockData().getOwnerUUID() == null) {
 							throw new NullPointerException(
 									"Owner reference returned null, please report this to the developer.");
 						}
-						if (onlineUser.getHellblockData().getOwnerUUID() != null
-								&& !onlineUser.getHellblockData().getOwnerUUID().equals(player.getUniqueId())) {
+						if (onlineUser.get().getHellblockData().getOwnerUUID() != null
+								&& !onlineUser.get().getHellblockData().getOwnerUUID().equals(player.getUniqueId())) {
 							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 									HBLocale.MSG_Not_Owner_Of_Hellblock);
 							return;
 						}
-						if (onlineUser.getHellblockData().isAbandoned()) {
+						if (onlineUser.get().getHellblockData().isAbandoned()) {
 							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 									HBLocale.MSG_Hellblock_Is_Abandoned);
 							return;
 						}
-						if (onlineUser.getHellblockData().getHomeLocation() != null
+						if (onlineUser.get().getHellblockData().getHomeLocation() != null
 								&& !HellblockPlugin.getInstance().getHellblockHandler()
-										.checkIfInSpawn(onlineUser.getHellblockData().getHomeLocation())) {
+										.checkIfInSpawn(onlineUser.get().getHellblockData().getHomeLocation())) {
 							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 									"<red>Your home location isn't in need of fixing!");
 							return;
@@ -599,7 +603,7 @@ public class HellblockUserCommand {
 									Location bedrock = result.getBedrockLocation();
 									bedrock.setY(HellblockPlugin.getInstance().getHellblockHandler().getHellblockWorld()
 											.getHighestBlockYAt(bedrock));
-									onlineUser.getHellblockData().setHomeLocation(bedrock);
+									onlineUser.get().getHellblockData().setHomeLocation(bedrock);
 									HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 											"<red>Your home location has been readjusted to your bedrock location!");
 								});
@@ -612,44 +616,46 @@ public class HellblockUserCommand {
 				.withArguments(
 						new StringArgument("player").replaceSuggestions(ArgumentSuggestions.stringCollection(info -> {
 							if (info.sender() instanceof Player player) {
-								OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+								Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 										.getOnlineUser(player.getUniqueId());
-								if (onlineUser == null)
+								if (onlineUser.isEmpty())
 									return Collections.emptyList();
 								return HellblockPlugin.getInstance().getStorageManager().getOnlineUsers().stream()
 										.filter(user -> user != null && user.isOnline()
-												&& !onlineUser.getHellblockData().getTrusted().contains(user.getUUID())
-												&& !onlineUser.getHellblockData().getParty().contains(user.getUUID())
-												&& !user.getName().equalsIgnoreCase(onlineUser.getName()))
+												&& !onlineUser.get().getHellblockData().getTrusted()
+														.contains(user.getUUID())
+												&& !onlineUser.get().getHellblockData().getParty()
+														.contains(user.getUUID())
+												&& !user.getName().equalsIgnoreCase(onlineUser.get().getName()))
 										.map(user -> user.getName()).collect(Collectors.toList());
 							} else {
 								return Collections.emptyList();
 							}
 						})))
 				.executesPlayer((player, args) -> {
-					OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+					Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 							.getOnlineUser(player.getUniqueId());
-					if (onlineUser == null) {
+					if (onlineUser.isEmpty()) {
 						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 								"<red>Still loading your player data... please try again in a few seconds.");
 						return;
 					}
-					if (!onlineUser.getHellblockData().hasHellblock()) {
+					if (!onlineUser.get().getHellblockData().hasHellblock()) {
 						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 								HBLocale.MSG_Hellblock_Not_Found);
 						return;
 					} else {
-						if (onlineUser.getHellblockData().getOwnerUUID() == null) {
+						if (onlineUser.get().getHellblockData().getOwnerUUID() == null) {
 							throw new NullPointerException(
 									"Owner reference returned null, please report this to the developer.");
 						}
-						if (onlineUser.getHellblockData().getOwnerUUID() != null
-								&& !onlineUser.getHellblockData().getOwnerUUID().equals(player.getUniqueId())) {
+						if (onlineUser.get().getHellblockData().getOwnerUUID() != null
+								&& !onlineUser.get().getHellblockData().getOwnerUUID().equals(player.getUniqueId())) {
 							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 									HBLocale.MSG_Not_Owner_Of_Hellblock);
 							return;
 						}
-						if (onlineUser.getHellblockData().isAbandoned()) {
+						if (onlineUser.get().getHellblockData().isAbandoned()) {
 							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 									HBLocale.MSG_Hellblock_Is_Abandoned);
 							return;
@@ -672,43 +678,43 @@ public class HellblockUserCommand {
 									"<red>You can't do this to yourself!");
 							return;
 						}
-						if (onlineUser.getHellblockData().getParty().contains(id)
-								|| onlineUser.getHellblockData().getTrusted().contains(id)) {
+						if (onlineUser.get().getHellblockData().getParty().contains(id)
+								|| onlineUser.get().getHellblockData().getTrusted().contains(id)) {
 							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 									"<red>You can't use this command on a party member or trusted player!");
 							return;
 						}
-						if (onlineUser.getHellblockData().getBanned().contains(id)) {
+						if (onlineUser.get().getHellblockData().getBanned().contains(id)) {
 							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 									"<red>This player is already banned from your island!");
 							return;
 						}
 
-						onlineUser.getHellblockData().banPlayer(id);
+						onlineUser.get().getHellblockData().banPlayer(id);
 						if (Bukkit.getPlayer(user) != null) {
 							if (HellblockPlugin.getInstance().getCoopManager().trackBannedPlayer(player.getUniqueId(),
 									id)) {
-								OnlineUser bannedPlayer = HellblockPlugin.getInstance().getStorageManager()
+								Optional<UserData> bannedPlayer = HellblockPlugin.getInstance().getStorageManager()
 										.getOnlineUser(id);
-								if (bannedPlayer == null) {
+								if (bannedPlayer.isEmpty()) {
 									HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 											String.format(
 													"<red>Still loading %s's data... please try again in a few seconds.",
 													user));
 									return;
 								}
-								if (bannedPlayer.getHellblockData().hasHellblock()) {
-									if (bannedPlayer.getHellblockData().getOwnerUUID() == null) {
+								if (bannedPlayer.get().getHellblockData().hasHellblock()) {
+									if (bannedPlayer.get().getHellblockData().getOwnerUUID() == null) {
 										throw new NullPointerException(
 												"Owner reference returned null, please report this to the developer.");
 									}
 									HellblockPlugin.getInstance().getStorageManager()
-											.getOfflineUser(bannedPlayer.getHellblockData().getOwnerUUID(),
+											.getOfflineUserData(bannedPlayer.get().getHellblockData().getOwnerUUID(),
 													HBConfig.lockData)
 											.thenAccept((owner) -> {
-												OfflineUser bannedOwner = owner.orElseThrow();
+												UserData bannedOwner = owner.orElseThrow();
 												HellblockPlugin.getInstance().getCoopManager()
-														.makeHomeLocationSafe(bannedOwner, bannedPlayer);
+														.makeHomeLocationSafe(bannedOwner, bannedPlayer.get());
 											});
 								} else {
 									HellblockPlugin.getInstance().getHellblockHandler()
@@ -728,44 +734,46 @@ public class HellblockUserCommand {
 				.withArguments(
 						new StringArgument("player").replaceSuggestions(ArgumentSuggestions.stringCollection(info -> {
 							if (info.sender() instanceof Player player) {
-								OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+								Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 										.getOnlineUser(player.getUniqueId());
-								if (onlineUser == null)
+								if (onlineUser.isEmpty())
 									return Collections.emptyList();
 								return HellblockPlugin.getInstance().getStorageManager().getOnlineUsers().stream()
 										.filter(user -> user != null && user.isOnline()
-												&& !onlineUser.getHellblockData().getTrusted().contains(user.getUUID())
-												&& !onlineUser.getHellblockData().getParty().contains(user.getUUID())
-												&& !user.getName().equalsIgnoreCase(onlineUser.getName()))
+												&& !onlineUser.get().getHellblockData().getTrusted()
+														.contains(user.getUUID())
+												&& !onlineUser.get().getHellblockData().getParty()
+														.contains(user.getUUID())
+												&& !user.getName().equalsIgnoreCase(onlineUser.get().getName()))
 										.map(user -> user.getName()).collect(Collectors.toList());
 							} else {
 								return Collections.emptyList();
 							}
 						})))
 				.executesPlayer((player, args) -> {
-					OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+					Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 							.getOnlineUser(player.getUniqueId());
-					if (onlineUser == null) {
+					if (onlineUser.isEmpty()) {
 						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 								"<red>Still loading your player data... please try again in a few seconds.");
 						return;
 					}
-					if (!onlineUser.getHellblockData().hasHellblock()) {
+					if (!onlineUser.get().getHellblockData().hasHellblock()) {
 						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 								HBLocale.MSG_Hellblock_Not_Found);
 						return;
 					} else {
-						if (onlineUser.getHellblockData().getOwnerUUID() == null) {
+						if (onlineUser.get().getHellblockData().getOwnerUUID() == null) {
 							throw new NullPointerException(
 									"Owner reference returned null, please report this to the developer.");
 						}
-						if (onlineUser.getHellblockData().getOwnerUUID() != null
-								&& !onlineUser.getHellblockData().getOwnerUUID().equals(player.getUniqueId())) {
+						if (onlineUser.get().getHellblockData().getOwnerUUID() != null
+								&& !onlineUser.get().getHellblockData().getOwnerUUID().equals(player.getUniqueId())) {
 							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 									HBLocale.MSG_Not_Owner_Of_Hellblock);
 							return;
 						}
-						if (onlineUser.getHellblockData().isAbandoned()) {
+						if (onlineUser.get().getHellblockData().isAbandoned()) {
 							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 									HBLocale.MSG_Hellblock_Is_Abandoned);
 							return;
@@ -788,19 +796,19 @@ public class HellblockUserCommand {
 									"<red>You can't do this to yourself!");
 							return;
 						}
-						if (onlineUser.getHellblockData().getParty().contains(id)
-								|| onlineUser.getHellblockData().getTrusted().contains(id)) {
+						if (onlineUser.get().getHellblockData().getParty().contains(id)
+								|| onlineUser.get().getHellblockData().getTrusted().contains(id)) {
 							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 									"<red>You can't use this command on a party member or trusted player!");
 							return;
 						}
-						if (!onlineUser.getHellblockData().getBanned().contains(id)) {
+						if (!onlineUser.get().getHellblockData().getBanned().contains(id)) {
 							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 									"<red>This player is not banned from your island!");
 							return;
 						}
 
-						onlineUser.getHellblockData().unbanPlayer(id);
+						onlineUser.get().getHellblockData().unbanPlayer(id);
 						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 								String.format("<red>You've unbanned <dark_red>%s <red>from your hellblock!", user));
 					}
@@ -810,26 +818,27 @@ public class HellblockUserCommand {
 	public CommandAPICommand getInfoCommand() {
 		return new CommandAPICommand("info").withAliases("information", "data").withPermission(CommandPermission.NONE)
 				.withPermission("hellblock.user").executesPlayer((player, args) -> {
-					OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+					Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 							.getOnlineUser(player.getUniqueId());
-					if (onlineUser == null) {
+					if (onlineUser.isEmpty()) {
 						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 								"<red>Still loading your player data... please try again in a few seconds.");
 						return;
 					}
-					if (!onlineUser.getHellblockData().hasHellblock()) {
+					if (!onlineUser.get().getHellblockData().hasHellblock()) {
 						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 								HBLocale.MSG_Hellblock_Not_Found);
 						return;
 					} else {
-						if (onlineUser.getHellblockData().getOwnerUUID() == null) {
+						if (onlineUser.get().getHellblockData().getOwnerUUID() == null) {
 							throw new NullPointerException(
 									"Owner reference returned null, please report this to the developer.");
 						}
 						HellblockPlugin.getInstance().getStorageManager()
-								.getOfflineUser(onlineUser.getHellblockData().getOwnerUUID(), HBConfig.lockData)
+								.getOfflineUserData(onlineUser.get().getHellblockData().getOwnerUUID(),
+										HBConfig.lockData)
 								.thenAccept((result) -> {
-									OfflineUser offlineUser = result.orElseThrow();
+									UserData offlineUser = result.orElseThrow();
 									if (offlineUser.getHellblockData().isAbandoned()) {
 										HellblockPlugin.getInstance().getAdventureManager()
 												.sendMessageWithPrefix(player, HBLocale.MSG_Hellblock_Is_Abandoned);
@@ -885,8 +894,7 @@ public class HellblockUserCommand {
 									HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 											"<red>Party Size: <dark_red>"
 													+ offlineUser.getHellblockData().getParty().size()
-													+ " <red>/<dark_red> " + HellblockPlugin.getInstance()
-															.getCoopManager().getPartySizeLimit());
+													+ " <red>/<dark_red> " + HBConfig.partySizeLimit);
 									HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 											"<red>Party Members: <dark_red>" + (!partyString.isEmpty()
 													? partyString.substring(0, partyString.length() - 2)
@@ -908,34 +916,34 @@ public class HellblockUserCommand {
 	public CommandAPICommand getSetHomeCommand() {
 		return new CommandAPICommand("sethome").withPermission(CommandPermission.NONE).withPermission("hellblock.user")
 				.executesPlayer((player, args) -> {
-					OnlineUser onlineUser = HellblockPlugin.getInstance().getStorageManager()
+					Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 							.getOnlineUser(player.getUniqueId());
-					if (onlineUser == null) {
+					if (onlineUser.isEmpty()) {
 						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 								"<red>Still loading your player data... please try again in a few seconds.");
 						return;
 					}
-					if (!onlineUser.getHellblockData().hasHellblock()) {
+					if (!onlineUser.get().getHellblockData().hasHellblock()) {
 						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 								HBLocale.MSG_Hellblock_Not_Found);
 						return;
 					} else {
-						if (onlineUser.getHellblockData().getOwnerUUID() == null) {
+						if (onlineUser.get().getHellblockData().getOwnerUUID() == null) {
 							throw new NullPointerException(
 									"Owner reference returned null, please report this to the developer.");
 						}
-						if (onlineUser.getHellblockData().getOwnerUUID() != null
-								&& !onlineUser.getHellblockData().getOwnerUUID().equals(player.getUniqueId())) {
+						if (onlineUser.get().getHellblockData().getOwnerUUID() != null
+								&& !onlineUser.get().getHellblockData().getOwnerUUID().equals(player.getUniqueId())) {
 							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 									HBLocale.MSG_Not_Owner_Of_Hellblock);
 							return;
 						}
-						if (onlineUser.getHellblockData().isAbandoned()) {
+						if (onlineUser.get().getHellblockData().isAbandoned()) {
 							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 									HBLocale.MSG_Hellblock_Is_Abandoned);
 							return;
 						}
-						if (onlineUser.getHellblockData().getHomeLocation() != null) {
+						if (onlineUser.get().getHellblockData().getHomeLocation() != null) {
 							LocationUtils.isSafeLocationAsync(player.getLocation()).thenAccept((result) -> {
 								if (!result.booleanValue() || player.isInLava() || player.isInPowderedSnow()) {
 									HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
@@ -943,22 +951,22 @@ public class HellblockUserCommand {
 									return;
 								}
 							}).thenRunAsync(() -> {
-								if (onlineUser.getHellblockData().getHomeLocation().getWorld() != null
-										&& onlineUser.getHellblockData().getHomeLocation().getWorld().getName()
+								if (onlineUser.get().getHellblockData().getHomeLocation().getWorld() != null
+										&& onlineUser.get().getHellblockData().getHomeLocation().getWorld().getName()
 												.equals(player.getWorld().getName())
-										&& onlineUser.getHellblockData().getHomeLocation().getX() == player
+										&& onlineUser.get().getHellblockData().getHomeLocation().getX() == player
 												.getLocation().getX()
-										&& onlineUser.getHellblockData().getHomeLocation().getY() == player
+										&& onlineUser.get().getHellblockData().getHomeLocation().getY() == player
 												.getLocation().getY()
-										&& onlineUser.getHellblockData().getHomeLocation().getZ() == player
+										&& onlineUser.get().getHellblockData().getHomeLocation().getZ() == player
 												.getLocation().getZ()
-										&& onlineUser.getHellblockData().getHomeLocation().getYaw() == player
+										&& onlineUser.get().getHellblockData().getHomeLocation().getYaw() == player
 												.getLocation().getYaw()) {
 									HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 											"<red>The location you're standing at is already set as your home!");
 									return;
 								}
-								onlineUser.getHellblockData().setHomeLocation(player.getLocation());
+								onlineUser.get().getHellblockData().setHomeLocation(player.getLocation());
 								HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
 										String.format(
 												"<red>You've set your new hellblock home location to x:%s, y:%s, z:%s facing %s!",
@@ -970,7 +978,7 @@ public class HellblockUserCommand {
 									"<red>Error setting your home location!");
 							throw new NullPointerException(String.format(
 									"Home location for %s returned null, please report this to the developer.",
-									onlineUser.getName()));
+									onlineUser.get().getName()));
 						}
 					}
 				});
@@ -1010,12 +1018,13 @@ public class HellblockUserCommand {
 	private class ConfirmCacher implements Runnable {
 
 		private UUID playerUUID;
-		private final CancellableTask cancellableTask;
+		private final SchedulerTask cancellableTask;
 
 		public ConfirmCacher(@NonNull UUID playerUUID) {
 			this.playerUUID = playerUUID;
 			confirmCache.putIfAbsent(playerUUID, 15L);
-			this.cancellableTask = HellblockPlugin.getInstance().getScheduler().runTaskSyncTimer(this, null, 0, 1 * 20);
+			this.cancellableTask = HellblockPlugin.getInstance().getScheduler().sync().runRepeating(this, 0, 1 * 20L,
+					null);
 		}
 
 		@Override
@@ -1039,7 +1048,7 @@ public class HellblockUserCommand {
 		}
 
 		public void cancelTask() {
-			if (!this.cancellableTask.isCancelled())
+			if (this.cancellableTask != null)
 				this.cancellableTask.cancel();
 		}
 	}
@@ -1047,13 +1056,13 @@ public class HellblockUserCommand {
 	private class VisitCacher implements Runnable {
 
 		private UUID playerUUID;
-		private final CancellableTask cancellableTask;
+		private final SchedulerTask cancellableTask;
 
 		public VisitCacher(@NonNull UUID playerUUID) {
 			this.playerUUID = playerUUID;
 			visitCache.putIfAbsent(playerUUID, 1L);
-			this.cancellableTask = HellblockPlugin.getInstance().getScheduler().runTaskSyncTimer(this, null, 0,
-					60 * 60 * 20L);
+			this.cancellableTask = HellblockPlugin.getInstance().getScheduler().sync().runRepeating(this, 0,
+					60 * 60 * 20L, null);
 		}
 
 		@Override
@@ -1076,7 +1085,7 @@ public class HellblockUserCommand {
 		}
 
 		public void cancelTask() {
-			if (!this.cancellableTask.isCancelled())
+			if (this.cancellableTask != null)
 				this.cancellableTask.cancel();
 		}
 	}
