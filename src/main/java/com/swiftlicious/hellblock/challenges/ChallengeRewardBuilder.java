@@ -48,7 +48,7 @@ public class ChallengeRewardBuilder {
 		instance = plugin;
 		File challengeRewardFile = new File(instance.getDataFolder(), "challenge-rewards.yml");
 		if (!challengeRewardFile.exists())
-			challengeRewardFile.mkdirs();
+			instance.saveResource("challenge-rewards.yml", false);
 		this.rewardConfig = instance.getConfigManager().loadData(challengeRewardFile);
 	}
 

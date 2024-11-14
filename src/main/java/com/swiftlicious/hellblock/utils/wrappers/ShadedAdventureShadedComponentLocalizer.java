@@ -45,13 +45,12 @@ public class ShadedAdventureShadedComponentLocalizer extends ShadedComponentLoca
 		return builder.build();
 	}
 
-	@SuppressWarnings("deprecation")
 	private BuildableComponent<?, ?> localizeTranslatable(String lang, TranslatableComponent component) {
 		var formatString = Languages.getInstance().getFormatString(lang, component.key());
 		if (formatString == null)
 			return component;
 
-		var children = decomposeFormatString(lang, formatString, component, component.args());
+		var children = decomposeFormatString(lang, formatString, component, component.arguments());
 		return Component.textOfChildren(children.toArray(ComponentLike[]::new)).style(component.style());
 	}
 }

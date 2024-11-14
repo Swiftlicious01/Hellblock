@@ -6,10 +6,8 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.EnumMap;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -17,6 +15,9 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 
+import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
+
+import com.google.common.collect.ImmutableSet;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.database.dependency.classloader.IsolatedClassLoader;
 import com.swiftlicious.hellblock.database.dependency.classpath.ClassPathAppender;
@@ -36,26 +37,32 @@ public class DependencyManager implements DependencyManagerInterface {
 	private final Path cacheDirectory;
 	/** The classpath appender to preload dependencies into */
 	private final ClassPathAppender classPathAppender;
+	/** The executor to use when loading dependencies */
+	private final Executor loadingExecutor;
 	/** A map of dependencies which have already been loaded. */
 	private final EnumMap<Dependency, Path> loaded = new EnumMap<>(Dependency.class);
 	/** A map of isolated classloaders which have been created. */
-	private final Map<Set<Dependency>, IsolatedClassLoader> loaders = new HashMap<>();
+	private final Map<ImmutableSet<Dependency>, IsolatedClassLoader> loaders = new HashMap<>();
 	/** Cached relocation handler instance. */
-	private final RelocationHandler relocationHandler;
-	/** The executor to use when loading dependencies */
-	private final Executor loadingExecutor;
+	private @MonotonicNonNull RelocationHandler relocationHandler = null;
 
-	public DependencyManager(HellblockPlugin plugin) {
+	public DependencyManager(HellblockPlugin plugin, ClassPathAppender classPathAppender) {
 		this.registry = new DependencyRegistry();
 		this.cacheDirectory = setupCacheDirectory(plugin);
-		this.classPathAppender = plugin.getClassPathAppender();
+		this.classPathAppender = classPathAppender;
 		this.loadingExecutor = plugin.getScheduler().async();
-		this.relocationHandler = new RelocationHandler(this);
+	}
+
+	private synchronized RelocationHandler getRelocationHandler() {
+		if (this.relocationHandler == null) {
+			this.relocationHandler = new RelocationHandler(this);
+		}
+		return this.relocationHandler;
 	}
 
 	@Override
 	public ClassLoader obtainClassLoaderWith(Set<Dependency> dependencies) {
-		Set<Dependency> set = new HashSet<>(dependencies);
+		ImmutableSet<Dependency> set = ImmutableSet.copyOf(dependencies);
 
 		for (Dependency dependency : dependencies) {
 			if (!this.loaded.containsKey(dependency)) {
@@ -84,7 +91,7 @@ public class DependencyManager implements DependencyManagerInterface {
 	}
 
 	@Override
-	public void loadDependencies(Collection<Dependency> dependencies) {
+	public void loadDependencies(Set<Dependency> dependencies) {
 		CountDownLatch latch = new CountDownLatch(dependencies.size());
 
 		for (Dependency dependency : dependencies) {
@@ -141,7 +148,7 @@ public class DependencyManager implements DependencyManagerInterface {
 			int i = 0;
 			while (i < repository.size()) {
 				try {
-					LogUtils.info(String.format("Downloading dependency(%s) [%s	| %s]", fileName,
+					LogUtils.info(String.format("Downloading dependency(%s) [%s%s]", fileName,
 							repository.get(i).getUrl(), dependency.getMavenRepoPath()));
 					repository.get(i).download(dependency, file);
 					LogUtils.info(String.format("Successfully downloaded %s", fileName));
@@ -170,7 +177,7 @@ public class DependencyManager implements DependencyManagerInterface {
 		}
 
 		LogUtils.info("Remapping " + dependency.getFileName(null));
-		relocationHandler.remap(normalFile, remappedFile, rules);
+		getRelocationHandler().remap(normalFile, remappedFile, rules);
 		LogUtils.info("Successfully remapped " + dependency.getFileName(null));
 		return remappedFile;
 	}

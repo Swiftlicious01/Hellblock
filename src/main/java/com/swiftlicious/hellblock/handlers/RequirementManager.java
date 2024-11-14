@@ -80,7 +80,7 @@ public class RequirementManager implements RequirementManagerInterface {
 		// Load conditional loot data from the loot conditions configuration file
 		File lootConditionsFile = new File(instance.getDataFolder(), "loot-conditions.yml");
 		if (!lootConditionsFile.exists())
-			lootConditionsFile.mkdirs();
+			instance.saveResource("loot-conditions.yml", false);
 		YamlDocument config = instance.getConfigManager().loadData(lootConditionsFile);
 		for (Map.Entry<String, Object> entry : config.getStringRouteMappedValues(false).entrySet()) {
 			if (entry.getValue() instanceof Section section) {

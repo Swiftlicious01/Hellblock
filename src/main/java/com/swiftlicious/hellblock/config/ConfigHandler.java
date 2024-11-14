@@ -21,7 +21,7 @@ import dev.dejvokep.boostedyaml.settings.loader.LoaderSettings;
 import dev.dejvokep.boostedyaml.settings.updater.UpdaterSettings;
 import dev.dejvokep.boostedyaml.utils.format.NodeRole;
 
-public abstract class ConfigHandler implements Reloadable {
+public abstract class ConfigHandler implements ConfigLoader, Reloadable {
 
 	protected final HellblockPlugin instance;
 
@@ -56,10 +56,12 @@ public abstract class ConfigHandler implements Reloadable {
 		return configFile;
 	}
 
+	@Override
 	public YamlDocument loadConfig(String filePath) {
 		return loadConfig(filePath, '.');
 	}
 
+	@Override
 	public YamlDocument loadConfig(String filePath, char routeSeparator) {
 		try (InputStream inputStream = new FileInputStream(resolveConfig(filePath).toFile())) {
 			return YamlDocument.create(inputStream, instance.getResource(filePath.replace("\\", "/")),
@@ -78,6 +80,7 @@ public abstract class ConfigHandler implements Reloadable {
 		}
 	}
 
+	@Override
 	public YamlDocument loadData(File file) {
 		try (InputStream inputStream = new FileInputStream(file)) {
 			return YamlDocument.create(inputStream);
@@ -87,6 +90,7 @@ public abstract class ConfigHandler implements Reloadable {
 		}
 	}
 
+	@Override
 	public YamlDocument loadData(File file, char routeSeparator) {
 		try (InputStream inputStream = new FileInputStream(file)) {
 			return YamlDocument.create(inputStream,

@@ -17,17 +17,21 @@ import java.util.concurrent.TimeUnit;
 public enum DependencyRepository {
 
 	/**
-	 * Maven Central
+	 * Maven Mirror
 	 */
-	MAVEN_CENTRAL("maven", "https://repo1.maven.org/maven2/") {
+	MAVEN_MIRROR("maven", "https://maven.aliyun.com/repository/public/") {
 		@Override
 		protected URLConnection openConnection(Dependency dependency) throws IOException {
 			URLConnection connection = super.openConnection(dependency);
-            connection.setConnectTimeout((int) TimeUnit.SECONDS.toMillis(5));
-            connection.setReadTimeout((int) TimeUnit.SECONDS.toMillis(5));
+			connection.setConnectTimeout((int) TimeUnit.SECONDS.toMillis(5));
+			connection.setReadTimeout((int) TimeUnit.SECONDS.toMillis(10));
 			return connection;
 		}
 	},
+	/**
+	 * Maven Central
+	 */
+	MAVEN_CENTRAL("maven", "https://repo1.maven.org/maven2/"),
 	/**
 	 * xenondevs
 	 */
@@ -84,8 +88,8 @@ public enum DependencyRepository {
 				}
 				return bytes;
 			}
-		} catch (Exception e) {
-			throw new DependencyDownloadException(e);
+		} catch (Exception ex) {
+			throw new DependencyDownloadException(ex);
 		}
 	}
 
@@ -109,8 +113,8 @@ public enum DependencyRepository {
 	public void download(Dependency dependency, Path file) throws DependencyDownloadException {
 		try {
 			Files.write(file, download(dependency));
-		} catch (IOException e) {
-			throw new DependencyDownloadException(e);
+		} catch (IOException ex) {
+			throw new DependencyDownloadException(ex);
 		}
 	}
 

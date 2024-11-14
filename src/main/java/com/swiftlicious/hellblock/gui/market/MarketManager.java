@@ -97,7 +97,7 @@ public class MarketManager implements MarketManagerInterface, Listener {
 			}
 		}, 1, 1, TimeUnit.SECONDS);
 	}
-	
+
 	@Override
 	public void unload() {
 		HandlerList.unregisterAll(this);
@@ -108,7 +108,7 @@ public class MarketManager implements MarketManagerInterface, Listener {
 			this.resetEarningsTask = null;
 		}
 	}
-	
+
 	@Override
 	public void disable() {
 		unload();
@@ -194,7 +194,7 @@ public class MarketManager implements MarketManagerInterface, Listener {
 	private void loadConfig() {
 		File marketFile = new File(instance.getDataFolder(), "market.yml");
 		if (!marketFile.exists())
-			marketFile.mkdirs();
+			instance.saveResource("market.yml", false);
 		YamlDocument config = instance.getConfigManager().loadData(marketFile);
 		this.enable = config.getBoolean("enable", true);
 		this.formula = config.getString("price-formula", "{base} + {bonus} * {size}");

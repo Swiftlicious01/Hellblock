@@ -1,6 +1,5 @@
 package com.swiftlicious.hellblock.database.dependency;
 
-import java.util.Collection;
 import java.util.Set;
 
 /**
@@ -13,7 +12,7 @@ public interface DependencyManagerInterface extends AutoCloseable {
 	 *
 	 * @param dependencies the dependencies to load
 	 */
-	void loadDependencies(Collection<Dependency> dependencies);
+	void loadDependencies(Set<Dependency> dependencies);
 
 	/**
 	 * Obtains an isolated classloader containing the given dependencies.

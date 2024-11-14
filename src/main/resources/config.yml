@@ -12,6 +12,9 @@ metrics: true
 # Check updates
 update-checker: false
 
+# Language
+lang: en
+
 general:
   world: hellworld
   spawn-size: 25
@@ -43,7 +46,7 @@ hellblock:
   void-teleport: true
   starter-chest: 
     inventory-name: '<dark_red>Hellblock Chest'
-	items:
+    items:
       '1':
         material: BROWN_MUSHROOM
         amount: 1

@@ -4,7 +4,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
 
+import org.jetbrains.annotations.NotNull;
+
 import com.google.common.base.Function;
+
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.TranslationArgument;
 
 abstract class ShadedComponentLocalizer<T> {
 
@@ -20,9 +25,9 @@ abstract class ShadedComponentLocalizer<T> {
 		this.componentCreator = componentCreator;
 	}
 
-	public abstract T localize(String lang, T component);
+	public abstract T localize(String lang, @NotNull Component component);
 
-	protected List<T> decomposeFormatString(String lang, String formatString, T component, List<T> args) {
+	protected List<T> decomposeFormatString(String lang, String formatString, T component, @NotNull List<TranslationArgument> list) {
 		var matcher = FORMAT_PATTERN.matcher(formatString);
 
 		var components = new ArrayList<T>();
@@ -58,7 +63,7 @@ abstract class ShadedComponentLocalizer<T> {
 				// add text component
 				components.add(componentCreator.apply(sb.toString()));
 				// add argument component
-				components.add(args.size() <= argIdx ? componentCreator.apply("") : localize(lang, args.get(argIdx)));
+				components.add(list.size() <= argIdx ? componentCreator.apply("") : localize(lang, list.get(argIdx).asComponent()));
 				// clear string builder
 				sb.setLength(0);
 			}

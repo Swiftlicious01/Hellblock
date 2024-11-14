@@ -1,15 +1,12 @@
 package com.swiftlicious.hellblock.database.dependency;
 
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
 import org.bukkit.Bukkit;
 import org.jetbrains.annotations.Nullable;
 
+import com.google.common.collect.ImmutableList;
 import com.swiftlicious.hellblock.database.dependency.relocation.Relocation;
 
 /**
@@ -45,13 +42,6 @@ public enum Dependency {
 	},
 	COMMONS_POOL_2("org{}apache{}commons", "commons-pool2", "maven", "commons-pool",
 			Relocation.of("commonspool2", "org{}apache{}commons{}pool2")),
-	BSTATS_BASE("org{}bstats", "bstats-base", "maven", "bstats-base", Relocation.of("bstats", "org{}bstats")),
-	BSTATS_BUKKIT("org{}bstats", "bstats-bukkit", "maven", "bstats-bukkit", Relocation.of("bstats", "org{}bstats")) {
-		@Override
-		public String getVersion() {
-			return Dependency.BSTATS_BASE.getVersion();
-		}
-	},
 	GSON("com.google.code.gson", "gson", "maven", "gson"),
 	JEDIS("redis{}clients", "jedis", "maven", "jedis", Relocation.of("jedis", "redis{}clients{}jedis"),
 			Relocation.of("commonspool2", "org{}apache{}commons{}pool2")),
@@ -65,53 +55,39 @@ public enum Dependency {
 	SLF4J_API("org.slf4j", "slf4j-api", "maven", "slf4j"),
 	COMMAND_API("dev{}jorel", "commandapi-bukkit-shade", "maven", "commandapi-bukkit",
 			Relocation.of("commandapi", "dev{}jorel{}commandapi")),
-	INV_UI("xyz{}xenondevs{}invui", "invui-core", "xenondevs", "invui-core",
-			Relocation.of("invui", "xyz{}xenondevs{}invui-core")),
-	INV_UI_ACCESS("xyz{}xenondevs{}invui", "inventory-access", "xenondevs", "inventory-access",
-			Relocation.of("inventoryaccess", "xyz{}xenondevs{}inventoryaccess")) {
+	INV_UI("xyz{}xenondevs{}invui", "invui-core", "xenondevs", "invui-core"),
+	INV_UI_ACCESS("xyz{}xenondevs{}invui", "inventory-access", "xenondevs", "inventory-access") {
 		@Override
 		public String getVersion() {
 			return Dependency.INV_UI.getVersion();
 		}
 	},
 	INV_UI_NMS("xyz{}xenondevs{}invui", String.format("inventory-access-%s", getInvUINms()), "xenondevs",
-			String.format("inventory-access-%s", getInvUINms()),
-			Relocation.of(String.format("inventoryaccess%s", getInvUINms()),
-					String.format("xyz{}xenondevs{}inventoryaccess{}inventory-access-%s", getInvUINms()))) {
+			String.format("inventory-access-%s", getInvUINms())) {
 		@Override
 		public String getVersion() {
 			return Dependency.INV_UI.getVersion();
 		}
 	};
 
-	private final List<Relocation> relocations;
-	private final String repo;
 	private final String groupId;
-	private String rawArtifactId;
-	private String customArtifactID;
+	private final String artifactId;
+	private final String repo;
+	private final String customArtifactID;
+	private final List<Relocation> relocations;
 
 	private static final String MAVEN_FORMAT = "%s/%s/%s/%s-%s.jar";
 
-	Dependency(String groupId, String rawArtifactId, String repo, String customArtifactID) {
-		this(groupId, rawArtifactId, repo, customArtifactID, new Relocation[0]);
+	Dependency(String groupId, String artifactId, String repo, String customArtifactID) {
+		this(groupId, artifactId, repo, customArtifactID, new Relocation[0]);
 	}
 
-	Dependency(String groupId, String rawArtifactId, String repo, String customArtifactID, Relocation... relocations) {
-		this.rawArtifactId = rawArtifactId;
+	Dependency(String groupId, String artifactId, String repo, String customArtifactID, Relocation... relocations) {
 		this.groupId = groupId;
-		this.relocations = new ArrayList<>(Arrays.stream(relocations).toList());
+		this.artifactId = artifactId;
 		this.repo = repo;
 		this.customArtifactID = customArtifactID;
-	}
-
-	public Dependency setCustomArtifactID(String customArtifactID) {
-		this.customArtifactID = customArtifactID;
-		return this;
-	}
-
-	public Dependency setRawArtifactID(String artifactId) {
-		this.rawArtifactId = artifactId;
-		return this;
+		this.relocations = ImmutableList.copyOf(relocations);
 	}
 
 	public String getVersion() {
@@ -128,27 +104,13 @@ public enum Dependency {
 		return name + "-" + this.getVersion() + extra + ".jar";
 	}
 
-	String getMavenRepoPath() {
-		return String.format(MAVEN_FORMAT, rewriteEscaping(groupId).replace(".", "/"), rewriteEscaping(rawArtifactId),
-				getVersion(), rewriteEscaping(rawArtifactId), getVersion());
+	public String getMavenRepoPath() {
+		return String.format(MAVEN_FORMAT, rewriteEscaping(groupId).replace(".", "/"), rewriteEscaping(artifactId),
+				getVersion(), rewriteEscaping(artifactId), getVersion());
 	}
 
 	public List<Relocation> getRelocations() {
 		return this.relocations;
-	}
-
-	/**
-	 * Creates a {@link MessageDigest} suitable for computing the checksums of
-	 * dependencies.
-	 *
-	 * @return the digest
-	 */
-	public static MessageDigest createDigest() {
-		try {
-			return MessageDigest.getInstance("SHA-256");
-		} catch (NoSuchAlgorithmException e) {
-			throw new RuntimeException(e);
-		}
 	}
 
 	@Nullable

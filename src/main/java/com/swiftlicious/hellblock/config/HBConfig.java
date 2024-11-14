@@ -1,5 +1,6 @@
 package com.swiftlicious.hellblock.config;
 
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -43,6 +44,9 @@ public class HBConfig extends ConfigHandler {
 
 	// BStats
 	public static boolean metrics;
+	
+	// language choice
+	public static String language;
 
 	// fishing event priority
 	public static EventPriority eventPriority;
@@ -289,6 +293,8 @@ public class HBConfig extends ConfigHandler {
 		YamlDocument config = getMainConfig();
 
 		debug = config.getBoolean("debug", false);
+		
+		language = config.getString("lang", "en");
 
 		updateChecker = config.getBoolean("update-checker", true);
 		metrics = config.getBoolean("metrics", true);
@@ -497,5 +503,12 @@ public class HBConfig extends ConfigHandler {
 				.toList();
 
 		OffsetUtils.loadConfig(config.getSection("other-settings.offset-characters"));
+	}
+
+	@Override
+	public void saveResource(String filePath) {
+		if (!new File(instance.getDataFolder(), filePath).exists()) {
+			instance.saveResource(filePath, false);
+		}
 	}
 }

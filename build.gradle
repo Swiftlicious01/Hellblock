@@ -58,16 +58,10 @@ allprojects {
 
         // Gson
         compileOnly "com.google.code.gson:gson:${rootProject.properties["gson_version"]}"
-    	compileOnly "com.google.guava:guava:${rootProject.properties["guava_version"]}"
 
         // Lombok
         compileOnly "org.projectlombok:lombok:${rootProject.properties["lombok_version"]}"
         annotationProcessor "org.projectlombok:lombok:${rootProject.properties["lombok_version"]}"
- 		// jetbrains
-    	compileOnly "org.jetbrains:annotations:${rootProject.properties["jetbrains_annotations_version"]}"
-    	// loggers
-    	compileOnly "org.slf4j:slf4j-api:${rootProject.properties["slf4j_version"]}"
-    	compileOnly "org.apache.logging.log4j:log4j-core:${rootProject.properties["log4j_version"]}"
   
         // mythic mobs
         compileOnly "io.lumine:Mythic-Dist:${rootProject.properties["mythic_mobs_version"]}"
@@ -133,6 +127,7 @@ allprojects {
 
     shadowJar {
         archiveFileName = "Hellblock-${rootProject.properties["project_version"]}.jar"
+        archiveClassifier.set('')
         destinationDirectory.set(file('$rootDir/target'))
         
         relocate 'com.mysql', 'com.swiftlicious.hellblock.libraries.mysql'
@@ -172,7 +167,7 @@ processResources {
     filesMatching('hellblock.properties') {
        expand(rootProject.properties)
     }
-    filesMatching(['plugin.yml', 'paper-plugin.yml', 'config.yml']) {
+    filesMatching(['plugin.yml', 'config.yml']) {
        expand(map)
     }
 }

@@ -1,14 +1,16 @@
 package com.swiftlicious.hellblock.database.dependency.classpath;
 
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.URL;
 import java.net.URLClassLoader;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Deque;
-import java.util.List;
+import java.util.Collection;
 
+import org.bukkit.Bukkit;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -27,6 +29,8 @@ public abstract class URLClassLoaderAccess {
 			return new Reflection(classLoader);
 		} else if (Unsafe.isSupported()) {
 			return new Unsafe(classLoader);
+		} else if (GlobalUnsafe.isSupported()) {
+			return new GlobalUnsafe(classLoader);
 		} else {
 			return Noop.INSTANCE;
 		}
@@ -46,7 +50,7 @@ public abstract class URLClassLoaderAccess {
 	public abstract void addURL(@NotNull URL url);
 
 	private static void throwError(Throwable cause) throws UnsupportedOperationException {
-		throw new UnsupportedOperationException("Hellblock is unable to inject into the plugin URLClassLoader.\n"
+		throw new UnsupportedOperationException("Unable to inject into the plugin URLClassLoader.\n"
 				+ "You may be able to fix this problem by adding the following command-line argument "
 				+ "directly after the 'java' command in your start script: \n'--add-opens java.base/java.lang=ALL-UNNAMED'",
 				cause);
@@ -63,7 +67,7 @@ public abstract class URLClassLoaderAccess {
 			try {
 				addUrlMethod = URLClassLoader.class.getDeclaredMethod("addURL", URL.class);
 				addUrlMethod.setAccessible(true);
-			} catch (Exception e) {
+			} catch (Exception ignored) {
 				addUrlMethod = null;
 			}
 			ADD_URL_METHOD = addUrlMethod;
@@ -73,7 +77,7 @@ public abstract class URLClassLoaderAccess {
 			return ADD_URL_METHOD != null;
 		}
 
-		Reflection(URLClassLoader classLoader) {
+		protected Reflection(URLClassLoader classLoader) {
 			super(classLoader);
 		}
 
@@ -93,15 +97,15 @@ public abstract class URLClassLoaderAccess {
 	 * @author Vaishnav Anil (https://github.com/slimjar/slimjar)
 	 */
 	private static class Unsafe extends URLClassLoaderAccess {
-		private static final sun.misc.Unsafe UNSAFE;
+		private static final Object UNSAFE;
 
 		static {
-			sun.misc.Unsafe unsafe;
+			Object unsafe;
 			try {
-				Field unsafeField = sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+				Field unsafeField = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe");
 				unsafeField.setAccessible(true);
-				unsafe = (sun.misc.Unsafe) unsafeField.get(null);
-			} catch (Throwable t) {
+				unsafe = unsafeField.get(null);
+			} catch (Throwable ignored) {
 				unsafe = null;
 			}
 			UNSAFE = unsafe;
@@ -111,19 +115,19 @@ public abstract class URLClassLoaderAccess {
 			return UNSAFE != null;
 		}
 
-		private final Deque<URL> unopenedURLs;
-		private final List<URL> pathURLs;
+		private final Collection<URL> unopenedURLs;
+		private final Collection<URL> pathURLs;
 
 		@SuppressWarnings("unchecked")
-		Unsafe(URLClassLoader classLoader) {
+		protected Unsafe(URLClassLoader classLoader) {
 			super(classLoader);
 
-			Deque<URL> unopenedURLs;
-			List<URL> pathURLs;
+			Collection<URL> unopenedURLs;
+			Collection<URL> pathURLs;
 			try {
-				final Object ucp = fetchField(UNSAFE, URLClassLoader.class, classLoader, "ucp");
-				unopenedURLs = (ArrayDeque<URL>) fetchField(UNSAFE, ucp, "unopenedUrls");
-				pathURLs = (ArrayList<URL>) fetchField(UNSAFE, ucp, "path");
+				Object ucp = fetchField(URLClassLoader.class, classLoader, "ucp");
+				unopenedURLs = (Collection<URL>) fetchField(ucp.getClass(), ucp, "unopenedUrls");
+				pathURLs = (Collection<URL>) fetchField(ucp.getClass(), ucp, "path");
 			} catch (Throwable e) {
 				unopenedURLs = null;
 				pathURLs = null;
@@ -133,17 +137,17 @@ public abstract class URLClassLoaderAccess {
 			this.pathURLs = pathURLs;
 		}
 
-		private static Object fetchField(final sun.misc.Unsafe unsafe, final Object object, final String name)
+		private static Object fetchField(final Class<?> clazz, final Object object, final String name)
 				throws NoSuchFieldException {
-			return fetchField(unsafe, object.getClass(), object, name);
-		}
-
-		@SuppressWarnings("deprecation")
-		private static Object fetchField(final sun.misc.Unsafe unsafe, final Class<?> clazz, final Object object,
-				final String name) throws NoSuchFieldException {
-			final Field field = clazz.getDeclaredField(name);
-			final long offset = unsafe.objectFieldOffset(field);
-			return unsafe.getObject(object, offset);
+			Field field = clazz.getDeclaredField(name);
+			try {
+				long ucpOffset = (Long) UNSAFE.getClass().getDeclaredMethod("objectFieldOffset", Field.class)
+						.invoke(UNSAFE, field);
+				return UNSAFE.getClass().getDeclaredMethod("getObject", Object.class, Long.TYPE).invoke(UNSAFE, object,
+						ucpOffset);
+			} catch (IllegalAccessException | InvocationTargetException | NoSuchMethodException e) {
+				throw new RuntimeException(e);
+			}
 		}
 
 		@Override
@@ -155,6 +159,72 @@ public abstract class URLClassLoaderAccess {
 			synchronized (this.unopenedURLs) {
 				this.unopenedURLs.add(url);
 				this.pathURLs.add(url);
+			}
+		}
+	}
+
+	private static class GlobalUnsafe extends URLClassLoaderAccess {
+
+		private static final MethodHandles.Lookup LOOKUP;
+		private static final Object UNSAFE;
+
+		static {
+			MethodHandles.Lookup lookup;
+			Object unsafe;
+			try {
+				Field unsafeField = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe");
+				unsafeField.setAccessible(true);
+				unsafe = unsafeField.get(null);
+				Field lookupField = MethodHandles.Lookup.class.getDeclaredField("IMPL_LOOKUP");
+				Object lookupBase = unsafe.getClass().getDeclaredMethod("staticFieldBase", Field.class).invoke(unsafe,
+						lookupField);
+				long lookupOffset = (Long) unsafe.getClass().getDeclaredMethod("staticFieldOffset", Field.class)
+						.invoke(unsafe, lookupField);
+				lookup = (MethodHandles.Lookup) unsafe.getClass()
+						.getDeclaredMethod("getObject", Object.class, Long.TYPE)
+						.invoke(unsafe, lookupBase, lookupOffset);
+			} catch (Throwable ignored) {
+				lookup = null;
+				unsafe = null;
+			}
+			LOOKUP = lookup;
+			UNSAFE = unsafe;
+		}
+
+		protected GlobalUnsafe(URLClassLoader classLoader) {
+			super(classLoader);
+		}
+
+		private static boolean isSupported() {
+			return LOOKUP != null;
+		}
+
+		@Override
+		public void addURL(URL url) {
+			try {
+				ClassLoader loader = Bukkit.class.getClassLoader();
+				if (loader.getClass().getSimpleName().equals("LaunchClassLoader")) {
+					MethodHandle methodHandle = LOOKUP.findVirtual(loader.getClass(), "addURL",
+							MethodType.methodType(Void.TYPE, URL.class));
+					methodHandle.invoke(loader, url.toURI().toURL());
+				} else {
+					Field ucpField;
+					try {
+						ucpField = loader.getClass().getDeclaredField("ucp");
+					} catch (NoSuchFieldException | NoSuchFieldError ex) {
+						ucpField = loader.getClass().getSuperclass().getDeclaredField("ucp");
+					}
+
+					long ucpOffset = (Long) UNSAFE.getClass().getDeclaredMethod("objectFieldOffset", Field.class)
+							.invoke(UNSAFE, ucpField);
+					Object ucp = UNSAFE.getClass().getDeclaredMethod("getObject", Object.class, Long.TYPE)
+							.invoke(UNSAFE, loader, ucpOffset);
+					MethodHandle methodHandle = LOOKUP.findVirtual(ucp.getClass(), "addURL",
+							MethodType.methodType(Void.TYPE, URL.class));
+					methodHandle.invoke(ucp, url.toURI().toURL());
+				}
+			} catch (Throwable t) {
+				throw new RuntimeException(t);
 			}
 		}
 	}

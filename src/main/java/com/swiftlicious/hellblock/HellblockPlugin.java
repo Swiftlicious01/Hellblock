@@ -3,8 +3,10 @@ package com.swiftlicious.hellblock;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
@@ -40,8 +42,8 @@ import com.swiftlicious.hellblock.creation.item.ItemManager;
 import com.swiftlicious.hellblock.database.StorageManager;
 import com.swiftlicious.hellblock.database.dependency.Dependency;
 import com.swiftlicious.hellblock.database.dependency.DependencyManager;
-import com.swiftlicious.hellblock.database.dependency.classpath.ClassPathAppender;
 import com.swiftlicious.hellblock.database.dependency.classpath.ReflectionClassPathAppender;
+import com.swiftlicious.hellblock.database.dependency.relocation.RelocationHandler;
 import com.swiftlicious.hellblock.effects.EffectManager;
 import com.swiftlicious.hellblock.events.fishing.LavaFishingReloadEvent;
 import com.swiftlicious.hellblock.generation.BiomeHandler;
@@ -92,7 +94,7 @@ import lombok.NonNull;
 @Getter
 public class HellblockPlugin extends JavaPlugin {
 
-	private static HellblockPlugin instance;
+	protected static HellblockPlugin instance;
 
 	protected GlowstoneTree glowstoneTreeHandler;
 	protected LavaRain lavaRainHandler;
@@ -126,7 +128,6 @@ public class HellblockPlugin extends JavaPlugin {
 	protected ParseUtils parseUtils;
 
 	protected ProtocolManager protocolManager;
-	protected ClassPathAppender classPathAppender;
 
 	protected AbstractJavaScheduler<Location> scheduler;
 	protected LootManager lootManager;
@@ -155,14 +156,11 @@ public class HellblockPlugin extends JavaPlugin {
 	public void onLoad() {
 		this.versionManager = new VersionManager(this);
 		this.scheduler = new BukkitSchedulerAdapter(this);
-		this.classPathAppender = new ReflectionClassPathAppender(getClass().getClassLoader());
-		this.dependencyManager = new DependencyManager(this);
-		this.dependencyManager.loadDependencies(List.of(Dependency.BOOSTED_YAML, Dependency.BSTATS_BASE,
-				Dependency.BSTATS_BUKKIT, Dependency.COMMAND_API, Dependency.EXP4J, Dependency.GSON,
-				Dependency.H2_DRIVER, Dependency.HIKARI_CP, Dependency.INV_UI, Dependency.INV_UI_ACCESS,
-				Dependency.INV_UI_NMS, Dependency.JEDIS, Dependency.MARIADB_DRIVER, Dependency.MONGODB_DRIVER_BSON,
-				Dependency.MONGODB_DRIVER_CORE, Dependency.MONGODB_DRIVER_SYNC, Dependency.MYSQL_DRIVER,
-				Dependency.SLF4J_API, Dependency.SLF4J_SIMPLE, Dependency.SQLITE_DRIVER));
+		this.dependencyManager = new DependencyManager(this, new ReflectionClassPathAppender(this.getClassLoader()));
+		Set<Dependency> dependencies = new HashSet<>(Arrays.asList(Dependency.values()));
+		dependencies.removeAll(RelocationHandler.DEPENDENCIES);
+		LogUtils.info(String.format("Preloading %s dependencies...", dependencies.size()));
+		this.dependencyManager.loadDependencies(dependencies);
 	}
 
 	@Override
@@ -181,19 +179,18 @@ public class HellblockPlugin extends JavaPlugin {
 
 		// TODO: possible backwards support up to 1.17
 		if (!this.versionManager.getSupportedVersions().contains(this.versionManager.getServerVersion())) {
-			LogUtils.severe("Hellblock currently only works on v1.20.5+ servers. Disabling plugin...");
+			LogUtils.severe(
+					"Hellblock currently only works on v1.17+ servers. If you need support for a legacy version please suggest this to me.");
+			LogUtils.severe("Disabling plugin...");
 			Bukkit.getPluginManager().disablePlugin(this);
 			return;
 		}
 
 		// TODO: add support for spigot
 		if (!this.versionManager.isPaper()) {
-			LogUtils.severe("Hellblock currently only works on Paper Spigot servers. Disabling plugin...");
-			Bukkit.getPluginManager().disablePlugin(this);
-			return;
+			LogUtils.severe("Hellblock is more suited towards Paper, but will still work with Spigot.");
+			PaperLib.suggestPaper(this);
 		}
-
-		PaperLib.suggestPaper(this);
 
 		ReflectionUtils.load();
 		this.configManager = new HBConfig(this);

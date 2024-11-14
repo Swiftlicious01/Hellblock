@@ -1,5 +1,6 @@
 package com.swiftlicious.hellblock.config;
 
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -131,8 +132,10 @@ public class HBLocale extends ConfigHandler {
 
 	@Override
 	public void load() {
-		try (InputStream inputStream = new FileInputStream(resolveConfig("messages.yml").toFile())) {
-			MESSAGE_CONFIG = YamlDocument.create(inputStream, instance.getResource("messages.yml".replace("\\", "/")),
+		try (InputStream inputStream = new FileInputStream(
+				resolveConfig("messages" + File.separator + HBConfig.language + ".yml").toFile())) {
+			MESSAGE_CONFIG = YamlDocument.create(inputStream,
+					instance.getResource("messages" + File.separator + HBConfig.language + ".yml".replace("\\", "/")),
 					GeneralSettings.builder().setRouteSeparator('.').setUseDefaults(false).build(),
 					LoaderSettings.builder().setAutoUpdate(true).build(),
 					DumperSettings.builder().setScalarFormatter((tag, value, role, def) -> {
@@ -141,9 +144,8 @@ public class HBLocale extends ConfigHandler {
 						} else {
 							return tag == Tag.STR ? ScalarStyle.DOUBLE_QUOTED : ScalarStyle.PLAIN;
 						}
-					}).build(),
-					UpdaterSettings.builder().setVersioning(new BasicVersioning("config-version")).build());
-			MESSAGE_CONFIG.save(resolveConfig("messages.yml").toFile());
+					}).build(), UpdaterSettings.builder().setVersioning(new BasicVersioning("config-version")).build());
+			MESSAGE_CONFIG.save(resolveConfig("messages" + File.separator + HBConfig.language + ".yml").toFile());
 		} catch (IOException ex) {
 			throw new RuntimeException(ex);
 		}
@@ -255,6 +257,13 @@ public class HBLocale extends ConfigHandler {
 			GUI_SIZE_MIN = guiSection.getString("page-size-min");
 			GUI_SIZE_MAX = guiSection.getString("page-size-max");
 			GUI_SIZE_MAX_NO_LESS = guiSection.getString("page-size-max-no-less-min");
+		}
+	}
+
+	@Override
+	public void saveResource(String filePath) {
+		if (!new File(instance.getDataFolder(), filePath).exists()) {
+			instance.saveResource(filePath, false);
 		}
 	}
 }
