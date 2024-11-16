@@ -1486,7 +1486,7 @@ public class NetherFarming implements Listener {
 		return concrete;
 	}
 
-	private class FarmUpdater implements Runnable {
+	protected class FarmUpdater implements Runnable {
 
 		private final UUID playerUUID;
 		private final SchedulerTask cancellableTask;

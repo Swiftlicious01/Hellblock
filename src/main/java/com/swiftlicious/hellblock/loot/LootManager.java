@@ -19,6 +19,7 @@ import com.swiftlicious.hellblock.config.HBConfig;
 import com.swiftlicious.hellblock.effects.Effect;
 import com.swiftlicious.hellblock.handlers.RequirementManager;
 import com.swiftlicious.hellblock.utils.LogUtils;
+import com.swiftlicious.hellblock.utils.WeightUtils;
 import com.swiftlicious.hellblock.utils.extras.Condition;
 import com.swiftlicious.hellblock.utils.extras.Pair;
 import com.swiftlicious.hellblock.utils.extras.WeightModifier;
@@ -44,13 +45,13 @@ public class LootManager implements LootManagerInterface {
 	public void load() {
 		this.loadLootsFromPluginFolder();
 	}
-	
+
 	@Override
 	public void unload() {
 		this.lootMap.clear();
 		this.lootGroupMap.clear();
 	}
-	
+
 	@Override
 	public void disable() {
 		unload();
@@ -192,7 +193,7 @@ public class LootManager implements LootManagerInterface {
 	@Override
 	@Nullable
 	public Loot getNextLoot(Effect effect, Condition condition) {
-		String key = instance.getWeightUtils().getRandom(getPossibleLootKeysWithWeight(effect, condition));
+		String key = WeightUtils.getRandom(getPossibleLootKeysWithWeight(effect, condition));
 		if (key == null) {
 			return null;
 		}

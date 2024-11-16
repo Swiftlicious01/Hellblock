@@ -34,6 +34,7 @@ import com.swiftlicious.hellblock.commands.sub.HellblockAdminCommand;
 import com.swiftlicious.hellblock.commands.sub.HellblockAdminCommand.PurgeCounter;
 import com.swiftlicious.hellblock.config.HBConfig;
 import com.swiftlicious.hellblock.config.HBLocale;
+import com.swiftlicious.hellblock.config.locale.TranslationManager;
 import com.swiftlicious.hellblock.coop.CoopManager;
 import com.swiftlicious.hellblock.creation.addons.IntegrationManager;
 import com.swiftlicious.hellblock.creation.block.BlockManager;
@@ -85,8 +86,9 @@ import com.swiftlicious.hellblock.utils.NumberUtils;
 import com.swiftlicious.hellblock.utils.ParseUtils;
 import com.swiftlicious.hellblock.utils.ReflectionUtils;
 import com.swiftlicious.hellblock.utils.VersionManager;
-import com.swiftlicious.hellblock.utils.WeightUtils;
 
+import dev.jorel.commandapi.CommandAPI;
+import dev.jorel.commandapi.CommandAPIBukkitConfig;
 import io.papermc.lib.PaperLib;
 import lombok.Getter;
 import lombok.NonNull;
@@ -123,7 +125,6 @@ public class HellblockPlugin extends JavaPlugin {
 	protected HBLocale localeManager;
 
 	protected ConfigUtils configUtils;
-	protected WeightUtils weightUtils;
 	protected NumberUtils numberUtils;
 	protected ParseUtils parseUtils;
 
@@ -148,13 +149,18 @@ public class HellblockPlugin extends JavaPlugin {
 	protected VersionManager versionManager;
 	protected StorageManager storageManager;
 	protected DependencyManager dependencyManager;
+	protected TranslationManager translationManager;
 	protected ChatCatcherManager chatCatcherManager;
 
 	protected boolean updateAvailable = false;
 
 	@Override
 	public void onLoad() {
+		instance = this;
 		this.versionManager = new VersionManager(this);
+		if (!CommandAPI.isLoaded())
+			CommandAPI.onLoad(new CommandAPIBukkitConfig(this).usePluginNamespace()
+					.shouldHookPaperReload(this.versionManager.isPaper()).silentLogs(true).verboseOutput(true));
 		this.scheduler = new BukkitSchedulerAdapter(this);
 		this.dependencyManager = new DependencyManager(this, new ReflectionClassPathAppender(this.getClassLoader()));
 		Set<Dependency> dependencies = new HashSet<>(Arrays.asList(Dependency.values()));
@@ -171,9 +177,14 @@ public class HellblockPlugin extends JavaPlugin {
 			return;
 		}
 
-		double startTime = System.currentTimeMillis();
+		if (!CommandAPI.isLoaded()) {
+			LogUtils.severe("CommandAPI wasn't initialized properly, Disabling plugin...");
+			Bukkit.getPluginManager().disablePlugin(this);
+			return;
+		}
+		CommandAPI.onEnable();
 
-		instance = this;
+		double startTime = System.currentTimeMillis();
 
 		this.protocolManager = ProtocolLibrary.getProtocolManager();
 
@@ -215,7 +226,7 @@ public class HellblockPlugin extends JavaPlugin {
 		this.challengeRewardBuilder = new ChallengeRewardBuilder(this);
 
 		this.actionManager = new ActionManager(this);
-		this.adventureManager = new AdventureManager();
+		this.adventureManager = new AdventureManager(this);
 		this.blockManager = new BlockManager(this);
 		this.commandManager = new CommandManager(this);
 		this.effectManager = new EffectManager(this);
@@ -233,6 +244,7 @@ public class HellblockPlugin extends JavaPlugin {
 		this.hookManager = new HookManager(this);
 		this.chatCatcherManager = new ChatCatcherManager(this);
 		this.schematicManager = new SchematicManager(this);
+		this.translationManager = new TranslationManager(this);
 
 		this.netherBrewingHandler = new NetherBrewing(this);
 		this.netherToolsHandler = new NetherTools(this);
@@ -245,7 +257,6 @@ public class HellblockPlugin extends JavaPlugin {
 		this.configUtils = new ConfigUtils();
 		this.parseUtils = new ParseUtils();
 		this.numberUtils = new NumberUtils();
-		this.weightUtils = new WeightUtils();
 
 		reload();
 
@@ -253,11 +264,12 @@ public class HellblockPlugin extends JavaPlugin {
 			new Metrics(this, 23739);
 
 		if (HBConfig.updateChecker) {
-			this.versionManager.checkUpdate().thenAccept(result -> {
+			this.versionManager.checkUpdate.apply(this).thenAccept(result -> {
+				String link = "https://github.com/Swiftlicious01/Hellblock/releases";
 				if (!result) {
 					LogUtils.info("You are using the latest version.");
 				} else {
-					LogUtils.info("Update is available: <u>https://github.com/Swiftlicious01/Hellblock/releases<!u>");
+					LogUtils.info(String.format("Update is available: %s", link));
 					this.updateAvailable = true;
 				}
 			});
@@ -269,6 +281,8 @@ public class HellblockPlugin extends JavaPlugin {
 
 		for (UserData onlineUser : getStorageManager().getOnlineUsers()) {
 			Player player = onlineUser.getPlayer();
+			if (player == null)
+				continue;
 			UUID id = player.getUniqueId();
 			onlineUser.showBorder();
 			onlineUser.startSpawningAnimals();
@@ -374,6 +388,7 @@ public class HellblockPlugin extends JavaPlugin {
 			}
 		}
 
+		CommandAPI.onDisable();
 		if (this.lavaRainHandler != null)
 			this.lavaRainHandler.stopLavaRainProcess();
 		if (this.blockManager != null)
@@ -449,7 +464,7 @@ public class HellblockPlugin extends JavaPlugin {
 		this.chatCatcherManager.unload();
 		this.chatCatcherManager.load();
 		this.schematicManager.reload();
-
+		this.translationManager.reload();
 		LavaFishingReloadEvent event = new LavaFishingReloadEvent(this);
 		Bukkit.getPluginManager().callEvent(event);
 	}

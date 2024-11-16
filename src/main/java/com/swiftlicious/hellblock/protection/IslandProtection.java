@@ -58,8 +58,9 @@ public class IslandProtection {
 			}
 
 			user.get().getHellblockData().setProtectionValue(flag);
-			region.setFlag(convertToWorldGuardFlag(flag.getFlag()),
-					(flag.getStatus() == AccessType.ALLOW ? null : StateFlag.State.DENY));
+			if (convertToWorldGuardFlag(flag.getFlag()) != null)
+				region.setFlag(convertToWorldGuardFlag(flag.getFlag()),
+						(flag.getStatus() == AccessType.ALLOW ? null : StateFlag.State.DENY));
 			return true;
 		} else {
 			// TODO: using plugin protection
@@ -67,7 +68,7 @@ public class IslandProtection {
 		}
 	}
 
-	public @Nullable StateFlag convertToWorldGuardFlag(FlagType flag) {
+	public @Nullable StateFlag convertToWorldGuardFlag(@NonNull FlagType flag) {
 		StateFlag wgFlag = null;
 		switch (flag) {
 		case BLOCK_BREAK:
@@ -179,7 +180,7 @@ public class IslandProtection {
 	}
 
 	@SuppressWarnings("deprecation")
-	public @Nullable StringFlag convertToWorldGuardStringFlag(FlagType flag) {
+	public @Nullable StringFlag convertToWorldGuardStringFlag(@NonNull FlagType flag) {
 		StringFlag wgFlag = null;
 		switch (flag) {
 		case GREET_MESSAGE:

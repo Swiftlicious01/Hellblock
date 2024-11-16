@@ -12,6 +12,7 @@ config-version: '1'
 # remote database
 #   MySQL
 #   MariaDB (preferred over MySQL)
+#   PostgreSQL
 #   MongoDB
 #
 data-storage-method: H2
@@ -40,6 +41,21 @@ MySQL:
   table-prefix: hellblock
 
 MariaDB:
+  host: 'localhost'
+  port: '3306'
+  user: 'root'
+  password: 'password'
+  database: 'minecraft'
+  connection-parameters: '?autoReconnect=true&useSSL=false&useUnicode=true&characterEncoding=UTF-8'
+  Pool-Settings:
+    max-pool-size: 10
+    min-idle: 10
+    max-lifetime: 180000
+    keep-alive-time: 60000
+    time-out: 20000
+  table-prefix: hellblock
+  
+PostgreSQL:
   host: 'localhost'
   port: '3306'
   user: 'root'

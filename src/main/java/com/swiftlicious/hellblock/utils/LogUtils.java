@@ -2,8 +2,9 @@ package com.swiftlicious.hellblock.utils;
 
 import java.util.logging.Level;
 
-import org.bukkit.Bukkit;
 import org.jetbrains.annotations.NotNull;
+
+import com.swiftlicious.hellblock.HellblockPlugin;
 
 /**
  * Utility class for logging messages with various log levels.
@@ -16,7 +17,7 @@ public final class LogUtils {
 	 * @param message The message to log.
 	 */
 	public static void info(@NotNull String message) {
-		Bukkit.getServer().getLogger().info("[Hellblock] " + message);
+		HellblockPlugin.getInstance().getLogger().info(message);
 	}
 
 	/**
@@ -25,7 +26,7 @@ public final class LogUtils {
 	 * @param message The message to log.
 	 */
 	public static void warn(@NotNull String message) {
-		Bukkit.getServer().getLogger().warning("[Hellblock] " + message);
+		HellblockPlugin.getInstance().getLogger().warning(message);
 	}
 
 	/**
@@ -34,7 +35,7 @@ public final class LogUtils {
 	 * @param message The message to log.
 	 */
 	public static void severe(@NotNull String message) {
-		Bukkit.getServer().getLogger().severe("[Hellblock] " + message);
+		HellblockPlugin.getInstance().getLogger().severe(message);
 	}
 
 	/**
@@ -44,7 +45,7 @@ public final class LogUtils {
 	 * @param throwable The throwable exception to log.
 	 */
 	public static void warn(@NotNull String message, Throwable throwable) {
-		Bukkit.getServer().getLogger().log(Level.WARNING, "[Hellblock] " + message, throwable);
+		HellblockPlugin.getInstance().getLogger().log(Level.WARNING, message, throwable);
 	}
 
 	/**
@@ -54,7 +55,7 @@ public final class LogUtils {
 	 * @param throwable The throwable exception to log.
 	 */
 	public static void severe(@NotNull String message, Throwable throwable) {
-		Bukkit.getServer().getLogger().log(Level.SEVERE, "[Hellblock] " + message, throwable);
+		HellblockPlugin.getInstance().getLogger().log(Level.SEVERE, message, throwable);
 	}
 
 	private LogUtils() {

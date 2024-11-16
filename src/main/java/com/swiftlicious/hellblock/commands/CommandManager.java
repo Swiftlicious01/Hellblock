@@ -20,8 +20,6 @@ import com.swiftlicious.hellblock.config.HBLocale;
 import com.swiftlicious.hellblock.gui.hellblock.HellblockMenu;
 import com.swiftlicious.hellblock.player.UserData;
 
-import dev.jorel.commandapi.CommandAPI;
-import dev.jorel.commandapi.CommandAPIBukkitConfig;
 import dev.jorel.commandapi.CommandAPICommand;
 import dev.jorel.commandapi.CommandPermission;
 import dev.jorel.commandapi.arguments.EntitySelectorArgument;
@@ -38,8 +36,6 @@ public class CommandManager implements Reloadable {
 
 	@Override
 	public void load() {
-		if (!CommandAPI.isLoaded())
-			CommandAPI.onLoad(new CommandAPIBukkitConfig(instance).silentLogs(true));
 		getMainCommand().withSubcommands(getOpenCommand(), HellblockAdminCommand.INSTANCE.getAdminCommand(),
 				GUIEditorCommand.INSTANCE.getEditorCommand(), DataCommand.INSTANCE.getDataCommand(),
 				HellblockUserCommand.INSTANCE.getResetCommand(), HellblockUserCommand.INSTANCE.getCreateCommand(),

@@ -123,6 +123,7 @@ public class StorageManager implements StorageManagerInterface, Listener {
 			case YAML -> this.dataSource = new YamlHandler(instance);
 			case SQLite -> this.dataSource = new SQLiteHandler(instance);
 			case MySQL -> this.dataSource = new MySQLHandler(instance);
+			case PostgreSQL -> this.dataSource = new PostgreSQLHandler(instance);
 			case MariaDB -> this.dataSource = new MariaDBHandler(instance);
 			case MongoDB -> this.dataSource = new MongoDBHandler(instance);
 			default -> {

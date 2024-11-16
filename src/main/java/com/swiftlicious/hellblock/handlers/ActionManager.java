@@ -333,7 +333,7 @@ public class ActionManager implements ActionManagerInterface {
 						condition.getArgs());
 				instance.getScheduler().executeSync(() -> {
 					for (String text : replaced) {
-						Bukkit.getServer().dispatchCommand(Bukkit.getConsoleSender(), text);
+						Bukkit.dispatchCommand(Bukkit.getConsoleSender(), text);
 					}
 				}, condition.getLocation());
 			};
@@ -347,7 +347,7 @@ public class ActionManager implements ActionManagerInterface {
 				random = instance.getPlaceholderManager().parse(condition.getPlayer(), random, condition.getArgs());
 				String finalRandom = random;
 				instance.getScheduler().executeSync(() -> {
-					Bukkit.getServer().dispatchCommand(Bukkit.getConsoleSender(), finalRandom);
+					Bukkit.dispatchCommand(Bukkit.getConsoleSender(), finalRandom);
 				}, condition.getLocation());
 			};
 		});
@@ -368,7 +368,7 @@ public class ActionManager implements ActionManagerInterface {
 								List<String> replaced = instance.getPlaceholderManager().parse(owner, cmd,
 										condition.getArgs());
 								for (String text : replaced) {
-									Bukkit.getServer().dispatchCommand(Bukkit.getConsoleSender(), text);
+									Bukkit.dispatchCommand(Bukkit.getConsoleSender(), text);
 								}
 								condition.delArg("{near}");
 							}
@@ -682,7 +682,7 @@ public class ActionManager implements ActionManagerInterface {
 			return condition -> {
 				if (Math.random() > chance)
 					return;
-				VaultHook.getEconomy().depositPlayer(condition.getPlayer(),
+				VaultHook.deposit(condition.getPlayer(),
 						value.get(condition.getPlayer(), condition.getArgs()));
 			};
 		});
@@ -691,7 +691,7 @@ public class ActionManager implements ActionManagerInterface {
 			return condition -> {
 				if (Math.random() > chance)
 					return;
-				VaultHook.getEconomy().withdrawPlayer(condition.getPlayer(),
+				VaultHook.withdraw(condition.getPlayer(),
 						value.get(condition.getPlayer(), condition.getArgs()));
 			};
 		});

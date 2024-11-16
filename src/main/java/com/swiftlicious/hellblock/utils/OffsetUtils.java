@@ -1,5 +1,7 @@
 package com.swiftlicious.hellblock.utils;
 
+import com.swiftlicious.hellblock.HellblockPlugin;
+
 import dev.dejvokep.boostedyaml.block.implementation.Section;
 
 /**
@@ -149,9 +151,11 @@ public class OffsetUtils {
 	 */
 	public static String getOffsetChars(int n) {
 		if (n > 0) {
-			return "<font:" + font + ">" + getShortestPosChars(n) + "</font>";
+			return HellblockPlugin.getInstance().getAdventureManager()
+					.surroundWithMiniMessageFont(getShortestPosChars(n), font);
 		} else {
-			return "<font:" + font + ">" + getShortestNegChars(-n) + "</font>";
+			return HellblockPlugin.getInstance().getAdventureManager()
+					.surroundWithMiniMessageFont(getShortestNegChars(-n), font);
 		}
 	}
 }

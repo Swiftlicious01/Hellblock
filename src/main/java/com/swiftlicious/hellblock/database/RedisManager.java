@@ -18,6 +18,7 @@ import java.util.concurrent.Executor;
 import org.jetbrains.annotations.NotNull;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.config.HBConfig;
 import com.swiftlicious.hellblock.player.PlayerData;
 import com.swiftlicious.hellblock.utils.LogUtils;
 
@@ -187,18 +188,15 @@ public class RedisManager extends AbstractStorage {
 
 	private void handleMessage(String message) throws IOException {
 		DataInputStream input = new DataInputStream(new ByteArrayInputStream(message.getBytes(StandardCharsets.UTF_8)));
-		// String server = input.readUTF();
-		// if (!this.serverGroup.equals(server))
-		// return;
+		String server = input.readUTF();
+		if (!HBConfig.serverGroup.equals(server))
+			return;
 		String type = input.readUTF();
 		switch (type) {
 		case "hellblock" -> {
 			String action = input.readUTF();
 			switch (action) {
 			case "start" -> {
-
-			}
-			case "end" -> {
 
 			}
 			case "stop" -> {

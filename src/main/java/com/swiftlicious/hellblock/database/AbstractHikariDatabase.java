@@ -30,17 +30,28 @@ public abstract class AbstractHikariDatabase extends AbstractSQLDatabase {
 	public AbstractHikariDatabase(HellblockPlugin plugin) {
 		super(plugin);
 		this.driverClass = getStorageType() == StorageType.MariaDB ? "org.mariadb.jdbc.Driver"
-				: "com.mysql.cj.jdbc.Driver";
-		this.sqlBrand = getStorageType() == StorageType.MariaDB ? "MariaDB" : "MySQL";
+				: getStorageType() == StorageType.PostgreSQL ? "org.postgresql.Driver" : "com.mysql.cj.jdbc.Driver";
+		this.sqlBrand = getStorageType() == StorageType.MariaDB ? "MariaDB"
+				: getStorageType() == StorageType.PostgreSQL ? "PostgreSQL" : "MySQL";
 		try {
 			Class.forName(this.driverClass);
 		} catch (ClassNotFoundException e1) {
 			if (getStorageType() == StorageType.MariaDB) {
-				LogUtils.warn("No MariaDB driver is found.");
+				try {
+					Class.forName("org.mariadb.jdbc.Driver");
+				} catch (ClassNotFoundException e2) {
+					LogUtils.warn("No MariaDB driver is found.");
+				}
+			} else if (getStorageType() == StorageType.PostgreSQL) {
+				try {
+					Class.forName("org.postgresql.Driver");
+				} catch (ClassNotFoundException e3) {
+					LogUtils.warn("No PostgreSQL driver is found.");
+				}
 			} else if (getStorageType() == StorageType.MySQL) {
 				try {
 					Class.forName("com.mysql.jdbc.Driver");
-				} catch (ClassNotFoundException e2) {
+				} catch (ClassNotFoundException e4) {
 					LogUtils.warn("No MySQL driver is found.");
 				}
 			}

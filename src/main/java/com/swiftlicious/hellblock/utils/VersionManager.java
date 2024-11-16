@@ -8,6 +8,7 @@ import java.net.URL;
 import java.net.URLConnection;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Function;
 
 import org.bukkit.Bukkit;
 
@@ -24,6 +25,7 @@ public class VersionManager implements VersionManagerInterface {
 	private boolean isSpigot = false;
 	private boolean isPaper = false;
 	private boolean isFolia = false;
+	private float version = 0.0F;
 	private String pluginVersion = "";
 	private List<String> supportedVersions;
 
@@ -31,7 +33,10 @@ public class VersionManager implements VersionManagerInterface {
 		this.instance = plugin;
 
 		// Get the server version
-		this.serverVersion = Bukkit.getServer().getBukkitVersion().split("-")[0];
+		this.serverVersion = Bukkit.getBukkitVersion().split("-")[0];
+		// get the end number of the version
+		String[] split = this.serverVersion.split("\\.");
+		this.version = Float.parseFloat(split[1] + "." + (split.length == 3 ? split[2] : "0"));
 
 		// Check if the server is Spigot or Paper
 		try {
@@ -92,34 +97,113 @@ public class VersionManager implements VersionManagerInterface {
 		return supportedVersions;
 	}
 
+	public boolean isVersionNewerThan1_17() {
+		return version >= 17;
+	}
+
+	public boolean isVersionNewerThan1_17_1() {
+		return version >= 17.09;
+	}
+
+	public boolean isVersionNewerThan1_18() {
+		return version >= 18;
+	}
+
+	public boolean isVersionNewerThan1_18_1() {
+		return version >= 18.09;
+	}
+
+	public boolean isVersionNewerThan1_18_2() {
+		return version >= 18.19;
+	}
+
+	public boolean isVersionNewerThan1_19() {
+		return version >= 19;
+	}
+
+	public boolean isVersionNewerThan1_19_1() {
+		return version >= 19.09;
+	}
+
+	public boolean isVersionNewerThan1_19_2() {
+		return version >= 19.19;
+	}
+
+	public boolean isVersionNewerThan1_19_3() {
+		return version >= 19.29;
+	}
+
+	public boolean isVersionNewerThan1_19_4() {
+		return version >= 19.39;
+	}
+
+	public boolean isVersionNewerThan1_20() {
+		return version >= 20;
+	}
+
+	public boolean isVersionNewerThan1_20_1() {
+		return version >= 20.09;
+	}
+
+	public boolean isVersionNewerThan1_20_2() {
+		return version >= 20.19;
+	}
+
+	public boolean isVersionNewerThan1_20_3() {
+		return version >= 20.29;
+	}
+
+	public boolean isVersionNewerThan1_20_4() {
+		return version >= 20.39;
+	}
+
+	public boolean isVersionNewerThan1_20_5() {
+		return version >= 20.49;
+	}
+
+	public boolean isVersionNewerThan1_21() {
+		return version >= 21;
+	}
+
+	public boolean isVersionNewerThan1_21_1() {
+		return version >= 21.09;
+	}
+
+	public boolean isVersionNewerThan1_21_2() {
+		return version >= 21.19;
+	}
+
+	public boolean isVersionNewerThan1_21_3() {
+		return version >= 21.29;
+	}
+
 	// Method to asynchronously check for plugin updates
-	@Override
-	public CompletableFuture<Boolean> checkUpdate() {
+	public final Function<HellblockPlugin, CompletableFuture<Boolean>> checkUpdate = (plugin) -> {
 		CompletableFuture<Boolean> updateFuture = new CompletableFuture<>();
-		instance.getScheduler().executeAsync(() -> {
+		plugin.getScheduler().async().execute(() -> {
 			try {
-				URL url = URI.create("https://github.com/repo/Swiftlicious01/Hellblock/releases").toURL();
+				URL url = URI.create("https://github.com/Swiftlicious01/Hellblock/releases").toURL();
 				URLConnection conn = url.openConnection();
 				conn.setConnectTimeout(10000);
 				conn.setReadTimeout(60000);
-				InputStream inputStream = conn.getInputStream();
-				InputStreamReader inputStreamReader = new InputStreamReader(inputStream);
-				BufferedReader bufferedReader = new BufferedReader(inputStreamReader);
-				String newest = bufferedReader.readLine();
+				String newest;
+				try (InputStream inputStream = conn.getInputStream();
+						BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
+					newest = reader.readLine();
+				}
 				String current = getPluginVersion();
-				inputStream.close();
 				if (!compareVer(newest, current)) {
 					updateFuture.complete(false);
 					return;
 				}
 				updateFuture.complete(true);
-			} catch (Exception exception) {
-				LogUtils.warn("Error occurred when checking update.", exception);
-				updateFuture.complete(false);
+			} catch (Exception ex) {
+				LogUtils.warn("Error occurred when checking update.");
+				updateFuture.completeExceptionally(ex);
 			}
 		});
 		return updateFuture;
-	}
+	};
 
 	// Method to compare two version strings
 	private boolean compareVer(String newV, String currentV) {

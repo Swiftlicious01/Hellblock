@@ -144,7 +144,7 @@ public class ChallengeRewardBuilder {
 					net.kyori.adventure.key.Key.key("minecraft:entity.ender_dragon.growl"), 1, 1);
 			new ChallengesMenu(player);
 		} else if (rewardType == RewardType.MONEY) {
-			if (VaultHook.getEconomy() == null) {
+			if (!VaultHook.isHooked()) {
 				LogUtils.warn("Vault economy not found.");
 				return;
 			}
@@ -155,7 +155,7 @@ public class ChallengeRewardBuilder {
 				LogUtils.warn("The given input isn't a valid number for giving money.", ex);
 				return;
 			}
-			VaultHook.getEconomy().depositPlayer(player, money);
+			VaultHook.deposit(player, money);
 			onlineUser.get().getChallengeData().setChallengeRewardAsClaimed(challenge, true);
 			instance.getAdventureManager().sendMessageWithPrefix(player, "<red>You've claimed your challenge reward!");
 			instance.getAdventureManager().sendSound(player, net.kyori.adventure.sound.Sound.Source.PLAYER,

@@ -210,6 +210,10 @@ public class CoopManager {
 						playerToAdd.getHellblockData().removeTrustPermission(ownerID);
 					}
 					makeHomeLocationSafe(offlineUser, playerToAdd);
+					instance.getStorageManager().getDataSource().updateOrInsertPlayerData(playerToAdd.getUUID(),
+							playerToAdd.toPlayerData(), HBConfig.lockData);
+					instance.getStorageManager().getDataSource().updateOrInsertPlayerData(offlineUser.getUUID(),
+							offlineUser.toPlayerData(), HBConfig.lockData);
 					if (offlineUser.isOnline()) {
 						instance.getAdventureManager().sendMessageWithPrefix(Bukkit.getPlayer(offlineUser.getUUID()),
 								"<red>" + player.getName() + " has been added to your hellblock party!");
@@ -268,6 +272,10 @@ public class CoopManager {
 					offlineUser.getHellblockData().setHasHellblock(false);
 					offlineUser.getHellblockData().setOwnerUUID(null);
 					onlineUser.getHellblockData().kickFromParty(id);
+					instance.getStorageManager().getDataSource().updateOrInsertPlayerData(onlineUser.getUUID(),
+							onlineUser.toPlayerData(), HBConfig.lockData);
+					instance.getStorageManager().getDataSource().updateOrInsertPlayerData(offlineUser.getUUID(),
+							offlineUser.toPlayerData(), HBConfig.lockData);
 					instance.getAdventureManager().sendMessageWithPrefix(owner,
 							"<red>" + input + " has been kicked to your hellblock party!");
 					if (offlineUser.isOnline()) {
@@ -325,6 +333,10 @@ public class CoopManager {
 							leavingPlayer.getHellblockData().setHasHellblock(false);
 							leavingPlayer.getHellblockData().setOwnerUUID(null);
 							offlineUser.getHellblockData().kickFromParty(player.getUniqueId());
+							instance.getStorageManager().getDataSource().updateOrInsertPlayerData(
+									leavingPlayer.getUUID(), leavingPlayer.toPlayerData(), HBConfig.lockData);
+							instance.getStorageManager().getDataSource().updateOrInsertPlayerData(offlineUser.getUUID(),
+									offlineUser.toPlayerData(), HBConfig.lockData);
 							instance.getHellblockHandler().teleportToSpawn(player, true);
 							instance.getAdventureManager().sendMessageWithPrefix(player,
 									"<red>You've left your hellblock party with " + offlineUser.getName());
@@ -418,6 +430,8 @@ public class CoopManager {
 								.thenAccept((result) -> {
 									UserData offlineParty = result.orElseThrow();
 									offlineParty.getHellblockData().setOwnerUUID(player.getUniqueId());
+									instance.getStorageManager().getDataSource().updateOrInsertPlayerData(
+											offlineParty.getUUID(), offlineParty.toPlayerData(), HBConfig.lockData);
 								});
 					}
 					playerToTransfer.getHellblockData().addToParty(owner.getUniqueId());
@@ -427,6 +441,10 @@ public class CoopManager {
 					onlineUser.getHellblockData().setTrusted(new HashSet<>());
 					onlineUser.getHellblockData().setResetCooldown(0L);
 					onlineUser.getHellblockData().setOwnerUUID(player.getUniqueId());
+					instance.getStorageManager().getDataSource().updateOrInsertPlayerData(onlineUser.getUUID(),
+							onlineUser.toPlayerData(), HBConfig.lockData);
+					instance.getStorageManager().getDataSource().updateOrInsertPlayerData(playerToTransfer.getUUID(),
+							playerToTransfer.toPlayerData(), HBConfig.lockData);
 
 					if (instance.getWorldGuardHandler().getWorldGuardPlatform() == null) {
 						throw new NullPointerException("Could not retrieve WorldGuard platform.");

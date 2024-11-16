@@ -44,7 +44,7 @@ public class HBConfig extends ConfigHandler {
 
 	// BStats
 	public static boolean metrics;
-	
+
 	// language choice
 	public static String language;
 
@@ -245,6 +245,11 @@ public class HBConfig extends ConfigHandler {
 	public static boolean lockData;
 	public static boolean logDataSaving;
 
+	// redis sync data
+	public static boolean redisRanking;
+	public static String serverGroup;
+	public static int placeholderLimit;
+
 	public static boolean restrictedSizeRange;
 
 	// Legacy color code support
@@ -293,7 +298,7 @@ public class HBConfig extends ConfigHandler {
 		YamlDocument config = getMainConfig();
 
 		debug = config.getBoolean("debug", false);
-		
+
 		language = config.getString("lang", "en");
 
 		updateChecker = config.getBoolean("update-checker", true);
@@ -487,6 +492,10 @@ public class HBConfig extends ConfigHandler {
 
 		lavaMinTime = config.getInt("lava-fishing-options.lava-fishing.min-wait-time", 100);
 		lavaMaxTime = config.getInt("lava-fishing-options.lava-fishing.max-wait-time", 600);
+
+		redisRanking = config.getBoolean("general.redis-synchronization.redis-ranking", false);
+		serverGroup = config.getString("general.redis-synchronization.server-group", "default");
+		placeholderLimit = config.getInt("general.redis-synchronization.placeholder-limit", 3);
 
 		restrictedSizeRange = config.getBoolean("lava-fishing-options.size.restricted-size-range", true);
 

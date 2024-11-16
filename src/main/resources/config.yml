@@ -18,6 +18,14 @@ lang: en
 general:
   world: hellworld
   spawn-size: 25
+  # Redis sync settings
+  redis-synchronization:
+    # Use Redis for cross-server data synchronization
+    redis-ranking: false
+    # Server group for redis data
+    server-group: default
+    # Increase this value to allow more placeholders like {4_player} and {5_level}
+    placeholder-limit: 3
 hellblock:
   can-transfer-islands: true
   party-size: 4
@@ -572,9 +580,8 @@ lava-fishing-options:
 
 # Other settings
 other-settings:
- 
     # It's recommended to use MiniMessage format. If you insist on using legacy color code "&", enable the support below.
-    # Disable this would improve performance
+    # Disabling this would improve performance
     legacy-color-code-support: true
 
     # Event priority: MONITOR HIGHEST HIGH NORMAL LOW LOWEST

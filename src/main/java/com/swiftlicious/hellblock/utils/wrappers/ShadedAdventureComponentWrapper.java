@@ -5,7 +5,6 @@ import org.jetbrains.annotations.NotNull;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
 import xyz.xenondevs.inventoryaccess.component.ComponentWrapper;
-import xyz.xenondevs.inventoryaccess.component.i18n.Languages;
 
 public class ShadedAdventureComponentWrapper implements ComponentWrapper {
 

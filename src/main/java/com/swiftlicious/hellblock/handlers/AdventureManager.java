@@ -12,6 +12,7 @@ import org.bukkit.command.ConsoleCommandSender;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.Nullable;
 
+import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.api.DefaultFontInfo;
 import com.swiftlicious.hellblock.config.HBConfig;
 import com.swiftlicious.hellblock.config.HBLocale;
@@ -19,6 +20,7 @@ import com.swiftlicious.hellblock.utils.ReflectionUtils;
 
 import lombok.NonNull;
 import net.kyori.adventure.audience.Audience;
+import net.kyori.adventure.key.Key;
 import net.kyori.adventure.sound.Sound;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.Style;
@@ -27,9 +29,31 @@ import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import net.kyori.adventure.title.Title;
 
+/**
+ * Helper class for handling Adventure components and related functionalities.
+ */
 public class AdventureManager implements AdventureManagerInterface {
 
 	private final static int CENTER_PX = 154;
+
+	private final MiniMessage miniMessage;
+	private final LegacyComponentSerializer legacyComponentSerializer;
+	private final GsonComponentSerializer gsonComponentSerializer;
+
+	public AdventureManager(HellblockPlugin plugin) {
+		this.miniMessage = MiniMessage.builder().build();
+		this.legacyComponentSerializer = LegacyComponentSerializer.builder().build();
+		this.gsonComponentSerializer = GsonComponentSerializer.builder().build();
+	}
+
+	/**
+	 * Retrieves the MiniMessage instance.
+	 *
+	 * @return the MiniMessage instance
+	 */
+	public MiniMessage getMiniMessage() {
+		return this.miniMessage;
+	}
 
 	@Override
 	public @NonNull Component getComponentFromMiniMessage(@Nullable String text) {
@@ -37,9 +61,9 @@ public class AdventureManager implements AdventureManagerInterface {
 			return Component.empty();
 		}
 		if (HBConfig.legacyColorSupport) {
-			return MiniMessage.miniMessage().deserialize(legacyToMiniMessage(text));
+			return miniMessage.deserialize(legacyToMiniMessage(text));
 		} else {
-			return MiniMessage.miniMessage().deserialize(text);
+			return miniMessage.deserialize(text);
 		}
 	}
 
@@ -121,7 +145,7 @@ public class AdventureManager implements AdventureManagerInterface {
 			sendCenteredMessage(player, toSend);
 			return;
 		}
-		String message = LegacyComponentSerializer.legacySection().serialize(component);
+		String message = legacyComponentSerializer.serialize(component);
 		int messagePxSize = 0;
 		boolean previousCode = false;
 		boolean isBold = false;
@@ -264,17 +288,17 @@ public class AdventureManager implements AdventureManagerInterface {
 
 	@Override
 	public @NonNull String componentToLegacy(@NonNull Component component) {
-		return LegacyComponentSerializer.legacySection().serialize(component);
+		return legacyComponentSerializer.serialize(component);
 	}
 
 	@Override
 	public @NonNull String componentToJson(@NonNull Component component) {
-		return GsonComponentSerializer.gson().serialize(component);
+		return gsonComponentSerializer.serialize(component);
 	}
 
 	@Override
 	public @NonNull Component jsonToComponent(@NonNull String json) {
-		return GsonComponentSerializer.gson().deserialize(json);
+		return gsonComponentSerializer.deserialize(json);
 	}
 
 	@Override
@@ -282,11 +306,34 @@ public class AdventureManager implements AdventureManagerInterface {
 		Object cp;
 		try {
 			cp = ReflectionUtils.gsonDeserializeMethod.invoke(ReflectionUtils.gsonInstance,
-					GsonComponentSerializer.gson().serialize(component));
+					gsonComponentSerializer.serialize(component));
 		} catch (InvocationTargetException | IllegalAccessException e) {
 			e.printStackTrace();
 			return null;
 		}
 		return cp;
 	}
+
+	/**
+	 * Surrounds text with a MiniMessage font tag.
+	 *
+	 * @param text the text to surround
+	 * @param font the font as a {@link Key}
+	 * @return the text surrounded by the MiniMessage font tag
+	 */
+	public @NonNull String surroundWithMiniMessageFont(@NonNull String text, @NonNull Key font) {
+		return "<font:" + font.asString() + ">" + text + "</font>";
+	}
+
+	/**
+	 * Surrounds text with a MiniMessage font tag.
+	 *
+	 * @param text the text to surround
+	 * @param font the font as a {@link String}
+	 * @return the text surrounded by the MiniMessage font tag
+	 */
+	public @NonNull String surroundWithMiniMessageFont(@NonNull String text, @NonNull String font) {
+		return "<font:" + font + ">" + text + "</font>";
+	}
+
 }

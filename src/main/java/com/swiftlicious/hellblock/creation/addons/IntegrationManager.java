@@ -64,7 +64,7 @@ public class IntegrationManager implements IntegrationManagerInterface {
 			hookMessage("AdvancedEnchantments");
 		}
 		if (instance.isHookedPluginEnabled("Vault")) {
-			VaultHook.initialize();
+			VaultHook.init();
 			hookMessage("Vault");
 		}
 		if (instance.isHookedPluginEnabled("PlaceholderAPI")) {

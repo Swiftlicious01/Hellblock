@@ -58,12 +58,12 @@ public class FishingManager implements Listener, FishingManagerInterface {
 		this.hookCheckMap = new ConcurrentHashMap<>();
 		this.vanillaLootMap = new ConcurrentHashMap<>();
 	}
-	
+
 	@Override
 	public void load() {
 		Bukkit.getPluginManager().registerEvents(this, instance);
 	}
-	
+
 	@Override
 	public void unload() {
 		HandlerList.unregisterAll(this);
@@ -77,7 +77,7 @@ public class FishingManager implements Listener, FishingManagerInterface {
 		this.tempFishingStateMap.clear();
 		this.hookCheckMap.clear();
 	}
-	
+
 	@Override
 	public void disable() {
 		unload();

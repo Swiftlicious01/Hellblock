@@ -485,7 +485,7 @@ public class IslandLevelHandler implements Listener {
 		}
 	}
 
-	private class RankTracker {
+	protected class RankTracker {
 		private int rank;
 
 		public RankTracker(int rank) {
@@ -501,7 +501,7 @@ public class IslandLevelHandler implements Listener {
 		}
 	}
 
-	private class LevelBlockCache {
+	protected class LevelBlockCache {
 
 		private final Material type;
 		private final int x, y, z;

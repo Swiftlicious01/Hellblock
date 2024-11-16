@@ -12,6 +12,10 @@ import com.swiftlicious.hellblock.utils.extras.Pair;
  */
 public class WeightUtils {
 
+	private WeightUtils() {
+		throw new UnsupportedOperationException("This class cannot be instantiated");
+	}
+
 	/**
 	 * Get a random item from a list of pairs, each associated with a weight.
 	 *
@@ -21,7 +25,7 @@ public class WeightUtils {
 	 * @return A randomly selected item from the list, or null if no item was
 	 *         selected.
 	 */
-	public <T> T getRandom(List<Pair<T, Double>> pairs) {
+	public static <T> T getRandom(List<Pair<T, Double>> pairs) {
 		List<T> available = new ArrayList<>();
 		double[] weights = new double[pairs.size()];
 		int index = 0;
@@ -45,7 +49,7 @@ public class WeightUtils {
 	 * @return A randomly selected item from the map, or null if no item was
 	 *         selected.
 	 */
-	public <T> T getRandom(Map<T, Double> map) {
+	public static <T> T getRandom(Map<T, Double> map) {
 		List<T> available = new ArrayList<>();
 		double[] weights = new double[map.size()];
 		int index = 0;
@@ -72,7 +76,9 @@ public class WeightUtils {
 	 * @return A randomly selected item from the list, or null if no item was
 	 *         selected.
 	 */
-	private <T> T getRandom(double[] weights, List<T> available, int effectiveSize) {
+	private static <T> T getRandom(double[] weights, List<T> available, int effectiveSize) {
+		if (available.isEmpty())
+			return null;
 		double total = Arrays.stream(weights).sum();
 		double[] weightRatios = new double[effectiveSize];
 		for (int i = 0; i < effectiveSize; i++) {

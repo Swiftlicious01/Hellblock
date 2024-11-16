@@ -17,6 +17,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.entity.TNTPrimed;
 import org.bukkit.entity.minecart.ExplosiveMinecart;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.potion.PotionEffectType;
 import org.bukkit.util.BlockIterator;
 import org.bukkit.util.Vector;
 
@@ -117,23 +118,19 @@ public class LavaRainTask implements Runnable {
 										block = instance.getLavaRainHandler().getHighestBlock(location);
 										if (block != null && (block.isPassable() || block.isEmpty() || block.isLiquid()
 												|| !block.isSolid() || block.getType().isOccluding())) {
-											ItemStack[] armorSet = player.getInventory().getArmorContents();
-											boolean checkArmor = false;
-											if (armorSet != null) {
-												for (ItemStack item : armorSet) {
-													if (item == null || item.getType() == Material.AIR)
-														continue;
-													if (instance.getNetherArmorHandler().isNetherArmorEnabled(item)) {
-														if (instance.getNetherArmorHandler().checkArmorData(item)
-																&& instance.getNetherArmorHandler()
-																		.getArmorData(item)) {
-															checkArmor = true;
-															break;
-														}
+											ItemStack helmet = player.getInventory().getHelmet();
+											boolean checkHelmet = false;
+											if (helmet != null && helmet.getType() != Material.AIR) {
+												if (instance.getNetherArmorHandler().isNetherArmorEnabled(helmet)) {
+													if (instance.getNetherArmorHandler().checkArmorData(helmet)
+															&& instance.getNetherArmorHandler().getArmorData(helmet)) {
+														checkHelmet = true;
 													}
 												}
 											}
-											if (!checkArmor && player.getFireTicks() <= 10) {
+											if (!checkHelmet
+													&& !player.hasPotionEffect(PotionEffectType.FIRE_RESISTANCE)
+													&& player.getFireTicks() <= 10) {
 												player.setFireTicks(120);
 											}
 										}
@@ -146,7 +143,7 @@ public class LavaRainTask implements Runnable {
 												if (above != null
 														&& (above.isPassable() || above.isEmpty() || above.isLiquid()
 																|| !above.isSolid() || above.getType().isOccluding())) {
-													if (living.getFireTicks() <= 10)
+													if (!living.hasPotionEffect(PotionEffectType.FIRE_RESISTANCE) && living.getFireTicks() <= 10)
 														living.setFireTicks(120);
 												}
 											}

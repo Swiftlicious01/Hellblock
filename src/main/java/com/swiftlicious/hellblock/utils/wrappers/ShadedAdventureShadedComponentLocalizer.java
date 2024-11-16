@@ -5,7 +5,6 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.ComponentBuilder;
 import net.kyori.adventure.text.ComponentLike;
 import net.kyori.adventure.text.TranslatableComponent;
-import xyz.xenondevs.inventoryaccess.component.i18n.Languages;
 
 public class ShadedAdventureShadedComponentLocalizer extends ShadedComponentLocalizer<Component> {
 

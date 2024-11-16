@@ -10,12 +10,12 @@ import java.util.Optional;
 import java.util.UUID;
 
 import org.bukkit.Bukkit;
+import org.bukkit.Fluid;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
-import org.bukkit.block.data.Levelled;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -26,6 +26,7 @@ import org.bukkit.event.block.BlockFromToEvent;
 import org.bukkit.event.block.BlockPistonExtendEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityChangeBlockEvent;
+import org.bukkit.util.Vector;
 import org.jetbrains.annotations.Nullable;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
@@ -42,6 +43,8 @@ import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.utils.LogUtils;
 import com.swiftlicious.hellblock.utils.StringUtils;
 
+import io.papermc.paper.block.fluid.FluidData;
+import io.papermc.paper.block.fluid.type.FlowingFluidData;
 import lombok.Getter;
 import lombok.NonNull;
 import net.kyori.adventure.key.Key;
@@ -69,7 +72,6 @@ public class NetherrackGenerator implements Listener {
 	@EventHandler
 	public void onNetherrackGeneration(BlockFromToEvent event) {
 		Block fromBlock = event.getBlock();
-		Material fromBlockMaterial = fromBlock.getType();
 		if (!fromBlock.getWorld().getName().equalsIgnoreCase(HBConfig.worldName))
 			return;
 
@@ -81,12 +83,13 @@ public class NetherrackGenerator implements Listener {
 		GenMode mode = genModeManager.getGenMode();
 		Block toBlock = event.getToBlock();
 		Material toBlockMaterial = toBlock.getType();
-		boolean normalGenerator = fromBlock.getRelative(face, 2).getType() == Material.LAVA
-				&& isFlowing(fromBlock.getRelative(face, 2));
+		boolean normalGenerator = isFlowing(fromBlock.getRelative(face, 2)) || isSource(fromBlock.getRelative(face, 2));
+		boolean diagonalGenerator = isFlowing(toBlock.getRelative(face));
 
-		if (fromBlockMaterial == Material.LAVA) {
+		if (isSource(fromBlock) || isFlowing(fromBlock)) {
 			// TODO: make other positioned generators work
-			if (toBlockMaterial.isAir() && !isLavaPool(toBlock.getLocation()) && (normalGenerator)) {
+			if (toBlockMaterial.isAir() && !isLavaPool(toBlock.getLocation())
+					&& (normalGenerator || diagonalGenerator)) {
 				Location l = toBlock.getLocation();
 				if (l.getWorld() == null)
 					return;
@@ -286,11 +289,29 @@ public class NetherrackGenerator implements Listener {
 		}
 	}
 
+	private boolean isSource(@NonNull Block block) {
+		FluidData lava = block.getWorld().getFluidData(block.getLocation());
+		boolean isLava = lava.getFluidType() == Fluid.LAVA || lava.getFluidType() == Fluid.FLOWING_LAVA;
+		boolean isLavaSource = isLava && lava.isSource();
+		return isLavaSource;
+	}
+
 	private boolean isFlowing(@NonNull Block block) {
-		boolean isFlowing = false;
-		Levelled flowingData = (Levelled) block.getBlockData();
-		isFlowing = flowingData.getLevel() >= 1 && flowingData.getLevel() <= 7;
-		return isFlowing;
+		FluidData lava = block.getWorld().getFluidData(block.getLocation());
+		boolean isLava = lava.getFluidType() == Fluid.LAVA || lava.getFluidType() == Fluid.FLOWING_LAVA;
+		boolean isLavaFlowing = isLava && (lava instanceof FlowingFluidData flowing) && !flowing.isSource()
+				&& !flowing.isFalling();
+		return isLavaFlowing;
+	}
+
+	private @Nullable Vector getFlowDirection(@NonNull Block block) {
+		FluidData lava = block.getWorld().getFluidData(block.getLocation());
+		boolean isLava = lava.getFluidType() == Fluid.LAVA || lava.getFluidType() == Fluid.FLOWING_LAVA;
+		if (isLava) {
+			return lava.computeFlowDirection(block.getLocation());
+		}
+
+		return null;
 	}
 
 	private boolean isLavaPool(@NonNull Location location) {

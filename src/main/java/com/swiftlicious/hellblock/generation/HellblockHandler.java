@@ -171,7 +171,7 @@ public class HellblockHandler {
 				if (HBConfig.worldguardProtected) {
 					protection.setProtectionTask(instance.getWorldGuardHandler().protectHellblock(onlineUser.get()));
 				} else {
-					// TODO: island protection
+					// TODO: using plugin protection
 				}
 
 				final Location nextHellblock = next;
@@ -655,7 +655,7 @@ public class HellblockHandler {
 		return location;
 	}
 
-	private class ProtectionTask {
+	protected class ProtectionTask {
 		private CompletableFuture<Void> protectionTask;
 
 		public @NonNull CompletableFuture<Void> getProtectionTask() {
@@ -667,7 +667,7 @@ public class HellblockHandler {
 		}
 	}
 
-	private class UnprotectionTask {
+	protected class UnprotectionTask {
 		private CompletableFuture<Void> unprotectionTask;
 
 		public @NonNull CompletableFuture<Void> getUnprotectionTask() {
@@ -679,7 +679,7 @@ public class HellblockHandler {
 		}
 	}
 
-	private class IslandChoiceTask {
+	protected class IslandChoiceTask {
 		private CompletableFuture<Void> islandChoiceTask;
 
 		public @NonNull CompletableFuture<Void> getIslandChoiceTask() {
@@ -691,7 +691,7 @@ public class HellblockHandler {
 		}
 	}
 
-	private class ClearBlocksTask {
+	protected class ClearBlocksTask {
 		private CompletableFuture<List<Block>> clearBlocksTask;
 
 		public @NonNull CompletableFuture<List<Block>> getClearBlocksTask() {
@@ -703,7 +703,7 @@ public class HellblockHandler {
 		}
 	}
 
-	private class IDSupplier {
+	protected class IDSupplier {
 		private int id;
 
 		public IDSupplier(int id) {
@@ -719,7 +719,7 @@ public class HellblockHandler {
 		}
 	}
 
-	private class HellblockSpawn {
+	protected class HellblockSpawn {
 		private Location spawnLocation;
 
 		public @NonNull Location getSpawnLocation() {

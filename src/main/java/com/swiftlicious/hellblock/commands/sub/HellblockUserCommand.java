@@ -1015,7 +1015,7 @@ public class HellblockUserCommand {
 				});
 	}
 
-	private class ConfirmCacher implements Runnable {
+	protected class ConfirmCacher implements Runnable {
 
 		private UUID playerUUID;
 		private final SchedulerTask cancellableTask;
@@ -1053,7 +1053,7 @@ public class HellblockUserCommand {
 		}
 	}
 
-	private class VisitCacher implements Runnable {
+	protected class VisitCacher implements Runnable {
 
 		private UUID playerUUID;
 		private final SchedulerTask cancellableTask;

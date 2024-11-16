@@ -11,6 +11,7 @@ import org.bukkit.NamespacedKey;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.EntityType;
 import org.bukkit.entity.FishHook;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.util.Vector;
@@ -74,10 +75,8 @@ public class HookCheckTimerTask implements Runnable {
 
 	@Override
 	public void run() {
-		if (!this.fishHook.isValid()
-		// || (fishHook.getHookedEntity() != null &&
-		// fishHook.getHookedEntity().getType() != EntityType.ARMOR_STAND)
-		) {
+		if (!this.fishHook.isValid() || (fishHook.getHookedEntity() != null
+				&& fishHook.getHookedEntity().getType() != EntityType.ARMOR_STAND)) {
 			// This task would be cancelled when hook is removed
 			this.destroy();
 			return;

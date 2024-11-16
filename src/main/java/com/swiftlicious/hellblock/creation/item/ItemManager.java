@@ -38,6 +38,7 @@ import com.swiftlicious.hellblock.loot.Loot;
 import com.swiftlicious.hellblock.utils.ItemUtils;
 import com.swiftlicious.hellblock.utils.LogUtils;
 import com.swiftlicious.hellblock.utils.NBTUtils;
+import com.swiftlicious.hellblock.utils.WeightUtils;
 import com.swiftlicious.hellblock.utils.extras.Action;
 import com.swiftlicious.hellblock.utils.extras.ActionTrigger;
 import com.swiftlicious.hellblock.utils.extras.Condition;
@@ -673,7 +674,7 @@ public class ItemManager implements ItemManagerInterface, Listener {
 					parsedAmountPair.add(Pair.of(rawValue.left(), rawValue.right().get(player, map)));
 				}
 
-				int amount = HellblockPlugin.getInstance().getWeightUtils().getRandom(parsedAmountPair);
+				int amount = WeightUtils.getRandom(parsedAmountPair);
 				if (amount <= 0)
 					return;
 
@@ -687,7 +688,7 @@ public class ItemManager implements ItemManagerInterface, Listener {
 
 				int i = 0;
 				outer: while (i < amount && cloned.size() != 0) {
-					Pair<String, Short> enchantPair = HellblockPlugin.getInstance().getWeightUtils().getRandom(cloned);
+					Pair<String, Short> enchantPair = WeightUtils.getRandom(cloned);
 
 					// Get the sharpness enchantment using its key.
 					// getOrThrow may be replaced with get if the registry may not contain said

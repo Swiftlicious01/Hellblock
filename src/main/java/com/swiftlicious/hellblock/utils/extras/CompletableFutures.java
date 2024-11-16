@@ -7,9 +7,13 @@ import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableList;
 
+/**
+ * Utility class for handling operations with {@link CompletableFuture}.
+ */
 public class CompletableFutures {
 
 	private CompletableFutures() {
+		throw new UnsupportedOperationException("This class cannot be instantiated");
 	}
 
 	/**

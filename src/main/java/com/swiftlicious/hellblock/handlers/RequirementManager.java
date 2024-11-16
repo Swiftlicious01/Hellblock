@@ -492,7 +492,7 @@ public class RequirementManager implements RequirementManagerInterface {
 		registerRequirement("money", (args, actions, advanced) -> {
 			double money = instance.getConfigUtils().getDoubleValue(args);
 			return condition -> {
-				double current = VaultHook.getEconomy().getBalance(condition.getPlayer());
+				double current = VaultHook.getBalance(condition.getPlayer());
 				if (current >= money)
 					return true;
 				if (advanced)
