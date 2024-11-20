@@ -429,7 +429,7 @@ public class ItemManager implements ItemManagerInterface, Listener {
 				ItemStack cloned = itemStack.clone();
 				cloned.setAmount(1);
 				pdc.set(new NamespacedKey(instance, LocationUtils.toChunkPosString(block.getLocation())),
-						PersistentDataType.STRING, ItemStackUtils.toBase64Legacy(cloned));
+						PersistentDataType.STRING, ItemStackUtils.serialize(new ItemStack[] { cloned }));
 			} else {
 				event.setCancelled(true);
 			}
@@ -447,9 +447,9 @@ public class ItemManager implements ItemManagerInterface, Listener {
 				pdc.remove(key);
 				if (event.getPlayer().getGameMode() == GameMode.CREATIVE)
 					return;
-				ItemStack itemStack = ItemStackUtils.fromBase64Legacy(base64);
+				ItemStack[] itemStack = ItemStackUtils.deserialize(base64);
 				event.setDropItems(false);
-				block.getLocation().getWorld().dropItemNaturally(block.getLocation(), itemStack);
+				Arrays.asList(itemStack).stream().forEach(item -> block.getLocation().getWorld().dropItemNaturally(block.getLocation(), item));
 			}
 		}
 	}
@@ -510,8 +510,8 @@ public class ItemManager implements ItemManagerInterface, Listener {
 				var nk = new NamespacedKey(instance, LocationUtils.toChunkPosString(block.getLocation()));
 				String base64 = pdc.get(nk, PersistentDataType.STRING);
 				if (base64 != null) {
-					ItemStack itemStack = ItemStackUtils.fromBase64Legacy(base64);
-					block.getLocation().getWorld().dropItemNaturally(block.getLocation(), itemStack);
+					ItemStack[] itemStack = ItemStackUtils.deserialize(base64);
+					Arrays.asList(itemStack).stream().forEach(item -> block.getLocation().getWorld().dropItemNaturally(block.getLocation(), item));
 					blockToRemove.add(block);
 					block.setType(Material.AIR);
 					pdc.remove(nk);

@@ -12,6 +12,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 
 import org.bukkit.Bukkit;
@@ -58,7 +59,7 @@ public class StorageManager implements StorageManagerInterface, Listener {
 	protected final HellblockPlugin instance;
 	private DataStorageInterface dataSource;
 	private StorageType previousType;
-	private final ConcurrentHashMap<UUID, UserData> onlineUserMap;
+	private final ConcurrentMap<UUID, UserData> onlineUserMap;
 	private final Set<UUID> locked;
 	private boolean hasRedis;
 	private RedisManager redisManager;

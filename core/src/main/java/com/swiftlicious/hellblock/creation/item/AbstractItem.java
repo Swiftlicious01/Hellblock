@@ -9,13 +9,10 @@ import com.swiftlicious.hellblock.utils.extras.Key;
 
 public class AbstractItem<R, I> implements Item<I> {
 
-	@SuppressWarnings("unused")
-	private final HellblockPlugin plugin;
 	private final ItemFactory<?, R, I> factory;
 	private final R item;
 
 	AbstractItem(HellblockPlugin plugin, ItemFactory<?, R, I> factory, R item) {
-		this.plugin = plugin;
 		this.factory = factory;
 		this.item = item;
 	}

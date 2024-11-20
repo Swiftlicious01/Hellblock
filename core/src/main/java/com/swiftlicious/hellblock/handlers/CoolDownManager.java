@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 import org.bukkit.Bukkit;
 import org.bukkit.event.EventHandler;
@@ -21,7 +22,7 @@ import com.swiftlicious.hellblock.api.Reloadable;
  */
 public class CoolDownManager implements Listener, Reloadable {
 
-	private final ConcurrentHashMap<UUID, Data> dataMap;
+	private final ConcurrentMap<UUID, Data> dataMap;
 	protected final HellblockPlugin instance;
 
 	public CoolDownManager(HellblockPlugin plugin) {

@@ -4,6 +4,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
@@ -39,7 +40,7 @@ import com.swiftlicious.hellblock.utils.EventUtils;
 public class FishingManager implements Listener, FishingManagerInterface {
 
 	protected final HellblockPlugin instance;
-	private final ConcurrentHashMap<UUID, CustomFishingHook> castHooks = new ConcurrentHashMap<>();
+	private final ConcurrentMap<UUID, CustomFishingHook> castHooks = new ConcurrentHashMap<>();
 
 	public FishingManager(HellblockPlugin plugin) {
 		this.instance = plugin;

@@ -10,6 +10,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 
 import org.bukkit.Bukkit;
@@ -59,7 +60,7 @@ public class MarketManager implements MarketManagerInterface, Listener {
 	protected TextValue<Player> title;
 	protected String[] layout;
 	protected final Map<Character, LavaFishingItem> decorativeIcons;
-	protected final ConcurrentHashMap<UUID, MarketGUI> marketGUICache;
+	protected final ConcurrentMap<UUID, MarketGUI> marketGUICache;
 
 	protected char itemSlot;
 	protected char sellSlot;

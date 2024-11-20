@@ -15,11 +15,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 public class HologramManager implements Reloadable {
 
 	private final HellblockPlugin plugin;
-	private final ConcurrentHashMap<Location, Hologram> holograms = new ConcurrentHashMap<>();
+	private final ConcurrentMap<Location, Hologram> holograms = new ConcurrentHashMap<>();
 	private SchedulerTask task;
 
 	public HologramManager(HellblockPlugin plugin) {

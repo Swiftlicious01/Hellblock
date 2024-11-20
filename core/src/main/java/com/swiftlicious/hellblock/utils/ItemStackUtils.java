@@ -2,6 +2,8 @@ package com.swiftlicious.hellblock.utils;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -13,8 +15,6 @@ import java.util.Map;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.util.io.BukkitObjectInputStream;
-import org.bukkit.util.io.BukkitObjectOutputStream;
 import org.jetbrains.annotations.Nullable;
 import org.yaml.snakeyaml.external.biz.base64Coder.Base64Coder;
 
@@ -37,25 +37,6 @@ public class ItemStackUtils {
 		throw new UnsupportedOperationException("This class cannot be instantiated");
 	}
 
-	@SuppressWarnings("deprecation")
-	public static ItemStack fromBase64Legacy(String base64) {
-		if (base64 == null || base64.isEmpty())
-			return new ItemStack(Material.AIR);
-		ByteArrayInputStream inputStream;
-		try {
-			inputStream = new ByteArrayInputStream(Base64Coder.decodeLines(base64));
-		} catch (IllegalArgumentException e) {
-			return new ItemStack(Material.AIR);
-		}
-		ItemStack stack = null;
-		try (BukkitObjectInputStream dataInput = new BukkitObjectInputStream(inputStream)) {
-			stack = (ItemStack) dataInput.readObject();
-		} catch (IOException | ClassNotFoundException ex) {
-			ex.printStackTrace();
-		}
-		return stack;
-	}
-
 	@Nullable
 	public static ItemStack fromBase64(byte[] base64) {
 		if (base64 == null || base64.length == 0)
@@ -64,29 +45,58 @@ public class ItemStackUtils {
 		return ItemStack.deserializeBytes(base64);
 	}
 
-	@SuppressWarnings("deprecation")
-	public static String toBase64Legacy(ItemStack itemStack) {
-		if (itemStack == null || itemStack.getType() == Material.AIR)
-			return "";
-		ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-		try (BukkitObjectOutputStream dataOutput = new BukkitObjectOutputStream(outputStream)) {
-			dataOutput.writeObject(itemStack);
-			byte[] byteArr = outputStream.toByteArray();
-			dataOutput.close();
-			outputStream.close();
-			return Base64Coder.encodeLines(byteArr);
-		} catch (IOException ex) {
-			ex.printStackTrace();
-			return "";
-		}
-	}
-
 	@Nullable
 	public static byte[] toBase64(ItemStack itemStack) {
 		if (itemStack == null || itemStack.getType() == Material.AIR)
 			return new byte[] { 0 };
 
 		return itemStack.serializeAsBytes();
+	}
+
+	public static String serialize(ItemStack[] items) {
+		try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
+			DataOutputStream output = new DataOutputStream(outputStream);
+			output.writeInt(items.length);
+
+			for (ItemStack item : items) {
+				if (item == null) {
+					// Ensure the correct order by including empty/null items
+					// Simply remove the write line if you don't want this
+					output.writeInt(0);
+					continue;
+				}
+
+				byte[] bytes = item.serializeAsBytes();
+				output.writeInt(bytes.length);
+				output.write(bytes);
+			}
+			return Base64Coder.encodeLines(outputStream.toByteArray()); // Base64 encoding is not strictly needed
+		} catch (IOException e) {
+			throw new RuntimeException("Error while writing itemstack", e);
+		}
+	}
+
+	public static ItemStack[] deserialize(String encodedItems) {
+		byte[] bytes = Base64Coder.decodeLines(encodedItems); // Base64 encoding is not strictly needed
+		try (ByteArrayInputStream inputStream = new ByteArrayInputStream(bytes)) {
+			DataInputStream input = new DataInputStream(inputStream);
+			int count = input.readInt();
+			ItemStack[] items = new ItemStack[count];
+			for (int i = 0; i < count; i++) {
+				int length = input.readInt();
+				if (length == 0) {
+					// Empty item, keep entry as null
+					continue;
+				}
+
+				byte[] itemBytes = new byte[length];
+				input.read(itemBytes);
+				items[i] = ItemStack.deserializeBytes(itemBytes);
+			}
+			return items;
+		} catch (IOException e) {
+			throw new RuntimeException("Error while reading itemstack", e);
+		}
 	}
 
 	public static Map<String, Object> itemStackToMap(ItemStack itemStack) {
@@ -115,7 +125,7 @@ public class ItemStackUtils {
 		}
 	}
 
-	@SuppressWarnings({ "unchecked" })
+	@SuppressWarnings("unchecked")
 	public static void sectionToComponentEditor(Section section, List<ItemEditor> itemEditors) {
 		for (Map.Entry<String, Object> entry : section.getStringRouteMappedValues(false).entrySet()) {
 			String component = entry.getKey();
