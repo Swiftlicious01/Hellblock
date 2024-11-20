@@ -98,7 +98,7 @@ public class VersionManager implements VersionManagerInterface {
 			constructor.setAccessible(true);
 			return (NMSHandler) constructor.newInstance();
 		} catch (ReflectiveOperationException ex) {
-			throw new RuntimeException("Failed to initialize nms data for fishing utils.", ex);
+			throw new RuntimeException("Failed to initialize nms data for cross compatibility.", ex);
 		}
 	}
 
