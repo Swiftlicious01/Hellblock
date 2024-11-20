@@ -1,0 +1,35 @@
+# global group
+global-group:
+  list: []
+  conditions: {}
+  sub-groups:
+    loots_in_lava:
+      conditions:
+        lava-fishing: true
+      list: []
+      sub-groups:
+        world_loots:
+          list:
+            - 'cobblestone:+50'
+            - 'stone:+30'
+            - 'obsidian:+3'
+            - 'diamond:+1'
+            - 'flint:+6'
+        nether_loots:
+          list:
+            - 'netherrack:+20'
+            - 'nether_brick:+12'
+            - 'obsidian:+5'
+            - 'gold_ingot:+3'
+            - 'gold_nugget:+8'
+            - 'magma_cube:+3'
+            - 'salmon_void_fish:+15'
+            - 'salmon_void_fish_silver_star:+3'
+            - 'salmon_void_fish_golden_star:+1'
+          sub-groups:
+            skeleton_group:
+              conditions:
+                rod:
+                  - bone_rod
+              list:
+                - 'wither_skeleton:+30'

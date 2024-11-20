@@ -1,0 +1,37 @@
+main: com.swiftlicious.hellblock.HellblockPlugin
+name: Hellblock
+version: '1.0-ALPHA'
+api-version: 1.17
+description: Skyblock in the nether!
+website: https://github.com/Swiftlicious01/Hellblock
+authors: [ Swiftlicious ]
+folia-supported: true
+depend:
+- ProtocolLib
+softdepend:
+- WorldEdit
+- FastAsyncWorldEdit
+- WorldGuard
+- PlaceholderAPI
+- Vault
+- MythicMobs
+- Jobs
+- AdvancedEnchantments
+- Multiverse-Core
+
+permissions:
+  hellblock.user:
+    description: Main permission
+    default: true
+  hellblock.coop:
+    description: Coop permission
+    default: true
+  hellblock.admin:
+    description: Admin permission
+    default: op
+  hellblock.bypass.lock:
+    description: Bypass locked hellblock islands whether or not they are locked
+    default: op
+  hellblock.updates:
+    description: Get latest update messages
+    default: op

@@ -1,0 +1,800 @@
+# HELLBLOCK CONFIGURATION #
+
+# Developer: @Swiftlicious
+config-version: '1'
+
+# Debug
+debug: false
+
+# BStats
+metrics: true
+
+# Check updates
+update-checker: false
+
+# Force locale setting, e.g., en
+force-locale: 'en'
+
+general:
+  world: hellworld
+  spawn-size: 25
+  # Redis sync settings
+  redis-synchronization:
+    # Use Redis for cross-server data synchronization
+    redis-ranking: false
+    # Server group for redis data
+    server-group: default
+    # Increase this value to allow more placeholders like {4_player} and {5_level}
+    placeholder-limit: 3
+hellblock:
+  can-transfer-islands: true
+  max-party-size: 4
+  # Can be fawe or worldedit  
+  schematic-paster: worldedit
+  # You must add all schematic types you want as an option here to be available.
+  island-options:
+    - 'default'
+    - 'classic'
+    - 'custom'
+  height: 150
+  distance: 110
+  # If false, it will use default protection within the plugin.
+  use-worldguard-protection: true
+  protection-range: 105
+  clear-inventory-on-reset: true
+  # Won't delete the islands but will set them as an abandoned state which removes them from the island region 
+  # and any trustees / party members as well. 
+  abandon-after-days: 30
+  entry-message-enabled: true
+  farewell-message-enabled: true
+  disable-bed-explosions: true
+  # If set to true when a sapling is placed on dirt, grass, etc like normal a normal tree will spawn.
+  # Otherwise if false it will replace any tree that is grown with a glowstone tree.
+  grow-natural-trees: false
+  void-teleport: true
+  starter-chest: 
+    inventory-name: '<dark_red>Hellblock Chest'
+    items:
+      '1':
+        material: BROWN_MUSHROOM
+        amount: 1
+        slot: 3
+      '2':
+        material: OAK_SIGN
+        amount: 1
+        slot: 4
+      '3':
+        material: RED_MUSHROOM
+        amount: 1
+        slot: 5
+      '4':
+        material: OAK_SAPLING
+        amount: 1
+        slot: 9
+      '5':
+        material: LAVA_BUCKET
+        amount: 1
+        slot: 12
+      '6':
+        material: BUCKET
+        amount: 1
+        slot: 13
+      '7':
+        material: LAVA_BUCKET
+        amount: 1
+        slot: 14
+      '8':
+        material: GRASS_BLOCK
+        amount: 1
+        slot: 18
+      '9':
+        material: BONE
+        amount: 1
+        slot: 21
+      '10':
+        material: NETHER_WART
+        amount: 1
+        slot: 22
+      '11':
+        material: BONE
+        amount: 1
+        slot: 23
+
+# You add the block material type and then the amount of levels you want it to add to the hellblock.
+# Example: 'cobblestone:5' will add 5 levels to the hellblock when cobblestone is placed. Doesn't matter if a trusted member, party member or owner places it.
+# Levels are done in a decimal system so it can be 0.5 to only add half a level as well.
+# Blocks will add nothing to the island level unless it is displayed below in the list.
+level-system:
+  blocks:
+    - 'COBBLESTONE:0.5'
+    - 'GLOWSTONE:1'
+    - 'NETHERITE_BLOCK:5'
+
+piglin-bartering:
+  # If set to true this will clear all default items and only the custom items added below will be dropped.
+  clear-default-outcome: true
+  # This won't change the default items that piglins barter but you can add custom items that are harder to get in the nether here.
+  # The number represents a random chance to get up to that number when bartering between 1 and x where x represents the number you input here.
+  materials:
+    - 'WITHER_ROSE:3'
+
+brewing:
+  nether-bottle:
+    enable: true
+    potion:
+      name: '<red>Nether Bottle'
+      color: 'RED'
+      lore:
+        - '<dark_red>Potion but Nethery'
+        
+tools:
+  netherrack:
+    enable: true
+    pickaxe:
+      name: '<red>Nether Pickaxe'
+      lore:
+        - '<dark_red>Pickaxe but Nethery'
+      enchantments:
+        - EFFICIENCY:1
+        - UNBREAKING:1
+    axe:
+      name: '<red>Nether Axe'
+      lore:
+        - '<dark_red>Axe but Nethery'
+      enchantments:
+        - EFFICIENCY:1
+        - UNBREAKING:1
+    shovel:
+      name: '<red>Nether Shovel'
+      lore:
+        - '<dark_red>Shovel but Nethery'
+      enchantments:
+        - EFFICIENCY:1
+        - UNBREAKING:1
+    hoe:
+      name: '<red>Nether Hoe'
+      lore:
+        - '<dark_red>Hoe but Nethery'
+      enchantments:
+        - EFFICIENCY:1
+        - UNBREAKING:1
+    sword:
+      name: '<red>Nether Sword'
+      lore:
+        - '<dark_red>Sword but Nethery'
+      enchantments:
+        - SHARPNESS:1
+        - UNBREAKING:1
+  glowstone:
+    enable: true
+    night-vision: true
+    pickaxe:
+      name: '<yellow>Glowstone Pickaxe'
+      lore:
+        - '<dark_red>Pickaxe but Nethery'
+      enchantments:
+        - EFFICIENCY:1
+        - UNBREAKING:1
+    axe:
+      name: '<yellow>Glowstone Axe'
+      lore:
+        - '<dark_red>Axe but Nethery'
+      enchantments:
+        - EFFICIENCY:1
+        - UNBREAKING:1
+    shovel:
+      name: '<yellow>Glowstone Shovel'
+      lore:
+        - '<dark_red>Shovel but Nethery'
+      enchantments:
+        - EFFICIENCY:1
+        - UNBREAKING:1
+    hoe:
+      name: '<yellow>Glowstone Hoe'
+      lore:
+        - '<dark_red>Hoe but Nethery'
+      enchantments:
+        - EFFICIENCY:1
+        - UNBREAKING:1
+    sword:
+      name: '<yellow>Glowstone Sword'
+      lore:
+        - '<dark_red>Sword but Nethery'
+      enchantments:
+        - SHARPNESS:1
+        - UNBREAKING:1
+  quartz:
+    enable: true
+    pickaxe:
+      name: '<gray>Quartz Pickaxe'
+      lore:
+        - '<dark_red>Pickaxe but Nethery'
+      enchantments:
+        - EFFICIENCY:1
+        - UNBREAKING:1
+    axe:
+      name: '<gray>Quartz Axe'
+      lore:
+        - '<dark_red>Axe but Nethery'
+      enchantments:
+        - EFFICIENCY:1
+        - UNBREAKING:1
+    shovel:
+      name: '<gray>Quartz Shovel'
+      lore:
+        - '<dark_red>Shovel but Nethery'
+      enchantments:
+        - EFFICIENCY:1
+        - UNBREAKING:1
+    hoe:
+      name: '<gray>Quartz Hoe'
+      lore:
+        - '<dark_red>Hoe but Nethery'
+      enchantments:
+        - EFFICIENCY:1
+        - UNBREAKING:1
+    sword:
+      name: '<gray>Quartz Sword'
+      lore:
+        - '<dark_red>Sword but Nethery'
+      enchantments:
+        - SHARPNESS:1
+        - UNBREAKING:1
+  netherstar:
+    enable: true
+    pickaxe:
+      name: '<aqua>Nether Star Pickaxe'
+      lore:
+        - '<dark_red>Pickaxe but Nethery'
+      enchantments: 
+        - EFFICIENCY:1
+        - UNBREAKING:1
+    axe:
+      name: '<aqua>Nether Star Axe'
+      lore:
+        - '<dark_red>Axe but Nethery'
+      enchantments:
+        - EFFICIENCY:1
+        - UNBREAKING:1
+    shovel:
+      name: '<aqua>Nether Star Shovel'
+      lore:
+        - '<dark_red>Shovel but Nethery'
+      enchantments:
+        - EFFICIENCY:1
+        - UNBREAKING:1
+    hoe:
+      name: '<aqua>Nether Star Hoe'
+      lore:
+        - '<dark_red>Hoe but Nethery'
+      enchantments:
+        - EFFICIENCY:1
+        - UNBREAKING:1
+    sword:
+      name: '<aqua>Nether Star Sword'
+      lore:
+        - '<dark_red>Sword but Nethery'
+      enchantments:
+        - SHARPNESS:1
+        - UNBREAKING:1
+armor:
+  netherrack:
+    enable: true
+    helmet:
+      name: '<red>Nether Helmet'
+      lore: 
+        - '<dark_red>Helmet but Nethery'
+      enchantments: 
+        - PROTECTION:3
+        - FIRE_PROTECTION:1
+    chestplate:
+      name: '<red>Nether Chest Plate'
+      lore: 
+        - '<dark_red>Chest Plate but Nethery'
+      enchantments: 
+        - PROTECTION:3
+        - FIRE_PROTECTION:1
+    leggings:
+      name: '<red>Nether Leggings'
+      lore: 
+        - '<dark_red>Leggings but Nethery'
+      enchantments: 
+        - PROTECTION:3
+        - FIRE_PROTECTION:1
+    boots:
+      name: '<red>Nether Boots'
+      lore: 
+        - '<dark_red>Boots but Nethery'
+      enchantments: 
+        - PROTECTION:3
+        - FIRE_PROTECTION:1
+  glowstone:
+    enable: true
+    night-vision: true
+    helmet:
+      name: '<yellow>Glowstone Helmet'
+      lore: 
+        - '<dark_red>Helmet but Nethery'
+      enchantments: 
+        - PROTECTION:3
+        - FIRE_PROTECTION:1
+    chestplate:
+      name: '<yellow>Glowstone Chest Plate'
+      lore: 
+        - '<dark_red>Chest Plate but Nethery'
+      enchantments: 
+        - PROTECTION:3
+        - FIRE_PROTECTION:1
+    leggings:
+      name: '<yellow>Glowstone Leggings'
+      lore: 
+        - '<dark_red>Leggings but Nethery'
+      enchantments: 
+        - PROTECTION:3
+        - FIRE_PROTECTION:1
+    boots:
+      name: '<yellow>Glowstone Boots'
+      lore: 
+        - '<dark_red>Boots but Nethery'
+      enchantments: 
+        - PROTECTION:3
+        - FIRE_PROTECTION:1
+  quartz:
+    enable: true
+    helmet:
+      name: '<gray>Quartz Helmet'
+      lore: 
+        - '<dark_red>Helmet but Nethery'
+      enchantments: 
+        - PROTECTION:3
+        - FIRE_PROTECTION:1
+    chestplate:
+      name: '<gray>Quartz Chest Plate'
+      lore: 
+        - '<dark_red>Chest Plate but Nethery'
+      enchantments: 
+        - PROTECTION:3
+        - FIRE_PROTECTION:1
+    leggings:
+      name: '<gray>Quartz Leggings'
+      lore: 
+        - '<dark_red>Leggings but Nethery'
+      enchantments: 
+        - PROTECTION:3
+        - FIRE_PROTECTION:1
+    boots:
+      name: '<gray>Quartz Boots'
+      lore: 
+        - '<dark_red>Boots but Nethery'
+      enchantments: 
+        - PROTECTION:3
+        - FIRE_PROTECTION:1
+  netherstar:
+    enable: true
+    helmet:
+      name: '<aqua>Nether Star Helmet'
+      lore: 
+        - '<dark_red>Helmet but Nethery'
+      enchantments: 
+        - PROTECTION:3
+        - FIRE_PROTECTION:1
+    chestplate:
+      name: '<aqua>Nether Star Chest Plate'
+      lore: 
+        - '<dark_red>Chest Plate but Nethery'
+      enchantments: 
+        - PROTECTION:3
+        - FIRE_PROTECTION:1
+    leggings:
+      name: '<aqua>Nether Star Leggings'
+      lore: 
+        - '<dark_red>Leggings but Nethery'
+      enchantments: 
+        - PROTECTION:3
+        - FIRE_PROTECTION:1
+    boots:
+      name: '<aqua>Nether Star Boots'
+      lore: 
+        - '<dark_red>Boots but Nethery'
+      enchantments: 
+        - PROTECTION:3
+        - FIRE_PROTECTION:1
+
+wither-stats:
+  random-stats: true
+  random-min-health: 200
+  random-max-health: 500
+  random-min-strength: 0.5
+  random-max-strength: 2.5
+  default-strength: 1.25
+  default-health: 300
+
+infinite-lava-options:
+  enabled: true
+  
+lava-rain-options:
+  enabled: true
+  # How far from the player should the lava particles fall (setting this value too high may cause lag !)
+  radius: 16
+  # Chance to make fire appear on the ground when the lava is falling
+  fire-chance: 1
+  # Every how many ticks should the task repeat (20 ticks is 1 second)
+  task-delay: 3
+  # Whether or not lava rain will damage not just players but other mobs / animals if not covered.
+  can-hurt-living-creatures: true
+  # Whether tnt and tnt minecarts will explode if exposed to lava rain.
+  will-tnt-explode: true
+
+netherrack-generator-options:
+  player-search-radius: 4.0
+  automation:
+    pistons: false
+  generation:
+    blocks:
+      - 'NETHERRACK:95'
+      - 'NETHER_GOLD_ORE:1.5'
+      - 'NETHER_QUARTZ_ORE:2'
+    fallback: NETHERRACK
+    particle-effect: LARGE_SMOKE
+    generation-sound: 'minecraft:entity.experience_orb.pickup'
+    can-generate-while-lava-raining: true
+    search-for-players-nearby: true
+
+lava-fishing-options:
+  # whether lava fishing is enabled or not.
+  enabled: true
+  # Specifies the conditions required for the lava fishing mechanism to work.
+  # Here, the type is !weather, which implies lava fishing won't work if
+  # the weather is lava raining.
+  fishing-requirements:
+    weather_requirement:
+      type: '!weather'
+      value:
+        - lavarain
+  # Conditions for enabling auto-fishing
+  auto-fishing-requirements:
+    impossible_requirement:
+      type: 'impossible'
+  # Configures global effects, useful for applying certain effects to all players under specific conditions
+  global-effects:
+    effect_1:
+      type: conditional
+      effects:
+        effect_1:
+          type: wait-time-multiplier
+          value: 0.85
+
+  # Configures global events for hook/bait/rod/loot
+  # which would help you reduce duplicated lines
+  global-events:
+    hook: {}
+    bait: {}
+    loot:
+      new_size_record:
+        conditional_size_record_action:
+          type: conditional
+          value:
+            conditions:
+              has-stats: true
+            actions:
+              actionbar_action:
+                type: actionbar
+                value: '<#FFD700>[New Record]</#FFD700> <#FFFFF0>You caught a(n) {nick} which is <#FFA500>{size}cm</#FFA500> long!</#FFFFF0>'
+              sound_action:
+                type: sound
+                value:
+                  key: 'minecraft:block.note_block.cow_bell'
+                  source: 'player'
+                  volume: 1
+                  pitch: 1
+              delayed_sound:
+                type: delay
+                value:
+                  delay: 2
+                  actions:
+                    sound_action:
+                      type: sound
+                      value:
+                        key: 'minecraft:block.note_block.bell'
+                        source: 'player'
+                        volume: 1
+                        pitch: 1
+      success:
+        conditional_size_info_action:
+          type: conditional
+          value:
+            conditions:
+              has-size: true
+              has-stats: true
+            actions:
+              actionbar_action:
+                type: actionbar
+                value: '<gray>You caught a(n) {nick} which is <#F5F5F5>{size}cm</#F5F5F5> long!</gray> <#C0C0C0>(Best record: {record}cm)</#C0C0C0>'
+        title_action:
+          type: random-title
+          value:
+            titles:
+              - '<green>GG!</green>'
+              - '<green>Good Job!</green>'
+            subtitles:
+              - 'You caught a(n) {nick}'
+              - 'Whoa! Nice catch!'
+              - 'Oh {nick} here we go!'
+              - 'Let''s see what it is!'
+            fade-in: 20
+            stay: 30
+            fade-out: 10
+            chance: 1.0
+      failure:
+        title_action:
+          type: random-title
+          value:
+            titles:
+              - '<red>Be concentrated!</red>'
+              - '<red>What a pity!</red>'
+              - '<red>Try next time!</red>'
+              - '<red>Bad luck</red>'
+            subtitles:
+              - 'The fish escaped...'
+            fade-in: 20
+            stay: 30
+            fade-out: 10
+            chance: 1.0
+    rod:
+      land:
+        priority_action:
+          type: priority
+          value:
+            priority_1:
+              conditions:
+                lava-fishing: true
+              actions:
+                fake_item_action:
+                  type: fake-item
+                  value:
+                    duration: 35
+                    position: other
+                    item: util:lava_effect
+
+  # Global properties which would help you reduce duplicated lines
+  global-loot-property:
+    show-in-fishfinder: true
+    disable-stat: false
+
+  market:
+    # Title for the market GUI
+    title: '<gradient:#A52A2A:#800000:#A52A2A>Fish Market</gradient>'
+    # Enable limitations
+    limitation:
+      enable: true
+      earnings: '10000' # Expressions can be used here
+    # Layout for the market menu
+    layout:
+      - 'AAAAAAAAA'
+      - 'AIIIIIIIA'
+      - 'AIIIIIIIA'
+      - 'AIIIIIIIA'
+      - 'AAAABAAAA'
+    # Price formula for custom fishing loot
+    price-formula: '{base} + {bonus} * {size}'
+    # Allow players to sell fish in bundles
+    allow-bundle: false
+    # Allow players to sell fish in shulker boxes
+    allow-shulker-box: false
+    # Prices for vanilla and other plugin items with CustomModelData
+    item-price:
+      # Vanilla items
+      COD: 10
+      PUFFERFISH: 10
+      SALMON: 10
+      TROPICAL_FISH: 10
+      # PAPER (CustomModelData: 999)
+      PAPER:999: 5
+    # Slots to place items in
+    item-slot:
+      symbol: 'I'
+      allow-items-with-no-price: true
+    # Icon allowing players to sell all fish from their inventory and fishing bag
+    # Enable it by placing the symbol in the layout
+    sell-all-icons:
+      symbol: 'S'
+      allow-icon:
+        material: IRON_BLOCK
+        display:
+          name: '<#00CED1><b>● <!b>Sell the fish'
+          lore:
+            - '<font:uniform><gradient:#E6E6FA:#48D1CC:#E6E6FA>You will earn <green>{money_formatted} coins</green> from the fish in your inventory and bag</gradient></font>'
+          action:
+            sound_action:
+              type: sound
+              value:
+                key: 'minecraft:block.amethyst_block.place'
+                source: 'player'
+                volume: 1
+                pitch: 1
+            message_action:
+              type: message
+              value: 'You earned {money_formatted} coins from the fish! You can still earn {rest_formatted} more coins from the market today.'
+            # Requires Vault and an economy plugin
+            money_action:
+              type: give-money
+              value: '{money}'
+            # Uncomment the command_action if needed
+            # command_action:
+            #   type: command
+            #   value: 'money give {player} {money}'
+    deny-icon:
+      material: REDSTONE_BLOCK
+      display:
+        name: '<red><b>● <!b>Trade Denied'
+        lore:
+          - '<font:uniform><gradient:#E6E6FA:red:#E6E6FA>No items available to sell!</gradient></font>'
+        action:
+          sound_action:
+            type: sound
+              value:
+                key: 'minecraft:entity.villager.no'
+                source: 'player'
+                volume: 1
+                pitch: 1
+    limit-icon:
+      material: REDSTONE_BLOCK
+      display:
+        name: '<red><b>● <!b>Trade Denied'
+        lore:
+          - '<font:uniform><gradient:#E6E6FA:red:#E6E6FA>The total value exceeds the daily limit for earnings!</gradient></font>'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:block.anvil.land'
+              source: 'player'
+              volume: 1
+              pitch: 1
+    # Sell icon for individual transactions
+    sell-icons:
+      symbol: 'B'
+      allow-icon:
+        material: IRON_BLOCK
+        display:
+          name: '<#00CED1><b>● <!b>Sell the fish'
+          lore:
+            - '<font:uniform><gradient:#E6E6FA:#48D1CC:#E6E6FA>You will earn <green>{money_formatted} coins</green> from the fish</gradient></font>'
+          action:
+            sound_action:
+              type: sound
+              value:
+                key: 'minecraft:block.amethyst_block.place'
+                source: 'player'
+                volume: 1
+                pitch: 1
+            message_action:
+              type: message
+              value: 'You earned {money_formatted} coins from the fish! You can still earn {rest_formatted} more coins from the market today.'
+            money_action:
+              type: give-money
+              value: '{money}'
+            # Uncomment the command_action if needed
+            # command_action:
+            #   type: command
+            #   value: 'money give {player} {money}'
+      deny-icon:
+        material: REDSTONE_BLOCK
+        display:
+          name: '<red><b>● <!b>Trade Denied'
+          lore:
+            - '<font:uniform><gradient:#E6E6FA:red:#E6E6FA>No items available to sell!</gradient></font>'
+          action:
+            sound_action:
+              type: sound
+              value:
+                key: 'minecraft:entity.villager.no'
+                source: 'player'
+                volume: 1
+                pitch: 1
+      limit-icon:
+        material: REDSTONE_BLOCK
+        display:
+          name: '<red><b>● <!b>Trade Denied'
+          lore:
+            - '<font:uniform><gradient:#E6E6FA:red:#E6E6FA>The total value exceeds the daily limit for earnings!</gradient></font>'
+          action:
+            sound_action:
+              type: sound
+              value:
+                key: 'minecraft:block.anvil.land'
+                source: 'player'
+                volume: 1
+                pitch: 1
+    # Decorative icons for visual enhancement
+    decorative-icons:
+      glass-pane:
+        symbol: 'A'
+        material: BLACK_STAINED_GLASS_PANE
+        display:
+          name: ' '
+        components:
+          minecraft:hide_tooltip: {}
+
+  # Lava fishing settings
+  # To modify vanilla fishing time, you should edit paper-world-defaults.yml where there's a section called fishing-time-range
+  lava-fishing:
+    # ticks
+    min-wait-time: 100
+    max-wait-time: 600
+
+  # Size settings
+  size:
+    # Some effects would increase/decrease size so the option decides whether they could ignore the limit
+    restricted-size-range: true
+
+  # If a player could get multiple loots from fishing, should the loots spawn at the same time or have delays for each (tick)
+  multiple-loot-spawn-delay: 4
+
+  # Enable fake bait casting animations
+  show-bait-animation: true
+
+# Other settings
+other-settings:
+  # Anti-auto-fishing mod toggle
+  anti-auto-fishing-mod: false
+	
+  # It's recommended to use MiniMessage format. If you insist on using legacy color code "&", enable the support below.
+  # Disabling this would improve performance
+  legacy-color-code-support: true
+
+  # Event priority: MONITOR HIGHEST HIGH NORMAL LOW LOWEST
+  event-priority: NORMAL
+
+  # Save the data from cache to file periodically to minimize the data loss if server crashes
+  # -1 to disable
+  data-saving-interval: 600
+
+  # Log the consumption of time on data saving
+  log-data-saving: true
+
+  # Lock player's data if a player is playing on a server that connected to database
+  # If you can ensure low database link latency and fast processing, you can consider disabling this option to improve performance
+  lock-data: true
+
+  # Requires PlaceholderAPI to work
+  placeholder-register:
+    # Requires server expansion
+    '{date}': '%server_time_yyyy-MM-dd-HH:mm:ss%'
+    # Requires player expansion
+    '{yaw}': '%player_yaw%'
+
+  # LavaFishing supports using items/blocks from other plugins
+  # If items share the same id, they would inherit the effects
+  # Check the wiki for examples
+  item-detection-order:
+    - LavaFishing
+    - vanilla
+  block-detection-order:
+    - vanilla
+
+  # Custom durability format
+  custom-durability-format:
+    - ''
+    - '<gray>Durability</gray><white>: {dur} <gray>/</gray> {max}</white>'
+
+  # Offset characters' unicodes
+  # Never edit this unless you know what you are doing
+  offset-characters:
+    font: hellblock:offset_chars
+    '1': 
+    '2': 
+    '4': 
+    '8': 
+    '16': 
+    '32': 
+    '64': 
+    '128': 
+    '-1': 
+    '-2': 
+    '-4': 
+    '-8': 
+    '-16': 
+    '-32': 
+    '-64': 
+    '-128': 

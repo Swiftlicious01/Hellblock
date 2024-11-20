@@ -1,0 +1,445 @@
+#
+# Don't change this
+#
+config-version: "1"
+
+#
+# For safety reasons, editing this file requires a restart to apply
+#
+
+# The main overall command for players
+# Usage: [COMMAND]
+hellblock:
+  enable: true
+  permission: hellblock.user
+  usage:
+    - /hellblock
+    - /hb
+    - /hellisland
+
+# See all of the hellblock main commands
+# Usage: [COMMAND]
+hellblock_help:
+  enable: true
+  permission: hellblock.user
+  usage:
+    - /hellblock help
+    - /hb help
+
+# See the information about a certain hellblock
+# Usage: [COMMAND]
+hellblock_info:
+  enable: true
+  permission: hellblock.user
+  usage:
+    - /hellblock info
+    - /hb info
+    - /hellblock data
+    - /hb data
+    - /hellblock information
+    - /hb information
+
+# Create a new hellblock
+# Usage: [COMMAND]
+hellblock_create:
+  enable: true
+  permission: hellblock.user
+  usage:
+    - /hellblock create
+    - /hb create
+    - /hellblock new
+    - /hb new
+
+# Reset hellblock to a new one
+# Usage: [COMMAND]
+hellblock_reset:
+  enable: true
+  permission: hellblock.user
+  usage:
+    - /hellblock reset
+    - /hb reset
+    - /hellblock replace
+    - /hb replace
+    - /hellblock restart
+    - /hb restart
+
+# View top 10 leveled hellblocks
+# Usage: [COMMAND]
+hellblock_top:
+  enable: true
+  permission: hellblock.user
+  usage:
+    - /hellblock top
+    - /hb top
+
+# Change hellblock biome 
+# Usage: [COMMAND] [biome]
+hellblock_biome:
+  enable: true
+  permission: hellblock.user
+  usage:
+    - /hellblock changebiome
+    - /hb changebiome
+    - /hellblock setbiome
+    - /hb setbiome
+    - /hellblock newbiome
+    - /hb newbiome
+    - /hellblock biome
+    - /hb biome
+
+# Visit a player's hellblock
+# Usage: [COMMAND] [username]
+hellblock_visit:
+  enable: true
+  permission: hellblock.user
+  usage:
+    - /hellblock visit
+    - /hb visit
+    - /hellblock warp
+    - /hb warp
+    - /hellblock goto
+    - /hb goto
+
+# Teleport to hellblock home location
+# Usage: [COMMAND]
+hellblock_home:
+  enable: true
+  permission: hellblock.user
+  usage:
+    - /hellblock home
+    - /hb home
+    - /hellblock tp
+    - /hb tp
+    - /hellblock teleport
+    - /hb teleport
+
+# Set home location to standing location
+# Usage: [COMMAND]
+hellblock_sethome:
+  enable: true
+  permission: hellblock.user
+  usage:
+    - /hellblock sethome
+    - /hb sethome
+    - /hellblock newhome
+    - /hb newhome
+
+# Fix home location to bedrock
+# Usage: [COMMAND]
+hellblock_fixhome:
+  enable: true
+  permission: hellblock.user
+  usage:
+    - /hellblock fixhome
+    - /hb fixhome
+    - /hellblock restorehome
+    - /hb restorehome
+    - /hellblock readjusthome
+    - /hb readjusthome
+
+# Lock or unlock hellblock from being entered
+# Usage: [COMMAND]
+hellblock_lock:
+  enable: true
+  permission: hellblock.user
+  usage:
+    - /hellblock lock
+    - /hb lock
+    - /hellblock unlock
+    - /hb unlock
+
+# Ban player from entering hellblock area
+# Usage: [COMMAND] [username]
+hellblock_ban:
+  enable: true
+  permission: hellblock.user
+  usage:
+    - /hellblock ban
+    - /hb ban
+
+# Unban player from entering hellblock area
+# Usage: [COMMAND] [username]
+hellblock_unban:
+  enable: true
+  permission: hellblock.user
+  usage:
+    - /hellblock unban
+    - /hb unban
+
+# Leave the hellblock party
+# Usage: [COMMAND] [username]
+coop_leave:
+  enable: true
+  permission: hellblock.coop
+  usage:
+    - /hellcoop leave
+
+# Kick a player from hellblock
+# Usage: [COMMAND] [username]
+coop_kick:
+  enable: true
+  permission: hellblock.coop
+  usage:
+    - /hellcoop kick
+    - /hellcoop remove
+
+# Accept an invite from a player
+# Usage: [COMMAND] [username]
+coop_accept:
+  enable: true
+  permission: hellblock.coop
+  usage:
+    - /hellcoop accept
+
+# Reject an invite from a player
+# Usage: [COMMAND] [username]
+coop_reject:
+  enable: true
+  permission: hellblock.coop
+  usage:
+    - /hellcoop reject
+    - /hellcoop decline
+
+# Invite a player to join a hellblock
+# Usage: [COMMAND] [username]
+coop_invite:
+  enable: true
+  permission: hellblock.coop
+  usage:
+    - /hellcoop invite
+    - /hellcoop add
+
+# Get a list of invites from other hellblocks to join
+# Usage: [COMMAND]
+coop_invites:
+  enable: true
+  permission: hellblock.coop
+  usage:
+    - /hellcoop invitations
+    - /hellcoop invites
+
+# Transfers ownership from one player to another
+# Usage: [COMMAND] [username]
+coop_owner:
+  enable: true
+  permission: hellblock.coop
+  usage:
+    - /hellcoop setowner
+    - /hellcoop transferowner
+    - /hellcoop changeowner
+    - /hellcoop newowner
+
+# Trusts a player on hellblocks
+# Usage: [COMMAND] [username]
+coop_trust:
+  enable: true
+  permission: hellblock.coop
+  usage:
+    - /hellcoop trust
+
+# Untrust a player from hellblocks
+# Usage: [COMMAND] [username]
+coop_untrust:
+  enable: true
+  permission: hellblock.coop
+  usage:
+    - /hellcoop untrust
+
+# Get a list of commands for coop usage
+# Usage: [COMMAND]
+coop_help:
+  enable: true
+  permission: hellblock.coop
+  usage:
+    - /hellcoop help
+
+# Cancel an invitation to a player
+# Usage: [COMMAND] [username]
+coop_cancel:
+  enable: true
+  permission: hellblock.coop
+  usage:
+    - /hellcoop cancel
+    - /hellcoop revoke
+
+# Force teleport to a hellblock
+# Usage: [COMMAND] [username]
+admin_teleport:
+  enable: true
+  permission: hellblock.admin
+  usage:
+    - /hellblock admin teleport
+    - /hb admin teleport
+    - /hellblock admin tp
+    - /hb admin tp
+    - /hellblock admin goto
+    - /hb admin goto
+
+# Force generate the spawn area for the hellblock world
+# Usage: [COMMAND]
+admin_genspawn:
+  enable: true
+  permission: hellblock.admin
+  usage:
+    - /hellblock admin genspawn
+    - /hb admin genspawn
+
+# Force delete a player's hellblock
+# Usage: [COMMAND] [username]
+admin_delete:
+  enable: true
+  permission: hellblock.admin
+  usage:
+    - /hellblock admin delete
+    - /hb admin delete
+
+# Force purge all hellblocks that are inactive within a certain amount of days.
+# Usage: [COMMAND] [days]
+admin_purge:
+  enable: true
+  permission: hellblock.admin
+  usage:
+    - /hellblock admin purge
+    - /hb admin purge
+
+# A command to reload the plugin
+# Usage: [COMMAND]
+reload:
+  enable: true
+  permission: hellblock.command.reload
+  usage:
+    - /hellblock reload
+    - /hb reload
+
+# A command to see the info of the plugin
+# Usage [COMMAND]
+about:
+  enable: true
+  usage:
+    - /hellblock about
+    - /hb reload
+
+# A command designed for players to sell fish
+# Usage: [COMMAND]
+sellfish:
+  enable: true
+  permission: hellblock.sellfish
+  usage:
+    - /sellfish
+
+# A command to get items
+# Usage: [COMMAND] [id]
+get_item:
+  enable: true
+  permission: hellblock.command.getitem
+  usage:
+    - /hellblock items get
+    - /hb items get
+
+# A command to give items
+# Usage: [COMMAND] [id]
+give_item:
+  enable: true
+  permission: hellblock.command.giveitem
+  usage:
+    - /hellblock items give
+    - /hb items give
+
+# A command to import items
+# Usage: [COMMAND] [type] [id]
+import_item:
+  enable: true
+  permission: hellblock.command.importitem
+  usage:
+    - /hellblock items import
+    - /hb items import
+
+# A command to open market for players
+# Usage: [COMMAND] [player]
+open_market:
+  enable: true
+  permission: hellblock.command.open.market
+  usage:
+    - /hellblock open market
+    - /hb open market
+
+# A command to unlock those locked data
+# Usage: [COMMAND] [uuid]
+data_unlock:
+  enable: true
+  permission: hellblock.command.data
+  usage:
+    - /hellblock data unlock
+    - /hb data unlock
+
+# A command to export the data
+# Usage: [COMMAND]
+data_export:
+  enable: true
+  permission: hellblock.command.data
+  usage:
+    - /hellblock data export
+    - /hb data export
+
+# A command to import the data
+# Usage: [COMMAND] [file]
+data_import:
+  enable: true
+  permission: hellblock.command.data
+  usage:
+    - /hellblock data import
+    - /hb data import
+
+# A command to set a player's fishing statistics
+# Usage: [COMMAND] [player] [type] [id] [value]
+statistics_set:
+  enable: true
+  permission: hellblock.command.statistics
+  usage:
+    - /hellblock statistics set
+    - /hb statistics set
+
+# A command to reset a player's fishing statistics
+# Usage: [COMMAND] [player]
+statistics_reset:
+  enable: true
+  permission: hellblock.command.statistics
+  usage:
+    - /hellblock statistics reset
+    - /hb statistics reset
+
+# A command to query a player's fishing statistics
+# Usage: [COMMAND] [player] [type]
+statistics_query:
+  enable: true
+  permission: hellblock.command.statistics
+  usage:
+    - /hellblock statistics query
+    - /hb statistics query
+
+# A command to manually add a player's fishing statistics
+# Usage: [COMMAND] [player] [type] [id] [value]
+statistics_add:
+  enable: true
+  permission: hellblock.command.statistics
+  usage:
+    - /hellblock statistics add
+    - /hb statistics add
+
+# A command to debug the loot table
+# Usage: [COMMAND] [surrounding]
+debug_loot:
+  enable: true
+  permission: hellblock.command.debug
+  usage:
+    - /hellblock debug loot
+    - /hb debug loot
+
+# A command to debug nbt data
+# Usage: [COMMAND]
+debug_nbt:
+  enable: true
+  permission: hellblock.command.nbt
+  usage:
+    - /hellblock debug nbt
+    - /hb debug nbt

@@ -1,0 +1,142 @@
+package com.swiftlicious.hellblock.player;
+
+import java.util.Map;
+
+import com.swiftlicious.hellblock.player.FishingStatistics.Builder;
+import com.swiftlicious.hellblock.utils.extras.Pair;
+
+/**
+ * The FishingStatistics interface represents statistics related to fishing
+ * activities. It provides methods to retrieve and manipulate statistics such as
+ * the amount of fish caught and the maximum size of fish.
+ */
+public interface FishingStatisticsInterface {
+
+	/**
+	 * Retrieves the total amount of fish caught.
+	 *
+	 * @return the total amount of fish caught.
+	 */
+	int amountOfFishCaught();
+
+	/**
+	 * Sets the total amount of fish caught.
+	 *
+	 * @param amountOfFishCaught the new total amount of fish caught.
+	 */
+	void amountOfFishCaught(int amountOfFishCaught);
+
+	/**
+	 * Retrieves the amount of fish caught with the specified ID.
+	 *
+	 * @param id the ID of the fish.
+	 * @return the amount of fish caught with the specified ID. 0 if not exist.
+	 */
+	int getAmount(String id);
+
+	/**
+	 * Adds the specified amount to the fish caught with the specified ID and
+	 * returns the updated amount.
+	 *
+	 * @param id     the ID of the fish.
+	 * @param amount the amount to add.
+	 * @return a Pair containing the previous amount and the updated amount.
+	 */
+	Pair<Integer, Integer> addAmount(String id, int amount);
+
+	/**
+	 * Sets the amount of fish caught with the specified ID.
+	 *
+	 * @param id     the ID of the fish.
+	 * @param amount the new amount to set.
+	 */
+	void setAmount(String id, int amount);
+
+	/**
+	 * Retrieves the maximum size of the fish with the specified ID.
+	 *
+	 * @param id the ID of the fish.
+	 * @return the maximum size of the fish with the specified ID. -1f if not exist.
+	 */
+	float getMaxSize(String id);
+
+	/**
+	 * Sets the maximum size of the fish with the specified ID.
+	 *
+	 * @param id      the ID of the fish.
+	 * @param maxSize the new maximum size to set.
+	 */
+	void setMaxSize(String id, float maxSize);
+
+	/**
+	 * Updates the maximum size of the fish with the specified ID and returns true
+	 * if successful, false otherwise.
+	 *
+	 * @param id      the ID of the fish.
+	 * @param newSize the new maximum size.
+	 * @return true if the update is successful, false otherwise.
+	 */
+	boolean updateSize(String id, float newSize);
+
+	/**
+	 * Resets the fishing statistics, clearing all recorded data.
+	 */
+	void reset();
+
+	/**
+	 * Retrieves the map containing the amounts of fish caught.
+	 *
+	 * @return the map containing the amounts of fish caught.
+	 */
+	Map<String, Integer> amountMap();
+
+	/**
+	 * Retrieves the map containing the maximum sizes of fish.
+	 *
+	 * @return the map containing the maximum sizes of fish.
+	 */
+	Map<String, Float> sizeMap();
+
+	/**
+	 * Creates a new Builder instance for constructing FishingStatistics objects.
+	 *
+	 * @return a new Builder instance.
+	 */
+	static Builder builder() {
+		return new FishingStatistics.Builder();
+	}
+
+	/**
+	 * The Builder interface provides a fluent API for constructing
+	 * FishingStatistics instances.
+	 */
+	interface BuilderInterface {
+
+		/**
+		 * Sets the map containing the amounts of fish caught.
+		 *
+		 * @param amountMap the map containing the amounts of fish caught.
+		 * @return the Builder instance.
+		 */
+		Builder amountMap(Map<String, Integer> amountMap);
+
+		/**
+		 * Sets the map containing the maximum sizes of fish.
+		 *
+		 * @param sizeMap the map containing the maximum sizes of fish.
+		 * @return the Builder instance.
+		 */
+		Builder sizeMap(Map<String, Float> sizeMap);
+
+		/**
+		 * Builds and returns the FishingStatistics instance.
+		 *
+		 * @return the constructed FishingStatistics instance.
+		 */
+		FishingStatistics build();
+	}
+
+	enum Type {
+		MAX_SIZE, AMOUNT_OF_FISH_CAUGHT
+	}
+}
