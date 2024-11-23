@@ -14,17 +14,17 @@ import com.swiftlicious.hellblock.api.Reloadable;
 import com.swiftlicious.hellblock.player.Context;
 
 /**
- * Interface for managing custom fishing items
+ * Interface for managing lava fishing items
  */
 public interface ItemManagerInterface extends Reloadable {
 
 	/**
-	 * Registers a new custom fishing item.
+	 * Registers a new lava fishing item.
 	 *
-	 * @param item the {@link LavaFishingItem} to be registered
+	 * @param item the {@link CustomItem} to be registered
 	 * @return true if the item was successfully registered, false otherwise
 	 */
-	boolean registerItem(@NotNull LavaFishingItem item);
+	boolean registerItem(@NotNull CustomItem item);
 
 	/**
 	 * Builds an internal representation of an item using the given context and item
@@ -42,15 +42,14 @@ public interface ItemManagerInterface extends Reloadable {
 	 * Builds a custom fishing item using the given context and item definition.
 	 *
 	 * @param context the {@link Context} in which the item is built
-	 * @param item    the {@link LavaFishingItem} definition
+	 * @param item    the {@link CustomItem} definition
 	 * @return the built {@link ItemStack}
 	 */
-	ItemStack build(@NotNull Context<Player> context, @NotNull LavaFishingItemInterface item);
+	ItemStack build(@NotNull Context<Player> context, @NotNull CustomItemInterface item);
 
 	/**
 	 * Builds any item using the given context and item ID. Example:
-	 * {@code getLavaFishingItemID:ID} / {@code Oraxen:ID} /
-	 * {@code ItemsAdder:namespace:id}
+	 * {@code getCustomItemID:ID}
 	 *
 	 * @param context the {@link Context} in which the item is built
 	 * @param id      the ID of the item to be built
@@ -62,7 +61,7 @@ public interface ItemManagerInterface extends Reloadable {
 	/**
 	 * Retrieves the item ID of the given item stack. If it's a vanilla item, the
 	 * returned value would be capitalized for instance {@code PAPER}. If it's a
-	 * LavaFishing item, the returned value would be the ID for instance
+	 * custom item, the returned value would be the ID for instance
 	 * {@code beginner_rod}. If it's an item from other plugins, the returned value
 	 * would be the id from that plugin for instance {@code itemsadder_namespace:id}
 	 * / {@code oraxen_item_id}
@@ -75,15 +74,13 @@ public interface ItemManagerInterface extends Reloadable {
 	String getItemID(@NotNull ItemStack itemStack);
 
 	/**
-	 * Retrieves the lava fishing item ID if the given item stack is a custom
-	 * fishing item.
+	 * Retrieves the custom item ID if the given item stack is a custom item.
 	 *
 	 * @param itemStack the {@link ItemStack} to be checked
-	 * @return the custom fishing item ID, or null if the item stack is not a custom
-	 *         fishing item
+	 * @return the custom item ID, or null if the item stack is not a custom item
 	 */
 	@Nullable
-	String getLavaFishingItemID(@NotNull ItemStack itemStack);
+	String getCustomItemID(@NotNull ItemStack itemStack);
 
 	/**
 	 * Gets the loot by providing the context

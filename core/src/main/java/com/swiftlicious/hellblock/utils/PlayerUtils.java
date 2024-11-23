@@ -10,9 +10,6 @@ import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.util.Vector;
 import org.jetbrains.annotations.NotNull;
 
-import com.comphenix.protocol.PacketType;
-import com.comphenix.protocol.events.PacketContainer;
-
 import static java.util.Objects.requireNonNull;
 
 public class PlayerUtils {
@@ -142,12 +139,5 @@ public class PlayerUtils {
 		}
 
 		return actualAmount;
-	}
-
-	public static PacketContainer getArmAnimationPacket(int playerID, int handSlotID) {
-		PacketContainer armAnimationPacket = new PacketContainer(PacketType.Play.Client.ARM_ANIMATION);
-		armAnimationPacket.getIntegers().write(0, playerID);
-		armAnimationPacket.getBytes().write(0, (byte) handSlotID);
-		return armAnimationPacket;
 	}
 }

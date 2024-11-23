@@ -34,13 +34,13 @@ public class CoopInvitationsCommand extends BukkitCommandFeature<CommandSender> 
 				if (onlineUser.get().getHellblockData().getInvitations() == null
 						|| (onlineUser.get().getHellblockData().getInvitations() != null
 								&& onlineUser.get().getHellblockData().getInvitations().isEmpty())) {
-					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+					HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 							"<red>You don't have any invitations!");
 					return;
 				}
 				HellblockPlugin.getInstance().getCoopManager().listInvitations(onlineUser.get());
 			} else {
-				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+				HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 						"<red>You already have a hellblock!");
 				return;
 			}

@@ -38,19 +38,19 @@ public class HellblockLockCommand extends BukkitCommandFeature<CommandSender> {
 				}
 				if (onlineUser.get().getHellblockData().getOwnerUUID() != null
 						&& !onlineUser.get().getHellblockData().getOwnerUUID().equals(player.getUniqueId())) {
-					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+					HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 							HellblockPlugin.getInstance().getTranslationManager()
 									.miniMessageTranslation(MessageConstants.MSG_NOT_OWNER_OF_HELLBLOCK.build().key()));
 					return;
 				}
 				if (onlineUser.get().getHellblockData().isAbandoned()) {
-					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+					HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 							HellblockPlugin.getInstance().getTranslationManager()
 									.miniMessageTranslation(MessageConstants.MSG_HELLBLOCK_IS_ABANDONED.build().key()));
 					return;
 				}
 				onlineUser.get().getHellblockData().setLockedStatus(!onlineUser.get().getHellblockData().isLocked());
-				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+				HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 						String.format("<red>You've just <dark_red>%s <red>your hellblock island!",
 								(onlineUser.get().getHellblockData().isLocked() ? "locked" : "unlocked")));
 				if (onlineUser.get().getHellblockData().isLocked()) {
@@ -58,7 +58,7 @@ public class HellblockLockCommand extends BukkitCommandFeature<CommandSender> {
 					HellblockPlugin.getInstance().getCoopManager().changeLockStatus(onlineUser.get());
 				}
 			} else {
-				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+				HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 						HellblockPlugin.getInstance().getTranslationManager()
 								.miniMessageTranslation(MessageConstants.MSG_HELLBLOCK_NOT_FOUND.build().key()));
 			}

@@ -137,8 +137,9 @@ public class Metrics {
 		builder.appendField("coreCount", Runtime.getRuntime().availableProcessors());
 	}
 
+	@SuppressWarnings("deprecation")
 	private void appendServiceData(JsonObjectBuilder builder) {
-		builder.appendField("pluginVersion", plugin.getPluginMeta().getVersion());
+		builder.appendField("pluginVersion", plugin.getDescription().getVersion());
 	}
 
 	private int getPlayerAmount() {

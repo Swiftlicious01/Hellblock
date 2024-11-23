@@ -20,7 +20,7 @@ public class HellblockHelpCommand extends BukkitCommandFeature<CommandSender> {
 			Command.Builder<CommandSender> builder) {
 		return builder.senderType(Player.class).handler(context -> {
 			final Player player = context.sender();
-			HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+			HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 					"<dark_red>Hellblock Commands:");
 			HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 					"<red>/hellblock create: Create your island");

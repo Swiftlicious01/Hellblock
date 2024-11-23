@@ -58,6 +58,18 @@ public class ComponentItemFactory extends BukkitItemFactory {
 		item.setComponent("minecraft:profile", profile);
 	}
 
+	@Override
+	protected void potionEffect(RtagItem item, String effect) {
+		final Map<String, Object> effectData = Map.of("potion", effect);
+		item.setComponent("minecraft:potion_contents", effectData);
+	}
+
+	@Override
+	protected void potionColor(RtagItem item, int color) {
+		final Map<String, Object> colorData = Map.of("custom_color", color);
+		item.setComponent("minecraft:potion_contents", colorData);
+	}
+
 	@SuppressWarnings("unchecked")
 	@Override
 	protected Optional<List<String>> lore(RtagItem item) {

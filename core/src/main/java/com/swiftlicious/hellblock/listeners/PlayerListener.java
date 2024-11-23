@@ -19,6 +19,7 @@ import org.bukkit.entity.FallingBlock;
 import org.bukkit.entity.Firework;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
+import org.bukkit.event.Event.Result;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
@@ -26,6 +27,7 @@ import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDropItemEvent;
 import org.bukkit.event.entity.EntityPortalEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
+import org.bukkit.event.player.AsyncPlayerChatEvent;
 import org.bukkit.event.player.PlayerChangedWorldEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
@@ -41,18 +43,13 @@ import org.bukkit.potion.PotionEffectType;
 import org.bukkit.util.BoundingBox;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
-import com.swiftlicious.hellblock.events.worldguard.RegionEnteredEvent;
-import com.swiftlicious.hellblock.gui.hellblock.IslandChoiceMenu;
 import com.swiftlicious.hellblock.player.UUIDFetcher;
 import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.scheduler.SchedulerTask;
 import com.swiftlicious.hellblock.utils.ChunkUtils;
 import com.swiftlicious.hellblock.utils.LocationUtils;
-import io.papermc.paper.event.player.AsyncChatEvent;
-import io.papermc.paper.event.player.PlayerBedFailEnterEvent;
 import lombok.Getter;
 import lombok.NonNull;
-import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 
 public class PlayerListener implements Listener {
 
@@ -70,17 +67,18 @@ public class PlayerListener implements Listener {
 	}
 
 	@EventHandler
-	public void onBedClick(PlayerBedFailEnterEvent event) {
+	public void onBedClick(PlayerInteractEvent event) {
 		if (!instance.getConfigManager().disableBedExplosions())
 			return;
 		final Player player = event.getPlayer();
 		if (!player.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
 			return;
 
-		Block bed = event.getBed();
+		Block bed = event.getClickedBlock();
 		if (bed != null && Tag.BEDS.isTagged(bed.getType())) {
 			if (bed.getWorld().getEnvironment() == Environment.NETHER) {
-				event.setWillExplode(false);
+				event.setCancelled(true);
+				event.setUseInteractedBlock(Result.DENY);
 			}
 		}
 	}
@@ -115,55 +113,6 @@ public class PlayerListener implements Listener {
 	}
 
 	@EventHandler
-	public void onRegionEnterIfBanned(RegionEnteredEvent event) {
-		final Player player = event.getPlayer();
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
-			return;
-		final UUID id = player.getUniqueId();
-		Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(id);
-		if (onlineUser.isEmpty())
-			return;
-		UUID ownerUUID = event.getRegion().getOwners().getUniqueIds().stream().findFirst().orElse(null);
-		if (ownerUUID == null)
-			return;
-		if (instance.getCoopManager().trackBannedPlayer(ownerUUID, id)) {
-			if (onlineUser.get().getHellblockData().hasHellblock()) {
-				if (onlineUser.get().getHellblockData().getOwnerUUID() == null) {
-					throw new NullPointerException(
-							"Owner reference returned null, please report this to the developer.");
-				}
-				instance.getStorageManager().getOfflineUserData(onlineUser.get().getHellblockData().getOwnerUUID(),
-						instance.getConfigManager().lockData()).thenAccept((owner) -> {
-							UserData ownerUser = owner.orElseThrow();
-							instance.getCoopManager().makeHomeLocationSafe(ownerUser, onlineUser.get());
-						});
-			} else {
-				instance.getHellblockHandler().teleportToSpawn(player, true);
-			}
-			instance.getAdventureManager().sendMessageWithPrefix(player,
-					"<red>You're banned from this hellblock and aren't allowed entry!");
-		}
-
-		if (!instance.getCoopManager().checkIfVisitorIsWelcome(player, ownerUUID)) {
-			if (onlineUser.get().getHellblockData().hasHellblock()) {
-				if (onlineUser.get().getHellblockData().getOwnerUUID() == null) {
-					throw new NullPointerException(
-							"Owner reference returned null, please report this to the developer.");
-				}
-				instance.getStorageManager().getOfflineUserData(onlineUser.get().getHellblockData().getOwnerUUID(),
-						instance.getConfigManager().lockData()).thenAccept((owner) -> {
-							UserData ownerUser = owner.orElseThrow();
-							instance.getCoopManager().makeHomeLocationSafe(ownerUser, onlineUser.get());
-						});
-			} else {
-				instance.getHellblockHandler().teleportToSpawn(player, true);
-			}
-			instance.getAdventureManager().sendMessageWithPrefix(player,
-					"<red>This hellblock is locked at the moment, you're not allowed entry!");
-		}
-	}
-
-	@EventHandler
 	public void onLeaveHellblockBorders(PlayerMoveEvent event) {
 		final Player player = event.getPlayer();
 		if (!player.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
@@ -194,7 +143,7 @@ public class PlayerListener implements Listener {
 								LocationUtils.isSafeLocationAsync(offlineUser.getHellblockData().getHomeLocation())
 										.thenAccept((tiResult) -> {
 											if (!tiResult.booleanValue()) {
-												instance.getAdventureManager().sendMessageWithPrefix(player,
+												instance.getAdventureManager().sendMessage(player,
 														"<red>This hellblock home location was deemed not safe, teleporting to your hellblock instead!");
 
 												if (onlineUser.get().getHellblockData().getOwnerUUID() == null) {
@@ -261,7 +210,7 @@ public class PlayerListener implements Listener {
 									LocationUtils.isSafeLocationAsync(offlineUser.getHellblockData().getHomeLocation())
 											.thenAccept((tiResult) -> {
 												if (!tiResult.booleanValue()) {
-													instance.getAdventureManager().sendMessageWithPrefix(player,
+													instance.getAdventureManager().sendMessage(player,
 															"<red>This hellblock home location was deemed not safe, teleporting to your hellblock instead!");
 
 													if (onlineUser.get().getHellblockData().getOwnerUUID() == null) {
@@ -316,20 +265,20 @@ public class PlayerListener implements Listener {
 									UserData offlineUser = result.orElseThrow();
 									if (!offlineUser.getHellblockData().hasHellblock()
 											|| offlineUser.getHellblockData().isAbandoned()) {
-										instance.getAdventureManager().sendMessageWithPrefix(player,
+										instance.getAdventureManager().sendMessage(player,
 												"<red>This hellblock was reset or abandoned and can't be linked with.");
 										onlineUser.get().getHellblockData().setLinkedUUID(null);
 										return;
 									}
 									if (offlineUser.getHellblockData().isLocked()) {
-										instance.getAdventureManager().sendMessageWithPrefix(player,
+										instance.getAdventureManager().sendMessage(player,
 												"<red>This hellblock is locked at the moment for visitors.");
 										return;
 									}
 									LocationUtils.isSafeLocationAsync(offlineUser.getHellblockData().getHomeLocation())
 											.thenAccept((tiResult) -> {
 												if (!tiResult.booleanValue()) {
-													instance.getAdventureManager().sendMessageWithPrefix(player,
+													instance.getAdventureManager().sendMessage(player,
 															"<red>This hellblock home location was deemed not safe, teleporting to your hellblock instead!");
 
 													if (onlineUser.get().getHellblockData().getOwnerUUID() == null) {
@@ -367,7 +316,7 @@ public class PlayerListener implements Listener {
 								});
 					}
 				} else {
-					new IslandChoiceMenu(player, false);
+					// TODO: stuff
 				}
 			}, 5 * 20, onlineUser.get().getHellblockData().getHomeLocation());
 			this.cancellablePortal.putIfAbsent(player.getUniqueId(), portalTask);
@@ -448,8 +397,9 @@ public class PlayerListener implements Listener {
 		}
 	}
 
+	@SuppressWarnings("deprecation")
 	@EventHandler
-	public void onLinkPortalChat(AsyncChatEvent event) {
+	public void onLinkPortalChat(AsyncPlayerChatEvent event) {
 		final Player player = event.getPlayer();
 		final UUID id = player.getUniqueId();
 		if (this.linkPortalCatcher.contains(id)) {
@@ -457,9 +407,9 @@ public class PlayerListener implements Listener {
 			if (onlineUser.isEmpty())
 				return;
 			event.setCancelled(true);
-			String username = PlainTextComponentSerializer.plainText().serialize(event.message());
+			String username = event.getMessage();
 			if (username.equalsIgnoreCase("none") || username.equalsIgnoreCase(player.getName())) {
-				instance.getAdventureManager().sendMessageWithPrefix(player,
+				instance.getAdventureManager().sendMessage(player,
 						"<red>The portal has kept it's link to your own hellblock!");
 				this.linkPortalCatcher.remove(id);
 				return;
@@ -481,32 +431,32 @@ public class PlayerListener implements Listener {
 					return;
 				if (!linked.get().getHellblockData().hasHellblock() || linked.get().getHellblockData().isAbandoned()
 						|| linked.get().getHellblockData().getHomeLocation() == null) {
-					instance.getAdventureManager().sendMessageWithPrefix(player,
+					instance.getAdventureManager().sendMessage(player,
 							"<red>The player you typed in doesn't have a hellblock to link to!");
 					return;
 				}
 				if (linked.get().getHellblockData().isLocked()) {
-					instance.getAdventureManager().sendMessageWithPrefix(player,
+					instance.getAdventureManager().sendMessage(player,
 							"<red>This hellblock is locked at the moment so you can't link to it!");
 					return;
 				}
 				if (linked.get().getHellblockData().getBanned().contains(id)) {
-					instance.getAdventureManager().sendMessageWithPrefix(player,
+					instance.getAdventureManager().sendMessage(player,
 							"<red>You're banned from this hellblock and can't link to it!");
 					return;
 				}
 				onlineUser.get().getHellblockData().setLinkedUUID(link.getUniqueId());
-				instance.getAdventureManager().sendMessageWithPrefix(player, String
+				instance.getAdventureManager().sendMessage(player, String
 						.format("<red>You have linked your nether portal to <dark_red>%s<red>'s hellblock!", username));
 			} else {
 				UUID linkID = UUIDFetcher.getUUID(username);
 				if (linkID == null) {
-					instance.getAdventureManager().sendMessageWithPrefix(player,
+					instance.getAdventureManager().sendMessage(player,
 							"<red>The player you typed in doesn't exist!");
 					return;
 				}
 				if (!Bukkit.getOfflinePlayer(linkID).hasPlayedBefore()) {
-					instance.getAdventureManager().sendMessageWithPrefix(player,
+					instance.getAdventureManager().sendMessage(player,
 							"<red>The player you typed in doesn't exist!");
 					return;
 				}
@@ -526,22 +476,22 @@ public class PlayerListener implements Listener {
 							if (!offlineUser.getHellblockData().hasHellblock()
 									|| offlineUser.getHellblockData().isAbandoned()
 									|| offlineUser.getHellblockData().getHomeLocation() == null) {
-								instance.getAdventureManager().sendMessageWithPrefix(player,
+								instance.getAdventureManager().sendMessage(player,
 										"<red>The player you typed in doesn't have a hellblock to link to!");
 								return;
 							}
 							if (offlineUser.getHellblockData().isLocked()) {
-								instance.getAdventureManager().sendMessageWithPrefix(player,
+								instance.getAdventureManager().sendMessage(player,
 										"<red>This hellblock is locked at the moment so you can't link to it!");
 								return;
 							}
 							if (offlineUser.getHellblockData().getBanned().contains(id)) {
-								instance.getAdventureManager().sendMessageWithPrefix(player,
+								instance.getAdventureManager().sendMessage(player,
 										"<red>You're banned from this hellblock and can't link to it!");
 								return;
 							}
 							onlineUser.get().getHellblockData().setLinkedUUID(linkID);
-							instance.getAdventureManager().sendMessageWithPrefix(player,
+							instance.getAdventureManager().sendMessage(player,
 									String.format(
 											"<red>You've linked your nether portal to <dark_red>%s<red>'s hellblock!",
 											username));

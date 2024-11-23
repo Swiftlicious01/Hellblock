@@ -15,6 +15,7 @@ public class AboutCommand extends BukkitCommandFeature<CommandSender> {
 		super(commandManager);
 	}
 
+	@SuppressWarnings("deprecation")
 	@Override
 	public Command.Builder<? extends CommandSender> assembleCommand(CommandManager<CommandSender> manager,
 			Command.Builder<CommandSender> builder) {
@@ -24,10 +25,10 @@ public class AboutCommand extends BukkitCommandFeature<CommandSender> {
 					"<#00BFFF>\uD83C\uDFDD Hellblock <gray>- <#87CEEB>"
 							+ HellblockPlugin.getInstance().getVersionManager().getPluginVersion());
 			HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-					"<#B0C4DE>" + HellblockPlugin.getInstance().getPluginMeta().getDescription());
+					"<#B0C4DE>" + HellblockPlugin.getInstance().getDescription().getDescription());
 			HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 					"<#DA70D6>\uD83E\uDDEA Author: <#FFC0CB>"
-							+ HellblockPlugin.getInstance().getPluginMeta().getAuthors().getFirst());
+							+ HellblockPlugin.getInstance().getDescription().getAuthors().getFirst());
 			HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 					"<#FAFAD2>⛏ <click:open_url:https://github.com/Swiftlicious01/Hellblock>Github</click>");
 		});

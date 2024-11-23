@@ -244,7 +244,7 @@ public class StorageManager implements StorageManagerInterface, Listener {
 		UUID uuid = player.getUniqueId();
 		locked.add(uuid);
 		if (player.hasPermission("hellblock.updates") && instance.isUpdateAvailable()) {
-			instance.getAdventureManager().sendMessageWithPrefix(player,
+			instance.getAdventureManager().sendMessage(player,
 					"<red>There is a new update available!: <dark_red><u>https://github.com/Swiftlicious01/Hellblock<!u>");
 		}
 		if (!hasRedis) {
@@ -401,10 +401,10 @@ public class StorageManager implements StorageManagerInterface, Listener {
 		var bukkitUser = UserDataInterface.builder().setData(playerData).setName(player.getName()).build();
 		onlineUserMap.put(player.getUniqueId(), bukkitUser);
 		if (bukkitUser.getHellblockData().isAbandoned()) {
-			instance.getAdventureManager().sendMessageWithPrefix(player,
+			instance.getAdventureManager().sendMessage(player,
 					String.format("<red>Your hellblock was deemed abandoned for not logging in for the past %s days!",
 							instance.getConfigManager().abandonAfterDays()));
-			instance.getAdventureManager().sendMessageWithPrefix(player,
+			instance.getAdventureManager().sendMessage(player,
 					"<red>You've lost access to your island, if you wish to recover it speak to an administrator.");
 		}
 
@@ -468,7 +468,7 @@ public class StorageManager implements StorageManagerInterface, Listener {
 		if (bukkitUser.inUnsafeLocation()) {
 			instance.getHellblockHandler().teleportToSpawn(player, true);
 			bukkitUser.setInUnsafeLocation(false);
-			instance.getAdventureManager().sendMessageWithPrefix(player,
+			instance.getAdventureManager().sendMessage(player,
 					"<red>You logged out in an unsafe hellblock environment because it was reset or deleted.");
 		}
 

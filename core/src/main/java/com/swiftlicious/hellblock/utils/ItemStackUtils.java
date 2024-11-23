@@ -12,10 +12,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
-import org.jetbrains.annotations.Nullable;
 import org.yaml.snakeyaml.external.biz.base64Coder.Base64Coder;
 
 import com.saicone.rtag.item.ItemTagStream;
@@ -35,22 +33,6 @@ public class ItemStackUtils {
 
 	private ItemStackUtils() {
 		throw new UnsupportedOperationException("This class cannot be instantiated");
-	}
-
-	@Nullable
-	public static ItemStack fromBase64(byte[] base64) {
-		if (base64 == null || base64.length == 0)
-			return new ItemStack(Material.AIR);
-
-		return ItemStack.deserializeBytes(base64);
-	}
-
-	@Nullable
-	public static byte[] toBase64(ItemStack itemStack) {
-		if (itemStack == null || itemStack.getType() == Material.AIR)
-			return new byte[] { 0 };
-
-		return itemStack.serializeAsBytes();
 	}
 
 	public static String serialize(ItemStack[] items) {

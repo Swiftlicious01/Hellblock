@@ -15,14 +15,15 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
 import org.bukkit.Bukkit;
+import org.bukkit.Effect;
 import org.bukkit.Location;
 import org.bukkit.Material;
-import org.bukkit.NamespacedKey;
 import org.bukkit.entity.ExperienceOrb;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -104,7 +105,8 @@ public class ActionManager implements ActionManagerInterface<Player> {
 			instance.getPluginLogger().warn("Action type: " + section.getString("type") + " doesn't exist.");
 			return Action.empty();
 		}
-		return factory.process(section.get("value"), section.getDouble("chance", 1d));
+		return factory.process(section.get("value"),
+				section.contains("chance") ? MathValue.auto(section.get("chance")) : MathValue.plain(1));
 	}
 
 	@NotNull
@@ -130,7 +132,7 @@ public class ActionManager implements ActionManagerInterface<Player> {
 			instance.getPluginLogger().warn("Action type: " + type + " doesn't exist.");
 			return Action.empty();
 		}
-		return factory.process(args, 1);
+		return factory.process(args, MathValue.plain(1));
 	}
 
 	private void registerBuiltInActions() {
@@ -147,6 +149,7 @@ public class ActionManager implements ActionManagerInterface<Player> {
 		this.registerFishFindAction();
 		this.registerPluginExpAction();
 		this.registerSoundAction();
+		this.registerParticleAction();
 		this.registerHologramAction();
 		this.registerFakeItemAction();
 		this.registerTitleAction();
@@ -156,7 +159,7 @@ public class ActionManager implements ActionManagerInterface<Player> {
 		registerAction((args, chance) -> {
 			List<String> messages = ListUtils.toList(args);
 			return context -> {
-				if (Math.random() > chance)
+				if (Math.random() > chance.evaluate(context))
 					return;
 				List<String> replaced = instance.getPlaceholderManager().parse(context.holder(), messages,
 						context.placeholderMap());
@@ -169,7 +172,7 @@ public class ActionManager implements ActionManagerInterface<Player> {
 		registerAction((args, chance) -> {
 			List<String> messages = ListUtils.toList(args);
 			return context -> {
-				if (Math.random() > chance)
+				if (Math.random() > chance.evaluate(context))
 					return;
 				String random = messages.get(RandomUtils.generateRandomInt(0, messages.size() - 1));
 				random = instance.getPlaceholderManager().parse(context.holder(), random, context.placeholderMap());
@@ -180,7 +183,7 @@ public class ActionManager implements ActionManagerInterface<Player> {
 		registerAction((args, chance) -> {
 			List<String> messages = ListUtils.toList(args);
 			return context -> {
-				if (Math.random() > chance)
+				if (Math.random() > chance.evaluate(context))
 					return;
 				List<String> replaced = instance.getPlaceholderManager().parse(context.holder(), messages,
 						context.placeholderMap());
@@ -196,7 +199,7 @@ public class ActionManager implements ActionManagerInterface<Player> {
 				List<String> messages = ListUtils.toList(section.get("message"));
 				MathValue<Player> range = MathValue.auto(section.get("range"));
 				return context -> {
-					if (Math.random() > chance)
+					if (Math.random() > chance.evaluate(context))
 						return;
 					double realRange = range.evaluate(context);
 					Player owner = context.holder();
@@ -224,7 +227,7 @@ public class ActionManager implements ActionManagerInterface<Player> {
 		registerAction((args, chance) -> {
 			List<String> commands = ListUtils.toList(args);
 			return context -> {
-				if (Math.random() > chance)
+				if (Math.random() > chance.evaluate(context))
 					return;
 				List<String> replaced = instance.getPlaceholderManager().parse(context.holder(), commands,
 						context.placeholderMap());
@@ -238,7 +241,7 @@ public class ActionManager implements ActionManagerInterface<Player> {
 		registerAction((args, chance) -> {
 			List<String> commands = ListUtils.toList(args);
 			return context -> {
-				if (Math.random() > chance)
+				if (Math.random() > chance.evaluate(context))
 					return;
 				List<String> replaced = instance.getPlaceholderManager().parse(context.holder(), commands,
 						context.placeholderMap());
@@ -252,7 +255,7 @@ public class ActionManager implements ActionManagerInterface<Player> {
 		registerAction((args, chance) -> {
 			List<String> commands = ListUtils.toList(args);
 			return context -> {
-				if (Math.random() > chance)
+				if (Math.random() > chance.evaluate(context))
 					return;
 				String random = commands.get(ThreadLocalRandom.current().nextInt(commands.size()));
 				random = instance.getPlaceholderManager().parse(context.holder(), random, context.placeholderMap());
@@ -267,7 +270,7 @@ public class ActionManager implements ActionManagerInterface<Player> {
 				List<String> cmd = ListUtils.toList(section.get("command"));
 				MathValue<Player> range = MathValue.auto(section.get("range"));
 				return context -> {
-					if (Math.random() > chance)
+					if (Math.random() > chance.evaluate(context))
 						return;
 					Player owner = context.holder();
 					double realRange = range.evaluate(context);
@@ -292,10 +295,10 @@ public class ActionManager implements ActionManagerInterface<Player> {
 	}
 
 	private void registerCloseInvAction() {
-		registerAction((args, chance) -> condition -> {
-			if (Math.random() > chance)
+		registerAction((args, chance) -> context -> {
+			if (Math.random() > chance.evaluate(context))
 				return;
-			condition.holder().closeInventory();
+			context.holder().closeInventory();
 		}, "close-inv");
 	}
 
@@ -303,7 +306,7 @@ public class ActionManager implements ActionManagerInterface<Player> {
 		registerAction((args, chance) -> {
 			String text = (String) args;
 			return context -> {
-				if (Math.random() > chance)
+				if (Math.random() > chance.evaluate(context))
 					return;
 				final Player player = context.holder();
 				instance.getAdventureManager().sendActionbar(player,
@@ -313,7 +316,7 @@ public class ActionManager implements ActionManagerInterface<Player> {
 		registerAction((args, chance) -> {
 			List<String> texts = ListUtils.toList(args);
 			return context -> {
-				if (Math.random() > chance)
+				if (Math.random() > chance.evaluate(context))
 					return;
 				String random = texts.get(RandomUtils.generateRandomInt(0, texts.size() - 1));
 				random = instance.getPlaceholderManager().parse(context.holder(), random, context.placeholderMap());
@@ -326,7 +329,7 @@ public class ActionManager implements ActionManagerInterface<Player> {
 				String actionbar = section.getString("actionbar");
 				MathValue<Player> range = MathValue.auto(section.get("range"));
 				return context -> {
-					if (Math.random() > chance)
+					if (Math.random() > chance.evaluate(context))
 						return;
 					Player owner = context.holder();
 					Location location = requireNonNull(context.arg(ContextKeys.LOCATION));
@@ -352,7 +355,7 @@ public class ActionManager implements ActionManagerInterface<Player> {
 		registerAction((args, chance) -> {
 			MathValue<Player> value = MathValue.auto(args);
 			return context -> {
-				if (Math.random() > chance)
+				if (Math.random() > chance.evaluate(context))
 					return;
 				final Player player = context.holder();
 				ExperienceOrb entity = player.getLocation().getWorld()
@@ -363,7 +366,7 @@ public class ActionManager implements ActionManagerInterface<Player> {
 		registerAction((args, chance) -> {
 			MathValue<Player> value = MathValue.auto(args);
 			return context -> {
-				if (Math.random() > chance)
+				if (Math.random() > chance.evaluate(context))
 					return;
 				final Player player = context.holder();
 				player.giveExp((int) Math.round(value.evaluate(context)));
@@ -374,7 +377,7 @@ public class ActionManager implements ActionManagerInterface<Player> {
 		registerAction((args, chance) -> {
 			MathValue<Player> value = MathValue.auto(args);
 			return context -> {
-				if (Math.random() > chance)
+				if (Math.random() > chance.evaluate(context))
 					return;
 				Player player = context.holder();
 				player.setLevel((int) Math.max(0, player.getLevel() + value.evaluate(context)));
@@ -386,7 +389,7 @@ public class ActionManager implements ActionManagerInterface<Player> {
 		registerAction((args, chance) -> {
 			MathValue<Player> value = MathValue.auto(args);
 			return context -> {
-				if (Math.random() > chance)
+				if (Math.random() > chance.evaluate(context))
 					return;
 				Player player = context.holder();
 				player.setFoodLevel((int) (player.getFoodLevel() + value.evaluate(context)));
@@ -395,7 +398,7 @@ public class ActionManager implements ActionManagerInterface<Player> {
 		registerAction((args, chance) -> {
 			MathValue<Player> value = MathValue.auto(args);
 			return context -> {
-				if (Math.random() > chance)
+				if (Math.random() > chance.evaluate(context))
 					return;
 				Player player = context.holder();
 				player.setSaturation((float) (player.getSaturation() + value.evaluate(context)));
@@ -422,7 +425,7 @@ public class ActionManager implements ActionManagerInterface<Player> {
 			return context -> {
 				if (context.holder() == null)
 					return;
-				if (Math.random() > chance)
+				if (Math.random() > chance.evaluate(context))
 					return;
 				Player player = context.holder();
 				EquipmentSlot hand = context.arg(ContextKeys.SLOT);
@@ -455,7 +458,7 @@ public class ActionManager implements ActionManagerInterface<Player> {
 				return Action.empty();
 			}
 			return context -> {
-				if (Math.random() > chance)
+				if (Math.random() > chance.evaluate(context))
 					return;
 				Player player = context.holder();
 				if (player == null)
@@ -486,7 +489,7 @@ public class ActionManager implements ActionManagerInterface<Player> {
 				int amount = section.getInt("amount", 1);
 				boolean toInventory = section.getBoolean("to-inventory", false);
 				return context -> {
-					if (Math.random() > chance)
+					if (Math.random() > chance.evaluate(context))
 						return;
 					Player player = context.holder();
 					ItemStack itemStack = instance.getItemManager().buildAny(context, id);
@@ -525,7 +528,7 @@ public class ActionManager implements ActionManagerInterface<Player> {
 				}
 			}
 			return context -> {
-				if (Math.random() > chance)
+				if (Math.random() > chance.evaluate(context))
 					return;
 				for (Action<Player> action : actions) {
 					action.trigger(context);
@@ -549,7 +552,7 @@ public class ActionManager implements ActionManagerInterface<Player> {
 				async = false;
 			}
 			return context -> {
-				if (Math.random() > chance)
+				if (Math.random() > chance.evaluate(context))
 					return;
 				Location location = context.arg(ContextKeys.LOCATION);
 				if (async) {
@@ -586,7 +589,7 @@ public class ActionManager implements ActionManagerInterface<Player> {
 				duration = 20;
 			}
 			return context -> {
-				if (Math.random() > chance)
+				if (Math.random() > chance.evaluate(context))
 					return;
 				Location location = context.arg(ContextKeys.LOCATION);
 				SchedulerTask task;
@@ -611,16 +614,16 @@ public class ActionManager implements ActionManagerInterface<Player> {
 				Action<Player>[] actions = parseActions(section.getSection("actions"));
 				Requirement<Player>[] requirements = instance.getRequirementManager()
 						.parseRequirements(section.getSection("conditions"), true);
-				return condition -> {
-					if (Math.random() > chance)
+				return context -> {
+					if (Math.random() > chance.evaluate(context))
 						return;
 					for (Requirement<Player> requirement : requirements) {
-						if (!requirement.isSatisfied(condition)) {
+						if (!requirement.isSatisfied(context)) {
 							return;
 						}
 					}
 					for (Action<Player> action : actions) {
-						action.trigger(condition);
+						action.trigger(context);
 					}
 				};
 			} else {
@@ -641,7 +644,7 @@ public class ActionManager implements ActionManagerInterface<Player> {
 					}
 				}
 				return context -> {
-					if (Math.random() > chance)
+					if (Math.random() > chance.evaluate(context))
 						return;
 					outer: for (Pair<Requirement<Player>[], Action<Player>[]> pair : conditionActionPairList) {
 						if (pair.left() != null)
@@ -669,7 +672,7 @@ public class ActionManager implements ActionManagerInterface<Player> {
 		registerAction((args, chance) -> {
 			MathValue<Player> value = MathValue.auto(args);
 			return context -> {
-				if (Math.random() > chance)
+				if (Math.random() > chance.evaluate(context))
 					return;
 				if (!VaultHook.isHooked())
 					return;
@@ -679,7 +682,7 @@ public class ActionManager implements ActionManagerInterface<Player> {
 		registerAction((args, chance) -> {
 			MathValue<Player> value = MathValue.auto(args);
 			return context -> {
-				if (Math.random() > chance)
+				if (Math.random() > chance.evaluate(context))
 					return;
 				if (!VaultHook.isHooked())
 					return;
@@ -689,16 +692,16 @@ public class ActionManager implements ActionManagerInterface<Player> {
 	}
 
 	// The registry name changes a lot
+	@SuppressWarnings("deprecation")
 	private void registerPotionAction() {
 		registerAction((args, chance) -> {
 			if (args instanceof Section section) {
 				PotionEffect potionEffect = new PotionEffect(
-						Objects.requireNonNull(instance.getHellblockHandler().getPotionEffectRegistry()
-								.getOrThrow(NamespacedKey.fromString(
-										section.getString("type", "BLINDNESS").toUpperCase(Locale.ENGLISH)))),
+						Objects.requireNonNull(PotionEffectType
+								.getByName(section.getString("type", "BLINDNESS").toUpperCase(Locale.ENGLISH))),
 						section.getInt("duration", 20), section.getInt("amplifier", 0));
 				return context -> {
-					if (Math.random() > chance)
+					if (Math.random() > chance.evaluate(context))
 						return;
 					context.holder().addPotionEffect(potionEffect);
 				};
@@ -717,7 +720,7 @@ public class ActionManager implements ActionManagerInterface<Player> {
 						Sound.Source.valueOf(section.getString("source", "PLAYER").toUpperCase(Locale.ENGLISH)),
 						section.getDouble("volume", 1.0).floatValue(), section.getDouble("pitch", 1.0).floatValue());
 				return context -> {
-					if (Math.random() > chance)
+					if (Math.random() > chance.evaluate(context))
 						return;
 					final Player player = context.holder();
 					instance.getAdventureManager().playSound(player, sound);
@@ -730,6 +733,25 @@ public class ActionManager implements ActionManagerInterface<Player> {
 		}, "sound");
 	}
 
+	private void registerParticleAction() {
+		registerAction((args, chance) -> {
+			if (args instanceof Section section) {
+				Effect effect = Effect.valueOf(section.getString("key"));
+				int count = section.getInt("count");
+				return context -> {
+					if (Math.random() > chance.evaluate(context))
+						return;
+					final Player player = context.holder();
+					player.getWorld().playEffect(player.getLocation(), effect, count);
+				};
+			} else {
+				instance.getPluginLogger().warn("Invalid value type: " + args.getClass().getSimpleName()
+						+ " found at particle action which is expected to be `Section`");
+				return Action.empty();
+			}
+		}, "particle");
+	}
+
 	private void registerPluginExpAction() {
 		registerAction((args, chance) -> {
 			if (args instanceof Section section) {
@@ -737,7 +759,7 @@ public class ActionManager implements ActionManagerInterface<Player> {
 				MathValue<Player> value = MathValue.auto(section.get("exp"));
 				String target = section.getString("target");
 				return context -> {
-					if (Math.random() > chance)
+					if (Math.random() > chance.evaluate(context))
 						return;
 					Optional.ofNullable(instance.getIntegrationManager().getLevelerProvider(pluginName))
 							.ifPresentOrElse(it -> {
@@ -762,7 +784,7 @@ public class ActionManager implements ActionManagerInterface<Player> {
 				int stay = section.getInt("stay", 30);
 				int fadeOut = section.getInt("fade-out", 10);
 				return context -> {
-					if (Math.random() > chance)
+					if (Math.random() > chance.evaluate(context))
 						return;
 					final Player player = context.holder();
 					instance.getAdventureManager().sendTitle(player, title.render(context), subtitle.render(context),
@@ -786,7 +808,7 @@ public class ActionManager implements ActionManagerInterface<Player> {
 				int stay = section.getInt("stay", 30);
 				int fadeOut = section.getInt("fade-out", 10);
 				return context -> {
-					if (Math.random() > chance)
+					if (Math.random() > chance.evaluate(context))
 						return;
 					TextValue<Player> title = TextValue
 							.auto(titles.get(RandomUtils.generateRandomInt(0, titles.size() - 1)));
@@ -811,7 +833,7 @@ public class ActionManager implements ActionManagerInterface<Player> {
 				int fadeOut = section.getInt("fade-out", 10);
 				int range = section.getInt("range", 0);
 				return context -> {
-					if (Math.random() > chance)
+					if (Math.random() > chance.evaluate(context))
 						return;
 					Location location = requireNonNull(context.arg(ContextKeys.LOCATION));
 					for (Player player : location.getWorld().getPlayers()) {
@@ -848,7 +870,7 @@ public class ActionManager implements ActionManagerInterface<Player> {
 				boolean useItemDisplay = section.getBoolean("use-item-display", false);
 				String finalItemID = itemID;
 				return context -> {
-					if (Math.random() > chance)
+					if (Math.random() > chance.evaluate(context))
 						return;
 					Player owner = context.holder();
 					Location location = position ? requireNonNull(context.arg(ContextKeys.OTHER_LOCATION)).clone()
@@ -921,7 +943,7 @@ public class ActionManager implements ActionManagerInterface<Player> {
 				int range = section.getInt("range", 16);
 				boolean useTextDisplay = section.getBoolean("use-text-display", false);
 				return context -> {
-					if (Math.random() > chance)
+					if (Math.random() > chance.evaluate(context))
 						return;
 					Player owner = context.holder();
 					Location location = position ? requireNonNull(context.arg(ContextKeys.OTHER_LOCATION)).clone()
@@ -958,7 +980,7 @@ public class ActionManager implements ActionManagerInterface<Player> {
 				surrounding = (String) args;
 			}
 			return context -> {
-				if (Math.random() > chance)
+				if (Math.random() > chance.evaluate(context))
 					return;
 				String previous = context.arg(ContextKeys.SURROUNDING);
 				context.arg(ContextKeys.SURROUNDING, surrounding);

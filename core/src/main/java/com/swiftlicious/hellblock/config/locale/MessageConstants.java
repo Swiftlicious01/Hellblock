@@ -13,6 +13,14 @@ public interface MessageConstants {
 			.key("command.hellblock.not_owner");
 	TranslatableComponent.Builder MSG_HELLBLOCK_IS_ABANDONED = Component.translatable()
 			.key("command.hellblock.is_abandoned");
+	TranslatableComponent.Builder MSG_HELLBLOCK_RESET_ON_COOLDOWN = Component.translatable()
+			.key("command.hellblock.reset_on_cooldown");
+	TranslatableComponent.Builder MSG_HELLBLOCK_CREATION_FAILURE_ALREADY_EXISTS = Component.translatable()
+			.key("command.hellblock.creation.failure.already_exists");
+	TranslatableComponent.Builder MSG_HELLBLOCK_OPEN_SUCCESS = Component.translatable()
+			.key("command.hellblock.open.success");
+	TranslatableComponent.Builder MSG_HELLBLOCK_OPEN_FAILURE_NOT_LOADED = Component.translatable()
+			.key("command.hellblock.open.failure.not_loaded");
 
 	TranslatableComponent.Builder FORMAT_SECOND = Component.translatable().key("format.second");
 	TranslatableComponent.Builder FORMAT_MINUTE = Component.translatable().key("format.minute");
@@ -78,17 +86,4 @@ public interface MessageConstants {
 			.key("command.debug.loot.success");
 	TranslatableComponent.Builder COMMAND_DEBUG_LOOT_FAILURE_NO_LOOT = Component.translatable()
 			.key("command.debug.loot.failure.no_loot");
-
-	TranslatableComponent.Builder GUI_SCROLL_UP = Component.translatable().key("gui.scroll_up");
-	TranslatableComponent.Builder GUI_SCROLL_DOWN = Component.translatable().key("gui.scroll_down");
-	TranslatableComponent.Builder GUI_CANNOT_SCROLL_UP = Component.translatable().key("gui.cannot_scroll_up");
-	TranslatableComponent.Builder GUI_CANNOT_SCROLL_DOWN = Component.translatable().key("gui.cannot_scroll_down");
-	TranslatableComponent.Builder GUI_NEXT_PAGE = Component.translatable().key("gui.next_page");
-	TranslatableComponent.Builder GUI_GOTO_NEXT_PAGE = Component.translatable().key("gui.goto_next_page");
-	TranslatableComponent.Builder GUI_CANNOT_GOTO_NEXT_PAGE = Component.translatable().key("gui.cannot_goto_next_page");
-	TranslatableComponent.Builder GUI_PREVIOUS_PAGE = Component.translatable().key("gui.previous_page");
-	TranslatableComponent.Builder GUI_GOTO_PREVIOUS_PAGE = Component.translatable().key("gui.goto_previous_page");
-	TranslatableComponent.Builder GUI_CANNOT_GOTO_PREVIOUS_PAGE = Component.translatable()
-			.key("gui.cannot_goto_previous_page");
-	TranslatableComponent.Builder GUI_BACK_TO_PARENT_PAGE = Component.translatable().key("gui.back_to_parent_page");
 }

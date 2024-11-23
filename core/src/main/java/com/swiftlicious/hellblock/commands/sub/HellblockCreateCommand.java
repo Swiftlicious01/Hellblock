@@ -11,8 +11,9 @@ import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.commands.BukkitCommandFeature;
 import com.swiftlicious.hellblock.commands.HellblockCommandManager;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
-import com.swiftlicious.hellblock.gui.hellblock.IslandChoiceMenu;
 import com.swiftlicious.hellblock.player.UserData;
+
+import net.kyori.adventure.text.Component;
 
 public class HellblockCreateCommand extends BukkitCommandFeature<CommandSender> {
 
@@ -28,19 +29,17 @@ public class HellblockCreateCommand extends BukkitCommandFeature<CommandSender> 
 			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 					.getOnlineUser(player.getUniqueId());
 			if (onlineUser.isEmpty()) {
-				HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-						"<red>Still loading your player data... please try again in a few seconds.");
+				handleFeedback(context, MessageConstants.COMMAND_DATA_FAILURE_NOT_LOADED);
 				return;
 			}
 			if (!onlineUser.get().getHellblockData().hasHellblock()) {
 				if (onlineUser.get().getHellblockData().getResetCooldown() > 0) {
-					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-							String.format("<red>You've recently reset your hellblock already, you must wait for %s!",
-									HellblockPlugin.getInstance().getFormattedCooldown(
-											onlineUser.get().getHellblockData().getResetCooldown())));
+					handleFeedback(context, MessageConstants.MSG_HELLBLOCK_RESET_ON_COOLDOWN,
+							Component.text(HellblockPlugin.getInstance()
+									.getFormattedCooldown(onlineUser.get().getHellblockData().getResetCooldown())));
 					return;
 				}
-				new IslandChoiceMenu(player, false);
+				// TODO: stuff
 			} else {
 				if (onlineUser.get().getHellblockData().getOwnerUUID() == null) {
 					throw new NullPointerException(
@@ -52,19 +51,13 @@ public class HellblockCreateCommand extends BukkitCommandFeature<CommandSender> 
 						.thenAccept((result) -> {
 							UserData offlineUser = result.orElseThrow();
 							if (offlineUser.getHellblockData().isAbandoned()) {
-								HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
-										HellblockPlugin.getInstance().getTranslationManager().miniMessageTranslation(
-												MessageConstants.MSG_HELLBLOCK_IS_ABANDONED.build().key()));
+								handleFeedback(context, MessageConstants.MSG_HELLBLOCK_IS_ABANDONED);
 								return;
 							}
-							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-									"<red>You already have a hellblock or are in a co-op! Use <dark_red>/hellblock home <red>to teleport to it.");
-							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-									"<red>If you wish to leave use <dark_red>/hellcoop leave <red>to leave and start your own.");
-							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player, String.format(
-									"<red>Your hellblock is located at x: <dark_red>%s <red>z: <dark_red>%s<red>.",
-									offlineUser.getHellblockData().getHellblockLocation().getBlockX(),
-									offlineUser.getHellblockData().getHellblockLocation().getBlockZ()));
+							
+							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_CREATION_FAILURE_ALREADY_EXISTS,
+									Component.text(offlineUser.getHellblockData().getHellblockLocation().getBlockX()),
+									Component.text(offlineUser.getHellblockData().getHellblockLocation().getBlockZ()));
 						});
 			}
 		});
@@ -74,5 +67,4 @@ public class HellblockCreateCommand extends BukkitCommandFeature<CommandSender> 
 	public String getFeatureID() {
 		return "hellblock_create";
 	}
-
 }

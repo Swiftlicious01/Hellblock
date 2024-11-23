@@ -38,11 +38,11 @@ import com.swiftlicious.hellblock.listeners.generator.GenMode;
 import com.swiftlicious.hellblock.listeners.generator.GenPiston;
 import com.swiftlicious.hellblock.listeners.generator.GeneratorManager;
 import com.swiftlicious.hellblock.listeners.generator.GeneratorModeManager;
+import com.swiftlicious.hellblock.nms.fluid.FallingFluidData;
+import com.swiftlicious.hellblock.nms.fluid.FluidData;
 import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.utils.StringUtils;
 
-import io.papermc.paper.block.fluid.FluidData;
-import io.papermc.paper.block.fluid.type.FlowingFluidData;
 import lombok.Getter;
 import lombok.NonNull;
 import net.kyori.adventure.key.Key;
@@ -289,22 +289,21 @@ public class NetherrackGenerator implements Listener {
 	}
 
 	private boolean isSource(@NonNull Block block) {
-		FluidData lava = block.getWorld().getFluidData(block.getLocation());
+		FluidData lava = instance.getVersionManager().getNMSManager().getFluidData(block.getLocation());
 		boolean isLava = lava.getFluidType() == Fluid.LAVA || lava.getFluidType() == Fluid.FLOWING_LAVA;
 		boolean isLavaSource = isLava && lava.isSource();
 		return isLavaSource;
 	}
 
 	private boolean isFlowing(@NonNull Block block) {
-		FluidData lava = block.getWorld().getFluidData(block.getLocation());
+		FluidData lava = instance.getVersionManager().getNMSManager().getFluidData(block.getLocation());
 		boolean isLava = lava.getFluidType() == Fluid.LAVA || lava.getFluidType() == Fluid.FLOWING_LAVA;
-		boolean isLavaFlowing = isLava && (lava instanceof FlowingFluidData flowing) && !flowing.isSource()
-				&& !flowing.isFalling();
+		boolean isLavaFlowing = isLava && (!(lava instanceof FallingFluidData)) && !lava.isSource();
 		return isLavaFlowing;
 	}
 
 	private @Nullable Vector getFlowDirection(@NonNull Block block) {
-		FluidData lava = block.getWorld().getFluidData(block.getLocation());
+		FluidData lava = instance.getVersionManager().getNMSManager().getFluidData(block.getLocation());
 		boolean isLava = lava.getFluidType() == Fluid.LAVA || lava.getFluidType() == Fluid.FLOWING_LAVA;
 		if (isLava) {
 			return lava.computeFlowDirection(block.getLocation());

@@ -10,8 +10,8 @@ import com.swiftlicious.hellblock.config.parser.function.EventParserFunction;
 import com.swiftlicious.hellblock.config.parser.function.ItemParserFunction;
 import com.swiftlicious.hellblock.config.parser.function.LootParserFunction;
 import com.swiftlicious.hellblock.creation.item.Item;
-import com.swiftlicious.hellblock.creation.item.LavaFishingItem;
-import com.swiftlicious.hellblock.creation.item.LavaFishingItemInterface;
+import com.swiftlicious.hellblock.creation.item.CustomItem;
+import com.swiftlicious.hellblock.creation.item.CustomItemInterface;
 import com.swiftlicious.hellblock.handlers.EventCarrier;
 import com.swiftlicious.hellblock.handlers.EventCarrierInterface;
 import com.swiftlicious.hellblock.loot.Loot;
@@ -96,8 +96,8 @@ public class ItemConfigParser {
 		}
 	}
 
-	public LavaFishingItem getItem() {
-		return LavaFishingItemInterface.builder().material(material).id(id).amount(amount).tagConsumers(tagConsumers).build();
+	public CustomItem getItem() {
+		return CustomItemInterface.builder().material(material).id(id).amount(amount).tagConsumers(tagConsumers).build();
 	}
 
 	private LootBaseEffect getBaseEffect() {

@@ -33,6 +33,7 @@ public class VersionManager implements VersionManagerInterface {
 	private NMSHandler nmsManager;
 	private final List<String> supportedVersions;
 
+	@SuppressWarnings("deprecation")
 	public VersionManager(HellblockPlugin plugin) {
 		this.instance = plugin;
 
@@ -69,11 +70,11 @@ public class VersionManager implements VersionManagerInterface {
 			}
 		}
 		// Get the plugin version
-		this.pluginVersion = plugin.getPluginMeta().getVersion();
+		this.pluginVersion = plugin.getDescription().getVersion();
 		this.nmsManager = getNMSHandler();
 	}
 
-	public NMSHandler getNMSHandler() {
+	private NMSHandler getNMSHandler() {
 		String bukkitVersion = getServerVersion();
 		String packageName;
 		switch (bukkitVersion) {

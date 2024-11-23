@@ -80,17 +80,17 @@ public class HellblockVisitCommand extends BukkitCommandFeature<CommandSender> {
 					UUID id = Bukkit.getPlayer(user) != null ? Bukkit.getPlayer(user).getUniqueId()
 							: UUIDFetcher.getUUID(user);
 					if (id == null) {
-						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 								"<red>The player's hellblock you're trying to visit doesn't exist!");
 						return;
 					}
 					if (!Bukkit.getOfflinePlayer(id).hasPlayedBefore()) {
-						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 								"<red>The player's hellblock you're trying to visit doesn't exist!");
 						return;
 					}
 					if (HellblockPlugin.getInstance().getCoopManager().trackBannedPlayer(id, player.getUniqueId())) {
-						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 								"<red>You're banned from this hellblock island and can't visit it!");
 						return;
 					}
@@ -101,7 +101,7 @@ public class HellblockVisitCommand extends BukkitCommandFeature<CommandSender> {
 								if (id.equals(player.getUniqueId())
 										|| offlineUser.getHellblockData().getParty().contains(player.getUniqueId())) {
 									if (!onlineUser.get().getHellblockData().hasHellblock()) {
-										HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(
+										HellblockPlugin.getInstance().getAdventureManager().sendMessage(
 												player, "<red>That player doesn't have a hellblock!");
 										return;
 									}
@@ -116,7 +116,7 @@ public class HellblockVisitCommand extends BukkitCommandFeature<CommandSender> {
 												UserData ownerUser = owner.orElseThrow();
 												if (ownerUser.getHellblockData().isAbandoned()) {
 													HellblockPlugin.getInstance().getAdventureManager()
-															.sendMessageWithPrefix(player, HellblockPlugin.getInstance()
+															.sendMessage(player, HellblockPlugin.getInstance()
 																	.getTranslationManager().miniMessageTranslation(
 																			MessageConstants.MSG_HELLBLOCK_IS_ABANDONED
 																					.build().key()));
@@ -126,11 +126,11 @@ public class HellblockVisitCommand extends BukkitCommandFeature<CommandSender> {
 													HellblockPlugin.getInstance().getCoopManager()
 															.makeHomeLocationSafe(ownerUser, onlineUser.get())
 															.thenRun(() -> HellblockPlugin.getInstance()
-																	.getAdventureManager().sendMessageWithPrefix(player,
+																	.getAdventureManager().sendMessage(player,
 																			"<red>Teleporting you to your hellblock!"));
 												} else {
 													HellblockPlugin.getInstance().getAdventureManager()
-															.sendMessageWithPrefix(player,
+															.sendMessage(player,
 																	"<red>Error teleporting you to your hellblock!");
 													throw new NullPointerException(
 															"Hellblock home location returned null, please report this to the developer.");
@@ -151,7 +151,7 @@ public class HellblockVisitCommand extends BukkitCommandFeature<CommandSender> {
 												UserData ownerUser = owner.orElseThrow();
 												if (ownerUser.getHellblockData().isAbandoned()) {
 													HellblockPlugin.getInstance().getAdventureManager()
-															.sendMessageWithPrefix(player,
+															.sendMessage(player,
 																	"<red>This hellblock is abandoned, you can't visit it at this time!");
 													return;
 												}
@@ -167,7 +167,7 @@ public class HellblockVisitCommand extends BukkitCommandFeature<CommandSender> {
 																	if (!safe.booleanValue()) {
 																		HellblockPlugin.getInstance()
 																				.getAdventureManager()
-																				.sendMessageWithPrefix(player,
+																				.sendMessage(player,
 																						"<red>This hellblock is not safe to visit right now!");
 																		return;
 																	}
@@ -208,7 +208,7 @@ public class HellblockVisitCommand extends BukkitCommandFeature<CommandSender> {
 																				}
 																				HellblockPlugin.getInstance()
 																						.getAdventureManager()
-																						.sendMessageWithPrefix(player,
+																						.sendMessage(player,
 																								String.format(
 																										"<red>You are visiting <dark_red>%s<red>'s hellblock!",
 																										ownerUser
@@ -218,14 +218,14 @@ public class HellblockVisitCommand extends BukkitCommandFeature<CommandSender> {
 																});
 													} else {
 														HellblockPlugin.getInstance().getAdventureManager()
-																.sendMessageWithPrefix(player,
+																.sendMessage(player,
 																		"<red>Error teleporting you to this hellblock!");
 														throw new NullPointerException(
 																"Hellblock home location returned null, please report this to the developer.");
 													}
 												} else {
 													HellblockPlugin.getInstance().getAdventureManager()
-															.sendMessageWithPrefix(player, String.format(
+															.sendMessage(player, String.format(
 																	"<red>The player <dark_red>%s<red>'s hellblock is currently locked from having visitors!",
 																	user));
 													return;
@@ -233,7 +233,7 @@ public class HellblockVisitCommand extends BukkitCommandFeature<CommandSender> {
 											});
 								}
 
-								HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+								HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 										"<red>That player doesn't have a hellblock!");
 								return;
 							});

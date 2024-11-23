@@ -32,7 +32,7 @@ public class HellblockHomeCommand extends BukkitCommandFeature<CommandSender> {
 				return;
 			}
 			if (!onlineUser.get().getHellblockData().hasHellblock()) {
-				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+				HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 						HellblockPlugin.getInstance().getTranslationManager()
 								.miniMessageTranslation(MessageConstants.MSG_HELLBLOCK_NOT_FOUND.build().key()));
 				return;
@@ -47,7 +47,7 @@ public class HellblockHomeCommand extends BukkitCommandFeature<CommandSender> {
 						.thenAccept((owner) -> {
 							UserData ownerUser = owner.orElseThrow();
 							if (ownerUser.getHellblockData().isAbandoned()) {
-								HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+								HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 										HellblockPlugin.getInstance().getTranslationManager().miniMessageTranslation(
 												MessageConstants.MSG_HELLBLOCK_IS_ABANDONED.build().key()));
 								return;
@@ -56,10 +56,10 @@ public class HellblockHomeCommand extends BukkitCommandFeature<CommandSender> {
 								HellblockPlugin.getInstance().getCoopManager()
 										.makeHomeLocationSafe(ownerUser, onlineUser.get())
 										.thenRun(() -> HellblockPlugin.getInstance().getAdventureManager()
-												.sendMessageWithPrefix(player,
+												.sendMessage(player,
 														"<red>Teleporting you to your hellblock!"));
 							} else {
-								HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+								HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 										"<red>Error teleporting you to your hellblock!");
 								throw new NullPointerException(
 										"Hellblock home location returned null, please report this to the developer.");

@@ -1,11 +1,9 @@
 package com.swiftlicious.hellblock;
 
 import java.lang.reflect.Method;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -21,13 +19,8 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.HandlerList;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.potion.PotionEffectType;
-import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import com.comphenix.protocol.PacketType;
-import com.comphenix.protocol.ProtocolLibrary;
-import com.comphenix.protocol.ProtocolManager;
-import com.comphenix.protocol.events.PacketContainer;
 import com.swiftlicious.hellblock.api.compatibility.Metrics;
 import com.swiftlicious.hellblock.api.compatibility.WorldEditHook;
 import com.swiftlicious.hellblock.api.compatibility.WorldGuardHook;
@@ -52,6 +45,7 @@ import com.swiftlicious.hellblock.generation.BiomeHandler;
 import com.swiftlicious.hellblock.generation.HellblockHandler;
 import com.swiftlicious.hellblock.generation.IslandChoiceConverter;
 import com.swiftlicious.hellblock.generation.IslandGenerator;
+import com.swiftlicious.hellblock.gui.hellblock.HellblockGUIManager;
 import com.swiftlicious.hellblock.gui.market.MarketManager;
 import com.swiftlicious.hellblock.handlers.ActionManager;
 import com.swiftlicious.hellblock.handlers.AdventureManager;
@@ -127,8 +121,6 @@ public class HellblockPlugin extends JavaPlugin {
 	protected PluginLogger pluginLogger;
 	protected SenderFactory<HellblockPlugin, CommandSender> senderFactory;
 
-	protected ProtocolManager protocolManager;
-
 	protected AbstractJavaScheduler<Location> scheduler;
 	protected LootManager lootManager;
 	protected ActionManager actionManager;
@@ -148,6 +140,7 @@ public class HellblockPlugin extends JavaPlugin {
 	protected IntegrationManager integrationManager;
 	protected StatisticsManager statisticsManager;
 	protected MarketManager marketManager;
+	protected HellblockGUIManager hellblockGUIManager;
 	protected VersionManager versionManager;
 	protected StorageManager storageManager;
 	protected DependencyManager dependencyManager;
@@ -172,20 +165,12 @@ public class HellblockPlugin extends JavaPlugin {
 
 	@Override
 	public void onEnable() {
-		if (!isHookedPluginEnabled("ProtocolLib")) {
-			getPluginLogger().severe("ProtocolLib is a dependency to function properly, Disabling plugin...");
-			Bukkit.getPluginManager().disablePlugin(this);
-			return;
-		}
-
 		double startTime = System.currentTimeMillis();
-
-		this.protocolManager = ProtocolLibrary.getProtocolManager();
 
 		// TODO: possible backwards support up to 1.17
 		if (!this.versionManager.getSupportedVersions().contains(this.versionManager.getServerVersion())) {
 			getPluginLogger().severe(
-					"Hellblock currently only works on v1.17+ servers. If you need support for a legacy version please suggest this to me.");
+					"Hellblock only supports legacy versions down to 1.17. Please update your server to be able to properly use this plugin.");
 			getPluginLogger().severe("Disabling plugin...");
 			Bukkit.getPluginManager().disablePlugin(this);
 			return;
@@ -230,6 +215,7 @@ public class HellblockPlugin extends JavaPlugin {
 		this.itemManager = new ItemManager(this);
 		this.lootManager = new LootManager(this);
 		this.marketManager = new MarketManager(this);
+		this.hellblockGUIManager = new HellblockGUIManager(this);
 		this.entityManager = new EntityManager(this);
 		this.placeholderManager = new PlaceholderManager(this);
 		this.requirementManager = new RequirementManager(this);
@@ -395,6 +381,8 @@ public class HellblockPlugin extends JavaPlugin {
 			this.lootManager.disable();
 		if (this.marketManager != null)
 			this.marketManager.disable();
+		if (this.hellblockGUIManager != null)
+			this.hellblockGUIManager.disable();
 		if (this.entityManager != null)
 			this.entityManager.disable();
 		if (this.requirementManager != null)
@@ -431,6 +419,7 @@ public class HellblockPlugin extends JavaPlugin {
 		this.configManager.reload();
 		this.debugger = getConfigManager().debug() ? (s) -> pluginLogger.info("[DEBUG] " + s.get()) : (s) -> {
 		};
+		this.worldGuardHandler.reload();
 		this.requirementManager.reload();
 		this.actionManager.reload();
 		this.statisticsManager.reload();
@@ -440,6 +429,7 @@ public class HellblockPlugin extends JavaPlugin {
 		this.fishingManager.reload();
 		this.effectManager.reload();
 		this.marketManager.reload();
+		this.hellblockGUIManager.reload();
 		this.blockManager.reload();
 		this.entityManager.reload();
 		this.storageManager.reload();
@@ -461,17 +451,13 @@ public class HellblockPlugin extends JavaPlugin {
 		long hours = (seconds - seconds % 3600) / 3600;
 		long minutes = (seconds % 3600 - seconds % 3600 % 60) / 60;
 		seconds = seconds % 3600 % 60;
-		String formattedTime = String.format("%s%s%s", hours > 0
-				? hours + getTranslationManager().miniMessageTranslation(MessageConstants.FORMAT_HOUR.build().key())
-				: "",
-				minutes > 0
-						? minutes + getTranslationManager()
-								.miniMessageTranslation(MessageConstants.FORMAT_MINUTE.build().key())
-						: "",
-				seconds > 0
-						? seconds + getTranslationManager()
-								.miniMessageTranslation(MessageConstants.FORMAT_SECOND.build().key())
-						: "");
+		String hourFormat = getTranslationManager().miniMessageTranslation(MessageConstants.FORMAT_HOUR.build().key());
+		String minuteFormat = getTranslationManager()
+				.miniMessageTranslation(MessageConstants.FORMAT_MINUTE.build().key());
+		String secondFormat = getTranslationManager()
+				.miniMessageTranslation(MessageConstants.FORMAT_SECOND.build().key());
+		String formattedTime = String.format("%s%s%s", hours > 0 ? hours + hourFormat : "",
+				minutes > 0 ? minutes + minuteFormat : "", seconds > 0 ? seconds + secondFormat : "");
 		return formattedTime;
 	}
 
@@ -513,26 +499,5 @@ public class HellblockPlugin extends JavaPlugin {
 			return plugin.getName();
 		}
 		return null;
-	}
-
-	/**
-	 * Retrieves the ProtocolManager instance used for managing packets.
-	 *
-	 * @return The ProtocolManager instance.
-	 */
-	@NotNull
-	public @NonNull ProtocolManager getProtocolManager() {
-		return this.protocolManager;
-	}
-
-	public void sendPacket(@NonNull Player player, @NonNull PacketContainer packet) {
-		this.protocolManager.sendServerPacket(player, packet);
-	}
-
-	public void sendPackets(@NonNull Player player, @NonNull PacketContainer... packets) {
-		List<PacketContainer> bundle = new ArrayList<>(Arrays.asList(packets));
-		PacketContainer bundlePacket = new PacketContainer(PacketType.Play.Server.BUNDLE);
-		bundlePacket.getPacketBundles().write(0, bundle);
-		sendPacket(player, bundlePacket);
 	}
 }

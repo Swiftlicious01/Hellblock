@@ -8,18 +8,23 @@ import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
 
+import org.apache.commons.lang3.StringUtils;
 import org.bukkit.Bukkit;
 import org.bukkit.GameRule;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.block.Block;
-import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
+import org.bukkit.event.Event.Result;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockDispenseArmorEvent;
 import org.bukkit.event.inventory.CraftItemEvent;
+import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.PrepareItemCraftEvent;
+import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.player.PlayerItemBreakEvent;
 import org.bukkit.inventory.CraftingRecipe;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.Recipe;
@@ -28,16 +33,14 @@ import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.jetbrains.annotations.Nullable;
 
-import com.destroystokyo.paper.event.player.PlayerArmorChangeEvent;
 import com.saicone.rtag.RtagItem;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.challenges.HellblockChallenge.ChallengeType;
+import com.swiftlicious.hellblock.creation.item.Item;
 import com.swiftlicious.hellblock.player.UserData;
-import com.swiftlicious.hellblock.utils.wrappers.ShadedAdventureComponentWrapper;
+import com.swiftlicious.hellblock.utils.extras.Key;
 
 import dev.dejvokep.boostedyaml.block.implementation.Section;
-import xyz.xenondevs.inventoryaccess.component.ComponentWrapper;
-import xyz.xenondevs.invui.item.builder.ItemBuilder;
 
 public class NetherArmor implements Listener {
 
@@ -84,37 +87,33 @@ public class NetherArmor implements Listener {
 					if (entry.getKey().equals("enable") || entry.getKey().equals("night-vision"))
 						continue;
 					String armorType = entry.getKey();
-					ItemBuilder armor = new ItemBuilder(Material
-							.getMaterial(mat.getArmorIdentifier().toUpperCase() + "_" + armorType.toUpperCase()), 1);
-					if (armor.getMaterial() == null)
+					Material material = Material
+							.getMaterial(mat.getArmorIdentifier().toUpperCase() + "_" + armorType.toUpperCase());
+					if (material == null)
 						continue;
+					Item<ItemStack> armor = instance.getItemManager().wrap(new ItemStack(material, 1));
 
 					if (entry.getValue() instanceof Section inner) {
-						armor.setDisplayName(new ShadedAdventureComponentWrapper(
-								instance.getAdventureManager().getComponentFromMiniMessage(inner.getString("name"))));
+						armor.displayName(instance.getAdventureManager().miniMessageToJson(inner.getString("name")));
 
-						List<ComponentWrapper> lore = new ArrayList<>();
+						List<String> lore = new ArrayList<>();
 						for (String newLore : inner.getStringList("lore")) {
-							lore.add(new ShadedAdventureComponentWrapper(
-									instance.getAdventureManager().getComponentFromMiniMessage(newLore)));
+							lore.add(instance.getAdventureManager().miniMessageToJson(newLore));
 						}
-						armor.setLore(lore);
+						armor.lore(lore);
 
-						for (String enchants : inner.getStringList("enchantments")) {
-							String[] split = enchants.split(":");
-							Enchantment enchantment = instance.getHellblockHandler().getEnchantmentRegistry()
-									.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
-							int level = 1;
-							try {
-								level = Integer.parseInt(split[1]);
-							} catch (NumberFormatException ex) {
-								instance.getPluginLogger().severe(String.format("Invalid quantity: %s!", split[1]));
+						for (Entry<String, Object> enchants : inner.getSection("enchantments")
+								.getStringRouteMappedValues(false).entrySet()) {
+							if (!StringUtils.isNumeric(enchants.getKey()))
 								continue;
+							if (enchants.getValue() instanceof Section enchantInner) {
+								String enchant = enchantInner.getString("enchant");
+								int level = enchantInner.getInt("level");
+								armor.addEnchantment(Key.fromString(enchant), level);
 							}
-							armor.addEnchantment(enchantment, level, false);
 						}
 
-						ItemStack data = setArmorData(armor.get(), armorSection.getBoolean("enable"));
+						ItemStack data = setArmorData(armor.getItem(), armorSection.getBoolean("enable"));
 						if (mat.getMaterial() == Material.GLOWSTONE)
 							data = setNightVisionArmorStatus(data, armorSection.getBoolean("night-vision"));
 
@@ -238,37 +237,33 @@ public class NetherArmor implements Listener {
 	}
 
 	@EventHandler
-	public void onArmorChange(PlayerArmorChangeEvent event) {
+	public void onArmorChange(InventoryCloseEvent event) {
 		if (!instance.getConfigManager().nightVisionArmor() || !instance.getConfigManager().glowstoneArmor())
 			return;
 
-		Player player = event.getPlayer();
+		if (event.getPlayer() instanceof Player player) {
+			if (!player.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+				return;
+			Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
+			if (onlineUser.isEmpty())
+				return;
 
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
-			return;
-
-		Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
-		if (onlineUser.isEmpty())
-			return;
-
-		ItemStack armor = event.getNewItem();
-		if (armor != null && armor.getType() != Material.AIR) {
-			if (checkNightVisionArmorStatus(armor) && getNightVisionArmorStatus(armor)) {
+			ItemStack[] armorSet = player.getInventory().getArmorContents();
+			boolean checkArmor = false;
+			if (armorSet != null) {
+				for (ItemStack item : armorSet) {
+					if (item == null || item.getType() == Material.AIR)
+						continue;
+					if (checkNightVisionArmorStatus(item) && getNightVisionArmorStatus(item)) {
+						checkArmor = true;
+						break;
+					}
+				}
+			}
+			if (checkArmor) {
 				player.addPotionEffect(new PotionEffect(PotionEffectType.NIGHT_VISION, Integer.MAX_VALUE, 1));
 				onlineUser.get().isWearingGlowstoneArmor(true);
 			} else {
-				ItemStack[] armorSet = player.getInventory().getArmorContents();
-				boolean checkArmor = false;
-				if (armorSet != null) {
-					for (ItemStack item : armorSet) {
-						if (item == null || item.getType() == Material.AIR)
-							continue;
-						if (checkNightVisionArmorStatus(item) && getNightVisionArmorStatus(item)) {
-							checkArmor = true;
-							break;
-						}
-					}
-				}
 				if (!checkArmor && onlineUser.get().hasGlowstoneArmorEffect()) {
 					if (player.hasPotionEffect(PotionEffectType.NIGHT_VISION)) {
 						onlineUser.get().isWearingGlowstoneArmor(false);
@@ -278,7 +273,65 @@ public class NetherArmor implements Listener {
 					}
 				}
 			}
-		} else {
+		}
+	}
+
+	@EventHandler
+	public void onArmorEquip(PlayerInteractEvent event) {
+		if (!instance.getConfigManager().nightVisionArmor() || !instance.getConfigManager().glowstoneArmor())
+			return;
+		if (event.useItemInHand() == Result.DENY)
+			return;
+		final Player player = event.getPlayer();
+		if (!player.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+			return;
+		if (!(event.getAction() == Action.RIGHT_CLICK_AIR || event.getAction() == Action.RIGHT_CLICK_BLOCK))
+			return;
+		Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
+		if (onlineUser.isEmpty())
+			return;
+		final ItemStack armor = event.getItem();
+		if (armor != null && armor.getType() != Material.AIR) {
+			if (checkNightVisionArmorStatus(armor) && getNightVisionArmorStatus(armor)) {
+				player.addPotionEffect(new PotionEffect(PotionEffectType.NIGHT_VISION, Integer.MAX_VALUE, 1));
+				onlineUser.get().isWearingGlowstoneArmor(true);
+			}
+
+			ItemStack[] armorSet = player.getInventory().getArmorContents();
+			boolean checkArmor = false;
+			if (armorSet != null) {
+				for (ItemStack item : armorSet) {
+					if (item == null || item.getType() == Material.AIR)
+						continue;
+					if (checkNightVisionArmorStatus(item) && getNightVisionArmorStatus(item)) {
+						checkArmor = true;
+						break;
+					}
+				}
+			}
+			if (!checkArmor && onlineUser.get().hasGlowstoneArmorEffect()) {
+				if (player.hasPotionEffect(PotionEffectType.NIGHT_VISION)) {
+					onlineUser.get().isWearingGlowstoneArmor(false);
+					if (!onlineUser.get().hasGlowstoneToolEffect()) {
+						player.removePotionEffect(PotionEffectType.NIGHT_VISION);
+					}
+				}
+			}
+		}
+	}
+
+	@EventHandler
+	public void onArmorBreak(PlayerItemBreakEvent event) {
+		if (!instance.getConfigManager().nightVisionArmor() || !instance.getConfigManager().glowstoneArmor())
+			return;
+		final Player player = event.getPlayer();
+		if (!player.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+			return;
+		Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
+		if (onlineUser.isEmpty())
+			return;
+		ItemStack armor = event.getBrokenItem();
+		if (checkNightVisionArmorStatus(armor) && getNightVisionArmorStatus(armor)) {
 			ItemStack[] armorSet = player.getInventory().getArmorContents();
 			boolean checkArmor = false;
 			if (armorSet != null) {

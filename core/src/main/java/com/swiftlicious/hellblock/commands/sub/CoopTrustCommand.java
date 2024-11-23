@@ -73,31 +73,31 @@ public class CoopTrustCommand extends BukkitCommandFeature<CommandSender> {
 						}
 						if (onlineUser.get().getHellblockData().getOwnerUUID() != null
 								&& !onlineUser.get().getHellblockData().getOwnerUUID().equals(player.getUniqueId())) {
-							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 									HellblockPlugin.getInstance().getTranslationManager().miniMessageTranslation(
 											MessageConstants.MSG_NOT_OWNER_OF_HELLBLOCK.build().key()));
 							return;
 						}
 						if (onlineUser.get().getHellblockData().isAbandoned()) {
-							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 									HellblockPlugin.getInstance().getTranslationManager().miniMessageTranslation(
 											MessageConstants.MSG_HELLBLOCK_IS_ABANDONED.build().key()));
 							return;
 						}
 						Player user = context.get("player");
 						if (user == null || !user.isOnline()) {
-							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 									"<red>The player you entered is either not online or doesn't exist!");
 							return;
 						}
 						UUID id = user.getUniqueId();
 						if (id.equals(player.getUniqueId())) {
-							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 									"<red>You can't do this to yourself!");
 							return;
 						}
 						if (onlineUser.get().getHellblockData().getParty().contains(id)) {
-							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 									"<red>The player you're trying to apply this to is already a member of your party!");
 							return;
 						}
@@ -110,21 +110,21 @@ public class CoopTrustCommand extends BukkitCommandFeature<CommandSender> {
 							return;
 						}
 						if (trustedPlayer.get().getHellblockData().getTrusted().contains(player.getUniqueId())) {
-							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 									"<red>This player is already trusted on your hellblock!");
 							return;
 						}
 						trustedPlayer.get().getHellblockData().addTrustPermission(player.getUniqueId());
 						HellblockPlugin.getInstance().getCoopManager().addTrustAccess(onlineUser.get(), user.getName(),
 								id);
-						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 								String.format("<red>You've given trust access to <dark_red>%s <red>on your hellblock!",
 										user.getName()));
-						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(user,
+						HellblockPlugin.getInstance().getAdventureManager().sendMessage(user,
 								String.format("<red>You've been given trust access to <dark_red>%s<red>'s hellblock!",
 										player.getName()));
 					} else {
-						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 								HellblockPlugin.getInstance().getTranslationManager().miniMessageTranslation(
 										MessageConstants.MSG_HELLBLOCK_NOT_FOUND.build().key()));
 						return;

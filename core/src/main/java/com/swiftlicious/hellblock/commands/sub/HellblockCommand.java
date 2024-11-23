@@ -10,7 +10,7 @@ import org.incendo.cloud.CommandManager;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.commands.BukkitCommandFeature;
 import com.swiftlicious.hellblock.commands.HellblockCommandManager;
-import com.swiftlicious.hellblock.gui.hellblock.HellblockMenu;
+import com.swiftlicious.hellblock.config.locale.MessageConstants;
 import com.swiftlicious.hellblock.player.UserData;
 
 public class HellblockCommand extends BukkitCommandFeature<CommandSender> {
@@ -27,11 +27,34 @@ public class HellblockCommand extends BukkitCommandFeature<CommandSender> {
 			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 					.getOnlineUser(player.getUniqueId());
 			if (onlineUser.isEmpty()) {
-				HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-						"<red>Still loading your player data... please try again in a few seconds.");
+				handleFeedback(context, MessageConstants.COMMAND_DATA_FAILURE_NOT_LOADED);
 				return;
 			}
-			new HellblockMenu(player);
+			if (onlineUser.get().getHellblockData().hasHellblock()) {
+				if (onlineUser.get().getHellblockData().getOwnerUUID() == null) {
+					throw new NullPointerException(
+							"Owner reference returned null, please report this to the developer.");
+				}
+				HellblockPlugin.getInstance().getStorageManager()
+						.getOfflineUserData(onlineUser.get().getHellblockData().getOwnerUUID(),
+								HellblockPlugin.getInstance().getConfigManager().lockData())
+						.thenAccept((result) -> {
+							UserData offlineUser = result.orElseThrow();
+							if (offlineUser.getHellblockData().isAbandoned()) {
+								handleFeedback(context, MessageConstants.MSG_HELLBLOCK_IS_ABANDONED);
+								return;
+							}
+						}).thenRun(() -> {
+							if (HellblockPlugin.getInstance().getHellblockGUIManager().openHellblockGUI(player,
+									onlineUser.get().getHellblockData().getOwnerUUID().equals(player.getUniqueId()))) {
+								handleFeedback(context, MessageConstants.MSG_HELLBLOCK_OPEN_SUCCESS);
+							} else {
+								handleFeedback(context, MessageConstants.MSG_HELLBLOCK_OPEN_FAILURE_NOT_LOADED);
+							}
+						});
+			} else {
+
+			}
 		});
 	}
 

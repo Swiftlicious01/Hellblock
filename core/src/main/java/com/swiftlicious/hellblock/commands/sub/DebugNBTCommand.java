@@ -29,7 +29,7 @@ public class DebugNBTCommand extends BukkitCommandFeature<CommandSender> {
 			final Player player = context.sender();
 			ItemStack item = player.getInventory().getItemInMainHand();
 			if (item.getType() == Material.AIR) {
-				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+				HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 						"<red>Please hold an item to check its NBT tag data.");
 				return;
 			}

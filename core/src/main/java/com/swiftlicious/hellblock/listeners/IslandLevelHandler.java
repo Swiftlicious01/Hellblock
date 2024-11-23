@@ -448,7 +448,7 @@ public class IslandLevelHandler implements Listener {
 								UserData offlineUser = result.orElseThrow();
 								if (offlineUser.getHellblockData().isAbandoned()) {
 									if (Bukkit.getPlayer(id) != null)
-										instance.getAdventureManager().sendMessageWithPrefix(Bukkit.getPlayer(id),
+										instance.getAdventureManager().sendMessage(Bukkit.getPlayer(id),
 												instance.getTranslationManager().miniMessageTranslation(
 														MessageConstants.MSG_HELLBLOCK_IS_ABANDONED.build().key()));
 									return;

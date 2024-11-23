@@ -4,14 +4,15 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.ThreadLocalRandom;
+import java.util.Map.Entry;
 
+import org.apache.commons.lang3.StringUtils;
 import org.bukkit.Color;
 import org.bukkit.FireworkEffect;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.FireworkEffect.Type;
-import org.bukkit.enchantments.Enchantment;
+import org.bukkit.entity.Firework;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.FireworkMeta;
@@ -22,10 +23,8 @@ import com.saicone.rtag.RtagItem;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.api.compatibility.VaultHook;
 import com.swiftlicious.hellblock.challenges.HellblockChallenge.ChallengeType;
-import com.swiftlicious.hellblock.gui.hellblock.ChallengesMenu;
+import com.swiftlicious.hellblock.creation.item.Item;
 import com.swiftlicious.hellblock.player.UserData;
-import com.swiftlicious.hellblock.utils.FireworkUtils;
-import com.swiftlicious.hellblock.utils.wrappers.ShadedAdventureComponentWrapper;
 
 import dev.dejvokep.boostedyaml.YamlDocument;
 import dev.dejvokep.boostedyaml.block.implementation.Section;
@@ -33,8 +32,6 @@ import lombok.Getter;
 import lombok.NonNull;
 import net.kyori.adventure.key.Key;
 import net.kyori.adventure.sound.Sound;
-import xyz.xenondevs.inventoryaccess.component.ComponentWrapper;
-import xyz.xenondevs.invui.item.builder.ItemBuilder;
 
 public class ChallengeRewardBuilder {
 
@@ -66,7 +63,6 @@ public class ChallengeRewardBuilder {
 				"<dark_gray>[+] <gray><strikethrough>                                            <reset> <dark_gray>[+]");
 		instance.getAdventureManager().playSound(player, Sound.Source.PLAYER,
 				Key.key("minecraft:entity.player.levelup"), 1.0F, 1.0F);
-		int fireworkID = ThreadLocalRandom.current().nextInt(Integer.MAX_VALUE);
 		ItemStack firework = new ItemStack(Material.FIREWORK_ROCKET);
 		FireworkMeta meta = (FireworkMeta) firework.getItemMeta();
 		meta.setPower(2);
@@ -75,9 +71,11 @@ public class ChallengeRewardBuilder {
 		meta.getPersistentDataContainer().set(new NamespacedKey(instance, "challenge-firework"),
 				PersistentDataType.BOOLEAN, true);
 		firework.setItemMeta(meta);
-		instance.sendPackets(player, FireworkUtils.getSpawnFireworkPacket(fireworkID, player.getLocation()),
-				FireworkUtils.getFireworkMetaPacket(fireworkID, firework),
-				FireworkUtils.getFireworkStatusPacket(fireworkID), FireworkUtils.getFireworkDestroyPacket(fireworkID));
+		player.getWorld().spawn(player.getLocation(), Firework.class, (data) -> {
+			data.setFireworkMeta(meta);
+			data.setTicksFlown(20);
+			data.setTicksToDetonate(0);
+		});
 	}
 
 	public void performChallengeRewardAction(@NonNull Player player, @NonNull Section section,
@@ -91,41 +89,35 @@ public class ChallengeRewardBuilder {
 			if (material == null || material == Material.AIR)
 				return;
 			int amount = section.getInt("amount", 1);
-			ItemBuilder reward = new ItemBuilder(material, amount);
-			reward.setDisplayName(new ShadedAdventureComponentWrapper(
-					instance.getAdventureManager().getComponentFromMiniMessage(section.getString("name"))));
-			List<ComponentWrapper> lore = new ArrayList<>();
+			Item<ItemStack> reward = instance.getItemManager().wrap(new ItemStack(material, amount));
+			reward.displayName(instance.getAdventureManager().miniMessageToJson(section.getString("name")));
+			List<String> lore = new ArrayList<>();
 			for (String newLore : section.getStringList("lore")) {
-				lore.add(new ShadedAdventureComponentWrapper(
-						instance.getAdventureManager().getComponentFromMiniMessage(newLore)));
+				lore.add(instance.getAdventureManager().miniMessageToJson(newLore));
 			}
-			reward.setLore(lore);
-			for (String enchants : section.getStringList("enchantments")) {
-				String[] split = enchants.split(":");
-				Enchantment enchantment = instance.getHellblockHandler().getEnchantmentRegistry()
-						.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
-				int level = 1;
-				try {
-					level = Integer.parseInt(split[1]);
-				} catch (NumberFormatException ex) {
-					instance.getPluginLogger().severe(String.format("Invalid quantity: %s!", split[1]));
+			reward.lore(lore);
+			for (Entry<String, Object> enchants : section.getSection("enchantments").getStringRouteMappedValues(false)
+					.entrySet()) {
+				if (!StringUtils.isNumeric(enchants.getKey()))
 					continue;
+				if (enchants.getValue() instanceof Section enchantInner) {
+					String enchant = enchantInner.getString("enchant");
+					int level = enchantInner.getInt("level");
+					reward.addEnchantment(com.swiftlicious.hellblock.utils.extras.Key.fromString(enchant), level);
 				}
-				reward.addEnchantment(enchantment, level, false);
 			}
-			reward.setDamage(section.getInt("damage", (int) material.getMaxDurability()));
-			ItemStack data = setChallengeRewardData(reward.get(), true);
+			reward.damage(section.getInt("damage", (int) material.getMaxDurability()));
+			ItemStack data = setChallengeRewardData(reward.getItem(), true);
 			if (player.getInventory().firstEmpty() != -1) {
 				player.getInventory().addItem(data);
 				player.updateInventory();
 				onlineUser.get().getChallengeData().setChallengeRewardAsClaimed(challenge, true);
-				instance.getAdventureManager().sendMessageWithPrefix(player,
+				instance.getAdventureManager().sendMessage(player,
 						"<red>You've claimed your challenge reward!");
 				instance.getAdventureManager().playSound(player, net.kyori.adventure.sound.Sound.Source.PLAYER,
 						net.kyori.adventure.key.Key.key("minecraft:entity.ender_dragon.growl"), 1, 1);
-				new ChallengesMenu(player);
 			} else {
-				instance.getAdventureManager().sendMessageWithPrefix(player,
+				instance.getAdventureManager().sendMessage(player,
 						"<red>Please have an empty slot in your inventory to receive the reward!");
 			}
 		} else if (rewardType == RewardType.EXP) {
@@ -138,10 +130,9 @@ public class ChallengeRewardBuilder {
 			}
 			player.giveExp(exp);
 			onlineUser.get().getChallengeData().setChallengeRewardAsClaimed(challenge, true);
-			instance.getAdventureManager().sendMessageWithPrefix(player, "<red>You've claimed your challenge reward!");
+			instance.getAdventureManager().sendMessage(player, "<red>You've claimed your challenge reward!");
 			instance.getAdventureManager().playSound(player, net.kyori.adventure.sound.Sound.Source.PLAYER,
 					net.kyori.adventure.key.Key.key("minecraft:entity.ender_dragon.growl"), 1, 1);
-			new ChallengesMenu(player);
 		} else if (rewardType == RewardType.MONEY) {
 			if (!VaultHook.isHooked()) {
 				instance.getPluginLogger().warn("Vault economy not found.");
@@ -156,10 +147,9 @@ public class ChallengeRewardBuilder {
 			}
 			VaultHook.deposit(player, money);
 			onlineUser.get().getChallengeData().setChallengeRewardAsClaimed(challenge, true);
-			instance.getAdventureManager().sendMessageWithPrefix(player, "<red>You've claimed your challenge reward!");
+			instance.getAdventureManager().sendMessage(player, "<red>You've claimed your challenge reward!");
 			instance.getAdventureManager().playSound(player, net.kyori.adventure.sound.Sound.Source.PLAYER,
 					net.kyori.adventure.key.Key.key("minecraft:entity.ender_dragon.growl"), 1, 1);
-			new ChallengesMenu(player);
 		} else {
 			return;
 		}

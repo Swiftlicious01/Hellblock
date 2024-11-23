@@ -116,6 +116,22 @@ public interface Item<I> {
 	Item<I> skull(String data);
 
 	/**
+	 * Sets the potion effect for the item.
+	 * 
+	 * @param effect the potion effect to set
+	 * @return the current {@link Item} instance for method chaining
+	 */
+	Item<I> potionEffect(String effect);
+
+	/**
+	 * Sets the potion color for the item.
+	 * 
+	 * @param color the potion color to set
+	 * @return the current {@link Item} instance for method chaining
+	 */
+	Item<I> potionColor(int color);
+
+	/**
 	 * Sets the enchantments for the item.
 	 *
 	 * @param enchantments a map of enchantments to set

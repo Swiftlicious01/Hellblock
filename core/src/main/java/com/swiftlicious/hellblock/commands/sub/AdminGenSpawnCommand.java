@@ -27,7 +27,7 @@ public class AdminGenSpawnCommand extends BukkitCommandFeature<CommandSender> {
 			final Player player = context.sender();
 			if (!player.getWorld().getName()
 					.equalsIgnoreCase(HellblockPlugin.getInstance().getConfigManager().worldName())) {
-				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+				HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 						"<red>You aren't in the correct world to generate the spawn!");
 				return;
 			}
@@ -38,7 +38,7 @@ public class AdminGenSpawnCommand extends BukkitCommandFeature<CommandSender> {
 				if (HellblockPlugin.getInstance().getWorldGuardHandler().getWorldGuardPlatform() != null
 						&& HellblockPlugin.getInstance().getWorldGuardHandler().getWorldGuardPlatform()
 								.getRegionContainer().get(weWorld).hasRegion(WorldGuardHook.SPAWN_REGION)) {
-					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+					HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 							"<red>The spawn area has already been generated!");
 					return;
 				}

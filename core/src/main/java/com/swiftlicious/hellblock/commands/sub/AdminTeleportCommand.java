@@ -56,12 +56,12 @@ public class AdminTeleportCommand extends BukkitCommandFeature<CommandSender> {
 					UUID id = Bukkit.getPlayer(user) != null ? Bukkit.getPlayer(user).getUniqueId()
 							: UUIDFetcher.getUUID(user);
 					if (id == null) {
-						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 								"<red>The player's hellblock you're trying to teleport to doesn't exist!");
 						return;
 					}
 					if (!Bukkit.getOfflinePlayer(id).hasPlayedBefore()) {
-						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 								"<red>The player's hellblock you're trying to teleport to doesn't exist!");
 						return;
 					}
@@ -88,14 +88,14 @@ public class AdminTeleportCommand extends BukkitCommandFeature<CommandSender> {
 												ChunkUtils.teleportAsync(player, highest, TeleportCause.PLUGIN)
 														.thenRun(() -> HellblockPlugin.getInstance()
 																.getAdventureManager()
-																.sendMessageWithPrefix(player, String.format(
+																.sendMessage(player, String.format(
 																		"<red>You've been teleported to <dark_red>%s<red>'s hellblock!",
 																		ownerUser.getUUID())));
 											});
 									return;
 								}
 
-								HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+								HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 										"<red>That player doesn't have a hellblock!");
 								return;
 							});

@@ -1,10 +1,14 @@
 package com.swiftlicious.hellblock.player;
 
 import java.util.Objects;
+import java.util.UUID;
 
 import org.bukkit.Location;
 import org.bukkit.inventory.EquipmentSlot;
+import org.bukkit.util.BoundingBox;
 
+import com.swiftlicious.hellblock.generation.HellBiome;
+import com.swiftlicious.hellblock.generation.IslandOptions;
 import com.swiftlicious.hellblock.loot.LootType;
 
 /**
@@ -53,15 +57,31 @@ public class ContextKeys<T> {
 	public static final ContextKeys<Integer> AMOUNT = of("amount", Integer.class);
 	public static final ContextKeys<Integer> TOTAL_AMOUNT = of("total_amount", Integer.class);
 	public static final ContextKeys<Double> WEIGHT = of("0", Double.class);
-	public static final ContextKeys<String> TIME_LEFT = of("time_left", String.class);
-	public static final ContextKeys<String> PROGRESS = of("progress", String.class);
 	public static final ContextKeys<Float> RECORD = of("record", Float.class);
 	public static final ContextKeys<String> RECORD_FORMATTED = of("record_formatted", String.class);
-	public static final ContextKeys<Integer> CLICKS_LEFT = of("left_clicks", Integer.class);
-	public static final ContextKeys<Integer> REQUIRED_TIMES = of("clicks", Integer.class);
 	public static final ContextKeys<EquipmentSlot> SLOT = of("hand", EquipmentSlot.class);
 	public static final ContextKeys<Double> BONUS = of("bonus", Double.class);
 	public static final ContextKeys<Double> BASE = of("base", Double.class);
+	
+	public static final ContextKeys<Float> HELLBLOCK_LEVEL = of("hellblock_level", Float.class);
+	public static final ContextKeys<Integer> HELLBLOCK_RANK = of("hellblock_rank", Integer.class);
+	public static final ContextKeys<Integer> HELLBLOCK_ID = of("hellblock_id", Integer.class);
+	public static final ContextKeys<Integer> HELLBLOCK_VISITORS = of("hellblock_visits", Integer.class);
+	public static final ContextKeys<Boolean> HELLBLOCK_STATUS = of("hellblock_status", Boolean.class);
+	public static final ContextKeys<Boolean> HELLBLOCK_ABANDONMENT = of("abandoned", Boolean.class);
+	public static final ContextKeys<Boolean> HELLBLOCK_EXISTS = of("hellblock_exists", Boolean.class);
+	public static final ContextKeys<Location> HELLBLOCK_LOCATION = of("hellblock_location", Location.class);
+	public static final ContextKeys<Location> HELLBLOCK_HOME_LOCATION = of("hellblock_home_location", Location.class);
+	public static final ContextKeys<BoundingBox> HELLBLOCK_BOUNDS = of("hellblock_bounds", BoundingBox.class);
+	public static final ContextKeys<Long> RESET_COOLDOWN = of("reset_cooldown", Long.class);
+	public static final ContextKeys<Long> BIOME_COOLDOWN = of("biome_cooldown", Long.class);
+	public static final ContextKeys<Long> TRANSFER_COOLDOWN = of("transfer_cooldown", Long.class);
+	public static final ContextKeys<Long> CREATION_TIME = of("creation_time", Long.class);
+	public static final ContextKeys<String> HELLBLOCK_SCHEMATIC = of("hellblock_schematic", String.class);
+	public static final ContextKeys<HellBiome> HELLBLOCK_BIOME = of("hellblock_biome", HellBiome.class);
+	public static final ContextKeys<IslandOptions> HELLBLOCK_CHOICE = of("hellblock_choice", IslandOptions.class);
+	public static final ContextKeys<UUID> HELLBLOCK_OWNER = of("hellblock_owner", UUID.class);
+	public static final ContextKeys<UUID> LINKED_HELLBLOCK = of("linked_hellblock", UUID.class);
 
 	private final String key;
 	private final Class<T> type;

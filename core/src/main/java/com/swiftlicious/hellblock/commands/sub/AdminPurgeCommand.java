@@ -28,7 +28,7 @@ public class AdminPurgeCommand extends BukkitCommandFeature<CommandSender> {
 			Command.Builder<CommandSender> builder) {
 		return builder.required("days", IntegerParser.integerParser(1, 30)).handler(context -> {
 			if (HellblockPlugin.getInstance().getStorageManager().getDataSource().getUniqueUsers().size() == 0) {
-				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(context.sender(),
+				HellblockPlugin.getInstance().getAdventureManager().sendMessage(context.sender(),
 						"<red>No hellblock player data to purge available!");
 				return;
 			}
@@ -81,10 +81,10 @@ public class AdminPurgeCommand extends BukkitCommandFeature<CommandSender> {
 			}
 
 			if (purgeCount.get() > 0) {
-				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(context.sender(),
+				HellblockPlugin.getInstance().getAdventureManager().sendMessage(context.sender(),
 						String.format("<red>You purged a total of %s hellblocks!", purgeCount.get()));
 			} else {
-				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(context.sender(),
+				HellblockPlugin.getInstance().getAdventureManager().sendMessage(context.sender(),
 						"<red>No hellblock data was purged with your inputted settings!");
 				return;
 			}

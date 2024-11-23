@@ -52,12 +52,12 @@ public class AdminDeleteCommand extends BukkitCommandFeature<CommandSender> {
 					UUID id = Bukkit.getPlayer(user) != null ? Bukkit.getPlayer(user).getUniqueId()
 							: UUIDFetcher.getUUID(user);
 					if (id == null) {
-						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 								"<red>The player's hellblock you're trying to delete doesn't exist!");
 						return;
 					}
 					if (!Bukkit.getOfflinePlayer(id).hasPlayedBefore()) {
-						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 								"<red>The player's hellblock you're trying to delete doesn't exist!");
 						return;
 					}
@@ -69,14 +69,14 @@ public class AdminDeleteCommand extends BukkitCommandFeature<CommandSender> {
 									HellblockPlugin.getInstance().getHellblockHandler().resetHellblock(id, true)
 											.thenRun(() -> {
 												HellblockPlugin.getInstance().getAdventureManager()
-														.sendMessageWithPrefix(player, String.format(
+														.sendMessage(player, String.format(
 																"<red>You've forcefully deleted <dark_red>%s<red>'s hellblock!",
 																user));
 											});
 									return;
 								}
 
-								HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+								HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 										"<red>That player doesn't have a hellblock!");
 								return;
 							});

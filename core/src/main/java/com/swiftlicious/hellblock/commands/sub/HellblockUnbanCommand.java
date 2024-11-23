@@ -69,7 +69,7 @@ public class HellblockUnbanCommand extends BukkitCommandFeature<CommandSender> {
 						return;
 					}
 					if (!onlineUser.get().getHellblockData().hasHellblock()) {
-						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 								HellblockPlugin.getInstance().getTranslationManager().miniMessageTranslation(
 										MessageConstants.MSG_HELLBLOCK_NOT_FOUND.build().key()));
 						return;
@@ -80,13 +80,13 @@ public class HellblockUnbanCommand extends BukkitCommandFeature<CommandSender> {
 						}
 						if (onlineUser.get().getHellblockData().getOwnerUUID() != null
 								&& !onlineUser.get().getHellblockData().getOwnerUUID().equals(player.getUniqueId())) {
-							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 									HellblockPlugin.getInstance().getTranslationManager().miniMessageTranslation(
 											MessageConstants.MSG_NOT_OWNER_OF_HELLBLOCK.build().key()));
 							return;
 						}
 						if (onlineUser.get().getHellblockData().isAbandoned()) {
-							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 									HellblockPlugin.getInstance().getTranslationManager().miniMessageTranslation(
 											MessageConstants.MSG_HELLBLOCK_IS_ABANDONED.build().key()));
 							return;
@@ -95,34 +95,34 @@ public class HellblockUnbanCommand extends BukkitCommandFeature<CommandSender> {
 						UUID id = Bukkit.getPlayer(user) != null ? Bukkit.getPlayer(user).getUniqueId()
 								: UUIDFetcher.getUUID(user);
 						if (id == null) {
-							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 									"<red>The player you are trying to unban doesn't exist!");
 							return;
 						}
 						if (!Bukkit.getOfflinePlayer(id).hasPlayedBefore()) {
-							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 									"<red>The player you are trying to unban doesn't exist!");
 							return;
 						}
 						if (id.equals(player.getUniqueId())) {
-							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 									"<red>You can't do this to yourself!");
 							return;
 						}
 						if (onlineUser.get().getHellblockData().getParty().contains(id)
 								|| onlineUser.get().getHellblockData().getTrusted().contains(id)) {
-							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 									"<red>You can't use this command on a party member or trusted player!");
 							return;
 						}
 						if (!onlineUser.get().getHellblockData().getBanned().contains(id)) {
-							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 									"<red>This player is not banned from your island!");
 							return;
 						}
 
 						onlineUser.get().getHellblockData().unbanPlayer(id);
-						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 								String.format("<red>You've unbanned <dark_red>%s <red>from your hellblock!", user));
 					}
 				});

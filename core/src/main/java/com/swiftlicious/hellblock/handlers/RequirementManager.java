@@ -11,7 +11,6 @@ import java.util.Optional;
 import java.util.Set;
 
 import org.bukkit.Location;
-import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
@@ -148,6 +147,7 @@ public class RequirementManager implements RequirementManagerInterface<Player> {
 		this.registerMoneyRequirement();
 		this.registerLevelRequirement();
 		this.registerRandomRequirement();
+		this.registerBiomeRequirement();
 		this.registerBaitRequirement();
 		this.registerLootRequirement();
 		this.registerSizeRequirement();
@@ -657,6 +657,35 @@ public class RequirementManager implements RequirementManagerInterface<Player> {
 		}, "random");
 	}
 
+	private void registerBiomeRequirement() {
+		registerRequirement((args, actions, runActions) -> {
+			HashSet<String> biomes = new HashSet<>(ListUtils.toList(args));
+			return context -> {
+				Location location = requireNonNull(Optional.ofNullable(context.arg(ContextKeys.OTHER_LOCATION))
+						.orElse(context.arg(ContextKeys.LOCATION)));
+				String currentBiome = instance.getVersionManager().getNMSManager().getBiomeResourceLocation(location);
+				if (biomes.contains(currentBiome))
+					return true;
+				if (runActions)
+					ActionManagerInterface.trigger(context, actions);
+				return false;
+			};
+		}, "biome");
+		registerRequirement((args, actions, runActions) -> {
+			HashSet<String> biomes = new HashSet<>(ListUtils.toList(args));
+			return context -> {
+				Location location = requireNonNull(Optional.ofNullable(context.arg(ContextKeys.OTHER_LOCATION))
+						.orElse(context.arg(ContextKeys.LOCATION)));
+				String currentBiome = instance.getVersionManager().getNMSManager().getBiomeResourceLocation(location);
+				if (!biomes.contains(currentBiome))
+					return true;
+				if (runActions)
+					ActionManagerInterface.trigger(context, actions);
+				return false;
+			};
+		}, "!biome");
+	}
+
 	private void registerWeatherRequirement() {
 		registerRequirement((args, actions, runActions) -> {
 			Set<String> weathers = new HashSet<>(ListUtils.toList(args));
@@ -1030,12 +1059,12 @@ public class RequirementManager implements RequirementManagerInterface<Player> {
 		}, "!equals");
 	}
 
+	@SuppressWarnings("deprecation")
 	private void registerPotionEffectRequirement() {
 		registerRequirement((args, actions, runActions) -> {
 			String potions = (String) args;
 			String[] split = potions.split("(<=|>=|<|>|==)", 2);
-			PotionEffectType type = instance.getHellblockHandler().getPotionEffectRegistry()
-					.getOrThrow(NamespacedKey.fromString(split[0]));
+			PotionEffectType type = PotionEffectType.getByName(split[0]);
 			if (type == null) {
 				instance.getPluginLogger().warn("Potion effect doesn't exist: " + split[0]);
 				return Requirement.empty();

@@ -35,7 +35,7 @@ public class HellblockTopCommand extends BukkitCommandFeature<CommandSender> {
 			}
 			if (!HellblockPlugin.getInstance().getIslandLevelManager().getTopTenHellblocks().entrySet().isEmpty()) {
 				int i = 0;
-				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+				HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 						"<red>Top Ten Level Hellblocks:");
 				for (Map.Entry<UUID, Float> ten : HellblockPlugin.getInstance().getIslandLevelManager()
 						.getTopTenHellblocks().reversed().entrySet()) {
@@ -53,7 +53,7 @@ public class HellblockTopCommand extends BukkitCommandFeature<CommandSender> {
 					}
 				}
 			} else {
-				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+				HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 						"<red>No hellblocks to list for the top ten!");
 				return;
 			}

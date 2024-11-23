@@ -20,7 +20,7 @@ public class CoopHelpCommand extends BukkitCommandFeature<CommandSender> {
 			Command.Builder<CommandSender> builder) {
 		return builder.senderType(Player.class).handler(context -> {
 			final Player player = context.sender();
-			HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+			HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 					"<dark_red>Hellblock Coop Commands:");
 			HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 					"<red>/hellcoop invite <player>: Invite another player to your island");

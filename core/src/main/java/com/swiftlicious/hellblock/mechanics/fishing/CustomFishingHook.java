@@ -320,8 +320,7 @@ public class CustomFishingHook {
 						.getItem(gears.getRodSlot() == HandSlot.MAIN ? EquipmentSlot.HAND : EquipmentSlot.OFF_HAND);
 				if (item.getType() == Material.FISHING_ROD) {
 					instance.getVersionManager().getNMSManager().useItem(player, gears.getRodSlot(), item);
-					instance.sendPacket(player,
-							PlayerUtils.getArmAnimationPacket(player.getEntityId(), gears.getRodSlot().getId()));
+					instance.getVersionManager().getNMSManager().swingHand(context.holder(), gears.getRodSlot());
 				}
 			}
 		}, 20, player.getLocation());
@@ -358,9 +357,7 @@ public class CustomFishingHook {
 		gears.trigger(ActionTrigger.BITE, context);
 		if (RequirementManagerInterface.isSatisfied(context, instance.getConfigManager().autoFishingRequirements())) {
 			handleSuccessfulFishing();
-			final Player player = context.holder();
-			instance.sendPacket(player,
-					PlayerUtils.getArmAnimationPacket(player.getEntityId(), gears.getRodSlot().getId()));
+			instance.getVersionManager().getNMSManager().swingHand(context.holder(), gears.getRodSlot());
 			destroy();
 			scheduleNextFishing();
 			return;

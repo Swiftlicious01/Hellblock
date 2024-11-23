@@ -1,6 +1,7 @@
 package com.swiftlicious.hellblock.utils.factory;
 
 import com.swiftlicious.hellblock.utils.extras.Action;
+import com.swiftlicious.hellblock.utils.extras.MathValue;
 
 /**
  * Interface representing a factory for creating actions.
@@ -15,5 +16,5 @@ public interface ActionFactory<T> {
 	 * @param args the args containing the arguments needed to build the action
 	 * @return the constructed action
 	 */
-	Action<T> process(Object args, double chance);
+	Action<T> process(Object args, MathValue<T> chance);
 }

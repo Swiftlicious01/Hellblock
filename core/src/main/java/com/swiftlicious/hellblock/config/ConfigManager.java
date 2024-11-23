@@ -21,6 +21,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import org.bukkit.NamespacedKey;
+import org.bukkit.Registry;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventPriority;
@@ -349,12 +350,12 @@ public class ConfigManager extends ConfigHandler {
 		}
 	}
 
+	@SuppressWarnings("deprecation")
 	private Map<Key, Short> getEnchantments(Section section) {
 		Map<Key, Short> map = new HashMap<>();
 		for (Map.Entry<String, Object> entry : section.getStringRouteMappedValues(false).entrySet()) {
 			int level = Math.min(255, Math.max(1, (int) entry.getValue()));
-			if (instance.getHellblockHandler().getEnchantmentRegistry()
-					.get(Objects.requireNonNull(NamespacedKey.fromString(entry.getKey()))) != null) {
+			if (Registry.ENCHANTMENT.get(Objects.requireNonNull(NamespacedKey.fromString(entry.getKey()))) != null) {
 				map.put(Key.fromString(entry.getKey()), (short) level);
 			}
 		}
@@ -378,6 +379,7 @@ public class ConfigManager extends ConfigHandler {
 		return Pair.of(Key.of(split[0], split[1]), Short.parseShort(split[2]));
 	}
 
+	@SuppressWarnings("deprecation")
 	private void registerBuiltInItemProperties() {
 		Function<Object, BiConsumer<Item<ItemStack>, Context<Player>>> f1 = arg -> {
 			Section section = (Section) arg;
@@ -411,7 +413,7 @@ public class ConfigManager extends ConfigHandler {
 				int i = 0;
 				outer: while (i < amount && !cloned.isEmpty()) {
 					Pair<Key, Short> enchantPair = WeightUtils.getRandom(cloned);
-					Enchantment enchantment = instance.getHellblockHandler().getEnchantmentRegistry()
+					Enchantment enchantment = Registry.ENCHANTMENT
 							.get(Objects.requireNonNull(NamespacedKey.fromString(enchantPair.left().toString())));
 					if (enchantment == null) {
 						instance.getPluginLogger().warn("Enchantment: " + enchantPair.left() + " doesn't exist.");

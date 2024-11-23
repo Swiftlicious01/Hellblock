@@ -68,6 +68,20 @@ public class UniversalItemFactory extends BukkitItemFactory {
 	}
 
 	@Override
+	protected void potionEffect(RtagItem item, String effect) {
+		if (effect == null) {
+			item.remove("Potion");
+		} else {
+			item.set(effect, "Potion");
+		}
+	}
+
+	@Override
+	protected void potionColor(RtagItem item, int color) {
+		item.set(color, "CustomPotionColor");
+	}
+
+	@Override
 	protected Optional<List<String>> lore(RtagItem item) {
 		if (!item.hasTag("display", "Lore"))
 			return Optional.empty();

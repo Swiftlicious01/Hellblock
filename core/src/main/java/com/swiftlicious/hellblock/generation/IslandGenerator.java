@@ -1,53 +1,36 @@
 package com.swiftlicious.hellblock.generation;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
-import java.util.UUID;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
 import org.apache.commons.lang3.StringUtils;
-import org.bukkit.Color;
-import org.bukkit.DyeColor;
-import org.bukkit.FireworkEffect;
-import org.bukkit.FireworkEffect.Type;
 import org.bukkit.Location;
 import org.bukkit.Material;
-import org.bukkit.NamespacedKey;
 import org.bukkit.Tag;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.block.Chest;
-import org.bukkit.block.banner.Pattern;
-import org.bukkit.block.banner.PatternType;
 import org.bukkit.block.data.Directional;
-import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.potion.PotionEffect;
-import org.bukkit.potion.PotionEffectType;
 import org.jetbrains.annotations.Nullable;
 
 import com.saicone.rtag.RtagItem;
 import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.creation.item.Item;
 import com.swiftlicious.hellblock.player.UserData;
-import com.swiftlicious.hellblock.utils.ColorUtils;
-import com.swiftlicious.hellblock.utils.wrappers.ShadedAdventureComponentWrapper;
+import com.swiftlicious.hellblock.utils.extras.Key;
 
 import dev.dejvokep.boostedyaml.block.implementation.Section;
 import lombok.NonNull;
-import xyz.xenondevs.invui.item.builder.BannerBuilder;
-import xyz.xenondevs.invui.item.builder.FireworkBuilder;
-import xyz.xenondevs.invui.item.builder.ItemBuilder;
-import xyz.xenondevs.invui.item.builder.PotionBuilder;
-import xyz.xenondevs.invui.item.builder.SkullBuilder;
-import xyz.xenondevs.invui.util.MojangApiUtils.MojangApiException;
 
 public class IslandGenerator {
 
@@ -392,184 +375,66 @@ public class IslandGenerator {
 						continue;
 					int amount = inner.getInt("amount", 1);
 					int slot = inner.getInt("slot");
-					ItemBuilder item = new ItemBuilder(
-							Material.getMaterial(material.toUpperCase()) != null
-									? Material.getMaterial(material.toUpperCase())
-									: Material.AIR,
-							amount > 0 && amount <= Material.getMaterial(material.toUpperCase()).getMaxStackSize()
-									? amount
-									: 1);
+					Material type = Material.getMaterial(material.toUpperCase()) != null
+							? Material.getMaterial(material.toUpperCase())
+							: Material.AIR;
+					Item<ItemStack> item = instance.getItemManager()
+							.wrap(new ItemStack(type, amount > 0 && amount <= type.getMaxStackSize() ? amount : 1));
 
-					if (Tag.AIR.isTagged(item.get().getType()))
+					if (Tag.AIR.isTagged(item.getItem().getType()))
 						continue;
 
 					String displayName = inner.getString("name");
 					if (displayName != null && !displayName.isEmpty()) {
-						item.setDisplayName(new ShadedAdventureComponentWrapper(
-								instance.getAdventureManager().getComponentFromMiniMessage(displayName)));
+						item.displayName(instance.getAdventureManager().jsonToMiniMessage(displayName));
 					}
 
 					List<String> lore = inner.getStringList("lore");
+					List<String> updatedLore = new ArrayList<>();
 					if (lore != null && !lore.isEmpty()) {
 						for (String newLore : lore) {
-							item.addLoreLines(new ShadedAdventureComponentWrapper(
-									instance.getAdventureManager().getComponentFromMiniMessage(newLore)));
+							updatedLore.add(newLore);
 						}
+						item.lore(updatedLore);
 					}
 
-					List<String> enchantments = inner.getStringList("enchantments");
+					Set<Entry<String, Object>> enchantments = inner.getSection("enchantments")
+							.getStringRouteMappedValues(false).entrySet();
 					if (enchantments != null && !enchantments.isEmpty()) {
-						for (String enchants : enchantments) {
-							String[] split = enchants.split(":");
-							Enchantment enchantment = instance.getHellblockHandler().getEnchantmentRegistry()
-									.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
-							int level = 1;
-							try {
-								level = Integer.parseInt(split[1]);
-							} catch (NumberFormatException ex) {
-								instance.getPluginLogger().severe(String.format("Invalid quantity: %s!", split[1]));
+						for (Entry<String, Object> enchants : enchantments) {
+							if (!StringUtils.isNumeric(enchants.getKey()))
 								continue;
+							if (enchants.getValue() instanceof Section enchantInner) {
+								String enchant = enchantInner.getString("enchant");
+								int level = enchantInner.getInt("level");
+								item.addEnchantment(Key.fromString(enchant), level);
 							}
-							item.addEnchantment(enchantment, level, false);
 						}
 					}
 
 					int damage = inner.getInt("damage");
-					item.setDamage(damage >= 0 && damage <= item.get().getType().getMaxDurability() ? damage : 0);
+					item.damage(damage >= 0 && damage <= item.getItem().getType().getMaxDurability() ? damage : 0);
 
 					int customModelData = inner.getInt("custom-model-data");
-					item.setCustomModelData(customModelData);
+					item.customModelData(customModelData);
 
 					boolean unbreakable = inner.getBoolean("unbreakable", false);
-					item.setUnbreakable(unbreakable);
+					item.unbreakable(unbreakable);
 
-					if (Material.getMaterial(material) == Material.POTION
-							|| Material.getMaterial(material) == Material.SPLASH_POTION
-							|| Material.getMaterial(material) == Material.LINGERING_POTION
-							|| Material.getMaterial(material) == Material.TIPPED_ARROW) {
-						PotionBuilder pm = new PotionBuilder(item.get());
+					if (type == Material.POTION || type == Material.SPLASH_POTION || type == Material.LINGERING_POTION
+							|| type == Material.TIPPED_ARROW) {
 						String potion = inner.getString("potion.effect");
-						int duration = inner.getInt("potion.duration");
-						int amplifier = inner.getInt("potion.amplifier");
-						PotionEffectType potionType = potion != null && !potion.isEmpty()
-								? instance.getHellblockHandler().getPotionEffectRegistry()
-										.getOrThrow(NamespacedKey.fromString(potion.toLowerCase()))
-								: PotionEffectType.FIRE_RESISTANCE;
-						PotionEffect effect = new PotionEffect(potionType, duration * (20 * 60), amplifier);
-						pm.addEffect(effect);
-						ItemStack data = setChestData(pm.get(), true);
-						if (slot >= 0 && slot <= 26) {
-							inventory.setItem(slot, data);
-						} else {
-							inventory.addItem(data);
-						}
-						continue;
+						if (potion != null && !potion.isEmpty())
+							item.potionEffect(potion);
 					}
 
-					if (Material.getMaterial(material) == Material.PLAYER_HEAD) {
-						String skullUUID = inner.getString("skull.player-uuid");
-						SkullBuilder sm = null;
-						try {
-							sm = new SkullBuilder(UUID.fromString(skullUUID));
-						} catch (IllegalArgumentException | MojangApiException | IOException ex) {
-							instance.getPluginLogger().warn(String.format(
-									"The UUID %s wasn't found to set for this player head texture.", skullUUID), ex);
-							continue;
-						}
-						if (sm != null) {
-							ItemStack data = setChestData(sm.get(), true);
-							if (slot >= 0 && slot <= 26) {
-								inventory.setItem(slot, data);
-							} else {
-								inventory.addItem(data);
-							}
-						}
-						continue;
+					if (type == Material.PLAYER_HEAD) {
+						String base64 = inner.getString("skull.base64");
+						if (base64 != null && !base64.isEmpty())
+							item.skull(base64);
 					}
 
-					if (Tag.ITEMS_BANNERS.isTagged(Material.getMaterial(material))) {
-						BannerBuilder bm = new BannerBuilder(item.get());
-						List<String> patterns = inner.getStringList("banner.patterns");
-						for (String pat : patterns) {
-							String[] split = pat.split(":");
-							String dyeColor = split[0];
-							String type = split[1];
-							PatternType patternType = type != null && !type.isEmpty() ? instance.getHellblockHandler()
-									.getBannerRegistry().getOrThrow(NamespacedKey.fromString(type.toLowerCase()))
-									: PatternType.BASE;
-							Pattern pattern = new Pattern(DyeColor.valueOf(dyeColor), patternType);
-							bm.addPattern(pattern);
-						}
-						ItemStack data = setChestData(bm.get(), true);
-						if (slot >= 0 && slot <= 26) {
-							inventory.setItem(slot, data);
-						} else {
-							inventory.addItem(data);
-						}
-						continue;
-					}
-
-					if (Material.getMaterial(material) == Material.FIREWORK_ROCKET) {
-						FireworkBuilder fm = new FireworkBuilder(item.get());
-						int power = inner.getInt("firework.power");
-						fm.setPower(power);
-						for (Entry<String, Object> fireworkEffect : inner.getSection("firework.effects")
-								.getStringRouteMappedValues(false).entrySet()) {
-							if (!StringUtils.isNumeric(fireworkEffect.getKey()))
-								continue;
-							if (fireworkEffect.getValue() instanceof Section innerEffect) {
-								FireworkEffect.Builder builder = FireworkEffect.builder();
-								String type = innerEffect.getString("type");
-								boolean flicker = innerEffect.getBoolean("flicker", false);
-								boolean trail = innerEffect.getBoolean("trail", false);
-								List<String> colors = innerEffect.getStringList(".main-colors");
-								List<String> fades = innerEffect.getStringList("fade-colors");
-								List<Color> mainColors = new ArrayList<>();
-								for (String color : colors) {
-									if (color.contains(":")) {
-										String[] split = color.split(":");
-										for (String string : split) {
-											Color mainColor = ColorUtils.getColor(string);
-											mainColors.add(mainColor);
-										}
-									} else {
-										mainColors.add(ColorUtils.getColor(color));
-									}
-								}
-								List<Color> fadeColors = new ArrayList<>();
-								for (String fade : fades) {
-									if (fade.contains(":")) {
-										String[] split = fade.split(":");
-										for (String string : split) {
-											Color fadeColor = ColorUtils.getColor(string);
-											fadeColors.add(fadeColor);
-										}
-									} else {
-										fadeColors.add(ColorUtils.getColor(fade));
-									}
-								}
-								builder.flicker(flicker).trail(trail);
-								try {
-									builder.with(type != null && !type.isEmpty() ? Type.valueOf(type) : Type.BURST);
-									builder.withColor(mainColors).withFade(fadeColors);
-								} catch (IllegalArgumentException ex) {
-									instance.getPluginLogger()
-											.warn("The type or color of this firework effect returned null.", ex);
-									continue;
-								}
-								fm.addFireworkEffect(builder.build());
-							}
-						}
-						ItemStack data = setChestData(fm.get(), true);
-						if (slot >= 0 && slot <= 26) {
-							inventory.setItem(slot, data);
-						} else {
-							inventory.addItem(data);
-						}
-						continue;
-					}
-
-					ItemStack data = setChestData(item.get(), true);
+					ItemStack data = setChestData(item.getItem(), true);
 
 					if (slot >= 0 && slot <= 26) {
 						inventory.setItem(slot, data);

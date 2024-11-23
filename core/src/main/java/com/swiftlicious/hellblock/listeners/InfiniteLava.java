@@ -16,10 +16,10 @@ import org.bukkit.util.BlockIterator;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.challenges.HellblockChallenge.ChallengeType;
+import com.swiftlicious.hellblock.nms.fluid.FallingFluidData;
+import com.swiftlicious.hellblock.nms.fluid.FluidData;
 import com.swiftlicious.hellblock.player.UserData;
 
-import io.papermc.paper.block.fluid.FluidData;
-import io.papermc.paper.block.fluid.type.FallingFluidData;
 import lombok.Getter;
 import lombok.NonNull;
 
@@ -87,7 +87,7 @@ public class InfiniteLava implements Listener {
 	}
 
 	private boolean isLavaFall(@NonNull Block block) {
-		FluidData lava = block.getWorld().getFluidData(block.getLocation());
+		FluidData lava = instance.getVersionManager().getNMSManager().getFluidData(block.getLocation());
 		boolean isLava = lava.getFluidType() == Fluid.LAVA || lava.getFluidType() == Fluid.FLOWING_LAVA;
 		boolean isLavaFall = isLava && (lava instanceof FallingFluidData falling) && falling.isFalling();
 		return isLavaFall;

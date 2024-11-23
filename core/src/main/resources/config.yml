@@ -51,6 +51,7 @@ hellblock:
   # If set to true when a sapling is placed on dirt, grass, etc like normal a normal tree will spawn.
   # Otherwise if false it will replace any tree that is grown with a glowstone tree.
   grow-natural-trees: false
+  # If set to true it will teleport players who fall in the void to their hellblock or to spawn if no hellblock is found.
   void-teleport: true
   starter-chest: 
     inventory-name: '<dark_red>Hellblock Chest'
@@ -99,6 +100,251 @@ hellblock:
         material: BONE
         amount: 1
         slot: 23
+  gui:
+	# Title for the hellblock menu
+    title: '<gradient:#A52A2A:#800000:#A52A2A>Hellblock Menu</gradient>'
+	# Layout for the hellblock menu
+    layout:
+      - 'TECPLBFRX'
+    # Teleport icon to teleport to hellblock
+    teleport-icon:
+      symbol: 'T'
+      material: ENDER_PEARL
+      display:
+        name: '<green>Teleport to your Hellblock!'
+        lore:
+          - '<aqua>Click to go to your home island!'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:entity.enderman.teleport'
+            source: 'player'
+            volume: 1
+            pitch: 1
+        particle_action:
+          type: particle
+          value:
+            key: 'ENDER_SIGNAL'
+            count: 5
+        message_action:
+          type: message
+          value: '<red>Teleporting you to your hellblock!'
+      components:
+        minecraft:hide_tooltip: {}
+    # Challenge icon to view hellblock challenges
+    challenge-icon:
+      symbol: 'C'
+      material: KNOWLEDGE_BOOK
+      display:
+        name: '<green>View all Hellblock Challenges!'
+        lore:
+          - '<aqua>Click to view a list of challenges for you to complete!'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_tooltip: {}
+    # Level icon to view hellblock level
+    level-icon:
+      symbol: 'E'
+      material: EXPERIENCE_BOTTLE
+      display:
+        name: '<green>View your island level!'
+        lore:
+          - '<gold>Level: <yellow>{hellblock_level}'
+          - ' '
+          - '<gold>Your overall rank is <yellow>{hellblock_rank}'
+      components:
+        minecraft:hide_tooltip: {}
+    # Party icon to view party members 
+    party-icon:
+      symbol: 'P'
+      material: BEACON
+      display:
+        name: '<green>View your party members!'
+        lore:
+          - '<aqua>Click to see a list of your party members!'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_tooltip: {}
+    # Biome icon to change hellblock biome
+    biome-icon:
+      symbol: 'B'
+      material: WARPED_FUNGUS
+      display:
+        name: '<green>Change island biome!'
+        lore:
+          - '<aqua>Click to view all of the biome options!'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_tooltip: {}
+    # Flag icon to change hellblock protection flags
+    flag-icon:
+      symbol: 'F'
+      material: REPEATER
+      display:
+        name: '<green>Change your Hellblock Protection Flags!'
+        lore:
+          - '<aqua>Click to change your hellblock protection flags!'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_tooltip: {}
+    # Lock icon to change visitor status
+    lock-icon:
+      symbol: 'L'
+      material: ENDER_CHEST
+      display:
+        name: '<green>Lock your Hellblock!'
+        lore:
+          - '<aqua>Click to change the visitor status of your hellblock!'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+        message_action:
+          type: message
+          value: "<red>You've just <dark_red>locked <red>your hellblock island!"
+      components:
+        minecraft:hide_tooltip: {}
+    # Unlock icon to change visitor status
+    unlock-icon:
+      symbol: 'L'
+      material: CHEST
+      display:
+        name: '<green>Unlock your Hellblock!'
+        lore:
+          - '<aqua>Click to change the visitor status of your hellblock!'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+        message_action:
+          type: message
+          value: "<red>You've just <dark_red>unlocked <red>your hellblock island!"
+      components:
+        minecraft:hide_tooltip: {}
+    # Reset icon to restart hellblock
+	reset-icon:
+      symbol: 'R'
+      material: NETHER_BRICKS
+      display:
+        name: '<green>Reset your Hellblock'
+        lore:
+          - '<aqua>Click to reset your hellblock island!'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_tooltip: {}
+    # Close icon to close the menu
+    close-icon:
+      symbol: 'X'
+      material: RED_STAINED_GLASS_PANE
+      display:
+        name: '<red>Close Menu'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_tooltip: {}
+    # Cooldown icon for reset
+    reset-cooldown-icon:
+      symbol: '!'
+      material: BARRIER
+      display:
+        name: '<red>Reset is on cooldown!'
+        lore:
+          - '<dark_red>Your ability to reset is on cooldown for:'
+          - '<red>{reset_cooldown}'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:entity.villager.no'
+            source: 'player'
+            volume: 1
+            pitch: 1
+        message_action:
+          type: message
+          value: '<red>You've recently reset your hellblock already, you must wait for <dark_red>{reset_cooldown}<red>!'
+      components:
+        minecraft:hide_tooltip: {}
+    # Cooldown icon for biome
+    biome-cooldown-icon:
+      symbol: '*'
+      material: BARRIER
+      display:
+        name: '<red>Biome Change is on cooldown!'
+        lore:
+          - '<dark_red>Your ability to change the biome is on cooldown for:'
+          - '<red>{biome_cooldown}'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:entity.villager.no'
+            source: 'player'
+            volume: 1
+            pitch: 1
+        message_action:
+          type: message
+          value: '<red>You've recently changed your biome already, you must wait for <dark_red>{biome_cooldown}<red>!'
+        components:
+          minecraft:hide_tooltip: {}
+    # Decorative icons for visual enhancement
+    decorative-icons:
+      glass-pane:
+        symbol: 'A'
+        material: BLACK_STAINED_GLASS_PANE
+        display:
+          name: ' '  
+        components:
+          minecraft:hide_tooltip: {}
 
 # You add the block material type and then the amount of levels you want it to add to the hellblock.
 # Example: 'cobblestone:5' will add 5 levels to the hellblock when cobblestone is placed. Doesn't matter if a trusted member, party member or owner places it.
@@ -135,36 +381,56 @@ tools:
       lore:
         - '<dark_red>Pickaxe but Nethery'
       enchantments:
-        - EFFICIENCY:1
-        - UNBREAKING:1
+        '1':
+          enchant: minecraft:efficiency
+          level: 1
+		'2':
+          enchant: minecraft:unbreaking
+          level: 1
     axe:
       name: '<red>Nether Axe'
       lore:
         - '<dark_red>Axe but Nethery'
       enchantments:
-        - EFFICIENCY:1
-        - UNBREAKING:1
+		'1':
+          enchant: minecraft:efficiency
+          level: 1
+		'2':
+          enchant: minecraft:unbreaking
+          level: 1
     shovel:
       name: '<red>Nether Shovel'
       lore:
         - '<dark_red>Shovel but Nethery'
       enchantments:
-        - EFFICIENCY:1
-        - UNBREAKING:1
+		'1':
+          enchant: minecraft:efficiency
+          level: 1
+		'2':
+          enchant: minecraft:unbreaking
+          level: 1
     hoe:
       name: '<red>Nether Hoe'
       lore:
         - '<dark_red>Hoe but Nethery'
       enchantments:
-        - EFFICIENCY:1
-        - UNBREAKING:1
+		'1':
+          enchant: minecraft:efficiency
+          level: 1
+		'2':
+          enchant: minecraft:unbreaking
+          level: 1
     sword:
       name: '<red>Nether Sword'
       lore:
         - '<dark_red>Sword but Nethery'
       enchantments:
-        - SHARPNESS:1
-        - UNBREAKING:1
+		'1':
+          enchant: minecraft:sharpness
+          level: 1
+		'2':
+          enchant: minecraft:unbreaking
+          level: 1
   glowstone:
     enable: true
     night-vision: true
@@ -173,36 +439,56 @@ tools:
       lore:
         - '<dark_red>Pickaxe but Nethery'
       enchantments:
-        - EFFICIENCY:1
-        - UNBREAKING:1
+		'1':
+          enchant: minecraft:efficiency
+          level: 1
+		'2':
+          enchant: minecraft:unbreaking
+          level: 1
     axe:
       name: '<yellow>Glowstone Axe'
       lore:
         - '<dark_red>Axe but Nethery'
       enchantments:
-        - EFFICIENCY:1
-        - UNBREAKING:1
+		'1':
+          enchant: minecraft:efficiency
+          level: 1
+		'2':
+          enchant: minecraft:unbreaking
+          level: 1
     shovel:
       name: '<yellow>Glowstone Shovel'
       lore:
         - '<dark_red>Shovel but Nethery'
       enchantments:
-        - EFFICIENCY:1
-        - UNBREAKING:1
+		'1':
+          enchant: minecraft:efficiency
+          level: 1
+		'2':
+          enchant: minecraft:unbreaking
+          level: 1
     hoe:
       name: '<yellow>Glowstone Hoe'
       lore:
         - '<dark_red>Hoe but Nethery'
       enchantments:
-        - EFFICIENCY:1
-        - UNBREAKING:1
+		'1':
+          enchant: minecraft:efficiency
+          level: 1
+		'2':
+          enchant: minecraft:unbreaking
+          level: 1
     sword:
       name: '<yellow>Glowstone Sword'
       lore:
         - '<dark_red>Sword but Nethery'
       enchantments:
-        - SHARPNESS:1
-        - UNBREAKING:1
+		'1':
+          enchant: minecraft:sharpness 
+          level: 1
+		'2':
+          enchant: minecraft:unbreaking
+          level: 1
   quartz:
     enable: true
     pickaxe:
@@ -210,73 +496,113 @@ tools:
       lore:
         - '<dark_red>Pickaxe but Nethery'
       enchantments:
-        - EFFICIENCY:1
-        - UNBREAKING:1
+		'1':
+          enchant: minecraft:efficiency
+          level: 1
+		'2':
+          enchant: minecraft:unbreaking
+          level: 1
     axe:
       name: '<gray>Quartz Axe'
       lore:
         - '<dark_red>Axe but Nethery'
       enchantments:
-        - EFFICIENCY:1
-        - UNBREAKING:1
+		'1':
+          enchant: minecraft:efficiency
+          level: 1
+		'2':
+          enchant: minecraft:unbreaking
+          level: 1
     shovel:
       name: '<gray>Quartz Shovel'
       lore:
         - '<dark_red>Shovel but Nethery'
       enchantments:
-        - EFFICIENCY:1
-        - UNBREAKING:1
+		'1':
+          enchant: minecraft:efficiency
+          level: 1
+		'2':
+          enchant: minecraft:unbreaking
+          level: 1
     hoe:
       name: '<gray>Quartz Hoe'
       lore:
         - '<dark_red>Hoe but Nethery'
       enchantments:
-        - EFFICIENCY:1
-        - UNBREAKING:1
+		'1':
+          enchant: minecraft:efficiency
+          level: 1
+		'2':
+          enchant: minecraft:unbreaking
+          level: 1
     sword:
       name: '<gray>Quartz Sword'
       lore:
         - '<dark_red>Sword but Nethery'
       enchantments:
-        - SHARPNESS:1
-        - UNBREAKING:1
+		'1':
+          enchant: minecraft:sharpness
+          level: 1
+		'2':
+          enchant: minecraft:unbreaking
+          level: 1
   netherstar:
     enable: true
     pickaxe:
       name: '<aqua>Nether Star Pickaxe'
       lore:
         - '<dark_red>Pickaxe but Nethery'
-      enchantments: 
-        - EFFICIENCY:1
-        - UNBREAKING:1
+      enchantments:
+		'1':
+          enchant: minecraft:efficiency
+          level: 1
+		'2':
+          enchant: minecraft:unbreaking
+          level: 1
     axe:
       name: '<aqua>Nether Star Axe'
       lore:
         - '<dark_red>Axe but Nethery'
       enchantments:
-        - EFFICIENCY:1
-        - UNBREAKING:1
+		'1':
+          enchant: minecraft:efficiency
+          level: 1
+		'2':
+          enchant: minecraft:unbreaking
+          level: 1
     shovel:
       name: '<aqua>Nether Star Shovel'
       lore:
         - '<dark_red>Shovel but Nethery'
       enchantments:
-        - EFFICIENCY:1
-        - UNBREAKING:1
+		'1':
+          enchant: minecraft:efficiency
+          level: 1
+		'2':
+          enchant: minecraft:unbreaking
+          level: 1
     hoe:
       name: '<aqua>Nether Star Hoe'
       lore:
         - '<dark_red>Hoe but Nethery'
       enchantments:
-        - EFFICIENCY:1
-        - UNBREAKING:1
+		'1':
+          enchant: minecraft:efficiency
+          level: 1
+		'2':
+          enchant: minecraft:unbreaking
+          level: 1
     sword:
       name: '<aqua>Nether Star Sword'
       lore:
         - '<dark_red>Sword but Nethery'
       enchantments:
-        - SHARPNESS:1
-        - UNBREAKING:1
+		'1':
+          enchant: minecraft:sharpness
+          level: 1
+		'2':
+          enchant: minecraft:unbreaking
+          level: 1
 armor:
   netherrack:
     enable: true
@@ -284,30 +610,46 @@ armor:
       name: '<red>Nether Helmet'
       lore: 
         - '<dark_red>Helmet but Nethery'
-      enchantments: 
-        - PROTECTION:3
-        - FIRE_PROTECTION:1
+      enchantments:
+		'1':
+          enchant: minecraft:protection
+          level: 3
+		'2':
+          enchant: minecraft:fire_protection
+          level: 1
     chestplate:
       name: '<red>Nether Chest Plate'
       lore: 
         - '<dark_red>Chest Plate but Nethery'
-      enchantments: 
-        - PROTECTION:3
-        - FIRE_PROTECTION:1
+      enchantments:
+		'1':
+          enchant: minecraft:protection
+          level: 3
+		'2':
+          enchant: minecraft:fire_protection
+          level: 1
     leggings:
       name: '<red>Nether Leggings'
       lore: 
         - '<dark_red>Leggings but Nethery'
-      enchantments: 
-        - PROTECTION:3
-        - FIRE_PROTECTION:1
+      enchantments:
+		'1':
+          enchant: minecraft:protection
+          level: 3
+		'2':
+          enchant: minecraft:fire_protection
+          level: 1
     boots:
       name: '<red>Nether Boots'
       lore: 
         - '<dark_red>Boots but Nethery'
-      enchantments: 
-        - PROTECTION:3
-        - FIRE_PROTECTION:1
+      enchantments:
+		'1':
+          enchant: minecraft:protection
+          level: 3
+		'2':
+          enchant: minecraft:fire_protection
+          level: 1
   glowstone:
     enable: true
     night-vision: true
@@ -315,90 +657,138 @@ armor:
       name: '<yellow>Glowstone Helmet'
       lore: 
         - '<dark_red>Helmet but Nethery'
-      enchantments: 
-        - PROTECTION:3
-        - FIRE_PROTECTION:1
+      enchantments:
+		'1':
+          enchant: minecraft:protection
+          level: 3
+		'2':
+          enchant: minecraft:fire_protection
+          level: 1
     chestplate:
       name: '<yellow>Glowstone Chest Plate'
       lore: 
         - '<dark_red>Chest Plate but Nethery'
-      enchantments: 
-        - PROTECTION:3
-        - FIRE_PROTECTION:1
+      enchantments:
+		'1':
+          enchant: minecraft:protection
+          level: 3
+		'2':
+          enchant: minecraft:fire_protection
+          level: 1
     leggings:
       name: '<yellow>Glowstone Leggings'
       lore: 
         - '<dark_red>Leggings but Nethery'
-      enchantments: 
-        - PROTECTION:3
-        - FIRE_PROTECTION:1
+      enchantments:
+		'1':
+          enchant: minecraft:protection
+          level: 3
+		'2':
+          enchant: minecraft:fire_protection
+          level: 1
     boots:
       name: '<yellow>Glowstone Boots'
       lore: 
         - '<dark_red>Boots but Nethery'
-      enchantments: 
-        - PROTECTION:3
-        - FIRE_PROTECTION:1
+      enchantments:
+		'1':
+          enchant: minecraft:protection
+          level: 3
+		'2':
+          enchant: minecraft:fire_protection
+          level: 1
   quartz:
     enable: true
     helmet:
       name: '<gray>Quartz Helmet'
       lore: 
         - '<dark_red>Helmet but Nethery'
-      enchantments: 
-        - PROTECTION:3
-        - FIRE_PROTECTION:1
+      enchantments:
+		'1':
+          enchant: minecraft:protection
+          level: 3
+		'2':
+          enchant: minecraft:fire_protection
+          level: 1
     chestplate:
       name: '<gray>Quartz Chest Plate'
       lore: 
         - '<dark_red>Chest Plate but Nethery'
-      enchantments: 
-        - PROTECTION:3
-        - FIRE_PROTECTION:1
+      enchantments:
+		'1':
+          enchant: minecraft:protection
+          level: 3
+		'2':
+          enchant: minecraft:fire_protection
+          level: 1
     leggings:
       name: '<gray>Quartz Leggings'
       lore: 
         - '<dark_red>Leggings but Nethery'
-      enchantments: 
-        - PROTECTION:3
-        - FIRE_PROTECTION:1
+      enchantments:
+		'1':
+          enchant: minecraft:protection
+          level: 3
+		'2':
+          enchant: minecraft:fire_protection
+          level: 1
     boots:
       name: '<gray>Quartz Boots'
       lore: 
         - '<dark_red>Boots but Nethery'
-      enchantments: 
-        - PROTECTION:3
-        - FIRE_PROTECTION:1
+      enchantments:
+		'1':
+          enchant: minecraft:protection
+          level: 3
+		'2':
+          enchant: minecraft:fire_protection
+          level: 1
   netherstar:
     enable: true
     helmet:
       name: '<aqua>Nether Star Helmet'
       lore: 
         - '<dark_red>Helmet but Nethery'
-      enchantments: 
-        - PROTECTION:3
-        - FIRE_PROTECTION:1
+      enchantments:
+		'1':
+          enchant: minecraft:protection
+          level: 3
+		'2':
+          enchant: minecraft:fire_protection
+          level: 1
     chestplate:
       name: '<aqua>Nether Star Chest Plate'
       lore: 
         - '<dark_red>Chest Plate but Nethery'
-      enchantments: 
-        - PROTECTION:3
-        - FIRE_PROTECTION:1
+      enchantments:
+		'1':
+          enchant: minecraft:protection
+          level: 3
+		'2':
+          enchant: minecraft:fire_protection
+          level: 1
     leggings:
       name: '<aqua>Nether Star Leggings'
       lore: 
         - '<dark_red>Leggings but Nethery'
-      enchantments: 
-        - PROTECTION:3
-        - FIRE_PROTECTION:1
+      enchantments:
+        '1':
+          enchant: minecraft:protection
+          level: 3
+        '2':
+          enchant: minecraft:fire_protection
+          level: 1
     boots:
       name: '<aqua>Nether Star Boots'
       lore: 
         - '<dark_red>Boots but Nethery'
-      enchantments: 
-        - PROTECTION:3
-        - FIRE_PROTECTION:1
+      enchantments:
+        '1':
+          enchant: minecraft:protection
+          level: 3
+        '2':
+          enchant: minecraft:fire_protection
+          level: 1
 
 wither-stats:
   random-stats: true
@@ -594,7 +984,7 @@ lava-fishing-options:
     item-slot:
       symbol: 'I'
       allow-items-with-no-price: true
-    # Icon allowing players to sell all fish from their inventory and fishing bag
+    # Icon allowing players to sell all fish from their inventory
     # Enable it by placing the symbol in the layout
     sell-all-icons:
       symbol: 'S'
@@ -603,54 +993,54 @@ lava-fishing-options:
         display:
           name: '<#00CED1><b>● <!b>Sell the fish'
           lore:
-            - '<font:uniform><gradient:#E6E6FA:#48D1CC:#E6E6FA>You will earn <green>{money_formatted} coins</green> from the fish in your inventory and bag</gradient></font>'
-          action:
-            sound_action:
-              type: sound
-              value:
-                key: 'minecraft:block.amethyst_block.place'
-                source: 'player'
-                volume: 1
-                pitch: 1
-            message_action:
-              type: message
-              value: 'You earned {money_formatted} coins from the fish! You can still earn {rest_formatted} more coins from the market today.'
-            # Requires Vault and an economy plugin
-            money_action:
-              type: give-money
-              value: '{money}'
-            # Uncomment the command_action if needed
-            # command_action:
-            #   type: command
-            #   value: 'money give {player} {money}'
+            - '<font:uniform><gradient:#E6E6FA:#48D1CC:#E6E6FA>You will earn <green>{money_formatted} coins</green> from the fish in your inventory</gradient></font>'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:block.amethyst_block.place'
+              source: 'player'
+              volume: 1
+              pitch: 1
+          message_action:
+            type: message
+            value: 'You earned {money_formatted} coins from the fish! You can still earn {rest_formatted} more coins from the market today.'
+          # Requires Vault and an economy plugin
+          money_action:
+            type: give-money
+            value: '{money}'
+          # Uncomment the command_action if needed
+          # command_action:
+          #   type: command
+          #   value: 'money give {player} {money}'
     deny-icon:
       material: REDSTONE_BLOCK
       display:
         name: '<red><b>● <!b>Trade Denied'
         lore:
           - '<font:uniform><gradient:#E6E6FA:red:#E6E6FA>No items available to sell!</gradient></font>'
-        action:
-          sound_action:
-            type: sound
-              value:
-                key: 'minecraft:entity.villager.no'
-                source: 'player'
-                volume: 1
-                pitch: 1
+      action:
+        sound_action:
+          type: sound
+            value:
+              key: 'minecraft:entity.villager.no'
+              source: 'player'
+              volume: 1
+              pitch: 1
     limit-icon:
       material: REDSTONE_BLOCK
       display:
         name: '<red><b>● <!b>Trade Denied'
         lore:
           - '<font:uniform><gradient:#E6E6FA:red:#E6E6FA>The total value exceeds the daily limit for earnings!</gradient></font>'
-        action:
-          sound_action:
-            type: sound
-            value:
-              key: 'minecraft:block.anvil.land'
-              source: 'player'
-              volume: 1
-              pitch: 1
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:block.anvil.land'
+            source: 'player'
+            volume: 1
+            pitch: 1
     # Sell icon for individual transactions
     sell-icons:
       symbol: 'B'
@@ -660,52 +1050,52 @@ lava-fishing-options:
           name: '<#00CED1><b>● <!b>Sell the fish'
           lore:
             - '<font:uniform><gradient:#E6E6FA:#48D1CC:#E6E6FA>You will earn <green>{money_formatted} coins</green> from the fish</gradient></font>'
-          action:
-            sound_action:
-              type: sound
-              value:
-                key: 'minecraft:block.amethyst_block.place'
-                source: 'player'
-                volume: 1
-                pitch: 1
-            message_action:
-              type: message
-              value: 'You earned {money_formatted} coins from the fish! You can still earn {rest_formatted} more coins from the market today.'
-            money_action:
-              type: give-money
-              value: '{money}'
-            # Uncomment the command_action if needed
-            # command_action:
-            #   type: command
-            #   value: 'money give {player} {money}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:block.amethyst_block.place'
+              source: 'player'
+              volume: 1
+              pitch: 1
+          message_action:
+            type: message
+            value: 'You earned {money_formatted} coins from the fish! You can still earn {rest_formatted} more coins from the market today.'
+          money_action:
+            type: give-money
+            value: '{money}'
+          # Uncomment the command_action if needed
+          # command_action:
+          #   type: command
+          #   value: 'money give {player} {money}'
       deny-icon:
         material: REDSTONE_BLOCK
         display:
           name: '<red><b>● <!b>Trade Denied'
           lore:
             - '<font:uniform><gradient:#E6E6FA:red:#E6E6FA>No items available to sell!</gradient></font>'
-          action:
-            sound_action:
-              type: sound
-              value:
-                key: 'minecraft:entity.villager.no'
-                source: 'player'
-                volume: 1
-                pitch: 1
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:entity.villager.no'
+              source: 'player'
+              volume: 1
+              pitch: 1
       limit-icon:
         material: REDSTONE_BLOCK
         display:
           name: '<red><b>● <!b>Trade Denied'
           lore:
             - '<font:uniform><gradient:#E6E6FA:red:#E6E6FA>The total value exceeds the daily limit for earnings!</gradient></font>'
-          action:
-            sound_action:
-              type: sound
-              value:
-                key: 'minecraft:block.anvil.land'
-                source: 'player'
-                volume: 1
-                pitch: 1
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:block.anvil.land'
+              source: 'player'
+              volume: 1
+              pitch: 1
     # Decorative icons for visual enhancement
     decorative-icons:
       glass-pane:
@@ -768,7 +1158,7 @@ other-settings:
   # If items share the same id, they would inherit the effects
   # Check the wiki for examples
   item-detection-order:
-    - LavaFishing
+    - CustomItem
     - vanilla
   block-detection-order:
     - vanilla

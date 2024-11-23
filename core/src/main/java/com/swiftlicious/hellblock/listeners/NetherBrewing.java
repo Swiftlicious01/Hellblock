@@ -32,16 +32,12 @@ import org.bukkit.potion.PotionType;
 import org.bukkit.util.BlockIterator;
 import org.jetbrains.annotations.Nullable;
 
-import xyz.xenondevs.inventoryaccess.component.ComponentWrapper;
-import xyz.xenondevs.invui.item.builder.ItemBuilder;
-import xyz.xenondevs.invui.item.builder.PotionBuilder;
-
 import com.saicone.rtag.RtagItem;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.challenges.HellblockChallenge.ChallengeType;
+import com.swiftlicious.hellblock.creation.item.Item;
 import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.utils.RandomUtils;
-import com.swiftlicious.hellblock.utils.wrappers.ShadedAdventureComponentWrapper;
 
 public class NetherBrewing implements Listener {
 
@@ -84,22 +80,20 @@ public class NetherBrewing implements Listener {
 	}
 
 	public ItemStack getPotionResult(int amount) {
-		ItemBuilder potion = new ItemBuilder(Material.POTION, amount);
+		Item<ItemStack> potion = instance.getItemManager().wrap(new ItemStack(Material.POTION, amount));
 
-		potion.setDisplayName(new ShadedAdventureComponentWrapper(instance.getAdventureManager()
-				.getComponentFromMiniMessage(instance.getConfigManager().brewingBottleName())));
+		potion.displayName(
+				instance.getAdventureManager().miniMessageToJson(instance.getConfigManager().brewingBottleName()));
 
-		List<ComponentWrapper> lore = new ArrayList<>();
+		List<String> lore = new ArrayList<>();
 		for (String newLore : instance.getConfigManager().brewingBottleLore()) {
-			lore.add(new ShadedAdventureComponentWrapper(
-					instance.getAdventureManager().getComponentFromMiniMessage(newLore)));
+			lore.add(instance.getAdventureManager().miniMessageToJson(newLore));
 		}
-		potion.setLore(lore);
+		potion.lore(lore);
 
-		PotionBuilder pmeta = new PotionBuilder(potion.get());
-		pmeta.setColor(instance.getConfigManager().brewingBottleColor());
+		potion.potionColor(instance.getConfigManager().brewingBottleColor().asRGB());
 
-		ItemStack data = setBrewingData(pmeta.get(), instance.getConfigManager().brewingBottleEnabled());
+		ItemStack data = setBrewingData(potion.getItem(), instance.getConfigManager().brewingBottleEnabled());
 
 		return data;
 	}

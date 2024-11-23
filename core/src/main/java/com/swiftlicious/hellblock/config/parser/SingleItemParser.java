@@ -7,8 +7,8 @@ import com.swiftlicious.hellblock.config.node.Node;
 import com.swiftlicious.hellblock.config.parser.function.ConfigParserFunction;
 import com.swiftlicious.hellblock.config.parser.function.ItemParserFunction;
 import com.swiftlicious.hellblock.creation.item.Item;
-import com.swiftlicious.hellblock.creation.item.LavaFishingItem;
-import com.swiftlicious.hellblock.creation.item.LavaFishingItemInterface;
+import com.swiftlicious.hellblock.creation.item.CustomItem;
+import com.swiftlicious.hellblock.creation.item.CustomItemInterface;
 import com.swiftlicious.hellblock.player.Context;
 import com.swiftlicious.hellblock.utils.extras.MathValue;
 import com.swiftlicious.hellblock.utils.extras.PriorityFunction;
@@ -60,8 +60,8 @@ public class SingleItemParser {
 		}
 	}
 
-	public LavaFishingItem getItem() {
-		return LavaFishingItemInterface.builder().material(material).id(id).amount(amount).tagConsumers(tagConsumers)
+	public CustomItem getItem() {
+		return CustomItemInterface.builder().material(material).id(id).amount(amount).tagConsumers(tagConsumers)
 				.build();
 	}
 }

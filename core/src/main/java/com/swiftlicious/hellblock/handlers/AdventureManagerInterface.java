@@ -41,21 +41,6 @@ public interface AdventureManagerInterface {
 	void sendMessage(CommandSender sender, String msg);
 
 	/**
-	 * Send a message with prefix
-	 *
-	 * @param sender command sender
-	 * @param s      message
-	 */
-	void sendMessageWithPrefix(CommandSender sender, String msg);
-
-	/**
-	 * Send a message to console
-	 * 
-	 * @param msg message
-	 */
-	void sendConsoleMessage(String msg);
-
-	/**
 	 * Send a message to all players
 	 * 
 	 * @param msg message

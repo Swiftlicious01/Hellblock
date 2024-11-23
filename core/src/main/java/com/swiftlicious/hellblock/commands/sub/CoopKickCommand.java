@@ -71,49 +71,49 @@ public class CoopKickCommand extends BukkitCommandFeature<CommandSender> {
 						}
 						if (onlineUser.get().getHellblockData().getOwnerUUID() != null
 								&& !onlineUser.get().getHellblockData().getOwnerUUID().equals(player.getUniqueId())) {
-							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 									HellblockPlugin.getInstance().getTranslationManager().miniMessageTranslation(
 											MessageConstants.MSG_NOT_OWNER_OF_HELLBLOCK.build().key()));
 							return;
 						}
 						if (onlineUser.get().getHellblockData().isAbandoned()) {
-							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 									HellblockPlugin.getInstance().getTranslationManager().miniMessageTranslation(
 											MessageConstants.MSG_HELLBLOCK_IS_ABANDONED.build().key()));
 							return;
 						}
 						String user = context.get("player");
 						if (user.equalsIgnoreCase(player.getName())) {
-							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 									"<red>You can't do this to yourself!");
 							return;
 						}
 						UUID id = Bukkit.getPlayer(user) != null ? Bukkit.getPlayer(user).getUniqueId()
 								: UUIDFetcher.getUUID(user);
 						if (id == null) {
-							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 									"<red>The player you're trying to kick from your hellblock doesn't exist!");
 							return;
 						}
 						if (!Bukkit.getOfflinePlayer(id).hasPlayedBefore()) {
-							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 									"<red>The player you're trying to kick from your hellblock doesn't exist!");
 							return;
 						}
 						if (id.equals(player.getUniqueId())) {
-							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 									"<red>You can't do this to yourself!");
 							return;
 						}
 						if (!onlineUser.get().getHellblockData().getParty().contains(id)) {
-							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 									"<red>The player you're trying to kick is not in your hellblock party!");
 							return;
 						}
 						HellblockPlugin.getInstance().getCoopManager().removeMemberFromHellblock(onlineUser.get(), user,
 								id);
 					} else {
-						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 								HellblockPlugin.getInstance().getTranslationManager().miniMessageTranslation(
 										MessageConstants.MSG_HELLBLOCK_NOT_FOUND.build().key()));
 						return;

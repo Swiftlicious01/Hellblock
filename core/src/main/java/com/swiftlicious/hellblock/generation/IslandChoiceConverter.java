@@ -53,7 +53,7 @@ public class IslandChoiceConverter {
 							new Location(world, highest.getX() + 0.5, y + 5, highest.getZ() + 2.5, -175, 0));
 				});
 			} else {
-				instance.getAdventureManager().sendMessageWithPrefix(player,
+				instance.getAdventureManager().sendMessage(player,
 						"<red>The default hellblock island type isn't available to generate!");
 			}
 		case IslandOptions.CLASSIC:
@@ -63,7 +63,7 @@ public class IslandChoiceConverter {
 							new Location(world, highest.getX() - 0.5, y + 3, highest.getZ() - 0.5, 90, 0));
 				});
 			} else {
-				instance.getAdventureManager().sendMessageWithPrefix(player,
+				instance.getAdventureManager().sendMessage(player,
 						"<red>The classic hellblock island type isn't available to generate!");
 			}
 		case IslandOptions.SCHEMATIC:
@@ -85,7 +85,7 @@ public class IslandChoiceConverter {
 									new Location(world, highest.getX() + 0.5, y + 5, highest.getZ() + 2.5, -175, 0));
 						});
 			} else {
-				instance.getAdventureManager().sendMessageWithPrefix(player,
+				instance.getAdventureManager().sendMessage(player,
 						"<red>No schematic types are available to choose from for your hellblock!");
 			}
 		default:

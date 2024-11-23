@@ -90,6 +90,18 @@ public class AbstractItem<R, I> implements Item<I> {
 	}
 
 	@Override
+	public Item<I> potionEffect(String effect) {
+		factory.potionEffect(item, effect);
+		return this;
+	}
+
+	@Override
+	public Item<I> potionColor(int color) {
+		factory.potionColor(item, color);
+		return this;
+	}
+
+	@Override
 	public Item<I> enchantments(Map<Key, Short> enchantments) {
 		factory.enchantments(item, enchantments);
 		return this;

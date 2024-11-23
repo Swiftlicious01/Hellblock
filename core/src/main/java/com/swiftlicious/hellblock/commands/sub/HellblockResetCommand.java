@@ -65,7 +65,7 @@ public class HellblockResetCommand extends BukkitCommandFeature<CommandSender> {
 						return;
 					}
 					if (!onlineUser.get().getHellblockData().hasHellblock()) {
-						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 								HellblockPlugin.getInstance().getTranslationManager().miniMessageTranslation(
 										MessageConstants.MSG_HELLBLOCK_NOT_FOUND.build().key()));
 						return;
@@ -76,19 +76,19 @@ public class HellblockResetCommand extends BukkitCommandFeature<CommandSender> {
 					}
 					if (onlineUser.get().getHellblockData().getOwnerUUID() != null
 							&& !onlineUser.get().getHellblockData().getOwnerUUID().equals(player.getUniqueId())) {
-						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 								HellblockPlugin.getInstance().getTranslationManager().miniMessageTranslation(
 										MessageConstants.MSG_NOT_OWNER_OF_HELLBLOCK.build().key()));
 						return;
 					}
 					if (onlineUser.get().getHellblockData().isAbandoned()) {
-						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 								HellblockPlugin.getInstance().getTranslationManager().miniMessageTranslation(
 										MessageConstants.MSG_HELLBLOCK_IS_ABANDONED.build().key()));
 						return;
 					}
 					if (onlineUser.get().getHellblockData().getResetCooldown() > 0) {
-						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 								String.format(
 										"<red>You've recently reset your hellblock already, you must wait for %s!",
 										HellblockPlugin.getInstance().getFormattedCooldown(
@@ -97,7 +97,7 @@ public class HellblockResetCommand extends BukkitCommandFeature<CommandSender> {
 					}
 					if (confirmCache.getIfPresent(player.getUniqueId()) != null
 							&& confirmCache.getIfPresent(player.getUniqueId())) {
-						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 								"<red>You're already in the process of restarting your hellblock, click confirm!");
 						return;
 					}
@@ -132,7 +132,7 @@ public class HellblockResetCommand extends BukkitCommandFeature<CommandSender> {
 					return;
 				}
 				if (!onlineUser.get().getHellblockData().hasHellblock()) {
-					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+					HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 							HellblockPlugin.getInstance().getTranslationManager()
 									.miniMessageTranslation(MessageConstants.MSG_HELLBLOCK_NOT_FOUND.build().key()));
 					return;
@@ -143,26 +143,26 @@ public class HellblockResetCommand extends BukkitCommandFeature<CommandSender> {
 				}
 				if (onlineUser.get().getHellblockData().getOwnerUUID() != null
 						&& !onlineUser.get().getHellblockData().getOwnerUUID().equals(player.getUniqueId())) {
-					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+					HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 							HellblockPlugin.getInstance().getTranslationManager()
 									.miniMessageTranslation(MessageConstants.MSG_NOT_OWNER_OF_HELLBLOCK.build().key()));
 					return;
 				}
 				if (onlineUser.get().getHellblockData().isAbandoned()) {
-					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+					HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 							HellblockPlugin.getInstance().getTranslationManager()
 									.miniMessageTranslation(MessageConstants.MSG_HELLBLOCK_IS_ABANDONED.build().key()));
 					return;
 				}
 				if (onlineUser.get().getHellblockData().getResetCooldown() > 0) {
-					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+					HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 							String.format("<red>You've recently reset your hellblock already, you must wait for %s!",
 									HellblockPlugin.getInstance().getFormattedCooldown(
 											onlineUser.get().getHellblockData().getResetCooldown())));
 					return;
 				}
 				if (!confirmCache.getIfPresent(player.getUniqueId())) {
-					HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+					HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 							"<red>You're not in the process of restarting your hellblock!");
 					return;
 				}

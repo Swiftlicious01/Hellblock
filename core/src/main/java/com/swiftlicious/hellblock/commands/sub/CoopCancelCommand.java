@@ -67,19 +67,19 @@ public class CoopCancelCommand extends BukkitCommandFeature<CommandSender> {
 					if (onlineUser.get().getHellblockData().hasHellblock()) {
 						String user = context.get("player");
 						if (user.equalsIgnoreCase(player.getName())) {
-							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 									"<red>You can't do this to yourself!");
 							return;
 						}
 						UUID id = Bukkit.getPlayer(user) != null ? Bukkit.getPlayer(user).getUniqueId()
 								: UUIDFetcher.getUUID(user);
 						if (id == null) {
-							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 									"<red>The player you're trying to cancel an invite from doesn't exist!");
 							return;
 						}
 						if (!Bukkit.getOfflinePlayer(id).hasPlayedBefore()) {
-							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 									"<red>The player you're trying to cancel an invite from doesn't exist!");
 							return;
 						}
@@ -88,31 +88,31 @@ public class CoopCancelCommand extends BukkitCommandFeature<CommandSender> {
 								.thenAccept((result) -> {
 									UserData offlineUser = result.orElseThrow();
 									if (offlineUser.getHellblockData().getInvitations() == null) {
-										HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(
+										HellblockPlugin.getInstance().getAdventureManager().sendMessage(
 												player, "<red>This player doesn't have an invite from you!");
 										return;
 									}
 									if (!offlineUser.getHellblockData().hasInvite(player.getUniqueId())) {
-										HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(
+										HellblockPlugin.getInstance().getAdventureManager().sendMessage(
 												player, "<red>This player doesn't have an invite from you!");
 										return;
 									}
 									if (offlineUser.getHellblockData().hasInviteExpired(player.getUniqueId())) {
-										HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(
+										HellblockPlugin.getInstance().getAdventureManager().sendMessage(
 												player, "<red>Your invitation already expired for this player!");
 										return;
 									}
 									offlineUser.getHellblockData().removeInvitation(player.getUniqueId());
-									HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+									HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 											"<red>You've cancelled your invitation to <dark_red>" + user + "<red>!");
 									if (Bukkit.getPlayer(id) != null) {
-										HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(
+										HellblockPlugin.getInstance().getAdventureManager().sendMessage(
 												Bukkit.getPlayer(id), "<dark_red>" + player.getName()
 														+ " <red> has revoked their invitation to you!");
 									}
 								});
 					} else {
-						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 								HellblockPlugin.getInstance().getTranslationManager().miniMessageTranslation(
 										MessageConstants.MSG_HELLBLOCK_NOT_FOUND.build().key()));
 						return;

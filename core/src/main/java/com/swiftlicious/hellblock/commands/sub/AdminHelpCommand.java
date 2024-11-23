@@ -20,7 +20,7 @@ public class AdminHelpCommand extends BukkitCommandFeature<CommandSender> {
 			Command.Builder<CommandSender> builder) {
 		return builder.senderType(Player.class).handler(context -> {
 			final Player player = context.sender();
-			HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+			HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 					"<dark_red>Hellblock Admin Commands:");
 			HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 					"<red>/hellblock admin goto <player>: Forcefully teleports you to this player's island");

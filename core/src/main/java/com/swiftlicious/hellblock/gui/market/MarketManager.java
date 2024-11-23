@@ -33,8 +33,7 @@ import org.bukkit.inventory.meta.BundleMeta;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.config.parser.SingleItemParser;
 import com.swiftlicious.hellblock.creation.item.Item;
-import com.swiftlicious.hellblock.creation.item.LavaFishingItem;
-import com.swiftlicious.hellblock.creation.item.factory.BukkitItemFactory;
+import com.swiftlicious.hellblock.creation.item.CustomItem;
 import com.swiftlicious.hellblock.handlers.ActionManagerInterface;
 import com.swiftlicious.hellblock.player.Context;
 import com.swiftlicious.hellblock.player.ContextKeys;
@@ -59,19 +58,19 @@ public class MarketManager implements MarketManagerInterface, Listener {
 
 	protected TextValue<Player> title;
 	protected String[] layout;
-	protected final Map<Character, LavaFishingItem> decorativeIcons;
+	protected final Map<Character, CustomItem> decorativeIcons;
 	protected final ConcurrentMap<UUID, MarketGUI> marketGUICache;
 
 	protected char itemSlot;
 	protected char sellSlot;
 	protected char sellAllSlot;
 
-	protected LavaFishingItem sellIconAllowItem;
-	protected LavaFishingItem sellIconDenyItem;
-	protected LavaFishingItem sellIconLimitItem;
-	protected LavaFishingItem sellAllIconAllowItem;
-	protected LavaFishingItem sellAllIconDenyItem;
-	protected LavaFishingItem sellAllIconLimitItem;
+	protected CustomItem sellIconAllowItem;
+	protected CustomItem sellIconDenyItem;
+	protected CustomItem sellIconLimitItem;
+	protected CustomItem sellAllIconAllowItem;
+	protected CustomItem sellAllIconDenyItem;
+	protected CustomItem sellAllIconLimitItem;
 	protected Action<Player>[] sellDenyActions;
 	protected Action<Player>[] sellAllowActions;
 	protected Action<Player>[] sellLimitActions;
@@ -153,10 +152,6 @@ public class MarketManager implements MarketManagerInterface, Listener {
 		}
 
 		Section sellSection = config.getSection("sell-icons");
-		if (sellSection == null) {
-			// for old config compatibility
-			sellSection = config.getSection("functional-icons");
-		}
 		if (sellSection != null) {
 			this.sellSlot = sellSection.getString("symbol", "B").charAt(0);
 
@@ -216,7 +211,7 @@ public class MarketManager implements MarketManagerInterface, Listener {
 		gui.addElement(new MarketGUIElement(itemSlot, new ItemStack(Material.AIR)));
 		gui.addElement(new MarketDynamicGUIElement(sellSlot, new ItemStack(Material.AIR)));
 		gui.addElement(new MarketDynamicGUIElement(sellAllSlot, new ItemStack(Material.AIR)));
-		for (Map.Entry<Character, LavaFishingItem> entry : decorativeIcons.entrySet()) {
+		for (Map.Entry<Character, CustomItem> entry : decorativeIcons.entrySet()) {
 			gui.addElement(new MarketGUIElement(entry.getKey(), entry.getValue().build(context)));
 		}
 		gui.build().refresh().show();
@@ -449,7 +444,7 @@ public class MarketManager implements MarketManagerInterface, Listener {
 		if (itemStack == null || itemStack.getType() == Material.AIR)
 			return 0;
 
-		Item<ItemStack> wrapped = ((BukkitItemFactory) instance.getItemManager().getFactory()).wrap(itemStack);
+		Item<ItemStack> wrapped = instance.getItemManager().getFactory().wrap(itemStack);
 		double price = (double) wrapped.getTag("Price").orElse(0d);
 		if (price != 0) {
 			// If a custom price is defined in the ItemStack's NBT data, use it.

@@ -8,11 +8,11 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.Map.Entry;
 
+import org.apache.commons.lang3.StringUtils;
 import org.bukkit.Bukkit;
 import org.bukkit.GameRule;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
-import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Event.Result;
 import org.bukkit.event.EventHandler;
@@ -40,12 +40,11 @@ import org.jetbrains.annotations.Nullable;
 import com.saicone.rtag.RtagItem;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.challenges.HellblockChallenge.ChallengeType;
+import com.swiftlicious.hellblock.creation.item.Item;
 import com.swiftlicious.hellblock.player.UserData;
-import com.swiftlicious.hellblock.utils.wrappers.ShadedAdventureComponentWrapper;
+import com.swiftlicious.hellblock.utils.extras.Key;
 
 import dev.dejvokep.boostedyaml.block.implementation.Section;
-import xyz.xenondevs.inventoryaccess.component.ComponentWrapper;
-import xyz.xenondevs.invui.item.builder.ItemBuilder;
 
 public class NetherTools implements Listener {
 
@@ -95,38 +94,33 @@ public class NetherTools implements Listener {
 					if (entry.getKey().equals("enable") || entry.getKey().equals("night-vision"))
 						continue;
 					String toolType = entry.getKey();
-					ItemBuilder tool = new ItemBuilder(
-							Material.getMaterial(mat.getToolIdentifier().toUpperCase() + "_" + toolType.toUpperCase()),
-							1);
-					if (tool.getMaterial() == null)
+					Material material = Material
+							.getMaterial(mat.getToolIdentifier().toUpperCase() + "_" + toolType.toUpperCase());
+					if (material == null)
 						continue;
+					Item<ItemStack> tool = instance.getItemManager().wrap(new ItemStack(material, 1));
 
 					if (entry.getValue() instanceof Section inner) {
-						tool.setDisplayName(new ShadedAdventureComponentWrapper(
-								instance.getAdventureManager().getComponentFromMiniMessage(inner.getString("name"))));
+						tool.displayName(instance.getAdventureManager().miniMessageToJson(inner.getString("name")));
 
-						List<ComponentWrapper> lore = new ArrayList<>();
+						List<String> lore = new ArrayList<>();
 						for (String newLore : inner.getStringList("lore")) {
-							lore.add(new ShadedAdventureComponentWrapper(
-									instance.getAdventureManager().getComponentFromMiniMessage(newLore)));
+							lore.add(instance.getAdventureManager().miniMessageToJson(newLore));
 						}
-						tool.setLore(lore);
+						tool.lore(lore);
 
-						for (String enchants : inner.getStringList("enchantments")) {
-							String[] split = enchants.split(":");
-							Enchantment enchantment = instance.getHellblockHandler().getEnchantmentRegistry()
-									.getOrThrow(NamespacedKey.fromString(split[0].toLowerCase()));
-							int level = 1;
-							try {
-								level = Integer.parseInt(split[1]);
-							} catch (NumberFormatException ex) {
-								instance.getPluginLogger().severe(String.format("Invalid quantity: %s!", split[1]));
+						for (Entry<String, Object> enchants : inner.getSection("enchantments")
+								.getStringRouteMappedValues(false).entrySet()) {
+							if (!StringUtils.isNumeric(enchants.getKey()))
 								continue;
+							if (enchants.getValue() instanceof Section enchantInner) {
+								String enchant = enchantInner.getString("enchant");
+								int level = enchantInner.getInt("level");
+								tool.addEnchantment(Key.fromString(enchant), level);
 							}
-							tool.addEnchantment(enchantment, level, false);
 						}
 
-						ItemStack data = setToolData(tool.get(), toolSection.getBoolean("enable"));
+						ItemStack data = setToolData(tool.getItem(), toolSection.getBoolean("enable"));
 						if (mat.getMaterial() == Material.GLOWSTONE)
 							data = setNightVisionToolStatus(data, toolSection.getBoolean("night-vision"));
 

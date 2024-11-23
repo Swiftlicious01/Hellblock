@@ -31,13 +31,13 @@ public class IslandProtection {
 			return false;
 		}
 		if (user.get().getHellblockData().isAbandoned()) {
-			instance.getAdventureManager().sendMessageWithPrefix(user.get().getPlayer(),
+			instance.getAdventureManager().sendMessage(user.get().getPlayer(),
 					instance.getTranslationManager()
 							.miniMessageTranslation(MessageConstants.MSG_HELLBLOCK_IS_ABANDONED.build().key()));
 			return false;
 		}
 		if (!user.get().getHellblockData().hasHellblock()) {
-			instance.getAdventureManager().sendMessageWithPrefix(user.get().getPlayer(),
+			instance.getAdventureManager().sendMessage(user.get().getPlayer(),
 					instance.getTranslationManager()
 							.miniMessageTranslation(MessageConstants.MSG_HELLBLOCK_NOT_FOUND.build().key()));
 			return false;
@@ -47,7 +47,7 @@ public class IslandProtection {
 		}
 		if (user.get().getHellblockData().getOwnerUUID() != null
 				&& !user.get().getHellblockData().getOwnerUUID().equals(id)) {
-			instance.getAdventureManager().sendMessageWithPrefix(user.get().getPlayer(),
+			instance.getAdventureManager().sendMessage(user.get().getPlayer(),
 					instance.getTranslationManager()
 							.miniMessageTranslation(MessageConstants.MSG_NOT_OWNER_OF_HELLBLOCK.build().key()));
 			return false;

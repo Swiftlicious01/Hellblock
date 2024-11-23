@@ -67,7 +67,7 @@ public interface TextValue<T> {
 	/**
 	 * Automatically creates a TextValue based on the given argument. If the
 	 * argument contains placeholders (detected by a regex pattern), a
-	 * PlaceholderTextValueImpl instance is created. Otherwise, a PlainTextValueImpl
+	 * PlaceholderTextValue instance is created. Otherwise, a PlainTextValue
 	 * instance is created.
 	 *
 	 * @param arg the text to evaluate and create a TextValue from

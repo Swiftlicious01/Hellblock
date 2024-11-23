@@ -1,6 +1,5 @@
 package com.swiftlicious.hellblock.listeners.fishing;
 
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
 import org.bukkit.entity.FishHook;
@@ -9,14 +8,13 @@ import org.bukkit.inventory.ItemStack;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.scheduler.SchedulerTask;
-import com.swiftlicious.hellblock.utils.FakeItemUtils;
 
 /**
  * A task responsible for animating bait when it's attached to a fishing hook.
  */
 public class BaitAnimationTask implements Runnable {
 
-	private final SchedulerTask cancellableTask;
+	private final SchedulerTask task;
 	private final int entityID;
 	private final Player player;
 	private final FishHook fishHook;
@@ -32,26 +30,26 @@ public class BaitAnimationTask implements Runnable {
 	public BaitAnimationTask(HellblockPlugin plugin, Player player, FishHook fishHook, ItemStack baitItem) {
 		this.player = player;
 		this.fishHook = fishHook;
-		entityID = ThreadLocalRandom.current().nextInt(Integer.MAX_VALUE);
-		plugin.sendPackets(player, FakeItemUtils.getSpawnPacket(entityID, fishHook.getLocation()),
-				FakeItemUtils.getMetaPacket(entityID, baitItem));
-		this.cancellableTask = plugin.getScheduler().asyncRepeating(this, 50, 50, TimeUnit.MILLISECONDS);
+		this.task = plugin.getScheduler().asyncRepeating(this, 50, 50, TimeUnit.MILLISECONDS);
+		ItemStack itemStack = baitItem.clone();
+		itemStack.setAmount(1);
+		this.entityID = plugin.getVersionManager().getNMSManager().dropFakeItem(player, itemStack,
+				fishHook.getLocation().clone().subtract(0, 0.6, 0));
 	}
 
 	@Override
 	public void run() {
-		HellblockPlugin.getInstance().getProtocolManager().sendServerPacket(player,
-				FakeItemUtils.getVelocityPacket(entityID, fishHook.getVelocity()));
-		HellblockPlugin.getInstance().getProtocolManager().sendServerPacket(player,
-				FakeItemUtils.getTpPacket(entityID, fishHook.getLocation(), false));
+		HellblockPlugin.getInstance().getVersionManager().getNMSManager().sendClientSideEntityMotion(player,
+				fishHook.getVelocity(), entityID);
+		HellblockPlugin.getInstance().getVersionManager().getNMSManager().sendClientSideTeleportEntity(player,
+				fishHook.getLocation().clone().subtract(0, 0.6, 0), false, entityID);
 	}
 
 	/**
 	 * Cancels the bait animation and cleans up resources.
 	 */
 	public void cancelAnimation() {
-		cancellableTask.cancel();
-		HellblockPlugin.getInstance().getProtocolManager().sendServerPacket(player,
-				FakeItemUtils.getDestroyPacket(entityID));
+		task.cancel();
+		HellblockPlugin.getInstance().getVersionManager().getNMSManager().removeClientSideEntity(player, entityID);
 	}
 }

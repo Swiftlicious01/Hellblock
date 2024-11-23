@@ -9,7 +9,6 @@ import java.util.concurrent.TimeUnit;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.command.CommandSender;
-import org.bukkit.command.ConsoleCommandSender;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.Nullable;
 
@@ -17,7 +16,6 @@ import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.api.DefaultFontInfo;
-import com.swiftlicious.hellblock.config.locale.MessageConstants;
 import com.swiftlicious.hellblock.utils.ReflectionUtils;
 
 import lombok.NonNull;
@@ -95,30 +93,6 @@ public class AdventureManager implements AdventureManagerInterface {
 			sendGlobalMessage(message);
 		else if (sender instanceof Player player)
 			sendPlayerMessage(player, message);
-		else if (sender instanceof ConsoleCommandSender)
-			sendConsoleMessage(message);
-	}
-
-	@Override
-	public void sendMessageWithPrefix(@Nullable CommandSender sender, @Nullable String message) {
-		if (message == null)
-			return;
-		String prefix = instance.getTranslationManager()
-				.miniMessageTranslation(MessageConstants.MSG_PREFIX.build().key());
-		if (sender == null)
-			sendGlobalMessage(prefix + message);
-		else if (sender instanceof Player player)
-			sendPlayerMessage(player, prefix + message);
-		else if (sender instanceof ConsoleCommandSender)
-			sendConsoleMessage(prefix + message);
-	}
-
-	@Override
-	public void sendConsoleMessage(@Nullable String message) {
-		if (message == null)
-			return;
-		Audience au = Audience.audience(Bukkit.getConsoleSender());
-		au.sendMessage(getComponentFromMiniMessage(message));
 	}
 
 	@Override

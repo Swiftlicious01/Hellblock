@@ -59,7 +59,7 @@ public class ItemManager implements ItemManagerInterface, Listener {
 
 	private final HellblockPlugin instance;
 	private final Map<String, ItemProvider> itemProviders = new HashMap<>();
-	private final Map<String, LavaFishingItem> items = new HashMap<>();
+	private final Map<String, CustomItem> items = new HashMap<>();
 	private final BukkitItemFactory factory;
 	private ItemProvider[] itemDetectArray;
 
@@ -89,7 +89,7 @@ public class ItemManager implements ItemManagerInterface, Listener {
 				return "vanilla";
 			}
 		});
-		this.registerItemProvider(new LavaFishingItemProvider());
+		this.registerItemProvider(new CustomItemProvider());
 	}
 
 	@Override
@@ -111,7 +111,7 @@ public class ItemManager implements ItemManagerInterface, Listener {
 	}
 
 	@Override
-	public boolean registerItem(@NotNull LavaFishingItem item) {
+	public boolean registerItem(@NotNull CustomItem item) {
 		if (items.containsKey(item.id()))
 			return false;
 		items.put(item.id(), item);
@@ -121,8 +121,8 @@ public class ItemManager implements ItemManagerInterface, Listener {
 	@Nullable
 	@Override
 	public ItemStack buildInternal(@NotNull Context<Player> context, @NotNull String id) {
-//        LavaFishingItem item = requireNonNull(items.get(id), () -> "No item found for " + id);
-		LavaFishingItem item = items.get(id);
+//        CustomItem item = requireNonNull(items.get(id), () -> "No item found for " + id);
+		CustomItem item = items.get(id);
 		if (item == null)
 			return null;
 		return build(context, item);
@@ -130,18 +130,18 @@ public class ItemManager implements ItemManagerInterface, Listener {
 
 	@NotNull
 	@Override
-	public ItemStack build(@NotNull Context<Player> context, @NotNull LavaFishingItemInterface lavaFishingItem) {
-		ItemStack itemStack = getOriginalStack(context.holder(), lavaFishingItem.material());
+	public ItemStack build(@NotNull Context<Player> context, @NotNull CustomItemInterface customItem) {
+		ItemStack itemStack = getOriginalStack(context.holder(), customItem.material());
 		if (itemStack.getType() == Material.AIR)
 			return itemStack;
-		instance.getLootManager().getLoot(lavaFishingItem.id()).ifPresent(loot -> {
+		instance.getLootManager().getLoot(customItem.id()).ifPresent(loot -> {
 			for (Map.Entry<String, TextValue<Player>> entry : loot.customData().entrySet()) {
 				context.arg(ContextKeys.of("data_" + entry.getKey(), String.class), entry.getValue().render(context));
 			}
 		});
-		itemStack.setAmount(Math.max(1, (int) lavaFishingItem.amount().evaluate(context)));
+		itemStack.setAmount(Math.max(1, (int) customItem.amount().evaluate(context)));
 		Item<ItemStack> wrappedItemStack = factory.wrap(itemStack);
-		for (BiConsumer<Item<ItemStack>, Context<Player>> consumer : lavaFishingItem.tagConsumers()) {
+		for (BiConsumer<Item<ItemStack>, Context<Player>> consumer : customItem.tagConsumers()) {
 			consumer.accept(wrappedItemStack, context);
 		}
 		return wrappedItemStack.load();
@@ -167,7 +167,7 @@ public class ItemManager implements ItemManagerInterface, Listener {
 	}
 
 	@Override
-	public String getLavaFishingItemID(@NotNull ItemStack itemStack) {
+	public String getCustomItemID(@NotNull ItemStack itemStack) {
 		return (String) factory.wrap(itemStack).getTag("HellFishing", "id").orElse(null);
 	}
 
@@ -218,7 +218,7 @@ public class ItemManager implements ItemManagerInterface, Listener {
 		return itemEntity;
 	}
 
-	public ItemStack getOriginalStack(Player player, String material) {
+	private ItemStack getOriginalStack(Player player, String material) {
 		if (!material.contains(":")) {
 			try {
 				return new ItemStack(Material.valueOf(material.toUpperCase(Locale.ENGLISH)));
@@ -449,7 +449,8 @@ public class ItemManager implements ItemManagerInterface, Listener {
 					return;
 				ItemStack[] itemStack = ItemStackUtils.deserialize(base64);
 				event.setDropItems(false);
-				Arrays.asList(itemStack).stream().forEach(item -> block.getLocation().getWorld().dropItemNaturally(block.getLocation(), item));
+				Arrays.asList(itemStack).stream()
+						.forEach(item -> block.getLocation().getWorld().dropItemNaturally(block.getLocation(), item));
 			}
 		}
 	}
@@ -511,7 +512,8 @@ public class ItemManager implements ItemManagerInterface, Listener {
 				String base64 = pdc.get(nk, PersistentDataType.STRING);
 				if (base64 != null) {
 					ItemStack[] itemStack = ItemStackUtils.deserialize(base64);
-					Arrays.asList(itemStack).stream().forEach(item -> block.getLocation().getWorld().dropItemNaturally(block.getLocation(), item));
+					Arrays.asList(itemStack).stream().forEach(
+							item -> block.getLocation().getWorld().dropItemNaturally(block.getLocation(), item));
 					blockToRemove.add(block);
 					block.setType(Material.AIR);
 					pdc.remove(nk);

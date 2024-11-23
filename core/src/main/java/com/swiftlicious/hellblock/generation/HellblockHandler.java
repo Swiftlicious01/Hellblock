@@ -16,20 +16,15 @@ import java.util.concurrent.TimeUnit;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
-import org.bukkit.Registry;
 import org.bukkit.World;
 import org.bukkit.World.Environment;
 import org.bukkit.block.Block;
-import org.bukkit.block.banner.PatternType;
-import org.bukkit.enchantments.Enchantment;
 import org.bukkit.WorldCreator;
 import org.bukkit.WorldType;
 import org.bukkit.entity.Player;
 import org.bukkit.event.player.PlayerTeleportEvent.TeleportCause;
 import org.bukkit.generator.ChunkGenerator;
 import org.bukkit.inventory.BlockInventoryHolder;
-import org.bukkit.potion.PotionEffectType;
-import org.bukkit.potion.PotionType;
 import org.bukkit.util.Vector;
 import org.jetbrains.annotations.Nullable;
 
@@ -39,16 +34,14 @@ import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldguard.protection.managers.RegionManager;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import com.sk89q.worldguard.protection.regions.RegionContainer;
+
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.api.compatibility.WorldGuardHook;
-import com.swiftlicious.hellblock.gui.hellblock.IslandChoiceMenu;
 import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.utils.ChunkUtils;
 import com.swiftlicious.hellblock.utils.LocationUtils;
 
 import dev.dejvokep.boostedyaml.YamlDocument;
-import io.papermc.paper.registry.RegistryAccess;
-import io.papermc.paper.registry.RegistryKey;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.Setter;
@@ -63,40 +56,15 @@ public class HellblockHandler {
 	private File lastHellblockFile;
 	private YamlDocument lastHellblock;
 
-	private final Registry<Enchantment> enchantmentRegistry;
-	private final Registry<PatternType> bannerRegistry;
-	private final Registry<PotionType> potionRegistry;
-	private final Registry<PotionEffectType> effectRegistry;
-
 	@Setter
 	private MVWorldManager mvWorldManager;
 
 	public HellblockHandler(HellblockPlugin plugin) {
 		this.instance = plugin;
-		this.enchantmentRegistry = RegistryAccess.registryAccess().getRegistry(RegistryKey.ENCHANTMENT);
-		this.bannerRegistry = RegistryAccess.registryAccess().getRegistry(RegistryKey.BANNER_PATTERN);
-		this.potionRegistry = RegistryAccess.registryAccess().getRegistry(RegistryKey.POTION);
-		this.effectRegistry = RegistryAccess.registryAccess().getRegistry(RegistryKey.MOB_EFFECT);
 		this.schematicsDirectory = new File(instance.getDataFolder() + File.separator + "schematics");
 		if (!this.schematicsDirectory.exists())
 			this.schematicsDirectory.mkdirs();
 		instance.getScheduler().asyncLater(() -> startCountdowns(), 5, TimeUnit.SECONDS);
-	}
-
-	public Registry<Enchantment> getEnchantmentRegistry() {
-		return this.enchantmentRegistry;
-	}
-
-	public Registry<PatternType> getBannerPatternRegistry() {
-		return this.bannerRegistry;
-	}
-
-	public Registry<PotionType> getPotionTypeRegistry() {
-		return this.potionRegistry;
-	}
-
-	public Registry<PotionEffectType> getPotionEffectRegistry() {
-		return this.effectRegistry;
 	}
 
 	public void startCountdowns() {
@@ -189,7 +157,7 @@ public class HellblockHandler {
 								instance.getIslandChoiceConverter().convertIslandChoice(player, nextHellblock));
 					}
 
-					instance.getAdventureManager().sendMessageWithPrefix(player,
+					instance.getAdventureManager().sendMessage(player,
 							"<red>Creating new hellblock! Please wait...");
 				}).thenRunAsync(() -> {
 					choice.getIslandChoiceTask().thenRunAsync(() -> {
@@ -222,7 +190,7 @@ public class HellblockHandler {
 															onlineUser.get().getHellblockData().getID());
 													if (region != null)
 														instance.getBiomeHandler().setHellblockBiome(region,
-																onlineUser.get().getHellblockData().getBiome());
+																onlineUser.get().getHellblockData().getBiome().getConvertedBiome());
 												} else {
 													// TODO: using plugin protection
 												}
@@ -259,7 +227,7 @@ public class HellblockHandler {
 						Map<Block, Material> blockChanges = new LinkedHashMap<>();
 
 						if (!forceReset && Bukkit.getPlayer(id) != null)
-							instance.getAdventureManager().sendMessageWithPrefix(Bukkit.getPlayer(id),
+							instance.getAdventureManager().sendMessage(Bukkit.getPlayer(id),
 									"<red>Clearing your hellblock for a replacement space! Please wait...");
 						UnprotectionTask unprotection = new UnprotectionTask();
 						ClearBlocksTask clearBlocks = new ClearBlocksTask();
@@ -270,7 +238,7 @@ public class HellblockHandler {
 										instance.getWorldGuardHandler().unprotectHellblock(id, forceReset));
 								ProtectedRegion region = instance.getWorldGuardHandler().getRegion(id,
 										offlineUser.getHellblockData().getID());
-								instance.getBiomeHandler().setHellblockBiome(region, HellBiome.NETHER_WASTES);
+								instance.getBiomeHandler().setHellblockBiome(region, HellBiome.NETHER_WASTES.getConvertedBiome());
 							} else {
 								// TODO: using plugin protection
 							}
@@ -296,13 +264,13 @@ public class HellblockHandler {
 												if (!forceReset) {
 													if (offlineUser.isOnline()) {
 														Player player = Bukkit.getPlayer(id);
-														instance.getAdventureManager().sendMessageWithPrefix(member,
+														instance.getAdventureManager().sendMessage(member,
 																String.format(
 																		"<red>Your hellblock owner <dark_red>%s <red>has reset the island, so you've been removed.",
 																		player.getName()));
 													}
 												} else {
-													instance.getAdventureManager().sendMessageWithPrefix(member,
+													instance.getAdventureManager().sendMessage(member,
 															"<red>The hellblock party you were a part of has been forcefully deleted.");
 												}
 											} else {
@@ -359,7 +327,7 @@ public class HellblockHandler {
 									if (offlineUser.isOnline()) {
 										Player player = Bukkit.getPlayer(offlineUser.getUUID());
 										if (!forceReset)
-											instance.getAdventureManager().sendMessageWithPrefix(player,
+											instance.getAdventureManager().sendMessage(player,
 													"<red>Resetting your current hellblock. Please choose a new hellblock type to create!");
 										if (instance.getConfigManager().resetInventory()) {
 											player.getInventory().clear();
@@ -380,7 +348,7 @@ public class HellblockHandler {
 										if (offlineUser.isOnline()) {
 											Player player = Bukkit.getPlayer(offlineUser.getUUID());
 											instance.getScheduler().sync().runLater(() -> {
-												new IslandChoiceMenu(player, true);
+												
 											}, 1 * 20, home);
 										}
 									} else {
@@ -548,6 +516,7 @@ public class HellblockHandler {
 		return new VoidGenerator();
 	}
 
+	@SuppressWarnings("deprecation")
 	public @NonNull World getHellblockWorld() {
 		World hellblockWorld = Bukkit.getWorld(instance.getConfigManager().worldName());
 		if (hellblockWorld == null) {
@@ -570,7 +539,7 @@ public class HellblockHandler {
 				spawnProtection.thenRun(() -> {
 					if (instance.getWorldGuardHandler().getSpawnRegion() != null)
 						instance.getBiomeHandler().setHellblockBiome(instance.getWorldGuardHandler().getSpawnRegion(),
-								HellBiome.SOUL_SAND_VALLEY);
+								HellBiome.SOUL_SAND_VALLEY.getConvertedBiome());
 					instance.debug("Spawn area protected with WorldGuard!");
 					spawnLocation
 							.setSpawnLocation(instance.getWorldGuardHandler().getSpawnCenter().toLocation(spawnWorld));
@@ -585,7 +554,7 @@ public class HellblockHandler {
 						instance.getScheduler().executeSync(() -> {
 							getMvWorldManager().addWorld(spawnWorld.getName(), Environment.NETHER,
 									String.valueOf(spawnWorld.getSeed()), WorldType.FLAT, false,
-									instance.getPluginMeta().getName(), true);
+									instance.getDescription().getName(), true);
 							getMvWorldManager().getMVWorld(spawnWorld).setSpawnLocation(spawnWorld.getSpawnLocation());
 							instance.debug(String.format("Imported the world to Multiverse-Core: %s",
 									instance.getConfigManager().worldName()));
@@ -603,7 +572,7 @@ public class HellblockHandler {
 			spawn.setY(getHellblockWorld().getHighestBlockYAt(spawn) + 1);
 			ChunkUtils.teleportAsync(player, spawn).thenRun(() -> {
 				if (!forced)
-					instance.getAdventureManager().sendMessageWithPrefix(player,
+					instance.getAdventureManager().sendMessage(player,
 							"<red>Sent to spawn due to unsafe conditions!");
 			});
 		} else {

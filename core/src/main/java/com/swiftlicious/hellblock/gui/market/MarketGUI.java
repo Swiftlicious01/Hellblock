@@ -4,8 +4,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.ThreadLocalRandom;
 
+import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
@@ -16,8 +16,6 @@ import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.player.Context;
 import com.swiftlicious.hellblock.player.ContextKeys;
 import com.swiftlicious.hellblock.player.EarningData;
-import com.swiftlicious.hellblock.utils.InventoryUtils;
-import com.swiftlicious.hellblock.utils.InventoryUtils.EnumInventoryType;
 import com.swiftlicious.hellblock.utils.PlayerUtils;
 import com.swiftlicious.hellblock.utils.extras.Pair;
 
@@ -27,7 +25,6 @@ public class MarketGUI {
 	private final Map<Integer, MarketGUIElement> itemsSlotMap;
 	private final MarketManager manager;
 	protected final Inventory inventory;
-	protected final int windowID;
 	protected final Context<Player> context;
 	protected final EarningData earningData;
 
@@ -35,12 +32,10 @@ public class MarketGUI {
 		this.manager = manager;
 		this.context = context;
 		this.earningData = earningData;
-		this.windowID = ThreadLocalRandom.current().nextInt(Integer.MAX_VALUE);
 		this.itemsCharMap = new HashMap<>();
 		this.itemsSlotMap = new HashMap<>();
 		var holder = new MarketGUIHolder();
-		this.inventory = InventoryUtils.createInventory(holder, manager.layout.length * 9, HellblockPlugin.getInstance()
-				.getAdventureManager().getComponentFromMiniMessage(manager.title.render(context)));
+		this.inventory = Bukkit.createInventory(holder, manager.layout.length * 9);
 		holder.setInventory(this.inventory);
 	}
 
@@ -80,12 +75,9 @@ public class MarketGUI {
 
 	public void show() {
 		context.holder().openInventory(inventory);
-		HellblockPlugin.getInstance().sendPacket(context.holder(),
-				InventoryUtils.getOpenWindowPacket(windowID, EnumInventoryType.CHEST,
-						HellblockPlugin.getInstance().getAdventureManager()
-								.componentToJson(HellblockPlugin.getInstance().getAdventureManager()
-										.getComponentFromMiniMessage(manager.title.render(context))),
-						inventory.getSize() * 9));
+		HellblockPlugin.getInstance().getVersionManager().getNMSManager().updateInventoryTitle(context.holder(),
+				HellblockPlugin.getInstance().getAdventureManager().componentToJson(HellblockPlugin.getInstance()
+						.getAdventureManager().getComponentFromMiniMessage(manager.title.render(context))));
 	}
 
 	@Nullable

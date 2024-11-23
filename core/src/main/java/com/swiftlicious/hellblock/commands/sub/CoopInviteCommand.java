@@ -66,30 +66,30 @@ public class CoopInviteCommand extends BukkitCommandFeature<CommandSender> {
 						}
 						if (onlineUser.get().getHellblockData().getOwnerUUID() != null
 								&& !onlineUser.get().getHellblockData().getOwnerUUID().equals(player.getUniqueId())) {
-							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 									HellblockPlugin.getInstance().getTranslationManager().miniMessageTranslation(
 											MessageConstants.MSG_NOT_OWNER_OF_HELLBLOCK.build().key()));
 							return;
 						}
 						if (onlineUser.get().getHellblockData().isAbandoned()) {
-							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 									HellblockPlugin.getInstance().getTranslationManager().miniMessageTranslation(
 											MessageConstants.MSG_HELLBLOCK_IS_ABANDONED.build().key()));
 							return;
 						}
 						Player user = context.get("player");
 						if (user == null || !user.isOnline()) {
-							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 									"<red>The player you entered is either not online or doesn't exist!");
 							return;
 						}
 						if (user.getUniqueId().equals(player.getUniqueId())) {
-							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 									"<red>You can't do this to yourself!");
 							return;
 						}
 						if (onlineUser.get().getHellblockData().getParty().contains(user.getUniqueId())) {
-							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 									"<red>The player you're trying to invite is already a member of your party!");
 							return;
 						}
@@ -102,18 +102,18 @@ public class CoopInviteCommand extends BukkitCommandFeature<CommandSender> {
 							return;
 						}
 						if (addPlayer.get().getHellblockData().hasHellblock()) {
-							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 									"<red>This player already has their own hellblock!");
 							return;
 						}
 						if (addPlayer.get().getHellblockData().hasInvite(player.getUniqueId())) {
-							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 									"<red>You already invited this player, wait for them to accept or decline!");
 							return;
 						}
 						HellblockPlugin.getInstance().getCoopManager().sendInvite(onlineUser.get(), addPlayer.get());
 					} else {
-						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 								HellblockPlugin.getInstance().getTranslationManager().miniMessageTranslation(
 										MessageConstants.MSG_HELLBLOCK_NOT_FOUND.build().key()));
 						return;

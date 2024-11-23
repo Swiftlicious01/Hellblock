@@ -5,17 +5,10 @@ plugins {
 apply plugin: 'com.gradleup.shadow'
 
 repositories {
-	maven { url = 'https://maven.aliyun.com/repository/public/' }
-    maven { url = 'https://repo.dmulloy2.net/repository/public/' } // protocollib
-    maven { url = 'https://repo.codemc.io/repository/maven-public/' }
     maven { url = 'https://maven.enginehub.org/repo/' } // worldedit & worldguard
-    maven { url = 'https://jitpack.io/' } // rtag
+    maven { url = 'https://jitpack.io/' } // vault, jobs & rtag
     maven { url = 'https://mvn.lumine.io/repository/maven-public/' } // mythicmobs
-    maven { url = 'https://repo.minebench.de/' }
-    maven { url = 'https://repo.xenondevs.xyz/releases/' } // invui
-    maven { url = 'https://oss.sonatype.org/content/groups/public/' }
-    maven { url = 'https://s01.oss.sonatype.org/content/repositories/snapshots/' }
-    maven { url = 'https://repo.onarandombox.com/content/groups/public/' }
+    maven { url = 'https://repo.onarandombox.com/content/groups/public/' } // multiverse-core
     maven { url = 'https://hub.spigotmc.org/nexus/content/repositories/snapshots/' } // spigot
     // placeholderapi
     maven {
@@ -51,16 +44,10 @@ dependencies {
         
     implementation "io.papermc:paperlib:${rootProject.properties["paperlib_version"]}"
 
-    // inventory setup
-    implementation "xyz.xenondevs.invui:invui:${rootProject.properties["invui_version"]}"
-
     // command
     compileOnly "org.incendo:cloud-core:${rootProject.properties["cloud_core_version"]}"
     compileOnly "org.incendo:cloud-minecraft-extras:${rootProject.properties["cloud_minecraft_extras_version"]}"
     compileOnly "org.incendo:cloud-paper:${rootProject.properties["cloud_paper_version"]}"
-
-    // packet
-    compileOnly "com.comphenix.protocol:ProtocolLib:${rootProject.properties["protocollib_version"]}"
         
   	// papi
     compileOnly "me.clip:placeholderapi:${rootProject.properties["placeholder_api_version"]}"
@@ -149,7 +136,6 @@ shadowJar {
     relocate 'org.apache.commons.pool2', 'com.swiftlicious.hellblock.libraries.commonspool2'
     relocate 'net.objecthunter.exp4j', 'com.swiftlicious.hellblock.libraries.exp4j'
     relocate 'net.jpountz', 'com.swiftlicious.hellblock.libraries.jpountz' //lz4
-    relocate 'xyz.xenondevs', 'com.swiftlicious.hellblock.libraries'
     relocate 'com.github.benmanes.caffeine', 'com.swiftlicious.hellblock.libraries.caffeine'
     relocate 'org.incendo', 'com.swiftlicious.hellblock.libraries'
     relocate 'dev.dejvokep.boostedyaml', 'com.swiftlicious.hellblock.libraries.boostedyaml'

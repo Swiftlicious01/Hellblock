@@ -4,10 +4,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-import org.bukkit.inventory.ItemStack;
-
 import com.swiftlicious.hellblock.HellblockPlugin;
-import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 
 public class ConfigUtils {
 
@@ -32,13 +29,7 @@ public class ConfigUtils {
 			Object tag = entry.getValue();
 			if (tag instanceof List<?> listData) {
 				for (Object innerTag : listData) {
-					if (innerTag instanceof byte[] byteArrayData) {
-						ItemStack itemData = ItemStackUtils.fromBase64(byteArrayData);
-						readableList.add("<white>- <red>" + entry.getKey() + ":");
-						readableList.add("<aqua>(Material) <gold>" + itemData.getType().getKey().getKey());
-						readableList.add("<aqua>(Item Name) <gold>"
-								+ PlainTextComponentSerializer.plainText().serialize(itemData.displayName()));
-					} else if (innerTag instanceof String stringData) {
+					if (innerTag instanceof String stringData) {
 						readableList.add("<white>- <red>" + entry.getKey() + ":");
 						readableList
 								.add("<aqua>(String) <gold>" + (stringData != null && !stringData.isEmpty() ? stringData
@@ -77,12 +68,6 @@ public class ConfigUtils {
 				}
 			} else if (tag instanceof Map<?, ?> mapData) {
 				mapToReadableStringList((Map<String, Object>) mapData, readableList, false);
-			} else if (tag instanceof byte[] byteArrayData) {
-				ItemStack itemData = ItemStackUtils.fromBase64(byteArrayData);
-				readableList.add("<white>- <red>" + entry.getKey() + ":");
-				readableList.add("<aqua>(Material) <gold>" + itemData.getType().getKey().getKey());
-				readableList.add("<aqua>(Item Name) <gold>"
-						+ PlainTextComponentSerializer.plainText().serialize(itemData.displayName()));
 			} else if (tag instanceof String stringData) {
 				readableList.add("<white>- <red>" + entry.getKey() + ":");
 				readableList.add("<aqua>(String) <gold>" + (stringData != null && !stringData.isEmpty() ? stringData

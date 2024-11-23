@@ -3,7 +3,6 @@ package com.swiftlicious.hellblock.listeners.generator;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Particle;
-import com.destroystokyo.paper.ParticleBuilder;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.utils.RandomUtils;
 
@@ -80,12 +79,13 @@ public class GenMode {
 	}
 
 	public void displayGenerationParticles(Location loc) {
+		if (loc.getWorld() == null)
+			return;
 		for (int i = 0; i < 10; i++) {
 			Location tempLoc = loc.clone().add(RandomUtils.generateRandomDouble(), 1D,
 					RandomUtils.generateRandomDouble());
 			float speed = 1 / (i + 1);
-			ParticleBuilder builder = new ParticleBuilder(this.particleEffect);
-			builder.location(tempLoc).count((int) speed).source(null).spawn();
+			loc.getWorld().spawnParticle(this.particleEffect, tempLoc, (int) speed);
 		}
 	}
 

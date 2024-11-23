@@ -116,10 +116,11 @@ public class IntegrationManager implements IntegrationManagerInterface {
 		return false;
 	}
 
+	@SuppressWarnings("deprecation")
 	public boolean isHooked(String hooked, String... versionPrefix) {
 		Plugin p = Bukkit.getPluginManager().getPlugin(hooked);
 		if (p != null) {
-			String ver = p.getPluginMeta().getVersion();
+			String ver = p.getDescription().getVersion();
 			for (String prefix : versionPrefix) {
 				if (ver.startsWith(prefix)) {
 					instance.getPluginLogger().info(hooked + " hooked!");

@@ -5,11 +5,9 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 
-import org.bukkit.NamespacedKey;
 import org.bukkit.block.Biome;
 import org.bukkit.entity.EntityType;
 
-import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.generation.HellBiome;
 
 import lombok.NonNull;
@@ -161,10 +159,9 @@ public class RandomUtils {
 	 * @return a random biome
 	 */
 	public static @NonNull Biome generateRandomBiome() {
-		List<HellBiome> biomes = Arrays.asList(HellBiome.values());
+		List<Biome> biomes = Arrays.asList(HellBiome.values()).stream().map(HellBiome::getConvertedBiome).toList();
 		int randomIndex = getInstance().random.nextInt(biomes.size());
-		return HellblockPlugin.getInstance().getBiomeHandler().getBiomeRegistry()
-				.getOrThrow(NamespacedKey.fromString(biomes.get(randomIndex).toString()));
+		return biomes.get(randomIndex);
 	}
 
 	/**

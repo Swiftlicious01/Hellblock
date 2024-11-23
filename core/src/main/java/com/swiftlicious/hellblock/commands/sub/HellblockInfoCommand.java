@@ -35,7 +35,7 @@ public class HellblockInfoCommand extends BukkitCommandFeature<CommandSender> {
 				return;
 			}
 			if (!onlineUser.get().getHellblockData().hasHellblock()) {
-				HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+				HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 						HellblockPlugin.getInstance().getTranslationManager()
 								.miniMessageTranslation(MessageConstants.MSG_HELLBLOCK_NOT_FOUND.build().key()));
 				return;
@@ -50,7 +50,7 @@ public class HellblockInfoCommand extends BukkitCommandFeature<CommandSender> {
 						.thenAccept((result) -> {
 							UserData offlineUser = result.orElseThrow();
 							if (offlineUser.getHellblockData().isAbandoned()) {
-								HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+								HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 										HellblockPlugin.getInstance().getTranslationManager().miniMessageTranslation(
 												MessageConstants.MSG_HELLBLOCK_IS_ABANDONED.build().key()));
 								return;

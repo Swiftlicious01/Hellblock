@@ -72,40 +72,40 @@ public class CoopAcceptCommand extends BukkitCommandFeature<CommandSender> {
 					if (!onlineUser.get().getHellblockData().hasHellblock()) {
 						String user = context.get("player");
 						if (user.equalsIgnoreCase(player.getName())) {
-							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 									"<red>You can't do this to yourself!");
 							return;
 						}
 						UUID id = Bukkit.getPlayer(user) != null ? Bukkit.getPlayer(user).getUniqueId()
 								: UUIDFetcher.getUUID(user);
 						if (id == null) {
-							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 									"<red>The player you're trying to accept an invite from doesn't exist!");
 							return;
 						}
 						if (!Bukkit.getOfflinePlayer(id).hasPlayedBefore()) {
-							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 									"<red>The player you're trying to accept an invite from doesn't exist!");
 							return;
 						}
 						if (onlineUser.get().getHellblockData().getInvitations() == null) {
-							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 									"<red>You don't have an invite from this player!");
 							return;
 						}
 						if (!onlineUser.get().getHellblockData().hasInvite(id)) {
-							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 									"<red>You don't have an invite from this player!");
 							return;
 						}
 						if (onlineUser.get().getHellblockData().hasInviteExpired(id)) {
-							HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 									"<red>Your invitation from this player has expired!");
 							return;
 						}
 						HellblockPlugin.getInstance().getCoopManager().addMemberToHellblock(id, onlineUser.get());
 					} else {
-						HellblockPlugin.getInstance().getAdventureManager().sendMessageWithPrefix(player,
+						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
 								"<red>You already have a hellblock!");
 						return;
 					}
