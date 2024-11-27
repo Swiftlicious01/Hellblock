@@ -170,6 +170,7 @@ command.debug.loot.failure.rod: "<red>Please hold a fishing rod before using thi
 command.debug.loot.failure.no_loot: "<red>No loot available</red>"
 command.debug.loot.success: "<yellow><b>Available loots:</b></yellow> <arg:0>"
 command.debug.nbt.no.item.in.hand: "<red>Please hold an item to check its NBT tag data.</red>"
+message.hellblock.permission.schematic.denied: "<red>You don't have permission to generate this schematic type!</red>"
 message.hellblock.login.unsafe.environment: "<red>You logged out in an unsafe hellblock environment because it was reset or deleted.</red>"
 message.hellblock.login.abandoned: "<red>Your hellblock was deemed abandoned for not logging in for the past <arg:0> days!</red><newline><red>You've lost access to your island, if you wish to recover it speak to an administrator.</red>"
 message.hellblock.grow.glowstone.tree: "<red>Soul Sand has been fertilized!</red><newline><red>Right click with</red> <dark_red>flint</dark_red> <red>to grow the</red> <gold>glowstone tree</gold><red>!</red>"

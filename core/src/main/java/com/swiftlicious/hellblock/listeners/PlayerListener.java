@@ -343,7 +343,7 @@ public class PlayerListener implements Listener {
 								});
 					}
 				} else {
-					// TODO: stuff
+					instance.getIslandChoiceGUIManager().openIslandChoiceGUI(player, false);
 				}
 			}, 5 * 20, onlineUser.get().getHellblockData().getHomeLocation());
 			this.cancellablePortal.putIfAbsent(player.getUniqueId(), portalTask);
@@ -573,8 +573,7 @@ public class PlayerListener implements Listener {
 	@EventHandler(priority = EventPriority.HIGHEST)
 	public void onRespawn(PlayerRespawnEvent event) {
 		final Player player = event.getPlayer();
-		if (player.getBedSpawnLocation() != null
-				&& player.getBedSpawnLocation().getBlock().getType() == Material.RESPAWN_ANCHOR)
+		if (player.getBedSpawnLocation() == null)
 			return;
 		if (event.getRespawnReason() == RespawnReason.DEATH) {
 			Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());

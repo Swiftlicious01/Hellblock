@@ -190,7 +190,7 @@ public class HellblockGUIManager implements HellblockGUIManagerInterface, Listen
 
 		Section resetCooldownSection = config.getSection("reset-cooldown-icon");
 		if (resetCooldownSection != null) {
-			resetCooldownSlot = resetCooldownSection.getString("symbol", "!").charAt(0);
+			resetCooldownSlot = resetCooldownSection.getString("symbol", "R").charAt(0);
 
 			resetCooldownIcon = new SingleItemParser("resetcooldown", resetCooldownSection,
 					instance.getConfigManager().getItemFormatFunctions()).getItem();
@@ -199,7 +199,7 @@ public class HellblockGUIManager implements HellblockGUIManagerInterface, Listen
 
 		Section biomeCooldownSection = config.getSection("biome-cooldown-icon");
 		if (biomeCooldownSection != null) {
-			biomeCooldownSlot = biomeCooldownSection.getString("symbol", "*").charAt(0);
+			biomeCooldownSlot = biomeCooldownSection.getString("symbol", "B").charAt(0);
 
 			biomeCooldownIcon = new SingleItemParser("biomecooldown", biomeCooldownSection,
 					instance.getConfigManager().getItemFormatFunctions()).getItem();
@@ -374,25 +374,21 @@ public class HellblockGUIManager implements HellblockGUIManagerInterface, Listen
 				event.setCancelled(true);
 				player.closeInventory();
 				ActionManagerInterface.trigger(gui.context, closeActions);
-				return;
-			}
-
-			if (element.getSymbol() == resetCooldownSlot) {
-				event.setCancelled(true);
-				ActionManagerInterface.trigger(gui.context, resetCooldownActions);
-				return;
-			}
-
-			if (element.getSymbol() == biomeCooldownSlot) {
-				event.setCancelled(true);
-				ActionManagerInterface.trigger(gui.context, biomeCooldownActions);
-				return;
 			}
 
 			if (element.getSymbol() == levelSlot) {
 				event.setCancelled(true);
 				ActionManagerInterface.trigger(gui.context, levelActions);
-				return;
+			}
+
+			if (element.getSymbol() == challengeSlot) {
+				event.setCancelled(true);
+				ActionManagerInterface.trigger(gui.context, challengeActions);
+			}
+
+			if (element.getSymbol() == partySlot) {
+				event.setCancelled(true);
+				ActionManagerInterface.trigger(gui.context, partyActions);
 			}
 
 			if (element.getSymbol() == teleportSlot) {
@@ -401,7 +397,6 @@ public class HellblockGUIManager implements HellblockGUIManagerInterface, Listen
 						.getOfflineUserData(hellblockData.getOwnerUUID(), instance.getConfigManager().lockData())
 						.thenAccept(result -> {
 							if (result.isEmpty()) {
-								event.setCancelled(true);
 								player.closeInventory();
 								return;
 							}
@@ -429,7 +424,63 @@ public class HellblockGUIManager implements HellblockGUIManagerInterface, Listen
 										"Hellblock home location returned null, please report this to the developer.");
 							}
 						});
+			}
+
+			if (!hellblockData.getOwnerUUID().equals(player.getUniqueId())) {
+				audience.sendMessage(
+						instance.getTranslationManager().render(MessageConstants.MSG_NOT_OWNER_OF_HELLBLOCK.build()));
+				audience.playSound(Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
+						net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
 				return;
+			}
+			if (hellblockData.isAbandoned()) {
+				audience.sendMessage(
+						instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_IS_ABANDONED.build()));
+				audience.playSound(Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
+						net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
+				return;
+			}
+
+			if (element.getSymbol() == resetCooldownSlot && hellblockData.getResetCooldown() > 0) {
+				event.setCancelled(true);
+				ActionManagerInterface.trigger(gui.context, resetCooldownActions);
+			}
+
+			if (element.getSymbol() == biomeCooldownSlot && hellblockData.getBiomeCooldown() > 0) {
+				event.setCancelled(true);
+				ActionManagerInterface.trigger(gui.context, biomeCooldownActions);
+			}
+
+			if (element.getSymbol() == lockSlot && !hellblockData.isLocked()) {
+				event.setCancelled(true);
+				hellblockData.setLockedStatus(true);
+				instance.getCoopManager().kickVisitorsIfLocked(player.getUniqueId());
+				instance.getCoopManager().changeLockStatus(userData.get());
+				ActionManagerInterface.trigger(gui.context, lockActions);
+			}
+
+			if (element.getSymbol() == unlockSlot && hellblockData.isLocked()) {
+				event.setCancelled(true);
+				hellblockData.setLockedStatus(false);
+				instance.getCoopManager().changeLockStatus(userData.get());
+				ActionManagerInterface.trigger(gui.context, unlockActions);
+			}
+
+			if (element.getSymbol() == biomeSlot && hellblockData.getBiomeCooldown() == 0) {
+				event.setCancelled(true);
+				instance.getBiomeGUIManager().openBiomeGUI(player);
+				ActionManagerInterface.trigger(gui.context, biomeActions);
+			}
+
+			if (element.getSymbol() == resetSlot && hellblockData.getResetCooldown() == 0) {
+				event.setCancelled(true);
+				instance.getResetConfirmGUIManager().openResetConfirmGUI(player);
+				ActionManagerInterface.trigger(gui.context, resetActions);
+			}
+
+			if (element.getSymbol() == flagSlot) {
+				event.setCancelled(true);
+				ActionManagerInterface.trigger(gui.context, flagActions);
 			}
 		}
 

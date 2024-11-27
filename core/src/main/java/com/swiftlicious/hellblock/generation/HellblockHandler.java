@@ -382,9 +382,9 @@ public class HellblockHandler {
 								}).thenRunAsync(() -> {
 									if (!forceReset) {
 										if (offlineUser.isOnline()) {
-											// Player player = Bukkit.getPlayer(offlineUser.getUUID());
+											Player player = Bukkit.getPlayer(offlineUser.getUUID());
 											instance.getScheduler().sync().runLater(() -> {
-												// TODO: stuff
+												instance.getIslandChoiceGUIManager().openIslandChoiceGUI(player, true);
 											}, 1 * 20, home);
 										}
 									} else {

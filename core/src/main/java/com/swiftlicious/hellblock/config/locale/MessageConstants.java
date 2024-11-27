@@ -12,6 +12,8 @@ public interface MessageConstants {
 	TranslatableComponent.Builder HELLBLOCK_ABANDONED_FAREWELL_MESSAGE = Component.translatable()
 			.key("island.farewell.abandoned.message");
 
+	TranslatableComponent.Builder MSG_HELLBLOCK_NO_SCHEMATIC_PERMISSION = Component.translatable()
+			.key("message.hellblock.permission.schematic.denied");
 	TranslatableComponent.Builder MSG_HELLBLOCK_NOT_FOUND = Component.translatable().key("command.hellblock.not_found");
 	TranslatableComponent.Builder MSG_NOT_OWNER_OF_HELLBLOCK = Component.translatable()
 			.key("command.hellblock.not_owner");

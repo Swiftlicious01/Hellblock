@@ -132,6 +132,14 @@ public interface Item<I> {
 	Item<I> potionColor(int color);
 
 	/**
+	 * Sets if the item will glow or not.
+	 * 
+	 * @param glint whether or not the item has an enchantment glint
+	 * @return the current {@link Item} instance for method chaining
+	 */
+	Item<I> glint(boolean glint);
+
+	/**
 	 * Sets the enchantments for the item.
 	 *
 	 * @param enchantments a map of enchantments to set

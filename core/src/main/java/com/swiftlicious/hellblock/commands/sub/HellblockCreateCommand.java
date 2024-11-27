@@ -40,7 +40,7 @@ public class HellblockCreateCommand extends BukkitCommandFeature<CommandSender> 
 									.getFormattedCooldown(onlineUser.get().getHellblockData().getResetCooldown())));
 					return;
 				}
-				// TODO: stuff
+				HellblockPlugin.getInstance().getIslandChoiceGUIManager().openIslandChoiceGUI(player, false);
 			} else {
 				if (onlineUser.get().getHellblockData().getOwnerUUID() == null) {
 					throw new NullPointerException(

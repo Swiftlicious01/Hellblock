@@ -493,6 +493,14 @@ public class ConfigManager extends ConfigHandler {
 			return (item, context) -> item.skull(base64);
 		}, 5200, "head64");
 		this.registerItemParser(arg -> {
+			String effect = (String) arg;
+			return (item, context) -> item.potionEffect(effect);
+		}, 5300, "potion-effect");
+		this.registerItemParser(arg -> {
+			boolean glint = (boolean) arg;
+			return (item, context) -> item.glint(glint);
+		}, 5300, "enchantment-glint");
+		this.registerItemParser(arg -> {
 			List<String> args = ListUtils.toList(arg);
 			return (item, context) -> item.itemFlags(args);
 		}, 5100, "item-flags");

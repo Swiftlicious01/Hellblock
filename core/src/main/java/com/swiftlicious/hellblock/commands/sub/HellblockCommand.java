@@ -65,7 +65,8 @@ public class HellblockCommand extends BukkitCommandFeature<CommandSender> {
 							}
 						});
 			} else {
-
+				HellblockPlugin.getInstance().getIslandChoiceGUIManager().openIslandChoiceGUI(player, false);
+				return;
 			}
 		});
 	}

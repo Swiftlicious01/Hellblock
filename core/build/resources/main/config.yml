@@ -53,6 +53,16 @@ hellblock:
   grow-natural-trees: false
   # If set to true it will teleport players who fall in the void to their hellblock or to spawn if no hellblock is found.
   void-teleport: true
+  linking-hellblock-sound:
+	key: 'minecraft:block.end_portal.spawn'
+	source: 'player'
+	volume: 1.0
+	pitch: 1.0
+  challenge-completed-sound:
+	key: 'minecraft:entity.player.levelup'
+	source: 'player'
+	volume: 1.0
+	pitch: 1.0
   starter-chest: 
     inventory-name: '<dark_red>Hellblock Chest'
     items:
@@ -127,6 +137,9 @@ hellblock:
           value:
             key: 'ENDER_SIGNAL'
             count: 5
+        message_action:
+          type: message
+          value: '<red>Teleporting you to your hellblock!'
       components:
         minecraft:hide_tooltip: {}
     # Challenge icon to view hellblock challenges
@@ -154,9 +167,9 @@ hellblock:
       display:
         name: '<green>View your island level!'
         lore:
-          - '<gold>Level: <yellow>{level}'
+          - '<gold>Level: <yellow>{hellblock_level}'
           - ' '
-          - '<gold>Your overall rank is <yellow>{rank}'
+          - '<gold>Your overall rank is <yellow>{hellblock_rank}'
       components:
         minecraft:hide_tooltip: {}
     # Party icon to view party members 
@@ -229,6 +242,9 @@ hellblock:
             source: 'player'
             volume: 1
             pitch: 1
+        message_action:
+          type: message
+          value: "<red>You've just <dark_red>locked <red>your hellblock island!"
       components:
         minecraft:hide_tooltip: {}
     # Unlock icon to change visitor status
@@ -247,6 +263,9 @@ hellblock:
             source: 'player'
             volume: 1
             pitch: 1
+        message_action:
+          type: message
+          value: "<red>You've just <dark_red>unlocked <red>your hellblock island!"
       components:
         minecraft:hide_tooltip: {}
     # Reset icon to restart hellblock
@@ -283,20 +302,308 @@ hellblock:
             pitch: 1
       components:
         minecraft:hide_tooltip: {}
-    # Cooldown icon for biome and reset
-    cooldown-icon:
-      symbol: '!'
+    # Cooldown icon for reset
+    reset-cooldown-icon:
+      symbol: 'R'
       material: BARRIER
       display:
-        name: '<red>This action is on cooldown!'
+        name: '<red>Reset is on cooldown!'
         lore:
-          - '<dark_red>Your ability to do this is on cooldown for:'
-          - '<red>{cooldown_time_left}'
+          - '<dark_red>Your ability to reset is on cooldown for:'
+          - '<red>{reset_cooldown}'
       action:
         sound_action:
           type: sound
           value:
             key: 'minecraft:entity.villager.no'
+            source: 'player'
+            volume: 1
+            pitch: 1
+        message_action:
+          type: message
+          value: '<red>You've recently reset your hellblock already, you must wait for <dark_red>{reset_cooldown}<red>!'
+      components:
+        minecraft:hide_tooltip: {}
+    # Cooldown icon for biome
+    biome-cooldown-icon:
+      symbol: 'B'
+      material: BARRIER
+      display:
+        name: '<red>Biome Change is on cooldown!'
+        lore:
+          - '<dark_red>Your ability to change the biome is on cooldown for:'
+          - '<red>{biome_cooldown}'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:entity.villager.no'
+            source: 'player'
+            volume: 1
+            pitch: 1
+        message_action:
+          type: message
+          value: '<red>You've recently changed your biome already, you must wait for <dark_red>{biome_cooldown}<red>!'
+        components:
+          minecraft:hide_tooltip: {}
+    # Decorative icons for visual enhancement
+    decorative-icons:
+      glass-pane:
+        symbol: 'A'
+        material: BLACK_STAINED_GLASS_PANE
+        display:
+          name: ' '  
+        components:
+          minecraft:hide_tooltip: {}
+
+biome:
+  gui:
+    # The title for the biome menu
+    title: '<gradient:#A52A2A:#800000:#A52A2A>Biome Menu</gradient>'
+    # The layout for the biome menu
+    layout:
+      - 'AASWCNBAX'
+    # Soul sand valley icon
+    soul-sand-valley-icon:
+      symbol: 'S'
+      material: SOUL_SOIL
+      display:
+        name: '<red>Soul Sand Valley'
+        unselected-lore:
+          - '<dark_red>Click to change to this biome!'
+        selected-lore:
+          - '<dark_red>Click to change to this biome!'
+          - ' '
+          - '<yellow>This is your current selection!'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_tooltip: {}
+    # Warped forest icon
+    warped-forest-icon:
+      symbol: 'W'
+      material: WARPED_STEM
+      display:
+        name: '<red>Warped Forest'
+        unselected-lore:
+          - '<dark_red>Click to change to this biome!'
+        selected-lore:
+          - '<dark_red>Click to change to this biome!'
+          - ' '
+          - '<yellow>This is your current selection!'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_tooltip: {}
+    # Crimson forest icon
+    crimson-forest-icon:
+      symbol: 'C'
+      material: CRIMSON_STEM
+      display:
+        name: '<red>Crimson Forest'
+        unselected-lore:
+          - '<dark_red>Click to change to this biome!'
+        selected-lore:
+          - '<dark_red>Click to change to this biome!'
+          - ' '
+          - '<yellow>This is your current selection!'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_tooltip: {}
+    # Nether wastes icon
+    nether-wastes-icon:
+      symbol: 'N'
+      material: NETHERRACK
+      display:
+        name: '<red>Nether Wastes'
+        unselected-lore:
+          - '<dark_red>Click to change to this biome!'
+        selected-lore:
+          - '<dark_red>Click to change to this biome!'
+          - ' '
+          - '<yellow>This is your current selection!'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_tooltip: {}
+    # Basalt deltas icon
+    basalt-deltas-icon:
+      symbol: 'B'
+      material: NETHERITE_BLOCK
+      display:
+        name: '<red>Basalt Deltas'
+        unselected-lore:
+          - '<dark_red>Click to change to this biome!'
+        selected-lore:
+          - '<dark_red>Click to change to this biome!'
+          - ' '
+          - '<yellow>This is your current selection!'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_tooltip: {}
+    # Back icon to return to main menu
+    back-icon:
+      symbol: 'X'
+      material: RED_STAINED_GLASS_PANE
+      display:
+        name: '<red>Return to Main Menu'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_tooltip: {}
+    decorative-icons:
+      glass-pane:
+        symbol: 'A'
+        material: BLACK_STAINED_GLASS_PANE
+        display:
+          name: ' '
+        components:
+          minecraft:hide_tooltip: {}
+
+confirm-reset:
+  gui:
+    # The title for the reset confirm menu
+    title: '<gradient:#A52A2A:#800000:#A52A2A>Confirmation Menu</gradient>'
+    # The layout for the reset confirm menu
+    # One row with 5 characters will result in a hopper inventory menu being used instead of a regular one.
+    layout:
+      - 'ACADA'
+    # Deny icon for denying reset action
+    deny-icon:
+      symbol: 'D'
+      material: RED_WOOL
+      display:
+        name: '<red>Deny Reset Action'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_tooltip: {}
+    # Confirm icon for confirming reset action
+    confirm-icon:
+      symbol: 'C'
+      material: LIME_WOOL
+      display:
+        name: '<green>Confirm Reset Action'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_tooltip: {}
+    # Decorative icons for visual enhancement 
+    decorative-icons:
+      glass-pane:
+        symbol: 'A'
+        material: BLACK_STAINED_GLASS_PANE
+        display:
+          name: ' '  
+        components:
+          minecraft:hide_tooltip: {}
+
+island-choice:
+  gui:
+    # The title for the island choice menu
+    title: '<gradient:#A52A2A:#800000:#A52A2A>Pick your island type!</gradient>'
+    # The layout for the island choice menu
+	layout: 
+      - 'AADACASAA'
+    # Default icon for default island type
+    default-icon:
+      symbol: 'D'
+      material: NETHERRACK
+      display:
+        name: '<red>Default Type'
+        lore:
+          - '<dark_red>Click to generate a default hellblock!'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_tooltip: {}
+    # Classic icon for classic island type
+    classic-icon:
+      symbol: 'C'
+      material: SOUL_SAND
+      display:
+        name: '<red>Classic Type'
+        lore:
+          - '<dark_red>Click to generate a classic hellblock!'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_tooltip: {}
+    # Schematic icon for schematic options
+    schematic-icon:
+      symbol: 'S'
+      material: MAP
+      display:
+        name: '<red>Schematic Options'
+        lore:
+          - '<dark_red>Click to view the schematic options to generate!'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
             source: 'player'
             volume: 1
             pitch: 1
@@ -311,6 +618,68 @@ hellblock:
           name: ' '  
         components:
           minecraft:hide_tooltip: {}
+
+schematic:
+  gui:
+    # The title for the schematic menu
+    title: '<gradient:#A52A2A:#800000:#A52A2A>Choose a schematic!</gradient>'
+    # The layout for the schematic menu
+    layout:
+      - 'AAAAAAAAA'
+      - 'A1XXXXXXA'
+      - 'AXXXXXXXA' 
+      - 'AXXXXXXXA'
+      - 'AXXXXXXXA'
+      - 'AAAAAAAAB'
+    # The schematic format for each schematic to be viewed in the menu
+    schematic-icons:
+      schematic-1:
+	    symbol: '1'
+        schematic: 'example.schem'
+        material: PAPER
+        display:
+          name: '<gold>Example'
+          lore:
+            - '<yellow>Click to generate Example!'
+        requirement:
+          permission_requirement:
+            type: permission
+            value: 'hellblock.schematic.example'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_tooltip: {}
+    # The back icon to choose a default island format
+    back-icon:
+      symbol: 'B'
+      material: RED_STAINED_GLASS_PANE
+      display:
+        name: '<red>Back to Main Menu'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecrat:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_tooltip: {}
+    # Decorative icons for visual enhancement
+    decorative-icons:
+      glass-pane:
+        symbol: 'A'
+        material: BLACK_STAINED_GLASS_PANE
+        display:
+          name: ' '
+        components:
+          miencraft:hide_tooltip: {}
 
 # You add the block material type and then the amount of levels you want it to add to the hellblock.
 # Example: 'cobblestone:5' will add 5 levels to the hellblock when cobblestone is placed. Doesn't matter if a trusted member, party member or owner places it.

@@ -100,6 +100,12 @@ public class AbstractItem<R, I> implements Item<I> {
 		factory.potionColor(item, color);
 		return this;
 	}
+	
+	@Override
+	public Item<I> glint(boolean glint) {
+		factory.glint(item, glint);
+		return this;
+	}
 
 	@Override
 	public Item<I> enchantments(Map<Key, Short> enchantments) {

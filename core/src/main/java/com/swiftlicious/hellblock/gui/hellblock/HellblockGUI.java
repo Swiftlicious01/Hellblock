@@ -4,6 +4,7 @@ import java.util.HashMap;
 import java.util.Map;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
+import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.inventory.Inventory;
 import org.jetbrains.annotations.Nullable;
 
@@ -28,7 +29,11 @@ public class HellblockGUI {
 		this.itemsCharMap = new HashMap<>();
 		this.itemsSlotMap = new HashMap<>();
 		var holder = new HellblockGUIHolder();
-		this.inventory = Bukkit.createInventory(holder, manager.layout.length * 9);
+		if (manager.layout.length == 1 && manager.layout[0].length() == 4) {
+			this.inventory = Bukkit.createInventory(holder, InventoryType.HOPPER);
+		} else {
+			this.inventory = Bukkit.createInventory(holder, manager.layout.length * 9);
+		}
 		holder.setInventory(this.inventory);
 	}
 

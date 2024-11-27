@@ -439,7 +439,16 @@ debug_loot:
 # Usage: [COMMAND]
 debug_nbt:
   enable: true
-  permission: hellblock.command.nbt
+  permission: hellblock.command.debug
   usage:
     - /hellblock debug nbt
     - /hb debug nbt
+
+# A command to debug biome locations
+# Usage: [COMMAND]
+debug_biome:
+  enable: true
+  permission: hellblock.command.debug
+  usage:
+    - /hellblock debug biome
+    - /hb debug biome

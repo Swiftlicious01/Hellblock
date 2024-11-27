@@ -46,8 +46,12 @@ import com.swiftlicious.hellblock.generation.BiomeHandler;
 import com.swiftlicious.hellblock.generation.HellblockHandler;
 import com.swiftlicious.hellblock.generation.IslandChoiceConverter;
 import com.swiftlicious.hellblock.generation.IslandGenerator;
+import com.swiftlicious.hellblock.gui.biome.BiomeGUIManager;
+import com.swiftlicious.hellblock.gui.choice.IslandChoiceGUIManager;
 import com.swiftlicious.hellblock.gui.hellblock.HellblockGUIManager;
 import com.swiftlicious.hellblock.gui.market.MarketManager;
+import com.swiftlicious.hellblock.gui.reset.ResetConfirmGUIManager;
+import com.swiftlicious.hellblock.gui.schematic.SchematicGUIManager;
 import com.swiftlicious.hellblock.handlers.ActionManager;
 import com.swiftlicious.hellblock.handlers.CoolDownManager;
 import com.swiftlicious.hellblock.handlers.EventManager;
@@ -136,6 +140,10 @@ public class HellblockPlugin extends JavaPlugin {
 	protected StatisticsManager statisticsManager;
 	protected MarketManager marketManager;
 	protected HellblockGUIManager hellblockGUIManager;
+	protected BiomeGUIManager biomeGUIManager;
+	protected IslandChoiceGUIManager islandChoiceGUIManager;
+	protected SchematicGUIManager schematicGUIManager;
+	protected ResetConfirmGUIManager resetConfirmGUIManager;
 	protected VersionManager versionManager;
 	protected StorageManager storageManager;
 	protected DependencyManager dependencyManager;
@@ -210,6 +218,10 @@ public class HellblockPlugin extends JavaPlugin {
 		this.lootManager = new LootManager(this);
 		this.marketManager = new MarketManager(this);
 		this.hellblockGUIManager = new HellblockGUIManager(this);
+		this.biomeGUIManager = new BiomeGUIManager(this);
+		this.islandChoiceGUIManager = new IslandChoiceGUIManager(this);
+		this.schematicGUIManager = new SchematicGUIManager(this);
+		this.resetConfirmGUIManager = new ResetConfirmGUIManager(this);
 		this.entityManager = new EntityManager(this);
 		this.placeholderManager = new PlaceholderManager(this);
 		this.requirementManager = new RequirementManager(this);
@@ -381,6 +393,14 @@ public class HellblockPlugin extends JavaPlugin {
 			this.marketManager.disable();
 		if (this.hellblockGUIManager != null)
 			this.hellblockGUIManager.disable();
+		if (this.biomeGUIManager != null)
+			this.biomeGUIManager.disable();
+		if (this.islandChoiceGUIManager != null)
+			this.islandChoiceGUIManager.disable();
+		if (this.schematicGUIManager != null)
+			this.schematicGUIManager.disable();
+		if (this.resetConfirmGUIManager != null)
+			this.resetConfirmGUIManager.disable();
 		if (this.entityManager != null)
 			this.entityManager.disable();
 		if (this.requirementManager != null)
@@ -429,6 +449,10 @@ public class HellblockPlugin extends JavaPlugin {
 		this.effectManager.reload();
 		this.marketManager.reload();
 		this.hellblockGUIManager.reload();
+		this.biomeGUIManager.reload();
+		this.islandChoiceGUIManager.reload();
+		this.schematicGUIManager.reload();
+		this.resetConfirmGUIManager.reload();
 		this.blockManager.reload();
 		this.entityManager.reload();
 		this.storageManager.reload();
@@ -540,6 +564,22 @@ public class HellblockPlugin extends JavaPlugin {
 
 	public HellblockGUIManager getHellblockGUIManager() {
 		return this.hellblockGUIManager;
+	}
+
+	public BiomeGUIManager getBiomeGUIManager() {
+		return this.biomeGUIManager;
+	}
+
+	public IslandChoiceGUIManager getIslandChoiceGUIManager() {
+		return this.islandChoiceGUIManager;
+	}
+
+	public SchematicGUIManager getSchematicGUIManager() {
+		return this.schematicGUIManager;
+	}
+
+	public ResetConfirmGUIManager getResetConfirmGUIManager() {
+		return this.resetConfirmGUIManager;
 	}
 
 	public CoopManager getCoopManager() {
@@ -659,9 +699,14 @@ public class HellblockPlugin extends JavaPlugin {
 				.miniMessageTranslation(MessageConstants.FORMAT_MINUTE.build().key());
 		String secondFormat = getTranslationManager()
 				.miniMessageTranslation(MessageConstants.FORMAT_SECOND.build().key());
-		String formattedTime = String.format("%s%s%s", hours > 0 ? hours + hourFormat : "",
-				minutes > 0 ? minutes + minuteFormat : "", seconds > 0 ? seconds + secondFormat : "");
-		return formattedTime;
+		StringBuilder formattedTime = new StringBuilder();
+		if (hours > 0)
+			formattedTime.append(hours + hourFormat);
+		if (minutes > 0)
+			formattedTime.append(minutes + minuteFormat);
+		if (seconds > 0)
+			formattedTime.append(seconds + secondFormat);
+		return formattedTime.toString();
 	}
 
 	/**
