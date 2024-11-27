@@ -46,6 +46,7 @@ public class BiomeGUIManager implements BiomeGUIManagerInterface, Listener {
 
 	protected TextValue<Player> title;
 	protected String[] layout;
+	protected boolean highlightSelection;
 	protected final Map<Character, CustomItem> decorativeIcons;
 	protected final ConcurrentMap<UUID, BiomeGUI> biomeGUICache;
 
@@ -103,6 +104,7 @@ public class BiomeGUIManager implements BiomeGUIManagerInterface, Listener {
 
 		this.layout = config.getStringList("layout").toArray(new String[0]);
 		this.title = TextValue.auto(config.getString("title", "biome.title"));
+		this.highlightSelection = config.getBoolean("highlight-selected-biome", true);
 
 		Section backSection = config.getSection("back-icon");
 		if (backSection != null) {
@@ -214,7 +216,8 @@ public class BiomeGUIManager implements BiomeGUIManagerInterface, Listener {
 				newLore.add(AdventureHelper.miniMessageToJson(lore));
 			}
 			item.lore(newLore);
-			item.glint(true);
+			if (highlightSelection)
+				item.glint(true);
 			item.load();
 			gui.addElement(new BiomeDynamicGUIElement(soulSandValleySlot, item.getItem()));
 		} else {
@@ -234,7 +237,8 @@ public class BiomeGUIManager implements BiomeGUIManagerInterface, Listener {
 				newLore.add(AdventureHelper.miniMessageToJson(lore));
 			}
 			item.lore(newLore);
-			item.glint(true);
+			if (highlightSelection)
+				item.glint(true);
 			item.load();
 			gui.addElement(new BiomeDynamicGUIElement(warpedForestSlot, item.getItem()));
 		} else {
@@ -254,7 +258,8 @@ public class BiomeGUIManager implements BiomeGUIManagerInterface, Listener {
 				newLore.add(AdventureHelper.miniMessageToJson(lore));
 			}
 			item.lore(newLore);
-			item.glint(true);
+			if (highlightSelection)
+				item.glint(true);
 			item.load();
 			gui.addElement(new BiomeDynamicGUIElement(crimsonForestSlot, item.getItem()));
 		} else {
@@ -274,7 +279,8 @@ public class BiomeGUIManager implements BiomeGUIManagerInterface, Listener {
 				newLore.add(AdventureHelper.miniMessageToJson(lore));
 			}
 			item.lore(newLore);
-			item.glint(true);
+			if (highlightSelection)
+				item.glint(true);
 			item.load();
 			gui.addElement(new BiomeDynamicGUIElement(netherWastesSlot, item.getItem()));
 		} else {
@@ -294,7 +300,8 @@ public class BiomeGUIManager implements BiomeGUIManagerInterface, Listener {
 				newLore.add(AdventureHelper.miniMessageToJson(lore));
 			}
 			item.lore(newLore);
-			item.glint(true);
+			if (highlightSelection)
+				item.glint(true);
 			item.load();
 			gui.addElement(new BiomeDynamicGUIElement(basaltDeltasSlot, item.getItem()));
 		} else {

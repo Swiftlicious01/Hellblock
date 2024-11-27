@@ -363,6 +363,8 @@ biome:
     # The layout for the biome menu
     layout:
       - 'AASWCNBAX'
+	# Make the biome that is currently selected glow?
+    highlight-selected-biome: true
     # Soul sand valley icon
     soul-sand-valley-icon:
       symbol: 'S'
