@@ -22,9 +22,10 @@ import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
+import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.player.UserData;
 
-import lombok.NonNull;
+import net.kyori.adventure.audience.Audience;
 
 public class BiomeHandler {
 
@@ -34,17 +35,18 @@ public class BiomeHandler {
 		instance = plugin;
 	}
 
-	public void changeHellblockBiome(@NonNull UserData user, @NonNull HellBiome biome) {
+	public void changeHellblockBiome(@NotNull UserData user, @NotNull HellBiome biome) {
 		Player player = user.getPlayer();
 		if (player != null) {
+			Audience audience = instance.getSenderFactory().getAudience(player);
 			if (!user.getHellblockData().hasHellblock()) {
-				instance.getAdventureManager().sendMessage(player, instance.getTranslationManager()
-						.miniMessageTranslation(MessageConstants.MSG_HELLBLOCK_NOT_FOUND.build().key()));
+				audience.sendMessage(
+						instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_NOT_FOUND.build()));
 				return;
 			}
 			if (user.getHellblockData().isAbandoned()) {
-				instance.getAdventureManager().sendMessage(player, instance.getTranslationManager()
-						.miniMessageTranslation(MessageConstants.MSG_HELLBLOCK_IS_ABANDONED.build().key()));
+				audience.sendMessage(
+						instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_IS_ABANDONED.build()));
 				return;
 			}
 			if (user.getHellblockData().getOwnerUUID() == null) {
@@ -52,14 +54,16 @@ public class BiomeHandler {
 			}
 			if (user.getHellblockData().getOwnerUUID() != null
 					&& !user.getHellblockData().getOwnerUUID().equals(player.getUniqueId())) {
-				instance.getAdventureManager().sendMessage(player, instance.getTranslationManager()
-						.miniMessageTranslation(MessageConstants.MSG_NOT_OWNER_OF_HELLBLOCK.build().key()));
+				audience.sendMessage(
+						instance.getTranslationManager().render(MessageConstants.MSG_NOT_OWNER_OF_HELLBLOCK.build()));
 				return;
 			}
 			if (user.getHellblockData().getBiomeCooldown() > 0) {
-				instance.getAdventureManager().sendMessage(player,
-						String.format("<red>You've recently changed your biome already, you must wait for %s!",
-								instance.getFormattedCooldown(user.getHellblockData().getBiomeCooldown())));
+				audience.sendMessage(instance.getTranslationManager()
+						.render(MessageConstants.MSG_HELLBLOCK_BIOME_ON_COOLDOWN
+								.arguments(AdventureHelper.miniMessage(
+										instance.getFormattedCooldown(user.getHellblockData().getBiomeCooldown())))
+								.build()));
 				return;
 			}
 
@@ -71,22 +75,23 @@ public class BiomeHandler {
 				}
 				Set<UUID> owners = region.getOwners().getUniqueIds();
 				if (!owners.contains(player.getUniqueId())) {
-					instance.getAdventureManager().sendMessage(player, instance.getTranslationManager()
-							.miniMessageTranslation(MessageConstants.MSG_NOT_OWNER_OF_HELLBLOCK.build().key()));
+					audience.sendMessage(instance.getTranslationManager()
+							.render(MessageConstants.MSG_NOT_OWNER_OF_HELLBLOCK.build()));
 					return;
 				}
 
 				if (player.getLocation() != null && !region.contains(player.getLocation().getBlockX(),
 						player.getLocation().getBlockY(), player.getLocation().getBlockZ())) {
-					instance.getAdventureManager().sendMessage(player,
-							"<red>You must be on your hellblock to change the biome!");
+					audience.sendMessage(instance.getTranslationManager()
+							.render(MessageConstants.MSG_HELLBLOCK_MUST_BE_ON_ISLAND.build()));
 					return;
 				}
 
 				if (user.getHellblockData().getHomeLocation().getBlock().getBiome().getKey().getKey()
 						.equalsIgnoreCase(biome.toString().toLowerCase())) {
-					instance.getAdventureManager().sendMessage(player, String
-							.format("<red>Your hellblock biome is already set to <dark_red>%s<red>!", biome.getName()));
+					audience.sendMessage(
+							instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_BIOME_SAME_BIOME
+									.arguments(AdventureHelper.miniMessage(biome.getName())).build()));
 					return;
 				}
 
@@ -94,8 +99,9 @@ public class BiomeHandler {
 
 				user.getHellblockData().setBiome(biome);
 				user.getHellblockData().setBiomeCooldown(86400L);
-				instance.getAdventureManager().sendMessage(player, String.format(
-						"<red>You've changed the biome of your hellblock to <dark_red>%s<red>!", biome.getName()));
+				audience.sendMessage(
+						instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_BIOME_CHANGED
+								.arguments(AdventureHelper.miniMessage(biome.getName())).build()));
 			} else {
 				// TODO: using plugin protection
 			}

@@ -21,10 +21,11 @@ import org.incendo.cloud.suggestion.SuggestionProvider;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.commands.BukkitCommandFeature;
 import com.swiftlicious.hellblock.commands.HellblockCommandManager;
+import com.swiftlicious.hellblock.config.locale.MessageConstants;
 import com.swiftlicious.hellblock.player.UUIDFetcher;
 import com.swiftlicious.hellblock.player.UserData;
 
-import lombok.NonNull;
+import org.jetbrains.annotations.NotNull;
 
 public class CoopRejectCommand extends BukkitCommandFeature<CommandSender> {
 
@@ -38,8 +39,8 @@ public class CoopRejectCommand extends BukkitCommandFeature<CommandSender> {
 		return builder.senderType(Player.class)
 				.required("player", StringParser.stringComponent().suggestionProvider(new SuggestionProvider<>() {
 					@Override
-					public @NonNull CompletableFuture<? extends @NonNull Iterable<? extends @NonNull Suggestion>> suggestionsFuture(
-							@NonNull CommandContext<Object> context, @NonNull CommandInput input) {
+					public @NotNull CompletableFuture<? extends @NotNull Iterable<? extends @NotNull Suggestion>> suggestionsFuture(
+							@NotNull CommandContext<Object> context, @NotNull CommandInput input) {
 						if (context.sender() instanceof Player player) {
 							Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 									.getOnlineUser(player.getUniqueId());
@@ -65,48 +66,40 @@ public class CoopRejectCommand extends BukkitCommandFeature<CommandSender> {
 					Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 							.getOnlineUser(player.getUniqueId());
 					if (onlineUser.isEmpty()) {
-						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-								"<red>Still loading your player data... please try again in a few seconds.");
+						handleFeedback(context, MessageConstants.COMMAND_DATA_FAILURE_NOT_LOADED);
 						return;
 					}
 					if (!onlineUser.get().getHellblockData().hasHellblock()) {
 						String user = context.get("player");
 						if (user.equalsIgnoreCase(player.getName())) {
-							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-									"<red>You can't do this to yourself!");
+							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_NOT_TO_SELF);
 							return;
 						}
 						UUID id = Bukkit.getPlayer(user) != null ? Bukkit.getPlayer(user).getUniqueId()
 								: UUIDFetcher.getUUID(user);
 						if (id == null) {
-							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-									"<red>The player you're trying to decline an invite from doesn't exist!");
+							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_PLAYER_OFFLINE);
 							return;
 						}
 						if (!Bukkit.getOfflinePlayer(id).hasPlayedBefore()) {
-							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-									"<red>The player you're trying to decline an invite from doesn't exist!");
+							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_PLAYER_OFFLINE);
 							return;
 						}
 						if (onlineUser.get().getHellblockData().getInvitations() == null) {
-							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-									"<red>You don't have an invite from this player!");
+							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_COOP_NO_INVITES);
 							return;
 						}
 						if (!onlineUser.get().getHellblockData().hasInvite(id)) {
-							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-									"<red>You don't have an invite from this player!");
+							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_COOP_NO_INVITE_FOUND);
 							return;
 						}
 						if (onlineUser.get().getHellblockData().hasInviteExpired(id)) {
-							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-									"<red>Your invitation from this player has expired!");
+							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_COOP_INVITE_EXPIRED);
 							return;
 						}
 						HellblockPlugin.getInstance().getCoopManager().rejectInvite(id, onlineUser.get());
 					} else {
-						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-								"<red>You already have a hellblock!");
+						handleFeedback(context, MessageConstants.MSG_HELLBLOCK_COOP_HELLBLOCK_EXISTS);
 						return;
 					}
 				});

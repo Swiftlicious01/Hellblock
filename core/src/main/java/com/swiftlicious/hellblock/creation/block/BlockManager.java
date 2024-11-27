@@ -258,13 +258,7 @@ public class BlockManager implements BlockManagerInterface, Listener {
 		}
 		Location hookLocation = requireNonNull(context.arg(ContextKeys.OTHER_LOCATION));
 		Location playerLocation = requireNonNull(context.holder()).getLocation();
-		FallingBlock fallingBlock;
-		if (instance.getVersionManager().isVersionNewerThan1_20_2()) {
-			fallingBlock = hookLocation.getWorld().spawn(hookLocation, FallingBlock.class);
-			fallingBlock.setBlockData(blockData);
-		} else {
-			fallingBlock = hookLocation.getWorld().spawnFallingBlock(hookLocation, blockData);
-		}
+		FallingBlock fallingBlock = hookLocation.getWorld().spawnFallingBlock(hookLocation, blockData);
 		fallingBlock.getPersistentDataContainer().set(requireNonNull(NamespacedKey.fromString("block", instance)),
 				PersistentDataType.STRING, id + ";" + context.holder().getName());
 		double d0 = playerLocation.getX() - hookLocation.getX();

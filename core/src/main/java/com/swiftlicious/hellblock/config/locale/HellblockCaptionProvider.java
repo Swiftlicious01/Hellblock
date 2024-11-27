@@ -2,8 +2,7 @@ package com.swiftlicious.hellblock.config.locale;
 
 import org.incendo.cloud.caption.CaptionProvider;
 import org.incendo.cloud.caption.DelegatingCaptionProvider;
-
-import lombok.NonNull;
+import org.jetbrains.annotations.NotNull;
 
 public final class HellblockCaptionProvider<C> extends DelegatingCaptionProvider<C> {
 
@@ -14,7 +13,7 @@ public final class HellblockCaptionProvider<C> extends DelegatingCaptionProvider
 
 	@SuppressWarnings("unchecked")
 	@Override
-	public @NonNull CaptionProvider<C> delegate() {
+	public @NotNull CaptionProvider<C> delegate() {
 		return (CaptionProvider<C>) PROVIDER;
 	}
 }

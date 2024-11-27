@@ -37,6 +37,7 @@ import com.saicone.rtag.RtagItem;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.challenges.HellblockChallenge.ChallengeType;
 import com.swiftlicious.hellblock.creation.item.Item;
+import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.utils.extras.Key;
 
@@ -94,11 +95,11 @@ public class NetherArmor implements Listener {
 					Item<ItemStack> armor = instance.getItemManager().wrap(new ItemStack(material, 1));
 
 					if (entry.getValue() instanceof Section inner) {
-						armor.displayName(instance.getAdventureManager().miniMessageToJson(inner.getString("name")));
+						armor.displayName(AdventureHelper.miniMessageToJson(inner.getString("name")));
 
 						List<String> lore = new ArrayList<>();
 						for (String newLore : inner.getStringList("lore")) {
-							lore.add(instance.getAdventureManager().miniMessageToJson(newLore));
+							lore.add(AdventureHelper.miniMessageToJson(newLore));
 						}
 						armor.lore(lore);
 

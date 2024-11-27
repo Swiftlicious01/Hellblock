@@ -29,6 +29,7 @@ import com.swiftlicious.hellblock.creation.item.damage.CustomDurabilityItem;
 import com.swiftlicious.hellblock.creation.item.damage.DurabilityItem;
 import com.swiftlicious.hellblock.creation.item.damage.VanillaDurabilityItem;
 import com.swiftlicious.hellblock.effects.EffectModifier;
+import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.handlers.RequirementManagerInterface;
 import com.swiftlicious.hellblock.mechanics.MechanicType;
 import com.swiftlicious.hellblock.mechanics.hook.HookConfig;
@@ -84,7 +85,7 @@ public class HookManager implements Listener, HookManagerInterface {
 			return Optional.empty();
 
 		Item<ItemStack> wrapped = instance.getItemManager().wrap(rod);
-		return wrapped.getTag("HellFishing", "hook_id").map(o -> (String) o);
+		return wrapped.getTag("HellblockItem", "hook_id").map(o -> (String) o);
 	}
 
 	@EventHandler(ignoreCancelled = true)
@@ -105,13 +106,13 @@ public class HookManager implements Listener, HookManagerInterface {
 				return;
 			}
 			Item<ItemStack> wrapped = instance.getItemManager().wrap(clicked);
-			if (!wrapped.hasTag("HellFishing", "hook_id")) {
+			if (!wrapped.hasTag("HellblockItem", "hook_id")) {
 				return;
 			}
 			event.setCancelled(true);
-			String id = (String) wrapped.getTag("HellFishing", "hook_id").orElseThrow();
-			byte[] hookItemBase64 = (byte[]) wrapped.getTag("HellFishing", "hook_stack").orElse(null);
-			int damage = (int) wrapped.getTag("HellFishing", "hook_damage").orElse(0);
+			String id = (String) wrapped.getTag("HellblockItem", "hook_id").orElseThrow();
+			byte[] hookItemBase64 = (byte[]) wrapped.getTag("HellblockItem", "hook_stack").orElse(null);
+			int damage = (int) wrapped.getTag("HellblockItem", "hook_damage").orElse(0);
 			ItemStack itemStack;
 			if (hookItemBase64 != null) {
 				itemStack = bytesToHook(hookItemBase64);
@@ -120,10 +121,10 @@ public class HookManager implements Listener, HookManagerInterface {
 			}
 			instance.getItemManager().setDamage(player, itemStack, damage);
 
-			wrapped.removeTag("HellFishing", "hook_id");
-			wrapped.removeTag("HellFishing", "hook_stack");
-			wrapped.removeTag("HellFishing", "hook_damage");
-			wrapped.removeTag("HellFishing", "hook_max_damage");
+			wrapped.removeTag("HellblockItem", "hook_id");
+			wrapped.removeTag("HellblockItem", "hook_stack");
+			wrapped.removeTag("HellblockItem", "hook_damage");
+			wrapped.removeTag("HellblockItem", "hook_max_damage");
 
 			// unsafe but have to use this
 			player.setItemOnCursor(itemStack);
@@ -131,7 +132,7 @@ public class HookManager implements Listener, HookManagerInterface {
 			List<String> previousLore = wrapped.lore().orElse(new ArrayList<>());
 			List<String> newLore = new ArrayList<>();
 			for (String previous : previousLore) {
-				Component component = instance.getAdventureManager().jsonToComponent(previous);
+				Component component = AdventureHelper.jsonToComponent(previous);
 				if (component instanceof ScoreComponent scoreComponent && scoreComponent.name().equals("hb")
 						&& scoreComponent.objective().equals("hook")) {
 					continue;
@@ -164,11 +165,11 @@ public class HookManager implements Listener, HookManagerInterface {
 		cursor.setAmount(cursor.getAmount() - 1);
 
 		Item<ItemStack> wrapped = instance.getItemManager().wrap(clicked);
-		String previousHookID = (String) wrapped.getTag("HellFishing", "hook_id").orElse(null);
+		String previousHookID = (String) wrapped.getTag("HellblockItem", "hook_id").orElse(null);
 		if (previousHookID != null) {
-			int previousHookDamage = (int) wrapped.getTag("HellFishing", "hook_damage").orElse(0);
+			int previousHookDamage = (int) wrapped.getTag("HellblockItem", "hook_damage").orElse(0);
 			ItemStack previousItemStack;
-			byte[] stackBytes = (byte[]) wrapped.getTag("HellFishing", "hook_stack").orElse(null);
+			byte[] stackBytes = (byte[]) wrapped.getTag("HellblockItem", "hook_stack").orElse(null);
 			if (stackBytes != null) {
 				previousItemStack = bytesToHook(stackBytes);
 			} else {
@@ -186,25 +187,25 @@ public class HookManager implements Listener, HookManagerInterface {
 
 		Item<ItemStack> wrappedHook = instance.getItemManager().wrap(clonedHook);
 		DurabilityItem durabilityItem;
-		if (wrappedHook.hasTag("HellFishing", "max_dur")) {
+		if (wrappedHook.hasTag("HellblockItem", "max_dur")) {
 			durabilityItem = new CustomDurabilityItem(wrappedHook);
 		} else if (hookConfig.maxUsages() > 0) {
-			wrappedHook.setTag(hookConfig.maxUsages(), "HellFishing", "max_dur");
+			wrappedHook.setTag(hookConfig.maxUsages(), "HellblockItem", "max_dur");
 			durabilityItem = new CustomDurabilityItem(wrappedHook);
 		} else {
 			durabilityItem = new VanillaDurabilityItem(wrappedHook);
 		}
 
-		wrapped.setTag(hookID, "HellFishing", "hook_id");
-		wrapped.setTag(hookToBytes(clonedHook), "HellFishing", "hook_stack");
-		wrapped.setTag(durabilityItem.damage(), "HellFishing", "hook_damage");
-		wrapped.setTag(durabilityItem.maxDamage(), "HellFishing", "hook_max_damage");
+		wrapped.setTag(hookID, "HellblockItem", "hook_id");
+		wrapped.setTag(hookToBytes(clonedHook), "HellblockItem", "hook_stack");
+		wrapped.setTag(durabilityItem.damage(), "HellblockItem", "hook_damage");
+		wrapped.setTag(durabilityItem.maxDamage(), "HellblockItem", "hook_max_damage");
 
 		List<String> previousLore = wrapped.lore().orElse(new ArrayList<>());
 		List<String> newLore = new ArrayList<>();
 		List<String> durabilityLore = new ArrayList<>();
 		for (String previous : previousLore) {
-			Component component = instance.getAdventureManager().jsonToComponent(previous);
+			Component component = AdventureHelper.jsonToComponent(previous);
 			if (component instanceof ScoreComponent scoreComponent && scoreComponent.name().equals("hb")) {
 				if (scoreComponent.objective().equals("hook")) {
 					continue;
@@ -217,10 +218,10 @@ public class HookManager implements Listener, HookManagerInterface {
 		}
 		for (String lore : hookConfig.lore()) {
 			ScoreComponent.Builder builder = Component.score().name("hb").objective("hook");
-			builder.append(instance.getAdventureManager().getComponentFromMiniMessage(
+			builder.append(AdventureHelper.miniMessage(
 					lore.replace("{dur}", String.valueOf(durabilityItem.maxDamage() - durabilityItem.damage()))
 							.replace("{max}", String.valueOf(durabilityItem.maxDamage()))));
-			newLore.add(instance.getAdventureManager().componentToJson(builder.build()));
+			newLore.add(AdventureHelper.componentToJson(builder.build()));
 		}
 		newLore.addAll(durabilityLore);
 		wrapped.lore(newLore);

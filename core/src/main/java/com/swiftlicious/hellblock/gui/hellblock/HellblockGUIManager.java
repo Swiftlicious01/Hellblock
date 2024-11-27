@@ -33,6 +33,8 @@ import com.swiftlicious.hellblock.utils.extras.Action;
 import com.swiftlicious.hellblock.utils.extras.TextValue;
 
 import dev.dejvokep.boostedyaml.block.implementation.Section;
+import net.kyori.adventure.audience.Audience;
+import net.kyori.adventure.sound.Sound;
 
 public class HellblockGUIManager implements HellblockGUIManagerInterface, Listener {
 
@@ -242,25 +244,30 @@ public class HellblockGUIManager implements HellblockGUIManagerInterface, Listen
 		}
 		Context<Player> context = Context.player(player);
 		HellblockGUI gui = new HellblockGUI(this, context, optionalUserData.get().getHellblockData());
-		gui.addElement(new HellblockDynamicGUIElement(teleportSlot, new ItemStack(Material.AIR)));
-		gui.addElement(new HellblockDynamicGUIElement(challengeSlot, new ItemStack(Material.AIR)));
-		gui.addElement(new HellblockDynamicGUIElement(levelSlot, new ItemStack(Material.AIR)));
-		gui.addElement(new HellblockDynamicGUIElement(partySlot, new ItemStack(Material.AIR)));
-		gui.addElement(new HellblockDynamicGUIElement(closeSlot, new ItemStack(Material.AIR)));
+		gui.addElement(new HellblockDynamicGUIElement(teleportSlot, teleportIcon.build(context)));
+		gui.addElement(new HellblockDynamicGUIElement(challengeSlot, challengeIcon.build(context)));
+		gui.addElement(new HellblockDynamicGUIElement(levelSlot, levelIcon.build(context)));
+		gui.addElement(new HellblockDynamicGUIElement(partySlot, partyIcon.build(context)));
+		gui.addElement(new HellblockDynamicGUIElement(closeSlot, closeIcon.build(context)));
 		if (isOwner) {
 			if (optionalUserData.get().getHellblockData().getBiomeCooldown() <= 0)
-				gui.addElement(new HellblockDynamicGUIElement(biomeSlot, new ItemStack(Material.AIR)));
+				gui.addElement(new HellblockDynamicGUIElement(biomeSlot, biomeIcon.build(context)));
 			else
-				gui.addElement(new HellblockDynamicGUIElement(biomeCooldownSlot, new ItemStack(Material.AIR)));
+				gui.addElement(new HellblockDynamicGUIElement(biomeCooldownSlot, biomeCooldownIcon.build(context)));
 			if (optionalUserData.get().getHellblockData().isLocked())
-				gui.addElement(new HellblockDynamicGUIElement(unlockSlot, new ItemStack(Material.AIR)));
+				gui.addElement(new HellblockDynamicGUIElement(unlockSlot, unlockIcon.build(context)));
 			else
-				gui.addElement(new HellblockDynamicGUIElement(lockSlot, new ItemStack(Material.AIR)));
-			gui.addElement(new HellblockDynamicGUIElement(flagSlot, new ItemStack(Material.AIR)));
+				gui.addElement(new HellblockDynamicGUIElement(lockSlot, lockIcon.build(context)));
+			gui.addElement(new HellblockDynamicGUIElement(flagSlot, flagIcon.build(context)));
 			if (optionalUserData.get().getHellblockData().getResetCooldown() <= 0)
-				gui.addElement(new HellblockDynamicGUIElement(resetSlot, new ItemStack(Material.AIR)));
+				gui.addElement(new HellblockDynamicGUIElement(resetSlot, resetIcon.build(context)));
 			else
-				gui.addElement(new HellblockDynamicGUIElement(resetCooldownSlot, new ItemStack(Material.AIR)));
+				gui.addElement(new HellblockDynamicGUIElement(resetCooldownSlot, resetCooldownIcon.build(context)));
+		} else {
+			gui.addElement(new HellblockGUIElement(biomeSlot, new ItemStack(Material.AIR)));
+			gui.addElement(new HellblockGUIElement(lockSlot, new ItemStack(Material.AIR)));
+			gui.addElement(new HellblockGUIElement(flagSlot, new ItemStack(Material.AIR)));
+			gui.addElement(new HellblockGUIElement(resetSlot, new ItemStack(Material.AIR)));
 		}
 		for (Map.Entry<Character, CustomItem> entry : decorativeIcons.entrySet()) {
 			gui.addElement(new HellblockGUIElement(entry.getKey(), entry.getValue().build(context)));
@@ -353,6 +360,8 @@ public class HellblockGUIManager implements HellblockGUIManagerInterface, Listen
 			return;
 		}
 
+		Audience audience = instance.getSenderFactory().getAudience(player);
+
 		if (clickedInv != player.getInventory()) {
 			int slot = event.getSlot();
 			HellblockGUIElement element = gui.getElement(slot);
@@ -398,10 +407,11 @@ public class HellblockGUIManager implements HellblockGUIManagerInterface, Listen
 							}
 							UserData ownerData = result.get();
 							if (ownerData.getHellblockData().isAbandoned()) {
-								instance.getSenderFactory().wrap(player).sendMessage(MessageConstants.MSG_HELLBLOCK_IS_ABANDONED.asComponent());
-								instance.getAdventureManager().playSound(player,
-										net.kyori.adventure.sound.Sound.Source.PLAYER,
-										net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
+								audience.sendMessage(instance.getTranslationManager()
+										.render(MessageConstants.MSG_HELLBLOCK_IS_ABANDONED.build()));
+								audience.playSound(
+										Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
+												net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
 								return;
 							}
 							if (ownerData.getHellblockData().getHomeLocation() != null) {
@@ -410,11 +420,11 @@ public class HellblockGUIManager implements HellblockGUIManagerInterface, Listen
 											ActionManagerInterface.trigger(gui.context, teleportActions);
 										});
 							} else {
-								instance.getSenderFactory().wrap(player).sendMessage(instance.getAdventureManager()
-										.getComponentFromMiniMessage("<red>Error teleporting you to your hellblock!"));
-								instance.getAdventureManager().playSound(player,
-										net.kyori.adventure.sound.Sound.Source.PLAYER,
-										net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"), 1, 1);
+								audience.sendMessage(instance.getTranslationManager()
+										.render(MessageConstants.MSG_HELLBLOCK_ERROR_HOME_LOCATION.build()));
+								audience.playSound(
+										Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
+												net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
 								throw new NullPointerException(
 										"Hellblock home location returned null, please report this to the developer.");
 							}

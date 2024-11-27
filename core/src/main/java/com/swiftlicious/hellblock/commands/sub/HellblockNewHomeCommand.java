@@ -2,6 +2,7 @@ package com.swiftlicious.hellblock.commands.sub;
 
 import java.util.Optional;
 
+import org.bukkit.Material;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
@@ -13,6 +14,8 @@ import com.swiftlicious.hellblock.commands.HellblockCommandManager;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
 import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.utils.LocationUtils;
+
+import net.kyori.adventure.text.Component;
 
 public class HellblockNewHomeCommand extends BukkitCommandFeature<CommandSender> {
 
@@ -28,14 +31,11 @@ public class HellblockNewHomeCommand extends BukkitCommandFeature<CommandSender>
 			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 					.getOnlineUser(player.getUniqueId());
 			if (onlineUser.isEmpty()) {
-				HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-						"<red>Still loading your player data... please try again in a few seconds.");
+				handleFeedback(context, MessageConstants.COMMAND_DATA_FAILURE_NOT_LOADED);
 				return;
 			}
 			if (!onlineUser.get().getHellblockData().hasHellblock()) {
-				HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-						HellblockPlugin.getInstance().getTranslationManager()
-								.miniMessageTranslation(MessageConstants.MSG_HELLBLOCK_NOT_FOUND.build().key()));
+				handleFeedback(context, MessageConstants.MSG_HELLBLOCK_NOT_FOUND);
 				return;
 			} else {
 				if (onlineUser.get().getHellblockData().getOwnerUUID() == null) {
@@ -44,22 +44,18 @@ public class HellblockNewHomeCommand extends BukkitCommandFeature<CommandSender>
 				}
 				if (onlineUser.get().getHellblockData().getOwnerUUID() != null
 						&& !onlineUser.get().getHellblockData().getOwnerUUID().equals(player.getUniqueId())) {
-					HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-							HellblockPlugin.getInstance().getTranslationManager()
-									.miniMessageTranslation(MessageConstants.MSG_NOT_OWNER_OF_HELLBLOCK.build().key()));
+					handleFeedback(context, MessageConstants.MSG_NOT_OWNER_OF_HELLBLOCK);
 					return;
 				}
 				if (onlineUser.get().getHellblockData().isAbandoned()) {
-					HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-							HellblockPlugin.getInstance().getTranslationManager()
-									.miniMessageTranslation(MessageConstants.MSG_HELLBLOCK_IS_ABANDONED.build().key()));
+					handleFeedback(context, MessageConstants.MSG_HELLBLOCK_IS_ABANDONED);
 					return;
 				}
 				if (onlineUser.get().getHellblockData().getHomeLocation() != null) {
 					LocationUtils.isSafeLocationAsync(player.getLocation()).thenAccept((result) -> {
-						if (!result.booleanValue() || player.isInLava() || player.isInPowderedSnow()) {
-							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-									"<red>The location you're standing at is not safe for a new home!");
+						if (!result.booleanValue() || player.getLocation().getBlock().getType() == Material.LAVA
+								|| player.getLocation().getBlock().getType() == Material.POWDER_SNOW) {
+							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_HOME_UNSAFE_STANDING_LOCATION);
 							return;
 						}
 					}).thenRunAsync(() -> {
@@ -74,19 +70,19 @@ public class HellblockNewHomeCommand extends BukkitCommandFeature<CommandSender>
 										.getZ()
 								&& onlineUser.get().getHellblockData().getHomeLocation().getYaw() == player
 										.getLocation().getYaw()) {
-							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-									"<red>The location you're standing at is already set as your home!");
+							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_HOME_SAME_LOCATION);
 							return;
 						}
 						onlineUser.get().getHellblockData().setHomeLocation(player.getLocation());
-						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player, String.format(
-								"<red>You've set your new hellblock home location to x:%s, y:%s, z:%s facing %s!",
-								player.getLocation().getBlockX(), player.getLocation().getBlockY(),
-								player.getLocation().getBlockZ(), LocationUtils.getFacing(player)));
+						handleFeedback(context,
+								MessageConstants.MSG_HELLBLOCK_HOME_NEW_LOCATION.arguments(
+										Component.text(player.getLocation().getBlockX()),
+										Component.text(player.getLocation().getBlockY()),
+										Component.text(player.getLocation().getBlockZ()),
+										Component.text(LocationUtils.getFacing(player))));
 					});
 				} else {
-					HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-							"<red>Error setting your home location!");
+					handleFeedback(context, MessageConstants.MSG_HELLBLOCK_ERROR_HOME_LOCATION);
 					throw new NullPointerException(
 							String.format("Home location for %s returned null, please report this to the developer.",
 									onlineUser.get().getName()));

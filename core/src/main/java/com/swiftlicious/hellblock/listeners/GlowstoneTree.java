@@ -10,6 +10,7 @@ import java.util.UUID;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Effect;
+import org.bukkit.GameMode;
 import org.bukkit.Material;
 import org.bukkit.Tag;
 import org.bukkit.TreeType;
@@ -20,18 +21,24 @@ import org.bukkit.block.data.type.Sapling;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.Event.Result;
 import org.bukkit.event.block.BlockPhysicsEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.world.StructureGrowEvent;
+import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
+import org.jetbrains.annotations.NotNull;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.challenges.HellblockChallenge.ChallengeType;
+import com.swiftlicious.hellblock.config.locale.MessageConstants;
+import com.swiftlicious.hellblock.nms.inventory.HandSlot;
 import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.utils.RandomUtils;
 
-import lombok.NonNull;
+import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.key.Key;
+import net.kyori.adventure.sound.Sound;
 import net.kyori.adventure.sound.Sound.Source;
 
 public class GlowstoneTree implements Listener {
@@ -139,13 +146,13 @@ public class GlowstoneTree implements Listener {
 		if (!block.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
 			return;
 
-		if (block.getType() == Material.OAK_SAPLING) {
+		if (Tag.SAPLINGS.isTagged(block.getType())) {
 			if (block.getRelative(BlockFace.DOWN).getType() == Material.SOUL_SAND) {
 				event.setCancelled(true);
 			}
 		}
 		for (BlockFace face : FACES) {
-			if (block.getRelative(face).getType() == Material.OAK_SAPLING) {
+			if (Tag.SAPLINGS.isTagged(block.getRelative(face).getType())) {
 				if (block.getRelative(face).getRelative(BlockFace.DOWN).getType() == Material.SOUL_SAND) {
 					event.setCancelled(true);
 				}
@@ -167,25 +174,31 @@ public class GlowstoneTree implements Listener {
 			if (event.getBlockFace() == BlockFace.UP && block.getType() == Material.SOUL_SAND
 					&& block.getRelative(BlockFace.UP).getType().isAir()) {
 				if (inHand.getType() == Material.GLOWSTONE_DUST) {
-					player.swingMainHand();
-					block.getWorld().playEffect(block.getLocation(), Effect.SHOOT_WHITE_SMOKE, event.getBlockFace());
-					inHand.setAmount(inHand.getAmount() > 1 ? inHand.getAmount() - 1 : 0);
+					event.setUseItemInHand(Result.ALLOW);
+					instance.getVersionManager().getNMSManager().swingHand(player,
+							event.getHand() == EquipmentSlot.HAND ? HandSlot.MAIN : HandSlot.OFF);
+					block.getWorld().playEffect(block.getLocation(), Effect.SMOKE, event.getBlockFace());
+					if (player.getGameMode() != GameMode.CREATIVE)
+						inHand.setAmount(inHand.getAmount() > 1 ? inHand.getAmount() - 1 : 0);
 					if (randomChance == RandomUtils.generateRandomInt(2, 3)) {
-						block.getRelative(BlockFace.UP).setType(Material.OAK_SAPLING);
-						instance.getAdventureManager().sendMessage(player, "<red>Soul Sand has been fertilized!");
-						instance.getAdventureManager().sendMessage(player,
-								"<red>Right click with <dark_red>flint <red>to grow the <gold>glowstone tree<red>!");
-						instance.getAdventureManager().playSound(player, Source.PLAYER,
-								Key.key("minecraft:block.grass.place"), 1.0F, 1.0F);
+						block.getRelative(BlockFace.UP).setType(RandomUtils.pickRandomSapling());
+						Audience audience = instance.getSenderFactory().getAudience(player);
+						audience.sendMessage(instance.getTranslationManager()
+								.render(MessageConstants.MSG_HELLBLOCK_GROWING_GLOWSTONE_TREE.build()));
+						audience.playSound(
+								Sound.sound(Key.key("minecraft:block.grass.place"), Source.PLAYER, 1.0F, 1.0F));
 					}
 				}
 			}
 
 			if (block.getRelative(BlockFace.DOWN).getType() == Material.SOUL_SAND
-					&& block.getType() == Material.OAK_SAPLING) {
+					&& Tag.SAPLINGS.isTagged(block.getType())) {
 				if (inHand.getType() == Material.FLINT) {
-					player.swingMainHand();
-					inHand.setAmount(inHand.getAmount() > 1 ? inHand.getAmount() - 1 : 0);
+					event.setUseItemInHand(Result.ALLOW);
+					instance.getVersionManager().getNMSManager().swingHand(player,
+							event.getHand() == EquipmentSlot.HAND ? HandSlot.MAIN : HandSlot.OFF);
+					if (player.getGameMode() != GameMode.CREATIVE)
+						inHand.setAmount(inHand.getAmount() > 1 ? inHand.getAmount() - 1 : 0);
 					block.getWorld().playEffect(block.getLocation(), Effect.BONE_MEAL_USE,
 							RandomUtils.generateRandomInt(2, 5));
 					if (canGrow(block)) {
@@ -217,7 +230,7 @@ public class GlowstoneTree implements Listener {
 		}
 	}
 
-	private boolean canGrow(@NonNull Block block) {
+	private boolean canGrow(@NotNull Block block) {
 		int centerX = block.getLocation().getBlockX();
 		int centerY = block.getLocation().getBlockY();
 		int centerZ = block.getLocation().getBlockZ();

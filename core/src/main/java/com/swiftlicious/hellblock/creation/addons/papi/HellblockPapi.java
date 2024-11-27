@@ -13,11 +13,11 @@ import com.swiftlicious.hellblock.utils.RandomUtils;
 
 import me.clip.placeholderapi.expansion.PlaceholderExpansion;
 
-public class LavaFishingPapi extends PlaceholderExpansion {
+public class HellblockPapi extends PlaceholderExpansion {
 
 	protected final HellblockPlugin plugin;
 
-	public LavaFishingPapi(HellblockPlugin plugin) {
+	public HellblockPapi(HellblockPlugin plugin) {
 		this.plugin = plugin;
 	}
 
@@ -31,7 +31,7 @@ public class LavaFishingPapi extends PlaceholderExpansion {
 
 	@Override
 	public @NotNull String getIdentifier() {
-		return "lavafishing";
+		return "Hellblock";
 	}
 
 	@Override

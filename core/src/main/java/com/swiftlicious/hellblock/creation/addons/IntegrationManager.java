@@ -21,7 +21,7 @@ import com.swiftlicious.hellblock.creation.addons.enchant.EnchantmentProvider;
 import com.swiftlicious.hellblock.creation.addons.enchant.VanillaEnchantmentsProvider;
 import com.swiftlicious.hellblock.creation.addons.level.JobsRebornLevelerProvider;
 import com.swiftlicious.hellblock.creation.addons.level.LevelerProvider;
-import com.swiftlicious.hellblock.creation.addons.papi.LavaFishingPapi;
+import com.swiftlicious.hellblock.creation.addons.papi.HellblockPapi;
 import com.swiftlicious.hellblock.creation.addons.papi.StatisticsPapi;
 import com.swiftlicious.hellblock.creation.block.BlockManager;
 import com.swiftlicious.hellblock.creation.block.BlockProvider;
@@ -72,13 +72,13 @@ public class IntegrationManager implements IntegrationManagerInterface {
 			VaultHook.init();
 		}
 		if (isHooked("PlaceholderAPI")) {
-			new LavaFishingPapi(instance).load();
+			new HellblockPapi(instance).load();
 			new StatisticsPapi(instance).load();
 		}
 		if (isHooked("Multiverse-Core")) {
 			Plugin multiverse = Bukkit.getPluginManager().getPlugin("Multiverse-Core");
 			if (multiverse != null && multiverse instanceof MultiverseCore) {
-				instance.getHellblockHandler().setMvWorldManager(((MultiverseCore) multiverse).getMVWorldManager());
+				instance.getHellblockHandler().setMVWorldManager(((MultiverseCore) multiverse).getMVWorldManager());
 			}
 		}
 		if (isHooked("WorldGuard", "7")) {

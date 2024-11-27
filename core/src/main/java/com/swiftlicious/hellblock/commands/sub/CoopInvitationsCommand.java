@@ -10,6 +10,7 @@ import org.incendo.cloud.CommandManager;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.commands.BukkitCommandFeature;
 import com.swiftlicious.hellblock.commands.HellblockCommandManager;
+import com.swiftlicious.hellblock.config.locale.MessageConstants;
 import com.swiftlicious.hellblock.player.UserData;
 
 public class CoopInvitationsCommand extends BukkitCommandFeature<CommandSender> {
@@ -26,22 +27,19 @@ public class CoopInvitationsCommand extends BukkitCommandFeature<CommandSender> 
 			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 					.getOnlineUser(player.getUniqueId());
 			if (onlineUser.isEmpty()) {
-				HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-						"<red>Still loading your player data... please try again in a few seconds.");
+				handleFeedback(context, MessageConstants.COMMAND_DATA_FAILURE_NOT_LOADED);
 				return;
 			}
 			if (!onlineUser.get().getHellblockData().hasHellblock()) {
 				if (onlineUser.get().getHellblockData().getInvitations() == null
 						|| (onlineUser.get().getHellblockData().getInvitations() != null
 								&& onlineUser.get().getHellblockData().getInvitations().isEmpty())) {
-					HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-							"<red>You don't have any invitations!");
+					handleFeedback(context, MessageConstants.MSG_HELLBLOCK_COOP_NO_INVITES);
 					return;
 				}
 				HellblockPlugin.getInstance().getCoopManager().listInvitations(onlineUser.get());
 			} else {
-				HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-						"<red>You already have a hellblock!");
+				handleFeedback(context, MessageConstants.MSG_HELLBLOCK_COOP_HELLBLOCK_EXISTS);
 				return;
 			}
 		});

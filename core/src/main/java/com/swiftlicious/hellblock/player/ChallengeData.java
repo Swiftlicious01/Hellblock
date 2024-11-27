@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.Map.Entry;
 
 import org.bukkit.entity.Player;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import com.google.gson.annotations.Expose;
@@ -13,10 +14,9 @@ import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.challenges.ChallengeResult;
 import com.swiftlicious.hellblock.challenges.HellblockChallenge;
 import com.swiftlicious.hellblock.challenges.ProgressBar;
+import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.challenges.HellblockChallenge.ChallengeType;
 import com.swiftlicious.hellblock.challenges.HellblockChallenge.CompletionStatus;
-
-import lombok.NonNull;
 
 public class ChallengeData {
 
@@ -32,7 +32,7 @@ public class ChallengeData {
 		return this.challenges;
 	}
 
-	public int getChallengeProgress(@NonNull ChallengeType challenge) {
+	public int getChallengeProgress(@NotNull ChallengeType challenge) {
 		int progress = 0;
 		if (!this.challenges.isEmpty()) {
 			for (Entry<ChallengeType, ChallengeResult> challenges : this.challenges.entrySet()) {
@@ -47,7 +47,7 @@ public class ChallengeData {
 		return progress;
 	}
 
-	public boolean isChallengeActive(@NonNull ChallengeType challenge) {
+	public boolean isChallengeActive(@NotNull ChallengeType challenge) {
 		boolean active = false;
 		if (!this.challenges.isEmpty()) {
 			for (Entry<ChallengeType, ChallengeResult> challenges : this.challenges.entrySet()) {
@@ -60,7 +60,7 @@ public class ChallengeData {
 		return active;
 	}
 
-	public boolean isChallengeCompleted(@NonNull ChallengeType challenge) {
+	public boolean isChallengeCompleted(@NotNull ChallengeType challenge) {
 		boolean completed = false;
 		if (!this.challenges.isEmpty()) {
 			for (Entry<ChallengeType, ChallengeResult> challenges : this.challenges.entrySet()) {
@@ -73,7 +73,7 @@ public class ChallengeData {
 		return completed;
 	}
 
-	public boolean isChallengeRewardClaimed(@NonNull ChallengeType challenge) {
+	public boolean isChallengeRewardClaimed(@NotNull ChallengeType challenge) {
 		boolean claimed = false;
 		if (!this.challenges.isEmpty()) {
 			for (Entry<ChallengeType, ChallengeResult> challenges : this.challenges.entrySet()) {
@@ -94,7 +94,7 @@ public class ChallengeData {
 		this.challenges = challenges;
 	}
 
-	public void setChallengeRewardAsClaimed(@NonNull ChallengeType challenge, boolean claimedReward) {
+	public void setChallengeRewardAsClaimed(@NotNull ChallengeType challenge, boolean claimedReward) {
 		if (this.challenges.containsKey(challenge)
 				&& this.challenges.get(challenge).getStatus() == CompletionStatus.COMPLETED) {
 			this.challenges.get(challenge).setProgress(challenge.getNeededAmount());
@@ -102,33 +102,39 @@ public class ChallengeData {
 		}
 	}
 
-	public void beginChallengeProgression(@NonNull Player player, @NonNull ChallengeType challenge) {
+	public void beginChallengeProgression(@NotNull Player player, @NotNull ChallengeType challenge) {
 		HellblockChallenge newChallenge = new HellblockChallenge(challenge, CompletionStatus.IN_PROGRESS, 1);
 		this.challenges.putIfAbsent(newChallenge.getChallengeType(),
 				new ChallengeResult(newChallenge.getCompletionStatus(), newChallenge.getProgress(), false));
-		HellblockPlugin.getInstance().getAdventureManager().sendActionbar(player, String.format(
-				"<yellow>Progress <gold>(%s/%s)<gray>: %s", this.challenges.get(challenge).getProgress(),
-				challenge.getNeededAmount(),
-				ProgressBar.getProgressBar(
-						new ProgressBar(challenge.getNeededAmount(), this.challenges.get(challenge).getProgress()),
-						25)));
+		HellblockPlugin
+				.getInstance().getSenderFactory().getAudience(
+						player)
+				.sendActionBar(AdventureHelper.miniMessage(String.format("<yellow>Progress <gold>(%s/%s)<gray>: %s",
+						this.challenges.get(challenge).getProgress(), challenge.getNeededAmount(),
+						ProgressBar.getProgressBar(new ProgressBar(challenge.getNeededAmount(),
+								this.challenges.get(challenge).getProgress()), 25))));
 	}
 
-	public void updateChallengeProgression(@NonNull Player player, @NonNull ChallengeType challenge,
+	public void updateChallengeProgression(@NotNull Player player, @NotNull ChallengeType challenge,
 			int progressToAdd) {
 		if (this.challenges.containsKey(challenge)
 				&& this.challenges.get(challenge).getStatus() == CompletionStatus.IN_PROGRESS) {
 			this.challenges.get(challenge).setProgress(this.challenges.get(challenge).getProgress() + progressToAdd);
-			HellblockPlugin.getInstance().getAdventureManager().sendActionbar(player, String.format(
-					"<yellow>Progress <gold>(%s/%s)<gray>: %s", this.challenges.get(challenge).getProgress(),
-					challenge.getNeededAmount(),
-					ProgressBar.getProgressBar(
-							new ProgressBar(challenge.getNeededAmount(), this.challenges.get(challenge).getProgress()),
-							25)));
+			HellblockPlugin.getInstance().getSenderFactory().getAudience(player)
+					.sendActionBar(
+							AdventureHelper
+									.miniMessage(
+											String.format("<yellow>Progress <gold>(%s/%s)<gray>: %s",
+													this.challenges.get(challenge).getProgress(),
+													challenge.getNeededAmount(),
+													ProgressBar.getProgressBar(
+															new ProgressBar(challenge.getNeededAmount(),
+																	this.challenges.get(challenge).getProgress()),
+															25))));
 		}
 	}
 
-	public void completeChallenge(@NonNull Player player, @NonNull ChallengeType challenge) {
+	public void completeChallenge(@NotNull Player player, @NotNull ChallengeType challenge) {
 		if (this.challenges.containsKey(challenge)
 				&& this.challenges.get(challenge).getStatus() == CompletionStatus.IN_PROGRESS) {
 			this.challenges.remove(challenge);
@@ -146,11 +152,11 @@ public class ChallengeData {
 	 *
 	 * @return a new instance of ChallengeData with default values.
 	 */
-	public static @NonNull ChallengeData empty() {
+	public static @NotNull ChallengeData empty() {
 		return new ChallengeData(new HashMap<>());
 	}
 
-	public @NonNull ChallengeData copy() {
+	public @NotNull ChallengeData copy() {
 		return new ChallengeData(challenges);
 	}
 }

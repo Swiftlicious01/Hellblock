@@ -7,79 +7,76 @@ import java.util.Optional;
 import java.util.Map.Entry;
 
 import org.apache.commons.lang3.StringUtils;
-import org.bukkit.Color;
-import org.bukkit.FireworkEffect;
 import org.bukkit.Material;
-import org.bukkit.NamespacedKey;
-import org.bukkit.FireworkEffect.Type;
-import org.bukkit.entity.Firework;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.FireworkMeta;
-import org.bukkit.persistence.PersistentDataType;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import com.saicone.rtag.RtagItem;
 import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.api.Reloadable;
 import com.swiftlicious.hellblock.api.compatibility.VaultHook;
 import com.swiftlicious.hellblock.challenges.HellblockChallenge.ChallengeType;
+import com.swiftlicious.hellblock.config.locale.MessageConstants;
 import com.swiftlicious.hellblock.creation.item.Item;
+import com.swiftlicious.hellblock.handlers.ActionManagerInterface;
+import com.swiftlicious.hellblock.handlers.AdventureHelper;
+import com.swiftlicious.hellblock.nms.entity.firework.FakeFirework;
+import com.swiftlicious.hellblock.player.Context;
 import com.swiftlicious.hellblock.player.UserData;
+import com.swiftlicious.hellblock.utils.PlayerUtils;
+import com.swiftlicious.hellblock.utils.extras.Action;
 
 import dev.dejvokep.boostedyaml.YamlDocument;
 import dev.dejvokep.boostedyaml.block.implementation.Section;
-import lombok.Getter;
-import lombok.NonNull;
-import net.kyori.adventure.key.Key;
-import net.kyori.adventure.sound.Sound;
+import net.kyori.adventure.audience.Audience;
 
-public class ChallengeRewardBuilder {
+public class ChallengeRewardBuilder implements Reloadable {
 
 	protected final HellblockPlugin instance;
 
-	@Getter
-	private final YamlDocument rewardConfig;
+	protected YamlDocument rewardConfig;
+
+	protected Action<Player>[] challengeGlobalActions;
 
 	public ChallengeRewardBuilder(HellblockPlugin plugin) {
 		instance = plugin;
+	}
+
+	@Override
+	public void load() {
 		File challengeRewardFile = new File(instance.getDataFolder(), "challenge-rewards.yml");
 		if (!challengeRewardFile.exists())
 			instance.saveResource("challenge-rewards.yml", false);
 		this.rewardConfig = instance.getConfigManager().loadData(challengeRewardFile);
+		Section globalChallengeSection = rewardConfig.getSection("general");
+		if (globalChallengeSection != null) {
+			this.challengeGlobalActions = instance.getActionManager()
+					.parseActions(globalChallengeSection.getSection("action"));
+		}
+	}
+	
+	public YamlDocument getRewardConfig() {
+		return this.rewardConfig;
 	}
 
-	public void performChallengeCompletionActions(@NonNull Player player, @NonNull ChallengeType challenge) {
+	public void performChallengeCompletionActions(@NotNull Player player, @NotNull ChallengeType challenge) {
 		if (player.getLocation() == null)
 			return;
-		instance.getAdventureManager().sendCenteredMessage(player,
-				"<dark_gray>[+] <gray><strikethrough>                                            <reset> <dark_gray>[+]");
-		instance.getAdventureManager().sendCenteredMessage(player, " ");
-		instance.getAdventureManager().sendCenteredMessage(player,
-				"<dark_green>*** <green><bold>Challenge Completed!<reset> <dark_green>***");
-		instance.getAdventureManager().sendCenteredMessage(player,
-				String.format("<gold>Claim your reward by clicking this challenge in the GUI menu!"));
-		instance.getAdventureManager().sendCenteredMessage(player, " ");
-		instance.getAdventureManager().sendCenteredMessage(player,
-				"<dark_gray>[+] <gray><strikethrough>                                            <reset> <dark_gray>[+]");
-		instance.getAdventureManager().playSound(player, Sound.Source.PLAYER,
-				Key.key("minecraft:entity.player.levelup"), 1.0F, 1.0F);
-		ItemStack firework = new ItemStack(Material.FIREWORK_ROCKET);
-		FireworkMeta meta = (FireworkMeta) firework.getItemMeta();
-		meta.setPower(2);
-		meta.addEffect(FireworkEffect.builder().with(Type.BURST).trail(false).flicker(false).withColor(Color.LIME)
-				.withFade(Color.LIME).build());
-		meta.getPersistentDataContainer().set(new NamespacedKey(instance, "challenge-firework"),
-				PersistentDataType.BOOLEAN, true);
-		firework.setItemMeta(meta);
-		player.getWorld().spawn(player.getLocation(), Firework.class, (data) -> {
-			data.setFireworkMeta(meta);
-			data.setTicksFlown(20);
-			data.setTicksToDetonate(0);
-		});
+		Audience audience = instance.getSenderFactory().getAudience(player);
+		AdventureHelper.sendCenteredMessage(audience,
+				instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_CHALLENGE_COMPLETED.build()));
+		if (instance.getConfigManager().challengeCompleteSound() != null)
+			audience.playSound(instance.getConfigManager().challengeCompleteSound());
+		FakeFirework firework = instance.getVersionManager().getNMSManager().createFakeFirework(player.getLocation());
+		firework.flightTime(0);
+		firework.invisible(true);
+		firework.spawn(player);
 	}
 
-	public void performChallengeRewardAction(@NonNull Player player, @NonNull Section section,
-			@NonNull ChallengeType challenge) {
+	public void performChallengeRewardAction(@NotNull Player player, @NotNull Section section,
+			@NotNull ChallengeType challenge) {
 		Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
 		if (onlineUser.isEmpty())
 			return;
@@ -90,10 +87,10 @@ public class ChallengeRewardBuilder {
 				return;
 			int amount = section.getInt("amount", 1);
 			Item<ItemStack> reward = instance.getItemManager().wrap(new ItemStack(material, amount));
-			reward.displayName(instance.getAdventureManager().miniMessageToJson(section.getString("name")));
+			reward.displayName(AdventureHelper.miniMessageToJson(section.getString("name")));
 			List<String> lore = new ArrayList<>();
 			for (String newLore : section.getStringList("lore")) {
-				lore.add(instance.getAdventureManager().miniMessageToJson(newLore));
+				lore.add(AdventureHelper.miniMessageToJson(newLore));
 			}
 			reward.lore(lore);
 			for (Entry<String, Object> enchants : section.getSection("enchantments").getStringRouteMappedValues(false)
@@ -109,16 +106,12 @@ public class ChallengeRewardBuilder {
 			reward.damage(section.getInt("damage", (int) material.getMaxDurability()));
 			ItemStack data = setChallengeRewardData(reward.getItem(), true);
 			if (player.getInventory().firstEmpty() != -1) {
-				player.getInventory().addItem(data);
+				PlayerUtils.putItemsToInventory(player.getInventory(), data, amount);
 				player.updateInventory();
 				onlineUser.get().getChallengeData().setChallengeRewardAsClaimed(challenge, true);
-				instance.getAdventureManager().sendMessage(player,
-						"<red>You've claimed your challenge reward!");
-				instance.getAdventureManager().playSound(player, net.kyori.adventure.sound.Sound.Source.PLAYER,
-						net.kyori.adventure.key.Key.key("minecraft:entity.ender_dragon.growl"), 1, 1);
+				ActionManagerInterface.trigger(Context.player(player), this.challengeGlobalActions);
 			} else {
-				instance.getAdventureManager().sendMessage(player,
-						"<red>Please have an empty slot in your inventory to receive the reward!");
+				PlayerUtils.dropItem(player, data, false, true, false);
 			}
 		} else if (rewardType == RewardType.EXP) {
 			int exp = 0;
@@ -130,9 +123,7 @@ public class ChallengeRewardBuilder {
 			}
 			player.giveExp(exp);
 			onlineUser.get().getChallengeData().setChallengeRewardAsClaimed(challenge, true);
-			instance.getAdventureManager().sendMessage(player, "<red>You've claimed your challenge reward!");
-			instance.getAdventureManager().playSound(player, net.kyori.adventure.sound.Sound.Source.PLAYER,
-					net.kyori.adventure.key.Key.key("minecraft:entity.ender_dragon.growl"), 1, 1);
+			ActionManagerInterface.trigger(Context.player(player), this.challengeGlobalActions);
 		} else if (rewardType == RewardType.MONEY) {
 			if (!VaultHook.isHooked()) {
 				instance.getPluginLogger().warn("Vault economy not found.");
@@ -147,9 +138,7 @@ public class ChallengeRewardBuilder {
 			}
 			VaultHook.deposit(player, money);
 			onlineUser.get().getChallengeData().setChallengeRewardAsClaimed(challenge, true);
-			instance.getAdventureManager().sendMessage(player, "<red>You've claimed your challenge reward!");
-			instance.getAdventureManager().playSound(player, net.kyori.adventure.sound.Sound.Source.PLAYER,
-					net.kyori.adventure.key.Key.key("minecraft:entity.ender_dragon.growl"), 1, 1);
+			ActionManagerInterface.trigger(Context.player(player), this.challengeGlobalActions);
 		} else {
 			return;
 		}

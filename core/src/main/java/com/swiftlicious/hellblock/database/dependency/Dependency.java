@@ -3,12 +3,11 @@ package com.swiftlicious.hellblock.database.dependency;
 import java.util.List;
 import java.util.Locale;
 
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import com.google.common.collect.ImmutableList;
 import com.swiftlicious.hellblock.database.dependency.relocation.Relocation;
-
-import lombok.NonNull;
 
 /**
  * The dependencies used by Hellblock.
@@ -88,13 +87,13 @@ public enum Dependency {
 
 	private static final String MAVEN_FORMAT = "%s/%s/%s/%s-%s.jar";
 
-	private Dependency(@NonNull String groupId, @NonNull String artifactId, @NonNull String repo,
-			@NonNull String customArtifactID) {
+	private Dependency(@NotNull String groupId, @NotNull String artifactId, @NotNull String repo,
+			@NotNull String customArtifactID) {
 		this(groupId, artifactId, repo, customArtifactID, new Relocation[0]);
 	}
 
-	private Dependency(@NonNull String groupId, @NonNull String artifactId, @NonNull String repo,
-			@NonNull String customArtifactID, @NonNull Relocation... relocations) {
+	private Dependency(@NotNull String groupId, @NotNull String artifactId, @NotNull String repo,
+			@NotNull String customArtifactID, @NotNull Relocation... relocations) {
 		this.groupId = groupId;
 		this.artifactId = artifactId;
 		this.repo = repo;
@@ -102,39 +101,39 @@ public enum Dependency {
 		this.relocations = ImmutableList.copyOf(relocations);
 	}
 
-	@NonNull
+	@NotNull
 	public String getVersion() {
 		return HellblockProperties.getValue(this.customArtifactID);
 	}
 
-	@NonNull
+	@NotNull
 	public String getCustomArtifactID() {
 		return this.customArtifactID;
 	}
 
-	private static String rewriteEscaping(@NonNull String s) {
+	private static String rewriteEscaping(@NotNull String s) {
 		return s.replace("{}", ".");
 	}
 
-	@NonNull
+	@NotNull
 	public String getFileName(@Nullable String classifier) {
 		String name = this.customArtifactID.toLowerCase(Locale.ROOT).replace('_', '-');
 		String extra = classifier == null || classifier.isEmpty() ? "" : "-" + classifier;
 		return name + "-" + this.getVersion() + extra + ".jar";
 	}
 
-	@NonNull
+	@NotNull
 	public String getMavenRepoPath() {
 		return String.format(MAVEN_FORMAT, rewriteEscaping(this.groupId).replace(".", "/"),
 				rewriteEscaping(this.artifactId), getVersion(), rewriteEscaping(this.artifactId), getVersion());
 	}
 
-	@NonNull
+	@NotNull
 	public List<Relocation> getRelocations() {
 		return this.relocations;
 	}
 
-	@NonNull
+	@NotNull
 	public String getRepo() {
 		return this.repo;
 	}

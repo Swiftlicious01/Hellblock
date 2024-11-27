@@ -2,6 +2,7 @@ package com.swiftlicious.hellblock.commands.sub;
 
 import java.util.Optional;
 
+import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
@@ -49,12 +50,19 @@ public class HellblockCreateCommand extends BukkitCommandFeature<CommandSender> 
 						.getOfflineUserData(onlineUser.get().getHellblockData().getOwnerUUID(),
 								HellblockPlugin.getInstance().getConfigManager().lockData())
 						.thenAccept((result) -> {
-							UserData offlineUser = result.orElseThrow();
+							if (result.isEmpty()) {
+								String username = Bukkit
+										.getOfflinePlayer(onlineUser.get().getHellblockData().getOwnerUUID()).getName();
+								handleFeedback(context, MessageConstants.MSG_HELLBLOCK_OWNER_DATA_NOT_LOADED,
+										username != null ? Component.text(username) : Component.empty());
+								return;
+							}
+							UserData offlineUser = result.get();
 							if (offlineUser.getHellblockData().isAbandoned()) {
 								handleFeedback(context, MessageConstants.MSG_HELLBLOCK_IS_ABANDONED);
 								return;
 							}
-							
+
 							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_CREATION_FAILURE_ALREADY_EXISTS,
 									Component.text(offlineUser.getHellblockData().getHellblockLocation().getBlockX()),
 									Component.text(offlineUser.getHellblockData().getHellblockLocation().getBlockZ()));

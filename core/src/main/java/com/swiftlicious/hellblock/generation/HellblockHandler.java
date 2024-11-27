@@ -26,6 +26,7 @@ import org.bukkit.event.player.PlayerTeleportEvent.TeleportCause;
 import org.bukkit.generator.ChunkGenerator;
 import org.bukkit.inventory.BlockInventoryHolder;
 import org.bukkit.util.Vector;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import com.google.common.io.Files;
@@ -37,18 +38,18 @@ import com.sk89q.worldguard.protection.regions.RegionContainer;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.api.compatibility.WorldGuardHook;
+import com.swiftlicious.hellblock.config.locale.MessageConstants;
+import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.utils.ChunkUtils;
 import com.swiftlicious.hellblock.utils.LocationUtils;
 
 import dev.dejvokep.boostedyaml.YamlDocument;
-import lombok.Getter;
-import lombok.NonNull;
-import lombok.Setter;
+import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.key.Key;
+import net.kyori.adventure.sound.Sound;
 import net.kyori.adventure.sound.Sound.Source;
 
-@Getter
 public class HellblockHandler {
 
 	protected final HellblockPlugin instance;
@@ -56,7 +57,6 @@ public class HellblockHandler {
 	private File lastHellblockFile;
 	private YamlDocument lastHellblock;
 
-	@Setter
 	private MVWorldManager mvWorldManager;
 
 	public HellblockHandler(HellblockPlugin plugin) {
@@ -67,12 +67,26 @@ public class HellblockHandler {
 		instance.getScheduler().asyncLater(() -> startCountdowns(), 5, TimeUnit.SECONDS);
 	}
 
+	public File getSchematicsDirectory() {
+		return this.schematicsDirectory;
+	}
+
+	public MVWorldManager getMVWorldManager() {
+		return this.mvWorldManager;
+	}
+
+	public void setMVWorldManager(@NotNull MVWorldManager mvWorldManager) {
+		this.mvWorldManager = mvWorldManager;
+	}
+
 	public void startCountdowns() {
 		instance.getScheduler().asyncRepeating(() -> {
 			for (UUID playerData : instance.getStorageManager().getDataSource().getUniqueUsers()) {
 				instance.getStorageManager().getOfflineUserData(playerData, instance.getConfigManager().lockData())
 						.thenAccept((result) -> {
-							UserData offlineUser = result.orElseThrow();
+							if (result.isEmpty())
+								return;
+							UserData offlineUser = result.get();
 							UUID ownerUUID = offlineUser.getHellblockData().getOwnerUUID();
 							if (ownerUUID != null && playerData.equals(ownerUUID)) {
 								if (offlineUser.getHellblockData().getResetCooldown() > 0) {
@@ -102,13 +116,14 @@ public class HellblockHandler {
 		}, 0, 1, TimeUnit.SECONDS);
 	}
 
-	public CompletableFuture<Void> createHellblock(@NonNull Player player, @NonNull IslandOptions islandChoice,
+	public CompletableFuture<Void> createHellblock(@NotNull Player player, @NotNull IslandOptions islandChoice,
 			@Nullable String schematic, boolean isReset) {
 		return CompletableFuture.runAsync(() -> {
 			Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
+			Audience audience = instance.getSenderFactory().getAudience(player);
 			if (onlineUser.isEmpty()) {
-				instance.getAdventureManager().sendMessage(player,
-						"<red>Still loading your player data... please try again in a few seconds.");
+				audience.sendMessage(instance.getTranslationManager()
+						.render(MessageConstants.COMMAND_DATA_FAILURE_NOT_LOADED.build()));
 				return;
 			}
 			Location last = this.getLastHellblock();
@@ -156,9 +171,8 @@ public class HellblockHandler {
 						choice.setIslandChoiceTask(
 								instance.getIslandChoiceConverter().convertIslandChoice(player, nextHellblock));
 					}
-
-					instance.getAdventureManager().sendMessage(player,
-							"<red>Creating new hellblock! Please wait...");
+					audience.sendMessage(instance.getTranslationManager()
+							.render(MessageConstants.MSG_HELLBLOCK_CREATE_PROCESS.build()));
 				}).thenRunAsync(() -> {
 					choice.getIslandChoiceTask().thenRunAsync(() -> {
 						if (onlineUser.get().getHellblockData().getHomeLocation() == null)
@@ -177,11 +191,15 @@ public class HellblockHandler {
 									ChunkUtils.teleportAsync(player,
 											onlineUser.get().getHellblockData().getHomeLocation(), TeleportCause.PLUGIN)
 											.thenRunAsync(() -> {
-												instance.getAdventureManager().sendTitle(player,
-														String.format("<red>Welcome <dark_red>%s", player.getName()),
-														"<red>To Your Hellblock!", 2 * 20, 3 * 20, 2 * 20);
-												instance.getAdventureManager().playSound(player, Source.PLAYER,
-														Key.key("minecraft:item.totem.use"), 1.0F, 1.0F);
+												AdventureHelper.sendTitle(
+														instance.getSenderFactory().getAudience(player),
+														AdventureHelper.miniMessage(String
+																.format("<red>Welcome <dark_red>%s", player.getName())),
+														AdventureHelper.miniMessage("<red>To Your Hellblock!"), 2 * 20,
+														3 * 20, 2 * 20);
+												instance.getSenderFactory().getAudience(player)
+														.playSound(Sound.sound(Key.key("minecraft:item.totem.use"),
+																Source.PLAYER, 1.0F, 1.0F));
 												onlineUser.get().getHellblockData()
 														.setCreation(System.currentTimeMillis());
 												if (instance.getConfigManager().worldguardProtect()) {
@@ -190,7 +208,8 @@ public class HellblockHandler {
 															onlineUser.get().getHellblockData().getID());
 													if (region != null)
 														instance.getBiomeHandler().setHellblockBiome(region,
-																onlineUser.get().getHellblockData().getBiome().getConvertedBiome());
+																onlineUser.get().getHellblockData().getBiome()
+																		.getConvertedBiome());
 												} else {
 													// TODO: using plugin protection
 												}
@@ -212,23 +231,28 @@ public class HellblockHandler {
 		});
 	}
 
-	public CompletableFuture<Void> createHellblock(@NonNull Player player, @NonNull IslandOptions islandChoice,
+	public CompletableFuture<Void> createHellblock(@NotNull Player player, @NotNull IslandOptions islandChoice,
 			boolean isReset) {
 		return createHellblock(player, islandChoice, null, isReset);
 	}
 
-	public CompletableFuture<Void> resetHellblock(@NonNull UUID id, boolean forceReset) {
+	public CompletableFuture<Void> resetHellblock(@NotNull UUID id, boolean forceReset) {
 		return CompletableFuture.runAsync(() -> {
 			instance.getStorageManager().getOfflineUserData(id, instance.getConfigManager().lockData())
 					.thenAccept((result) -> {
-						UserData offlineUser = result.orElseThrow();
+						if (result.isEmpty()) {
+							return;
+						}
+						UserData offlineUser = result.get();
 						Location home = offlineUser.getHellblockData().getHomeLocation();
 
 						Map<Block, Material> blockChanges = new LinkedHashMap<>();
 
-						if (!forceReset && Bukkit.getPlayer(id) != null)
-							instance.getAdventureManager().sendMessage(Bukkit.getPlayer(id),
-									"<red>Clearing your hellblock for a replacement space! Please wait...");
+						if (!forceReset && Bukkit.getPlayer(id) != null) {
+							Audience audience = instance.getSenderFactory().getAudience(Bukkit.getPlayer(id));
+							audience.sendMessage(instance.getTranslationManager()
+									.render(MessageConstants.MSG_HELLBLOCK_RESET_PROCESS.build()));
+						}
 						UnprotectionTask unprotection = new UnprotectionTask();
 						ClearBlocksTask clearBlocks = new ClearBlocksTask();
 						instance.getScheduler().executeSync(() -> {
@@ -238,7 +262,8 @@ public class HellblockHandler {
 										instance.getWorldGuardHandler().unprotectHellblock(id, forceReset));
 								ProtectedRegion region = instance.getWorldGuardHandler().getRegion(id,
 										offlineUser.getHellblockData().getID());
-								instance.getBiomeHandler().setHellblockBiome(region, HellBiome.NETHER_WASTES.getConvertedBiome());
+								instance.getBiomeHandler().setHellblockBiome(region,
+										HellBiome.NETHER_WASTES.getConvertedBiome());
 							} else {
 								// TODO: using plugin protection
 							}
@@ -261,24 +286,29 @@ public class HellblockHandler {
 													continue;
 												onlineMember.get().getHellblockData().resetHellblockData();
 												teleportToSpawn(member, true);
+												Audience audience = instance.getSenderFactory().getAudience(member);
 												if (!forceReset) {
 													if (offlineUser.isOnline()) {
 														Player player = Bukkit.getPlayer(id);
-														instance.getAdventureManager().sendMessage(member,
-																String.format(
-																		"<red>Your hellblock owner <dark_red>%s <red>has reset the island, so you've been removed.",
-																		player.getName()));
+														audience.sendMessage(instance.getTranslationManager().render(
+																MessageConstants.MSG_HELLBLOCK_RESET_PARTY_NOTIFICATION
+																		.arguments(AdventureHelper
+																				.miniMessage(player.getName()))
+																		.build()));
 													}
 												} else {
-													instance.getAdventureManager().sendMessage(member,
-															"<red>The hellblock party you were a part of has been forcefully deleted.");
+													audience.sendMessage(instance.getTranslationManager().render(
+															MessageConstants.MSG_HELLBLOCK_RESET_PARTY_FORCED_NOTIFICATION
+																	.build()));
 												}
 											} else {
 												instance.getStorageManager()
 														.getOfflineUserData(uuid,
 																instance.getConfigManager().lockData())
 														.thenAccept((memberResult) -> {
-															UserData offlineMember = memberResult.orElseThrow();
+															if (memberResult.isEmpty())
+																return;
+															UserData offlineMember = memberResult.get();
 															offlineMember.getHellblockData().resetHellblockData();
 															offlineMember.setInUnsafeLocation(true);
 														});
@@ -305,7 +335,9 @@ public class HellblockHandler {
 																			.getOwnerUUID(),
 																	instance.getConfigManager().lockData())
 															.thenAccept((owner) -> {
-																UserData visitorOwner = owner.orElseThrow();
+																if (owner.isEmpty())
+																	return;
+																UserData visitorOwner = owner.get();
 																instance.getCoopManager().makeHomeLocationSafe(
 																		visitorOwner, onlineVisitor.get());
 															});
@@ -317,7 +349,9 @@ public class HellblockHandler {
 														.getOfflineUserData(uuid,
 																instance.getConfigManager().lockData())
 														.thenAccept((visitorResult) -> {
-															UserData offlineVisitor = visitorResult.orElseThrow();
+															if (visitorResult.isEmpty())
+																return;
+															UserData offlineVisitor = visitorResult.get();
 															offlineVisitor.setInUnsafeLocation(true);
 														});
 											}
@@ -326,9 +360,11 @@ public class HellblockHandler {
 									offlineUser.getHellblockData().resetHellblockData();
 									if (offlineUser.isOnline()) {
 										Player player = Bukkit.getPlayer(offlineUser.getUUID());
-										if (!forceReset)
-											instance.getAdventureManager().sendMessage(player,
-													"<red>Resetting your current hellblock. Please choose a new hellblock type to create!");
+										if (!forceReset) {
+											Audience audience = instance.getSenderFactory().getAudience(player);
+											audience.sendMessage(instance.getTranslationManager()
+													.render(MessageConstants.MSG_HELLBLOCK_RESET_NEW_OPTION.build()));
+										}
 										if (instance.getConfigManager().resetInventory()) {
 											player.getInventory().clear();
 											player.getInventory().setArmorContents(null);
@@ -346,9 +382,9 @@ public class HellblockHandler {
 								}).thenRunAsync(() -> {
 									if (!forceReset) {
 										if (offlineUser.isOnline()) {
-											Player player = Bukkit.getPlayer(offlineUser.getUUID());
+											// Player player = Bukkit.getPlayer(offlineUser.getUUID());
 											instance.getScheduler().sync().runLater(() -> {
-												
+												// TODO: stuff
 											}, 1 * 20, home);
 										}
 									} else {
@@ -374,7 +410,7 @@ public class HellblockHandler {
 		}
 	}
 
-	public CompletableFuture<IDSupplier> nextHellblockID(@NonNull UUID id) {
+	public CompletableFuture<IDSupplier> nextHellblockID(@NotNull UUID id) {
 		CompletableFuture<IDSupplier> nextID = CompletableFuture.supplyAsync(() -> {
 			IDSupplier idSupplier = new IDSupplier(0);
 			if (instance.getStorageManager().getDataSource().getUniqueUsers().isEmpty())
@@ -389,7 +425,9 @@ public class HellblockHandler {
 				}
 				instance.getStorageManager().getOfflineUserData(playerData, instance.getConfigManager().lockData())
 						.thenAccept((result) -> {
-							UserData offlineUser = result.orElseThrow();
+							if (result.isEmpty())
+								return;
+							UserData offlineUser = result.get();
 							int hellblockID = offlineUser.getHellblockData().getID();
 							do {
 								idSupplier.setNextID(idSupplier.getNextID() + 1);
@@ -401,7 +439,7 @@ public class HellblockHandler {
 		return nextID;
 	}
 
-	public CompletableFuture<BedrockLocator> locateBedrock(@NonNull UUID id) {
+	public CompletableFuture<BedrockLocator> locateBedrock(@NotNull UUID id) {
 		CompletableFuture<BedrockLocator> location = CompletableFuture.supplyAsync(() -> {
 			if (instance.getConfigManager().worldguardProtect()) {
 				Location spawn = instance.getWorldGuardHandler().getSpawnCenter().toLocation(getHellblockWorld());
@@ -438,11 +476,11 @@ public class HellblockHandler {
 		return location;
 	}
 
-	public boolean isHellblockOwner(@NonNull UUID fileID, @NonNull UUID configID) {
+	public boolean isHellblockOwner(@NotNull UUID fileID, @NotNull UUID configID) {
 		return fileID.equals(configID);
 	}
 
-	private @NonNull Location nextHellblockLocation(@NonNull Location last, int hellblockID) {
+	private @NotNull Location nextHellblockLocation(@NotNull Location last, int hellblockID) {
 		if (hellblockID == getLastHellblockID())
 			return last;
 		int x = last.getBlockX();
@@ -472,7 +510,7 @@ public class HellblockHandler {
 		}
 	}
 
-	private @NonNull YamlDocument getLastHellblockConfig() {
+	private @NotNull YamlDocument getLastHellblockConfig() {
 		if (this.lastHellblockFile == null) {
 			this.lastHellblockFile = new File(instance.getDataFolder(), "lastHellblock.yml");
 		}
@@ -488,7 +526,7 @@ public class HellblockHandler {
 		return id;
 	}
 
-	private @NonNull Location getLastHellblock() {
+	private @NotNull Location getLastHellblock() {
 		World world = getHellblockWorld();
 		int x = this.getLastHellblockConfig().getInt("last.x");
 		int y = instance.getConfigManager().height();
@@ -496,7 +534,7 @@ public class HellblockHandler {
 		return new Location(world, (double) x, (double) y, (double) z);
 	}
 
-	private void setLastHellblock(@NonNull Location location, int hellblockID) {
+	private void setLastHellblock(@NotNull Location location, int hellblockID) {
 		this.getLastHellblockConfig().set("last.id", hellblockID);
 		this.getLastHellblockConfig().set("last.x", location.getBlockX());
 		this.getLastHellblockConfig().set("last.z", location.getBlockZ());
@@ -508,16 +546,16 @@ public class HellblockHandler {
 		}
 	}
 
-	public @NonNull File[] getSchematics() {
+	public @NotNull File[] getSchematics() {
 		return this.schematicsDirectory.listFiles();
 	}
 
-	public @NonNull ChunkGenerator getDefaultWorldGenerator(@NonNull String worldName, @NonNull String id) {
+	public @NotNull ChunkGenerator getDefaultWorldGenerator(@NotNull String worldName, @NotNull String id) {
 		return new VoidGenerator();
 	}
 
 	@SuppressWarnings("deprecation")
-	public @NonNull World getHellblockWorld() {
+	public @NotNull World getHellblockWorld() {
 		World hellblockWorld = Bukkit.getWorld(instance.getConfigManager().worldName());
 		if (hellblockWorld == null) {
 			VoidGenerator voidGen = new VoidGenerator();
@@ -547,15 +585,15 @@ public class HellblockHandler {
 					spawnWorld.setSpawnLocation(spawnLocation.getSpawnLocation());
 					instance.debug(
 							String.format("Generated the spawn for the new Hellblock world %s at x:%s, y:%s, z:%s",
-									instance.getConfigManager().worldName(), spawnLocation.getSpawnLocation().x(),
-									spawnLocation.getSpawnLocation().y(), spawnLocation.getSpawnLocation().z()));
+									instance.getConfigManager().worldName(), spawnLocation.getSpawnLocation().getX(),
+									spawnLocation.getSpawnLocation().getY(), spawnLocation.getSpawnLocation().getZ()));
 				}).thenRun(() -> {
-					if (getMvWorldManager() != null) {
+					if (getMVWorldManager() != null) {
 						instance.getScheduler().executeSync(() -> {
-							getMvWorldManager().addWorld(spawnWorld.getName(), Environment.NETHER,
+							getMVWorldManager().addWorld(spawnWorld.getName(), Environment.NETHER,
 									String.valueOf(spawnWorld.getSeed()), WorldType.FLAT, false,
 									instance.getDescription().getName(), true);
-							getMvWorldManager().getMVWorld(spawnWorld).setSpawnLocation(spawnWorld.getSpawnLocation());
+							getMVWorldManager().getMVWorld(spawnWorld).setSpawnLocation(spawnWorld.getSpawnLocation());
 							instance.debug(String.format("Imported the world to Multiverse-Core: %s",
 									instance.getConfigManager().worldName()));
 						});
@@ -566,21 +604,21 @@ public class HellblockHandler {
 		return hellblockWorld;
 	}
 
-	public void teleportToSpawn(@NonNull Player player, boolean forced) {
+	public void teleportToSpawn(@NotNull Player player, boolean forced) {
 		if (instance.getConfigManager().worldguardProtect()) {
 			Location spawn = instance.getWorldGuardHandler().getSpawnCenter().toLocation(getHellblockWorld());
 			spawn.setY(getHellblockWorld().getHighestBlockYAt(spawn) + 1);
 			ChunkUtils.teleportAsync(player, spawn).thenRun(() -> {
 				if (!forced)
-					instance.getAdventureManager().sendMessage(player,
-							"<red>Sent to spawn due to unsafe conditions!");
+					instance.getSenderFactory().getAudience(player).sendMessage(instance.getTranslationManager()
+							.render(MessageConstants.MSG_HELLBLOCK_UNSAFE_CONDITIONS.build()));
 			});
 		} else {
 			// TODO: using plugin protection
 		}
 	}
 
-	public boolean checkIfInSpawn(@NonNull Location location) {
+	public boolean checkIfInSpawn(@NotNull Location location) {
 		if (instance.getConfigManager().worldguardProtect()) {
 			if (instance.getWorldGuardHandler().getWorldGuardPlatform() == null) {
 				throw new NullPointerException("Could not retrieve WorldGuard platform.");
@@ -637,11 +675,11 @@ public class HellblockHandler {
 	protected class ProtectionTask {
 		private CompletableFuture<Void> protectionTask;
 
-		public @NonNull CompletableFuture<Void> getProtectionTask() {
+		public @NotNull CompletableFuture<Void> getProtectionTask() {
 			return this.protectionTask;
 		}
 
-		public void setProtectionTask(@NonNull CompletableFuture<Void> protectionTask) {
+		public void setProtectionTask(@NotNull CompletableFuture<Void> protectionTask) {
 			this.protectionTask = protectionTask;
 		}
 	}
@@ -649,11 +687,11 @@ public class HellblockHandler {
 	protected class UnprotectionTask {
 		private CompletableFuture<Void> unprotectionTask;
 
-		public @NonNull CompletableFuture<Void> getUnprotectionTask() {
+		public @NotNull CompletableFuture<Void> getUnprotectionTask() {
 			return this.unprotectionTask;
 		}
 
-		public void setUnprotectionTask(@NonNull CompletableFuture<Void> unprotectionTask) {
+		public void setUnprotectionTask(@NotNull CompletableFuture<Void> unprotectionTask) {
 			this.unprotectionTask = unprotectionTask;
 		}
 	}
@@ -661,11 +699,11 @@ public class HellblockHandler {
 	protected class IslandChoiceTask {
 		private CompletableFuture<Void> islandChoiceTask;
 
-		public @NonNull CompletableFuture<Void> getIslandChoiceTask() {
+		public @NotNull CompletableFuture<Void> getIslandChoiceTask() {
 			return this.islandChoiceTask;
 		}
 
-		public void setIslandChoiceTask(@NonNull CompletableFuture<Void> islandChoiceTask) {
+		public void setIslandChoiceTask(@NotNull CompletableFuture<Void> islandChoiceTask) {
 			this.islandChoiceTask = islandChoiceTask;
 		}
 	}
@@ -673,11 +711,11 @@ public class HellblockHandler {
 	protected class ClearBlocksTask {
 		private CompletableFuture<List<Block>> clearBlocksTask;
 
-		public @NonNull CompletableFuture<List<Block>> getClearBlocksTask() {
+		public @NotNull CompletableFuture<List<Block>> getClearBlocksTask() {
 			return this.clearBlocksTask;
 		}
 
-		public void setClearBlocksTask(@NonNull CompletableFuture<List<Block>> clearBlocksTask) {
+		public void setClearBlocksTask(@NotNull CompletableFuture<List<Block>> clearBlocksTask) {
 			this.clearBlocksTask = clearBlocksTask;
 		}
 	}
@@ -701,11 +739,11 @@ public class HellblockHandler {
 	protected class HellblockSpawn {
 		private Location spawnLocation;
 
-		public @NonNull Location getSpawnLocation() {
+		public @NotNull Location getSpawnLocation() {
 			return this.spawnLocation;
 		}
 
-		public void setSpawnLocation(@NonNull Location spawnLocation) {
+		public void setSpawnLocation(@NotNull Location spawnLocation) {
 			this.spawnLocation = spawnLocation;
 		}
 	}
@@ -717,11 +755,11 @@ public class HellblockHandler {
 			this.bedrockLocation = bedrockLocation;
 		}
 
-		public @NonNull Location getBedrockLocation() {
+		public @NotNull Location getBedrockLocation() {
 			return this.bedrockLocation;
 		}
 
-		public void setBedrockLocation(@NonNull Location bedrockLocation) {
+		public void setBedrockLocation(@NotNull Location bedrockLocation) {
 			this.bedrockLocation = bedrockLocation;
 		}
 	}

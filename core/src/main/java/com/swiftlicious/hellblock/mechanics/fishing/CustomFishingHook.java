@@ -30,6 +30,7 @@ import com.swiftlicious.hellblock.effects.EffectModifier;
 import com.swiftlicious.hellblock.events.fishing.FishingEffectApplyEvent;
 import com.swiftlicious.hellblock.events.fishing.FishingLootSpawnEvent;
 import com.swiftlicious.hellblock.events.fishing.FishingResultEvent;
+import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.handlers.RequirementManagerInterface;
 import com.swiftlicious.hellblock.listeners.fishing.BaitAnimationTask;
 import com.swiftlicious.hellblock.loot.LootInterface;
@@ -414,6 +415,7 @@ public class CustomFishingHook {
 	/**
 	 * Handles a successful fishing attempt.
 	 */
+	@SuppressWarnings("removal")
 	public void handleSuccessfulFishing() {
 
 		if (!valid)
@@ -463,9 +465,9 @@ public class CustomFishingHook {
 								Optional<String> displayName = instance.getItemManager().wrap(stack).displayName();
 								if (displayName.isPresent()) {
 									context.arg(ContextKeys.NICK,
-											instance.getAdventureManager().jsonToMiniMessage(displayName.get()));
+											AdventureHelper.jsonToMiniMessage(displayName.get()));
 								} else {
-									context.arg(ContextKeys.NICK, "<lang:" + stack.getType().translationKey() + ">");
+									context.arg(ContextKeys.NICK, "<lang:" + stack.getType().getTranslationKey() + ">");
 								}
 							}
 							PlayerUtils.giveItem(context.holder(), stack, stack.getAmount());
@@ -479,9 +481,9 @@ public class CustomFishingHook {
 							Optional<String> displayName = instance.getItemManager().wrap(stack).displayName();
 							if (displayName.isPresent()) {
 								context.arg(ContextKeys.NICK,
-										instance.getAdventureManager().jsonToMiniMessage(displayName.get()));
+										AdventureHelper.jsonToMiniMessage(displayName.get()));
 							} else {
-								context.arg(ContextKeys.NICK, "<lang:" + stack.getType().translationKey() + ">");
+								context.arg(ContextKeys.NICK, "<lang:" + stack.getType().getTranslationKey() + ">");
 							}
 						}
 						if (item != null) {

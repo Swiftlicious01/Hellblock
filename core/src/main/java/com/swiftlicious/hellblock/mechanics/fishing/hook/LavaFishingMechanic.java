@@ -55,7 +55,7 @@ public class LavaFishingMechanic implements HookMechanic {
 		if (!(boolean) gearsEffect.properties().getOrDefault(EffectProperties.LAVA_FISHING, false)) {
 			return false;
 		}
-		if (hook.isInLava()) {
+		if (hook.getLocation().getBlock().getType() == Material.LAVA) {
 			return true;
 		}
 		float lavaHeight = 0F;
@@ -69,7 +69,7 @@ public class LavaFishingMechanic implements HookMechanic {
 
 	@Override
 	public boolean shouldStop() {
-		if (hook.isInLava()) {
+		if (hook.getLocation().getBlock().getType() == Material.LAVA) {
 			return false;
 		}
 		return hook.isOnGround() || (hook.getLocation().getBlock().getType() != Material.LAVA
@@ -116,7 +116,7 @@ public class LavaFishingMechanic implements HookMechanic {
 				if (hookY < 0) {
 					hookY += Math.abs(Math.floor(hookY));
 				}
-				if (hookY % 1 <= lavaHeight || this.hook.isInLava()) {
+				if (hookY % 1 <= lavaHeight || this.hook.getLocation().getBlock().getType() == Material.LAVA) {
 					Vector previousVector = this.hook.getVelocity();
 					this.hook.setVelocity(new Vector(previousVector.getX() * 0.6,
 							Math.min(0.1, Math.max(-0.1, previousVector.getY() + 0.07)), previousVector.getZ() * 0.6));

@@ -11,6 +11,7 @@ import java.util.concurrent.CompletableFuture;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.jetbrains.annotations.NotNull;
 
 import com.google.common.io.Files;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
@@ -18,8 +19,6 @@ import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.api.Reloadable;
 import com.swiftlicious.hellblock.api.compatibility.FastAsyncWorldEditHook;
 import com.swiftlicious.hellblock.api.compatibility.WorldEditHook;
-
-import lombok.NonNull;
 
 public class SchematicManager implements Reloadable {
 
@@ -96,7 +95,7 @@ public class SchematicManager implements Reloadable {
 		}
 	}
 
-	public @NonNull CompletableFuture<Void> pasteSchematic(@NonNull String schematic, @NonNull ProtectedRegion region) {
+	public @NotNull CompletableFuture<Void> pasteSchematic(@NotNull String schematic, @NotNull ProtectedRegion region) {
 		CompletableFuture<Void> completableFuture = new CompletableFuture<>();
 		Location location = instance.getWorldGuardHandler().getCenter(region)
 				.toLocation(instance.getHellblockHandler().getHellblockWorld());

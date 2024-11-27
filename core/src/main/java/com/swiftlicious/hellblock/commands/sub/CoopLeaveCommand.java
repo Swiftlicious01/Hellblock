@@ -10,6 +10,7 @@ import org.incendo.cloud.CommandManager;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.commands.BukkitCommandFeature;
 import com.swiftlicious.hellblock.commands.HellblockCommandManager;
+import com.swiftlicious.hellblock.config.locale.MessageConstants;
 import com.swiftlicious.hellblock.player.UserData;
 
 public class CoopLeaveCommand extends BukkitCommandFeature<CommandSender> {
@@ -26,8 +27,7 @@ public class CoopLeaveCommand extends BukkitCommandFeature<CommandSender> {
 			Optional<UserData> leavingPlayer = HellblockPlugin.getInstance().getStorageManager()
 					.getOnlineUser(player.getUniqueId());
 			if (leavingPlayer.isEmpty()) {
-				HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-						"<red>Still loading your player data... please try again in a few seconds.");
+				handleFeedback(context, MessageConstants.COMMAND_DATA_FAILURE_NOT_LOADED);
 				return;
 			}
 			HellblockPlugin.getInstance().getCoopManager().leaveHellblockParty(leavingPlayer.get());

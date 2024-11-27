@@ -15,12 +15,12 @@ import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Player;
 import org.bukkit.util.BoundingBox;
 import org.bukkit.util.NumberConversions;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 
 import dev.dejvokep.boostedyaml.block.implementation.Section;
-import lombok.NonNull;
 
 public class LocationUtils {
 
@@ -35,15 +35,19 @@ public class LocationUtils {
 	 * @param location2 The second location
 	 * @return The Euclidean distance between the two locations
 	 */
-	public static double getDistance(@NonNull Location location1, @NonNull Location location2) {
+	public static double getDistance(@NotNull Location location1, @NotNull Location location2) {
 		return Math.sqrt(Math.pow(location2.getX() - location1.getX(), 2)
 				+ Math.pow(location2.getY() - location1.getY(), 2) + Math.pow(location2.getZ() - location1.getZ(), 2));
 	}
 
-	public static @NonNull List<String> readableLocation(@NonNull Location location) {
+	public static @NotNull List<String> readableLocation(@NotNull Location location) {
 		List<String> readableLocation = Arrays.asList(location.getWorld().getName(), String.valueOf(location.getX()),
 				String.valueOf(location.getY()), String.valueOf(location.getZ()));
 		return readableLocation;
+	}
+
+	public static Location getAnyLocationInstance() {
+		return new Location(Bukkit.getWorlds().get(0), 0, 64, 0);
 	}
 
 	public static String toChunkPosString(Location location) {
@@ -54,7 +58,7 @@ public class LocationUtils {
 	 * Checks if this location is safe for a player to teleport to. Used by visits
 	 * and home teleports Unsafe is any liquid or air and also if there's no space
 	 */
-	public static boolean isSafeLocation(@NonNull Location location) {
+	public static boolean isSafeLocation(@NotNull Location location) {
 		Block feet = location.getBlock();
 		Block head = feet.getRelative(BlockFace.UP);
 		Block ground = feet.getRelative(BlockFace.DOWN);
@@ -65,7 +69,7 @@ public class LocationUtils {
 	 * Checks if this location is safe for a player to teleport to and loads chunks
 	 * async to check.
 	 */
-	public static CompletableFuture<Boolean> isSafeLocationAsync(@NonNull Location location) {
+	public static CompletableFuture<Boolean> isSafeLocationAsync(@NotNull Location location) {
 		CompletableFuture<Boolean> result = new CompletableFuture<>();
 		ChunkUtils.getChunkAtAsync(location).thenRun(() -> {
 			Block feet = location.getBlock();
@@ -81,10 +85,11 @@ public class LocationUtils {
 	 * 
 	 * @return
 	 */
-	private static boolean checkIfSafe(@NonNull Block ground, @NonNull Block feet, @NonNull Block head) {
+	private static boolean checkIfSafe(@NotNull Block ground, @NotNull Block feet, @NotNull Block head) {
 
 		// Ground must be solid and head must not be solid
-		if (ground.getCollisionShape().getBoundingBoxes().isEmpty() || (head.isSolid() && !head.isPassable())) {
+		if (ground.getCollisionShape().getBoundingBoxes().isEmpty()
+				|| (head.getType().isSolid() && !head.isPassable())) {
 			return false;
 		}
 
@@ -136,7 +141,7 @@ public class LocationUtils {
 		};
 	}
 
-	public @Nullable Block getBlockSupporting(@NonNull Player player) {
+	public @Nullable Block getBlockSupporting(@NotNull Player player) {
 		World w = player.getWorld();
 		BoundingBox box = player.getBoundingBox();
 		int blx = NumberConversions.floor(box.getMinX()), bgx = NumberConversions.ceil(box.getMaxX()),
@@ -174,7 +179,7 @@ public class LocationUtils {
 		return null;
 	}
 
-	public boolean isStandingOn(@NonNull BoundingBox blockBox, @NonNull BoundingBox playerBox) {
+	public boolean isStandingOn(@NotNull BoundingBox blockBox, @NotNull BoundingBox playerBox) {
 		// if the maxY of the block bounding box == the minY of the players box, if they
 		// intersect 2d they are standing on it
 		// unfortunately bukkit's BoundingBox doesn't have an intersect2d method, so we
@@ -188,7 +193,7 @@ public class LocationUtils {
 	 * @param s - serialized location in format "world:x:y:z:y:p"
 	 * @return Location
 	 */
-	public static @NonNull Location getLocationString(final @NonNull String s) {
+	public static @NotNull Location getLocationString(final @NotNull String s) {
 		if (s == null || s.trim().equals("")) {
 			return null;
 		}
@@ -217,7 +222,7 @@ public class LocationUtils {
 	 * @param l - the location
 	 * @return String of location in format "world:x:y:z:y:p"
 	 */
-	public static @NonNull String getStringLocation(final @NonNull Location l) {
+	public static @NotNull String getStringLocation(final @NotNull Location l) {
 		if (l == null || l.getWorld() == null) {
 			return "";
 		}
@@ -232,7 +237,7 @@ public class LocationUtils {
 	 * @param face - blockface
 	 * @return degrees
 	 */
-	public static float blockFaceToFloat(@NonNull BlockFace face) {
+	public static float blockFaceToFloat(@NotNull BlockFace face) {
 		return switch (face) {
 		case EAST -> 90F;
 		case EAST_NORTH_EAST -> 67.5F;
@@ -252,7 +257,7 @@ public class LocationUtils {
 		};
 	}
 
-	public static @NonNull String getFacing(@NonNull Player player) {
+	public static @NotNull String getFacing(@NotNull Player player) {
 		double yaw = player.getLocation().getYaw();
 		if (yaw >= 337.5 || (yaw <= 22.5 && yaw >= 0.0) || (yaw >= -22.5 && yaw <= 0.0)
 				|| (yaw <= -337.5 && yaw <= 0.0)) {
@@ -282,7 +287,7 @@ public class LocationUtils {
 		return "Error!";
 	}
 
-	public static void serializeLocation(@NonNull Section section, @Nullable Location location, boolean includeExtras) {
+	public static void serializeLocation(@NotNull Section section, @Nullable Location location, boolean includeExtras) {
 		String world = HellblockPlugin.getInstance().getConfigManager().worldName();
 		double x = 0.0D;
 		double y = (double) HellblockPlugin.getInstance().getConfigManager().height();
@@ -308,7 +313,7 @@ public class LocationUtils {
 		}
 	}
 
-	public static @Nullable Location deserializeLocation(@NonNull Section section) {
+	public static @Nullable Location deserializeLocation(@NotNull Section section) {
 		World world = Bukkit.getWorld(section.getString("world"));
 		if (world == null)
 			world = HellblockPlugin.getInstance().getHellblockHandler().getHellblockWorld();

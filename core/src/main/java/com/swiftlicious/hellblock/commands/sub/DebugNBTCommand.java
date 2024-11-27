@@ -14,14 +14,17 @@ import com.saicone.rtag.RtagItem;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.commands.BukkitCommandFeature;
 import com.swiftlicious.hellblock.commands.HellblockCommandManager;
-import com.swiftlicious.hellblock.utils.ConfigUtils;
+import com.swiftlicious.hellblock.config.locale.MessageConstants;
+import com.swiftlicious.hellblock.utils.ItemStackUtils;
+
+import net.kyori.adventure.text.Component;
 
 public class DebugNBTCommand extends BukkitCommandFeature<CommandSender> {
 
 	public DebugNBTCommand(HellblockCommandManager<CommandSender> commandManager) {
 		super(commandManager);
 	}
-	
+
 	@Override
 	public Command.Builder<? extends CommandSender> assembleCommand(CommandManager<CommandSender> manager,
 			Command.Builder<CommandSender> builder) {
@@ -29,14 +32,13 @@ public class DebugNBTCommand extends BukkitCommandFeature<CommandSender> {
 			final Player player = context.sender();
 			ItemStack item = player.getInventory().getItemInMainHand();
 			if (item.getType() == Material.AIR) {
-				HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-						"<red>Please hold an item to check its NBT tag data.");
+				handleFeedback(context, MessageConstants.COMMAND_DEBUG_NBT_NO_ITEM_IN_HAND);
 				return;
 			}
 			List<String> list = new ArrayList<>();
-			ConfigUtils.mapToReadableStringList(new RtagItem(item).get(), list, true);
+			ItemStackUtils.mapToReadableStringList(new RtagItem(item).get(), list, true);
 			for (String line : list) {
-				HellblockPlugin.getInstance().getAdventureManager().sendMessage(player, line);
+				HellblockPlugin.getInstance().getSenderFactory().wrap(player).sendMessage(Component.text(line));
 			}
 		});
 	}

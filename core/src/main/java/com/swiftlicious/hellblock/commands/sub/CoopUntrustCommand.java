@@ -25,7 +25,9 @@ import com.swiftlicious.hellblock.config.locale.MessageConstants;
 import com.swiftlicious.hellblock.player.UUIDFetcher;
 import com.swiftlicious.hellblock.player.UserData;
 
-import lombok.NonNull;
+import net.kyori.adventure.text.Component;
+
+import org.jetbrains.annotations.NotNull;
 
 public class CoopUntrustCommand extends BukkitCommandFeature<CommandSender> {
 
@@ -39,8 +41,8 @@ public class CoopUntrustCommand extends BukkitCommandFeature<CommandSender> {
 		return builder.senderType(Player.class)
 				.required("player", StringParser.stringComponent().suggestionProvider(new SuggestionProvider<>() {
 					@Override
-					public @NonNull CompletableFuture<? extends @NonNull Iterable<? extends @NonNull Suggestion>> suggestionsFuture(
-							@NonNull CommandContext<Object> context, @NonNull CommandInput input) {
+					public @NotNull CompletableFuture<? extends @NotNull Iterable<? extends @NotNull Suggestion>> suggestionsFuture(
+							@NotNull CommandContext<Object> context, @NotNull CommandInput input) {
 						if (context.sender() instanceof Player player) {
 							Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 									.getOnlineUser(player.getUniqueId());
@@ -63,8 +65,7 @@ public class CoopUntrustCommand extends BukkitCommandFeature<CommandSender> {
 					Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 							.getOnlineUser(player.getUniqueId());
 					if (onlineUser.isEmpty()) {
-						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-								"<red>Still loading your player data... please try again in a few seconds.");
+						handleFeedback(context, MessageConstants.COMMAND_DATA_FAILURE_NOT_LOADED);
 						return;
 					}
 					if (onlineUser.get().getHellblockData().hasHellblock()) {
@@ -74,73 +75,62 @@ public class CoopUntrustCommand extends BukkitCommandFeature<CommandSender> {
 						}
 						if (onlineUser.get().getHellblockData().getOwnerUUID() != null
 								&& !onlineUser.get().getHellblockData().getOwnerUUID().equals(player.getUniqueId())) {
-							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-									HellblockPlugin.getInstance().getTranslationManager().miniMessageTranslation(
-											MessageConstants.MSG_NOT_OWNER_OF_HELLBLOCK.build().key()));
+							handleFeedback(context, MessageConstants.MSG_NOT_OWNER_OF_HELLBLOCK);
 							return;
 						}
 						if (onlineUser.get().getHellblockData().isAbandoned()) {
-							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-									HellblockPlugin.getInstance().getTranslationManager().miniMessageTranslation(
-											MessageConstants.MSG_HELLBLOCK_IS_ABANDONED.build().key()));
+							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_IS_ABANDONED);
 							return;
 						}
 						String user = context.get("player");
 						if (user.equalsIgnoreCase(player.getName())) {
-							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-									"<red>You can't do this to yourself!");
+							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_NOT_TO_SELF);
 							return;
 						}
 						UUID id = Bukkit.getPlayer(user) != null ? Bukkit.getPlayer(user).getUniqueId()
 								: UUIDFetcher.getUUID(user);
 						if (id == null) {
-							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-									"<red>The player you're trying to untrust doesn't exist!");
+							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_PLAYER_OFFLINE);
 							return;
 						}
 						if (!Bukkit.getOfflinePlayer(id).hasPlayedBefore()) {
-							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-									"<red>The player you're trying to untrust doesn't exist!");
+							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_PLAYER_OFFLINE);
 							return;
 						}
 						if (id.equals(player.getUniqueId())) {
-							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-									"<red>You can't do this to yourself!");
+							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_NOT_TO_SELF);
 							return;
 						}
 						if (onlineUser.get().getHellblockData().getParty().contains(id)) {
-							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-									"<red>The player you're trying to apply this to is already a member of your party!");
+							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_NOT_TO_PARTY);
 							return;
 						}
 						HellblockPlugin.getInstance().getStorageManager()
 								.getOfflineUserData(id, HellblockPlugin.getInstance().getConfigManager().lockData())
 								.thenAccept((result) -> {
-									UserData offlineUser = result.orElseThrow();
+									if (result.isEmpty()) {
+										handleFeedback(context, MessageConstants.MSG_HELLBLOCK_PLAYER_DATA_FAILURE_LOAD
+												.arguments(Component.text(user)));
+										return;
+									}
+									UserData offlineUser = result.get();
 									if (!offlineUser.getHellblockData().getTrusted().contains(player.getUniqueId())) {
-										HellblockPlugin.getInstance().getAdventureManager().sendMessage(
-												player, "<red>This player isn't trusted on your hellblock!");
+										handleFeedback(context, MessageConstants.MSG_HELLBLOCK_COOP_NOT_TRUSTED);
 										return;
 									}
 									offlineUser.getHellblockData().removeTrustPermission(player.getUniqueId());
 									HellblockPlugin.getInstance().getCoopManager().removeTrustAccess(onlineUser.get(),
 											user, id);
-									HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-											String.format(
-													"<red>You've revoked trust access from <dark_red>%s <red>on your hellblock!",
-													user));
+									handleFeedback(context, MessageConstants.MSG_HELLBLOCK_COOP_TRUST_REVOKED
+											.arguments(Component.text(user)));
 									if (offlineUser.isOnline()) {
-										HellblockPlugin.getInstance().getAdventureManager().sendMessage(
-												Bukkit.getPlayer(offlineUser.getUUID()),
-												String.format(
-														"<red>You've lost trust access to <dark_red>%s<red>'s hellblock!",
-														offlineUser.getName()));
+										handleFeedback(Bukkit.getPlayer(offlineUser.getUUID()),
+												MessageConstants.MSG_HELLBLOCK_COOP_TRUST_LOST
+														.arguments(Component.text(player.getName())));
 									}
 								});
 					} else {
-						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-								HellblockPlugin.getInstance().getTranslationManager().miniMessageTranslation(
-										MessageConstants.MSG_HELLBLOCK_NOT_FOUND.build().key()));
+						handleFeedback(context, MessageConstants.MSG_HELLBLOCK_NOT_FOUND);
 						return;
 					}
 				});

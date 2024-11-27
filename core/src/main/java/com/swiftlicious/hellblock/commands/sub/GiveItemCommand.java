@@ -14,6 +14,7 @@ import org.incendo.cloud.parser.standard.IntegerParser;
 import org.incendo.cloud.parser.standard.StringParser;
 import org.incendo.cloud.suggestion.Suggestion;
 import org.incendo.cloud.suggestion.SuggestionProvider;
+import org.jetbrains.annotations.NotNull;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.commands.BukkitCommandFeature;
@@ -23,7 +24,6 @@ import com.swiftlicious.hellblock.player.Context;
 import com.swiftlicious.hellblock.player.ContextKeys;
 import com.swiftlicious.hellblock.utils.PlayerUtils;
 
-import lombok.NonNull;
 import net.kyori.adventure.text.Component;
 
 public class GiveItemCommand extends BukkitCommandFeature<CommandSender> {
@@ -38,8 +38,8 @@ public class GiveItemCommand extends BukkitCommandFeature<CommandSender> {
 		return builder.required("player", PlayerParser.playerParser())
 				.required("id", StringParser.stringComponent().suggestionProvider(new SuggestionProvider<>() {
 					@Override
-					public @NonNull CompletableFuture<? extends @NonNull Iterable<? extends @NonNull Suggestion>> suggestionsFuture(
-							@NonNull CommandContext<Object> context, @NonNull CommandInput input) {
+					public @NotNull CompletableFuture<? extends @NotNull Iterable<? extends @NotNull Suggestion>> suggestionsFuture(
+							@NotNull CommandContext<Object> context, @NotNull CommandInput input) {
 						return CompletableFuture.completedFuture(HellblockPlugin.getInstance().getItemManager()
 								.getItemIDs().stream().map(Suggestion::suggestion).toList());
 					}

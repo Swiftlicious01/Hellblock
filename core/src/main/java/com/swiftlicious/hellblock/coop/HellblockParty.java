@@ -5,26 +5,27 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
 
-import com.swiftlicious.hellblock.player.HellblockData;
+import org.jetbrains.annotations.NotNull;
 
-import lombok.Getter;
-import lombok.NonNull;
+import com.swiftlicious.hellblock.player.HellblockData;
 
 public class HellblockParty {
 
-	@Getter
-	private final Collection<UUID> islandMembers;
+	private final Collection<UUID> islandMembers = new HashSet<>();
 
-	public HellblockParty(@NonNull HellblockData hellblockData) {
-		islandMembers = new HashSet<>();
+	public HellblockParty(@NotNull HellblockData hellblockData) {
 		UUID owner = hellblockData.getOwnerUUID();
 		Set<UUID> party = hellblockData.getParty();
 		Set<UUID> trusted = hellblockData.getTrusted();
 		if (owner != null)
-			islandMembers.add(owner);
+			this.islandMembers.add(owner);
 		if (party != null && !party.isEmpty())
-			islandMembers.addAll(party);
+			this.islandMembers.addAll(party);
 		if (trusted != null && !trusted.isEmpty())
-			islandMembers.addAll(trusted);
+			this.islandMembers.addAll(trusted);
+	}
+	
+	public Collection<UUID> getIslandMembers() {
+		return this.islandMembers;
 	}
 }

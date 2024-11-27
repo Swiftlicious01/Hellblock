@@ -68,7 +68,9 @@ public class HellblockBorderTask implements Runnable {
 					continue;
 
 				instance.getStorageManager().getOfflineUserData(owner, instance.getConfigManager().lockData()).thenAccept((result) -> {
-					UserData offlineUser = result.orElseThrow();
+					if (result.isEmpty())
+						return;
+					UserData offlineUser = result.get();
 					if ((hellblockRegion != null && region.equals(hellblockRegion))
 							|| (owner != null && offlineUser.getHellblockData().getParty().contains(playerUUID))) {
 						spawnBorderParticles(player, region.getId(), new BlueBorder());

@@ -54,6 +54,7 @@ import dev.dejvokep.boostedyaml.settings.general.GeneralSettings;
 import dev.dejvokep.boostedyaml.settings.loader.LoaderSettings;
 import dev.dejvokep.boostedyaml.settings.updater.UpdaterSettings;
 import dev.dejvokep.boostedyaml.utils.format.NodeRole;
+import net.kyori.adventure.sound.Sound;
 
 public abstract class ConfigHandler implements ConfigLoader, Reloadable {
 
@@ -68,6 +69,8 @@ public abstract class ConfigHandler implements ConfigLoader, Reloadable {
 	protected final Map<String, Node<ConfigParserFunction>> lootFormatFunctions = new HashMap<>();
 	protected int placeholderLimit;
 	protected boolean redisRanking;
+	protected Sound challengeCompletedSound;
+	protected Sound linkingHellblockSound;
 	protected String serverGroup;
 	protected String[] itemDetectOrder = new String[0];
 	protected String[] blockDetectOrder = new String[0];
@@ -77,7 +80,6 @@ public abstract class ConfigHandler implements ConfigLoader, Reloadable {
 	protected boolean metrics;
 	protected boolean checkUpdate;
 	protected boolean debug;
-	protected boolean legacySupport;
 	protected boolean lavaFishingEnabled;
 	protected int lavaMinTime;
 	protected int lavaMaxTime;
@@ -393,6 +395,14 @@ public abstract class ConfigHandler implements ConfigLoader, Reloadable {
 		return blockDetectOrder;
 	}
 
+	public Sound challengeCompleteSound() {
+		return challengeCompletedSound;
+	}
+	
+	public Sound linkingHellblockSound() {
+		return linkingHellblockSound;
+	}
+
 	public int dataSaveInterval() {
 		return dataSaveInterval;
 	}
@@ -411,10 +421,6 @@ public abstract class ConfigHandler implements ConfigLoader, Reloadable {
 
 	public boolean checkUpdate() {
 		return checkUpdate;
-	}
-
-	public boolean legacyColorSupport() {
-		return legacySupport;
 	}
 
 	public boolean lavaFishingEnabled() {

@@ -7,12 +7,11 @@ import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.player.UserData;
-
-import lombok.NonNull;
 
 public class IslandChoiceConverter {
 
@@ -22,11 +21,11 @@ public class IslandChoiceConverter {
 		instance = plugin;
 	}
 
-	public CompletableFuture<Void> convertIslandChoice(@NonNull Player player, @NonNull Location location) {
+	public CompletableFuture<Void> convertIslandChoice(@NotNull Player player, @NotNull Location location) {
 		return convertIslandChoice(player, location, null);
 	}
 
-	public CompletableFuture<Void> convertIslandChoice(@NonNull Player player, @NonNull Location location,
+	public CompletableFuture<Void> convertIslandChoice(@NotNull Player player, @NotNull Location location,
 			@Nullable String schematic) {
 		Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
 		if (onlineUser.isEmpty())
@@ -52,9 +51,6 @@ public class IslandChoiceConverter {
 					onlineUser.get().getHellblockData().setHomeLocation(
 							new Location(world, highest.getX() + 0.5, y + 5, highest.getZ() + 2.5, -175, 0));
 				});
-			} else {
-				instance.getAdventureManager().sendMessage(player,
-						"<red>The default hellblock island type isn't available to generate!");
 			}
 		case IslandOptions.CLASSIC:
 			if (instance.getConfigManager().islandOptions().contains(IslandOptions.CLASSIC.getName())) {
@@ -62,9 +58,6 @@ public class IslandChoiceConverter {
 					onlineUser.get().getHellblockData().setHomeLocation(
 							new Location(world, highest.getX() - 0.5, y + 3, highest.getZ() - 0.5, 90, 0));
 				});
-			} else {
-				instance.getAdventureManager().sendMessage(player,
-						"<red>The classic hellblock island type isn't available to generate!");
 			}
 		case IslandOptions.SCHEMATIC:
 			boolean schematicsAvailable = false;
@@ -84,9 +77,6 @@ public class IslandChoiceConverter {
 							onlineUser.get().getHellblockData().setHomeLocation(
 									new Location(world, highest.getX() + 0.5, y + 5, highest.getZ() + 2.5, -175, 0));
 						});
-			} else {
-				instance.getAdventureManager().sendMessage(player,
-						"<red>No schematic types are available to choose from for your hellblock!");
 			}
 		default:
 			return instance.getIslandGenerator().generateClassicHellblock(location, player).thenRun(() -> {

@@ -16,6 +16,8 @@ import com.swiftlicious.hellblock.commands.HellblockCommandManager;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
 import com.swiftlicious.hellblock.player.UserData;
 
+import net.kyori.adventure.text.Component;
+
 public class HellblockInfoCommand extends BukkitCommandFeature<CommandSender> {
 
 	public HellblockInfoCommand(HellblockCommandManager<CommandSender> commandManager) {
@@ -30,14 +32,11 @@ public class HellblockInfoCommand extends BukkitCommandFeature<CommandSender> {
 			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 					.getOnlineUser(player.getUniqueId());
 			if (onlineUser.isEmpty()) {
-				HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-						"<red>Still loading your player data... please try again in a few seconds.");
+				handleFeedback(context, MessageConstants.COMMAND_DATA_FAILURE_NOT_LOADED);
 				return;
 			}
 			if (!onlineUser.get().getHellblockData().hasHellblock()) {
-				HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-						HellblockPlugin.getInstance().getTranslationManager()
-								.miniMessageTranslation(MessageConstants.MSG_HELLBLOCK_NOT_FOUND.build().key()));
+				handleFeedback(context, MessageConstants.MSG_HELLBLOCK_NOT_FOUND);
 				return;
 			} else {
 				if (onlineUser.get().getHellblockData().getOwnerUUID() == null) {
@@ -48,71 +47,96 @@ public class HellblockInfoCommand extends BukkitCommandFeature<CommandSender> {
 						.getOfflineUserData(onlineUser.get().getHellblockData().getOwnerUUID(),
 								HellblockPlugin.getInstance().getConfigManager().lockData())
 						.thenAccept((result) -> {
-							UserData offlineUser = result.orElseThrow();
-							if (offlineUser.getHellblockData().isAbandoned()) {
-								HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-										HellblockPlugin.getInstance().getTranslationManager().miniMessageTranslation(
-												MessageConstants.MSG_HELLBLOCK_IS_ABANDONED.build().key()));
+							if (result.isEmpty()) {
+								String username = Bukkit
+										.getOfflinePlayer(onlineUser.get().getHellblockData().getOwnerUUID())
+										.getName() != null ? Bukkit
+												.getOfflinePlayer(onlineUser.get().getHellblockData().getOwnerUUID())
+												.getName() : "???";
+								handleFeedback(context, MessageConstants.MSG_HELLBLOCK_PLAYER_DATA_FAILURE_LOAD
+										.arguments(Component.text(username)));
 								return;
 							}
-							String partyString = "", trustedString = "", bannedString = "";
-							for (UUID id : offlineUser.getHellblockData().getParty()) {
-								if (Bukkit.getOfflinePlayer(id).hasPlayedBefore()
-										&& Bukkit.getOfflinePlayer(id).getName() != null) {
-									partyString = "<dark_red>" + Bukkit.getOfflinePlayer(id).getName() + "<red>, ";
+							UserData offlineUser = result.get();
+							if (offlineUser.getHellblockData().isAbandoned()) {
+								handleFeedback(context, MessageConstants.MSG_HELLBLOCK_IS_ABANDONED);
+								return;
+							}
+							StringBuilder partyString = new StringBuilder(), trustedString = new StringBuilder(),
+									bannedString = new StringBuilder();
+							if (offlineUser.getHellblockData().getParty() != null) {
+								for (UUID id : offlineUser.getHellblockData().getParty()) {
+									if (Bukkit.getOfflinePlayer(id).hasPlayedBefore()
+											&& Bukkit.getOfflinePlayer(id).getName() != null) {
+										partyString.append(HellblockPlugin.getInstance().getTranslationManager()
+												.miniMessageTranslation(MessageConstants.MSG_HELLBLOCK_INFO_LIST_STYLE
+														.arguments(
+																Component.text(Bukkit.getOfflinePlayer(id).getName()))
+														.build().key()));
+									}
 								}
 							}
-							for (UUID id : offlineUser.getHellblockData().getTrusted()) {
-								if (Bukkit.getOfflinePlayer(id).hasPlayedBefore()
-										&& Bukkit.getOfflinePlayer(id).getName() != null) {
-									trustedString = "<dark_red>" + Bukkit.getOfflinePlayer(id).getName() + "<red>, ";
+							if (offlineUser.getHellblockData().getTrusted() != null) {
+								for (UUID id : offlineUser.getHellblockData().getTrusted()) {
+									if (Bukkit.getOfflinePlayer(id).hasPlayedBefore()
+											&& Bukkit.getOfflinePlayer(id).getName() != null) {
+										trustedString.append(HellblockPlugin.getInstance().getTranslationManager()
+												.miniMessageTranslation(MessageConstants.MSG_HELLBLOCK_INFO_LIST_STYLE
+														.arguments(
+																Component.text(Bukkit.getOfflinePlayer(id).getName()))
+														.build().key()));
+									}
 								}
 							}
-							for (UUID id : offlineUser.getHellblockData().getBanned()) {
-								if (Bukkit.getOfflinePlayer(id).hasPlayedBefore()
-										&& Bukkit.getOfflinePlayer(id).getName() != null) {
-									bannedString = "<dark_red>" + Bukkit.getOfflinePlayer(id).getName() + "<red>, ";
+							if (offlineUser.getHellblockData().getBanned() != null) {
+								for (UUID id : offlineUser.getHellblockData().getBanned()) {
+									if (Bukkit.getOfflinePlayer(id).hasPlayedBefore()
+											&& Bukkit.getOfflinePlayer(id).getName() != null) {
+										bannedString.append(HellblockPlugin.getInstance().getTranslationManager()
+												.miniMessageTranslation(MessageConstants.MSG_HELLBLOCK_INFO_LIST_STYLE
+														.arguments(
+																Component.text(Bukkit.getOfflinePlayer(id).getName()))
+														.build().key()));
+									}
 								}
 							}
-							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-									String.format("<dark_red>Hellblock Information (ID: <red>%s<dark_red>):",
-											offlineUser.getHellblockData().getID()));
-							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-									"<red>Owner: <dark_red>" + (offlineUser.getName() != null
-											&& Bukkit.getOfflinePlayer(offlineUser.getUUID()).hasPlayedBefore()
-													? offlineUser.getName()
-													: "Unknown"));
-							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-									"<red>Level: <dark_red>" + offlineUser.getHellblockData().getLevel());
-							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-									"<red>Creation Date: <dark_red>"
-											+ offlineUser.getHellblockData().getCreationTime());
-							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-									"<red>Visitor Status: <dark_red>"
-											+ (offlineUser.getHellblockData().isLocked() ? "Closed" : "Open"));
-							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-									"<red>Total Visits: <dark_red>" + offlineUser.getHellblockData().getTotalVisits());
-							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-									"<red>Island Type: <dark_red>" + StringUtils
-											.capitalize(offlineUser.getHellblockData().getIslandChoice().getName()));
-							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-									"<red>Biome: <dark_red>" + offlineUser.getHellblockData().getBiome().getName());
-							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-									"<red>Party Size: <dark_red>" + offlineUser.getHellblockData().getParty().size()
-											+ " <red>/<dark_red> "
-											+ HellblockPlugin.getInstance().getConfigManager().partySize());
-							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-									"<red>Party Members: <dark_red>" + (!partyString.isEmpty()
-											? partyString.substring(0, partyString.length() - 2)
-											: "None"));
-							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-									"<red>Trusted Members: <dark_red>" + (!trustedString.isEmpty()
-											? trustedString.substring(0, trustedString.length() - 2)
-											: "None"));
-							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-									"<red>Banned Players: <dark_red>" + (!bannedString.isEmpty()
-											? bannedString.substring(0, bannedString.length() - 2)
-											: "None"));
+							handleFeedback(context,
+									MessageConstants.MSG_HELLBLOCK_INFORMATION.arguments(
+											Component.text(offlineUser.getHellblockData().getID()),
+											Component.text(offlineUser.getName() != null
+													&& Bukkit.getOfflinePlayer(offlineUser.getUUID()).hasPlayedBefore()
+															? offlineUser.getName()
+															: "Unknown")),
+									Component.text(offlineUser.getHellblockData().getLevel()),
+									Component.text(offlineUser.getHellblockData().getCreationTime()),
+									Component.text(offlineUser.getHellblockData().isLocked()
+											? HellblockPlugin.getInstance().getTranslationManager()
+													.miniMessageTranslation(
+															MessageConstants.FORMAT_CLOSED.build().key())
+											: HellblockPlugin.getInstance().getTranslationManager()
+													.miniMessageTranslation(
+															MessageConstants.FORMAT_OPEN.build().key())),
+									Component.text(offlineUser.getHellblockData().getTotalVisits()),
+									Component.text(StringUtils
+											.capitalize(offlineUser.getHellblockData().getIslandChoice().getName())),
+									Component.text(offlineUser.getHellblockData().getBiome().getName()),
+									Component.text(offlineUser.getHellblockData().getParty().size()),
+									Component.text(HellblockPlugin.getInstance().getConfigManager().partySize()),
+									Component.text((!partyString.isEmpty()
+											? partyString.toString().substring(0, partyString.toString().length() - 2)
+											: HellblockPlugin.getInstance().getTranslationManager()
+													.miniMessageTranslation(
+															MessageConstants.FORMAT_NONE.build().key()))),
+									Component.text((!trustedString.isEmpty()
+											? trustedString.toString().substring(0, partyString.toString().length() - 2)
+											: HellblockPlugin.getInstance().getTranslationManager()
+													.miniMessageTranslation(
+															MessageConstants.FORMAT_NONE.build().key()))),
+									Component.text((!bannedString.isEmpty()
+											? bannedString.toString().substring(0, partyString.toString().length() - 2)
+											: HellblockPlugin.getInstance().getTranslationManager()
+													.miniMessageTranslation(
+															MessageConstants.FORMAT_NONE.build().key()))));
 						});
 
 			}

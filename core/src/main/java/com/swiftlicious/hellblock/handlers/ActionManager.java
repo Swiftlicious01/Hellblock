@@ -48,8 +48,10 @@ import com.swiftlicious.hellblock.utils.extras.TextValue;
 import com.swiftlicious.hellblock.utils.factory.ActionFactory;
 
 import dev.dejvokep.boostedyaml.block.implementation.Section;
+import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.key.Key;
 import net.kyori.adventure.sound.Sound;
+import net.kyori.adventure.text.Component;
 
 import static java.util.Objects.requireNonNull;
 
@@ -161,11 +163,12 @@ public class ActionManager implements ActionManagerInterface<Player> {
 			return context -> {
 				if (Math.random() > chance.evaluate(context))
 					return;
-				List<String> replaced = instance.getPlaceholderManager().parse(context.holder(), messages,
-						context.placeholderMap());
 				final Player player = context.holder();
+				List<String> replaced = instance.getPlaceholderManager().parse(player, messages,
+						context.placeholderMap());
+				Audience audience = instance.getSenderFactory().getAudience(player);
 				for (String text : replaced) {
-					instance.getAdventureManager().sendMessage(player, text);
+					audience.sendMessage(AdventureHelper.miniMessage(text));
 				}
 			};
 		}, "message");
@@ -175,9 +178,10 @@ public class ActionManager implements ActionManagerInterface<Player> {
 				if (Math.random() > chance.evaluate(context))
 					return;
 				String random = messages.get(RandomUtils.generateRandomInt(0, messages.size() - 1));
-				random = instance.getPlaceholderManager().parse(context.holder(), random, context.placeholderMap());
 				final Player player = context.holder();
-				instance.getAdventureManager().sendMessage(player, random);
+				random = instance.getPlaceholderManager().parse(player, random, context.placeholderMap());
+				Audience audience = instance.getSenderFactory().getAudience(player);
+				audience.sendMessage(AdventureHelper.miniMessage(random));
 			};
 		}, "random-message");
 		registerAction((args, chance) -> {
@@ -188,8 +192,9 @@ public class ActionManager implements ActionManagerInterface<Player> {
 				List<String> replaced = instance.getPlaceholderManager().parse(context.holder(), messages,
 						context.placeholderMap());
 				for (Player player : Bukkit.getOnlinePlayers()) {
+					Audience audience = instance.getSenderFactory().getAudience(player);
 					for (String text : replaced) {
-						instance.getAdventureManager().sendMessage(player, text);
+						audience.sendMessage(AdventureHelper.miniMessage(text));
 					}
 				}
 			};
@@ -202,15 +207,16 @@ public class ActionManager implements ActionManagerInterface<Player> {
 					if (Math.random() > chance.evaluate(context))
 						return;
 					double realRange = range.evaluate(context);
-					Player owner = context.holder();
+					final Player owner = context.holder();
 					Location location = requireNonNull(context.arg(ContextKeys.LOCATION));
 					for (Player player : location.getWorld().getPlayers()) {
 						if (LocationUtils.getDistance(player.getLocation(), location) <= realRange) {
 							context.arg(ContextKeys.TEMP_NEAR_PLAYER, player.getName());
 							List<String> replaced = instance.getPlaceholderManager().parse(owner, messages,
 									context.placeholderMap());
+							Audience audience = instance.getSenderFactory().getAudience(player);
 							for (String text : replaced) {
-								instance.getAdventureManager().sendMessage(player, text);
+								audience.sendMessage(AdventureHelper.miniMessage(text));
 							}
 						}
 					}
@@ -309,8 +315,10 @@ public class ActionManager implements ActionManagerInterface<Player> {
 				if (Math.random() > chance.evaluate(context))
 					return;
 				final Player player = context.holder();
-				instance.getAdventureManager().sendActionbar(player,
-						instance.getPlaceholderManager().parse(context.holder(), text, context.placeholderMap()));
+				Audience audience = instance.getSenderFactory().getAudience(context.holder());
+				Component component = AdventureHelper
+						.miniMessage(instance.getPlaceholderManager().parse(player, text, context.placeholderMap()));
+				audience.sendActionBar(component);
 			};
 		}, "actionbar");
 		registerAction((args, chance) -> {
@@ -319,9 +327,10 @@ public class ActionManager implements ActionManagerInterface<Player> {
 				if (Math.random() > chance.evaluate(context))
 					return;
 				String random = texts.get(RandomUtils.generateRandomInt(0, texts.size() - 1));
-				random = instance.getPlaceholderManager().parse(context.holder(), random, context.placeholderMap());
 				final Player player = context.holder();
-				instance.getAdventureManager().sendActionbar(player, random);
+				random = instance.getPlaceholderManager().parse(player, random, context.placeholderMap());
+				Audience audience = instance.getSenderFactory().getAudience(player);
+				audience.sendActionBar(AdventureHelper.miniMessage(random));
 			};
 		}, "random-actionbar");
 		registerAction((args, chance) -> {
@@ -339,7 +348,8 @@ public class ActionManager implements ActionManagerInterface<Player> {
 							context.arg(ContextKeys.TEMP_NEAR_PLAYER, player.getName());
 							String replaced = instance.getPlaceholderManager().parse(owner, actionbar,
 									context.placeholderMap());
-							instance.getAdventureManager().sendActionbar(player, replaced);
+							Audience audience = instance.getSenderFactory().getAudience(player);
+							audience.sendActionBar(AdventureHelper.miniMessage(replaced));
 						}
 					}
 				};
@@ -370,7 +380,7 @@ public class ActionManager implements ActionManagerInterface<Player> {
 					return;
 				final Player player = context.holder();
 				player.giveExp((int) Math.round(value.evaluate(context)));
-				instance.getAdventureManager().playSound(player,
+				instance.getSenderFactory().getAudience(player).playSound(
 						Sound.sound(Key.key("minecraft:entity.experience_orb.pickup"), Sound.Source.PLAYER, 1, 1));
 			};
 		}, "exp");
@@ -379,7 +389,7 @@ public class ActionManager implements ActionManagerInterface<Player> {
 			return context -> {
 				if (Math.random() > chance.evaluate(context))
 					return;
-				Player player = context.holder();
+				final Player player = context.holder();
 				player.setLevel((int) Math.max(0, player.getLevel() + value.evaluate(context)));
 			};
 		}, "level");
@@ -718,12 +728,13 @@ public class ActionManager implements ActionManagerInterface<Player> {
 			if (args instanceof Section section) {
 				Sound sound = Sound.sound(Key.key(section.getString("key")),
 						Sound.Source.valueOf(section.getString("source", "PLAYER").toUpperCase(Locale.ENGLISH)),
-						section.getDouble("volume", 1.0).floatValue(), section.getDouble("pitch", 1.0).floatValue());
+						section.getFloat("volume", 1.0F).floatValue(), section.getFloat("pitch", 1.0F).floatValue());
 				return context -> {
 					if (Math.random() > chance.evaluate(context))
 						return;
 					final Player player = context.holder();
-					instance.getAdventureManager().playSound(player, sound);
+					Audience audience = instance.getSenderFactory().getAudience(player);
+					audience.playSound(sound);
 				};
 			} else {
 				instance.getPluginLogger().warn("Invalid value type: " + args.getClass().getSimpleName()
@@ -787,8 +798,9 @@ public class ActionManager implements ActionManagerInterface<Player> {
 					if (Math.random() > chance.evaluate(context))
 						return;
 					final Player player = context.holder();
-					instance.getAdventureManager().sendTitle(player, title.render(context), subtitle.render(context),
-							fadeIn, stay, fadeOut);
+					Audience audience = instance.getSenderFactory().getAudience(player);
+					AdventureHelper.sendTitle(audience, AdventureHelper.miniMessage(title.render(context)),
+							AdventureHelper.miniMessage(subtitle.render(context)), fadeIn, stay, fadeOut);
 				};
 			} else {
 				instance.getPluginLogger().warn("Invalid value type: " + args.getClass().getSimpleName()
@@ -815,8 +827,9 @@ public class ActionManager implements ActionManagerInterface<Player> {
 					TextValue<Player> subtitle = TextValue
 							.auto(subtitles.get(RandomUtils.generateRandomInt(0, subtitles.size() - 1)));
 					final Player player = context.holder();
-					instance.getAdventureManager().sendTitle(player, title.render(context), subtitle.render(context),
-							fadeIn, stay, fadeOut);
+					Audience audience = instance.getSenderFactory().getAudience(player);
+					AdventureHelper.sendTitle(audience, AdventureHelper.miniMessage(title.render(context)),
+							AdventureHelper.miniMessage(subtitle.render(context)), fadeIn, stay, fadeOut);
 				};
 			} else {
 				instance.getPluginLogger().warn("Invalid value type: " + args.getClass().getSimpleName()
@@ -839,8 +852,9 @@ public class ActionManager implements ActionManagerInterface<Player> {
 					for (Player player : location.getWorld().getPlayers()) {
 						if (LocationUtils.getDistance(player.getLocation(), location) <= range) {
 							context.arg(ContextKeys.TEMP_NEAR_PLAYER, player.getName());
-							instance.getAdventureManager().sendTitle(player, title.render(context),
-									subtitle.render(context), fadeIn, stay, fadeOut);
+							Audience audience = instance.getSenderFactory().getAudience(player);
+							AdventureHelper.sendTitle(audience, AdventureHelper.miniMessage(title.render(context)),
+									AdventureHelper.miniMessage(subtitle.render(context)), fadeIn, stay, fadeOut);
 						}
 					}
 				};
@@ -960,8 +974,8 @@ public class ActionManager implements ActionManagerInterface<Player> {
 						viewers.add(owner);
 					}
 					instance.getHologramManager().createHologram(location,
-							instance.getAdventureManager().miniMessageToJson(text.render(context)),
-							(int) duration.evaluate(context), useTextDisplay, rgba, viewers);
+							AdventureHelper.miniMessageToJson(text.render(context)), (int) duration.evaluate(context),
+							useTextDisplay, rgba, viewers);
 				};
 			} else {
 				instance.getPluginLogger().warn("Invalid value type: " + args.getClass().getSimpleName()
@@ -1006,10 +1020,9 @@ public class ActionManager implements ActionManagerInterface<Player> {
 					instance.getSenderFactory().wrap(context.holder()).sendMessage(instance.getTranslationManager()
 							.render(MessageConstants.COMMAND_FISH_FINDER_NO_LOOT.build()));
 				} else {
-					instance.getSenderFactory().wrap(context.holder()).sendMessage(instance.getTranslationManager()
-							.render(MessageConstants.COMMAND_FISH_FINDER_POSSIBLE_LOOTS.arguments(
-									instance.getAdventureManager().getComponentFromMiniMessage(stringJoiner.toString()))
-									.build()));
+					instance.getSenderFactory().wrap(context.holder()).sendMessage(
+							instance.getTranslationManager().render(MessageConstants.COMMAND_FISH_FINDER_POSSIBLE_LOOTS
+									.arguments(AdventureHelper.miniMessage(stringJoiner.toString())).build()));
 				}
 			};
 		}, "fish-finder");

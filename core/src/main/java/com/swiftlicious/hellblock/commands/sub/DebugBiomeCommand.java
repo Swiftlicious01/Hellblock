@@ -5,13 +5,15 @@ import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
 import org.incendo.cloud.CommandManager;
 
+import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.commands.BukkitCommandFeature;
 import com.swiftlicious.hellblock.commands.HellblockCommandManager;
-import com.swiftlicious.hellblock.config.locale.MessageConstants;
 
-public class HellblockHelpCommand extends BukkitCommandFeature<CommandSender> {
+import net.kyori.adventure.text.Component;
 
-	public HellblockHelpCommand(HellblockCommandManager<CommandSender> commandManager) {
+public class DebugBiomeCommand extends BukkitCommandFeature<CommandSender> {
+
+	public DebugBiomeCommand(HellblockCommandManager<CommandSender> commandManager) {
 		super(commandManager);
 	}
 
@@ -19,12 +21,14 @@ public class HellblockHelpCommand extends BukkitCommandFeature<CommandSender> {
 	public Command.Builder<? extends CommandSender> assembleCommand(CommandManager<CommandSender> manager,
 			Command.Builder<CommandSender> builder) {
 		return builder.senderType(Player.class).handler(context -> {
-			handleFeedback(context, MessageConstants.MSG_HELLBLOCK_USER_HELP);
+			HellblockPlugin.getInstance().getSenderFactory().wrap(context.sender())
+					.sendMessage(Component.text(HellblockPlugin.getInstance().getVersionManager().getNMSManager()
+							.getBiomeResourceLocation(context.sender().getLocation())));
 		});
 	}
 
 	@Override
 	public String getFeatureID() {
-		return "hellblock_help";
+		return "debug_biome";
 	}
 }

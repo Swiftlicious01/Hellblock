@@ -16,6 +16,7 @@ import java.util.Map.Entry;
 
 import org.bukkit.Location;
 import org.bukkit.util.BoundingBox;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import com.google.gson.annotations.Expose;
@@ -26,8 +27,6 @@ import com.swiftlicious.hellblock.generation.IslandOptions;
 import com.swiftlicious.hellblock.protection.HellblockFlag;
 import com.swiftlicious.hellblock.protection.HellblockFlag.AccessType;
 import com.swiftlicious.hellblock.protection.HellblockFlag.FlagType;
-
-import lombok.NonNull;
 
 public class HellblockData {
 
@@ -173,7 +172,7 @@ public class HellblockData {
 		return this.creationTime;
 	}
 
-	public @NonNull String getCreationTime() {
+	public @NotNull String getCreationTime() {
 		LocalDateTime localDate = LocalDateTime.ofInstant(Instant.ofEpochMilli(this.creationTime),
 				ZoneId.systemDefault());
 		DateTimeFormatter formatter = DateTimeFormatter.ofPattern("KK:mm:ss a", Locale.ENGLISH);
@@ -234,7 +233,7 @@ public class HellblockData {
 		return this.invitations;
 	}
 
-	public boolean hasInvite(@NonNull UUID playerID) {
+	public boolean hasInvite(@NotNull UUID playerID) {
 		boolean inviteExists = false;
 		if (!this.invitations.isEmpty()) {
 			for (Entry<UUID, Long> invites : this.invitations.entrySet()) {
@@ -247,7 +246,7 @@ public class HellblockData {
 		return inviteExists;
 	}
 
-	public boolean hasInviteExpired(@NonNull UUID playerID) {
+	public boolean hasInviteExpired(@NotNull UUID playerID) {
 		boolean expired = false;
 		if (!this.invitations.isEmpty()) {
 			for (Entry<UUID, Long> invites : this.invitations.entrySet()) {
@@ -266,7 +265,7 @@ public class HellblockData {
 		return this.flags;
 	}
 
-	public @NonNull AccessType getProtectionValue(@NonNull FlagType flag) {
+	public @NotNull AccessType getProtectionValue(@NotNull FlagType flag) {
 		AccessType returnValue = flag.getDefaultValue() ? AccessType.ALLOW : AccessType.DENY;
 		if (!this.flags.isEmpty()) {
 			for (Entry<FlagType, AccessType> flags : this.flags.entrySet()) {
@@ -287,7 +286,7 @@ public class HellblockData {
 		this.biome = HellBiome.NETHER_WASTES;
 	}
 
-	public void transferHellblockData(@NonNull UserData transferee) {
+	public void transferHellblockData(@NotNull UserData transferee) {
 		this.id = transferee.getHellblockData().id;
 		this.hasHellblock = transferee.getHellblockData().hasHellblock;
 		this.location = transferee.getHellblockData().location;
@@ -434,12 +433,12 @@ public class HellblockData {
 		this.home = home;
 	}
 
-	public void addToParty(@NonNull UUID newMember) {
+	public void addToParty(@NotNull UUID newMember) {
 		if (!this.party.contains(newMember))
 			this.party.add(newMember);
 	}
 
-	public void kickFromParty(@NonNull UUID oldMember) {
+	public void kickFromParty(@NotNull UUID oldMember) {
 		if (this.party.contains(oldMember))
 			this.party.remove(oldMember);
 	}
@@ -448,12 +447,12 @@ public class HellblockData {
 		this.party = partyMembers;
 	}
 
-	public void addTrustPermission(@NonNull UUID newTrustee) {
+	public void addTrustPermission(@NotNull UUID newTrustee) {
 		if (!this.trusted.contains(newTrustee))
 			this.trusted.add(newTrustee);
 	}
 
-	public void removeTrustPermission(@NonNull UUID oldTrustee) {
+	public void removeTrustPermission(@NotNull UUID oldTrustee) {
 		if (this.trusted.contains(oldTrustee))
 			this.trusted.remove(oldTrustee);
 	}
@@ -462,12 +461,12 @@ public class HellblockData {
 		this.trusted = trustedMembers;
 	}
 
-	public void banPlayer(@NonNull UUID bannedPlayer) {
+	public void banPlayer(@NotNull UUID bannedPlayer) {
 		if (!this.banned.contains(bannedPlayer))
 			this.banned.add(bannedPlayer);
 	}
 
-	public void unbanPlayer(@NonNull UUID unbannedPlayer) {
+	public void unbanPlayer(@NotNull UUID unbannedPlayer) {
 		if (this.banned.contains(unbannedPlayer))
 			this.banned.remove(unbannedPlayer);
 	}
@@ -480,11 +479,11 @@ public class HellblockData {
 		this.invitations = invitations;
 	}
 
-	public void sendInvitation(@NonNull UUID playerID) {
+	public void sendInvitation(@NotNull UUID playerID) {
 		this.invitations.putIfAbsent(playerID, 86400L);
 	}
 
-	public void removeInvitation(@NonNull UUID playerID) {
+	public void removeInvitation(@NotNull UUID playerID) {
 		if (this.invitations.containsKey(playerID)) {
 			this.invitations.remove(playerID);
 		}
@@ -498,7 +497,7 @@ public class HellblockData {
 		this.flags = flags;
 	}
 
-	public void setProtectionValue(@NonNull HellblockFlag flag) {
+	public void setProtectionValue(@NotNull HellblockFlag flag) {
 		if (!this.flags.isEmpty()) {
 			for (Iterator<Entry<FlagType, AccessType>> iterator = this.flags.entrySet().iterator(); iterator
 					.hasNext();) {
@@ -520,12 +519,12 @@ public class HellblockData {
 	 *
 	 * @return a new instance of HellblockData with default values.
 	 */
-	public static @NonNull HellblockData empty() {
+	public static @NotNull HellblockData empty() {
 		return new HellblockData(0, 0.0F, false, null, null, null, new HashSet<>(), new HashSet<>(), new HashSet<>(),
 				new HashMap<>(), new HashMap<>(), null, null, 0L, 0, null, null, null, false, false, 0L, 0L, 0L);
 	}
 
-	public @NonNull HellblockData copy() {
+	public @NotNull HellblockData copy() {
 		return new HellblockData(id, level, hasHellblock, ownerUUID, linkedUUID, boundingBox, party, trusted, banned,
 				invitations, flags, location, home, creationTime, visitors, biome, choice, schematic, locked, abandoned,
 				resetCooldown, biomeCooldown, transferCooldown);

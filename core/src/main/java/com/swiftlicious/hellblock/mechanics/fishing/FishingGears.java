@@ -19,6 +19,7 @@ import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.creation.item.Item;
 import com.swiftlicious.hellblock.effects.EffectModifier;
 import com.swiftlicious.hellblock.effects.EffectModifierInterface;
+import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.handlers.RequirementManagerInterface;
 import com.swiftlicious.hellblock.mechanics.MechanicType;
 import com.swiftlicious.hellblock.mechanics.hook.HookConfig;
@@ -196,8 +197,8 @@ public class FishingGears {
 			}
 
 			// add global effects
-			fishingGears.modifiers
-					.add(EffectModifierInterface.builder().id("__GLOBAL__").modifiers(HellblockPlugin.getInstance().getConfigManager().globalEffects()).build());
+			fishingGears.modifiers.add(EffectModifierInterface.builder().id("__GLOBAL__")
+					.modifiers(HellblockPlugin.getInstance().getConfigManager().globalEffects()).build());
 		};
 	}
 
@@ -237,22 +238,21 @@ public class FishingGears {
 		}), ((context, itemStack) -> {
 			if (context.holder().getGameMode() != GameMode.CREATIVE) {
 				Item<ItemStack> wrapped = HellblockPlugin.getInstance().getItemManager().wrap(itemStack);
-				String hookID = (String) wrapped.getTag("HellFishing", "hook_id")
+				String hookID = (String) wrapped.getTag("HellblockItem", "hook_id")
 						.orElseThrow(() -> new RuntimeException("This error should never occur"));
-				wrapped.getTag("HellFishing", "hook_max_damage").ifPresent(max -> {
+				wrapped.getTag("HellblockItem", "hook_max_damage").ifPresent(max -> {
 					int maxDamage = (int) max;
-					int hookDamage = (int) wrapped.getTag("HellFishing", "hook_damage").orElse(0) + 1;
+					int hookDamage = (int) wrapped.getTag("HellblockItem", "hook_damage").orElse(0) + 1;
 					if (hookDamage >= maxDamage) {
-						wrapped.removeTag("HellFishing", "hook_damage");
-						wrapped.removeTag("HellFishing", "hook_id");
-						wrapped.removeTag("HellFishing", "hook_stack");
-						wrapped.removeTag("HellFishing", "hook_max_damage");
+						wrapped.removeTag("HellblockItem", "hook_damage");
+						wrapped.removeTag("HellblockItem", "hook_id");
+						wrapped.removeTag("HellblockItem", "hook_stack");
+						wrapped.removeTag("HellblockItem", "hook_max_damage");
 						List<String> durabilityLore = new ArrayList<>();
 						List<String> newLore = new ArrayList<>();
 						List<String> previousLore = wrapped.lore().orElse(new ArrayList<>());
 						for (String previous : previousLore) {
-							Component component = HellblockPlugin.getInstance().getAdventureManager()
-									.jsonToComponent(previous);
+							Component component = AdventureHelper.jsonToComponent(previous);
 							if (component instanceof ScoreComponent scoreComponent
 									&& scoreComponent.name().equals("hb")) {
 								if (scoreComponent.objective().equals("hook")) {
@@ -266,18 +266,17 @@ public class FishingGears {
 						}
 						newLore.addAll(durabilityLore);
 						wrapped.lore(newLore);
-						HellblockPlugin.getInstance().getAdventureManager().playSound(context.holder(),
+						HellblockPlugin.getInstance().getSenderFactory().getAudience(context.holder()).playSound(
 								Sound.sound(Key.key("minecraft:entity.item.break"), Sound.Source.PLAYER, 1, 1));
 					} else {
-						wrapped.setTag(hookDamage, "HellFishing", "hook_damage");
+						wrapped.setTag(hookDamage, "HellblockItem", "hook_damage");
 						HookConfig hookConfig = HellblockPlugin.getInstance().getHookManager().getHook(hookID)
 								.orElseThrow();
 						List<String> previousLore = wrapped.lore().orElse(new ArrayList<>());
 						List<String> newLore = new ArrayList<>();
 						List<String> durabilityLore = new ArrayList<>();
 						for (String previous : previousLore) {
-							Component component = HellblockPlugin.getInstance().getAdventureManager()
-									.jsonToComponent(previous);
+							Component component = AdventureHelper.jsonToComponent(previous);
 							if (component instanceof ScoreComponent scoreComponent
 									&& scoreComponent.name().equals("hb")) {
 								if (scoreComponent.objective().equals("hook")) {
@@ -291,11 +290,10 @@ public class FishingGears {
 						}
 						for (String lore : hookConfig.lore()) {
 							ScoreComponent.Builder builder = Component.score().name("hb").objective("hook");
-							builder.append(HellblockPlugin.getInstance().getAdventureManager()
+							builder.append(AdventureHelper
 									.jsonToComponent(lore.replace("{dur}", String.valueOf(maxDamage - hookDamage))
 											.replace("{max}", String.valueOf(maxDamage))));
-							newLore.add(HellblockPlugin.getInstance().getAdventureManager()
-									.componentToJson(builder.build()));
+							newLore.add(AdventureHelper.componentToJson(builder.build()));
 						}
 						newLore.addAll(durabilityLore);
 						wrapped.lore(newLore);
@@ -306,28 +304,27 @@ public class FishingGears {
 		}), ((context, itemStack) -> {
 			if (context.holder().getGameMode() != GameMode.CREATIVE) {
 				Item<ItemStack> wrapped = HellblockPlugin.getInstance().getItemManager().wrap(itemStack);
-				String hookID = (String) wrapped.getTag("HellFishing", "hook_id")
+				String hookID = (String) wrapped.getTag("HellblockItem", "hook_id")
 						.orElseThrow(() -> new RuntimeException("This error should never occur"));
-				wrapped.getTag("HellFishing", "hook_max_damage").ifPresent(max -> {
+				wrapped.getTag("HellblockItem", "hook_max_damage").ifPresent(max -> {
 					int maxDamage = (int) max;
-					int hookDamage = (int) wrapped.getTag("HellFishing", "hook_damage").orElse(0) + 1;
+					int hookDamage = (int) wrapped.getTag("HellblockItem", "hook_damage").orElse(0) + 1;
 					if (hookDamage >= maxDamage) {
-						wrapped.removeTag("HellFishing", "hook_damage");
-						wrapped.removeTag("HellFishing", "hook_id");
-						wrapped.removeTag("HellFishing", "hook_stack");
-						wrapped.removeTag("HellFishing", "hook_max_damage");
-						HellblockPlugin.getInstance().getAdventureManager().playSound(context.holder(),
+						wrapped.removeTag("HellblockItem", "hook_damage");
+						wrapped.removeTag("HellblockItem", "hook_id");
+						wrapped.removeTag("HellblockItem", "hook_stack");
+						wrapped.removeTag("HellblockItem", "hook_max_damage");
+						HellblockPlugin.getInstance().getSenderFactory().getAudience(context.holder()).playSound(
 								Sound.sound(Key.key("minecraft:entity.item.break"), Sound.Source.PLAYER, 1, 1));
 					} else {
-						wrapped.setTag(hookDamage, "HellFishing", "hook_damage");
+						wrapped.setTag(hookDamage, "HellblockItem", "hook_damage");
 						HookConfig hookConfig = HellblockPlugin.getInstance().getHookManager().getHook(hookID)
 								.orElseThrow();
 						List<String> previousLore = wrapped.lore().orElse(new ArrayList<>());
 						List<String> newLore = new ArrayList<>();
 						List<String> durabilityLore = new ArrayList<>();
 						for (String previous : previousLore) {
-							Component component = HellblockPlugin.getInstance().getAdventureManager()
-									.jsonToComponent(previous);
+							Component component = AdventureHelper.jsonToComponent(previous);
 							if (component instanceof ScoreComponent scoreComponent
 									&& scoreComponent.name().equals("hb")) {
 								if (scoreComponent.objective().equals("hook")) {
@@ -341,11 +338,10 @@ public class FishingGears {
 						}
 						for (String lore : hookConfig.lore()) {
 							ScoreComponent.Builder builder = Component.score().name("hb").objective("hook");
-							builder.append(HellblockPlugin.getInstance().getAdventureManager()
+							builder.append(AdventureHelper
 									.jsonToComponent(lore.replace("{dur}", String.valueOf(maxDamage - hookDamage))
 											.replace("{max}", String.valueOf(maxDamage))));
-							newLore.add(HellblockPlugin.getInstance().getAdventureManager()
-									.componentToJson(builder.build()));
+							newLore.add(AdventureHelper.componentToJson(builder.build()));
 						}
 						newLore.addAll(durabilityLore);
 						wrapped.lore(newLore);

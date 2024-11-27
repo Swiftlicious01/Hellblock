@@ -131,17 +131,17 @@ public class UniversalItemFactory extends BukkitItemFactory {
 
 	@Override
 	protected Optional<Integer> maxDamage(RtagItem item) {
-//        if (!item.hasTag("HellFishing", "max_dur")) return Optional.empty();
-//        return Optional.of(item.get("HellFishing", "max_dur"));
+//        if (!item.hasTag("HellblockItem", "max_dur")) return Optional.empty();
+//        return Optional.of(item.get("HellblockItem", "max_dur"));
 		return Optional.of((int) item.getItem().getType().getMaxDurability());
 	}
 
 	@Override
 	protected void maxDamage(RtagItem item, Integer damage) {
 //        if (damage == null) {
-//            item.remove("HellFishing", "max_dur");
+//            item.remove("HellblockItem", "max_dur");
 //        } else {
-//            item.set(damage, "HellFishing", "max_dur");
+//            item.set(damage, "HellblockItem", "max_dur");
 //        }
 		throw new UnsupportedOperationException("This feature is only available on 1.20.5+");
 	}

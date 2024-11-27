@@ -62,7 +62,7 @@ public class ContextKeys<T> {
 	public static final ContextKeys<EquipmentSlot> SLOT = of("hand", EquipmentSlot.class);
 	public static final ContextKeys<Double> BONUS = of("bonus", Double.class);
 	public static final ContextKeys<Double> BASE = of("base", Double.class);
-	
+
 	public static final ContextKeys<Float> HELLBLOCK_LEVEL = of("hellblock_level", Float.class);
 	public static final ContextKeys<Integer> HELLBLOCK_RANK = of("hellblock_rank", Integer.class);
 	public static final ContextKeys<Integer> HELLBLOCK_ID = of("hellblock_id", Integer.class);

@@ -10,7 +10,7 @@ import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Registry;
 import org.bukkit.block.Block;
-import org.bukkit.block.data.type.Skull;
+import org.bukkit.block.Skull;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.FishHook;
 import org.bukkit.entity.Player;
@@ -31,7 +31,6 @@ import org.bukkit.event.player.PlayerItemDamageEvent;
 import org.bukkit.event.player.PlayerItemMendEvent;
 import org.bukkit.inventory.AnvilInventory;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.Damageable;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
@@ -168,7 +167,7 @@ public class ItemManager implements ItemManagerInterface, Listener {
 
 	@Override
 	public String getCustomItemID(@NotNull ItemStack itemStack) {
-		return (String) factory.wrap(itemStack).getTag("HellFishing", "id").orElse(null);
+		return (String) factory.wrap(itemStack).getTag("HellblockItem", "id").orElse(null);
 	}
 
 	@NotNull
@@ -269,7 +268,7 @@ public class ItemManager implements ItemManagerInterface, Listener {
 		if (itemStack == null || itemStack.getType() == Material.AIR || itemStack.getAmount() == 0)
 			return false;
 		Item<ItemStack> wrapped = factory.wrap(itemStack);
-		return wrapped.hasTag("HellFishing", "max_dur");
+		return wrapped.hasTag("HellblockItem", "max_dur");
 	}
 
 	@Override
@@ -277,7 +276,7 @@ public class ItemManager implements ItemManagerInterface, Listener {
 		if (itemStack == null || itemStack.getType() == Material.AIR || itemStack.getAmount() == 0)
 			return 0;
 		Item<ItemStack> wrapped = factory.wrap(itemStack);
-		if (wrapped.hasTag("HellFishing", "max_dur")) {
+		if (wrapped.hasTag("HellblockItem", "max_dur")) {
 			return new CustomDurabilityItem(wrapped).maxDamage();
 		} else {
 			return new VanillaDurabilityItem(wrapped).maxDamage();
@@ -290,7 +289,7 @@ public class ItemManager implements ItemManagerInterface, Listener {
 			return;
 		Item<ItemStack> wrapped = factory.wrap(itemStack);
 		DurabilityItem durabilityItem;
-		if (wrapped.hasTag("HellFishing", "max_dur")) {
+		if (wrapped.hasTag("HellblockItem", "max_dur")) {
 			durabilityItem = new CustomDurabilityItem(wrapped);
 		} else {
 			durabilityItem = new VanillaDurabilityItem(wrapped);
@@ -299,6 +298,7 @@ public class ItemManager implements ItemManagerInterface, Listener {
 		wrapped.load();
 	}
 
+	@SuppressWarnings("deprecation")
 	@Override
 	public void increaseDamage(Player player, ItemStack itemStack, int amount, boolean incorrectUsage) {
 		if (itemStack == null || itemStack.getType() == Material.AIR || itemStack.getAmount() == 0)
@@ -315,8 +315,7 @@ public class ItemManager implements ItemManagerInterface, Listener {
 
 		ItemMeta previousMeta = itemStack.getItemMeta().clone();
 		// use event from Spigot for compatibility
-		PlayerItemDamageEvent itemDamageEvent = new PlayerItemDamageEvent(player, itemStack, amount,
-				(previousMeta instanceof Damageable damageable ? damageable.getDamage() : 0));
+		PlayerItemDamageEvent itemDamageEvent = new PlayerItemDamageEvent(player, itemStack, amount);
 		if (EventUtils.fireAndCheckCancel(itemDamageEvent)) {
 			instance.debug("Another plugin modified the item from `PlayerItemDamageEvent` called by Hellblock");
 			return;
@@ -328,7 +327,7 @@ public class ItemManager implements ItemManagerInterface, Listener {
 		DurabilityItem durabilityItem = wrapDurabilityItem(wrapped);
 		int damage = durabilityItem.damage();
 		if (damage + amount >= durabilityItem.maxDamage()) {
-			instance.getAdventureManager().playSound(player, Sound
+			instance.getSenderFactory().getAudience(player).playSound(Sound
 					.sound(net.kyori.adventure.key.Key.key("minecraft:entity.item.break"), Sound.Source.PLAYER, 1, 1));
 			itemStack.setAmount(0);
 			return;
@@ -348,7 +347,7 @@ public class ItemManager implements ItemManagerInterface, Listener {
 		DurabilityItem wrappedDurability = wrapDurabilityItem(wrapped);
 		if (damage >= wrappedDurability.maxDamage()) {
 			if (player != null)
-				instance.getAdventureManager().playSound(player, Sound.sound(
+				instance.getSenderFactory().getAudience(player).playSound(Sound.sound(
 						net.kyori.adventure.key.Key.key("minecraft:entity.item.break"), Sound.Source.PLAYER, 1, 1));
 			itemStack.setAmount(0);
 			return;
@@ -358,7 +357,7 @@ public class ItemManager implements ItemManagerInterface, Listener {
 	}
 
 	public DurabilityItem wrapDurabilityItem(Item<ItemStack> wrapped) {
-		if (wrapped.hasTag("HellFishing", "max_dur")) {
+		if (wrapped.hasTag("HellblockItem", "max_dur")) {
 			return new CustomDurabilityItem(wrapped);
 		} else {
 			return new VanillaDurabilityItem(wrapped);
@@ -382,11 +381,11 @@ public class ItemManager implements ItemManagerInterface, Listener {
 	@EventHandler(ignoreCancelled = true)
 	public void onAnvil(PrepareAnvilEvent event) {
 		AnvilInventory anvil = event.getInventory();
-		ItemStack first = anvil.getFirstItem();
-		ItemStack second = anvil.getSecondItem();
+		ItemStack first = anvil.getItem(0);
+		ItemStack second = anvil.getItem(1);
 		if (first != null && second != null && first.getType() == Material.FISHING_ROD
 				&& second.getType() == Material.FISHING_ROD && event.getResult() != null && hasCustomMaxDamage(first)) {
-			Item<ItemStack> wrapped1 = factory.wrap(anvil.getResult());
+			Item<ItemStack> wrapped1 = factory.wrap(anvil.getItem(2));
 			DurabilityItem wrappedDurability1 = wrapDurabilityItem(wrapped1);
 
 			Item<ItemStack> wrapped2 = factory.wrap(second);
@@ -417,9 +416,9 @@ public class ItemManager implements ItemManagerInterface, Listener {
 		}
 
 		Item<ItemStack> wrapped = factory.wrap(itemStack);
-		if (wrapped.hasTag("HellFishing")) {
-			if (!wrapped.hasTag("HellFishing", "placeable")
-					|| ((int) wrapped.getTag("HellFishing", "placeable").get()) != 1) {
+		if (wrapped.hasTag("HellblockItem")) {
+			if (!wrapped.hasTag("HellblockItem", "placeable")
+					|| ((int) wrapped.getTag("HellblockItem", "placeable").get()) != 1) {
 				event.setCancelled(true);
 				return;
 			}
@@ -429,7 +428,7 @@ public class ItemManager implements ItemManagerInterface, Listener {
 				ItemStack cloned = itemStack.clone();
 				cloned.setAmount(1);
 				pdc.set(new NamespacedKey(instance, LocationUtils.toChunkPosString(block.getLocation())),
-						PersistentDataType.STRING, ItemStackUtils.serialize(new ItemStack[] { cloned }));
+						PersistentDataType.STRING, ItemStackUtils.serialize(cloned));
 			} else {
 				event.setCancelled(true);
 			}
@@ -447,7 +446,7 @@ public class ItemManager implements ItemManagerInterface, Listener {
 				pdc.remove(key);
 				if (event.getPlayer().getGameMode() == GameMode.CREATIVE)
 					return;
-				ItemStack[] itemStack = ItemStackUtils.deserialize(base64);
+				ItemStack itemStack = ItemStackUtils.deserialize(base64);
 				event.setDropItems(false);
 				Arrays.asList(itemStack).stream()
 						.forEach(item -> block.getLocation().getWorld().dropItemNaturally(block.getLocation(), item));
@@ -511,7 +510,7 @@ public class ItemManager implements ItemManagerInterface, Listener {
 				var nk = new NamespacedKey(instance, LocationUtils.toChunkPosString(block.getLocation()));
 				String base64 = pdc.get(nk, PersistentDataType.STRING);
 				if (base64 != null) {
-					ItemStack[] itemStack = ItemStackUtils.deserialize(base64);
+					ItemStack itemStack = ItemStackUtils.deserialize(base64);
 					Arrays.asList(itemStack).stream().forEach(
 							item -> block.getLocation().getWorld().dropItemNaturally(block.getLocation(), item));
 					blockToRemove.add(block);

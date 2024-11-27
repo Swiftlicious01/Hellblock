@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import org.bukkit.Bukkit;
+import org.bukkit.GameMode;
 import org.bukkit.GameRule;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
@@ -22,9 +23,11 @@ import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerItemConsumeEvent;
 import org.bukkit.inventory.BrewerInventory;
 import org.bukkit.inventory.CraftingRecipe;
+import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.Recipe;
+import org.bukkit.inventory.RecipeChoice;
 import org.bukkit.inventory.ShapedRecipe;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.PotionMeta;
@@ -36,8 +39,13 @@ import com.saicone.rtag.RtagItem;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.challenges.HellblockChallenge.ChallengeType;
 import com.swiftlicious.hellblock.creation.item.Item;
+import com.swiftlicious.hellblock.handlers.AdventureHelper;
+import com.swiftlicious.hellblock.nms.inventory.HandSlot;
 import com.swiftlicious.hellblock.player.UserData;
+import com.swiftlicious.hellblock.utils.PlayerUtils;
 import com.swiftlicious.hellblock.utils.RandomUtils;
+
+import net.kyori.adventure.sound.Sound;
 
 public class NetherBrewing implements Listener {
 
@@ -75,19 +83,18 @@ public class NetherBrewing implements Listener {
 		ShapedRecipe recipe = new ShapedRecipe(this.brewingKey, bottle);
 		recipe.shape(new String[] { "GGG", "GBG", "GGG" });
 		recipe.setIngredient('G', Material.GLOWSTONE_DUST);
-		recipe.setIngredient('B', getPotionResult(1));
+		recipe.setIngredient('B', new RecipeChoice.ExactChoice(getPotionResult(1)));
 		return recipe;
 	}
 
 	public ItemStack getPotionResult(int amount) {
 		Item<ItemStack> potion = instance.getItemManager().wrap(new ItemStack(Material.POTION, amount));
 
-		potion.displayName(
-				instance.getAdventureManager().miniMessageToJson(instance.getConfigManager().brewingBottleName()));
+		potion.displayName(AdventureHelper.miniMessageToJson(instance.getConfigManager().brewingBottleName()));
 
 		List<String> lore = new ArrayList<>();
 		for (String newLore : instance.getConfigManager().brewingBottleLore()) {
-			lore.add(instance.getAdventureManager().miniMessageToJson(newLore));
+			lore.add(AdventureHelper.miniMessageToJson(newLore));
 		}
 		potion.lore(lore);
 
@@ -123,15 +130,18 @@ public class NetherBrewing implements Listener {
 			}
 			if (lastBlock.getType() == Material.LAVA) {
 				event.setUseItemInHand(Result.ALLOW);
-				event.getItem().setAmount(event.getItem().getAmount() > 0 ? event.getItem().getAmount() - 1 : 0);
+				if (player.getGameMode() != GameMode.CREATIVE)
+					event.getItem().setAmount(event.getItem().getAmount() > 0 ? event.getItem().getAmount() - 1 : 0);
 				if (player.getInventory().firstEmpty() != -1) {
-					player.getInventory().addItem(this.getPotionResult(1));
+					PlayerUtils.giveItem(player, this.getPotionResult(1), 1);
 				} else {
-					lastBlock.getWorld().dropItemNaturally(player.getLocation(), this.getPotionResult(1));
+					PlayerUtils.dropItem(player, this.getPotionResult(1), false, true, false);
 				}
-				player.swingMainHand();
-				instance.getAdventureManager().playSound(player, net.kyori.adventure.sound.Sound.Source.PLAYER,
-						net.kyori.adventure.key.Key.key("minecraft:item.bottle.fill"), 1, 1);
+				instance.getVersionManager().getNMSManager().swingHand(player,
+						event.getHand() == EquipmentSlot.HAND ? HandSlot.MAIN : HandSlot.OFF);
+				instance.getSenderFactory().getAudience(player)
+						.playSound(Sound.sound(net.kyori.adventure.key.Key.key("minecraft:item.bottle.fill"),
+								net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
 				player.updateInventory();
 				Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
 				if (onlineUser.isEmpty() || onlineUser.get().getPlayer() == null)
@@ -172,19 +182,25 @@ public class NetherBrewing implements Listener {
 						|| player.getInventory().containsAtLeast(new ItemStack(Material.GLASS_BOTTLE), 4))) {
 			Block clicked = event.getClickedBlock();
 			if (clicked != null && clicked.getType() == Material.LAVA_CAULDRON) {
-				if (event.getItem().getAmount() >= 4) {
-					event.getItem().setAmount(event.getItem().getAmount() >= 4 ? event.getItem().getAmount() - 4 : 0);
-				} else {
-					removeItems(player.getInventory(), Material.GLASS_BOTTLE, 4);
+				event.setUseItemInHand(Result.ALLOW);
+				if (player.getGameMode() != GameMode.CREATIVE) {
+					if (event.getItem().getAmount() >= 4) {
+						event.getItem()
+								.setAmount(event.getItem().getAmount() >= 4 ? event.getItem().getAmount() - 4 : 0);
+					} else {
+						removeItems(player.getInventory(), Material.GLASS_BOTTLE, 4);
+					}
 				}
 				if (player.getInventory().firstEmpty() != -1) {
-					player.getInventory().addItem(this.getPotionResult(4));
+					PlayerUtils.giveItem(player, this.getPotionResult(4), 4);
 				} else {
-					clicked.getWorld().dropItemNaturally(player.getLocation(), this.getPotionResult(4));
+					PlayerUtils.dropItem(player, this.getPotionResult(4), false, true, false);
 				}
-				player.swingMainHand();
-				instance.getAdventureManager().playSound(player, net.kyori.adventure.sound.Sound.Source.PLAYER,
-						net.kyori.adventure.key.Key.key("minecraft:item.bottle.fill"), 1, 1);
+				instance.getVersionManager().getNMSManager().swingHand(player,
+						event.getHand() == EquipmentSlot.HAND ? HandSlot.MAIN : HandSlot.OFF);
+				instance.getSenderFactory().getAudience(player)
+						.playSound(Sound.sound(net.kyori.adventure.key.Key.key("minecraft:item.bottle.fill"),
+								net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
 				player.updateInventory();
 				clicked.setType(Material.CAULDRON);
 				Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());

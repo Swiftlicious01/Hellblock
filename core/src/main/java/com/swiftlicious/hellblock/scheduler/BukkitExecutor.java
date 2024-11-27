@@ -4,6 +4,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.plugin.Plugin;
 
+@SuppressWarnings("deprecation")
 public class BukkitExecutor implements RegionExecutor<Location> {
 
 	private final Plugin plugin;

@@ -3,10 +3,10 @@ package com.swiftlicious.hellblock.player;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.jetbrains.annotations.NotNull;
+
 import com.google.gson.annotations.Expose;
 import com.google.gson.annotations.SerializedName;
-
-import lombok.NonNull;
 
 public class LocationCacheData {
 
@@ -43,11 +43,11 @@ public class LocationCacheData {
 	 *
 	 * @return a new instance of LocationCacheData with default values.
 	 */
-	public static @NonNull LocationCacheData empty() {
+	public static @NotNull LocationCacheData empty() {
 		return new LocationCacheData(new ArrayList<>(), new ArrayList<>());
 	}
 
-	public @NonNull LocationCacheData copy() {
+	public @NotNull LocationCacheData copy() {
 		return new LocationCacheData(pistonLocations, levelBlockLocations);
 	}
 }

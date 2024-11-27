@@ -2,8 +2,6 @@ package com.swiftlicious.hellblock.utils;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -11,12 +9,17 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.UUID;
 
+import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.util.io.BukkitObjectInputStream;
+import org.bukkit.util.io.BukkitObjectOutputStream;
 import org.yaml.snakeyaml.external.biz.base64Coder.Base64Coder;
 
 import com.saicone.rtag.item.ItemTagStream;
+import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.creation.item.ItemEditor;
 import com.swiftlicious.hellblock.creation.item.tag.TagMapInterface;
 import com.swiftlicious.hellblock.creation.item.tag.TagValueType;
@@ -35,49 +38,37 @@ public class ItemStackUtils {
 		throw new UnsupportedOperationException("This class cannot be instantiated");
 	}
 
-	public static String serialize(ItemStack[] items) {
-		try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
-			DataOutputStream output = new DataOutputStream(outputStream);
-			output.writeInt(items.length);
-
-			for (ItemStack item : items) {
-				if (item == null) {
-					// Ensure the correct order by including empty/null items
-					// Simply remove the write line if you don't want this
-					output.writeInt(0);
-					continue;
-				}
-
-				byte[] bytes = item.serializeAsBytes();
-				output.writeInt(bytes.length);
-				output.write(bytes);
-			}
-			return Base64Coder.encodeLines(outputStream.toByteArray()); // Base64 encoding is not strictly needed
-		} catch (IOException e) {
-			throw new RuntimeException("Error while writing itemstack", e);
+	public static ItemStack deserialize(String base64) {
+		if (base64 == null || base64.isEmpty())
+			return new ItemStack(Material.AIR);
+		ByteArrayInputStream inputStream;
+		try {
+			inputStream = new ByteArrayInputStream(Base64Coder.decodeLines(base64));
+		} catch (IllegalArgumentException e) {
+			return new ItemStack(Material.AIR);
 		}
+		ItemStack stack = null;
+		try (BukkitObjectInputStream dataInput = new BukkitObjectInputStream(inputStream)) {
+			stack = (ItemStack) dataInput.readObject();
+		} catch (IOException | ClassNotFoundException e) {
+			e.printStackTrace();
+		}
+		return stack;
 	}
 
-	public static ItemStack[] deserialize(String encodedItems) {
-		byte[] bytes = Base64Coder.decodeLines(encodedItems); // Base64 encoding is not strictly needed
-		try (ByteArrayInputStream inputStream = new ByteArrayInputStream(bytes)) {
-			DataInputStream input = new DataInputStream(inputStream);
-			int count = input.readInt();
-			ItemStack[] items = new ItemStack[count];
-			for (int i = 0; i < count; i++) {
-				int length = input.readInt();
-				if (length == 0) {
-					// Empty item, keep entry as null
-					continue;
-				}
-
-				byte[] itemBytes = new byte[length];
-				input.read(itemBytes);
-				items[i] = ItemStack.deserializeBytes(itemBytes);
-			}
-			return items;
+	public static String serialize(ItemStack itemStack) {
+		if (itemStack == null || itemStack.getType() == Material.AIR)
+			return "";
+		ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+		try (BukkitObjectOutputStream dataOutput = new BukkitObjectOutputStream(outputStream)) {
+			dataOutput.writeObject(itemStack);
+			byte[] byteArr = outputStream.toByteArray();
+			dataOutput.close();
+			outputStream.close();
+			return Base64Coder.encodeLines(byteArr);
 		} catch (IOException e) {
-			throw new RuntimeException("Error while reading itemstack", e);
+			e.printStackTrace();
+			return "";
 		}
 	}
 
@@ -467,6 +458,97 @@ public class ItemStackUtils {
 				itemEditors.add(((item, context) -> {
 					item.set(value, (Object[]) currentRoute);
 				}));
+			}
+		}
+	}
+
+	@SuppressWarnings("unchecked")
+	public static void mapToReadableStringList(Map<String, Object> map, List<String> readableList, boolean isMapList) {
+		if (map == null || map.isEmpty()) {
+			readableList.add("<red>This item has no connected NBT tag data to it from the Hellblock plugin.");
+			return;
+		}
+		for (Map.Entry<String, Object> entry : map.entrySet()) {
+			if (entry.getKey().isEmpty()) {
+				readableList.add("<red>This item has no connected NBT tag data to it from the Hellblock plugin.");
+				break;
+			}
+			if (isMapList) {
+				readableList.add("<gray>-=- <gold>(NBT Data Tag: <white>" + entry.getKey() + "<gold>) <gray>-=-");
+			}
+			Object tag = entry.getValue();
+			if (tag instanceof List<?> listData) {
+				for (Object innerTag : listData) {
+					if (innerTag instanceof String stringData) {
+						readableList.add("<white>- <red>" + entry.getKey() + ":");
+						readableList
+								.add("<aqua>(String) <gold>" + (stringData != null && !stringData.isEmpty() ? stringData
+										: "Value returned null, please report this."));
+					} else if (innerTag instanceof Integer integerData) {
+						readableList.add("<white>- <red>" + entry.getKey() + ":");
+						readableList.add("<aqua>(Integer) <gold>" + integerData.intValue());
+					} else if (innerTag instanceof Float floatData) {
+						readableList.add("<white>- <red>" + entry.getKey() + ":");
+						readableList.add("<aqua>(Float) <gold>" + floatData.floatValue());
+					} else if (innerTag instanceof Double doubleData) {
+						readableList.add("<white>- <red>" + entry.getKey() + ":");
+						readableList.add("<aqua>(Double) <gold>" + doubleData.doubleValue());
+					} else if (innerTag instanceof Short shortData) {
+						readableList.add("<white>- <red>" + entry.getKey() + ":");
+						readableList.add("<aqua>(Short) <gold>" + shortData.shortValue());
+					} else if (innerTag instanceof Long longData) {
+						readableList.add("<white>- <red>" + entry.getKey() + ":");
+						readableList.add("<aqua>(Long) <gold>" + longData.longValue());
+					} else if (innerTag instanceof Byte byteData) {
+						readableList.add("<white>- <red>" + entry.getKey() + ":");
+						readableList.add("<aqua>(Boolean) <gold>" + (byteData.byteValue() == 1 ? "true" : "false"));
+					} else if (innerTag instanceof UUID uuidData) {
+						readableList.add("<white>- <red>" + entry.getKey() + ":");
+						readableList.add("<aqua>(UUID) <gold>" + (uuidData != null ? uuidData.toString()
+								: "Value returned null, please report this."));
+					} else if (innerTag instanceof Map<?, ?> mapData) {
+						mapToReadableStringList((Map<String, Object>) mapData, readableList, false);
+					} else {
+						readableList
+								.add("<red>This item has no connected NBT tag data to it from the Hellblock plugin.");
+						HellblockPlugin.getInstance().getPluginLogger().warn(
+								String.format("This class is not recognized as tag data: %s", innerTag.getClass()));
+						break;
+					}
+				}
+			} else if (tag instanceof Map<?, ?> mapData) {
+				mapToReadableStringList((Map<String, Object>) mapData, readableList, false);
+			} else if (tag instanceof String stringData) {
+				readableList.add("<white>- <red>" + entry.getKey() + ":");
+				readableList.add("<aqua>(String) <gold>" + (stringData != null && !stringData.isEmpty() ? stringData
+						: "Value returned null, please report this."));
+			} else if (tag instanceof Integer integerData) {
+				readableList.add("<white>- <red>" + entry.getKey() + ":");
+				readableList.add("<aqua>(Integer) <gold>" + integerData.intValue());
+			} else if (tag instanceof Float floatData) {
+				readableList.add("<white>- <red>" + entry.getKey() + ":");
+				readableList.add("<aqua>(Float) <gold>" + floatData.floatValue());
+			} else if (tag instanceof Double doubleData) {
+				readableList.add("<white>- <red>" + entry.getKey() + ":");
+				readableList.add("<aqua>(Double) <gold>" + doubleData.doubleValue());
+			} else if (tag instanceof Short shortData) {
+				readableList.add("<white>- <red>" + entry.getKey() + ":");
+				readableList.add("<aqua>(Short) <gold>" + shortData.shortValue());
+			} else if (tag instanceof Long longData) {
+				readableList.add("<white>- <red>" + entry.getKey() + ":");
+				readableList.add("<aqua>(Long) <gold>" + longData.longValue());
+			} else if (tag instanceof Byte byteData) {
+				readableList.add("<white>- <red>" + entry.getKey() + ":");
+				readableList.add("<aqua>(Boolean) <gold>" + (byteData.byteValue() == 1 ? "true" : "false"));
+			} else if (tag instanceof UUID uuidData) {
+				readableList.add("<white>- <red>" + entry.getKey() + ":");
+				readableList.add("<aqua>(UUID) <gold>"
+						+ (uuidData != null ? uuidData.toString() : "Value returned null, please report this."));
+			} else {
+				readableList.add("<red>This item has no connected NBT tag data to it from the Hellblock plugin.");
+				HellblockPlugin.getInstance().getPluginLogger()
+						.warn(String.format("This class is not recognized as tag data: %s", tag.getClass()));
+				break;
 			}
 		}
 	}

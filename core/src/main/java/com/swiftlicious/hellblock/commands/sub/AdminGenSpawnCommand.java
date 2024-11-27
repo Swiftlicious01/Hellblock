@@ -12,7 +12,10 @@ import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.api.compatibility.WorldGuardHook;
 import com.swiftlicious.hellblock.commands.BukkitCommandFeature;
 import com.swiftlicious.hellblock.commands.HellblockCommandManager;
+import com.swiftlicious.hellblock.config.locale.MessageConstants;
 import com.swiftlicious.hellblock.utils.ChunkUtils;
+
+import net.kyori.adventure.text.Component;
 
 public class AdminGenSpawnCommand extends BukkitCommandFeature<CommandSender> {
 
@@ -27,8 +30,8 @@ public class AdminGenSpawnCommand extends BukkitCommandFeature<CommandSender> {
 			final Player player = context.sender();
 			if (!player.getWorld().getName()
 					.equalsIgnoreCase(HellblockPlugin.getInstance().getConfigManager().worldName())) {
-				HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-						"<red>You aren't in the correct world to generate the spawn!");
+				handleFeedback(context, MessageConstants.MSG_HELLBLOCK_ADMIN_WRONG_WORLD
+						.arguments(Component.text(HellblockPlugin.getInstance().getConfigManager().worldName())));
 				return;
 			}
 
@@ -38,8 +41,7 @@ public class AdminGenSpawnCommand extends BukkitCommandFeature<CommandSender> {
 				if (HellblockPlugin.getInstance().getWorldGuardHandler().getWorldGuardPlatform() != null
 						&& HellblockPlugin.getInstance().getWorldGuardHandler().getWorldGuardPlatform()
 								.getRegionContainer().get(weWorld).hasRegion(WorldGuardHook.SPAWN_REGION)) {
-					HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-							"<red>The spawn area has already been generated!");
+					handleFeedback(context, MessageConstants.MSG_HELLBLOCK_ADMIN_SPAWN_ALREADY_EXISTS);
 					return;
 				}
 			} else {
@@ -47,8 +49,7 @@ public class AdminGenSpawnCommand extends BukkitCommandFeature<CommandSender> {
 			}
 			HellblockPlugin.getInstance().getHellblockHandler().generateSpawn().thenAccept(spawn -> {
 				ChunkUtils.teleportAsync(player, spawn, TeleportCause.PLUGIN).thenRun(() -> {
-					HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-							"<red>Spawn area has been generated!");
+					handleFeedback(context, MessageConstants.MSG_HELLBLOCK_ADMIN_SPAWN_GENERATED);
 				});
 			});
 		});

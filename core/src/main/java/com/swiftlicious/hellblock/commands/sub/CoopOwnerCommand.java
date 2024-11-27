@@ -22,7 +22,9 @@ import com.swiftlicious.hellblock.commands.HellblockCommandManager;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
 import com.swiftlicious.hellblock.player.UserData;
 
-import lombok.NonNull;
+import net.kyori.adventure.text.Component;
+
+import org.jetbrains.annotations.NotNull;
 
 public class CoopOwnerCommand extends BukkitCommandFeature<CommandSender> {
 
@@ -36,8 +38,8 @@ public class CoopOwnerCommand extends BukkitCommandFeature<CommandSender> {
 		return builder.senderType(Player.class)
 				.required("player", PlayerParser.playerComponent().suggestionProvider(new SuggestionProvider<>() {
 					@Override
-					public @NonNull CompletableFuture<? extends @NonNull Iterable<? extends @NonNull Suggestion>> suggestionsFuture(
-							@NonNull CommandContext<Object> context, @NonNull CommandInput input) {
+					public @NotNull CompletableFuture<? extends @NotNull Iterable<? extends @NotNull Suggestion>> suggestionsFuture(
+							@NotNull CommandContext<Object> context, @NotNull CommandInput input) {
 						if (context.sender() instanceof Player player) {
 							List<String> suggestions = HellblockPlugin.getInstance().getStorageManager()
 									.getOnlineUsers().stream()
@@ -57,8 +59,11 @@ public class CoopOwnerCommand extends BukkitCommandFeature<CommandSender> {
 					Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 							.getOnlineUser(player.getUniqueId());
 					if (onlineUser.isEmpty()) {
-						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-								"<red>Still loading your player data... please try again in a few seconds.");
+						handleFeedback(context, MessageConstants.COMMAND_DATA_FAILURE_NOT_LOADED);
+						return;
+					}
+					if (!HellblockPlugin.getInstance().getConfigManager().transferIslands()) {
+						handleFeedback(context, MessageConstants.MSG_HELLBLOCK_COOP_TRANSFER_OWNERSHIP_DISABLED);
 						return;
 					}
 					if (onlineUser.get().getHellblockData().hasHellblock()) {
@@ -68,50 +73,40 @@ public class CoopOwnerCommand extends BukkitCommandFeature<CommandSender> {
 						}
 						if (onlineUser.get().getHellblockData().getOwnerUUID() != null
 								&& !onlineUser.get().getHellblockData().getOwnerUUID().equals(player.getUniqueId())) {
-							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-									HellblockPlugin.getInstance().getTranslationManager().miniMessageTranslation(
-											MessageConstants.MSG_NOT_OWNER_OF_HELLBLOCK.build().key()));
+							handleFeedback(context, MessageConstants.MSG_NOT_OWNER_OF_HELLBLOCK);
 							return;
 						}
 						if (onlineUser.get().getHellblockData().isAbandoned()) {
-							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-									HellblockPlugin.getInstance().getTranslationManager().miniMessageTranslation(
-											MessageConstants.MSG_HELLBLOCK_IS_ABANDONED.build().key()));
+							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_IS_ABANDONED);
 							return;
 						}
 						if (onlineUser.get().getHellblockData().getTransferCooldown() > 0) {
-							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-									String.format(
-											"<red>You've recently transferred ownership already, you must wait for %s!",
-											HellblockPlugin.getInstance().getFormattedCooldown(
-													onlineUser.get().getHellblockData().getTransferCooldown())));
+							handleFeedback(context,
+									MessageConstants.MSG_HELLBLOCK_TRANSFER_ON_COOLDOWN.arguments(
+											Component.text(HellblockPlugin.getInstance().getFormattedCooldown(
+													onlineUser.get().getHellblockData().getTransferCooldown()))));
 							return;
 						}
 						Player user = context.get("player");
 						if (user == null || !user.isOnline()) {
-							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-									"<red>The player you entered is either not online or doesn't exist!");
+							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_PLAYER_OFFLINE);
 							return;
 						}
 						if (user.getUniqueId().equals(player.getUniqueId())) {
-							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-									"<red>You can't do this to yourself!");
+							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_NOT_TO_SELF);
 							return;
 						}
 						Optional<UserData> transferPlayer = HellblockPlugin.getInstance().getStorageManager()
 								.getOnlineUser(user.getUniqueId());
 						if (transferPlayer.isEmpty()) {
-							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-									String.format("<red>Still loading %s's data... please try again in a few seconds.",
-											user.getName()));
+							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_PLAYER_DATA_FAILURE_LOAD
+									.arguments(Component.text(user.getName())));
 							return;
 						}
 						HellblockPlugin.getInstance().getCoopManager().transferOwnershipOfHellblock(onlineUser.get(),
 								transferPlayer.get());
 					} else {
-						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-								HellblockPlugin.getInstance().getTranslationManager().miniMessageTranslation(
-										MessageConstants.MSG_HELLBLOCK_NOT_FOUND.build().key()));
+						handleFeedback(context, MessageConstants.MSG_HELLBLOCK_NOT_FOUND);
 						return;
 					}
 				});

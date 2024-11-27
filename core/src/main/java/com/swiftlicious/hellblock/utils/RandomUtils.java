@@ -5,12 +5,12 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 
+import org.bukkit.Material;
 import org.bukkit.block.Biome;
 import org.bukkit.entity.EntityType;
+import org.jetbrains.annotations.NotNull;
 
 import com.swiftlicious.hellblock.generation.HellBiome;
-
-import lombok.NonNull;
 
 /**
  * Utility class for generating random values.
@@ -158,7 +158,7 @@ public class RandomUtils {
 	 *
 	 * @return a random biome
 	 */
-	public static @NonNull Biome generateRandomBiome() {
+	public static @NotNull Biome generateRandomBiome() {
 		List<Biome> biomes = Arrays.asList(HellBiome.values()).stream().map(HellBiome::getConvertedBiome).toList();
 		int randomIndex = getInstance().random.nextInt(biomes.size());
 		return biomes.get(randomIndex);
@@ -169,10 +169,17 @@ public class RandomUtils {
 	 *
 	 * @return a random animal
 	 */
-	public static @NonNull EntityType spawnRandomAnimal() {
+	public static @NotNull EntityType spawnRandomAnimal() {
 		List<EntityType> entities = List.of(EntityType.PIG, EntityType.COW, EntityType.CHICKEN, EntityType.SHEEP,
 				EntityType.RABBIT);
 		int randomIndex = getInstance().random.nextInt(entities.size());
 		return entities.get(randomIndex);
+	}
+
+	public static @NotNull Material pickRandomSapling() {
+		List<Material> saplings = List.of(Material.OAK_SAPLING, Material.BIRCH_SAPLING, Material.SPRUCE_SAPLING,
+				Material.JUNGLE_SAPLING, Material.ACACIA_SAPLING, Material.DARK_OAK_SAPLING, Material.CHERRY_SAPLING);
+		int randomIndex = getInstance().random.nextInt(saplings.size());
+		return saplings.get(randomIndex);
 	}
 }

@@ -18,9 +18,10 @@ import java.util.regex.Pattern;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
-import org.bukkit.Tag;
 import org.bukkit.World;
 import org.bukkit.block.Block;
+import org.bukkit.entity.Entity;
+import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -38,8 +39,6 @@ import com.swiftlicious.hellblock.config.locale.MessageConstants;
 import com.swiftlicious.hellblock.player.HellblockData;
 import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.utils.StringUtils;
-
-import lombok.NonNull;
 
 public class IslandLevelHandler implements Listener {
 
@@ -67,7 +66,7 @@ public class IslandLevelHandler implements Listener {
 		this.placedByPlayerCache.clear();
 	}
 
-	public void saveCache(@NonNull UUID id) {
+	public void saveCache(@NotNull UUID id) {
 		if (this.placedByPlayerCache.containsKey(id) && this.placedByPlayerCache.get(id) != null
 				&& !this.placedByPlayerCache.get(id).isEmpty()) {
 			List<LevelBlockCache> copy = new ArrayList<>(this.placedByPlayerCache.get(id));
@@ -99,7 +98,7 @@ public class IslandLevelHandler implements Listener {
 		}
 	}
 
-	public void loadCache(@NonNull UUID id) {
+	public void loadCache(@NotNull UUID id) {
 		Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(id);
 		if (onlineUser.isEmpty())
 			return;
@@ -156,7 +155,9 @@ public class IslandLevelHandler implements Listener {
 				return;
 			instance.getStorageManager().getOfflineUserData(ownerID, instance.getConfigManager().lockData())
 					.thenAccept((result) -> {
-						UserData offlineUser = result.orElseThrow();
+						if (result.isEmpty())
+							return;
+						UserData offlineUser = result.get();
 						if (!offlineUser.getHellblockData().getEntireParty().getIslandMembers().contains(id))
 							return;
 
@@ -194,7 +195,9 @@ public class IslandLevelHandler implements Listener {
 				return;
 			instance.getStorageManager().getOfflineUserData(ownerID, instance.getConfigManager().lockData())
 					.thenAccept((result) -> {
-						UserData offlineUser = result.orElseThrow();
+						if (result.isEmpty())
+							return;
+						UserData offlineUser = result.get();
 						if (!offlineUser.getHellblockData().getEntireParty().getIslandMembers().contains(id))
 							return;
 
@@ -230,7 +233,8 @@ public class IslandLevelHandler implements Listener {
 		if (!block.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
 			return;
 
-		Collection<Player> playersNearby = block.getWorld().getNearbyPlayers(block.getLocation(), 25, 25, 25);
+		Collection<Entity> playersNearby = block.getWorld().getNearbyEntities(block.getLocation(), 25, 25, 25).stream()
+				.filter(e -> e.getType() == EntityType.PLAYER).toList();
 		Player player = instance.getNetherrackGeneratorHandler().getClosestPlayer(block.getLocation(), playersNearby);
 		if (player != null) {
 			final UUID id = player.getUniqueId();
@@ -244,7 +248,9 @@ public class IslandLevelHandler implements Listener {
 					return;
 				instance.getStorageManager().getOfflineUserData(ownerID, instance.getConfigManager().lockData())
 						.thenAccept((result) -> {
-							UserData offlineUser = result.orElseThrow();
+							if (result.isEmpty())
+								return;
+							UserData offlineUser = result.get();
 							if (!offlineUser.getHellblockData().getEntireParty().getIslandMembers().contains(id))
 								return;
 
@@ -281,7 +287,8 @@ public class IslandLevelHandler implements Listener {
 		if (!block.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
 			return;
 
-		Collection<Player> playersNearby = block.getWorld().getNearbyPlayers(block.getLocation(), 25, 25, 25);
+		Collection<Entity> playersNearby = block.getWorld().getNearbyEntities(block.getLocation(), 25, 25, 25).stream()
+				.filter(e -> e.getType() == EntityType.PLAYER).toList();
 		Player player = instance.getNetherrackGeneratorHandler().getClosestPlayer(block.getLocation(), playersNearby);
 		if (player != null) {
 			final UUID id = player.getUniqueId();
@@ -295,7 +302,9 @@ public class IslandLevelHandler implements Listener {
 					return;
 				instance.getStorageManager().getOfflineUserData(ownerID, instance.getConfigManager().lockData())
 						.thenAccept((result) -> {
-							UserData offlineUser = result.orElseThrow();
+							if (result.isEmpty())
+								return;
+							UserData offlineUser = result.get();
 							if (!offlineUser.getHellblockData().getEntireParty().getIslandMembers().contains(id))
 								return;
 
@@ -332,7 +341,7 @@ public class IslandLevelHandler implements Listener {
 		for (String blockConversion : blockLevelSystem) {
 			String[] split = blockConversion.split(":");
 			Material block = Material.getMaterial(split[0].toUpperCase());
-			if (block != null && !Tag.AIR.isTagged(block)) {
+			if (block != null && block != Material.AIR) {
 				materialList.add(block);
 			}
 		}
@@ -340,7 +349,7 @@ public class IslandLevelHandler implements Listener {
 		return materialList;
 	}
 
-	public int getLevelRank(@NonNull UUID playerID) {
+	public int getLevelRank(@NotNull UUID playerID) {
 		RankTracker rank = new RankTracker(-1);
 		if (this.levelRankCache.containsKey(playerID)) {
 			return this.levelRankCache.get(playerID).intValue();
@@ -350,7 +359,9 @@ public class IslandLevelHandler implements Listener {
 		for (UUID playerData : instance.getStorageManager().getDataSource().getUniqueUsers()) {
 			instance.getStorageManager().getOfflineUserData(playerData, instance.getConfigManager().lockData())
 					.thenAccept((result) -> {
-						UserData offlineUser = result.orElseThrow();
+						if (result.isEmpty())
+							return;
+						UserData offlineUser = result.get();
 						UUID ownerUUID = offlineUser.getHellblockData().getOwnerUUID();
 						if (ownerUUID != null && playerData.equals(ownerUUID)) {
 							float hellblockLevel = offlineUser.getHellblockData().getLevel();
@@ -378,7 +389,9 @@ public class IslandLevelHandler implements Listener {
 		} else {
 			instance.getStorageManager().getOfflineUserData(onlineUser.get().getHellblockData().getOwnerUUID(),
 					instance.getConfigManager().lockData()).thenAccept((result) -> {
-						UserData offlineUser = result.orElseThrow();
+						if (result.isEmpty())
+							return;
+						UserData offlineUser = result.get();
 						float level = offlineUser.getHellblockData().getLevel();
 						if (level <= HellblockData.DEFAULT_LEVEL) {
 							rank.setRank(-1);
@@ -402,7 +415,9 @@ public class IslandLevelHandler implements Listener {
 		for (UUID playerData : instance.getStorageManager().getDataSource().getUniqueUsers()) {
 			instance.getStorageManager().getOfflineUserData(playerData, instance.getConfigManager().lockData())
 					.thenAccept((result) -> {
-						UserData offlineUser = result.orElseThrow();
+						if (result.isEmpty())
+							return;
+						UserData offlineUser = result.get();
 						UUID ownerUUID = offlineUser.getHellblockData().getOwnerUUID();
 						float hellblockLevel = offlineUser.getHellblockData().getLevel();
 						if (ownerUUID != null && hellblockLevel > HellblockData.DEFAULT_LEVEL) {
@@ -445,12 +460,14 @@ public class IslandLevelHandler implements Listener {
 				if (ownerUUID != null) {
 					instance.getStorageManager().getOfflineUserData(ownerUUID, instance.getConfigManager().lockData())
 							.thenAccept((result) -> {
-								UserData offlineUser = result.orElseThrow();
+								if (result.isEmpty())
+									return;
+								UserData offlineUser = result.get();
 								if (offlineUser.getHellblockData().isAbandoned()) {
 									if (Bukkit.getPlayer(id) != null)
-										instance.getAdventureManager().sendMessage(Bukkit.getPlayer(id),
-												instance.getTranslationManager().miniMessageTranslation(
-														MessageConstants.MSG_HELLBLOCK_IS_ABANDONED.build().key()));
+										instance.getSenderFactory().getAudience(Bukkit.getPlayer(id))
+												.sendMessage(instance.getTranslationManager()
+														.render(MessageConstants.MSG_HELLBLOCK_IS_ABANDONED.build()));
 									return;
 								}
 
@@ -543,7 +560,7 @@ public class IslandLevelHandler implements Listener {
 			return this.z;
 		}
 
-		public @NonNull Location getLocation() {
+		public @NotNull Location getLocation() {
 			return new Location(instance.getHellblockHandler().getHellblockWorld(), this.x, this.y, this.z);
 		}
 

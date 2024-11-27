@@ -21,16 +21,22 @@ import org.bukkit.block.data.Directional;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import com.saicone.rtag.RtagBlock;
 import com.saicone.rtag.RtagItem;
 import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.creation.item.AbstractItem;
 import com.swiftlicious.hellblock.creation.item.Item;
+import com.swiftlicious.hellblock.creation.item.ItemEditor;
+import com.swiftlicious.hellblock.handlers.AdventureHelper;
+import com.swiftlicious.hellblock.player.Context;
 import com.swiftlicious.hellblock.player.UserData;
+import com.swiftlicious.hellblock.utils.ItemStackUtils;
 import com.swiftlicious.hellblock.utils.extras.Key;
 
 import dev.dejvokep.boostedyaml.block.implementation.Section;
-import lombok.NonNull;
 
 public class IslandGenerator {
 
@@ -40,8 +46,8 @@ public class IslandGenerator {
 		this.instance = plugin;
 	}
 
-	public CompletableFuture<Void> generateHellblockSchematic(@NonNull Location location, @NonNull Player player,
-			@NonNull String schematic) {
+	public CompletableFuture<Void> generateHellblockSchematic(@NotNull Location location, @NotNull Player player,
+			@NotNull String schematic) {
 		return CompletableFuture.runAsync(() -> {
 			Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
 			if (onlineUser.isEmpty())
@@ -75,7 +81,7 @@ public class IslandGenerator {
 		});
 	}
 
-	public CompletableFuture<Void> generateDefaultHellblock(@NonNull Location location, @NonNull Player player) {
+	public CompletableFuture<Void> generateDefaultHellblock(@NotNull Location location, @NotNull Player player) {
 		return CompletableFuture.runAsync(() -> {
 			Map<Block, Material> blockChanges = new LinkedHashMap<>();
 			World world = instance.getHellblockHandler().getHellblockWorld();
@@ -165,7 +171,7 @@ public class IslandGenerator {
 		});
 	}
 
-	public CompletableFuture<Void> generateClassicHellblock(@NonNull Location location, @NonNull Player player) {
+	public CompletableFuture<Void> generateClassicHellblock(@NotNull Location location, @NotNull Player player) {
 		return CompletableFuture.runAsync(() -> {
 			Map<Block, Material> blockChanges = new LinkedHashMap<>();
 			World world = instance.getHellblockHandler().getHellblockWorld();
@@ -249,7 +255,7 @@ public class IslandGenerator {
 		});
 	}
 
-	public CompletableFuture<Void> generateGlowstoneTree(@NonNull Location location) {
+	public CompletableFuture<Void> generateGlowstoneTree(@NotNull Location location) {
 		return CompletableFuture.runAsync(() -> {
 			Map<Block, Material> blockChanges = new LinkedHashMap<>();
 			World world = instance.getHellblockHandler().getHellblockWorld();
@@ -343,7 +349,7 @@ public class IslandGenerator {
 		});
 	}
 
-	public void generateChest(@NonNull Location location, @NonNull Player player) {
+	public void generateChest(@NotNull Location location, @NotNull Player player) {
 		World world = instance.getHellblockHandler().getHellblockWorld();
 		int x = location.getBlockX();
 		int y = location.getBlockY();
@@ -357,8 +363,11 @@ public class IslandGenerator {
 		block.setBlockData(directional);
 		Chest chest = (Chest) block.getState();
 		String chestName = instance.getConfigManager().chestName();
+		RtagBlock chestTag = new RtagBlock(block);
 		if (chestName != null && !chestName.isEmpty() && chestName.length() <= 35) {
-			chest.customName(instance.getAdventureManager().getComponentFromMiniMessage(chestName));
+			chestTag.setCustomName(AdventureHelper.jsonToMiniMessage(chestName));
+			chestTag.update();
+			chestTag.load();
 		}
 		Inventory inventory = chest.getInventory();
 		inventory.clear();
@@ -381,24 +390,25 @@ public class IslandGenerator {
 					Item<ItemStack> item = instance.getItemManager()
 							.wrap(new ItemStack(type, amount > 0 && amount <= type.getMaxStackSize() ? amount : 1));
 
-					if (Tag.AIR.isTagged(item.getItem().getType()))
+					if (item.getItem().getType() == Material.AIR)
 						continue;
 
 					String displayName = inner.getString("name");
 					if (displayName != null && !displayName.isEmpty()) {
-						item.displayName(instance.getAdventureManager().jsonToMiniMessage(displayName));
+						item.displayName(AdventureHelper.jsonToMiniMessage(displayName));
 					}
 
 					List<String> lore = inner.getStringList("lore");
-					List<String> updatedLore = new ArrayList<>();
 					if (lore != null && !lore.isEmpty()) {
+						List<String> updatedLore = new ArrayList<>();
 						for (String newLore : lore) {
-							updatedLore.add(newLore);
+							updatedLore.add(AdventureHelper.jsonToMiniMessage(newLore));
 						}
 						item.lore(updatedLore);
 					}
 
-					Set<Entry<String, Object>> enchantments = inner.getSection("enchantments")
+					Set<Entry<String, Object>> enchantments = inner
+							.getSection(type == Material.ENCHANTED_BOOK ? "stored-enchantments" : "enchantments")
 							.getStringRouteMappedValues(false).entrySet();
 					if (enchantments != null && !enchantments.isEmpty()) {
 						for (Entry<String, Object> enchants : enchantments) {
@@ -407,19 +417,38 @@ public class IslandGenerator {
 							if (enchants.getValue() instanceof Section enchantInner) {
 								String enchant = enchantInner.getString("enchant");
 								int level = enchantInner.getInt("level");
-								item.addEnchantment(Key.fromString(enchant), level);
+								if (type == Material.ENCHANTED_BOOK)
+									item.addStoredEnchantment(Key.fromString(enchant), level);
+								else
+									item.addEnchantment(Key.fromString(enchant), level);
 							}
 						}
 					}
 
 					int damage = inner.getInt("damage");
-					item.damage(damage >= 0 && damage <= item.getItem().getType().getMaxDurability() ? damage : 0);
+					item.damage(damage >= 0 && damage < item.getItem().getType().getMaxDurability() ? damage : 0);
 
 					int customModelData = inner.getInt("custom-model-data");
 					item.customModelData(customModelData);
 
 					boolean unbreakable = inner.getBoolean("unbreakable", false);
 					item.unbreakable(unbreakable);
+
+					if (instance.getVersionManager().isVersionNewerThan1_20_5()) {
+						Section components = inner.getSection("item-components");
+						if (components != null) {
+							List<ItemEditor> editors = new ArrayList<>();
+							ItemStackUtils.sectionToComponentEditor(components, editors);
+							for (ItemEditor editor : editors) {
+								editor.apply(((AbstractItem<RtagItem, ItemStack>) item).getRTagItem(),
+										Context.player(player));
+							}
+						}
+					} else {
+						List<String> flags = inner.getStringList("item-flags");
+						if (flags != null && !flags.isEmpty())
+							item.itemFlags(flags);
+					}
 
 					if (type == Material.POTION || type == Material.SPLASH_POTION || type == Material.LINGERING_POTION
 							|| type == Material.TIPPED_ARROW) {
@@ -439,7 +468,10 @@ public class IslandGenerator {
 					if (slot >= 0 && slot <= 26) {
 						inventory.setItem(slot, data);
 					} else {
-						inventory.addItem(data);
+						if (inventory.firstEmpty() != -1)
+							inventory.addItem(data);
+						else
+							continue;
 					}
 				} catch (IllegalArgumentException ex) {
 					instance.getPluginLogger()
@@ -454,7 +486,7 @@ public class IslandGenerator {
 	private static final BlockFace[] FACES = new BlockFace[] { BlockFace.NORTH, BlockFace.SOUTH, BlockFace.EAST,
 			BlockFace.WEST };
 
-	private @NonNull BlockFace getChestDirection(@NonNull Location location, @NonNull IslandOptions option) {
+	private @NotNull BlockFace getChestDirection(@NotNull Location location, @NotNull IslandOptions option) {
 
 		BlockFace finalFace = BlockFace.SOUTH;
 		for (BlockFace face : FACES) {

@@ -8,6 +8,7 @@ import org.bukkit.inventory.Inventory;
 import org.jetbrains.annotations.Nullable;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.player.Context;
 import com.swiftlicious.hellblock.player.HellblockData;
 
@@ -68,8 +69,7 @@ public class HellblockGUI {
 	public void show() {
 		context.holder().openInventory(inventory);
 		HellblockPlugin.getInstance().getVersionManager().getNMSManager().updateInventoryTitle(context.holder(),
-				HellblockPlugin.getInstance().getAdventureManager().componentToJson(HellblockPlugin.getInstance()
-						.getAdventureManager().getComponentFromMiniMessage(manager.title.render(context))));
+				AdventureHelper.componentToJson(AdventureHelper.miniMessage(manager.title.render(context))));
 	}
 
 	@Nullable

@@ -15,6 +15,7 @@ import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Animals;
 import org.bukkit.entity.Player;
+import org.jetbrains.annotations.NotNull;
 
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import com.swiftlicious.hellblock.HellblockPlugin;
@@ -23,8 +24,6 @@ import com.swiftlicious.hellblock.protection.HellblockFlag;
 import com.swiftlicious.hellblock.protection.HellblockFlag.AccessType;
 import com.swiftlicious.hellblock.scheduler.SchedulerTask;
 import com.swiftlicious.hellblock.utils.RandomUtils;
-
-import lombok.NonNull;
 
 public class NetherAnimalSpawningTask implements Runnable {
 
@@ -37,7 +36,7 @@ public class NetherAnimalSpawningTask implements Runnable {
 
 	private final static int MAX_ANIMAL_COUNT = 15;
 
-	public NetherAnimalSpawningTask(HellblockPlugin plugin, @NonNull UUID playerUUID) {
+	public NetherAnimalSpawningTask(HellblockPlugin plugin, @NotNull UUID playerUUID) {
 		instance = plugin;
 		this.playerUUID = playerUUID;
 		this.spawnCache = new HashSet<>();
@@ -63,7 +62,9 @@ public class NetherAnimalSpawningTask implements Runnable {
 			if (ownerUUID == null)
 				return;
 			instance.getStorageManager().getOfflineUserData(ownerUUID, instance.getConfigManager().lockData()).thenAccept((result) -> {
-				UserData offlineUser = result.orElseThrow();
+				if (result.isEmpty())
+					return;
+				UserData offlineUser = result.get();
 				ProtectedRegion region = instance.getWorldGuardHandler().getRegion(ownerUUID,
 						offlineUser.getHellblockData().getID());
 				if (region == null)

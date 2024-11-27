@@ -68,8 +68,8 @@ public class FishingManager implements Listener, FishingManagerInterface {
 
 	@Override
 	public Optional<Player> getOwner(FishHook hook) {
-		if (hook.getOwnerUniqueId() != null) {
-			return Optional.ofNullable(Bukkit.getPlayer(hook.getOwnerUniqueId()));
+		if (hook.getShooter() != null && hook.getShooter() instanceof Player player) {
+			return Optional.ofNullable(Bukkit.getPlayer(player.getUniqueId()));
 		}
 		return Optional.empty();
 	}

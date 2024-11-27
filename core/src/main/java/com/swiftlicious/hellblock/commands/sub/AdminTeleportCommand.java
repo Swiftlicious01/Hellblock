@@ -22,11 +22,14 @@ import org.incendo.cloud.suggestion.SuggestionProvider;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.commands.BukkitCommandFeature;
 import com.swiftlicious.hellblock.commands.HellblockCommandManager;
+import com.swiftlicious.hellblock.config.locale.MessageConstants;
 import com.swiftlicious.hellblock.player.UUIDFetcher;
 import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.utils.ChunkUtils;
 
-import lombok.NonNull;
+import net.kyori.adventure.text.Component;
+
+import org.jetbrains.annotations.NotNull;
 
 public class AdminTeleportCommand extends BukkitCommandFeature<CommandSender> {
 
@@ -40,8 +43,8 @@ public class AdminTeleportCommand extends BukkitCommandFeature<CommandSender> {
 		return builder.senderType(Player.class)
 				.required("player", StringParser.stringComponent().suggestionProvider(new SuggestionProvider<>() {
 					@Override
-					public @NonNull CompletableFuture<? extends @NonNull Iterable<? extends @NonNull Suggestion>> suggestionsFuture(
-							@NonNull CommandContext<Object> context, @NonNull CommandInput input) {
+					public @NotNull CompletableFuture<? extends @NotNull Iterable<? extends @NotNull Suggestion>> suggestionsFuture(
+							@NotNull CommandContext<Object> context, @NotNull CommandInput input) {
 						List<String> suggestions = HellblockPlugin.getInstance().getStorageManager().getOnlineUsers()
 								.stream()
 								.filter(onlineUser -> onlineUser.isOnline()
@@ -56,19 +59,22 @@ public class AdminTeleportCommand extends BukkitCommandFeature<CommandSender> {
 					UUID id = Bukkit.getPlayer(user) != null ? Bukkit.getPlayer(user).getUniqueId()
 							: UUIDFetcher.getUUID(user);
 					if (id == null) {
-						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-								"<red>The player's hellblock you're trying to teleport to doesn't exist!");
+						handleFeedback(context, MessageConstants.MSG_HELLBLOCK_PLAYER_OFFLINE);
 						return;
 					}
 					if (!Bukkit.getOfflinePlayer(id).hasPlayedBefore()) {
-						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-								"<red>The player's hellblock you're trying to teleport to doesn't exist!");
+						handleFeedback(context, MessageConstants.MSG_HELLBLOCK_PLAYER_OFFLINE);
 						return;
 					}
 					HellblockPlugin.getInstance().getStorageManager()
 							.getOfflineUserData(id, HellblockPlugin.getInstance().getConfigManager().lockData())
 							.thenAccept((result) -> {
-								UserData offlineUser = result.orElseThrow();
+								if (result.isEmpty()) {
+									handleFeedback(context, MessageConstants.MSG_HELLBLOCK_PLAYER_DATA_FAILURE_LOAD
+											.arguments(Component.text(user)));
+									return;
+								}
+								UserData offlineUser = result.get();
 								if (offlineUser.getHellblockData().hasHellblock()) {
 									if (offlineUser.getHellblockData().getOwnerUUID() == null) {
 										throw new NullPointerException(
@@ -78,7 +84,21 @@ public class AdminTeleportCommand extends BukkitCommandFeature<CommandSender> {
 											.getOfflineUserData(offlineUser.getHellblockData().getOwnerUUID(),
 													HellblockPlugin.getInstance().getConfigManager().lockData())
 											.thenAccept((owner) -> {
-												UserData ownerUser = owner.orElseThrow();
+												if (owner.isEmpty()) {
+													String username = Bukkit
+															.getOfflinePlayer(
+																	offlineUser.getHellblockData().getOwnerUUID())
+															.getName() != null
+																	? Bukkit.getOfflinePlayer(offlineUser
+																			.getHellblockData().getOwnerUUID())
+																			.getName()
+																	: "???";
+													handleFeedback(context,
+															MessageConstants.MSG_HELLBLOCK_PLAYER_DATA_FAILURE_LOAD
+																	.arguments(Component.text(username)));
+													return;
+												}
+												UserData ownerUser = owner.get();
 												World world = HellblockPlugin.getInstance().getHellblockHandler()
 														.getHellblockWorld();
 												int x = ownerUser.getHellblockData().getHellblockLocation().getBlockX();
@@ -86,17 +106,15 @@ public class AdminTeleportCommand extends BukkitCommandFeature<CommandSender> {
 												Location highest = new Location(world, x,
 														world.getHighestBlockYAt(x, z), z);
 												ChunkUtils.teleportAsync(player, highest, TeleportCause.PLUGIN)
-														.thenRun(() -> HellblockPlugin.getInstance()
-																.getAdventureManager()
-																.sendMessage(player, String.format(
-																		"<red>You've been teleported to <dark_red>%s<red>'s hellblock!",
-																		ownerUser.getUUID())));
+														.thenRun(() -> handleFeedback(context,
+																MessageConstants.MSG_HELLBLOCK_ADMIN_FORCE_TELEPORT
+																		.arguments(Component
+																				.text(offlineUser.getName()))));
 											});
 									return;
 								}
 
-								HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-										"<red>That player doesn't have a hellblock!");
+								handleFeedback(context, MessageConstants.MSG_HELLBLOCK_NOT_FOUND);
 								return;
 							});
 

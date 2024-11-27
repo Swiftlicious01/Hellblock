@@ -1,6 +1,6 @@
 package com.swiftlicious.hellblock.utils;
 
-import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.handlers.AdventureHelper;
 
 import org.jetbrains.annotations.ApiStatus;
 
@@ -154,11 +154,9 @@ public class OffsetUtils {
 	 */
 	public static String getOffsetChars(int n) {
 		if (n > 0) {
-			return HellblockPlugin.getInstance().getAdventureManager()
-					.surroundWithMiniMessageFont(getShortestPosChars(n), font);
+			return AdventureHelper.surroundWithMiniMessageFont(getShortestPosChars(n), font);
 		} else {
-			return HellblockPlugin.getInstance().getAdventureManager()
-					.surroundWithMiniMessageFont(getShortestNegChars(-n), font);
+			return AdventureHelper.surroundWithMiniMessageFont(getShortestNegChars(-n), font);
 		}
 	}
 }

@@ -5,8 +5,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import org.bukkit.Bukkit;
-import org.bukkit.ExplosionResult;
-import org.bukkit.attribute.Attribute;
+import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
@@ -19,19 +18,18 @@ import org.bukkit.event.entity.EntityChangeBlockEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
+import org.bukkit.persistence.PersistentDataType;
+import org.jetbrains.annotations.NotNull;
 
+import com.saicone.rtag.RtagEntity;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.challenges.HellblockChallenge.ChallengeType;
 import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.utils.RandomUtils;
 
-import lombok.Getter;
-import lombok.NonNull;
-
 public class WitherBoss implements Listener {
 
 	protected final HellblockPlugin instance;
-	@Getter
 	private final WitherHandler witherHandler;
 
 	public WitherBoss(HellblockPlugin plugin) {
@@ -40,6 +38,11 @@ public class WitherBoss implements Listener {
 		Bukkit.getPluginManager().registerEvents(this, instance);
 	}
 
+	public WitherHandler getWitherHandler() {
+		return this.witherHandler;
+	}
+
+	@SuppressWarnings("removal")
 	@EventHandler
 	public void onWitherSpawn(CreatureSpawnEvent event) {
 		if (event.getLocation().getWorld() == null)
@@ -53,23 +56,27 @@ public class WitherBoss implements Listener {
 
 		WitherStats witherStats = getWitherStats();
 		Wither wither = (Wither) event.getEntity();
-		wither.getAttribute(Attribute.MAX_HEALTH).setBaseValue(witherStats.getHealth());
-		wither.getAttribute(Attribute.ATTACK_DAMAGE).setBaseValue(witherStats.getStrength());
-		wither.getAttribute(Attribute.ARMOR).setBaseValue(witherStats.getStrength());
+		RtagEntity witherTag = new RtagEntity(wither);
+		witherTag.setAttributeBase("generic.max_health", witherStats.getHealth());
+		witherTag.setAttributeBase("generic.attack_damage", witherStats.getStrength());
+		witherTag.setAttributeBase("generic.armor", witherStats.getStrength());
+		witherTag.update();
+		witherTag.load();
+		wither.getPersistentDataContainer().set(new NamespacedKey(instance, "hellblock-wither"),
+				PersistentDataType.STRING, "customwither");
 		wither.setHealth(witherStats.getHealth());
 		wither.setAware(true);
-		wither.setAggressive(true);
-		wither.setCanTravelThroughPortals(false);
 		int lowHealth = RandomUtils.generateRandomInt(15, 75);
 		instance.getScheduler().sync().runRepeating(() -> {
 			if (wither.isDead() || !wither.isValid()) {
 				return;
 			}
 			if (wither.getHealth() < lowHealth) {
-				wither.setInvulnerableTicks(RandomUtils.generateRandomInt(100, 300));
+				wither.setInvulnerabilityTicks(RandomUtils.generateRandomInt(100, 300));
 			}
 			Player closestPlayer = instance.getNetherrackGeneratorHandler().getClosestPlayer(event.getLocation(),
-					event.getLocation().getWorld().getNearbyPlayers(event.getLocation(), 15.0D));
+					event.getLocation().getWorld().getNearbyEntities(event.getLocation(), 15.0D, 5.0D, 15.0D).stream()
+							.filter(e -> e.getType() == EntityType.PLAYER).toList());
 			if (closestPlayer != null) {
 				wither.setTarget(closestPlayer);
 			}
@@ -84,6 +91,8 @@ public class WitherBoss implements Listener {
 			return;
 		if (!(event.getEntityType() == EntityType.WITHER || event.getEntityType() == EntityType.WITHER_SKULL))
 			return;
+		if (!(event.getEntity().getPersistentDataContainer().has(new NamespacedKey(instance, "hellblock-wither"))))
+			return;
 
 		if (event.getTo().isAir()) {
 			event.setCancelled(true);
@@ -94,12 +103,12 @@ public class WitherBoss implements Listener {
 	public void onWitherExplode(EntityExplodeEvent event) {
 		if (!event.getLocation().getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
 			return;
+		if (!(event.getEntity().getPersistentDataContainer().has(new NamespacedKey(instance, "hellblock-wither"))))
+			return;
 
-		if (event.getExplosionResult() != ExplosionResult.KEEP) {
-			if (event.getEntityType() == EntityType.WITHER || event.getEntityType() == EntityType.WITHER_SKULL) {
-				event.setCancelled(true);
-			}
-		}
+		if (event.getEntityType() == EntityType.WITHER || event.getEntityType() == EntityType.WITHER_SKULL)
+			event.setCancelled(true);
+
 	}
 
 	@EventHandler
@@ -107,6 +116,8 @@ public class WitherBoss implements Listener {
 		if (!event.getEntity().getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
 			return;
 		if (event.getEntityType() != EntityType.WITHER)
+			return;
+		if (!(event.getEntity().getPersistentDataContainer().has(new NamespacedKey(instance, "hellblock-wither"))))
 			return;
 		Wither wither = (Wither) event.getEntity();
 		getWitherHandler().removeWither(wither);
@@ -142,9 +153,14 @@ public class WitherBoss implements Listener {
 				return;
 			if (!(witherSkull.getShooter() instanceof Wither))
 				return;
+			if (!(((Wither) witherSkull.getShooter()).getPersistentDataContainer()
+					.has(new NamespacedKey(instance, "hellblock-wither"))))
+				return;
 
 			wither = (Wither) witherSkull.getShooter();
 		} else if (event.getDamager().getType() == EntityType.WITHER) {
+			if (!(event.getDamager().getPersistentDataContainer().has(new NamespacedKey(instance, "hellblock-wither"))))
+				return;
 			wither = (Wither) event.getDamager();
 		} else {
 			return;
@@ -155,7 +171,7 @@ public class WitherBoss implements Listener {
 		event.setDamage(event.getDamage() * witherStats.getStrength());
 	}
 
-	private @NonNull WitherStats getWitherStats() {
+	private @NotNull WitherStats getWitherStats() {
 		if (!instance.getConfigManager().randomStats())
 			return new WitherStats(getWitherHealth(), getWitherStrength());
 		else {
@@ -195,16 +211,16 @@ public class WitherBoss implements Listener {
 
 		private final Map<Entity, WitherStats> witherStats = new HashMap<>();
 
-		public void addWither(@NonNull Wither wither, @NonNull WitherStats stats) {
+		public void addWither(@NotNull Wither wither, @NotNull WitherStats stats) {
 			witherStats.putIfAbsent(wither, stats);
 		}
 
-		public void removeWither(@NonNull Wither wither) {
+		public void removeWither(@NotNull Wither wither) {
 			if (witherStats.containsKey(wither))
 				witherStats.remove(wither);
 		}
 
-		public @NonNull WitherStats getWitherStats(@NonNull Wither wither) {
+		public @NotNull WitherStats getWitherStats(@NotNull Wither wither) {
 			return witherStats.get(wither);
 		}
 	}

@@ -10,12 +10,11 @@ import org.bukkit.Material;
 import org.bukkit.Tag;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.utils.RandomUtils;
-
-import lombok.NonNull;
 
 public class LavaRain {
 
@@ -65,7 +64,7 @@ public class LavaRain {
 			// +2 for equal to eye level
 			Block block = location.getWorld().getBlockAt(location.getBlockX(), location.getBlockY() + 2 + y,
 					location.getBlockZ());
-			if (Tag.AIR.isTagged(block.getType()) || Tag.ALL_SIGNS.isTagged(block.getType())
+			if (block.getType() == Material.AIR || Tag.ALL_SIGNS.isTagged(block.getType())
 					|| Tag.BANNERS.isTagged(block.getType()) || Tag.FENCES.isTagged(block.getType())
 					|| Tag.FENCE_GATES.isTagged(block.getType()) || Tag.DOORS.isTagged(block.getType())
 					|| Tag.BUTTONS.isTagged(block.getType()) || Tag.PRESSURE_PLATES.isTagged(block.getType())
@@ -103,7 +102,7 @@ public class LavaRain {
 		private final int z1;
 		private final int z2;
 
-		public LavaRainLocation(@NonNull Location min, @NonNull Location max) {
+		public LavaRainLocation(@NotNull Location min, @NotNull Location max) {
 			this.x1 = Math.min(min.getBlockX(), max.getBlockX());
 			this.x2 = Math.max(min.getBlockX(), max.getBlockX());
 			this.y1 = Math.min(min.getBlockY(), max.getBlockY());
@@ -112,7 +111,7 @@ public class LavaRain {
 			this.z2 = Math.max(min.getBlockZ(), max.getBlockZ());
 		}
 
-		public @NonNull Iterator<Block> getBlocks() {
+		public @NotNull Iterator<Block> getBlocks() {
 			List<Block> list = new ArrayList<>(this.getAllCoordinates());
 
 			for (int x = this.x1; x <= this.x2; ++x) {
@@ -127,7 +126,7 @@ public class LavaRain {
 			return list.iterator();
 		}
 
-		public @NonNull Location getMainLocation() {
+		public @NotNull Location getMainLocation() {
 			return new Location(instance.getHellblockHandler().getHellblockWorld(),
 					(double) ((this.x2 - this.x1) / 2 + this.x1), (double) ((this.y2 - this.y1) / 2 + this.y1),
 					(double) ((this.z2 - this.z1) / 2 + this.z1));
@@ -141,17 +140,17 @@ public class LavaRain {
 			return this.getMinLocation().distanceSquared(this.getMaxLocation());
 		}
 
-		public @NonNull Location getMinLocation() {
+		public @NotNull Location getMinLocation() {
 			return new Location(instance.getHellblockHandler().getHellblockWorld(), (double) this.x1, (double) this.y1,
 					(double) this.z1);
 		}
 
-		public @NonNull Location getMaxLocation() {
+		public @NotNull Location getMaxLocation() {
 			return new Location(instance.getHellblockHandler().getHellblockWorld(), (double) this.x2, (double) this.y2,
 					(double) this.z2);
 		}
 
-		public @NonNull Location getRandomLocation() {
+		public @NotNull Location getRandomLocation() {
 			int rndX = RandomUtils.generateRandomInt(Math.abs(this.x2 - this.x1) + 1) + this.x1;
 			int rndY = RandomUtils.generateRandomInt(Math.abs(this.y2 - this.y1) + 1) + this.y1;
 			int rndZ = RandomUtils.generateRandomInt(Math.abs(this.z2 - this.z1) + 1) + this.z1;
@@ -175,7 +174,7 @@ public class LavaRain {
 			return this.z2 - this.z1 + 1;
 		}
 
-		public boolean checkLocation(@NonNull Location location) {
+		public boolean checkLocation(@NotNull Location location) {
 			return location.getWorld() != null
 					&& location.getWorld().getName()
 							.equals(instance.getHellblockHandler().getHellblockWorld().getName())
@@ -184,7 +183,7 @@ public class LavaRain {
 					&& location.getBlockZ() >= this.z1 && location.getBlockZ() <= this.z2;
 		}
 
-		public boolean matches(@NonNull Player player) {
+		public boolean matches(@NotNull Player player) {
 			return this.checkLocation(player.getLocation());
 		}
 	}

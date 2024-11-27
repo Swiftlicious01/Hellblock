@@ -19,6 +19,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.HandlerList;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.potion.PotionEffectType;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import com.swiftlicious.hellblock.api.compatibility.Metrics;
@@ -48,7 +49,6 @@ import com.swiftlicious.hellblock.generation.IslandGenerator;
 import com.swiftlicious.hellblock.gui.hellblock.HellblockGUIManager;
 import com.swiftlicious.hellblock.gui.market.MarketManager;
 import com.swiftlicious.hellblock.handlers.ActionManager;
-import com.swiftlicious.hellblock.handlers.AdventureManager;
 import com.swiftlicious.hellblock.handlers.CoolDownManager;
 import com.swiftlicious.hellblock.handlers.EventManager;
 import com.swiftlicious.hellblock.handlers.HologramManager;
@@ -82,14 +82,10 @@ import com.swiftlicious.hellblock.schematic.SchematicManager;
 import com.swiftlicious.hellblock.sender.SenderFactory;
 import com.swiftlicious.hellblock.sender.BukkitSenderFactory;
 import com.swiftlicious.hellblock.utils.EventUtils;
-import com.swiftlicious.hellblock.utils.ReflectionUtils;
 import com.swiftlicious.hellblock.utils.VersionManager;
 
 import io.papermc.lib.PaperLib;
-import lombok.Getter;
-import lombok.NonNull;
 
-@Getter
 public class HellblockPlugin extends JavaPlugin {
 
 	protected static HellblockPlugin instance;
@@ -128,7 +124,6 @@ public class HellblockPlugin extends JavaPlugin {
 	protected HookManager hookManager;
 	protected FishingManager fishingManager;
 	protected EventManager eventManager;
-	protected AdventureManager adventureManager;
 	protected BukkitCommandManager commandManager;
 	protected CoolDownManager cooldownManager;
 	protected RequirementManager requirementManager;
@@ -163,6 +158,7 @@ public class HellblockPlugin extends JavaPlugin {
 		this.dependencyManager.loadDependencies(dependencies);
 	}
 
+	@SuppressWarnings("deprecation")
 	@Override
 	public void onEnable() {
 		double startTime = System.currentTimeMillis();
@@ -182,7 +178,6 @@ public class HellblockPlugin extends JavaPlugin {
 			PaperLib.suggestPaper(this);
 		}
 
-		ReflectionUtils.load();
 		this.configManager = new ConfigManager(this);
 		this.configManager.load();
 		// after ConfigManager
@@ -207,7 +202,6 @@ public class HellblockPlugin extends JavaPlugin {
 
 		this.senderFactory = new BukkitSenderFactory(this);
 		this.actionManager = new ActionManager(this);
-		this.adventureManager = new AdventureManager(this);
 		this.blockManager = new BlockManager(this);
 		this.effectManager = new EffectManager(this);
 		this.fishingManager = new FishingManager(this);
@@ -279,7 +273,9 @@ public class HellblockPlugin extends JavaPlugin {
 						}
 						getStorageManager().getOfflineUserData(onlineUser.getHellblockData().getOwnerUUID(),
 								getConfigManager().lockData()).thenAccept((owner) -> {
-									UserData bannedOwner = owner.orElseThrow();
+									if (owner.isEmpty())
+										return;
+									UserData bannedOwner = owner.get();
 									getCoopManager().makeHomeLocationSafe(bannedOwner, onlineUser);
 								});
 					} else {
@@ -297,14 +293,16 @@ public class HellblockPlugin extends JavaPlugin {
 					continue;
 
 				OfflinePlayer player = Bukkit.getOfflinePlayer(id);
-				if (player.getLastLogin() == 0)
+				if (player.getLastPlayed() == 0)
 					continue;
-				long millisSinceLastLogin = (System.currentTimeMillis() - player.getLastLogin()) -
+				long millisSinceLastLogin = (System.currentTimeMillis() - player.getLastPlayed()) -
 				// Account for a timezone difference
 						TimeUnit.MILLISECONDS.toHours(19);
 				if (millisSinceLastLogin > TimeUnit.DAYS.toMillis(purgeDays)) {
 					getStorageManager().getOfflineUserData(id, getConfigManager().lockData()).thenAccept((result) -> {
-						UserData offlineUser = result.orElseThrow();
+						if (result.isEmpty())
+							return;
+						UserData offlineUser = result.get();
 						if (offlineUser.getHellblockData().hasHellblock()
 								&& offlineUser.getHellblockData().getOwnerUUID() != null) {
 							if (getHellblockHandler().isHellblockOwner(id,
@@ -421,6 +419,7 @@ public class HellblockPlugin extends JavaPlugin {
 		};
 		this.worldGuardHandler.reload();
 		this.requirementManager.reload();
+		this.challengeRewardBuilder.reload();
 		this.actionManager.reload();
 		this.statisticsManager.reload();
 		this.itemManager.reload();
@@ -447,7 +446,211 @@ public class HellblockPlugin extends JavaPlugin {
 		return instance;
 	}
 
-	public @NonNull String getFormattedCooldown(long seconds) {
+	public ConfigManager getConfigManager() {
+		return this.configManager;
+	}
+
+	public TranslationManager getTranslationManager() {
+		return this.translationManager;
+	}
+
+	public StorageManager getStorageManager() {
+		return this.storageManager;
+	}
+
+	public SchematicManager getSchematicManager() {
+		return this.schematicManager;
+	}
+
+	public VersionManager getVersionManager() {
+		return this.versionManager;
+	}
+
+	public DependencyManager getDependencyManager() {
+		return this.dependencyManager;
+	}
+
+	public ActionManager getActionManager() {
+		return this.actionManager;
+	}
+
+	public RequirementManager getRequirementManager() {
+		return this.requirementManager;
+	}
+
+	public FishingManager getFishingManager() {
+		return this.fishingManager;
+	}
+
+	public HookManager getHookManager() {
+		return this.hookManager;
+	}
+
+	public LootManager getLootManager() {
+		return this.lootManager;
+	}
+
+	public EffectManager getEffectManager() {
+		return this.effectManager;
+	}
+
+	public ItemManager getItemManager() {
+		return this.itemManager;
+	}
+
+	public EntityManager getEntityManager() {
+		return this.entityManager;
+	}
+
+	public BlockManager getBlockManager() {
+		return this.blockManager;
+	}
+
+	public BukkitCommandManager getCommandManager() {
+		return this.commandManager;
+	}
+
+	public PlaceholderManager getPlaceholderManager() {
+		return this.placeholderManager;
+	}
+
+	public IntegrationManager getIntegrationManager() {
+		return this.integrationManager;
+	}
+
+	public MarketManager getMarketManager() {
+		return this.marketManager;
+	}
+
+	public StatisticsManager getStatisticsManager() {
+		return this.statisticsManager;
+	}
+
+	public EventManager getEventManager() {
+		return this.eventManager;
+	}
+
+	public HologramManager getHologramManager() {
+		return this.hologramManager;
+	}
+
+	public CoolDownManager getCooldownManager() {
+		return this.cooldownManager;
+	}
+
+	public HellblockGUIManager getHellblockGUIManager() {
+		return this.hellblockGUIManager;
+	}
+
+	public CoopManager getCoopManager() {
+		return this.coopManager;
+	}
+
+	public IslandGenerator getIslandGenerator() {
+		return this.islandGenerator;
+	}
+
+	public WorldGuardHook getWorldGuardHandler() {
+		return this.worldGuardHandler;
+	}
+
+	public WorldEditHook getWorldEditHandler() {
+		return this.worldEditHandler;
+	}
+
+	public IslandLevelHandler getIslandLevelManager() {
+		return this.islandLevelManager;
+	}
+
+	public IslandChoiceConverter getIslandChoiceConverter() {
+		return this.islandChoiceConverter;
+	}
+
+	public GlowstoneTree getGlowstoneTreeHandler() {
+		return this.glowstoneTreeHandler;
+	}
+
+	public InfiniteLava getInfiniteLavaHandler() {
+		return this.infiniteLavaHandler;
+	}
+
+	public NetherrackGenerator getNetherrackGeneratorHandler() {
+		return this.netherrackGeneratorHandler;
+	}
+
+	public LavaRain getLavaRainHandler() {
+		return this.lavaRainHandler;
+	}
+
+	public PiglinBartering getPiglinBarterHandler() {
+		return this.piglinBarterHandler;
+	}
+
+	public WitherBoss getWitherBossHandler() {
+		return this.witherBossHandler;
+	}
+
+	public NetherBrewing getNetherBrewingHandler() {
+		return this.netherBrewingHandler;
+	}
+
+	public NetherFarming getNetherFarmingHandler() {
+		return this.netherFarmingHandler;
+	}
+
+	public NetherArmor getNetherArmorHandler() {
+		return this.netherArmorHandler;
+	}
+
+	public NetherTools getNetherToolsHandler() {
+		return this.netherToolsHandler;
+	}
+
+	public ChallengeRewardBuilder getChallengeRewardBuilder() {
+		return this.challengeRewardBuilder;
+	}
+
+	public IslandProtection getIslandProtectionManager() {
+		return this.islandProtectionManager;
+	}
+
+	public HellblockHandler getHellblockHandler() {
+		return this.hellblockHandler;
+	}
+
+	public BiomeHandler getBiomeHandler() {
+		return this.biomeHandler;
+	}
+
+	public NetherSnowGolem getNetherSnowGolemHandler() {
+		return this.netherSnowGolemHandler;
+	}
+
+	public PlayerListener getPlayerListener() {
+		return this.playerListener;
+	}
+
+	public AbstractJavaScheduler<Location> getScheduler() {
+		return this.scheduler;
+	}
+
+	public SenderFactory<HellblockPlugin, CommandSender> getSenderFactory() {
+		return this.senderFactory;
+	}
+
+	public PluginLogger getPluginLogger() {
+		return this.pluginLogger;
+	}
+
+	public Consumer<Supplier<String>> getDebugger() {
+		return this.debugger;
+	}
+
+	public boolean isUpdateAvailable() {
+		return this.updateAvailable;
+	}
+
+	public @NotNull String getFormattedCooldown(long seconds) {
 		long hours = (seconds - seconds % 3600) / 3600;
 		long minutes = (seconds % 3600 - seconds % 3600 % 60) / 60;
 		seconds = seconds % 3600 % 60;
@@ -467,7 +670,7 @@ public class HellblockPlugin extends JavaPlugin {
 	 * @param plugin The name of the plugin to check.
 	 * @return True if the plugin is enabled, false otherwise.
 	 */
-	public boolean isHookedPluginEnabled(@NonNull String plugin) {
+	public boolean isHookedPluginEnabled(@NotNull String plugin) {
 		return Bukkit.getPluginManager().isPluginEnabled(plugin);
 	}
 
@@ -483,7 +686,7 @@ public class HellblockPlugin extends JavaPlugin {
 	/**
 	 * Outputs a debugging message if the debug mode is enabled.
 	 *
-	 * @param message The debugging message to be logged.
+	 * @param messageSupplier the supplier for the debugging mode.
 	 */
 	public void debug(Supplier<String> messageSupplier) {
 		this.debugger.accept(messageSupplier);

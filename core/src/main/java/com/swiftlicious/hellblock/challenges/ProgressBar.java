@@ -1,6 +1,6 @@
 package com.swiftlicious.hellblock.challenges;
 
-import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.handlers.AdventureHelper;
 
 /**
  * This class is util for creating progressive bars with strings
@@ -24,14 +24,14 @@ public final class ProgressBar {
 		int doneMarkerCount = (int) (getPercent(progressBar) / 100.0 * widthInChars);
 		int undoneMarkerCount = widthInChars - doneMarkerCount;
 		StringBuilder sb = new StringBuilder();
-		sb.append(HellblockPlugin.getInstance().getAdventureManager().legacyToMiniMessage("<dark_gray>")).append('[');
+		sb.append(AdventureHelper.legacyToMiniMessage("<dark_gray>")).append('[');
 		for (int i = 0; i < doneMarkerCount; i++) {
-			sb.append(HellblockPlugin.getInstance().getAdventureManager().legacyToMiniMessage("<green>")).append('=');
+			sb.append(AdventureHelper.legacyToMiniMessage("<green>")).append('=');
 		}
 		for (int i = 0; i < undoneMarkerCount; i++) {
 			sb.append(' ');
 		}
-		sb.append(HellblockPlugin.getInstance().getAdventureManager().legacyToMiniMessage("<dark_gray>")).append(']');
+		sb.append(AdventureHelper.legacyToMiniMessage("<dark_gray>")).append(']');
 		return sb.toString();
 	}
 }

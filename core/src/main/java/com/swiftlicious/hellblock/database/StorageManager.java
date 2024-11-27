@@ -34,9 +34,13 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonSyntaxException;
 import com.google.gson.reflect.TypeToken;
 import dev.dejvokep.boostedyaml.YamlDocument;
+import net.kyori.adventure.audience.Audience;
+
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.challenges.ChallengeResult;
 import com.swiftlicious.hellblock.challenges.HellblockChallenge.ChallengeType;
+import com.swiftlicious.hellblock.config.locale.MessageConstants;
+import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.player.PlayerData;
 import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.player.UserDataInterface;
@@ -244,8 +248,8 @@ public class StorageManager implements StorageManagerInterface, Listener {
 		UUID uuid = player.getUniqueId();
 		locked.add(uuid);
 		if (player.hasPermission("hellblock.updates") && instance.isUpdateAvailable()) {
-			instance.getAdventureManager().sendMessage(player,
-					"<red>There is a new update available!: <dark_red><u>https://github.com/Swiftlicious01/Hellblock<!u>");
+			instance.getSenderFactory().getAudience(player).sendMessage(AdventureHelper.miniMessage(
+					"<red>There is a new update available!: <dark_red><u>https://github.com/Swiftlicious01/Hellblock<!u>"));
 		}
 		if (!hasRedis) {
 			waitForDataLockRelease(uuid, 1);
@@ -288,16 +292,16 @@ public class StorageManager implements StorageManagerInterface, Listener {
 				onlineUser.isWearingGlowstoneArmor(false);
 			}
 		}
-		if (instance.getPlayerListener().getCancellablePortal().containsKey(uuid)
-				&& instance.getPlayerListener().getCancellablePortal().get(uuid) != null) {
-			instance.getPlayerListener().getCancellablePortal().get(uuid).cancel();
-			instance.getPlayerListener().getCancellablePortal().remove(uuid);
+		if (instance.getPlayerListener().getCancellablePortalMap().containsKey(uuid)
+				&& instance.getPlayerListener().getCancellablePortalMap().get(uuid) != null) {
+			instance.getPlayerListener().getCancellablePortalMap().get(uuid).cancel();
+			instance.getPlayerListener().getCancellablePortalMap().remove(uuid);
 		}
-		if (instance.getPlayerListener().getLinkPortalCatcher().contains(uuid))
-			instance.getPlayerListener().getLinkPortalCatcher().remove(uuid);
+		if (instance.getPlayerListener().getLinkPortalCatcherSet().contains(uuid))
+			instance.getPlayerListener().getLinkPortalCatcherSet().remove(uuid);
 		// Cleanup
-		instance.getNetherrackGeneratorHandler().getGenManager().cleanupExpiredPistons(uuid);
-		instance.getNetherrackGeneratorHandler().getGenManager().cleanupExpiredLocations();
+		instance.getNetherrackGeneratorHandler().getGeneratorManager().cleanupExpiredPistons(uuid);
+		instance.getNetherrackGeneratorHandler().getGeneratorManager().cleanupExpiredLocations();
 
 		if (hasRedis) {
 			redisManager.setChangeServer(uuid).thenRun(() -> redisManager.updatePlayerData(uuid, data, true)
@@ -400,12 +404,12 @@ public class StorageManager implements StorageManagerInterface, Listener {
 		// updates the player's name if changed
 		var bukkitUser = UserDataInterface.builder().setData(playerData).setName(player.getName()).build();
 		onlineUserMap.put(player.getUniqueId(), bukkitUser);
+		Audience audience = instance.getSenderFactory().getAudience(player);
 		if (bukkitUser.getHellblockData().isAbandoned()) {
-			instance.getAdventureManager().sendMessage(player,
-					String.format("<red>Your hellblock was deemed abandoned for not logging in for the past %s days!",
-							instance.getConfigManager().abandonAfterDays()));
-			instance.getAdventureManager().sendMessage(player,
-					"<red>You've lost access to your island, if you wish to recover it speak to an administrator.");
+			audience.sendMessage(instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_LOGIN_ABANDONED
+					.arguments(
+							AdventureHelper.miniMessage(String.valueOf(instance.getConfigManager().abandonAfterDays())))
+					.build()));
 		}
 
 		instance.getIslandLevelManager().loadCache(player.getUniqueId());
@@ -468,8 +472,8 @@ public class StorageManager implements StorageManagerInterface, Listener {
 		if (bukkitUser.inUnsafeLocation()) {
 			instance.getHellblockHandler().teleportToSpawn(player, true);
 			bukkitUser.setInUnsafeLocation(false);
-			instance.getAdventureManager().sendMessage(player,
-					"<red>You logged out in an unsafe hellblock environment because it was reset or deleted.");
+			audience.sendMessage(
+					instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_UNSAFE_ENVIRONMENT.build()));
 		}
 
 		if (instance.getConfigManager().nightVisionArmor() && instance.getConfigManager().glowstoneArmor()) {

@@ -13,7 +13,10 @@ import org.incendo.cloud.CommandManager;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.commands.BukkitCommandFeature;
 import com.swiftlicious.hellblock.commands.HellblockCommandManager;
+import com.swiftlicious.hellblock.config.locale.MessageConstants;
 import com.swiftlicious.hellblock.player.UserData;
+
+import net.kyori.adventure.text.Component;
 
 public class HellblockTopCommand extends BukkitCommandFeature<CommandSender> {
 
@@ -29,14 +32,12 @@ public class HellblockTopCommand extends BukkitCommandFeature<CommandSender> {
 			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 					.getOnlineUser(player.getUniqueId());
 			if (onlineUser.isEmpty()) {
-				HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-						"<red>Still loading your player data... please try again in a few seconds.");
+				handleFeedback(context, MessageConstants.COMMAND_DATA_FAILURE_NOT_LOADED);
 				return;
 			}
 			if (!HellblockPlugin.getInstance().getIslandLevelManager().getTopTenHellblocks().entrySet().isEmpty()) {
 				int i = 0;
-				HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-						"<red>Top Ten Level Hellblocks:");
+				handleFeedback(context, MessageConstants.MSG_HELLBLOCK_TOP_HEADER);
 				for (Map.Entry<UUID, Float> ten : HellblockPlugin.getInstance().getIslandLevelManager()
 						.getTopTenHellblocks().reversed().entrySet()) {
 
@@ -46,15 +47,14 @@ public class HellblockTopCommand extends BukkitCommandFeature<CommandSender> {
 					if (Bukkit.getOfflinePlayer(id).getName() == null)
 						continue;
 					float level = ten.getValue().floatValue();
-					HellblockPlugin.getInstance().getAdventureManager().sendMessage(player, String.format(
-							"<dark_red>%s. <red>%s <gray>(Lvl %s)", ++i, Bukkit.getOfflinePlayer(id).getName(), level));
+					handleFeedback(context, MessageConstants.MSG_HELLBLOCK_TOP_FORMAT.arguments(Component.text(++i),
+							Component.text(Bukkit.getOfflinePlayer(id).getName()), Component.text(level)));
 					if (i >= 10) {
 						break;
 					}
 				}
 			} else {
-				HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-						"<red>No hellblocks to list for the top ten!");
+				handleFeedback(context, MessageConstants.MSG_HELLBLOCK_TOP_NOT_FOUND);
 				return;
 			}
 		});

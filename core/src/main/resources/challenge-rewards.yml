@@ -1,4 +1,16 @@
 # Hellblock Challenge Rewards #
+general:
+  action:
+    sound_action:
+      type: sound
+      value:
+        key: 'minecraft:entity.ender_dragon.growl'
+        source: 'player'
+        volume: 1.0
+        pitch: 1.0
+    message_action:
+      type: message
+      value: "You've claimed your challenge reward!"
 rewards:
   NETHER_GENERATOR_CHALLENGE:
     material: BOOK

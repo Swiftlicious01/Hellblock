@@ -53,6 +53,16 @@ hellblock:
   grow-natural-trees: false
   # If set to true it will teleport players who fall in the void to their hellblock or to spawn if no hellblock is found.
   void-teleport: true
+  linking-hellblock-sound:
+	key: 'minecraft:block.end_portal.spawn'
+	source: 'player'
+	volume: 1.0
+	pitch: 1.0
+  challenge-completed-sound:
+	key: 'minecraft:entity.player.levelup'
+	source: 'player'
+	volume: 1.0
+	pitch: 1.0
   starter-chest: 
     inventory-name: '<dark_red>Hellblock Chest'
     items:

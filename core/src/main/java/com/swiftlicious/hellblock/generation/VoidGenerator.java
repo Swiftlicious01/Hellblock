@@ -13,6 +13,7 @@ import org.bukkit.generator.WorldInfo;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.utils.RandomUtils;
 
 public class VoidGenerator extends ChunkGenerator {
@@ -59,7 +60,7 @@ public class VoidGenerator extends ChunkGenerator {
 
 	@Override
 	public Location getFixedSpawnLocation(World world, Random random) {
-		return new Location(world, 0, 100, 0);
+		return new Location(world, 0, HellblockPlugin.getInstance().getConfigManager().height(), 0);
 	}
 
 	public class VoidBiomeProvider extends BiomeProvider {

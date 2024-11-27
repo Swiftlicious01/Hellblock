@@ -28,14 +28,11 @@ public class HellblockFixHomeCommand extends BukkitCommandFeature<CommandSender>
 			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 					.getOnlineUser(player.getUniqueId());
 			if (onlineUser.isEmpty()) {
-				HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-						"<red>Still loading your player data... please try again in a few seconds.");
+				handleFeedback(context, MessageConstants.COMMAND_DATA_FAILURE_NOT_LOADED);
 				return;
 			}
 			if (!onlineUser.get().getHellblockData().hasHellblock()) {
-				HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-						HellblockPlugin.getInstance().getTranslationManager()
-								.miniMessageTranslation(MessageConstants.MSG_HELLBLOCK_NOT_FOUND.build().key()));
+				handleFeedback(context, MessageConstants.MSG_HELLBLOCK_NOT_FOUND);
 				return;
 			} else {
 				if (onlineUser.get().getHellblockData().getOwnerUUID() == null) {
@@ -44,21 +41,16 @@ public class HellblockFixHomeCommand extends BukkitCommandFeature<CommandSender>
 				}
 				if (onlineUser.get().getHellblockData().getOwnerUUID() != null
 						&& !onlineUser.get().getHellblockData().getOwnerUUID().equals(player.getUniqueId())) {
-					HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-							HellblockPlugin.getInstance().getTranslationManager()
-									.miniMessageTranslation(MessageConstants.MSG_NOT_OWNER_OF_HELLBLOCK.build().key()));
+					handleFeedback(context, MessageConstants.MSG_NOT_OWNER_OF_HELLBLOCK);
 					return;
 				}
 				if (onlineUser.get().getHellblockData().isAbandoned()) {
-					HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-							HellblockPlugin.getInstance().getTranslationManager()
-									.miniMessageTranslation(MessageConstants.MSG_HELLBLOCK_IS_ABANDONED.build().key()));
+					handleFeedback(context, MessageConstants.MSG_HELLBLOCK_IS_ABANDONED);
 					return;
 				}
 				if (onlineUser.get().getHellblockData().getHomeLocation() != null && !HellblockPlugin.getInstance()
 						.getHellblockHandler().checkIfInSpawn(onlineUser.get().getHellblockData().getHomeLocation())) {
-					HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-							"<red>Your home location isn't in need of fixing!");
+					handleFeedback(context, MessageConstants.MSG_HELLBLOCK_HOME_NOT_BROKEN);
 					return;
 				}
 
@@ -68,8 +60,7 @@ public class HellblockFixHomeCommand extends BukkitCommandFeature<CommandSender>
 							bedrock.setY(HellblockPlugin.getInstance().getHellblockHandler().getHellblockWorld()
 									.getHighestBlockYAt(bedrock));
 							onlineUser.get().getHellblockData().setHomeLocation(bedrock);
-							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-									"<red>Your home location has been readjusted to your bedrock location!");
+							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_RESET_HOME_TO_BEDROCK);
 						});
 			}
 		});

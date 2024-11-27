@@ -23,7 +23,9 @@ import com.swiftlicious.hellblock.config.locale.MessageConstants;
 import com.swiftlicious.hellblock.generation.HellBiome;
 import com.swiftlicious.hellblock.player.UserData;
 
-import lombok.NonNull;
+import net.kyori.adventure.text.Component;
+
+import org.jetbrains.annotations.NotNull;
 
 public class HellblockBiomeCommand extends BukkitCommandFeature<CommandSender> {
 
@@ -37,8 +39,8 @@ public class HellblockBiomeCommand extends BukkitCommandFeature<CommandSender> {
 		return builder.senderType(Player.class)
 				.required("biome", StringParser.stringComponent().suggestionProvider(new SuggestionProvider<>() {
 					@Override
-					public @NonNull CompletableFuture<? extends @NonNull Iterable<? extends @NonNull Suggestion>> suggestionsFuture(
-							@NonNull CommandContext<Object> context, @NonNull CommandInput input) {
+					public @NotNull CompletableFuture<? extends @NotNull Iterable<? extends @NotNull Suggestion>> suggestionsFuture(
+							@NotNull CommandContext<Object> context, @NotNull CommandInput input) {
 						List<String> suggestions = Arrays.asList(HellBiome.values()).stream().map(HellBiome::toString)
 								.collect(Collectors.toList());
 						return CompletableFuture
@@ -49,8 +51,7 @@ public class HellblockBiomeCommand extends BukkitCommandFeature<CommandSender> {
 					Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 							.getOnlineUser(player.getUniqueId());
 					if (onlineUser.isEmpty()) {
-						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-								"<red>Still loading your player data... please try again in a few seconds.");
+						handleFeedback(context, MessageConstants.COMMAND_DATA_FAILURE_NOT_LOADED);
 						return;
 					}
 					if (onlineUser.get().getHellblockData().hasHellblock()) {
@@ -60,36 +61,35 @@ public class HellblockBiomeCommand extends BukkitCommandFeature<CommandSender> {
 						}
 						if (onlineUser.get().getHellblockData().getOwnerUUID() != null
 								&& !onlineUser.get().getHellblockData().getOwnerUUID().equals(player.getUniqueId())) {
-							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-									HellblockPlugin.getInstance().getTranslationManager().miniMessageTranslation(
-											MessageConstants.MSG_NOT_OWNER_OF_HELLBLOCK.build().key()));
+							handleFeedback(context, MessageConstants.MSG_NOT_OWNER_OF_HELLBLOCK);
 							return;
 						}
 						if (onlineUser.get().getHellblockData().isAbandoned()) {
-							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-									HellblockPlugin.getInstance().getTranslationManager().miniMessageTranslation(
-											MessageConstants.MSG_HELLBLOCK_IS_ABANDONED.build().key()));
+							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_IS_ABANDONED);
 							return;
 						}
 						String newBiome = context.getOrDefault("biome", "NETHER_WASTES");
 						if (!(Arrays.asList(HellBiome.values()).stream()
 								.filter(biome -> biome.toString().equalsIgnoreCase(newBiome)).findAny().isPresent())) {
-							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-									"<red>The provided input isn't a valid biome!");
+							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_INVALID_BIOME);
 							return;
 						}
 						HellBiome biome = HellBiome.valueOf(newBiome);
 						if (onlineUser.get().getHellblockData().getBiome() == biome) {
-							HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-									String.format("<red>Your hellblock biome is already set to <dark_red>%s<red>!",
-											biome.getName()));
+							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_BIOME_SAME_BIOME
+									.arguments(Component.text(biome.getName())));
+							return;
+						}
+						if (onlineUser.get().getHellblockData().getBiomeCooldown() > 0) {
+							handleFeedback(context,
+									MessageConstants.MSG_HELLBLOCK_BIOME_ON_COOLDOWN.arguments(
+											Component.text(HellblockPlugin.getInstance().getFormattedCooldown(
+													onlineUser.get().getHellblockData().getBiomeCooldown()))));
 							return;
 						}
 						HellblockPlugin.getInstance().getBiomeHandler().changeHellblockBiome(onlineUser.get(), biome);
 					} else {
-						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-								HellblockPlugin.getInstance().getTranslationManager().miniMessageTranslation(
-										MessageConstants.MSG_HELLBLOCK_NOT_FOUND.build().key()));
+						handleFeedback(context, MessageConstants.MSG_HELLBLOCK_NOT_FOUND);
 						return;
 					}
 				});

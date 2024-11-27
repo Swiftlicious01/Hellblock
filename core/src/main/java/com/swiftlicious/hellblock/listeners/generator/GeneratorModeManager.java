@@ -5,12 +5,12 @@ import java.util.Objects;
 
 import org.bukkit.Material;
 import org.bukkit.Particle;
+import org.jetbrains.annotations.NotNull;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 
 import dev.dejvokep.boostedyaml.YamlDocument;
 import dev.dejvokep.boostedyaml.block.implementation.Section;
-import lombok.NonNull;
 
 public class GeneratorModeManager {
 
@@ -68,7 +68,7 @@ public class GeneratorModeManager {
 		}
 	}
 
-	public @NonNull GenMode getGenMode() {
+	public @NotNull GenMode getGenMode() {
 		return this.generatorMode;
 	}
 }

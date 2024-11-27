@@ -13,7 +13,6 @@ import org.jetbrains.annotations.NotNull;
 
 import io.papermc.lib.PaperLib;
 import io.papermc.lib.features.blockstatesnapshot.BlockStateSnapshotResult;
-import lombok.NonNull;
 
 public class ChunkUtils {
 
@@ -29,7 +28,7 @@ public class ChunkUtils {
 	 * @param location The Location to Teleport to
 	 * @return Future that completes with the result of the teleport
 	 */
-	@NonNull
+	@NotNull
 	public static CompletableFuture<Boolean> teleportAsync(@NotNull Entity entity, @NotNull Location location) {
 		return PaperLib.teleportAsync(entity, location);
 	}
@@ -43,7 +42,7 @@ public class ChunkUtils {
 	 * @param cause    The cause for the teleportation
 	 * @return Future that completes with the result of the teleport
 	 */
-	@NonNull
+	@NotNull
 	public static CompletableFuture<Boolean> teleportAsync(@NotNull Entity entity, @NotNull Location location,
 			TeleportCause cause) {
 		return PaperLib.teleportAsync(entity, location, cause);
@@ -55,8 +54,8 @@ public class ChunkUtils {
 	 * @param loc Location to get chunk for
 	 * @return Future that completes with the chunk
 	 */
-	@NonNull
-	public static CompletableFuture<Chunk> getChunkAtAsync(@NonNull Location loc) {
+	@NotNull
+	public static CompletableFuture<Chunk> getChunkAtAsync(@NotNull Location loc) {
 		return getChunkAtAsync(Objects.requireNonNull(loc.getWorld()), loc.getBlockX() >> 4, loc.getBlockZ() >> 4,
 				true);
 	}
@@ -70,8 +69,8 @@ public class ChunkUtils {
 	 * @return Future that completes with the chunk, or null if the chunk did not
 	 *         exists and generation was not requested.
 	 */
-	@NonNull
-	public static CompletableFuture<Chunk> getChunkAtAsync(@NonNull Location loc, boolean gen) {
+	@NotNull
+	public static CompletableFuture<Chunk> getChunkAtAsync(@NotNull Location loc, boolean gen) {
 		return getChunkAtAsync(Objects.requireNonNull(loc.getWorld()), loc.getBlockX() >> 4, loc.getBlockZ() >> 4, gen);
 	}
 
@@ -83,7 +82,7 @@ public class ChunkUtils {
 	 * @param z     Z coordinate of the chunk to load
 	 * @return Future that completes with the chunk
 	 */
-	@NonNull
+	@NotNull
 	public static CompletableFuture<Chunk> getChunkAtAsync(@NotNull World world, int x, int z) {
 		return getChunkAtAsync(world, x, z, true);
 	}
@@ -99,7 +98,7 @@ public class ChunkUtils {
 	 * @return Future that completes with the chunk, or null if the chunk did not
 	 *         exists and generation was not requested.
 	 */
-	@NonNull
+	@NotNull
 	public static CompletableFuture<Chunk> getChunkAtAsync(@NotNull World world, int x, int z, boolean gen) {
 		return PaperLib.getChunkAtAsync(world, x, z, gen);
 	}
@@ -111,7 +110,7 @@ public class ChunkUtils {
 	 * @param loc Location to check if the chunk is generated
 	 * @return If the chunk is generated or not
 	 */
-	public static boolean isChunkGenerated(@NonNull Location loc) {
+	public static boolean isChunkGenerated(@NotNull Location loc) {
 		return isChunkGenerated(Objects.requireNonNull(loc.getWorld()), loc.getBlockX() >> 4, loc.getBlockZ() >> 4);
 	}
 
@@ -135,7 +134,7 @@ public class ChunkUtils {
 	 * @param useSnapshot Whether or not to use a snapshot when supported
 	 * @return The BlockState
 	 */
-	@NonNull
+	@NotNull
 	public static BlockStateSnapshotResult getBlockState(@NotNull Block block, boolean useSnapshot) {
 		return PaperLib.getBlockState(block, useSnapshot);
 	}

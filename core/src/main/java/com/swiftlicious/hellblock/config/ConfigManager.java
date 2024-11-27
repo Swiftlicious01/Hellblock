@@ -45,6 +45,7 @@ import com.swiftlicious.hellblock.database.dependency.HellblockProperties;
 import com.swiftlicious.hellblock.effects.Effect;
 import com.swiftlicious.hellblock.effects.EffectProperties;
 import com.swiftlicious.hellblock.handlers.ActionManagerInterface;
+import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.handlers.EventManagerInterface;
 import com.swiftlicious.hellblock.handlers.ExpressionHelper;
 import com.swiftlicious.hellblock.handlers.RequirementManagerInterface;
@@ -79,6 +80,7 @@ import dev.dejvokep.boostedyaml.settings.general.GeneralSettings;
 import dev.dejvokep.boostedyaml.settings.loader.LoaderSettings;
 import dev.dejvokep.boostedyaml.settings.updater.UpdaterSettings;
 import dev.dejvokep.boostedyaml.utils.format.NodeRole;
+import net.kyori.adventure.sound.Sound;
 
 public class ConfigManager extends ConfigHandler {
 
@@ -240,13 +242,31 @@ public class ConfigManager extends ConfigHandler {
 		serverGroup = config.getString("general.redis-synchronization.server-group", "default");
 		redisRanking = config.getBoolean("general.redis-synchronization.redis-ranking", false);
 
-		legacySupport = config.getBoolean("other-settings.legacy-color-code-support", true);
+		AdventureHelper.legacySupport = config.getBoolean("other-settings.legacy-color-code-support", true);
 		dataSaveInterval = config.getInt("other-settings.data-saving-interval", 600);
 		logDataSaving = config.getBoolean("other-settings.log-data-saving", true);
 		lockData = config.getBoolean("other-settings.lock-data", true);
 
 		durabilityLore = new ArrayList<>(config.getStringList("other-settings.custom-durability-format").stream()
 				.map(it -> "<!i>" + it).toList());
+
+		Section challengeSoundSection = config.getSection("hellblock.challenge-completed-sound");
+		if (challengeSoundSection != null) {
+			challengeCompletedSound = Sound.sound(
+					net.kyori.adventure.key.Key.key(challengeSoundSection.getString("key")),
+					Sound.Source
+							.valueOf(challengeSoundSection.getString("source", "PLAYER").toUpperCase(Locale.ENGLISH)),
+					challengeSoundSection.getFloat("volume", 1.0F).floatValue(),
+					challengeSoundSection.getFloat("pitch", 1.0F).floatValue());
+		}
+
+		Section linkingSoundSection = config.getSection("hellblock.linking-hellblock-sound");
+		if (linkingSoundSection != null) {
+			linkingHellblockSound = Sound.sound(net.kyori.adventure.key.Key.key(linkingSoundSection.getString("key")),
+					Sound.Source.valueOf(linkingSoundSection.getString("source", "PLAYER").toUpperCase(Locale.ENGLISH)),
+					linkingSoundSection.getFloat("volume", 1.0F).floatValue(),
+					linkingSoundSection.getFloat("pitch", 1.0F).floatValue());
+		}
 
 		itemDetectOrder = config.getStringList("other-settings.item-detection-order").toArray(new String[0]);
 		blockDetectOrder = config.getStringList("other-settings.block-detection-order").toArray(new String[0]);
@@ -350,7 +370,6 @@ public class ConfigManager extends ConfigHandler {
 		}
 	}
 
-	@SuppressWarnings("deprecation")
 	private Map<Key, Short> getEnchantments(Section section) {
 		Map<Key, Short> map = new HashMap<>();
 		for (Map.Entry<String, Object> entry : section.getStringRouteMappedValues(false).entrySet()) {
@@ -379,7 +398,6 @@ public class ConfigManager extends ConfigHandler {
 		return Pair.of(Key.of(split[0], split[1]), Short.parseShort(split[2]));
 	}
 
-	@SuppressWarnings("deprecation")
 	private void registerBuiltInItemProperties() {
 		Function<Object, BiConsumer<Item<ItemStack>, Context<Player>>> f1 = arg -> {
 			Section section = (Section) arg;
@@ -485,7 +503,7 @@ public class ConfigManager extends ConfigHandler {
 		this.registerItemParser(arg -> {
 			TextValue<Player> textValue = TextValue.auto("<!i><white>" + arg);
 			return (item, context) -> {
-				item.displayName(instance.getAdventureManager().miniMessageToJson(textValue.render(context)));
+				item.displayName(AdventureHelper.miniMessageToJson(textValue.render(context)));
 			};
 		}, 4000, "display", "name");
 		this.registerItemParser(arg -> {
@@ -495,8 +513,7 @@ public class ConfigManager extends ConfigHandler {
 				lore.add(TextValue.auto("<!i><white>" + text));
 			}
 			return (item, context) -> {
-				item.lore(lore.stream().map(it -> instance.getAdventureManager().miniMessageToJson(it.render(context)))
-						.toList());
+				item.lore(lore.stream().map(it -> AdventureHelper.miniMessageToJson(it.render(context))).toList());
 			};
 		}, 3_000, "display", "lore");
 		this.registerItemParser(arg -> {
@@ -504,7 +521,7 @@ public class ConfigManager extends ConfigHandler {
 			return (item, context) -> {
 				if (!enable)
 					return;
-				item.setTag(context.arg(ContextKeys.ID), "HellFishing", "id");
+				item.setTag(context.arg(ContextKeys.ID), "HellblockItem", "id");
 			};
 		}, 2_000, "tag");
 		this.registerItemParser(arg -> {
@@ -518,12 +535,12 @@ public class ConfigManager extends ConfigHandler {
 			return (item, context) -> {
 				if (enable)
 					return;
-				item.setTag(UUID.randomUUID(), "HellFishing", "uuid");
+				item.setTag(UUID.randomUUID(), "HellblockItem", "uuid");
 			};
 		}, 2_222, "stackable");
 		this.registerItemParser(arg -> {
 			boolean enable = (boolean) arg;
-			return (item, context) -> item.setTag(enable ? 1 : 0, "HellFishing", "placeable");
+			return (item, context) -> item.setTag(enable ? 1 : 0, "HellblockItem", "placeable");
 		}, 2_335, "placeable");
 		this.registerItemParser(arg -> {
 			String sizePair = (String) arg;
@@ -549,7 +566,7 @@ public class ConfigManager extends ConfigHandler {
 						size = (float) minSize;
 					}
 				}
-				item.setTag(size, "HellFishing", "size");
+				item.setTag(size, "HellblockItem", "size");
 				context.arg(ContextKeys.SIZE, size);
 				context.arg(ContextKeys.MIN_SIZE, minSize);
 				context.arg(ContextKeys.MAX_SIZE, maxSize);
@@ -583,7 +600,7 @@ public class ConfigManager extends ConfigHandler {
 			return (item, context) -> {
 				if (!random)
 					return;
-				if (item.hasTag("HellFishing", "max_dur")) {
+				if (item.hasTag("HellblockItem", "max_dur")) {
 					CustomDurabilityItem durabilityItem = new CustomDurabilityItem(item);
 					durabilityItem.damage(RandomUtils.generateRandomInt(0, durabilityItem.maxDamage() - 1));
 				} else {
@@ -595,8 +612,8 @@ public class ConfigManager extends ConfigHandler {
 			MathValue<Player> mathValue = MathValue.auto(arg);
 			return (item, context) -> {
 				int max = (int) mathValue.evaluate(context);
-				item.setTag(max, "HellFishing", "max_dur");
-				item.setTag(max, "HellFishing", "cur_dur");
+				item.setTag(max, "HellblockItem", "max_dur");
+				item.setTag(max, "HellblockItem", "cur_dur");
 				CustomDurabilityItem customDurabilityItem = new CustomDurabilityItem(item);
 				customDurabilityItem.damage(0);
 			};

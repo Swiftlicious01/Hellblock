@@ -19,10 +19,13 @@ import org.incendo.cloud.suggestion.SuggestionProvider;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.commands.BukkitCommandFeature;
 import com.swiftlicious.hellblock.commands.HellblockCommandManager;
+import com.swiftlicious.hellblock.config.locale.MessageConstants;
 import com.swiftlicious.hellblock.player.UUIDFetcher;
 import com.swiftlicious.hellblock.player.UserData;
 
-import lombok.NonNull;
+import net.kyori.adventure.text.Component;
+
+import org.jetbrains.annotations.NotNull;
 
 public class AdminDeleteCommand extends BukkitCommandFeature<CommandSender> {
 
@@ -36,8 +39,8 @@ public class AdminDeleteCommand extends BukkitCommandFeature<CommandSender> {
 		return builder.senderType(Player.class)
 				.required("player", StringParser.stringComponent().suggestionProvider(new SuggestionProvider<>() {
 					@Override
-					public @NonNull CompletableFuture<? extends @NonNull Iterable<? extends @NonNull Suggestion>> suggestionsFuture(
-							@NonNull CommandContext<Object> context, @NonNull CommandInput input) {
+					public @NotNull CompletableFuture<? extends @NotNull Iterable<? extends @NotNull Suggestion>> suggestionsFuture(
+							@NotNull CommandContext<Object> context, @NotNull CommandInput input) {
 						List<String> suggestions = HellblockPlugin.getInstance().getStorageManager().getOnlineUsers()
 								.stream()
 								.filter(onlineUser -> onlineUser.isOnline()
@@ -52,32 +55,37 @@ public class AdminDeleteCommand extends BukkitCommandFeature<CommandSender> {
 					UUID id = Bukkit.getPlayer(user) != null ? Bukkit.getPlayer(user).getUniqueId()
 							: UUIDFetcher.getUUID(user);
 					if (id == null) {
-						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-								"<red>The player's hellblock you're trying to delete doesn't exist!");
+						handleFeedback(context, MessageConstants.MSG_HELLBLOCK_PLAYER_OFFLINE);
 						return;
 					}
 					if (!Bukkit.getOfflinePlayer(id).hasPlayedBefore()) {
-						HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-								"<red>The player's hellblock you're trying to delete doesn't exist!");
+						handleFeedback(context, MessageConstants.MSG_HELLBLOCK_PLAYER_OFFLINE);
 						return;
 					}
 					HellblockPlugin.getInstance().getStorageManager()
 							.getOfflineUserData(id, HellblockPlugin.getInstance().getConfigManager().lockData())
 							.thenAccept((result) -> {
-								UserData offlineUser = result.orElseThrow();
+								if (result.isEmpty()) {
+									handleFeedback(context, MessageConstants.MSG_HELLBLOCK_PLAYER_DATA_FAILURE_LOAD
+											.arguments(Component.text(user)));
+									return;
+								}
+								UserData offlineUser = result.get();
 								if (offlineUser.getHellblockData().hasHellblock()) {
 									HellblockPlugin.getInstance().getHellblockHandler().resetHellblock(id, true)
 											.thenRun(() -> {
-												HellblockPlugin.getInstance().getAdventureManager()
-														.sendMessage(player, String.format(
-																"<red>You've forcefully deleted <dark_red>%s<red>'s hellblock!",
-																user));
+												HellblockPlugin.getInstance()
+														.debug(String.format(
+																"%s's hellblock has been forcefully deleted by %s.",
+																user, player.getName()));
+												handleFeedback(context,
+														MessageConstants.MSG_HELLBLOCK_ADMIN_ISLAND_DELETED
+																.arguments(Component.text(user)));
 											});
 									return;
 								}
 
-								HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-										"<red>That player doesn't have a hellblock!");
+								handleFeedback(context, MessageConstants.MSG_HELLBLOCK_NO_ISLAND_FOUND);
 								return;
 							});
 				});

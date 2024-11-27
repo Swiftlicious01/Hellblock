@@ -14,6 +14,7 @@ import org.incendo.cloud.parser.standard.EnumParser;
 import org.incendo.cloud.parser.standard.StringParser;
 import org.incendo.cloud.suggestion.Suggestion;
 import org.incendo.cloud.suggestion.SuggestionProvider;
+import org.jetbrains.annotations.NotNull;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.commands.BukkitCommandFeature;
@@ -21,7 +22,6 @@ import com.swiftlicious.hellblock.commands.HellblockCommandManager;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
 import com.swiftlicious.hellblock.player.FishingStatistics;
 
-import lombok.NonNull;
 import net.kyori.adventure.text.Component;
 
 public class AddStatisticsCommand extends BukkitCommandFeature<CommandSender> {
@@ -38,8 +38,8 @@ public class AddStatisticsCommand extends BukkitCommandFeature<CommandSender> {
 				.required("type", EnumParser.enumParser(FishingStatistics.Type.class))
 				.required("id", StringParser.stringComponent().suggestionProvider(new SuggestionProvider<>() {
 					@Override
-					public @NonNull CompletableFuture<? extends @NonNull Iterable<? extends @NonNull Suggestion>> suggestionsFuture(
-							@NonNull CommandContext<Object> context, @NonNull CommandInput input) {
+					public @NotNull CompletableFuture<? extends @NotNull Iterable<? extends @NotNull Suggestion>> suggestionsFuture(
+							@NotNull CommandContext<Object> context, @NotNull CommandInput input) {
 						return CompletableFuture.completedFuture(HellblockPlugin.getInstance().getLootManager()
 								.getRegisteredLoots().stream().filter(loot -> !loot.disableStats())
 								.map(loot -> Suggestion.suggestion(loot.id())).toList());

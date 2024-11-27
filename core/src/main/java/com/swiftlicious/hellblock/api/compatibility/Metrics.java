@@ -47,6 +47,9 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
 
+import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.utils.LocationUtils;
+
 public class Metrics {
 
 	private final Plugin plugin;
@@ -105,7 +108,9 @@ public class Metrics {
 		// See https://github.com/Bastian/bstats-metrics/pull/126
 		// See https://github.com/Bastian/bstats-metrics/pull/126
 		MetricsBase("bukkit", serverUUID, serviceId, enabled, this::appendPlatformData, this::appendServiceData,
-				isFolia ? null : submitDataTask -> Bukkit.getScheduler().runTask(plugin, submitDataTask),
+				isFolia ? null
+						: submitDataTask -> HellblockPlugin.getInstance().getScheduler().sync().run(submitDataTask,
+								LocationUtils.getAnyLocationInstance()),
 				plugin::isEnabled, (message, error) -> this.plugin.getLogger().log(Level.WARNING, message, error),
 				(message) -> this.plugin.getLogger().log(Level.INFO, message), logErrors, logSentData,
 				logResponseStatusText, false);

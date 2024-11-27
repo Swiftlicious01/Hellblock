@@ -14,8 +14,11 @@ import org.incendo.cloud.parser.standard.IntegerParser;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.commands.BukkitCommandFeature;
 import com.swiftlicious.hellblock.commands.HellblockCommandManager;
+import com.swiftlicious.hellblock.config.locale.MessageConstants;
 import com.swiftlicious.hellblock.player.HellblockData;
 import com.swiftlicious.hellblock.player.UserData;
+
+import net.kyori.adventure.text.Component;
 
 public class AdminPurgeCommand extends BukkitCommandFeature<CommandSender> {
 
@@ -23,13 +26,13 @@ public class AdminPurgeCommand extends BukkitCommandFeature<CommandSender> {
 		super(commandManager);
 	}
 
+	@SuppressWarnings("deprecation")
 	@Override
 	public Command.Builder<? extends CommandSender> assembleCommand(CommandManager<CommandSender> manager,
 			Command.Builder<CommandSender> builder) {
 		return builder.required("days", IntegerParser.integerParser(1, 30)).handler(context -> {
 			if (HellblockPlugin.getInstance().getStorageManager().getDataSource().getUniqueUsers().size() == 0) {
-				HellblockPlugin.getInstance().getAdventureManager().sendMessage(context.sender(),
-						"<red>No hellblock player data to purge available!");
+				handleFeedback(context, MessageConstants.MSG_HELLBLOCK_ADMIN_PURGE_UNAVAILABLE);
 				return;
 			}
 			AtomicInteger purgeCount = new AtomicInteger(0);
@@ -38,16 +41,22 @@ public class AdminPurgeCommand extends BukkitCommandFeature<CommandSender> {
 					continue;
 
 				OfflinePlayer player = Bukkit.getOfflinePlayer(id);
-				if (player.getLastLogin() == 0)
+				if (player.getLastPlayed() == 0)
 					continue;
-				long millisSinceLastLogin = (System.currentTimeMillis() - player.getLastLogin()) -
+				long millisSinceLastLogin = (System.currentTimeMillis() - player.getLastPlayed()) -
 				// Account for a timezone difference
 						TimeUnit.MILLISECONDS.toHours(19);
 				if (millisSinceLastLogin > TimeUnit.DAYS.toMillis(context.getOrDefault("days", 1))) {
 					HellblockPlugin.getInstance().getStorageManager()
 							.getOfflineUserData(id, HellblockPlugin.getInstance().getConfigManager().lockData())
 							.thenAccept((result) -> {
-								UserData offlineUser = result.orElseThrow();
+								if (result.isEmpty()) {
+									handleFeedback(context,
+											MessageConstants.MSG_HELLBLOCK_PLAYER_DATA_FAILURE_LOAD.arguments(Component
+													.text(player.getName() != null ? player.getName() : "???")));
+									return;
+								}
+								UserData offlineUser = result.get();
 								if (offlineUser.getHellblockData().hasHellblock()
 										&& offlineUser.getHellblockData().getOwnerUUID() != null) {
 									if (HellblockPlugin.getInstance().getHellblockHandler().isHellblockOwner(id,
@@ -81,11 +90,10 @@ public class AdminPurgeCommand extends BukkitCommandFeature<CommandSender> {
 			}
 
 			if (purgeCount.get() > 0) {
-				HellblockPlugin.getInstance().getAdventureManager().sendMessage(context.sender(),
-						String.format("<red>You purged a total of %s hellblocks!", purgeCount.get()));
+				handleFeedback(context,
+						MessageConstants.MSG_HELLBLOCK_ADMIN_PURGE_SUCCESS.arguments(Component.text(purgeCount.get())));
 			} else {
-				HellblockPlugin.getInstance().getAdventureManager().sendMessage(context.sender(),
-						"<red>No hellblock data was purged with your inputted settings!");
+				handleFeedback(context, MessageConstants.MSG_HELLBLOCK_ADMIN_PURGE_FAILURE);
 				return;
 			}
 		});

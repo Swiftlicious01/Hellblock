@@ -24,9 +24,9 @@ import org.bukkit.event.inventory.InventoryAction;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.PrepareItemCraftEvent;
-import org.bukkit.event.inventory.InventoryCloseEvent.Reason;
 import org.bukkit.event.inventory.InventoryType.SlotType;
 import org.bukkit.event.player.PlayerDropItemEvent;
+import org.bukkit.event.player.PlayerItemBreakEvent;
 import org.bukkit.event.player.PlayerItemHeldEvent;
 import org.bukkit.event.player.PlayerSwapHandItemsEvent;
 import org.bukkit.inventory.CraftingRecipe;
@@ -41,6 +41,7 @@ import com.saicone.rtag.RtagItem;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.challenges.HellblockChallenge.ChallengeType;
 import com.swiftlicious.hellblock.creation.item.Item;
+import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.utils.extras.Key;
 
@@ -101,11 +102,11 @@ public class NetherTools implements Listener {
 					Item<ItemStack> tool = instance.getItemManager().wrap(new ItemStack(material, 1));
 
 					if (entry.getValue() instanceof Section inner) {
-						tool.displayName(instance.getAdventureManager().miniMessageToJson(inner.getString("name")));
+						tool.displayName(AdventureHelper.miniMessageToJson(inner.getString("name")));
 
 						List<String> lore = new ArrayList<>();
 						for (String newLore : inner.getStringList("lore")) {
-							lore.add(instance.getAdventureManager().miniMessageToJson(newLore));
+							lore.add(AdventureHelper.miniMessageToJson(newLore));
 						}
 						tool.lore(lore);
 
@@ -510,12 +511,29 @@ public class NetherTools implements Listener {
 			if (onlineUser.isEmpty())
 				return;
 
-			if (event.getReason() == Reason.PLAYER) {
-
-				ItemStack inHand = player.getInventory().getItemInMainHand();
+			ItemStack inHand = player.getInventory().getItemInMainHand();
+			if (inHand.getType() == Material.AIR) {
+				inHand = player.getInventory().getItemInOffHand();
 				if (inHand.getType() == Material.AIR) {
-					inHand = player.getInventory().getItemInOffHand();
-					if (inHand.getType() == Material.AIR) {
+					if (onlineUser.get().hasGlowstoneToolEffect()) {
+						if (player.hasPotionEffect(PotionEffectType.NIGHT_VISION)) {
+							onlineUser.get().isHoldingGlowstoneTool(false);
+							if (!onlineUser.get().hasGlowstoneArmorEffect()) {
+								player.removePotionEffect(PotionEffectType.NIGHT_VISION);
+							}
+						}
+					}
+					return;
+				}
+			}
+
+			instance.getScheduler().sync().runLater(() -> {
+				if (this.clickCache.containsKey(onlineUser.get())) {
+					boolean glowstoneEffect = this.clickCache.get(onlineUser.get()).booleanValue();
+					if (glowstoneEffect) {
+						player.addPotionEffect(new PotionEffect(PotionEffectType.NIGHT_VISION, Integer.MAX_VALUE, 1));
+						onlineUser.get().isHoldingGlowstoneTool(true);
+					} else {
 						if (onlineUser.get().hasGlowstoneToolEffect()) {
 							if (player.hasPotionEffect(PotionEffectType.NIGHT_VISION)) {
 								onlineUser.get().isHoldingGlowstoneTool(false);
@@ -524,37 +542,30 @@ public class NetherTools implements Listener {
 								}
 							}
 						}
-						return;
 					}
+					this.clickCache.remove(onlineUser.get());
 				}
+			}, 1, player.getLocation());
+		}
+	}
 
-				instance.getScheduler().sync().runLater(() -> {
-					if (this.clickCache.containsKey(onlineUser.get())) {
-						boolean glowstoneEffect = this.clickCache.get(onlineUser.get()).booleanValue();
-						if (glowstoneEffect) {
-							player.addPotionEffect(
-									new PotionEffect(PotionEffectType.NIGHT_VISION, Integer.MAX_VALUE, 1));
-							onlineUser.get().isHoldingGlowstoneTool(true);
-						} else {
-							if (onlineUser.get().hasGlowstoneToolEffect()) {
-								if (player.hasPotionEffect(PotionEffectType.NIGHT_VISION)) {
-									onlineUser.get().isHoldingGlowstoneTool(false);
-									if (!onlineUser.get().hasGlowstoneArmorEffect()) {
-										player.removePotionEffect(PotionEffectType.NIGHT_VISION);
-									}
-								}
-							}
-						}
-						this.clickCache.remove(onlineUser.get());
-					}
-				}, 1, player.getLocation());
-			} else {
-				if (onlineUser.get().hasGlowstoneToolEffect()) {
-					if (player.hasPotionEffect(PotionEffectType.NIGHT_VISION)) {
-						onlineUser.get().isHoldingGlowstoneTool(false);
-						if (!onlineUser.get().hasGlowstoneArmorEffect()) {
-							player.removePotionEffect(PotionEffectType.NIGHT_VISION);
-						}
+	@EventHandler
+	public void onToolBreak(PlayerItemBreakEvent event) {
+		if (!instance.getConfigManager().nightVisionTools() || !instance.getConfigManager().glowstoneTools())
+			return;
+		final Player player = event.getPlayer();
+		if (!player.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+			return;
+		Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
+		if (onlineUser.isEmpty())
+			return;
+		ItemStack tool = event.getBrokenItem();
+		if (checkNightVisionToolStatus(tool) && getNightVisionToolStatus(tool)) {
+			if (onlineUser.get().hasGlowstoneToolEffect()) {
+				if (player.hasPotionEffect(PotionEffectType.NIGHT_VISION)) {
+					onlineUser.get().isWearingGlowstoneArmor(false);
+					if (!onlineUser.get().hasGlowstoneArmorEffect()) {
+						player.removePotionEffect(PotionEffectType.NIGHT_VISION);
 					}
 				}
 			}

@@ -8,6 +8,7 @@ import org.jetbrains.annotations.Nullable;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.database.dependency.HellblockProperties;
+import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.utils.extras.Pair;
 
 import java.io.File;
@@ -51,7 +52,7 @@ public class TranslationManager {
 		}
 
 		this.registry = MiniMessageTranslationRegistryInterface.create(Key.key("hellblock", "main"),
-				plugin.getAdventureManager().getMiniMessage());
+				AdventureHelper.getMiniMessage());
 		this.registry.defaultLocale(DEFAULT_LOCALE);
 		this.loadFromFileSystem(this.translationsDirectory, false);
 		MiniMessageTranslatorInterface.translator().addSource(this.registry);

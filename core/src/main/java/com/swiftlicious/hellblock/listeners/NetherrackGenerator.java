@@ -16,6 +16,7 @@ import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -27,6 +28,7 @@ import org.bukkit.event.block.BlockPistonExtendEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityChangeBlockEvent;
 import org.bukkit.util.Vector;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
@@ -43,17 +45,15 @@ import com.swiftlicious.hellblock.nms.fluid.FluidData;
 import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.utils.StringUtils;
 
-import lombok.Getter;
-import lombok.NonNull;
+import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.key.Key;
+import net.kyori.adventure.sound.Sound;
 import net.kyori.adventure.sound.Sound.Source;
 
 public class NetherrackGenerator implements Listener {
 
 	protected final HellblockPlugin instance;
-	@Getter
 	private final GeneratorManager genManager;
-	@Getter
 	private final GeneratorModeManager genModeManager;
 
 	private final static BlockFace[] FACES = new BlockFace[] { BlockFace.NORTH, BlockFace.SOUTH, BlockFace.EAST,
@@ -65,6 +65,14 @@ public class NetherrackGenerator implements Listener {
 		this.genModeManager = new GeneratorModeManager(instance);
 		this.genModeManager.loadFromConfig();
 		Bukkit.getPluginManager().registerEvents(this, instance);
+	}
+
+	public GeneratorManager getGeneratorManager() {
+		return this.genManager;
+	}
+
+	public GeneratorModeManager getGeneratorModeManager() {
+		return this.genModeManager;
 	}
 
 	@EventHandler
@@ -93,9 +101,11 @@ public class NetherrackGenerator implements Listener {
 					return;
 				// Checks if the block has been broken before and if it is a known gen location
 				if (!genManager.isGenLocationKnown(l) && mode.isSearchingForPlayersNearby()) {
-					Collection<Player> playersNearby = l.getWorld().getNearbyPlayers(l,
-							instance.getConfigManager().searchRadius(), instance.getConfigManager().searchRadius(),
-							instance.getConfigManager().searchRadius());
+					Collection<Entity> playersNearby = l.getWorld()
+							.getNearbyEntities(l, instance.getConfigManager().searchRadius(),
+									instance.getConfigManager().searchRadius(),
+									instance.getConfigManager().searchRadius())
+							.stream().filter(e -> e.getType() == EntityType.PLAYER).toList();
 					Player closestPlayer = getClosestPlayer(l, playersNearby);
 					if (closestPlayer != null) {
 						genManager.addKnownGenLocation(l);
@@ -148,9 +158,19 @@ public class NetherrackGenerator implements Listener {
 					}
 					genEvent.getGenerationLocation().getBlock().setType(genEvent.getResult());
 
-					if (mode.hasGenSound())
-						instance.getAdventureManager().playSound(l, Source.AMBIENT, Key.key(mode.getGenSound()),
-								soundVolume, pitch);
+					if (mode.hasGenSound()) {
+						for (Entity entity : l.getWorld()
+								.getNearbyEntities(l, instance.getConfigManager().searchRadius(),
+										instance.getConfigManager().searchRadius(),
+										instance.getConfigManager().searchRadius())
+								.stream().filter(e -> e.getType() == EntityType.PLAYER).toList()) {
+							if (entity instanceof Player player) {
+								Audience audience = instance.getSenderFactory().getAudience(player);
+								audience.playSound(
+										Sound.sound(Key.key(mode.getGenSound()), Source.AMBIENT, soundVolume, pitch));
+							}
+						}
+					}
 
 					if (mode.hasParticleEffect())
 						mode.displayGenerationParticles(l);
@@ -162,16 +182,18 @@ public class NetherrackGenerator implements Listener {
 		}
 	}
 
-	public @Nullable Player getClosestPlayer(Location l, Collection<Player> playersNearby) {
+	public @Nullable Player getClosestPlayer(Location l, Collection<Entity> playersNearby) {
 		Player closestPlayer = null;
 		double closestDistance = 100D;
-		for (Player player : playersNearby) {
-			double distance = l.distance(player.getLocation());
-			if (closestPlayer != null && !(closestDistance > distance)) {
-				continue;
+		for (Entity entity : playersNearby) {
+			if (entity instanceof Player player) {
+				double distance = l.distance(player.getLocation());
+				if (closestPlayer != null && !(closestDistance > distance)) {
+					continue;
+				}
+				closestPlayer = player;
+				closestDistance = distance;
 			}
-			closestPlayer = player;
-			closestDistance = distance;
 		}
 		return closestPlayer;
 	}
@@ -288,21 +310,21 @@ public class NetherrackGenerator implements Listener {
 		}
 	}
 
-	private boolean isSource(@NonNull Block block) {
+	private boolean isSource(@NotNull Block block) {
 		FluidData lava = instance.getVersionManager().getNMSManager().getFluidData(block.getLocation());
 		boolean isLava = lava.getFluidType() == Fluid.LAVA || lava.getFluidType() == Fluid.FLOWING_LAVA;
 		boolean isLavaSource = isLava && lava.isSource();
 		return isLavaSource;
 	}
 
-	private boolean isFlowing(@NonNull Block block) {
+	private boolean isFlowing(@NotNull Block block) {
 		FluidData lava = instance.getVersionManager().getNMSManager().getFluidData(block.getLocation());
 		boolean isLava = lava.getFluidType() == Fluid.LAVA || lava.getFluidType() == Fluid.FLOWING_LAVA;
 		boolean isLavaFlowing = isLava && (!(lava instanceof FallingFluidData)) && !lava.isSource();
 		return isLavaFlowing;
 	}
 
-	private @Nullable Vector getFlowDirection(@NonNull Block block) {
+	private @Nullable Vector getFlowDirection(@NotNull Block block) {
 		FluidData lava = instance.getVersionManager().getNMSManager().getFluidData(block.getLocation());
 		boolean isLava = lava.getFluidType() == Fluid.LAVA || lava.getFluidType() == Fluid.FLOWING_LAVA;
 		if (isLava) {
@@ -312,7 +334,7 @@ public class NetherrackGenerator implements Listener {
 		return null;
 	}
 
-	private boolean isLavaPool(@NonNull Location location) {
+	private boolean isLavaPool(@NotNull Location location) {
 		if (location.getWorld() == null)
 			return false;
 		int lavaCount = 0;
@@ -334,7 +356,7 @@ public class NetherrackGenerator implements Listener {
 		return lavaCount > 4;
 	}
 
-	public @NonNull Map<Material, Double> getResults() {
+	public @NotNull Map<Material, Double> getResults() {
 		Map<Material, Double> results = new HashMap<>();
 		for (String result : instance.getConfigManager().generationResults()) {
 			String[] split = result.split(":");
@@ -368,7 +390,7 @@ public class NetherrackGenerator implements Listener {
 		return null;
 	}
 
-	public void savePistons(@NonNull UUID id) {
+	public void savePistons(@NotNull UUID id) {
 		if (!instance.getConfigManager().pistonAutomation())
 			return;
 		GenPiston[] generatedPistons = genManager.getGenPistonsByUUID(id);
@@ -393,7 +415,7 @@ public class NetherrackGenerator implements Listener {
 		}
 	}
 
-	public void loadPistons(@NonNull UUID id) {
+	public void loadPistons(@NotNull UUID id) {
 		if (!instance.getConfigManager().pistonAutomation())
 			return;
 		Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(id);

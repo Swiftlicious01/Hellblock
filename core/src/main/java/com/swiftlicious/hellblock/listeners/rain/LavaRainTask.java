@@ -27,6 +27,8 @@ import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.scheduler.SchedulerTask;
 import com.swiftlicious.hellblock.utils.RandomUtils;
 
+import net.kyori.adventure.sound.Sound;
+
 /**
  * A task responsible for animating lava rain on a completely random timer
  * sequence.
@@ -116,7 +118,7 @@ public class LavaRainTask implements Runnable {
 									if (!blocks.hasNext()) {
 										block = instance.getLavaRainHandler().getHighestBlock(location);
 										if (block != null && (block.isPassable() || block.isEmpty() || block.isLiquid()
-												|| !block.isSolid() || block.getType().isOccluding())) {
+												|| !block.getType().isSolid() || block.getType().isOccluding())) {
 											ItemStack helmet = player.getInventory().getHelmet();
 											boolean checkHelmet = false;
 											if (helmet != null && helmet.getType() != Material.AIR) {
@@ -134,17 +136,19 @@ public class LavaRainTask implements Runnable {
 											}
 										}
 										if (instance.getLavaRainHandler().canHurtLivingCreatures()) {
-											Collection<LivingEntity> entities = world.getNearbyLivingEntities(location,
-													20.0D, (e) -> e.getType() != EntityType.PLAYER);
-											for (LivingEntity living : entities) {
-												Block above = instance.getLavaRainHandler()
-														.getHighestBlock(living.getLocation());
-												if (above != null
-														&& (above.isPassable() || above.isEmpty() || above.isLiquid()
-																|| !above.isSolid() || above.getType().isOccluding())) {
-													if (!living.hasPotionEffect(PotionEffectType.FIRE_RESISTANCE)
-															&& living.getFireTicks() <= 10)
-														living.setFireTicks(120);
+											Collection<Entity> entities = world.getNearbyEntities(location, 20.0D,
+													20.0D, 20.0D, (e) -> e.getType() != EntityType.PLAYER);
+											for (Entity entity : entities) {
+												if (entity instanceof LivingEntity living) {
+													Block above = instance.getLavaRainHandler()
+															.getHighestBlock(living.getLocation());
+													if (above != null && (above.isPassable() || above.isEmpty()
+															|| above.isLiquid() || !above.getType().isSolid()
+															|| above.getType().isOccluding())) {
+														if (!living.hasPotionEffect(PotionEffectType.FIRE_RESISTANCE)
+																&& living.getFireTicks() <= 10)
+															living.setFireTicks(120);
+													}
 												}
 											}
 										}
@@ -169,10 +173,13 @@ public class LavaRainTask implements Runnable {
 								if (particleSpawn != null) {
 									world.spawnParticle(Particle.DRIPPING_LAVA, particleSpawn.getLocation(), 1, 0.0D,
 											0.0D, 0.0D, 0.0D);
-									instance.getAdventureManager().playSound(player.getLocation(),
-											net.kyori.adventure.sound.Sound.Source.WEATHER, net.kyori.adventure.key.Key
-													.key("minecraft:block.pointed_dripstone.drip_lava"),
-											1, 1);
+									instance.getSenderFactory().getAudience(player).playSound(
+											Sound.sound(
+													net.kyori.adventure.key.Key
+															.key("minecraft:block.pointed_dripstone.drip_lava"),
+													net.kyori.adventure.sound.Sound.Source.WEATHER, 1F, 1F),
+											player.getLocation().getX(), player.getLocation().getY(),
+											player.getLocation().getZ());
 								}
 							} while (Math.random() >= (double) (instance.getConfigManager().fireChance() / 1000.0D));
 
@@ -208,7 +215,7 @@ public class LavaRainTask implements Runnable {
 									Block aboveMinecart = instance.getLavaRainHandler()
 											.getHighestBlock(entity.getLocation());
 									if (aboveMinecart != null && (aboveMinecart.isPassable() || aboveMinecart.isEmpty()
-											|| aboveMinecart.isLiquid() || !aboveMinecart.isSolid()
+											|| aboveMinecart.isLiquid() || !aboveMinecart.getType().isSolid()
 											|| aboveMinecart.getType().isOccluding())) {
 										ExplosiveMinecart tntMinecart = (ExplosiveMinecart) entity;
 										if (!tntMinecart.isIgnited())

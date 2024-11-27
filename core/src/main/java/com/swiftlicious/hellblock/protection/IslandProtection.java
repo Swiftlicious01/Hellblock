@@ -3,6 +3,7 @@ package com.swiftlicious.hellblock.protection;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import com.sk89q.worldguard.protection.flags.Flags;
@@ -15,7 +16,7 @@ import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.protection.HellblockFlag.AccessType;
 import com.swiftlicious.hellblock.protection.HellblockFlag.FlagType;
 
-import lombok.NonNull;
+import net.kyori.adventure.audience.Audience;
 
 public class IslandProtection {
 
@@ -25,21 +26,20 @@ public class IslandProtection {
 		instance = plugin;
 	}
 
-	public boolean changeProtectionFlag(@NonNull UUID id, @NonNull HellblockFlag flag) {
+	public boolean changeProtectionFlag(@NotNull UUID id, @NotNull HellblockFlag flag) {
 		Optional<UserData> user = instance.getStorageManager().getOnlineUser(id);
 		if (user.isEmpty() || !user.get().isOnline()) {
 			return false;
 		}
+		Audience audience = instance.getSenderFactory().getAudience(user.get().getPlayer());
 		if (user.get().getHellblockData().isAbandoned()) {
-			instance.getAdventureManager().sendMessage(user.get().getPlayer(),
-					instance.getTranslationManager()
-							.miniMessageTranslation(MessageConstants.MSG_HELLBLOCK_IS_ABANDONED.build().key()));
+			audience.sendMessage(
+					instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_IS_ABANDONED.build()));
 			return false;
 		}
 		if (!user.get().getHellblockData().hasHellblock()) {
-			instance.getAdventureManager().sendMessage(user.get().getPlayer(),
-					instance.getTranslationManager()
-							.miniMessageTranslation(MessageConstants.MSG_HELLBLOCK_NOT_FOUND.build().key()));
+			audience.sendMessage(
+					instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_NOT_FOUND.build()));
 			return false;
 		}
 		if (user.get().getHellblockData().getOwnerUUID() == null) {
@@ -47,9 +47,8 @@ public class IslandProtection {
 		}
 		if (user.get().getHellblockData().getOwnerUUID() != null
 				&& !user.get().getHellblockData().getOwnerUUID().equals(id)) {
-			instance.getAdventureManager().sendMessage(user.get().getPlayer(),
-					instance.getTranslationManager()
-							.miniMessageTranslation(MessageConstants.MSG_NOT_OWNER_OF_HELLBLOCK.build().key()));
+			audience.sendMessage(
+					instance.getTranslationManager().render(MessageConstants.MSG_NOT_OWNER_OF_HELLBLOCK.build()));
 			return false;
 		}
 		if (instance.getConfigManager().worldguardProtect()) {
@@ -70,7 +69,7 @@ public class IslandProtection {
 		}
 	}
 
-	public @Nullable StateFlag convertToWorldGuardFlag(@NonNull FlagType flag) {
+	public @Nullable StateFlag convertToWorldGuardFlag(@NotNull FlagType flag) {
 		StateFlag wgFlag = null;
 		switch (flag) {
 		case BLOCK_BREAK:
@@ -182,7 +181,7 @@ public class IslandProtection {
 	}
 
 	@SuppressWarnings("deprecation")
-	public @Nullable StringFlag convertToWorldGuardStringFlag(@NonNull FlagType flag) {
+	public @Nullable StringFlag convertToWorldGuardStringFlag(@NotNull FlagType flag) {
 		StringFlag wgFlag = null;
 		switch (flag) {
 		case GREET_MESSAGE:

@@ -2,6 +2,7 @@ package com.swiftlicious.hellblock.commands.sub;
 
 import java.util.Optional;
 
+import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
@@ -12,6 +13,8 @@ import com.swiftlicious.hellblock.commands.BukkitCommandFeature;
 import com.swiftlicious.hellblock.commands.HellblockCommandManager;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
 import com.swiftlicious.hellblock.player.UserData;
+
+import net.kyori.adventure.text.Component;
 
 public class HellblockHomeCommand extends BukkitCommandFeature<CommandSender> {
 
@@ -27,14 +30,11 @@ public class HellblockHomeCommand extends BukkitCommandFeature<CommandSender> {
 			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
 					.getOnlineUser(player.getUniqueId());
 			if (onlineUser.isEmpty()) {
-				HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-						"<red>Still loading your player data... please try again in a few seconds.");
+				handleFeedback(context, MessageConstants.COMMAND_DATA_FAILURE_NOT_LOADED);
 				return;
 			}
 			if (!onlineUser.get().getHellblockData().hasHellblock()) {
-				HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-						HellblockPlugin.getInstance().getTranslationManager()
-								.miniMessageTranslation(MessageConstants.MSG_HELLBLOCK_NOT_FOUND.build().key()));
+				handleFeedback(context, MessageConstants.MSG_HELLBLOCK_NOT_FOUND);
 				return;
 			} else {
 				if (onlineUser.get().getHellblockData().getOwnerUUID() == null) {
@@ -45,22 +45,28 @@ public class HellblockHomeCommand extends BukkitCommandFeature<CommandSender> {
 						.getOfflineUserData(onlineUser.get().getHellblockData().getOwnerUUID(),
 								HellblockPlugin.getInstance().getConfigManager().lockData())
 						.thenAccept((owner) -> {
-							UserData ownerUser = owner.orElseThrow();
+							if (owner.isEmpty()) {
+								String username = Bukkit
+										.getOfflinePlayer(onlineUser.get().getHellblockData().getOwnerUUID())
+										.getName() != null ? Bukkit
+												.getOfflinePlayer(onlineUser.get().getHellblockData().getOwnerUUID())
+												.getName() : "???";
+								handleFeedback(context, MessageConstants.MSG_HELLBLOCK_PLAYER_DATA_FAILURE_LOAD
+										.arguments(Component.text(username)));
+								return;
+							}
+							UserData ownerUser = owner.get();
 							if (ownerUser.getHellblockData().isAbandoned()) {
-								HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-										HellblockPlugin.getInstance().getTranslationManager().miniMessageTranslation(
-												MessageConstants.MSG_HELLBLOCK_IS_ABANDONED.build().key()));
+								handleFeedback(context, MessageConstants.MSG_HELLBLOCK_IS_ABANDONED);
 								return;
 							}
 							if (ownerUser.getHellblockData().getHomeLocation() != null) {
 								HellblockPlugin.getInstance().getCoopManager()
 										.makeHomeLocationSafe(ownerUser, onlineUser.get())
-										.thenRun(() -> HellblockPlugin.getInstance().getAdventureManager()
-												.sendMessage(player,
-														"<red>Teleporting you to your hellblock!"));
+										.thenRun(() -> handleFeedback(context,
+												MessageConstants.MSG_HELLBLOCK_HOME_TELEPORT));
 							} else {
-								HellblockPlugin.getInstance().getAdventureManager().sendMessage(player,
-										"<red>Error teleporting you to your hellblock!");
+								handleFeedback(context, MessageConstants.MSG_HELLBLOCK_ERROR_HOME_LOCATION);
 								throw new NullPointerException(
 										"Hellblock home location returned null, please report this to the developer.");
 							}
