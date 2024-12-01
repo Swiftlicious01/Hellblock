@@ -151,8 +151,13 @@ public class StorageManager implements StorageManagerInterface, Listener {
 				this.slimeWorldLoader = instance.getHellblockHandler().getSlimeWorldManager().getLoader("file");
 			} else if (this.dataSource instanceof MongoDBHandler) {
 				this.slimeWorldLoader = instance.getHellblockHandler().getSlimeWorldManager().getLoader("mongodb");
-			} else {
+			} else if (this.dataSource instanceof MySQLHandler || this.dataSource instanceof MariaDBHandler
+					|| this.dataSource instanceof PostgreSQLHandler) {
 				this.slimeWorldLoader = instance.getHellblockHandler().getSlimeWorldManager().getLoader("mysql");
+			} else {
+				this.slimeWorldLoader = null;
+				instance.getPluginLogger()
+						.severe("You can't use per player worlds with the data source set as H2 or SQLite.");
 			}
 		} else {
 			this.slimeWorldLoader = null;

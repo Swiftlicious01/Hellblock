@@ -236,11 +236,11 @@ public class HellblockPlugin extends JavaPlugin {
 		this.entityManager = new EntityManager(this);
 		this.placeholderManager = new PlaceholderManager(this);
 		this.requirementManager = new RequirementManager(this);
-		this.storageManager = new StorageManager(this);
 		this.cooldownManager = new CoolDownManager(this);
 		this.playerListener = new PlayerListener(this);
-		this.hellblockHandler = new HellblockHandler(this);
 		this.integrationManager = new IntegrationManager(this);
+		this.hellblockHandler = new HellblockHandler(this);
+		this.storageManager = new StorageManager(this);
 		this.statisticsManager = new StatisticsManager(this);
 		this.hologramManager = new HologramManager(this);
 		this.hookManager = new HookManager(this);

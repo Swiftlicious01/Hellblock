@@ -470,8 +470,8 @@ party:
 invitation:
   gui:
     # The title for the invite menu
-	title: '<gradient:#A52A2A:#800000:#A52A2A>Hellblock Invitations</gradient>'
-	# The layout for the invite menu
+    title: '<gradient:#A52A2A:#800000:#A52A2A>Hellblock Invitations</gradient>'
+    # The layout for the invite menu
     # This layout is for the player's actual inventory. Do not edit this to be anything but 4x9 rows.
     layout:
       - 'PPPPPPPPP'
@@ -586,7 +586,7 @@ invitation:
       components:
         minecraft:hide_tooltip: {}
 	# Decorative icons for visual enhancement
-	decorative-icons:
+    decorative-icons:
       glass-pane:
         symbol: 'A'
         material: BLACK_STAINED_GLASS_PANE
@@ -598,7 +598,7 @@ invitation:
 challenges:
   gui:
     # The title for the challenges menu
-	title: '<gradient:#A52A2A:#800000:#A52A2A>Hellblock Challenges</gradient>'
+    title: '<gradient:#A52A2A:#800000:#A52A2A>Hellblock Challenges</gradient>'
     # The layout for the challenges menu
     layout:
       - 'A0123456A'
@@ -698,7 +698,7 @@ flags:
       block-break-icon:
         symbol: 'B'
         material: STONE_PICKAXE
-		flag-type: BLOCK_BREAK
+        flag-type: BLOCK_BREAK
         display:
           name: '<yellow>Block Break Flag'
           lore:
