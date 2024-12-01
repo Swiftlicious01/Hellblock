@@ -229,10 +229,6 @@ public class CoopManager {
 								playerToAdd.getHellblockData().removeTrustPermission(ownerID);
 							}
 							makeHomeLocationSafe(offlineUser, playerToAdd);
-							instance.getStorageManager().getDataSource().updateOrInsertPlayerData(playerToAdd.getUUID(),
-									playerToAdd.toPlayerData(), instance.getConfigManager().lockData());
-							instance.getStorageManager().getDataSource().updateOrInsertPlayerData(offlineUser.getUUID(),
-									offlineUser.toPlayerData(), instance.getConfigManager().lockData());
 							if (offlineUser.isOnline()) {
 								Audience ownerAudience = instance.getSenderFactory()
 										.getAudience(Bukkit.getPlayer(offlineUser.getUUID()));
@@ -303,10 +299,6 @@ public class CoopManager {
 							offlineUser.getHellblockData().setHasHellblock(false);
 							offlineUser.getHellblockData().setOwnerUUID(null);
 							onlineUser.getHellblockData().kickFromParty(id);
-							instance.getStorageManager().getDataSource().updateOrInsertPlayerData(onlineUser.getUUID(),
-									onlineUser.toPlayerData(), instance.getConfigManager().lockData());
-							instance.getStorageManager().getDataSource().updateOrInsertPlayerData(offlineUser.getUUID(),
-									offlineUser.toPlayerData(), instance.getConfigManager().lockData());
 							ownerAudience.sendMessage(instance.getTranslationManager()
 									.render(MessageConstants.MSG_HELLBLOCK_COOP_PARTY_KICKED
 											.arguments(Component.text(input)).build()));
@@ -372,11 +364,6 @@ public class CoopManager {
 							leavingPlayer.getHellblockData().setHasHellblock(false);
 							leavingPlayer.getHellblockData().setOwnerUUID(null);
 							offlineUser.getHellblockData().kickFromParty(player.getUniqueId());
-							instance.getStorageManager().getDataSource().updateOrInsertPlayerData(
-									leavingPlayer.getUUID(), leavingPlayer.toPlayerData(),
-									instance.getConfigManager().lockData());
-							instance.getStorageManager().getDataSource().updateOrInsertPlayerData(offlineUser.getUUID(),
-									offlineUser.toPlayerData(), instance.getConfigManager().lockData());
 							instance.getHellblockHandler().teleportToSpawn(player, true);
 							audience.sendMessage(instance.getTranslationManager()
 									.render(MessageConstants.MSG_HELLBLOCK_COOP_PARTY_LEFT
@@ -486,9 +473,6 @@ public class CoopManager {
 										return;
 									UserData offlineParty = result.get();
 									offlineParty.getHellblockData().setOwnerUUID(player.getUniqueId());
-									instance.getStorageManager().getDataSource().updateOrInsertPlayerData(
-											offlineParty.getUUID(), offlineParty.toPlayerData(),
-											instance.getConfigManager().lockData());
 								});
 					}
 					playerToTransfer.getHellblockData().addToParty(owner.getUniqueId());
@@ -498,10 +482,6 @@ public class CoopManager {
 					onlineUser.getHellblockData().setTrusted(new HashSet<>());
 					onlineUser.getHellblockData().setResetCooldown(0L);
 					onlineUser.getHellblockData().setOwnerUUID(player.getUniqueId());
-					instance.getStorageManager().getDataSource().updateOrInsertPlayerData(onlineUser.getUUID(),
-							onlineUser.toPlayerData(), instance.getConfigManager().lockData());
-					instance.getStorageManager().getDataSource().updateOrInsertPlayerData(playerToTransfer.getUUID(),
-							playerToTransfer.toPlayerData(), instance.getConfigManager().lockData());
 
 					if (instance.getWorldGuardHandler().getWorldGuardPlatform() == null) {
 						throw new NullPointerException("Could not retrieve WorldGuard platform.");

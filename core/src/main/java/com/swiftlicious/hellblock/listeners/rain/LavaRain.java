@@ -14,9 +14,10 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.api.Reloadable;
 import com.swiftlicious.hellblock.utils.RandomUtils;
 
-public class LavaRain {
+public class LavaRain implements Reloadable {
 
 	private LavaRainTask lavaRainTask;
 
@@ -26,7 +27,22 @@ public class LavaRain {
 		instance = plugin;
 	}
 
-	public void startLavaRainProcess() {
+	@Override
+	public void load() {
+		startLavaRainProcess();
+	}
+
+	@Override
+	public void unload() {
+		stopLavaRainProcess();
+	}
+
+	@Override
+	public void disable() {
+		stopLavaRainProcess();
+	}
+
+	private void startLavaRainProcess() {
 		if (!instance.getConfigManager().lavaRainEnabled())
 			return;
 		instance.getScheduler().asyncLater(
@@ -35,7 +51,7 @@ public class LavaRain {
 				RandomUtils.generateRandomInt(10, 15), TimeUnit.MINUTES);
 	}
 
-	public void stopLavaRainProcess() {
+	private void stopLavaRainProcess() {
 		if (this.lavaRainTask != null) {
 			this.lavaRainTask.cancelAnimation();
 			this.lavaRainTask = null;

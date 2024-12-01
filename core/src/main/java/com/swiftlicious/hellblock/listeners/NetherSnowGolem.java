@@ -45,7 +45,7 @@ public class NetherSnowGolem implements Listener {
 	public List<Block> checkHellGolemBuild(@NotNull Location location) {
 		if (location.getWorld() == null)
 			return new ArrayList<>();
-		if (!location.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(location.getWorld()))
 			return new ArrayList<>();
 
 		List<Block> blocks = new ArrayList<>();
@@ -113,49 +113,53 @@ public class NetherSnowGolem implements Listener {
 	public void spawnHellGolem(@NotNull Player player, @NotNull UUID id, @NotNull Location location) {
 		if (location.getWorld() == null)
 			return;
-		if (!location.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(location.getWorld()))
 			return;
 
-		instance.getStorageManager().getOfflineUserData(id, instance.getConfigManager().lockData()).thenAccept((result) -> {
-			if (result.isEmpty())
-				return;
-			UserData offlineUser = result.get();
-			if (!checkHellGolemBuild(location).isEmpty() && !instance.getHellblockHandler().checkIfInSpawn(location)
-					&& offlineUser.getHellblockData()
-							.getProtectionValue(HellblockFlag.FlagType.MOB_SPAWNING) == AccessType.ALLOW) {
-				List<Block> blocks = checkHellGolemBuild(location);
-				for (Block block : blocks) {
-					block.setType(Material.AIR);
-				}
-				Snowman hellGolem = (Snowman) location.getWorld().spawnEntity(location, EntityType.SNOW_GOLEM);
-				hellGolem.setAware(true);
-				hellGolem.setDerp(false);
-				hellGolem.setVisualFire(true);
-				Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
-				if (onlineUser.isEmpty() || onlineUser.get().getPlayer() == null)
-					return;
-				if (!onlineUser.get().getChallengeData().isChallengeActive(ChallengeType.NETHER_GOLEM_CHALLENGE)
-						&& !onlineUser.get().getChallengeData()
-								.isChallengeCompleted(ChallengeType.NETHER_GOLEM_CHALLENGE)) {
-					onlineUser.get().getChallengeData().beginChallengeProgression(onlineUser.get().getPlayer(),
-							ChallengeType.NETHER_GOLEM_CHALLENGE);
-				} else {
-					onlineUser.get().getChallengeData().updateChallengeProgression(onlineUser.get().getPlayer(),
-							ChallengeType.NETHER_GOLEM_CHALLENGE, 1);
-					if (onlineUser.get().getChallengeData()
-							.isChallengeCompleted(ChallengeType.NETHER_GOLEM_CHALLENGE)) {
-						onlineUser.get().getChallengeData().completeChallenge(onlineUser.get().getPlayer(),
-								ChallengeType.NETHER_GOLEM_CHALLENGE);
+		instance.getStorageManager().getOfflineUserData(id, instance.getConfigManager().lockData())
+				.thenAccept((result) -> {
+					if (result.isEmpty())
+						return;
+					UserData offlineUser = result.get();
+					if (!checkHellGolemBuild(location).isEmpty()
+							&& !instance.getHellblockHandler().checkIfInSpawn(location)
+							&& offlineUser.getHellblockData()
+									.getProtectionValue(HellblockFlag.FlagType.MOB_SPAWNING) == AccessType.ALLOW) {
+						List<Block> blocks = checkHellGolemBuild(location);
+						for (Block block : blocks) {
+							block.setType(Material.AIR);
+						}
+						Snowman hellGolem = (Snowman) location.getWorld().spawnEntity(location, EntityType.SNOW_GOLEM);
+						hellGolem.setAware(true);
+						hellGolem.setDerp(false);
+						hellGolem.setVisualFire(true);
+						Optional<UserData> onlineUser = instance.getStorageManager()
+								.getOnlineUser(player.getUniqueId());
+						if (onlineUser.isEmpty() || onlineUser.get().getPlayer() == null
+								|| !onlineUser.get().getHellblockData().hasHellblock())
+							return;
+						if (!onlineUser.get().getChallengeData().isChallengeActive(ChallengeType.NETHER_GOLEM_CHALLENGE)
+								&& !onlineUser.get().getChallengeData()
+										.isChallengeCompleted(ChallengeType.NETHER_GOLEM_CHALLENGE)) {
+							onlineUser.get().getChallengeData().beginChallengeProgression(onlineUser.get().getPlayer(),
+									ChallengeType.NETHER_GOLEM_CHALLENGE);
+						} else {
+							onlineUser.get().getChallengeData().updateChallengeProgression(onlineUser.get().getPlayer(),
+									ChallengeType.NETHER_GOLEM_CHALLENGE, 1);
+							if (onlineUser.get().getChallengeData()
+									.isChallengeCompleted(ChallengeType.NETHER_GOLEM_CHALLENGE)) {
+								onlineUser.get().getChallengeData().completeChallenge(onlineUser.get().getPlayer(),
+										ChallengeType.NETHER_GOLEM_CHALLENGE);
+							}
+						}
 					}
-				}
-			}
-		});
+				});
 	}
 
 	@EventHandler
 	public void onCreationOfHellGolem(BlockPlaceEvent event) {
 		final Player player = event.getPlayer();
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(player))
 			return;
 
 		final Block block = event.getBlockPlaced();
@@ -168,10 +172,11 @@ public class NetherSnowGolem implements Listener {
 	public void onPistonPushCreationOfHellGolem(BlockPistonExtendEvent event) {
 		final List<Block> blocks = event.getBlocks();
 		for (final Block block : blocks) {
-			if (!block.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+			if (!instance.getHellblockHandler().isInCorrectWorld(block.getWorld()))
 				return;
 
-			Collection<Entity> playersNearby = block.getWorld().getNearbyEntities(block.getLocation(), 25, 25, 25).stream().filter(e -> e.getType() == EntityType.PLAYER).toList();
+			Collection<Entity> playersNearby = block.getWorld().getNearbyEntities(block.getLocation(), 25, 25, 25)
+					.stream().filter(e -> e.getType() == EntityType.PLAYER).toList();
 			Player player = instance.getNetherrackGeneratorHandler().getClosestPlayer(block.getLocation(),
 					playersNearby);
 			if (player != null) {
@@ -185,7 +190,7 @@ public class NetherSnowGolem implements Listener {
 	@EventHandler
 	public void onEntityCombust(EntityCombustEvent event) {
 		Entity entity = event.getEntity();
-		if (!entity.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(entity.getWorld()))
 			return;
 		if (entity instanceof Snowman && entity.isVisualFire()) {
 			event.setCancelled(true);
@@ -195,7 +200,7 @@ public class NetherSnowGolem implements Listener {
 	@EventHandler
 	public void onEntityDamage(EntityDamageEvent event) {
 		Entity entity = event.getEntity();
-		if (!entity.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(entity.getWorld()))
 			return;
 		if (entity instanceof Snowman && entity.isVisualFire()) {
 			if (event.getDamageSource().getDamageType() == DamageType.ON_FIRE) {
@@ -206,7 +211,7 @@ public class NetherSnowGolem implements Listener {
 
 	@EventHandler
 	public void onSnowball(EntityDamageByEntityEvent event) {
-		if (!event.getEntity().getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(event.getEntity().getWorld()))
 			return;
 		if (event.getEntity() instanceof LivingEntity living) {
 			if (event.getDamager() instanceof Snowball snowball) {

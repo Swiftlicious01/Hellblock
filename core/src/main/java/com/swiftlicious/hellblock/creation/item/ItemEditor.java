@@ -8,7 +8,7 @@ import com.swiftlicious.hellblock.player.Context;
 import org.jetbrains.annotations.ApiStatus;
 
 /**
- * Functional interface representing an editor for custom fishing items.
+ * Functional interface representing an editor for custom items.
  * Implementations of this interface apply modifications to an {@link RtagItem}
  * using the provided context.
  */

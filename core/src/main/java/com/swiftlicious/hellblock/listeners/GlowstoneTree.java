@@ -57,7 +57,7 @@ public class GlowstoneTree implements Listener {
 
 	@EventHandler
 	public void onGlowTreeCreation(StructureGrowEvent event) {
-		if (!event.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(event.getWorld()))
 			return;
 
 		Material growing = event.getLocation().getBlock().getRelative(BlockFace.DOWN).getType();
@@ -66,7 +66,8 @@ public class GlowstoneTree implements Listener {
 			if (player != null && event.isFromBonemeal() && !event.getBlocks().isEmpty()
 					&& !event.getBlocks().stream().anyMatch(state -> state.getBlockData() instanceof Sapling)) {
 				Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
-				if (onlineUser.isEmpty() || onlineUser.get().getPlayer() == null)
+				if (onlineUser.isEmpty() || onlineUser.get().getPlayer() == null
+						|| !onlineUser.get().getHellblockData().hasHellblock())
 					return;
 				if (!onlineUser.get().getChallengeData().isChallengeActive(ChallengeType.GLOWSTONE_TREE_CHALLENGE)
 						&& !onlineUser.get().getChallengeData()
@@ -96,7 +97,8 @@ public class GlowstoneTree implements Listener {
 							&& !event.getBlocks().stream().anyMatch(state -> state.getBlockData() instanceof Sapling)) {
 						Optional<UserData> onlineUser = instance.getStorageManager()
 								.getOnlineUser(player.getUniqueId());
-						if (onlineUser.isEmpty() || onlineUser.get().getPlayer() == null)
+						if (onlineUser.isEmpty() || onlineUser.get().getPlayer() == null
+								|| !onlineUser.get().getHellblockData().hasHellblock())
 							return;
 						if (!onlineUser.get().getChallengeData()
 								.isChallengeActive(ChallengeType.GLOWSTONE_TREE_CHALLENGE)
@@ -143,7 +145,7 @@ public class GlowstoneTree implements Listener {
 	@EventHandler
 	public void onPlaceNextToSapling(BlockPhysicsEvent event) {
 		final Block block = event.getSourceBlock();
-		if (!block.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(block.getWorld()))
 			return;
 
 		if (Tag.SAPLINGS.isTagged(block.getType())) {
@@ -163,7 +165,7 @@ public class GlowstoneTree implements Listener {
 	@EventHandler
 	public void onGlowstoneTreeGrowth(PlayerInteractEvent event) {
 		final Player player = event.getPlayer();
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(player.getWorld()))
 			return;
 
 		final UUID id = player.getUniqueId();
@@ -204,7 +206,8 @@ public class GlowstoneTree implements Listener {
 					if (canGrow(block)) {
 						if (randomChance == RandomUtils.generateRandomInt(2, 4)) {
 							Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(id);
-							if (onlineUser.isEmpty() || onlineUser.get().getPlayer() == null)
+							if (onlineUser.isEmpty() || onlineUser.get().getPlayer() == null
+									|| !onlineUser.get().getHellblockData().hasHellblock())
 								return;
 							instance.getIslandGenerator().generateGlowstoneTree(block.getLocation()).thenRun(() -> {
 								if (!onlineUser.get().getChallengeData()

@@ -1,5 +1,6 @@
 # Hellblock Challenge Rewards #
-general:
+# Global actions that are called when any challenge is completed.
+global:
   action:
     sound_action:
       type: sound
@@ -11,24 +12,52 @@ general:
     message_action:
       type: message
       value: "You've claimed your challenge reward!"
+	  
 rewards:
   NETHER_GENERATOR_CHALLENGE:
-    material: BOOK
-    name: '<light_purple>A book'
-    lore:
-      - '<gray>Nice job!'
+    action:
+      item_action:
+        type: 'give-vanilla-item'
+        value:
+          to-inventory: true
+          material: BOOK
+          display:
+            lore:
+              - '<light_purple>A nice book!'
   GLOWSTONE_TREE_CHALLENGE:
-    material: GOLD_INGOT
-    amount: 3
-    name: '<gold>Gold Ingot'
+    action:
+      item_action:
+        type: 'give-vanilla-item'
+        value:
+          to-inventory: true
+          material: GOLD_INGOT
+          amount: 3
+          display:
+            name: '<gold>Gold Ingot'
   LAVA_FISHING_CHALLENGE:
-    material: COBBLESTONE
+    action:
+      item_action:
+        type: 'give-vanilla-item'
+        value:
+          to-inventory: true
+		  material: COBBLESTONE
+          amount: 1
   NETHER_GOLEM_CHALLENGE:
-    material: PUMPKIN
+    action:
+      money_action:
+        type: 'give-money'
+        value: 50
   NETHER_CRAFTING_CHALLENGE:
-    material: WOOD_SWORD
-    enchantments:
-      - 'sharpness:5'
+    action:
+      item_action:
+        type: 'give-vanilla-item'
+        value:
+          to-inventory: true
+          material: WOOD_SWORD
+          enchantments:
+            enchant: minecraft:sharpness: 5
   NETHER_BREWING_CHALLENGE:
-    material: DIAMOND_PICKAXE
-    damage: 1
+    action:
+      exp_action:
+        type: 'exp'
+        value: 100

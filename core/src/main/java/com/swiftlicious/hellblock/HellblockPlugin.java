@@ -47,9 +47,13 @@ import com.swiftlicious.hellblock.generation.HellblockHandler;
 import com.swiftlicious.hellblock.generation.IslandChoiceConverter;
 import com.swiftlicious.hellblock.generation.IslandGenerator;
 import com.swiftlicious.hellblock.gui.biome.BiomeGUIManager;
+import com.swiftlicious.hellblock.gui.challenges.ChallengesGUIManager;
 import com.swiftlicious.hellblock.gui.choice.IslandChoiceGUIManager;
+import com.swiftlicious.hellblock.gui.flags.FlagsGUIManager;
 import com.swiftlicious.hellblock.gui.hellblock.HellblockGUIManager;
+import com.swiftlicious.hellblock.gui.invite.InviteGUIManager;
 import com.swiftlicious.hellblock.gui.market.MarketManager;
+import com.swiftlicious.hellblock.gui.party.PartyGUIManager;
 import com.swiftlicious.hellblock.gui.reset.ResetConfirmGUIManager;
 import com.swiftlicious.hellblock.gui.schematic.SchematicGUIManager;
 import com.swiftlicious.hellblock.handlers.ActionManager;
@@ -141,6 +145,10 @@ public class HellblockPlugin extends JavaPlugin {
 	protected MarketManager marketManager;
 	protected HellblockGUIManager hellblockGUIManager;
 	protected BiomeGUIManager biomeGUIManager;
+	protected FlagsGUIManager flagsGUIManager;
+	protected PartyGUIManager partyGUIManager;
+	protected InviteGUIManager inviteGUIManager;
+	protected ChallengesGUIManager challengesGUIManager;
 	protected IslandChoiceGUIManager islandChoiceGUIManager;
 	protected SchematicGUIManager schematicGUIManager;
 	protected ResetConfirmGUIManager resetConfirmGUIManager;
@@ -219,6 +227,9 @@ public class HellblockPlugin extends JavaPlugin {
 		this.marketManager = new MarketManager(this);
 		this.hellblockGUIManager = new HellblockGUIManager(this);
 		this.biomeGUIManager = new BiomeGUIManager(this);
+		this.flagsGUIManager = new FlagsGUIManager(this);
+		this.partyGUIManager = new PartyGUIManager(this);
+		this.challengesGUIManager = new ChallengesGUIManager(this);
 		this.islandChoiceGUIManager = new IslandChoiceGUIManager(this);
 		this.schematicGUIManager = new SchematicGUIManager(this);
 		this.resetConfirmGUIManager = new ResetConfirmGUIManager(this);
@@ -349,8 +360,8 @@ public class HellblockPlugin extends JavaPlugin {
 						.info(String.format("A total of %s hellblocks have been set as abandoned.", purgeCount.get()));
 		}
 
-		getLavaRainHandler().startLavaRainProcess();
-		getScheduler().sync().runLater(() -> getHellblockHandler().getHellblockWorld(), 5 * 20, null);
+		if (!getConfigManager().perPlayerWorlds())
+			getScheduler().sync().runLater(() -> getHellblockHandler().getHellblockWorld(), 5 * 20, null);
 	}
 
 	@Override
@@ -378,7 +389,9 @@ public class HellblockPlugin extends JavaPlugin {
 		}
 
 		if (this.lavaRainHandler != null)
-			this.lavaRainHandler.stopLavaRainProcess();
+			this.lavaRainHandler.disable();
+		if (this.playerListener != null)
+			this.playerListener.disable();
 		if (this.blockManager != null)
 			this.blockManager.disable();
 		if (this.effectManager != null)
@@ -395,6 +408,14 @@ public class HellblockPlugin extends JavaPlugin {
 			this.hellblockGUIManager.disable();
 		if (this.biomeGUIManager != null)
 			this.biomeGUIManager.disable();
+		if (this.flagsGUIManager != null)
+			this.flagsGUIManager.disable();
+		if (this.partyGUIManager != null)
+			this.partyGUIManager.disable();
+		if (this.inviteGUIManager != null)
+			this.inviteGUIManager.disable();
+		if (this.challengesGUIManager != null)
+			this.challengesGUIManager.disable();
 		if (this.islandChoiceGUIManager != null)
 			this.islandChoiceGUIManager.disable();
 		if (this.schematicGUIManager != null)
@@ -433,14 +454,18 @@ public class HellblockPlugin extends JavaPlugin {
 	 * Reload the plugin
 	 */
 	public void reload() {
-		this.lavaRainHandler.stopLavaRainProcess();
+		this.lavaRainHandler.reload();
 		this.configManager.reload();
 		this.debugger = getConfigManager().debug() ? (s) -> pluginLogger.info("[DEBUG] " + s.get()) : (s) -> {
 		};
+		this.playerListener.reload();
 		this.worldGuardHandler.reload();
 		this.requirementManager.reload();
 		this.challengeRewardBuilder.reload();
 		this.actionManager.reload();
+		this.netherToolsHandler.reload();
+		this.netherArmorHandler.reload();
+		this.netherBrewingHandler.reload();
 		this.statisticsManager.reload();
 		this.itemManager.reload();
 		this.lootManager.reload();
@@ -450,6 +475,10 @@ public class HellblockPlugin extends JavaPlugin {
 		this.marketManager.reload();
 		this.hellblockGUIManager.reload();
 		this.biomeGUIManager.reload();
+		this.flagsGUIManager.reload();
+		this.partyGUIManager.reload();
+		this.inviteGUIManager.reload();
+		this.challengesGUIManager.reload();
 		this.islandChoiceGUIManager.reload();
 		this.schematicGUIManager.reload();
 		this.resetConfirmGUIManager.reload();
@@ -568,6 +597,22 @@ public class HellblockPlugin extends JavaPlugin {
 
 	public BiomeGUIManager getBiomeGUIManager() {
 		return this.biomeGUIManager;
+	}
+
+	public FlagsGUIManager getFlagsGUIManager() {
+		return this.flagsGUIManager;
+	}
+
+	public PartyGUIManager getPartyGUIManager() {
+		return this.partyGUIManager;
+	}
+
+	public InviteGUIManager getInviteGUIManager() {
+		return this.inviteGUIManager;
+	}
+
+	public ChallengesGUIManager getChallengesGUIManager() {
+		return this.challengesGUIManager;
 	}
 
 	public IslandChoiceGUIManager getIslandChoiceGUIManager() {

@@ -1,9 +1,8 @@
 package com.swiftlicious.hellblock.api.compatibility;
 
 import com.sk89q.worldedit.EditSession;
-import com.sk89q.worldedit.WorldEdit;
 import com.sk89q.worldedit.WorldEditException;
-import com.sk89q.worldedit.bukkit.BukkitAdapter;
+import com.sk89q.worldedit.bukkit.BukkitWorld;
 import com.sk89q.worldedit.extension.platform.Capability;
 import com.sk89q.worldedit.extension.platform.Platform;
 import com.sk89q.worldedit.extent.clipboard.Clipboard;
@@ -44,8 +43,10 @@ public class WorldEditHook implements SchematicPaster {
 		}
 	}
 
+	@SuppressWarnings("removal")
 	@Override
-	public boolean pasteHellblock(File file, Location location, CompletableFuture<Void> completableFuture) {
+	public void pasteHellblock(File file, Location location, boolean ignoreAirBlock,
+			CompletableFuture<Void> completableFuture) {
 		try {
 			ClipboardFormat format = cachedClipboardFormat.getOrDefault(file, ClipboardFormats.findByFile(file));
 			Clipboard clipboard;
@@ -53,23 +54,32 @@ public class WorldEditHook implements SchematicPaster {
 				clipboard = reader.read();
 			}
 
-			clipboard.setOrigin(BlockVector3.at(location.getBlockX(), location.getBlockY(), location.getBlockZ()));
+			int width = clipboard.getDimensions().getBlockX();
+			int height = clipboard.getDimensions().getBlockY();
+			int length = clipboard.getDimensions().getBlockZ();
 
-			try (EditSession editSession = WorldEdit.getInstance().newEditSession(
-					BukkitAdapter.adapt(HellblockPlugin.getInstance().getHellblockHandler().getHellblockWorld()))) {
+			int newLength = (int) (length / 2.00);
+			int newWidth = (int) (width / 2.00);
+			int newHeight = (int) (height / 2.00);
+
+			location.subtract(newWidth, newHeight, newLength); // Center the schematic (for real this time)
+
+			// Change the //copy point to the minimum corner
+			clipboard.setOrigin(clipboard.getRegion().getMinimumPoint());
+
+			try (EditSession editSession = com.sk89q.worldedit.WorldEdit.getInstance()
+					.newEditSession(new BukkitWorld(location.getWorld()))) {
 				Operation operation = new ClipboardHolder(clipboard).createPaste(editSession)
-						.to(BlockVector3.at(location.getBlockX(), location.getBlockY(), location.getBlockZ()))
-						.copyEntities(true).copyBiomes(false).ignoreAirBlocks(true).ignoreStructureVoidBlocks(true)
-						.build();
+						.to(BlockVector3.at(location.getX(), location.getY(), location.getZ())).copyEntities(true)
+						.ignoreAirBlocks(ignoreAirBlock).build();
 				Operations.complete(operation);
 				Operations.complete(editSession.commit());
 				cachedClipboardFormat.putIfAbsent(file, format);
 				completableFuture.complete(null);
-				return true;
 			}
 		} catch (WorldEditException | IOException ex) {
-			HellblockPlugin.getInstance().getPluginLogger().severe("Unable to load hellblock island schematic with WorldEdit.", ex);
-			return false;
+			HellblockPlugin.getInstance().getPluginLogger()
+					.severe("Unable to load hellblock island schematic with WorldEdit.", ex);
 		}
 	}
 

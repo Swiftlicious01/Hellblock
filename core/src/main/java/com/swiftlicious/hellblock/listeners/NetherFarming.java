@@ -206,7 +206,7 @@ public class NetherFarming implements Listener {
 		for (Block farm : blocks) {
 			if (farm == null || farm.getType() != Material.FARMLAND)
 				continue;
-			if (!farm.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+			if (!instance.getHellblockHandler().isInCorrectWorld(farm.getWorld()))
 				continue;
 
 			if (Tag.CROPS.isTagged(farm.getRelative(BlockFace.UP).getType())) {
@@ -231,7 +231,7 @@ public class NetherFarming implements Listener {
 		for (Block farm : blocks) {
 			if (farm == null || farm.getType() != Material.FARMLAND)
 				continue;
-			if (!farm.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+			if (!instance.getHellblockHandler().isInCorrectWorld(farm.getWorld()))
 				continue;
 
 			if (farm.getBlockData() instanceof Farmland) {
@@ -248,7 +248,7 @@ public class NetherFarming implements Listener {
 	private boolean checkForLavaAroundFarm(@Nullable Block block) {
 		if (block == null || block.isEmpty() || block.getType() != Material.FARMLAND)
 			return false;
-		if (!block.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(block.getWorld()))
 			return false;
 
 		boolean lavaFound = false;
@@ -275,7 +275,7 @@ public class NetherFarming implements Listener {
 		Player player = user.getPlayer();
 		if (!user.isOnline())
 			return null;
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(player))
 			return null;
 		if (instance.getConfigManager().worldguardProtect()) {
 			Set<Block> regionBlocks = new HashSet<>();
@@ -344,7 +344,7 @@ public class NetherFarming implements Listener {
 	private boolean checkForLavaAroundSugarCane(@Nullable Block block) {
 		if (block == null || block.isEmpty() || !(sugarCaneGrowBlocks.contains(block.getType())))
 			return false;
-		if (!block.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(block.getWorld()))
 			return false;
 
 		boolean lavaFound = false;
@@ -361,7 +361,7 @@ public class NetherFarming implements Listener {
 	@EventHandler
 	public void onFlowConcretePowder(BlockFromToEvent event) {
 		final Block block = event.getBlock();
-		if (!block.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(block.getWorld()))
 			return;
 
 		if (!Arrays.asList(FACES).contains(event.getFace())) {
@@ -394,7 +394,7 @@ public class NetherFarming implements Listener {
 	@EventHandler
 	public void onPlaceConcretePowder(BlockPlaceEvent event) {
 		final Block block = event.getBlockPlaced();
-		if (!block.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(block.getWorld()))
 			return;
 
 		if (Tag.CONCRETE_POWDER.isTagged(block.getType())) {
@@ -421,7 +421,7 @@ public class NetherFarming implements Listener {
 	@EventHandler
 	public void onFallConcretePowder(EntityDropItemEvent event) {
 		if (event.getEntity() instanceof FallingBlock fallingBlock) {
-			if (!fallingBlock.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+			if (!instance.getHellblockHandler().isInCorrectWorld(fallingBlock.getWorld()))
 				return;
 			if (Tag.CONCRETE_POWDER.isTagged(fallingBlock.getBlockData().getMaterial())) {
 				Material powder = fallingBlock.getBlockData().getMaterial();
@@ -475,7 +475,7 @@ public class NetherFarming implements Listener {
 	@EventHandler
 	public void onForceCocoaBeanPlacement(PlayerInteractEvent event) {
 		final Player player = event.getPlayer();
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(player))
 			return;
 
 		if (event.getAction() != Action.RIGHT_CLICK_BLOCK)
@@ -516,7 +516,7 @@ public class NetherFarming implements Listener {
 	@EventHandler
 	public void onForceSugarCanePlacement(PlayerInteractEvent event) {
 		final Player player = event.getPlayer();
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(player))
 			return;
 
 		if (event.getAction() != Action.RIGHT_CLICK_BLOCK)
@@ -567,7 +567,7 @@ public class NetherFarming implements Listener {
 	@EventHandler
 	public void onGrowSugarCane(BlockGrowEvent event) {
 		final Block block = event.getBlock();
-		if (!block.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(block.getWorld()))
 			return;
 
 		if (block.isEmpty() && block.getRelative(BlockFace.DOWN).getType() == Material.SUGAR_CANE
@@ -682,7 +682,7 @@ public class NetherFarming implements Listener {
 	@EventHandler
 	public void onSugarCaneUpdate(BlockPhysicsEvent event) {
 		final Block block = event.getSourceBlock();
-		if (!block.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(block.getWorld()))
 			return;
 
 		if (block.getType() == Material.SUGAR_CANE) {
@@ -714,7 +714,7 @@ public class NetherFarming implements Listener {
 	@EventHandler
 	public void onPistonExtendSugarCane(BlockPistonExtendEvent event) {
 		final Block block = event.getBlock();
-		if (!block.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(block.getWorld()))
 			return;
 
 		for (Block lava : event.getBlocks()) {
@@ -787,7 +787,7 @@ public class NetherFarming implements Listener {
 	@EventHandler
 	public void onBreakSugarCane(BlockBreakEvent event) {
 		final Block block = event.getBlock();
-		if (!block.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(block.getWorld()))
 			return;
 
 		final Player player = event.getPlayer();
@@ -874,7 +874,7 @@ public class NetherFarming implements Listener {
 	@EventHandler
 	public void onPlaceSugarCane(BlockPlaceEvent event) {
 		final Block block = event.getBlockPlaced();
-		if (!block.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(block.getWorld()))
 			return;
 
 		final Player player = event.getPlayer();
@@ -997,7 +997,7 @@ public class NetherFarming implements Listener {
 	@EventHandler
 	public void onPickUpLavaWithDispenseSugarCane(BlockDispenseEvent event) {
 		final Block block = event.getBlock();
-		if (!block.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(block.getWorld()))
 			return;
 
 		if (block.getState() instanceof Dispenser dispenser) {
@@ -1095,7 +1095,7 @@ public class NetherFarming implements Listener {
 	@EventHandler
 	public void onPickUpLavaNextToSugarCane(PlayerBucketFillEvent event) {
 		final Player player = event.getPlayer();
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(player))
 			return;
 
 		if (event.getItemStack() != null && event.getItemStack().getType() == Material.LAVA_BUCKET) {
@@ -1161,7 +1161,7 @@ public class NetherFarming implements Listener {
 	@EventHandler
 	public void onBlockFade(BlockFadeEvent event) {
 		final Block block = event.getBlock();
-		if (!block.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(block.getWorld()))
 			return;
 
 		if (block.getBlockData() instanceof Farmland) {
@@ -1200,7 +1200,7 @@ public class NetherFarming implements Listener {
 	@EventHandler
 	public void onBlockExplode(BlockExplodeEvent event) {
 		final Block block = event.getBlock();
-		if (!block.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(block.getWorld()))
 			return;
 
 		if (block.getBlockData() instanceof Farmland) {
@@ -1228,7 +1228,7 @@ public class NetherFarming implements Listener {
 	@EventHandler
 	public void onLavaPlace(PlayerBucketEmptyEvent event) {
 		final Player player = event.getPlayer();
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(player))
 			return;
 
 		if (event.getBucket() == Material.LAVA_BUCKET) {
@@ -1241,7 +1241,7 @@ public class NetherFarming implements Listener {
 	@EventHandler
 	public void onLavaPickup(PlayerBucketFillEvent event) {
 		final Player player = event.getPlayer();
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(player))
 			return;
 
 		if (event.getItemStack() != null && event.getItemStack().getType() == Material.LAVA_BUCKET) {
@@ -1256,7 +1256,7 @@ public class NetherFarming implements Listener {
 	@EventHandler
 	public void onPickUpLavaWithDispense(BlockDispenseEvent event) {
 		final Block block = event.getBlock();
-		if (!block.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(block.getWorld()))
 			return;
 
 		if (block.getState() instanceof Dispenser dispenser) {
@@ -1286,7 +1286,7 @@ public class NetherFarming implements Listener {
 	@EventHandler
 	public void onPistonExtendIntoLava(BlockPistonExtendEvent event) {
 		final Block block = event.getBlock();
-		if (!block.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(block.getWorld()))
 			return;
 
 		Collection<Entity> playersNearby = block.getWorld().getNearbyEntities(block.getLocation(), 25, 25, 25).stream()
@@ -1308,7 +1308,7 @@ public class NetherFarming implements Listener {
 	@EventHandler
 	public void onBlockBreak(BlockBreakEvent event) {
 		final Block block = event.getBlock();
-		if (!block.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(block.getWorld()))
 			return;
 
 		if (block.getBlockData() instanceof Farmland || block.getBlockData() instanceof Ageable) {
@@ -1333,7 +1333,7 @@ public class NetherFarming implements Listener {
 	@EventHandler
 	public void onBlockPlace(BlockPlaceEvent event) {
 		final Block block = event.getBlock();
-		if (!block.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(block.getWorld()))
 			return;
 
 		final Player player = event.getPlayer();
@@ -1355,7 +1355,7 @@ public class NetherFarming implements Listener {
 	@EventHandler
 	public void onMoistureChange(MoistureChangeEvent event) {
 		final Block block = event.getBlock();
-		if (!block.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(block.getWorld()))
 			return;
 
 		if (block.getBlockData() instanceof Farmland) {
@@ -1383,7 +1383,7 @@ public class NetherFarming implements Listener {
 	@EventHandler
 	public void onBoneMeal(BlockFertilizeEvent event) {
 		final Player player = event.getPlayer();
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(player))
 			return;
 
 		final List<BlockState> blocks = event.getBlocks();
@@ -1399,7 +1399,7 @@ public class NetherFarming implements Listener {
 	@EventHandler
 	public void onHarvest(PlayerHarvestBlockEvent event) {
 		final Player player = event.getPlayer();
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(player))
 			return;
 
 		final Block block = event.getHarvestedBlock();
@@ -1413,7 +1413,7 @@ public class NetherFarming implements Listener {
 	@EventHandler
 	public void onGrow(BlockGrowEvent event) {
 		final Block block = event.getBlock();
-		if (!block.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(block.getWorld()))
 			return;
 
 		if (block.getBlockData() instanceof Ageable) {
@@ -1432,7 +1432,7 @@ public class NetherFarming implements Listener {
 	@EventHandler
 	public void onFarmland(PlayerInteractEvent event) {
 		final Player player = event.getPlayer();
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(player))
 			return;
 
 		if (!(event.getAction() == Action.RIGHT_CLICK_BLOCK || event.getAction() == Action.PHYSICAL)) {
@@ -1467,7 +1467,7 @@ public class NetherFarming implements Listener {
 	@EventHandler
 	public void onFarmlandEntity(EntityInteractEvent event) {
 		final Entity entity = event.getEntity();
-		if (!entity.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(entity.getWorld()))
 			return;
 
 		if (entity instanceof Player)

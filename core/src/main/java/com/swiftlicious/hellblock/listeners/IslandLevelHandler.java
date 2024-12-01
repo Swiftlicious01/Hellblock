@@ -141,7 +141,7 @@ public class IslandLevelHandler implements Listener {
 	@EventHandler
 	public void onLevelPlace(BlockPlaceEvent event) {
 		final Block block = event.getBlockPlaced();
-		if (!block.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(block.getWorld()))
 			return;
 
 		final Player player = event.getPlayer();
@@ -181,7 +181,7 @@ public class IslandLevelHandler implements Listener {
 	@EventHandler
 	public void onLevelBreak(BlockBreakEvent event) {
 		final Block block = event.getBlock();
-		if (!block.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(block.getWorld()))
 			return;
 
 		final Player player = event.getPlayer();
@@ -230,7 +230,7 @@ public class IslandLevelHandler implements Listener {
 	@EventHandler
 	public void onLevelExplode(BlockExplodeEvent event) {
 		final Block block = event.getBlock();
-		if (!block.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(block.getWorld()))
 			return;
 
 		Collection<Entity> playersNearby = block.getWorld().getNearbyEntities(block.getLocation(), 25, 25, 25).stream()
@@ -284,7 +284,7 @@ public class IslandLevelHandler implements Listener {
 	@EventHandler
 	public void onLevelBurn(BlockBurnEvent event) {
 		final Block block = event.getBlock();
-		if (!block.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(block.getWorld()))
 			return;
 
 		Collection<Entity> playersNearby = block.getWorld().getNearbyEntities(block.getLocation(), 25, 25, 25).stream()

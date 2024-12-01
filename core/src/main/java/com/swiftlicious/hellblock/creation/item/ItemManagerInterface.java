@@ -14,12 +14,12 @@ import com.swiftlicious.hellblock.api.Reloadable;
 import com.swiftlicious.hellblock.player.Context;
 
 /**
- * Interface for managing lava fishing items
+ * Interface for managing custom items
  */
 public interface ItemManagerInterface extends Reloadable {
 
 	/**
-	 * Registers a new lava fishing item.
+	 * Registers a new custom item.
 	 *
 	 * @param item the {@link CustomItem} to be registered
 	 * @return true if the item was successfully registered, false otherwise
@@ -39,7 +39,7 @@ public interface ItemManagerInterface extends Reloadable {
 	ItemStack buildInternal(@NotNull Context<Player> context, @NotNull String id) throws NullPointerException;
 
 	/**
-	 * Builds a custom fishing item using the given context and item definition.
+	 * Builds a custom item using the given context and item definition.
 	 *
 	 * @param context the {@link Context} in which the item is built
 	 * @param item    the {@link CustomItem} definition
@@ -67,8 +67,8 @@ public interface ItemManagerInterface extends Reloadable {
 	 * / {@code oraxen_item_id}
 	 *
 	 * @param itemStack the {@link ItemStack} to be checked
-	 * @return the custom fishing item ID, or null if the item stack is not a custom
-	 *         fishing item
+	 * @return the custom item ID, or null if the item stack is not a custom fishing
+	 *         item
 	 */
 	@NotNull
 	String getItemID(@NotNull ItemStack itemStack);
@@ -94,7 +94,7 @@ public interface ItemManagerInterface extends Reloadable {
 	ItemStack getItemLoot(@NotNull Context<Player> context, ItemStack rod, FishHook hook);
 
 	/**
-	 * Drops a custom fishing item as loot.
+	 * Drops a custom item as loot.
 	 *
 	 * @param context the {@link Context} in which the item is dropped
 	 * @param rod     the fishing rod {@link ItemStack}
@@ -150,14 +150,14 @@ public interface ItemManagerInterface extends Reloadable {
 	void setDamage(Player player, ItemStack itemStack, int damage);
 
 	/**
-	 * Returns the item factory used to create custom fishing items.
+	 * Returns the item factory used to create custom items.
 	 *
 	 * @return the {@link ItemFactory} instance
 	 */
 	ItemFactory<HellblockPlugin, RtagItem, ItemStack> getFactory();
 
 	/**
-	 * Returns an array of item providers used to manage custom fishing items.
+	 * Returns an array of item providers used to manage custom items.
 	 *
 	 * @return an array of {@link ItemProvider} instances
 	 */
@@ -171,7 +171,7 @@ public interface ItemManagerInterface extends Reloadable {
 	Collection<String> getItemIDs();
 
 	/**
-	 * Wraps the given item stack in a custom fishing item wrapper.
+	 * Wraps the given item stack in a custom item wrapper.
 	 *
 	 * @param itemStack the {@link ItemStack} to be wrapped
 	 * @return the wrapped {@link com.swiftlicious.hellblock.creation.item.Item}

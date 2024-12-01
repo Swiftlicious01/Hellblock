@@ -1,11 +1,20 @@
 package com.swiftlicious.hellblock.listeners;
 
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.TimeUnit;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
@@ -41,7 +50,9 @@ import org.bukkit.util.BoundingBox;
 import org.jetbrains.annotations.NotNull;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.api.Reloadable;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
+import com.swiftlicious.hellblock.database.RedisManager;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.nms.entity.firework.FakeFirework;
 import com.swiftlicious.hellblock.player.UUIDFetcher;
@@ -51,17 +62,54 @@ import com.swiftlicious.hellblock.utils.ChunkUtils;
 import com.swiftlicious.hellblock.utils.LocationUtils;
 import net.kyori.adventure.audience.Audience;
 
-public class PlayerListener implements Listener {
+public class PlayerListener implements Listener, Reloadable {
 
 	protected final HellblockPlugin instance;
 	private final Map<UUID, SchedulerTask> cancellablePortal;
 	private final Set<UUID> linkPortalCatcher;
 
+	private int interval;
+	private final UUID identifier;
+	private final ConcurrentMap<UUID, PlayerCount> playerCountMap;
+	private RedisPlayerCount redisPlayerCount;
+
 	public PlayerListener(HellblockPlugin plugin) {
 		instance = plugin;
 		this.cancellablePortal = new HashMap<>();
 		this.linkPortalCatcher = new HashSet<>();
+		this.identifier = UUID.randomUUID();
+		this.playerCountMap = new ConcurrentHashMap<>();
+		this.redisPlayerCount = null;
+	}
+
+	@Override
+	public void load() {
 		Bukkit.getPluginManager().registerEvents(this, instance);
+		this.interval = 10;
+		if (instance.getConfigManager().redisRanking()) {
+			if (this.redisPlayerCount == null) {
+				this.redisPlayerCount = new RedisPlayerCount(this.interval);
+			}
+		} else {
+			if (this.redisPlayerCount != null) {
+				this.redisPlayerCount.cancel();
+				this.redisPlayerCount = null;
+			}
+		}
+	}
+
+	@Override
+	public void unload() {
+		if (this.redisPlayerCount != null)
+			this.redisPlayerCount.cancel();
+	}
+
+	@Override
+	public void disable() {
+		if (this.redisPlayerCount != null) {
+			this.redisPlayerCount.cancel();
+			this.redisPlayerCount = null;
+		}
 	}
 
 	public Map<UUID, SchedulerTask> getCancellablePortalMap() {
@@ -77,7 +125,7 @@ public class PlayerListener implements Listener {
 		if (!instance.getConfigManager().disableBedExplosions())
 			return;
 		final Player player = event.getPlayer();
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(player))
 			return;
 
 		Block bed = event.getClickedBlock();
@@ -92,7 +140,7 @@ public class PlayerListener implements Listener {
 	@EventHandler
 	public void onFireworkDamage(EntityDamageByEntityEvent event) {
 		if (event.getEntity() instanceof Player player) {
-			if (!player.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+			if (!instance.getHellblockHandler().isInCorrectWorld(player))
 				return;
 			if (event.getDamager() instanceof Firework firework) {
 				if (firework instanceof FakeFirework) {
@@ -105,7 +153,7 @@ public class PlayerListener implements Listener {
 	@EventHandler
 	public void onFallingBlockLandOnSoulSand(EntityDropItemEvent event) {
 		if (event.getEntity() instanceof FallingBlock fallingBlock) {
-			if (!fallingBlock.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+			if (!instance.getHellblockHandler().isInCorrectWorld(fallingBlock.getWorld()))
 				return;
 			if (fallingBlock.getLocation().getBlock().getType() == Material.SOUL_SAND
 					&& fallingBlock.getLocation().getBlock().getRelative(BlockFace.UP).getType() != Material.LAVA) {
@@ -120,7 +168,7 @@ public class PlayerListener implements Listener {
 	@EventHandler
 	public void onLeaveHellblockBorders(PlayerMoveEvent event) {
 		final Player player = event.getPlayer();
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(player))
 			return;
 		final UUID id = player.getUniqueId();
 		if (player.getLocation() == null)
@@ -194,7 +242,7 @@ public class PlayerListener implements Listener {
 		if (event.getCause() == TeleportCause.ENDER_PEARL || event.getCause() == TeleportCause.CHORUS_FRUIT
 				|| event.getCause() == TeleportCause.DISMOUNT) {
 			final Player player = event.getPlayer();
-			if (!player.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+			if (!instance.getHellblockHandler().isInCorrectWorld(player))
 				return;
 			final UUID id = player.getUniqueId();
 			if (player.getLocation() == null)
@@ -277,7 +325,8 @@ public class PlayerListener implements Listener {
 			Audience audience = instance.getSenderFactory().getAudience(player);
 			SchedulerTask portalTask = instance.getScheduler().sync().runLater(() -> {
 				if (onlineUser.get().getHellblockData().hasHellblock()) {
-					if (onlineUser.get().getHellblockData().getLinkedUUID() != null) {
+					if (instance.getConfigManager().linkHellblocks()
+							&& onlineUser.get().getHellblockData().getLinkedUUID() != null) {
 						instance.getStorageManager()
 								.getOfflineUserData(onlineUser.get().getHellblockData().getLinkedUUID(),
 										instance.getConfigManager().lockData())
@@ -352,7 +401,9 @@ public class PlayerListener implements Listener {
 
 	@EventHandler
 	public void onLinkPortal(PortalCreateEvent event) {
-		if (!event.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getConfigManager().linkHellblocks())
+			return;
+		if (!instance.getHellblockHandler().isInCorrectWorld(event.getWorld()))
 			return;
 		if (event.getWorld().getEnvironment() != Environment.NETHER)
 			return;
@@ -388,8 +439,10 @@ public class PlayerListener implements Listener {
 
 	@EventHandler
 	public void onLinkPortal(PlayerInteractEvent event) {
+		if (!instance.getConfigManager().linkHellblocks())
+			return;
 		final Player player = event.getPlayer();
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(player))
 			return;
 		if (player.getWorld().getEnvironment() != Environment.NETHER)
 			return;
@@ -425,6 +478,8 @@ public class PlayerListener implements Listener {
 	@SuppressWarnings("deprecation")
 	@EventHandler
 	public void onLinkPortalChat(AsyncPlayerChatEvent event) {
+		if (!instance.getConfigManager().linkHellblocks())
+			return;
 		final Player player = event.getPlayer();
 		final UUID id = player.getUniqueId();
 		if (this.linkPortalCatcher.contains(id)) {
@@ -530,7 +585,7 @@ public class PlayerListener implements Listener {
 
 	@EventHandler(priority = EventPriority.HIGHEST)
 	public void onChangeWorld(PlayerChangedWorldEvent event) {
-		if (event.getFrom().getName().equals(instance.getConfigManager().worldName())) {
+		if (instance.getHellblockHandler().isInCorrectWorld(event.getFrom())) {
 			final Player player = event.getPlayer();
 			final UUID id = player.getUniqueId();
 			Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(id);
@@ -549,7 +604,7 @@ public class PlayerListener implements Listener {
 	@EventHandler
 	public void onMoveIfInPortal(PlayerMoveEvent event) {
 		final Player player = event.getPlayer();
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(player))
 			return;
 		if (playerInPortal(player))
 			return;
@@ -602,7 +657,7 @@ public class PlayerListener implements Listener {
 		if (!instance.getConfigManager().voidTeleport())
 			return;
 		final Player player = event.getPlayer();
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(player))
 			return;
 		final UUID id = player.getUniqueId();
 		if (player.getLocation().getY() <= 0) {
@@ -631,7 +686,7 @@ public class PlayerListener implements Listener {
 	@EventHandler
 	public void onDeath(PlayerDeathEvent event) {
 		final Player player = event.getEntity();
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(player))
 			return;
 		if (player.getLocation() != null)
 			player.getWorld().strikeLightningEffect(player.getLocation());
@@ -658,6 +713,67 @@ public class PlayerListener implements Listener {
 		} catch (IllegalStateException ex) {
 			// ignored.. some weird block iterator error but can't be fixed.
 			return false;
+		}
+	}
+
+	public int onlinePlayerCountProvider() {
+		if (instance.getConfigManager().redisRanking()) {
+			int count = 0;
+			List<UUID> toRemove = new ArrayList<>();
+			for (Map.Entry<UUID, PlayerCount> entry : playerCountMap.entrySet()) {
+				PlayerCount playerCount = entry.getValue();
+				if ((System.currentTimeMillis() - playerCount.time) < interval * 1000L + 2333L) {
+					count += playerCount.count;
+				} else {
+					toRemove.add(entry.getKey());
+				}
+			}
+			for (UUID uuid : toRemove) {
+				playerCountMap.remove(uuid);
+			}
+			return count;
+		} else {
+			return Bukkit.getOnlinePlayers().size();
+		}
+	}
+
+	public void updatePlayerCount(UUID uuid, int count) {
+		playerCountMap.put(uuid, new PlayerCount(count, System.currentTimeMillis()));
+	}
+
+	private class RedisPlayerCount implements Runnable {
+		private final SchedulerTask task;
+
+		public RedisPlayerCount(int interval) {
+			task = instance.getScheduler().asyncRepeating(this, interval, interval, TimeUnit.SECONDS);
+		}
+
+		@Override
+		public void run() {
+			try (ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+					DataOutputStream out = new DataOutputStream(byteArrayOutputStream)) {
+				out.writeUTF(instance.getConfigManager().serverGroup());
+				out.writeUTF("online");
+				out.writeUTF(String.valueOf(identifier));
+				out.writeInt(Bukkit.getOnlinePlayers().size());
+				RedisManager.getInstance().publishRedisMessage(byteArrayOutputStream.toString(StandardCharsets.UTF_8));
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+		}
+
+		public void cancel() {
+			task.cancel();
+		}
+	}
+
+	private static class PlayerCount {
+		int count;
+		long time;
+
+		public PlayerCount(int count, long time) {
+			this.count = count;
+			this.time = time;
 		}
 	}
 }

@@ -191,7 +191,8 @@ public class NMSUtils1_20_R4 implements NMSHandler {
 	}
 
 	@Override
-	public void sendClientSideTeleportEntity(Player player, Location location, boolean onGround, int... entityIDs) {
+	public void sendClientSideTeleportEntity(Player player, Location location, Vector motion, boolean onGround,
+			int... entityIDs) {
 		ServerPlayer serverPlayer = ((CraftPlayer) player).getHandle();
 		ArrayList<Packet<? super ClientGamePacketListener>> packets = new ArrayList<>();
 		float ROTATION_FACTOR = 256.0F / 360.0F;

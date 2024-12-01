@@ -1,14 +1,12 @@
 package com.swiftlicious.hellblock.listeners;
 
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.Map.Entry;
+import java.util.function.BiConsumer;
+import java.util.function.Function;
 
-import org.apache.commons.lang3.StringUtils;
 import org.bukkit.Bukkit;
 import org.bukkit.GameRule;
 import org.bukkit.Material;
@@ -32,134 +30,109 @@ import org.bukkit.event.player.PlayerSwapHandItemsEvent;
 import org.bukkit.inventory.CraftingRecipe;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.Recipe;
+import org.bukkit.inventory.RecipeChoice;
 import org.bukkit.inventory.ShapedRecipe;
+import org.bukkit.inventory.recipe.CraftingBookCategory;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.jetbrains.annotations.Nullable;
 
 import com.saicone.rtag.RtagItem;
 import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.api.Reloadable;
 import com.swiftlicious.hellblock.challenges.HellblockChallenge.ChallengeType;
+import com.swiftlicious.hellblock.config.parser.SingleItemParser;
+import com.swiftlicious.hellblock.creation.item.CustomItem;
 import com.swiftlicious.hellblock.creation.item.Item;
-import com.swiftlicious.hellblock.handlers.AdventureHelper;
+import com.swiftlicious.hellblock.player.Context;
 import com.swiftlicious.hellblock.player.UserData;
-import com.swiftlicious.hellblock.utils.extras.Key;
-
 import dev.dejvokep.boostedyaml.block.implementation.Section;
 
-public class NetherTools implements Listener {
+public class NetherTools implements Listener, Reloadable {
 
 	protected final HellblockPlugin instance;
 
-	private final Set<Material> netherrackTools, glowstoneTools, quartzTools, netherstarTools;
-
 	private final Map<UserData, Boolean> clickCache;
+
+	protected final Map<Material, ToolData> toolMap;
 
 	public NetherTools(HellblockPlugin plugin) {
 		this.instance = plugin;
 		this.clickCache = new HashMap<>();
-		this.netherrackTools = Set.of(Material.STONE_PICKAXE, Material.STONE_AXE, Material.STONE_SHOVEL,
-				Material.STONE_HOE, Material.STONE_SWORD);
-		this.glowstoneTools = Set.of(Material.GOLDEN_PICKAXE, Material.GOLDEN_AXE, Material.GOLDEN_SHOVEL,
-				Material.GOLDEN_HOE, Material.GOLDEN_SWORD);
-		this.quartzTools = Set.of(Material.IRON_PICKAXE, Material.IRON_AXE, Material.IRON_SHOVEL, Material.IRON_HOE,
-				Material.IRON_SWORD);
-		this.netherstarTools = Set.of(Material.DIAMOND_PICKAXE, Material.DIAMOND_AXE, Material.DIAMOND_SHOVEL,
-				Material.DIAMOND_HOE, Material.DIAMOND_SWORD);
+		this.toolMap = new HashMap<>();
+	}
+
+	@Override
+	public void load() {
 		addTools();
-		Bukkit.getPluginManager().registerEvents(this, this.instance);
+		Bukkit.getPluginManager().registerEvents(this, instance);
+	}
+
+	@Override
+	public void unload() {
+		this.clickCache.clear();
+		this.toolMap.clear();
 	}
 
 	public void addTools() {
 		try {
-			for (Entry<NamespacedKey, ShapedRecipe> recipe : registerNetherTools(
-					instance.getConfigManager().getMainConfig().getSection("tools")).entrySet()) {
-				if (recipe.getValue() != null) {
-					Bukkit.removeRecipe(recipe.getKey());
-					Bukkit.addRecipe(recipe.getValue());
-				} else {
-					Bukkit.removeRecipe(recipe.getKey());
-				}
-			}
+			Function<Object, BiConsumer<Item<ItemStack>, Context<Player>>> f1 = arg -> {
+				return (item, context) -> {
+					for (Entry<NamespacedKey, ShapedRecipe> recipe : registerNetherTools(context,
+							instance.getConfigManager().getMainConfig().getSection("tools")).entrySet()) {
+						if (recipe.getValue() != null) {
+							Bukkit.removeRecipe(recipe.getKey());
+							Bukkit.addRecipe(recipe.getValue());
+						} else {
+							Bukkit.removeRecipe(recipe.getKey());
+						}
+					}
+				};
+			};
+			instance.getConfigManager().registerItemParser(f1, 6700, "tools");
 		} catch (IllegalStateException ignored) {
 			// ignored
 		}
 	}
 
-	private Map<NamespacedKey, ShapedRecipe> registerNetherTools(Section section) {
+	private Map<NamespacedKey, ShapedRecipe> registerNetherTools(Context<Player> context, Section section) {
 		Map<NamespacedKey, ShapedRecipe> recipes = new HashMap<>();
-		for (MaterialType mat : MaterialType.values()) {
-			Section toolSection = section.getSection(mat.toString().toLowerCase());
-			if (toolSection.getBoolean("enable")) {
-				for (Map.Entry<String, Object> entry : toolSection.getStringRouteMappedValues(false).entrySet()) {
-					if (entry.getKey().equals("enable") || entry.getKey().equals("night-vision"))
-						continue;
-					String toolType = entry.getKey();
-					Material material = Material
-							.getMaterial(mat.getToolIdentifier().toUpperCase() + "_" + toolType.toUpperCase());
-					if (material == null)
-						continue;
-					Item<ItemStack> tool = instance.getItemManager().wrap(new ItemStack(material, 1));
+		for (Map.Entry<String, Object> entry : section.getStringRouteMappedValues(false).entrySet()) {
+			if (entry.getValue() instanceof Section inner) {
+				boolean enabled = inner.getBoolean("enable", true);
+				boolean nightVision = inner.getBoolean("night-vision", false);
+				NamespacedKey key = new NamespacedKey(instance, inner.getString("material").toLowerCase());
+				toolMap.putIfAbsent(Material.getMaterial(inner.getString("material")),
+						new ToolData(enabled, nightVision));
+				if (!enabled) {
+					recipes.putIfAbsent(key, null);
+					continue;
+				}
+				CustomItem item = new SingleItemParser(entry.getKey(), inner,
+						instance.getConfigManager().getItemFormatFunctions()).getItem();
 
-					if (entry.getValue() instanceof Section inner) {
-						tool.displayName(AdventureHelper.miniMessageToJson(inner.getString("name")));
+				ItemStack data = setToolData(item.build(context), enabled);
+				data = setNightVisionToolStatus(data, nightVision);
 
-						List<String> lore = new ArrayList<>();
-						for (String newLore : inner.getStringList("lore")) {
-							lore.add(AdventureHelper.miniMessageToJson(newLore));
-						}
-						tool.lore(lore);
-
-						for (Entry<String, Object> enchants : inner.getSection("enchantments")
-								.getStringRouteMappedValues(false).entrySet()) {
-							if (!StringUtils.isNumeric(enchants.getKey()))
-								continue;
-							if (enchants.getValue() instanceof Section enchantInner) {
-								String enchant = enchantInner.getString("enchant");
-								int level = enchantInner.getInt("level");
-								tool.addEnchantment(Key.fromString(enchant), level);
-							}
-						}
-
-						ItemStack data = setToolData(tool.getItem(), toolSection.getBoolean("enable"));
-						if (mat.getMaterial() == Material.GLOWSTONE)
-							data = setNightVisionToolStatus(data, toolSection.getBoolean("night-vision"));
-
-						NamespacedKey key = new NamespacedKey(instance,
-								mat.toString().toLowerCase() + toolType.toLowerCase());
-						ShapedRecipe recipe = new ShapedRecipe(key, data);
-						String[] recipeShape = new String[0];
-						switch (toolType) {
-						case "pickaxe":
-							recipeShape = new String[] { "NNN", " B ", " B " };
-						case "axe":
-							recipeShape = new String[] { "NN ", "NB ", " B " };
-						case "hoe":
-							recipeShape = new String[] { "NN ", " B ", " B " };
-						case "shovel":
-							recipeShape = new String[] { " N ", " B ", " B " };
-						case "sword":
-							recipeShape = new String[] { " N ", " N ", " B " };
-						default:
-							break;
-						}
-						if (recipeShape.length != 0) {
-							recipe.shape(recipeShape);
-							recipe.setIngredient('N', mat.getMaterial());
-							recipe.setIngredient('B', Material.BONE);
-							recipes.putIfAbsent(key, recipe);
-						}
+				ShapedRecipe recipe = new ShapedRecipe(key, data);
+				recipe.setCategory(CraftingBookCategory.EQUIPMENT);
+				String[] shape = inner.getStringList("crafting.recipe").toArray(new String[0]);
+				if (shape.length != 3) {
+					instance.getPluginLogger().warn(String.format(
+							"Recipe for potion item %s needs to include 3 rows for each different crafting slot.",
+							entry.getKey()));
+					continue;
+				}
+				recipe.shape(shape);
+				Section craftingIngredients = inner.getSection("crafting.materials");
+				if (craftingIngredients != null) {
+					Map<ItemStack, Character> craftingMaterials = instance.getConfigManager()
+							.getCraftingMaterials(craftingIngredients);
+					for (Map.Entry<ItemStack, Character> ingredient : craftingMaterials.entrySet()) {
+						recipe.setIngredient(ingredient.getValue(), new RecipeChoice.ExactChoice(ingredient.getKey()));
 					}
 				}
-			} else {
-				for (Map.Entry<String, Object> entry : toolSection.getStringRouteMappedValues(false).entrySet()) {
-					if (entry.getKey().equals("enable") || entry.getKey().equals("night-vision"))
-						continue;
-					String toolType = entry.getKey();
-					NamespacedKey key = new NamespacedKey(instance,
-							mat.toString().toLowerCase() + toolType.toLowerCase());
-					recipes.putIfAbsent(key, null);
-				}
+				recipes.putIfAbsent(key, recipe);
 			}
 		}
 		return recipes;
@@ -168,9 +141,8 @@ public class NetherTools implements Listener {
 	@EventHandler
 	public void onCrafting(CraftItemEvent event) {
 		if (event.getView().getPlayer() instanceof Player player) {
-			if (!player.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName())) {
+			if (!instance.getHellblockHandler().isInCorrectWorld(player))
 				return;
-			}
 
 			Recipe recipe = event.getRecipe();
 			ItemStack result = recipe.getResult();
@@ -180,7 +152,8 @@ public class NetherTools implements Listener {
 						if (!player.hasDiscoveredRecipe(craft.getKey())) {
 							Optional<UserData> onlineUser = instance.getStorageManager()
 									.getOnlineUser(player.getUniqueId());
-							if (onlineUser.isEmpty() || onlineUser.get().getPlayer() == null)
+							if (onlineUser.isEmpty() || onlineUser.get().getPlayer() == null
+									|| !onlineUser.get().getHellblockData().hasHellblock())
 								return;
 							if (!onlineUser.get().getChallengeData()
 									.isChallengeActive(ChallengeType.NETHER_CRAFTING_CHALLENGE)
@@ -209,9 +182,8 @@ public class NetherTools implements Listener {
 	public void onLimitedCrafting(PrepareItemCraftEvent event) {
 		if (instance.getHellblockHandler().getHellblockWorld().getGameRuleValue(GameRule.DO_LIMITED_CRAFTING)) {
 			if (event.getView().getPlayer() instanceof Player player) {
-				if (!player.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName())) {
+				if (!instance.getHellblockHandler().isInCorrectWorld(player))
 					return;
-				}
 
 				Recipe recipe = event.getRecipe();
 				ItemStack result = recipe.getResult();
@@ -221,7 +193,8 @@ public class NetherTools implements Listener {
 							if (!player.hasDiscoveredRecipe(craft.getKey())) {
 								Optional<UserData> onlineUser = instance.getStorageManager()
 										.getOnlineUser(player.getUniqueId());
-								if (onlineUser.isEmpty() || onlineUser.get().getPlayer() == null)
+								if (onlineUser.isEmpty() || onlineUser.get().getPlayer() == null
+										|| !onlineUser.get().getHellblockData().hasHellblock())
 									return;
 								if (!onlineUser.get().getChallengeData()
 										.isChallengeActive(ChallengeType.NETHER_CRAFTING_CHALLENGE)
@@ -249,20 +222,20 @@ public class NetherTools implements Listener {
 
 	@EventHandler
 	public void onSlotChange(PlayerItemHeldEvent event) {
-		if (!instance.getConfigManager().nightVisionTools() || !instance.getConfigManager().glowstoneTools())
-			return;
 		Player player = event.getPlayer();
 
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(player))
 			return;
 
 		ItemStack tool = player.getInventory().getItem(event.getNewSlot());
 		boolean inOffHand = false;
-		if (checkNightVisionToolStatus(tool) && getNightVisionToolStatus(tool)) {
+		if (isNetherToolEnabled(tool) && isNetherToolNightVisionAllowed(tool) && checkNightVisionToolStatus(tool)
+				&& getNightVisionToolStatus(tool)) {
 			inOffHand = false;
 		} else {
 			tool = player.getInventory().getItemInOffHand();
-			if (checkNightVisionToolStatus(tool) && getNightVisionToolStatus(tool)) {
+			if (isNetherToolEnabled(tool) && isNetherToolNightVisionAllowed(tool) && checkNightVisionToolStatus(tool)
+					&& getNightVisionToolStatus(tool)) {
 				inOffHand = true;
 			}
 		}
@@ -283,7 +256,8 @@ public class NetherTools implements Listener {
 			return;
 		}
 
-		if (tool != null && checkNightVisionToolStatus(tool) && getNightVisionToolStatus(tool)) {
+		if (tool != null && isNetherToolEnabled(tool) && isNetherToolNightVisionAllowed(tool)
+				&& checkNightVisionToolStatus(tool) && getNightVisionToolStatus(tool)) {
 			player.addPotionEffect(new PotionEffect(PotionEffectType.NIGHT_VISION, Integer.MAX_VALUE, 1));
 			onlineUser.get().isHoldingGlowstoneTool(true);
 		} else {
@@ -302,11 +276,9 @@ public class NetherTools implements Listener {
 
 	@EventHandler
 	public void onSwapHand(PlayerSwapHandItemsEvent event) {
-		if (!instance.getConfigManager().nightVisionTools() || !instance.getConfigManager().glowstoneTools())
-			return;
 		Player player = event.getPlayer();
 
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(player))
 			return;
 
 		Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
@@ -328,7 +300,8 @@ public class NetherTools implements Listener {
 			}
 		}
 
-		if (checkNightVisionToolStatus(tool) && getNightVisionToolStatus(tool)) {
+		if (isNetherToolEnabled(tool) && isNetherToolNightVisionAllowed(tool) && checkNightVisionToolStatus(tool)
+				&& getNightVisionToolStatus(tool)) {
 			player.addPotionEffect(new PotionEffect(PotionEffectType.NIGHT_VISION, Integer.MAX_VALUE, 1));
 			onlineUser.get().isHoldingGlowstoneTool(true);
 		} else {
@@ -345,11 +318,8 @@ public class NetherTools implements Listener {
 
 	@EventHandler
 	public void onPickup(EntityPickupItemEvent event) {
-		if (!instance.getConfigManager().nightVisionTools() || !instance.getConfigManager().glowstoneTools())
-			return;
-
 		if (event.getEntity() instanceof Player player) {
-			if (!player.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+			if (!instance.getHellblockHandler().isInCorrectWorld(player))
 				return;
 
 			Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
@@ -367,7 +337,8 @@ public class NetherTools implements Listener {
 				}
 
 				if (holdingItem) {
-					if (checkNightVisionToolStatus(tool) && getNightVisionToolStatus(tool)) {
+					if (isNetherToolEnabled(tool) && isNetherToolNightVisionAllowed(tool)
+							&& checkNightVisionToolStatus(tool) && getNightVisionToolStatus(tool)) {
 						player.addPotionEffect(new PotionEffect(PotionEffectType.NIGHT_VISION, Integer.MAX_VALUE, 1));
 						onlineUser.get().isHoldingGlowstoneTool(true);
 					} else {
@@ -387,18 +358,16 @@ public class NetherTools implements Listener {
 
 	@EventHandler
 	public void onDrop(PlayerDropItemEvent event) {
-		if (!instance.getConfigManager().nightVisionTools() || !instance.getConfigManager().glowstoneTools())
-			return;
-
 		Player player = event.getPlayer();
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(player))
 			return;
 
 		Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
 		if (onlineUser.isEmpty())
 			return;
 		ItemStack tool = event.getItemDrop().getItemStack();
-		if (checkNightVisionToolStatus(tool) && getNightVisionToolStatus(tool)) {
+		if (isNetherToolEnabled(tool) && isNetherToolNightVisionAllowed(tool) && checkNightVisionToolStatus(tool)
+				&& getNightVisionToolStatus(tool)) {
 			if (onlineUser.get().hasGlowstoneToolEffect()) {
 				if (player.hasPotionEffect(PotionEffectType.NIGHT_VISION)) {
 					onlineUser.get().isHoldingGlowstoneTool(false);
@@ -412,15 +381,12 @@ public class NetherTools implements Listener {
 
 	@EventHandler
 	public void onClick(InventoryClickEvent event) {
-		if (!instance.getConfigManager().nightVisionTools() || !instance.getConfigManager().glowstoneTools())
-			return;
-
 		if (event.getResult() != Result.ALLOW) {
 			return;
 		}
 
 		if (event.getWhoClicked() instanceof Player player) {
-			if (!player.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+			if (!instance.getHellblockHandler().isInCorrectWorld(player))
 				return;
 			if (event.getClickedInventory() != null
 					&& event.getClickedInventory().equals(player.getOpenInventory().getBottomInventory())) {
@@ -441,7 +407,8 @@ public class NetherTools implements Listener {
 					if (tool == null || tool.getType() == Material.AIR)
 						return;
 
-					if (checkNightVisionToolStatus(tool) && getNightVisionToolStatus(tool)) {
+					if (isNetherToolEnabled(tool) && isNetherToolNightVisionAllowed(tool)
+							&& checkNightVisionToolStatus(tool) && getNightVisionToolStatus(tool)) {
 						instance.getScheduler().sync().runLater(() -> {
 							ItemStack inHand = player.getInventory().getItemInMainHand();
 							if (inHand.getType() == Material.AIR) {
@@ -451,7 +418,8 @@ public class NetherTools implements Listener {
 								}
 							}
 
-							if (checkNightVisionToolStatus(inHand) && getNightVisionToolStatus(inHand)) {
+							if (isNetherToolEnabled(inHand) && isNetherToolNightVisionAllowed(inHand)
+									&& checkNightVisionToolStatus(inHand) && getNightVisionToolStatus(inHand)) {
 								this.clickCache.putIfAbsent(onlineUser.get(), true);
 							} else {
 								this.clickCache.putIfAbsent(onlineUser.get(), true);
@@ -473,7 +441,8 @@ public class NetherTools implements Listener {
 						return;
 					}
 
-					if (checkNightVisionToolStatus(tool) && getNightVisionToolStatus(tool)) {
+					if (isNetherToolEnabled(tool) && isNetherToolNightVisionAllowed(tool)
+							&& checkNightVisionToolStatus(tool) && getNightVisionToolStatus(tool)) {
 						instance.getScheduler().sync().runLater(() -> {
 							ItemStack inHand = player.getInventory().getItemInMainHand();
 							if (inHand.getType() == Material.AIR) {
@@ -483,7 +452,8 @@ public class NetherTools implements Listener {
 								}
 							}
 
-							if (checkNightVisionToolStatus(inHand) && getNightVisionToolStatus(inHand)) {
+							if (isNetherToolEnabled(inHand) && isNetherToolNightVisionAllowed(inHand)
+									&& checkNightVisionToolStatus(inHand) && getNightVisionToolStatus(inHand)) {
 								this.clickCache.putIfAbsent(onlineUser.get(), true);
 							} else {
 								this.clickCache.putIfAbsent(onlineUser.get(), true);
@@ -500,11 +470,8 @@ public class NetherTools implements Listener {
 
 	@EventHandler
 	public void onClose(InventoryCloseEvent event) {
-		if (!instance.getConfigManager().nightVisionTools() || !instance.getConfigManager().glowstoneTools())
-			return;
-
 		if (event.getPlayer() instanceof Player player) {
-			if (!player.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+			if (!instance.getHellblockHandler().isInCorrectWorld(player))
 				return;
 
 			Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
@@ -551,16 +518,15 @@ public class NetherTools implements Listener {
 
 	@EventHandler
 	public void onToolBreak(PlayerItemBreakEvent event) {
-		if (!instance.getConfigManager().nightVisionTools() || !instance.getConfigManager().glowstoneTools())
-			return;
 		final Player player = event.getPlayer();
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(player))
 			return;
 		Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
 		if (onlineUser.isEmpty())
 			return;
 		ItemStack tool = event.getBrokenItem();
-		if (checkNightVisionToolStatus(tool) && getNightVisionToolStatus(tool)) {
+		if (isNetherToolEnabled(tool) && isNetherToolNightVisionAllowed(tool) && checkNightVisionToolStatus(tool)
+				&& getNightVisionToolStatus(tool)) {
 			if (onlineUser.get().hasGlowstoneToolEffect()) {
 				if (player.hasPotionEffect(PotionEffectType.NIGHT_VISION)) {
 					onlineUser.get().isWearingGlowstoneArmor(false);
@@ -595,6 +561,13 @@ public class NetherTools implements Listener {
 		});
 	}
 
+	public boolean isNetherToolEnabled(@Nullable ItemStack item) {
+		if (item == null || item.getType() == Material.AIR)
+			return false;
+
+		return toolMap.containsKey(item.getType()) && toolMap.get(item.getType()).isEnabled();
+	}
+
 	public boolean checkNightVisionToolStatus(@Nullable ItemStack item) {
 		if (item == null || item.getType() == Material.AIR)
 			return false;
@@ -618,14 +591,28 @@ public class NetherTools implements Listener {
 		});
 	}
 
-	public boolean isNetherToolEnabled(@Nullable ItemStack item) {
+	public boolean isNetherToolNightVisionAllowed(@Nullable ItemStack item) {
 		if (item == null || item.getType() == Material.AIR)
 			return false;
 
-		Material mat = item.getType();
-		return ((instance.getConfigManager().netherrackTools() && this.netherrackTools.contains(mat))
-				|| (instance.getConfigManager().glowstoneTools() && this.glowstoneTools.contains(mat))
-				|| (instance.getConfigManager().quartzTools() && this.quartzTools.contains(mat))
-				|| (instance.getConfigManager().netherstarTools() && this.netherstarTools.contains(mat)));
+		return toolMap.containsKey(item.getType()) && toolMap.get(item.getType()).hasGlowstoneAbility();
+	}
+
+	protected class ToolData {
+		private boolean enabled;
+		private boolean glowstone;
+
+		public ToolData(boolean enabled, boolean glowstone) {
+			this.enabled = enabled;
+			this.glowstone = glowstone;
+		}
+
+		public boolean isEnabled() {
+			return this.enabled;
+		}
+
+		public boolean hasGlowstoneAbility() {
+			return this.glowstone;
+		}
 	}
 }

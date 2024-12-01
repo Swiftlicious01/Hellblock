@@ -47,7 +47,7 @@ public class WitherBoss implements Listener {
 	public void onWitherSpawn(CreatureSpawnEvent event) {
 		if (event.getLocation().getWorld() == null)
 			return;
-		if (!event.getLocation().getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(event.getLocation().getWorld()))
 			return;
 		if (event.getSpawnReason() != CreatureSpawnEvent.SpawnReason.BUILD_WITHER)
 			return;
@@ -87,7 +87,7 @@ public class WitherBoss implements Listener {
 
 	@EventHandler
 	public void onWitherDestroyBlock(EntityChangeBlockEvent event) {
-		if (!event.getEntity().getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(event.getEntity().getWorld()))
 			return;
 		if (!(event.getEntityType() == EntityType.WITHER || event.getEntityType() == EntityType.WITHER_SKULL))
 			return;
@@ -101,7 +101,9 @@ public class WitherBoss implements Listener {
 
 	@EventHandler
 	public void onWitherExplode(EntityExplodeEvent event) {
-		if (!event.getLocation().getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (event.getLocation().getWorld() == null)
+			return;
+		if (!instance.getHellblockHandler().isInCorrectWorld(event.getLocation().getWorld()))
 			return;
 		if (!(event.getEntity().getPersistentDataContainer().has(new NamespacedKey(instance, "hellblock-wither"))))
 			return;
@@ -113,7 +115,7 @@ public class WitherBoss implements Listener {
 
 	@EventHandler
 	public void onWitherDeath(EntityDeathEvent event) {
-		if (!event.getEntity().getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(event.getEntity().getWorld()))
 			return;
 		if (event.getEntityType() != EntityType.WITHER)
 			return;
@@ -124,7 +126,8 @@ public class WitherBoss implements Listener {
 		if (wither.getKiller() != null) {
 			Player player = wither.getKiller();
 			Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
-			if (onlineUser.isEmpty() || onlineUser.get().getPlayer() == null)
+			if (onlineUser.isEmpty() || onlineUser.get().getPlayer() == null
+					|| !onlineUser.get().getHellblockData().hasHellblock())
 				return;
 			if (!onlineUser.get().getChallengeData().isChallengeActive(ChallengeType.ENHANCED_WITHER_CHALLENGE)
 					&& !onlineUser.get().getChallengeData()
@@ -144,7 +147,7 @@ public class WitherBoss implements Listener {
 
 	@EventHandler
 	public void onWitherDamage(EntityDamageByEntityEvent event) {
-		if (!event.getEntity().getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(event.getEntity().getWorld()))
 			return;
 		Wither wither;
 		if (event.getDamager().getType() == EntityType.WITHER_SKULL) {

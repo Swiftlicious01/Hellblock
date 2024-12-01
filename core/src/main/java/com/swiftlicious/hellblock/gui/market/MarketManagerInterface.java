@@ -42,4 +42,12 @@ public interface MarketManagerInterface extends Reloadable {
 	 * @return the earning limit as a double
 	 */
 	double earningLimit(Context<Player> context);
+
+	/**
+	 * Retrieves the earning multiplier within the given context.
+	 *
+	 * @param context the {@link Context} in which the earning multiplier is checked
+	 * @return the earning multiplier as a double
+	 */
+	double earningsMultiplier(Context<Player> context);
 }

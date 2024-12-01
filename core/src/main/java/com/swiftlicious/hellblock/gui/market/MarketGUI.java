@@ -8,11 +8,11 @@ import java.util.Objects;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
+import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.Nullable;
 
-import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.player.Context;
 import com.swiftlicious.hellblock.player.ContextKeys;
@@ -36,14 +36,18 @@ public class MarketGUI {
 		this.itemsCharMap = new HashMap<>();
 		this.itemsSlotMap = new HashMap<>();
 		var holder = new MarketGUIHolder();
-		this.inventory = Bukkit.createInventory(holder, manager.layout.length * 9);
+		if (manager.layout.length == 1 && manager.layout[0].length() == 4) {
+			this.inventory = Bukkit.createInventory(holder, InventoryType.HOPPER);
+		} else {
+			this.inventory = Bukkit.createInventory(holder, manager.layout.length * 9);
+		}
 		holder.setInventory(this.inventory);
 	}
 
 	private void init() {
 		int line = 0;
 		for (String content : manager.layout) {
-			for (int index = 0; index < 9; index++) {
+			for (int index = 0; index < (this.inventory.getType() == InventoryType.HOPPER ? 5 : 9); index++) {
 				char symbol;
 				if (index < content.length())
 					symbol = content.charAt(index);
@@ -51,8 +55,9 @@ public class MarketGUI {
 					symbol = ' ';
 				MarketGUIElement element = itemsCharMap.get(symbol);
 				if (element != null) {
-					element.addSlot(index + line * 9);
-					itemsSlotMap.put(index + line * 9, element);
+					element.addSlot(index + line * (this.inventory.getType() == InventoryType.HOPPER ? 5 : 9));
+					itemsSlotMap.put(index + line * (this.inventory.getType() == InventoryType.HOPPER ? 5 : 9),
+							element);
 				}
 			}
 			line++;
@@ -76,7 +81,7 @@ public class MarketGUI {
 
 	public void show() {
 		context.holder().openInventory(inventory);
-		HellblockPlugin.getInstance().getVersionManager().getNMSManager().updateInventoryTitle(context.holder(),
+		manager.instance.getVersionManager().getNMSManager().updateInventoryTitle(context.holder(),
 				AdventureHelper.componentToJson(AdventureHelper.miniMessage(manager.title.render(context))));
 	}
 
@@ -100,7 +105,7 @@ public class MarketGUI {
 		MarketDynamicGUIElement sellElement = (MarketDynamicGUIElement) getElement(manager.sellSlot);
 		if (sellElement != null && !sellElement.getSlots().isEmpty()) {
 			Pair<Integer, Double> pair = manager.getItemsToSell(context, getItemsInGUI());
-			double totalWorth = pair.right();
+			double totalWorth = pair.right() * manager.earningsMultiplier(context);
 			int soldAmount = pair.left();
 			context.arg(ContextKeys.MONEY, manager.money(totalWorth))
 					.arg(ContextKeys.MONEY_FORMATTED, String.format("%.2f", totalWorth))
@@ -121,7 +126,7 @@ public class MarketGUI {
 			List<ItemStack> itemStacksToSell = manager
 					.storageContentsToList(context.holder().getInventory().getStorageContents());
 			Pair<Integer, Double> pair = manager.getItemsToSell(context, itemStacksToSell);
-			double totalWorth = pair.right();
+			double totalWorth = pair.right() * manager.earningsMultiplier(context);
 			int soldAmount = pair.left();
 			context.arg(ContextKeys.MONEY, manager.money(totalWorth))
 					.arg(ContextKeys.MONEY_FORMATTED, String.format("%.2f", totalWorth))

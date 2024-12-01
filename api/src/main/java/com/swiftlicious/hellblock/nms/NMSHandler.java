@@ -131,10 +131,16 @@ public interface NMSHandler {
 	 * 
 	 * @param player    the player to show the packet to.
 	 * @param location  the location the entity will teleport to.
+	 * @param motion    the vector motion of the entity.
 	 * @param onGround  whether or not the entity is on the ground.
 	 * @param entityIDs an array of entities to teleport.
 	 */
-	abstract void sendClientSideTeleportEntity(Player player, Location location, boolean onGround, int... entityIDs);
+	public abstract void sendClientSideTeleportEntity(Player player, Location location, Vector motion, boolean onGround,
+			int... entityIDs);
+
+	default void sendClientSideTeleportEntity(Player player, Location location, boolean onGround, int... entityIDs) {
+		this.sendClientSideTeleportEntity(player, location, new Vector(0, 0, 0), onGround, entityIDs);
+	}
 
 	/**
 	 * Moves an entity using packets.

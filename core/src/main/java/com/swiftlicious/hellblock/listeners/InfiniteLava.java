@@ -42,7 +42,7 @@ public class InfiniteLava implements Listener {
 			return;
 		}
 		final Player player = event.getPlayer();
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(player))
 			return;
 
 		ItemStack hand = event.getItem();
@@ -72,7 +72,8 @@ public class InfiniteLava implements Listener {
 								net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
 				player.updateInventory();
 				Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
-				if (onlineUser.isEmpty() || onlineUser.get().getPlayer() == null)
+				if (onlineUser.isEmpty() || onlineUser.get().getPlayer() == null
+						|| !onlineUser.get().getHellblockData().hasHellblock())
 					return;
 				if (!onlineUser.get().getChallengeData().isChallengeActive(ChallengeType.INFINITE_LAVA_CHALLENGE)
 						&& !onlineUser.get().getChallengeData()

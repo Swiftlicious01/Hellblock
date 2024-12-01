@@ -65,7 +65,7 @@ public class PiglinBartering implements Listener {
 	@EventHandler
 	public void onGiveItemOfInterest(PlayerInteractEntityEvent event) {
 		final Player player = event.getPlayer();
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(player))
 			return;
 		final UUID id = player.getUniqueId();
 		ItemStack inHand = player.getInventory().getItemInMainHand();
@@ -91,7 +91,7 @@ public class PiglinBartering implements Listener {
 	@EventHandler
 	public void onPiglinPickUpItemOfInterest(EntityPickupItemEvent event) {
 		if (event.getEntity() instanceof Piglin piglin) {
-			if (!piglin.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+			if (!instance.getHellblockHandler().isInCorrectWorld(piglin.getWorld()))
 				return;
 			if (!piglin.isAdult())
 				return;
@@ -112,7 +112,7 @@ public class PiglinBartering implements Listener {
 	@EventHandler
 	public void onBarterWithPiglin(PiglinBarterEvent event) {
 		final Piglin piglin = event.getEntity();
-		if (!piglin.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(piglin.getWorld()))
 			return;
 
 		List<ItemStack> barteredItems = event.getOutcome();
@@ -135,7 +135,8 @@ public class PiglinBartering implements Listener {
 			}
 			if (playerUUID != null) {
 				Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(playerUUID);
-				if (onlineUser.isEmpty() || onlineUser.get().getPlayer() == null)
+				if (onlineUser.isEmpty() || onlineUser.get().getPlayer() == null
+						|| !onlineUser.get().getHellblockData().hasHellblock())
 					return;
 				if (!onlineUser.get().getChallengeData().isChallengeActive(ChallengeType.NETHER_TRADING_CHALLENGE)
 						&& !onlineUser.get().getChallengeData()

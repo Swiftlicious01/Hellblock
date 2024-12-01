@@ -4,12 +4,9 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
-import org.apache.commons.lang3.StringUtils;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Tag;
@@ -34,7 +31,8 @@ import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.player.Context;
 import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.utils.ItemStackUtils;
-import com.swiftlicious.hellblock.utils.extras.Key;
+import com.swiftlicious.hellblock.utils.StringUtils;
+import com.swiftlicious.hellblock.utils.extras.TextValue;
 
 import dev.dejvokep.boostedyaml.block.implementation.Section;
 
@@ -363,9 +361,12 @@ public class IslandGenerator {
 		block.setBlockData(directional);
 		Chest chest = (Chest) block.getState();
 		String chestName = instance.getConfigManager().chestName();
-		RtagBlock chestTag = new RtagBlock(block);
+		Context<Player> context = Context.player(player);
 		if (chestName != null && !chestName.isEmpty() && chestName.length() <= 35) {
-			chestTag.setCustomName(AdventureHelper.jsonToMiniMessage(chestName));
+			RtagBlock chestTag = new RtagBlock(block);
+			TextValue<Player> customChestName = TextValue.auto(chestName);
+			chestTag.setCustomName(
+					AdventureHelper.componentToJson(AdventureHelper.miniMessage(customChestName.render(context))));
 			chestTag.update();
 			chestTag.load();
 		}
@@ -375,12 +376,12 @@ public class IslandGenerator {
 
 		for (Map.Entry<String, Object> entry : instance.getConfigManager().chestItems()
 				.getStringRouteMappedValues(false).entrySet()) {
-			if (!StringUtils.isNumeric(entry.getKey()))
+			if (StringUtils.isNotInteger(entry.getKey()))
 				continue;
 			if (entry.getValue() instanceof Section inner) {
 				try {
 					String material = inner.getString("material", "AIR");
-					if (material.equalsIgnoreCase("AIR") || material == null || material.isEmpty())
+					if (material == null || material.isEmpty() || material.equalsIgnoreCase("AIR"))
 						continue;
 					int amount = inner.getInt("amount", 1);
 					int slot = inner.getInt("slot");
@@ -393,36 +394,29 @@ public class IslandGenerator {
 					if (item.getItem().getType() == Material.AIR)
 						continue;
 
-					String displayName = inner.getString("name");
+					String displayName = inner.getString("display.name");
 					if (displayName != null && !displayName.isEmpty()) {
-						item.displayName(AdventureHelper.jsonToMiniMessage(displayName));
+						TextValue<Player> name = TextValue.auto("<!i><white>" + displayName);
+						item.displayName(AdventureHelper.miniMessageToJson(name.render(context)));
 					}
 
-					List<String> lore = inner.getStringList("lore");
-					if (lore != null && !lore.isEmpty()) {
-						List<String> updatedLore = new ArrayList<>();
-						for (String newLore : lore) {
-							updatedLore.add(AdventureHelper.jsonToMiniMessage(newLore));
+					List<String> displayLore = inner.getStringList("display.lore");
+					if (displayLore != null && !displayLore.isEmpty()) {
+						List<TextValue<Player>> lore = new ArrayList<>();
+						for (String text : displayLore) {
+							lore.add(TextValue.auto("<!i><white>" + text));
 						}
-						item.lore(updatedLore);
+						item.lore(lore.stream().map(it -> AdventureHelper.miniMessageToJson(it.render(context)))
+								.toList());
 					}
 
-					Set<Entry<String, Object>> enchantments = inner
-							.getSection(type == Material.ENCHANTED_BOOK ? "stored-enchantments" : "enchantments")
-							.getStringRouteMappedValues(false).entrySet();
-					if (enchantments != null && !enchantments.isEmpty()) {
-						for (Entry<String, Object> enchants : enchantments) {
-							if (!StringUtils.isNumeric(enchants.getKey()))
-								continue;
-							if (enchants.getValue() instanceof Section enchantInner) {
-								String enchant = enchantInner.getString("enchant");
-								int level = enchantInner.getInt("level");
-								if (type == Material.ENCHANTED_BOOK)
-									item.addStoredEnchantment(Key.fromString(enchant), level);
-								else
-									item.addEnchantment(Key.fromString(enchant), level);
-							}
-						}
+					Section enchantments = inner
+							.getSection(type == Material.ENCHANTED_BOOK ? "stored-enchantments" : "enchantments");
+					if (enchantments != null) {
+						if (type == Material.ENCHANTED_BOOK)
+							item.storedEnchantments(instance.getConfigManager().getEnchantments(enchantments));
+						else
+							item.enchantments(instance.getConfigManager().getEnchantments(enchantments));
 					}
 
 					int damage = inner.getInt("damage");
@@ -432,7 +426,8 @@ public class IslandGenerator {
 					item.customModelData(customModelData);
 
 					boolean unbreakable = inner.getBoolean("unbreakable", false);
-					item.unbreakable(unbreakable);
+					if (unbreakable)
+						item.unbreakable(true);
 
 					if (instance.getVersionManager().isVersionNewerThan1_20_5()) {
 						Section components = inner.getSection("item-components");
@@ -440,8 +435,7 @@ public class IslandGenerator {
 							List<ItemEditor> editors = new ArrayList<>();
 							ItemStackUtils.sectionToComponentEditor(components, editors);
 							for (ItemEditor editor : editors) {
-								editor.apply(((AbstractItem<RtagItem, ItemStack>) item).getRTagItem(),
-										Context.player(player));
+								editor.apply(((AbstractItem<RtagItem, ItemStack>) item).getRTagItem(), context);
 							}
 						}
 					} else {
@@ -458,12 +452,12 @@ public class IslandGenerator {
 					}
 
 					if (type == Material.PLAYER_HEAD) {
-						String base64 = inner.getString("skull.base64");
+						String base64 = inner.getString("head64");
 						if (base64 != null && !base64.isEmpty())
 							item.skull(base64);
 					}
 
-					ItemStack data = setChestData(item.getItem(), true);
+					ItemStack data = setChestData(item.load(), true);
 
 					if (slot >= 0 && slot <= 26) {
 						inventory.setItem(slot, data);

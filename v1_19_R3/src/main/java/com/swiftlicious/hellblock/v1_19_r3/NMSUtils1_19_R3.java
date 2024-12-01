@@ -79,7 +79,7 @@ import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
 import net.minecraft.world.phys.Vec3;
 
 public class NMSUtils1_19_R3 implements NMSHandler {
-	
+
 	private final Registry<Biome> biomeRegistry = MinecraftServer.getServer().registries().compositeAccess()
 			.registryOrThrow(Registries.BIOME);
 
@@ -176,7 +176,8 @@ public class NMSUtils1_19_R3 implements NMSHandler {
 	}
 
 	@Override
-	public void sendClientSideTeleportEntity(Player player, Location location, boolean onGround, int... entityIDs) {
+	public void sendClientSideTeleportEntity(Player player, Location location, Vector motion, boolean onGround,
+			int... entityIDs) {
 		ServerPlayer serverPlayer = ((CraftPlayer) player).getHandle();
 		ArrayList<Packet<ClientGamePacketListener>> packets = new ArrayList<>();
 		float ROTATION_FACTOR = 256.0F / 360.0F;

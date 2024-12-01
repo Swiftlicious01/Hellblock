@@ -19,7 +19,7 @@ public enum DependencyRepository {
 	/**
 	 * Maven Mirror
 	 */
-	MAVEN_MIRROR("maven", "https://maven.aliyun.com/repository/public/") {
+	MAVEN_CENTRAL_MIRROR("maven", "https://maven.aliyun.com/repository/public/") {
 		@Override
 		protected URLConnection openConnection(Dependency dependency) throws IOException {
 			URLConnection connection = super.openConnection(dependency);
@@ -31,11 +31,7 @@ public enum DependencyRepository {
 	/**
 	 * Maven Central
 	 */
-	MAVEN_CENTRAL("maven", "https://repo1.maven.org/maven2/"),
-	/**
-	 * xenondevs
-	 */
-	XENONDEVS("xenondevs", "https://repo.xenondevs.xyz/releases/");
+	MAVEN_CENTRAL("maven", "https://repo1.maven.org/maven2/");
 
 	private final String url;
 	private final String id;

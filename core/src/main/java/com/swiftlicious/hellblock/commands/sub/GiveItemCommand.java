@@ -2,6 +2,7 @@ package com.swiftlicious.hellblock.commands.sub;
 
 import java.util.concurrent.CompletableFuture;
 
+import org.bukkit.GameMode;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
@@ -63,7 +64,7 @@ public class GiveItemCommand extends BukkitCommandFeature<CommandSender> {
 							amountToGive -= perStackSize;
 							ItemStack more = itemStack.clone();
 							more.setAmount(perStackSize);
-							if (toInv) {
+							if (toInv || player.getGameMode() == GameMode.SPECTATOR) {
 								PlayerUtils.putItemsToInventory(player.getInventory(), more, more.getAmount());
 							} else {
 								PlayerUtils.dropItem(player, more, false, true, false);
@@ -71,7 +72,7 @@ public class GiveItemCommand extends BukkitCommandFeature<CommandSender> {
 						}
 						handleFeedback(context, MessageConstants.COMMAND_ITEM_GIVE_SUCCESS,
 								Component.text(player.getName()), Component.text(amount), Component.text(id));
-					} catch (NullPointerException e) {
+					} catch (Exception e) {
 						handleFeedback(context, MessageConstants.COMMAND_ITEM_FAILURE_NOT_EXIST, Component.text(id));
 					}
 				});

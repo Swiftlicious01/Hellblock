@@ -109,7 +109,7 @@ public class LavaRainTask implements Runnable {
 				Iterator<Block> blocks = lavaRainLocation.getBlocks();
 				Block block;
 				Block particleSpawn;
-				if (world.getName().equalsIgnoreCase(instance.getConfigManager().worldName())
+				if (instance.getHellblockHandler().isInCorrectWorld(player)
 						&& !instance.getHellblockHandler().checkIfInSpawn(location)) {
 					while (true) {
 						while (true) {

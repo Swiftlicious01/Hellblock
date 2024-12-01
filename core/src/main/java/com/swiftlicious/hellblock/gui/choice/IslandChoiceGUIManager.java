@@ -29,8 +29,10 @@ import com.swiftlicious.hellblock.generation.IslandOptions;
 import com.swiftlicious.hellblock.handlers.ActionManagerInterface;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.player.Context;
+import com.swiftlicious.hellblock.player.ContextKeys;
 import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.utils.extras.Action;
+import com.swiftlicious.hellblock.utils.extras.Pair;
 import com.swiftlicious.hellblock.utils.extras.TextValue;
 
 import dev.dejvokep.boostedyaml.block.implementation.Section;
@@ -43,7 +45,7 @@ public class IslandChoiceGUIManager implements IslandChoiceGUIManagerInterface, 
 
 	protected TextValue<Player> title;
 	protected String[] layout;
-	protected final Map<Character, CustomItem> decorativeIcons;
+	protected final Map<Character, Pair<CustomItem, Action<Player>[]>> decorativeIcons;
 	protected final ConcurrentMap<UUID, IslandChoiceGUI> islandChoiceGUICache;
 
 	protected char defaultSlot;
@@ -114,8 +116,10 @@ public class IslandChoiceGUIManager implements IslandChoiceGUIManagerInterface, 
 			for (Map.Entry<String, Object> entry : decorativeSection.getStringRouteMappedValues(false).entrySet()) {
 				if (entry.getValue() instanceof Section innerSection) {
 					char symbol = Objects.requireNonNull(innerSection.getString("symbol")).charAt(0);
-					decorativeIcons.put(symbol, new SingleItemParser("gui", innerSection,
-							instance.getConfigManager().getItemFormatFunctions()).getItem());
+					decorativeIcons.put(symbol,
+							Pair.of(new SingleItemParser("gui", innerSection,
+									instance.getConfigManager().getItemFormatFunctions()).getItem(),
+									instance.getActionManager().parseActions(innerSection.getSection("action"))));
 				}
 			}
 		}
@@ -146,27 +150,16 @@ public class IslandChoiceGUIManager implements IslandChoiceGUIManagerInterface, 
 		Context<Player> context = Context.player(player);
 		if (noIslandOptionsAvailable()) {
 			instance.getHellblockHandler().createHellblock(player, IslandOptions.CLASSIC, isReset);
+			context.clearCustomData();
 			ActionManagerInterface.trigger(context, classicActions);
 			return false;
 		}
 		IslandChoiceGUI gui = new IslandChoiceGUI(this, context, optionalUserData.get().getHellblockData(), isReset);
-		if (instance.getConfigManager().islandOptions().contains(IslandOptions.DEFAULT.getName())) {
-			gui.addElement(new IslandChoiceDynamicGUIElement(defaultSlot, defaultIcon.build(context)));
-		} else {
-			gui.addElement(new IslandChoiceGUIElement(defaultSlot, new ItemStack(Material.AIR)));
-		}
-		if (instance.getConfigManager().islandOptions().contains(IslandOptions.CLASSIC.getName())) {
-			gui.addElement(new IslandChoiceDynamicGUIElement(classicSlot, classicIcon.build(context)));
-		} else {
-			gui.addElement(new IslandChoiceGUIElement(classicSlot, new ItemStack(Material.AIR)));
-		}
-		if (instance.getSchematicGUIManager().checkForSchematics()) {
-			gui.addElement(new IslandChoiceDynamicGUIElement(schematicSlot, schematicIcon.build(context)));
-		} else {
-			gui.addElement(new IslandChoiceGUIElement(schematicSlot, new ItemStack(Material.AIR)));
-		}
-		for (Map.Entry<Character, CustomItem> entry : decorativeIcons.entrySet()) {
-			gui.addElement(new IslandChoiceGUIElement(entry.getKey(), entry.getValue().build(context)));
+		gui.addElement(new IslandChoiceDynamicGUIElement(defaultSlot, new ItemStack(Material.AIR)));
+		gui.addElement(new IslandChoiceDynamicGUIElement(classicSlot, new ItemStack(Material.AIR)));
+		gui.addElement(new IslandChoiceDynamicGUIElement(schematicSlot, new ItemStack(Material.AIR)));
+		for (Map.Entry<Character, Pair<CustomItem, Action<Player>[]>> entry : decorativeIcons.entrySet()) {
+			gui.addElement(new IslandChoiceGUIElement(entry.getKey(), entry.getValue().left().build(context)));
 		}
 		gui.build().refresh().show();
 		islandChoiceGUICache.put(player.getUniqueId(), gui);
@@ -260,8 +253,17 @@ public class IslandChoiceGUIManager implements IslandChoiceGUIManagerInterface, 
 				return;
 			}
 
+			Pair<CustomItem, Action<Player>[]> decorativeIcon = this.decorativeIcons.get(element.getSymbol());
+			if (decorativeIcon != null) {
+				ActionManagerInterface.trigger(gui.context, decorativeIcon.right());
+				return;
+			}
+
 			if (gui.isReset && gui.hellblockData.getResetCooldown() > 0) {
-				Audience audience = instance.getSenderFactory().getAudience(player);
+				gui.context.arg(ContextKeys.RESET_COOLDOWN, gui.hellblockData.getResetCooldown()).arg(
+						ContextKeys.RESET_COOLDOWN_FORMATTED,
+						instance.getFormattedCooldown(gui.hellblockData.getResetCooldown()));
+				Audience audience = instance.getSenderFactory().getAudience(gui.context.holder());
 				audience.sendMessage(instance.getTranslationManager()
 						.render(MessageConstants.MSG_HELLBLOCK_RESET_ON_COOLDOWN.arguments(AdventureHelper
 								.miniMessage(instance.getFormattedCooldown(gui.hellblockData.getResetCooldown())))
@@ -273,22 +275,25 @@ public class IslandChoiceGUIManager implements IslandChoiceGUIManagerInterface, 
 
 			if (element.getSymbol() == defaultSlot) {
 				event.setCancelled(true);
-				instance.getHellblockHandler().createHellblock(player, IslandOptions.CLASSIC, gui.isReset)
+				instance.getHellblockHandler().createHellblock(gui.context.holder(), IslandOptions.DEFAULT, gui.isReset)
 						.thenRun(() -> player.closeInventory());
+				gui.context.clearCustomData();
 				ActionManagerInterface.trigger(gui.context, defaultActions);
 			}
 
 			if (element.getSymbol() == classicSlot) {
 				event.setCancelled(true);
-				instance.getHellblockHandler().createHellblock(player, IslandOptions.CLASSIC, gui.isReset)
+				instance.getHellblockHandler().createHellblock(gui.context.holder(), IslandOptions.CLASSIC, gui.isReset)
 						.thenRun(() -> player.closeInventory());
+				gui.context.clearCustomData();
 				ActionManagerInterface.trigger(gui.context, classicActions);
 			}
 
 			if (element.getSymbol() == schematicSlot) {
 				event.setCancelled(true);
-				instance.getSchematicGUIManager().openSchematicGUI(player, gui.isReset);
+				instance.getSchematicGUIManager().openSchematicGUI(gui.context.holder(), gui.isReset);
 				ActionManagerInterface.trigger(gui.context, schematicActions);
+				return;
 			}
 		}
 
@@ -298,7 +303,7 @@ public class IslandChoiceGUIManager implements IslandChoiceGUIManagerInterface, 
 
 	private boolean noIslandOptionsAvailable() {
 		return !instance.getConfigManager().islandOptions().contains(IslandOptions.DEFAULT.getName())
-				&& !instance.getConfigManager().islandOptions().contains(IslandOptions.DEFAULT.getName())
+				&& !instance.getConfigManager().islandOptions().contains(IslandOptions.CLASSIC.getName())
 				&& !instance.getSchematicGUIManager().checkForSchematics();
 	}
 }

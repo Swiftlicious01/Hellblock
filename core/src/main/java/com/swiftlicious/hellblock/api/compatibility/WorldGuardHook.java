@@ -481,7 +481,7 @@ public class WorldGuardHook implements Listener, Reloadable {
 	@EventHandler
 	public void onRegionEnterIfBanned(RegionEnteredEvent event) {
 		final Player player = event.getPlayer();
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(player))
 			return;
 		final UUID id = player.getUniqueId();
 		Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(id);

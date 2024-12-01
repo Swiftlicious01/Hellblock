@@ -3,7 +3,6 @@ package com.swiftlicious.hellblock.commands.sub;
 import java.util.Optional;
 import java.util.UUID;
 
-import org.apache.commons.lang3.StringUtils;
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
@@ -15,6 +14,7 @@ import com.swiftlicious.hellblock.commands.BukkitCommandFeature;
 import com.swiftlicious.hellblock.commands.HellblockCommandManager;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
 import com.swiftlicious.hellblock.player.UserData;
+import com.swiftlicious.hellblock.utils.StringUtils;
 
 import net.kyori.adventure.text.Component;
 
@@ -100,13 +100,14 @@ public class HellblockInfoCommand extends BukkitCommandFeature<CommandSender> {
 									}
 								}
 							}
-							handleFeedback(context,
-									MessageConstants.MSG_HELLBLOCK_INFORMATION.arguments(
-											Component.text(offlineUser.getHellblockData().getID()),
-											Component.text(offlineUser.getName() != null
-													&& Bukkit.getOfflinePlayer(offlineUser.getUUID()).hasPlayedBefore()
-															? offlineUser.getName()
-															: "Unknown")),
+							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_INFORMATION.arguments(
+									Component.text(offlineUser.getHellblockData().getID()),
+									Component.text(offlineUser.getName() != null
+											&& Bukkit.getOfflinePlayer(offlineUser.getUUID()).hasPlayedBefore()
+													? offlineUser.getName()
+													: HellblockPlugin.getInstance().getTranslationManager()
+															.miniMessageTranslation(
+																	MessageConstants.FORMAT_UNKNOWN.build().key()))),
 									Component.text(offlineUser.getHellblockData().getLevel()),
 									Component.text(offlineUser.getHellblockData().getCreationTime()),
 									Component.text(offlineUser.getHellblockData().isLocked()
@@ -118,7 +119,7 @@ public class HellblockInfoCommand extends BukkitCommandFeature<CommandSender> {
 															MessageConstants.FORMAT_OPEN.build().key())),
 									Component.text(offlineUser.getHellblockData().getTotalVisits()),
 									Component.text(StringUtils
-											.capitalize(offlineUser.getHellblockData().getIslandChoice().getName())),
+											.toProperCase(offlineUser.getHellblockData().getIslandChoice().getName())),
 									Component.text(offlineUser.getHellblockData().getBiome().getName()),
 									Component.text(offlineUser.getHellblockData().getParty().size()),
 									Component.text(HellblockPlugin.getInstance().getConfigManager().partySize()),

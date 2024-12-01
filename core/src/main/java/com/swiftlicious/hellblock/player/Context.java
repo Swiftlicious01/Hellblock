@@ -6,10 +6,10 @@ import org.bukkit.entity.Player;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * The Context interface represents a generic context for custom fishing
- * mechanics. It allows for storing and retrieving arguments, as well as getting
- * the holder of the context. This can be used to maintain state or pass
- * parameters within the custom fishing mechanics.
+ * The Context interface represents a generic context for custom mechanics. It
+ * allows for storing and retrieving arguments, as well as getting the holder of
+ * the context. This can be used to maintain state or pass parameters within the
+ * custom mechanics.
  *
  * @param <T> the type of the holder object for this context
  */

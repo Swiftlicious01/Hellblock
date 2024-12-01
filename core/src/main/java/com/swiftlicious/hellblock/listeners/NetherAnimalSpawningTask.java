@@ -49,7 +49,7 @@ public class NetherAnimalSpawningTask implements Runnable {
 		Player player = Bukkit.getPlayer(playerUUID);
 		if (player == null || !player.isOnline() || player.getLocation() == null)
 			return;
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(player))
 			return;
 
 		if (instance.getConfigManager().worldguardProtect()) {
@@ -61,48 +61,51 @@ public class NetherAnimalSpawningTask implements Runnable {
 			UUID ownerUUID = instance.getCoopManager().getHellblockOwnerOfVisitingIsland(player);
 			if (ownerUUID == null)
 				return;
-			instance.getStorageManager().getOfflineUserData(ownerUUID, instance.getConfigManager().lockData()).thenAccept((result) -> {
-				if (result.isEmpty())
-					return;
-				UserData offlineUser = result.get();
-				ProtectedRegion region = instance.getWorldGuardHandler().getRegion(ownerUUID,
-						offlineUser.getHellblockData().getID());
-				if (region == null)
-					return;
-				if (offlineUser.getHellblockData()
-						.getProtectionValue(HellblockFlag.FlagType.MOB_SPAWNING) != AccessType.ALLOW)
-					return;
-				World world = instance.getHellblockHandler().getHellblockWorld();
-				instance.getBiomeHandler().getHellblockChunks(region).thenAccept((chunks) -> {
-					for (Chunk chunk : chunks) {
-						if (!chunk.getChunkSnapshot().contains(Bukkit.createBlockData(Material.GRASS_BLOCK)))
-							continue;
-						int animalSize = (int) Arrays.asList(chunk.getEntities()).stream()
-								.filter((e) -> e instanceof Animals).count();
-						if (animalSize > MAX_ANIMAL_COUNT)
-							continue;
+			instance.getStorageManager().getOfflineUserData(ownerUUID, instance.getConfigManager().lockData())
+					.thenAccept((result) -> {
+						if (result.isEmpty())
+							return;
+						UserData offlineUser = result.get();
+						ProtectedRegion region = instance.getWorldGuardHandler().getRegion(ownerUUID,
+								offlineUser.getHellblockData().getID());
+						if (region == null)
+							return;
+						if (offlineUser.getHellblockData()
+								.getProtectionValue(HellblockFlag.FlagType.MOB_SPAWNING) != AccessType.ALLOW)
+							return;
+						World world = instance.getHellblockHandler().getHellblockWorld();
+						instance.getBiomeHandler().getHellblockChunks(region).thenAccept((chunks) -> {
+							for (Chunk chunk : chunks) {
+								if (!chunk.getChunkSnapshot().contains(Bukkit.createBlockData(Material.GRASS_BLOCK)))
+									continue;
+								int animalSize = (int) Arrays.asList(chunk.getEntities()).stream()
+										.filter((e) -> e instanceof Animals).count();
+								if (animalSize > MAX_ANIMAL_COUNT)
+									continue;
 
-						Block block;
-						do {
-							block = chunk.getBlock(RandomUtils.generateRandomInt(16),
-									RandomUtils.generateRandomInt(world.getMaxHeight() - 1),
-									RandomUtils.generateRandomInt(16));
-						} while (block.getType() != Material.GRASS_BLOCK && !spawnCache.contains(block.getLocation()));
+								Block block;
+								do {
+									block = chunk.getBlock(RandomUtils.generateRandomInt(16),
+											RandomUtils.generateRandomInt(world.getMaxHeight() - 1),
+											RandomUtils.generateRandomInt(16));
+								} while (block.getType() != Material.GRASS_BLOCK
+										&& !spawnCache.contains(block.getLocation()));
 
-						Location spawn = block.getLocation().add(0.5, 1, 0.5);
-						if ((spawn.getBlock().isEmpty() || spawn.getBlock().isPassable())
-								&& (spawn.getBlock().getRelative(BlockFace.UP).isEmpty()
-										|| spawn.getBlock().getRelative(BlockFace.UP).isPassable())
-								&& block.getLightLevel() > (byte) 9) {
-							instance.getScheduler().executeSync(
-									() -> world.spawnEntity(spawn, RandomUtils.spawnRandomAnimal(), true), spawn);
-							spawnCache.add(block.getLocation());
-						}
-					}
+								Location spawn = block.getLocation().add(0.5, 1, 0.5);
+								if ((spawn.getBlock().isEmpty() || spawn.getBlock().isPassable())
+										&& (spawn.getBlock().getRelative(BlockFace.UP).isEmpty()
+												|| spawn.getBlock().getRelative(BlockFace.UP).isPassable())
+										&& block.getLightLevel() > (byte) 9) {
+									instance.getScheduler().executeSync(
+											() -> world.spawnEntity(spawn, RandomUtils.spawnRandomAnimal(), true),
+											spawn);
+									spawnCache.add(block.getLocation());
+								}
+							}
 
-					instance.getScheduler().asyncRepeating(() -> spawnCache.clear(), 15, 30, TimeUnit.MINUTES);
-				});
-			});
+							instance.getScheduler().asyncRepeating(() -> spawnCache.clear(), 15, 30, TimeUnit.MINUTES);
+						});
+					});
 		} else {
 			// TODO: using plugin protection
 		}

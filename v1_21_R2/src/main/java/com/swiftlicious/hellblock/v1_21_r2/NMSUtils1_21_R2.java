@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import org.bukkit.Location;
@@ -24,6 +25,7 @@ import org.bukkit.craftbukkit.util.CraftLocation;
 import org.bukkit.craftbukkit.util.CraftVector;
 import org.bukkit.entity.FishHook;
 import org.bukkit.entity.Player;
+import org.bukkit.event.player.PlayerTeleportEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.util.Vector;
@@ -38,12 +40,10 @@ import com.swiftlicious.hellblock.nms.fluid.FluidData;
 import com.swiftlicious.hellblock.nms.inventory.HandSlot;
 import com.swiftlicious.hellblock.nms.util.SelfIncreaseEntityID;
 
-import io.netty.buffer.Unpooled;
 import it.unimi.dsi.fastutil.objects.Object2IntMap;
 import net.minecraft.core.Holder;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.Registries;
-import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
@@ -67,6 +67,7 @@ import net.minecraft.server.network.ServerPlayerConnection;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.PositionMoveRotation;
 import net.minecraft.world.entity.projectile.FishingHook;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.MenuType;
@@ -76,6 +77,7 @@ import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.level.material.LavaFluid;
 import net.minecraft.world.level.material.WaterFluid;
+import net.minecraft.world.level.portal.TeleportTransition;
 import net.minecraft.world.level.storage.loot.BuiltInLootTables;
 import net.minecraft.world.level.storage.loot.LootParams;
 import net.minecraft.world.level.storage.loot.LootTable;
@@ -193,22 +195,18 @@ public class NMSUtils1_21_R2 implements NMSHandler {
 	}
 
 	@Override
-	public void sendClientSideTeleportEntity(Player player, Location location, boolean onGround, int... entityIDs) {
+	public void sendClientSideTeleportEntity(Player player, Location location, Vector motion, boolean onGround,
+			int... entityIDs) {
 		ServerPlayer serverPlayer = ((CraftPlayer) player).getHandle();
 		ArrayList<Packet<? super ClientGamePacketListener>> packets = new ArrayList<>();
-		float ROTATION_FACTOR = 256.0F / 360.0F;
-		float yaw = location.getYaw() * ROTATION_FACTOR;
-		float pitch = location.getPitch() * ROTATION_FACTOR;
 		for (int entityID : entityIDs) {
-			FriendlyByteBuf buf = new FriendlyByteBuf(Unpooled.buffer());
-			buf.writeVarInt(entityID);
-			buf.writeDouble(location.getX());
-			buf.writeDouble(location.getY());
-			buf.writeDouble(location.getZ());
-			buf.writeByte((byte) yaw);
-			buf.writeByte((byte) pitch);
-			buf.writeBoolean(onGround);
-			ClientboundTeleportEntityPacket packet = ClientboundTeleportEntityPacket.STREAM_CODEC.decode(buf);
+			ClientboundTeleportEntityPacket packet = ClientboundTeleportEntityPacket.teleport(entityID,
+					PositionMoveRotation.of(new TeleportTransition(serverPlayer.serverLevel(),
+							new Vec3(location.getX(), location.getY(), location.getZ()),
+							new Vec3(motion.getX(), motion.getY(), motion.getZ()), location.getYaw(),
+							location.getPitch(), false, false, Set.of(), (entity -> {
+							}), PlayerTeleportEvent.TeleportCause.PLUGIN)),
+					Set.of(), false);
 			packets.add(packet);
 		}
 		ClientboundBundlePacket bundlePacket = new ClientboundBundlePacket(packets);

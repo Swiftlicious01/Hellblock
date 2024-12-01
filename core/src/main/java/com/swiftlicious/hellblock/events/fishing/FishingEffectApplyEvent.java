@@ -31,8 +31,8 @@ public class FishingEffectApplyEvent extends Event {
 	 * {@link Stage#FISHING}: The effects at this stage affect the hook time and
 	 * other fishing-related attributes
 	 * <p>
-	 * For developers, {@link Stage#CAST} will only be triggered once, while the
-	 * other two stages will be triggered multiple times
+	 * Please note that {@link Stage#CAST} will only be triggered once, while the
+	 * other two stages might be triggered multiple times
 	 *
 	 * @return the stage
 	 */
@@ -49,8 +49,8 @@ public class FishingEffectApplyEvent extends Event {
 	 * could move. For example, it flows from the water into the lava or another
 	 * biome, causing some conditional effects changing.
 	 * <p>
-	 * For developers, {@link Stage#CAST} will only be triggered once, while the
-	 * other two stages will be triggered multiple times
+	 * Please note that {@link Stage#CAST} will only be triggered once, while the
+	 * other two stages might be triggered multiple times
 	 *
 	 * @return the effect
 	 */

@@ -33,6 +33,8 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonSyntaxException;
 import com.google.gson.reflect.TypeToken;
+import com.grinderwolf.swm.api.loaders.SlimeLoader;
+
 import dev.dejvokep.boostedyaml.YamlDocument;
 import net.kyori.adventure.audience.Audience;
 
@@ -62,6 +64,7 @@ public class StorageManager implements StorageManagerInterface, Listener {
 
 	protected final HellblockPlugin instance;
 	private DataStorageInterface dataSource;
+	private SlimeLoader slimeWorldLoader;
 	private StorageType previousType;
 	private final ConcurrentMap<UUID, UserData> onlineUserMap;
 	private final Set<UUID> locked;
@@ -142,6 +145,19 @@ public class StorageManager implements StorageManagerInterface, Listener {
 
 		}
 
+		if (instance.getConfigManager().perPlayerWorlds()
+				&& instance.getHellblockHandler().getSlimeWorldManager() != null) {
+			if (this.dataSource instanceof YamlHandler || this.dataSource instanceof JsonHandler) {
+				this.slimeWorldLoader = instance.getHellblockHandler().getSlimeWorldManager().getLoader("file");
+			} else if (this.dataSource instanceof MongoDBHandler) {
+				this.slimeWorldLoader = instance.getHellblockHandler().getSlimeWorldManager().getLoader("mongodb");
+			} else {
+				this.slimeWorldLoader = instance.getHellblockHandler().getSlimeWorldManager().getLoader("mysql");
+			}
+		} else {
+			this.slimeWorldLoader = null;
+		}
+
 		// Handle Redis configuration
 		if (!this.hasRedis && config.getBoolean("Redis.enable", false)) {
 			this.redisManager = new RedisManager(instance);
@@ -200,6 +216,11 @@ public class StorageManager implements StorageManagerInterface, Listener {
 
 	public Gson getGson() {
 		return gson;
+	}
+
+	@Nullable
+	public SlimeLoader getSlimeLoader() {
+		return slimeWorldLoader;
 	}
 
 	@NotNull
@@ -419,7 +440,7 @@ public class StorageManager implements StorageManagerInterface, Listener {
 		bukkitUser.startSpawningAnimals();
 		instance.getNetherFarmingHandler().trackNetherFarms(bukkitUser);
 
-		if (!player.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(player))
 			return;
 
 		if (player.getLocation() != null) {
@@ -476,36 +497,39 @@ public class StorageManager implements StorageManagerInterface, Listener {
 					instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_UNSAFE_ENVIRONMENT.build()));
 		}
 
-		if (instance.getConfigManager().nightVisionArmor() && instance.getConfigManager().glowstoneArmor()) {
-			ItemStack[] armorSet = player.getInventory().getArmorContents();
-			boolean checkArmor = false;
-			if (armorSet != null) {
-				for (ItemStack item : armorSet) {
-					if (item == null || item.getType() == Material.AIR)
-						continue;
-					if (instance.getNetherArmorHandler().checkNightVisionArmorStatus(item)
-							&& instance.getNetherArmorHandler().getNightVisionArmorStatus(item)) {
-						checkArmor = true;
-						break;
-					}
+		ItemStack[] armorSet = player.getInventory().getArmorContents();
+		boolean checkArmor = false;
+		if (armorSet != null) {
+			for (ItemStack item : armorSet) {
+				if (item == null || item.getType() == Material.AIR)
+					continue;
+				if (!instance.getNetherArmorHandler().isNetherArmorEnabled(item))
+					continue;
+				if (!instance.getNetherArmorHandler().isNetherArmorNightVisionAllowed(item))
+					continue;
+				if (instance.getNetherArmorHandler().checkNightVisionArmorStatus(item)
+						&& instance.getNetherArmorHandler().getNightVisionArmorStatus(item)) {
+					checkArmor = true;
+					break;
 				}
+			}
 
-				if (checkArmor) {
-					player.addPotionEffect(new PotionEffect(PotionEffectType.NIGHT_VISION, Integer.MAX_VALUE, 1));
-					bukkitUser.isWearingGlowstoneArmor(true);
-				}
+			if (checkArmor) {
+				player.addPotionEffect(new PotionEffect(PotionEffectType.NIGHT_VISION, Integer.MAX_VALUE, 1));
+				bukkitUser.isWearingGlowstoneArmor(true);
 			}
 		}
 
-		if (instance.getConfigManager().nightVisionTools() && instance.getConfigManager().glowstoneTools()) {
-			ItemStack tool = player.getInventory().getItemInMainHand();
+		ItemStack tool = player.getInventory().getItemInMainHand();
+		if (tool.getType() == Material.AIR) {
+			tool = player.getInventory().getItemInOffHand();
 			if (tool.getType() == Material.AIR) {
-				tool = player.getInventory().getItemInOffHand();
-				if (tool.getType() == Material.AIR) {
-					return;
-				}
+				return;
 			}
+		}
 
+		if (instance.getNetherToolsHandler().isNetherToolEnabled(tool)
+				&& instance.getNetherToolsHandler().isNetherToolNightVisionAllowed(tool)) {
 			if (instance.getNetherToolsHandler().checkNightVisionToolStatus(tool)
 					&& instance.getNetherToolsHandler().getNightVisionToolStatus(tool)) {
 				player.addPotionEffect(new PotionEffect(PotionEffectType.NIGHT_VISION, Integer.MAX_VALUE, 1));

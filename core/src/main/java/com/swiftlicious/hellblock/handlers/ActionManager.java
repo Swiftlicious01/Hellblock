@@ -30,6 +30,7 @@ import org.jetbrains.annotations.Nullable;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.api.compatibility.VaultHook;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
+import com.swiftlicious.hellblock.creation.item.Item;
 import com.swiftlicious.hellblock.effects.EffectInterface;
 import com.swiftlicious.hellblock.nms.entity.FakeEntity;
 import com.swiftlicious.hellblock.nms.entity.armorstand.FakeArmorStand;
@@ -495,6 +496,68 @@ public class ActionManager implements ActionManagerInterface<Player> {
 		}, "durability");
 		registerAction((args, chance) -> {
 			if (args instanceof Section section) {
+				String material = section.getString("material");
+				String displayName = section.getString("display.name");
+				List<String> displayLore = section.getStringList("display.lore");
+				Map<com.swiftlicious.hellblock.utils.extras.Key, Short> enchantments = instance.getConfigManager()
+						.getEnchantments(section);
+				boolean unbreakable = section.getBoolean("unbreakable", false);
+				int damage = section.getInt("damage");
+				int amount = section.getInt("amount", 1);
+				boolean toInventory = section.getBoolean("to-inventory", false);
+				return context -> {
+					if (Math.random() > chance.evaluate(context))
+						return;
+					if (Material.getMaterial(material) == null || Material.getMaterial(material) == Material.AIR)
+						return;
+					Player player = context.holder();
+					ItemStack itemStack = new ItemStack(Material.getMaterial(material), amount);
+					if (itemStack != null) {
+						Item<ItemStack> item = instance.getItemManager().wrap(itemStack);
+						if (displayName != null && !displayName.isEmpty()) {
+							TextValue<Player> name = TextValue.auto("<!i><white>" + displayName);
+							item.displayName(AdventureHelper.miniMessageToJson(name.render(context)));
+						}
+						if (displayLore != null && !displayLore.isEmpty()) {
+							List<TextValue<Player>> lore = new ArrayList<>();
+							for (String text : displayLore) {
+								lore.add(TextValue.auto("<!i><white>" + text));
+							}
+							item.lore(lore.stream().map(it -> AdventureHelper.miniMessageToJson(it.render(context)))
+									.toList());
+						}
+						if (enchantments != null && !enchantments.isEmpty()) {
+							item.enchantments(enchantments);
+						}
+						if (unbreakable) {
+							item.unbreakable(true);
+						}
+						if (damage > 0) {
+							item.damage(damage);
+						}
+						int maxStack = itemStack.getMaxStackSize();
+						int amountToGive = amount;
+						while (amountToGive > 0) {
+							int perStackSize = Math.min(maxStack, amountToGive);
+							amountToGive -= perStackSize;
+							ItemStack more = item.load().clone();
+							more.setAmount(perStackSize);
+							if (toInventory) {
+								PlayerUtils.giveItem(player, more, more.getAmount());
+							} else {
+								PlayerUtils.dropItem(player, more, false, true, false);
+							}
+						}
+					}
+				};
+			} else {
+				instance.getPluginLogger().warn("Invalid value type: " + args.getClass().getSimpleName()
+						+ " found at give-vanilla-item action which is expected to be `Section`");
+				return Action.empty();
+			}
+		}, "give-vanilla-item");
+		registerAction((args, chance) -> {
+			if (args instanceof Section section) {
 				String id = section.getString("item");
 				int amount = section.getInt("amount", 1);
 				boolean toInventory = section.getBoolean("to-inventory", false);
@@ -521,10 +584,10 @@ public class ActionManager implements ActionManagerInterface<Player> {
 				};
 			} else {
 				instance.getPluginLogger().warn("Invalid value type: " + args.getClass().getSimpleName()
-						+ " found at give-item action which is expected to be `Section`");
+						+ " found at give-custom-item action which is expected to be `Section`");
 				return Action.empty();
 			}
-		}, "give-item");
+		}, "give-custom-item");
 	}
 
 	private void registerBuildAction() {

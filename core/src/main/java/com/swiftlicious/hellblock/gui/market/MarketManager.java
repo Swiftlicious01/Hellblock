@@ -5,6 +5,7 @@ import java.util.Arrays;
 import java.util.Calendar;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -54,11 +55,12 @@ public class MarketManager implements MarketManagerInterface, Listener {
 	private final Map<String, MathValue<Player>> priceMap;
 	private String formula;
 	private MathValue<Player> earningsLimit;
+	private MathValue<Player> earningsMultiplier;
 	private boolean allowItemWithNoPrice;
 
 	protected TextValue<Player> title;
 	protected String[] layout;
-	protected final Map<Character, CustomItem> decorativeIcons;
+	protected final Map<Character, Pair<CustomItem, Action<Player>[]>> decorativeIcons;
 	protected final ConcurrentMap<UUID, MarketGUI> marketGUICache;
 
 	protected char itemSlot;
@@ -172,6 +174,7 @@ public class MarketManager implements MarketManagerInterface, Listener {
 		this.earningsLimit = config.getBoolean("limitation.enable", true)
 				? MathValue.auto(config.getString("limitation.earnings", "10000"))
 				: MathValue.plain(-1);
+		this.earningsMultiplier = MathValue.auto(config.get("earnings-multiplier", 1d));
 
 		// Load item prices from the configuration
 		Section priceSection = config.getSection("item-price");
@@ -187,8 +190,10 @@ public class MarketManager implements MarketManagerInterface, Listener {
 			for (Map.Entry<String, Object> entry : decorativeSection.getStringRouteMappedValues(false).entrySet()) {
 				if (entry.getValue() instanceof Section innerSection) {
 					char symbol = Objects.requireNonNull(innerSection.getString("symbol")).charAt(0);
-					decorativeIcons.put(symbol, new SingleItemParser("gui", innerSection,
-							instance.getConfigManager().getItemFormatFunctions()).getItem());
+					decorativeIcons.put(symbol,
+							Pair.of(new SingleItemParser("gui", innerSection,
+									instance.getConfigManager().getItemFormatFunctions()).getItem(),
+									instance.getActionManager().parseActions(innerSection.getSection("action"))));
 				}
 			}
 		}
@@ -211,8 +216,8 @@ public class MarketManager implements MarketManagerInterface, Listener {
 		gui.addElement(new MarketGUIElement(itemSlot, new ItemStack(Material.AIR)));
 		gui.addElement(new MarketDynamicGUIElement(sellSlot, new ItemStack(Material.AIR)));
 		gui.addElement(new MarketDynamicGUIElement(sellAllSlot, new ItemStack(Material.AIR)));
-		for (Map.Entry<Character, CustomItem> entry : decorativeIcons.entrySet()) {
-			gui.addElement(new MarketGUIElement(entry.getKey(), entry.getValue().build(context)));
+		for (Map.Entry<Character, Pair<CustomItem, Action<Player>[]>> entry : decorativeIcons.entrySet()) {
+			gui.addElement(new MarketGUIElement(entry.getKey(), entry.getValue().left().build(context)));
 		}
 		gui.build().refresh().show();
 		marketGUICache.put(player.getUniqueId(), gui);
@@ -335,10 +340,16 @@ public class MarketManager implements MarketManagerInterface, Listener {
 				event.setCancelled(true);
 			}
 
+			Pair<CustomItem, Action<Player>[]> decorativeIcon = this.decorativeIcons.get(element.getSymbol());
+			if (decorativeIcon != null) {
+				ActionManagerInterface.trigger(gui.context, decorativeIcon.right());
+				return;
+			}
+
 			if (element.getSymbol() == sellSlot) {
 
 				Pair<Integer, Double> pair = getItemsToSell(gui.context, gui.getItemsInGUI());
-				double totalWorth = pair.right();
+				double totalWorth = pair.right() * earningsMultiplier(gui.context);
 				gui.context.arg(ContextKeys.MONEY, money(totalWorth))
 						.arg(ContextKeys.MONEY_FORMATTED, String.format("%.2f", totalWorth))
 						.arg(ContextKeys.REST, money(earningLimit - earningData.getEarnings()))
@@ -367,7 +378,7 @@ public class MarketManager implements MarketManagerInterface, Listener {
 				List<ItemStack> itemStacksToSell = storageContentsToList(
 						gui.context.holder().getInventory().getStorageContents());
 				Pair<Integer, Double> pair = getItemsToSell(gui.context, itemStacksToSell);
-				double totalWorth = pair.right();
+				double totalWorth = pair.right() * earningsMultiplier(gui.context);
 				gui.context.arg(ContextKeys.MONEY, money(totalWorth))
 						.arg(ContextKeys.MONEY_FORMATTED, String.format("%.2f", totalWorth))
 						.arg(ContextKeys.REST, money(earningLimit - earningData.getEarnings()))
@@ -489,6 +500,11 @@ public class MarketManager implements MarketManagerInterface, Listener {
 		return earningsLimit.evaluate(context);
 	}
 
+	@Override
+	public double earningsMultiplier(Context<Player> context) {
+		return earningsMultiplier.evaluate(context);
+	}
+
 	public Pair<Integer, Double> getItemsToSell(Context<Player> context, List<ItemStack> itemStacks) {
 		int amount = 0;
 		double worth = 0d;
@@ -509,9 +525,7 @@ public class MarketManager implements MarketManagerInterface, Listener {
 				if (allowBundle && itemStack.getItemMeta() instanceof BundleMeta bundleMeta) {
 					clearWorthyItems(context, bundleMeta.getItems());
 					List<ItemStack> newItems = new ArrayList<>(bundleMeta.getItems());
-					newItems.removeIf(item -> {
-						return item.getAmount() == 0 || item.getType() == Material.AIR;
-					});
+					newItems.removeIf(item -> item.getAmount() == 0 || item.getType() == Material.AIR);
 					bundleMeta.setItems(newItems);
 					itemStack.setItemMeta(bundleMeta);
 					continue;
@@ -531,8 +545,7 @@ public class MarketManager implements MarketManagerInterface, Listener {
 	}
 
 	protected String money(double money) {
-		String str = String.format("%.2f", money);
-		return str.replace(",", ".");
+		return String.format(Locale.US, "%.2f", money);
 	}
 
 	protected List<ItemStack> storageContentsToList(ItemStack[] itemStacks) {

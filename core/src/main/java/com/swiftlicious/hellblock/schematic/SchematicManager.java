@@ -2,9 +2,7 @@ package com.swiftlicious.hellblock.schematic;
 
 import java.io.File;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 
@@ -13,7 +11,6 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.jetbrains.annotations.NotNull;
 
-import com.google.common.io.Files;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.api.Reloadable;
@@ -25,7 +22,6 @@ public class SchematicManager implements Reloadable {
 	protected final HellblockPlugin instance;
 	public SchematicPaster schematicPaster;
 	public final Map<String, File> schematicFiles;
-	public final Set<String> availableSchematics;
 	public final TreeMap<String, SchematicPaster> availablePasters;
 
 	private final boolean worldEdit = Bukkit.getPluginManager().isPluginEnabled("WorldEdit");
@@ -35,6 +31,7 @@ public class SchematicManager implements Reloadable {
 	public SchematicManager(HellblockPlugin plugin) {
 		instance = plugin;
 		availablePasters = new TreeMap<>();
+		availablePasters.put("internalAsync", new SchematicAsync());
 		if ((worldEdit) && WorldEditHook.isWorking()) {
 			availablePasters.put("worldedit", new WorldEditHook());
 			instance.getIntegrationManager().isHooked("WorldEdit");
@@ -56,11 +53,9 @@ public class SchematicManager implements Reloadable {
 		setPasterFromConfig();
 
 		this.schematicFiles = new HashMap<>();
-		this.availableSchematics = new HashSet<>();
 		File parent = instance.getHellblockHandler().getSchematicsDirectory();
 		for (File file : parent.listFiles()) {
 			schematicFiles.put(file.getName(), file);
-			availableSchematics.add(Files.getNameWithoutExtension(file.getName()));
 		}
 	}
 
@@ -87,11 +82,9 @@ public class SchematicManager implements Reloadable {
 
 	public void loadCache() {
 		schematicFiles.clear();
-		availableSchematics.clear();
 		File parent = instance.getHellblockHandler().getSchematicsDirectory();
 		for (File file : parent.listFiles()) {
 			schematicFiles.put(file.getName(), file);
-			availableSchematics.add(Files.getNameWithoutExtension(file.getName()));
 		}
 	}
 
@@ -101,16 +94,16 @@ public class SchematicManager implements Reloadable {
 				.toLocation(instance.getHellblockHandler().getHellblockWorld());
 		location.add(0, instance.getConfigManager().height(), 0);
 		File file = schematicFiles.getOrDefault(schematic, schematicFiles.values().stream().findFirst().orElse(null));
-		instance.getScheduler().executeSync(() -> {
+		instance.getScheduler().sync().run(() -> {
 			if (file == null) {
 				location.getBlock().setType(Material.BEDROCK);
 				instance.getPluginLogger().warn(String.format("Could not find schematic %s.", schematic));
 			} else {
 				if (fawe) {
-					instance.getScheduler()
-							.executeAsync(() -> schematicPaster.pasteHellblock(file, location, completableFuture));
+					instance.getScheduler().async()
+							.execute(() -> schematicPaster.pasteHellblock(file, location, true, completableFuture));
 				} else {
-					schematicPaster.pasteHellblock(file, location, completableFuture);
+					schematicPaster.pasteHellblock(file, location, true, completableFuture);
 				}
 			}
 		}, location);

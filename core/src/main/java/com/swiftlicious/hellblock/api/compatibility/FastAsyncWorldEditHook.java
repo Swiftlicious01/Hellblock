@@ -11,7 +11,7 @@ import org.bukkit.Location;
 
 import com.sk89q.worldedit.EditSession;
 import com.sk89q.worldedit.WorldEditException;
-import com.sk89q.worldedit.bukkit.BukkitAdapter;
+import com.sk89q.worldedit.bukkit.BukkitWorld;
 import com.sk89q.worldedit.extension.platform.Capability;
 import com.sk89q.worldedit.extension.platform.Platform;
 import com.sk89q.worldedit.extent.clipboard.Clipboard;
@@ -38,34 +38,44 @@ public class FastAsyncWorldEditHook implements SchematicPaster {
 			return liveDataVersion != -1;
 		} catch (Throwable t) {
 			HellblockPlugin.getInstance().getPluginLogger().warn(
-					"WorldEdit threw an error during initializing, make sure it's updated and API compatible(FAWE isn't API compatible) ::",
-					t);
+					"WorldEdit threw an error during initializing, make sure it's updated and API compatible(FAWE isn't API compatible) ::"
+							+ t.getMessage());
 		}
 		return false;
 	}
 
+	@SuppressWarnings("removal")
 	@Override
-	public boolean pasteHellblock(File file, Location location, CompletableFuture<Void> completableFuture) {
+	public void pasteHellblock(File file, Location location, boolean ignoreAirBlock,
+			CompletableFuture<Void> completableFuture) {
 		try {
 			ClipboardFormat format = cachedClipboardFormat.getOrDefault(file, ClipboardFormats.findByFile(file));
 			Clipboard clipboard;
 			try (ClipboardReader reader = format.getReader(new FileInputStream(file))) {
 				clipboard = reader.read();
 			}
+			int width = clipboard.getDimensions().getBlockX();
+			int height = clipboard.getDimensions().getBlockY();
+			int length = clipboard.getDimensions().getBlockZ();
 
-			clipboard.setOrigin(BlockVector3.at(location.getBlockX(), location.getBlockY(), location.getBlockZ()));
+			int newLength = (int) (length / 2.00);
+			int newWidth = (int) (width / 2.00);
+			int newHeight = (int) (height / 2.00);
+
+			location.subtract(newWidth, newHeight, newLength); // Center the schematic (for real this time)
+
+			// Change the //copy point to the minimum corner
+			clipboard.setOrigin(clipboard.getRegion().getMinimumPoint());
 
 			{
 				Thread t = new Thread() {
 					public void run() {
 						synchronized (mutex) {
 							EditSession editSession = com.sk89q.worldedit.WorldEdit.getInstance()
-									.newEditSession(BukkitAdapter.adapt(
-											HellblockPlugin.getInstance().getHellblockHandler().getHellblockWorld()));
+									.newEditSession(new BukkitWorld(location.getWorld()));
 							Operation operation = new ClipboardHolder(clipboard).createPaste(editSession)
-									.to(BlockVector3.at(location.getBlockX(), location.getBlockY(),
-											location.getBlockZ()))
-									.copyBiomes(false).copyEntities(true).ignoreAirBlocks(true).build();
+									.to(BlockVector3.at(location.getX(), location.getY(), location.getZ()))
+									.copyEntities(true).ignoreAirBlocks(ignoreAirBlock).build();
 							try {
 								Operations.complete(operation);
 								Operations.complete(editSession.commit());
@@ -73,18 +83,16 @@ public class FastAsyncWorldEditHook implements SchematicPaster {
 								e.printStackTrace();
 							}
 							cachedClipboardFormat.putIfAbsent(file, format);
-							HellblockPlugin.getInstance().getScheduler().executeSync(() -> {
-								completableFuture.complete(null);
-							}, location);
+							HellblockPlugin.getInstance().getScheduler().sync()
+									.run(() -> completableFuture.complete(null), location);
 						}
 					};
 				};
 				t.start();
-				return true;
 			}
-		} catch (IOException e) {
-			e.printStackTrace();
-			return false;
+		} catch (IOException ex) {
+			HellblockPlugin.getInstance().getPluginLogger()
+					.severe("Unable to load hellblock island schematic with WorldEdit.", ex);
 		}
 	}
 

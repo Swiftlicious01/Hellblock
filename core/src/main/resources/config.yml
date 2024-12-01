@@ -18,6 +18,9 @@ force-locale: 'en'
 general:
   world: hellworld
   spawn-size: 25
+  # Whether or not hellblocks should be all in one world (defined above) or each have a seperate world.
+  # Note: This requires the plugin SlimeWorldManager if you were to use this setting.
+  per-player-worlds: false
   # Redis sync settings
   redis-synchronization:
     # Use Redis for cross-server data synchronization
@@ -28,20 +31,22 @@ general:
     placeholder-limit: 3
 hellblock:
   can-transfer-islands: true
+  can-link-hellblocks: true
   max-party-size: 4
-  # Can be fawe or worldedit  
+  # Can be internalAsync (for us to handle it), fawe or worldedit  
   schematic-paster: worldedit
-  # You must add all schematic types you want as an option here to be available.
+  # You must add all schematic types (without the .schem or .schematic file type at the end) you want as an option here to be available.
   island-options:
     - 'default'
     - 'classic'
-    - 'custom'
+    - 'example'
   height: 150
   distance: 110
-  # If false, it will use default protection within the plugin.
+  # Use worldguard for hellblock protection or have us handle it?
   use-worldguard-protection: true
   protection-range: 105
   clear-inventory-on-reset: true
+  clear-enderchset-on-reset: true
   # Won't delete the islands but will set them as an abandoned state which removes them from the island region 
   # and any trustees / party members as well. 
   abandon-after-days: 30
@@ -53,16 +58,28 @@ hellblock:
   grow-natural-trees: false
   # If set to true it will teleport players who fall in the void to their hellblock or to spawn if no hellblock is found.
   void-teleport: true
+  creation-title-screen:
+    enabled: true
+    title: '<red>Welcome <dark_red>{player}'
+    subtitle: '<red>To Your Hellblock!'
+    fadeIn: 2
+    stay: 3
+    fadeOut: 2
+  creating-hellblock-sound:
+    key: 'minecraft:item.totem.use'
+    source: 'player'
+    volume: 1.0
+    pitch: 1.0
   linking-hellblock-sound:
-	key: 'minecraft:block.end_portal.spawn'
-	source: 'player'
-	volume: 1.0
-	pitch: 1.0
+    key: 'minecraft:block.end_portal.spawn'
+    source: 'player'
+    volume: 1.0
+    pitch: 1.0
   challenge-completed-sound:
-	key: 'minecraft:entity.player.levelup'
-	source: 'player'
-	volume: 1.0
-	pitch: 1.0
+    key: 'minecraft:entity.player.levelup'
+    source: 'player'
+    volume: 1.0
+    pitch: 1.0
   starter-chest: 
     inventory-name: '<dark_red>Hellblock Chest'
     items:
@@ -111,11 +128,14 @@ hellblock:
         amount: 1
         slot: 23
   gui:
-	# Title for the hellblock menu
+    # Title for the hellblock menu
     title: '<gradient:#A52A2A:#800000:#A52A2A>Hellblock Menu</gradient>'
-	# Layout for the hellblock menu
+    # Layout for the hellblock menu
     layout:
       - 'TECPLBFRX'
+    # For the items that are exclusive to owners only (biome, reset, lock and flags) what decorative item should it use in it's place?
+    # Leave empty ('') for it to replace it with air.
+    owner-exclusive-placeholder-icon: 'glass-pane'
     # Teleport icon to teleport to hellblock
     teleport-icon:
       symbol: 'T'
@@ -169,7 +189,7 @@ hellblock:
         lore:
           - '<gold>Level: <yellow>{hellblock_level}'
           - ' '
-          - '<gold>Your overall rank is <yellow>{hellblock_rank}'
+          - '<gold>Your overall rank is <yellow><bold>{hellblock_rank}'
       components:
         minecraft:hide_tooltip: {}
     # Party icon to view party members 
@@ -269,7 +289,7 @@ hellblock:
       components:
         minecraft:hide_tooltip: {}
     # Reset icon to restart hellblock
-	reset-icon:
+    reset-icon:
       symbol: 'R'
       material: NETHER_BRICKS
       display:
@@ -286,31 +306,14 @@ hellblock:
             pitch: 1
       components:
         minecraft:hide_tooltip: {}
-    # Close icon to close the menu
-    close-icon:
-      symbol: 'X'
-      material: RED_STAINED_GLASS_PANE
-      display:
-        name: '<red>Close Menu'
-      action:
-        sound_action:
-          type: sound
-          value:
-            key: 'minecraft:ui.button.click'
-            source: 'player'
-            volume: 1
-            pitch: 1
-      components:
-        minecraft:hide_tooltip: {}
     # Cooldown icon for reset
     reset-cooldown-icon:
-      symbol: 'R'
       material: BARRIER
       display:
         name: '<red>Reset is on cooldown!'
         lore:
           - '<dark_red>Your ability to reset is on cooldown for:'
-          - '<red>{reset_cooldown}'
+          - '<red>{reset_cooldown_formatted}'
       action:
         sound_action:
           type: sound
@@ -321,18 +324,17 @@ hellblock:
             pitch: 1
         message_action:
           type: message
-          value: '<red>You've recently reset your hellblock already, you must wait for <dark_red>{reset_cooldown}<red>!'
+          value: '<red>You've recently reset your hellblock already, you must wait for <dark_red>{reset_cooldown_formatted}<red>!'
       components:
         minecraft:hide_tooltip: {}
     # Cooldown icon for biome
     biome-cooldown-icon:
-      symbol: 'B'
       material: BARRIER
       display:
         name: '<red>Biome Change is on cooldown!'
         lore:
           - '<dark_red>Your ability to change the biome is on cooldown for:'
-          - '<red>{biome_cooldown}'
+          - '<red>{biome_cooldown_formatted}'
       action:
         sound_action:
           type: sound
@@ -343,7 +345,7 @@ hellblock:
             pitch: 1
         message_action:
           type: message
-          value: '<red>You've recently changed your biome already, you must wait for <dark_red>{biome_cooldown}<red>!'
+          value: '<red>You've recently changed your biome already, you must wait for <dark_red>{biome_cooldown_formatted}<red>!'
         components:
           minecraft:hide_tooltip: {}
     # Decorative icons for visual enhancement
@@ -355,15 +357,398 @@ hellblock:
           name: ' '  
         components:
           minecraft:hide_tooltip: {}
+      close-icon:
+        symbol: 'X'
+        material: RED_STAINED_GLASS_PANE
+        display:
+          name: '<red>Close Menu'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+          close_action:
+            type: close-inv
+        components:
+          minecraft:hide_tooltip: {}
+
+party:
+  gui:
+    # The title for the coop party menu
+    title: '<gradient:#A52A2A:#800000:#A52A2A>Hellblock Party</gradient>'
+    # The layout for the party menu
+    layout:
+      - 'AAOMMMMAX'
+    # Back icon to return to main menu
+    back-icon:
+      symbol: 'X'
+      material: RED_STAINED_GLASS_PANE
+      display:
+        name: '<red>Return to Main Menu'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_tooltip: {}
+      # Owner icon to view owner of hellblock
+      owner-icon:
+        symbol: 'O'
+        material: PLAYER_HEAD
+        display:
+          name: '<aqua>{player}'
+          lore:
+            - '<yellow>Role: <gold>Owner'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_tooltip: {}
+      # Member icon to view members of hellblock
+      member-icon:
+        symbol: 'M'
+        material: PLAYER_HEAD
+        display:
+          name: '<aqua>{player}'
+          owner-lore: 
+            - '<yellow>Role: <gold>Member'
+            - ' '
+            - '<red>Click to kick them!'
+          member-lore:
+            - '<yellow>Role: <gold>Member'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_tooltip: {}
+      # New member icon to add new players to the hellblock
+      new-member-icon:
+        symbol: 'M'
+        material: PLAYER_HEAD
+        head64: 'eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvYmFkYzA0OGE3Y2U3OGY3ZGFkNzJhMDdkYTI3ZDg1YzA5MTY4ODFlNTUyMmVlZWQxZTNkYWYyMTdhMzhjMWEifX19'
+        display:
+          name: '<dark_green>Empty Slot'
+          owner-lore: 
+            - '<green>Click to invite a new member!'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1 
+        components:
+          minecraft:hide_tooltip: {}
+      # Decorative icons for visual enhancement
+      decorative-icons:
+        glass-pane:
+          symbol: 'A'
+          material: BLACK_STAINED_GLASS_PANE
+          display:
+            name: ' '
+          components:
+            minecraft:hide_tooltip: {}
+
+invitation:
+  gui:
+    # The title for the invite menu
+	title: '<gradient:#A52A2A:#800000:#A52A2A>Hellblock Invitations</gradient>'
+	# The layout for the invite menu
+    # This layout is for the player's actual inventory. Do not edit this to be anything but 4x9 rows.
+    layout:
+      - 'PPPPPPPPP'
+      - 'PPPPPPPPP'
+      - 'PPPPPPPPP'
+      - 'LAAAXAAAR'
+    # Search icon for typing in the player's icon (Actions aren't acceptable here)
+    # The only things that can be changed are what are shown below. name represents what will come up if nothing is typed in.
+	# Otherwise what is typed in the anvil's search bar will be set to the name of the item below.
+    search-icon:
+      material: NAME_TAG
+      display:
+        name: '<Type Name Here>'
+      components:
+        minecraft:hide_tooltip: {}
+    # No player found icon
+    player-not-found-icon:
+      material: BARRIER
+      display:
+        name: '<red>No Player Found'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:entity.villager.no'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_tooltip: {}
+    # Player found icon
+    player-found-icon:
+      material: PLAYER_HEAD
+      display:
+        name: '<green>{player}'
+        lore:
+          - '<dark_green>Click to send invite!'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:block.note_block.pling'
+            source: 'player'
+            volume: 1
+            pitch: 1
+	  components:
+        minecraft:hide_tooltip: {}
+    # Player icon for each different player to invite
+    player-icon:
+      symbol: 'P' 
+      material: PLAYER_HEAD
+      display:
+        name: '<yellow>{player}'
+        lore:
+          - '<gold>Click to invite them!'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_tooltip: {}
+    # Scroll left icon
+    scroll-left-icon:
+      symbol: 'L'
+      material: ORANGE_STAINED_GLASS_PANE
+      display:
+        name: '<gold>Previous Page'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_tooltip: {}
+    # Scroll right icon
+    scroll-right-icon:
+      symbol: 'R'
+      material: ORANGE_STAINED_GLASS_PANE
+      display:
+        name: '<gold>Next Page'
+      action: 
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecrat:hide_tooltip: {}
+    # Back icon to return to party menu
+    back-icon:
+      symbol: 'X'
+      material: RED_STAINED_GLASS_PANE
+      display: 
+        name: '<red>Return to Party Menu'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_tooltip: {}
+	# Decorative icons for visual enhancement
+	decorative-icons:
+      glass-pane:
+        symbol: 'A'
+        material: BLACK_STAINED_GLASS_PANE
+        display:
+          name: ' '
+        components:
+          minecraft:hide_tooltip: {}
+
+challenges:
+  gui:
+    # The title for the challenges menu
+	title: '<gradient:#A52A2A:#800000:#A52A2A>Hellblock Challenges</gradient>'
+    # The layout for the challenges menu
+    layout:
+      - 'A0123456A'
+      - 'AAA789AAX'
+    # Make completed and claimed challenges glow?
+    highlight-completed-challenges: true
+    # Back icon to return to main menu
+    back-icon:
+      symbol: 'X'
+      material: RED_STAINED_GLASS_PANE
+      display:
+        name: '<red>Return to Main Menu'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_tooltip: {}
+    # Challenge icons for each different challenge type
+    challenge-icons:
+      challenge-one:
+        symbol: '1'
+        material: GOLDEN_PICKAXE
+		# Check the challenge-rewards file for each different challenge types to input here
+        challenge-type: NETHERRACK_GENERATOR_CHALLENGE
+        display:
+          completed-name: '<green>Break {needed_amount} generated blocks!'
+          uncompleted-name: '<red>Break {needed_amount} generated blocks!'
+          unclaimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - ' '
+            - '<yellow>Click to claim your reward!'
+          claimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - '<yellow>Reward Claimed!'
+          uncompleted-lore:
+            - '<dark_red>Progress: <gray>({current_amount}/{needed_amount})'
+            - '{progress_bar}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_tooltip: {}
+    # Decorative icons for visual enhancement
+    decorative-icons:
+      glass-pane:
+        symbol: 'A'
+        material: BLACK_STAINED_GLASS_PANE
+        display:
+          name: ' '
+        components:
+          minecraft:hide_tooltip: {}
+
+flags:
+  gui:
+    # The title for the flags menu
+    title: '<gradient:#A52A2A:#800000:#A52A2A>Hellblock Flags</gradient>'
+	# The layout for the flags menu
+    layout:
+      - 'AAAAAAAAX'
+      - 'ABPXXXXXA'
+      - 'AXXXXXXXA'
+      - 'AXXXXXXXA'
+      - 'AXXXXXXXA'
+      - 'AAAXXXAAA'
+    # Make the flags that are selected glow?
+    highlight-selected-flags: true
+    # Back icon to return to main menu
+    back-icon:
+      symbol: 'X'
+      material: RED_STAINED_GLASS_PANE
+      display:
+        name: '<red>Return to Main Menu'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_tooltip: {}
+    # Flag icons for each different flag type
+    flag-icons:
+      block-break-icon:
+        symbol: 'B'
+        material: STONE_PICKAXE
+		flag-type: BLOCK_BREAK
+        display:
+          name: '<yellow>Block Break Flag'
+          lore:
+            - '<gold>Allowed: <yellow>{flag_value}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_tooltip: {}
+      block-place-icon:
+        symbol: 'P'
+        material: COBBLESTONE
+        flag-type: BLOCK_PLACE
+        display:
+          name: '<yellow>Block Place Flag'
+          lore:
+            - '<gold>Allowed: <yellow>{flag_value}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_tooltip: {}
+    # Decorative icons for visual enhancement
+    decorative-icons:
+      glass-pane:
+        symbol: 'A'
+        material: BLACK_STAINED_GLASS_PANE
+        display:
+          name: ' '
+        components:
+          minecraft:hide_tooltip: {}
 
 biome:
   gui:
     # The title for the biome menu
-    title: '<gradient:#A52A2A:#800000:#A52A2A>Biome Menu</gradient>'
+    title: '<gradient:#A52A2A:#800000:#A52A2A>Hellblock Biomes</gradient>'
     # The layout for the biome menu
     layout:
       - 'AASWCNBAX'
-	# Make the biome that is currently selected glow?
+    # Make the biome that is currently selected glow?
     highlight-selected-biome: true
     # Soul sand valley icon
     soul-sand-valley-icon:
@@ -555,7 +940,7 @@ island-choice:
     # The title for the island choice menu
     title: '<gradient:#A52A2A:#800000:#A52A2A>Pick your island type!</gradient>'
     # The layout for the island choice menu
-	layout: 
+    layout: 
       - 'AADACASAA'
     # Default icon for default island type
     default-icon:
@@ -675,6 +1060,9 @@ schematic:
         minecraft:hide_tooltip: {}
     # Decorative icons for visual enhancement
     decorative-icons:
+      placeholder:
+        symbol: 'X'
+        material: AIR
       glass-pane:
         symbol: 'A'
         material: BLACK_STAINED_GLASS_PANE
@@ -701,431 +1089,712 @@ piglin-bartering:
   materials:
     - 'WITHER_ROSE:3'
 
-brewing:
+potions:
   nether-bottle:
     enable: true
+    material: POTION
+    crafting:
+      materials:
+        GLOWSTONE_DUST: 'G'
+        WATER_BOTTLE: 'B'
+      recipe: 
+        - 'GGG'
+        - 'GBG'
+        - 'GGG'
     potion:
+      color: 25500
+    display:
       name: '<red>Nether Bottle'
-      color: 'RED'
       lore:
         - '<dark_red>Potion but Nethery'
-        
+
 tools:
   netherrack:
-    enable: true
     pickaxe:
-      name: '<red>Nether Pickaxe'
-      lore:
-        - '<dark_red>Pickaxe but Nethery'
+      enable: true
+      material: STONE_PICKAXE
+      crafting:
+        materials:
+          NETHERRACK: 'N'
+          BONE: 'B'
+          AIR: 'A'
+        recipe:
+          - 'NNN'
+          - 'ABA'
+          - 'ABA'
+      display:
+        name: '<red>Nether Pickaxe'
+        lore:
+          - '<dark_red>Pickaxe but Nethery'
       enchantments:
-        '1':
-          enchant: minecraft:efficiency
-          level: 1
-		'2':
-          enchant: minecraft:unbreaking
-          level: 1
+        minecraft:efficiency: 1
+        minecraft:unbreaking: 1
     axe:
-      name: '<red>Nether Axe'
-      lore:
-        - '<dark_red>Axe but Nethery'
+      enable: true
+      material: STONE_AXE
+      crafting:
+        materials:
+          NETHERRACK: 'N'
+          BONE: 'B'
+          AIR: 'A'
+        recipe:
+          - 'NNA'
+          - 'NBA'
+          - 'ABA'
+      display:
+        name: '<red>Nether Axe'
+        lore:
+          - '<dark_red>Axe but Nethery'
       enchantments:
-		'1':
-          enchant: minecraft:efficiency
-          level: 1
-		'2':
-          enchant: minecraft:unbreaking
-          level: 1
+        minecraft:efficiency: 1
+        minecraft:unbreaking: 1
     shovel:
-      name: '<red>Nether Shovel'
-      lore:
-        - '<dark_red>Shovel but Nethery'
+      enable: true
+      material: STONE_SHOVEL
+      crafting: 
+        materials:
+          NETHERRACK: 'N'
+          BONE: 'B'
+          AIR: 'A' 
+        recipe:
+          - 'ANA'
+          - 'ABA'
+          - 'ABA'
+      display:
+        name: '<red>Nether Shovel'
+        lore:
+          - '<dark_red>Shovel but Nethery'
       enchantments:
-		'1':
-          enchant: minecraft:efficiency
-          level: 1
-		'2':
-          enchant: minecraft:unbreaking
-          level: 1
+        minecraft:efficiency: 1
+        minecraft:unbreaking: 1
     hoe:
-      name: '<red>Nether Hoe'
-      lore:
-        - '<dark_red>Hoe but Nethery'
+      enable: true
+      material: STONE_HOE
+      crafting:
+        materials:
+          NETHERRACK: 'N'
+          BONE: 'B'
+          AIR: 'A'
+        recipe:
+          - 'NNA'
+          - 'ABA'
+          - 'ABA'
+      display:
+        name: '<red>Nether Hoe'
+        lore:
+          - '<dark_red>Hoe but Nethery'
       enchantments:
-		'1':
-          enchant: minecraft:efficiency
-          level: 1
-		'2':
-          enchant: minecraft:unbreaking
-          level: 1
+        minecraft:efficiency: 1
+        minecraft:unbreaking: 1
     sword:
-      name: '<red>Nether Sword'
-      lore:
-        - '<dark_red>Sword but Nethery'
+      enable: true
+      material: STONE_SWORD
+      crafting:
+        materials:
+          NETHERRACK: 'N'
+          BONE: 'B'
+          AIR: 'A'
+        recipe:
+          - 'ANA'
+          - 'ANA'
+          - 'ABA'
+      display:
+        name: '<red>Nether Sword'
+        lore:
+          - '<dark_red>Sword but Nethery'
       enchantments:
-		'1':
-          enchant: minecraft:sharpness
-          level: 1
-		'2':
-          enchant: minecraft:unbreaking
-          level: 1
+        minecraft:sharpness: 1
+        minecraft:unbreaking: 1
   glowstone:
-    enable: true
-    night-vision: true
-    pickaxe:
-      name: '<yellow>Glowstone Pickaxe'
-      lore:
-        - '<dark_red>Pickaxe but Nethery'
+    pickaxe: 
+      enable: true
+      night-vision: true
+      material: GOLDEN_PICKAXE
+      crafting: 
+        materials:
+          GLOWSTONE: 'G' 
+          BONE: 'B'
+          AIR: 'A'
+        recipe:
+          - 'GGG'
+          - 'ABA'
+          - 'ABA'
+      display:
+        name: '<yellow>Glowstone Pickaxe'
+        lore:
+          - '<dark_red>Pickaxe but Nethery'
       enchantments:
-		'1':
-          enchant: minecraft:efficiency
-          level: 1
-		'2':
-          enchant: minecraft:unbreaking
-          level: 1
+        minecraft:efficiency: 1
+        minecraft:unbreaking: 1
     axe:
-      name: '<yellow>Glowstone Axe'
-      lore:
-        - '<dark_red>Axe but Nethery'
+      enable: true
+      night-vision: true 
+      material: GOLDEN_AXE
+      crafting:
+        materials: 
+          GLOWSTONE: 'G'
+          BONE: 'B'
+          AIR: 'A'
+        recipe:
+          - 'GGA'
+          - 'GBA'
+          - 'ABA'
+      display:
+        name: '<yellow>Glowstone Axe'
+        lore:
+          - '<dark_red>Axe but Nethery'
       enchantments:
-		'1':
-          enchant: minecraft:efficiency
-          level: 1
-		'2':
-          enchant: minecraft:unbreaking
-          level: 1
+        minecraft:efficiency: 1
+        minecraft:unbreaking: 1
     shovel:
-      name: '<yellow>Glowstone Shovel'
-      lore:
-        - '<dark_red>Shovel but Nethery'
+      enable: true 
+      night-vision: true
+      material: GOLDEN_SHOVEL
+      crafting:
+        materials:
+          GLOWSTONE: 'G'
+          BONE: 'B'
+          AIR: 'A'
+        recipe:
+          - 'AGA'
+          - 'ABA'
+          - 'ABA'
+      display:
+        name: '<yellow>Glowstone Shovel'
+        lore:
+          - '<dark_red>Shovel but Nethery'
       enchantments:
-		'1':
-          enchant: minecraft:efficiency
-          level: 1
-		'2':
-          enchant: minecraft:unbreaking
-          level: 1
+        minecraft:efficiency: 1
+        minecraft:unbreaking: 1
     hoe:
-      name: '<yellow>Glowstone Hoe'
-      lore:
-        - '<dark_red>Hoe but Nethery'
+      enable: true
+      night-vision: true
+      material: GOLDEN_HOE
+      crafting:
+        materials:
+          GLOWSTONE: 'G'
+          BONE: 'B'
+          AIR: 'A'
+        recipe:
+          - 'GGA'
+          - 'ABA'
+          - 'ABA'
+      display:
+        name: '<yellow>Glowstone Hoe'
+        lore:
+          - '<dark_red>Hoe but Nethery'
       enchantments:
-		'1':
-          enchant: minecraft:efficiency
-          level: 1
-		'2':
-          enchant: minecraft:unbreaking
-          level: 1
+        minecraft:efficiency: 1
+        minecraft:unbreaking: 1
     sword:
-      name: '<yellow>Glowstone Sword'
-      lore:
-        - '<dark_red>Sword but Nethery'
+      enable: true
+      night-vision: true
+      material: GOLDEN_SWORD
+      crafting:
+        materials:
+          GLOWSTONE: 'G'
+          BONE: 'B'
+          AIR: 'A'
+        recipe:
+          - 'AGA'
+          - 'AGA'
+          - 'ABA'
+      display:
+        name: '<yellow>Glowstone Sword'
+        lore:
+          - '<dark_red>Sword but Nethery'
       enchantments:
-		'1':
-          enchant: minecraft:sharpness 
-          level: 1
-		'2':
-          enchant: minecraft:unbreaking
-          level: 1
+        minecraft:sharpness: 1
+        minecraft:unbreaking: 1
   quartz:
-    enable: true
     pickaxe:
-      name: '<gray>Quartz Pickaxe'
-      lore:
-        - '<dark_red>Pickaxe but Nethery'
+      enable: true
+      material: IRON_PICKAXE
+      crafting:
+        materials:
+          QUARTZ: 'Q'
+          BONE: 'B'
+          AIR: 'A'
+        recipe:
+          - 'QQQ'
+          - 'ABA'
+          - 'ABA'
+      display:
+        name: '<gray>Quartz Pickaxe'
+        lore:
+          - '<dark_red>Pickaxe but Nethery'
       enchantments:
-		'1':
-          enchant: minecraft:efficiency
-          level: 1
-		'2':
-          enchant: minecraft:unbreaking
-          level: 1
+        minecraft:efficiency: 1
+        minecraft:unbreaking: 1
     axe:
-      name: '<gray>Quartz Axe'
-      lore:
-        - '<dark_red>Axe but Nethery'
+      enable: true
+      material: IRON_AXE 
+      crafting:
+        materials:
+          QUARTZ: 'Q'
+          BONE: 'B'
+          AIR: 'A'
+        recipe:
+          - 'QQA'
+          - 'QBA'
+          - 'ABA'
+      display:
+        name: '<gray>Quartz Axe'
+        lore:
+          - '<dark_red>Axe but Nethery'
       enchantments:
-		'1':
-          enchant: minecraft:efficiency
-          level: 1
-		'2':
-          enchant: minecraft:unbreaking
-          level: 1
+        minecraft:efficiency: 1
+        minecraft:unbreaking: 1
     shovel:
-      name: '<gray>Quartz Shovel'
-      lore:
-        - '<dark_red>Shovel but Nethery'
+      enable: true
+      material: IRON_SHOVEL
+      crafting:
+        materials:
+          QUARTZ: 'Q'
+          BONE: 'B'
+          AIR: 'A'
+        recipe:
+          - 'AQA'
+          - 'ABA'
+          - 'ABA'
+      display:
+        name: '<gray>Quartz Shovel'
+        lore:
+          - '<dark_red>Shovel but Nethery'
       enchantments:
-		'1':
-          enchant: minecraft:efficiency
-          level: 1
-		'2':
-          enchant: minecraft:unbreaking
-          level: 1
+        minecraft:efficiency: 1
+        minecraft:unbreaking: 1
     hoe:
-      name: '<gray>Quartz Hoe'
-      lore:
-        - '<dark_red>Hoe but Nethery'
+      enable: true 
+      material: IRON_HOE
+      crafting:
+        materials:
+          QUARTZ: 'Q'
+          BONE: 'B'
+          AIR: 'A'
+        recipe:
+          - 'QQA'
+          - 'ABA'
+          - 'ABA'
+      display:
+        name: '<gray>Quartz Hoe'
+        lore:
+          - '<dark_red>Hoe but Nethery'
       enchantments:
-		'1':
-          enchant: minecraft:efficiency
-          level: 1
-		'2':
-          enchant: minecraft:unbreaking
-          level: 1
+        minecraft:efficiency: 1
+        minecraft:unbreaking: 1
     sword:
-      name: '<gray>Quartz Sword'
-      lore:
-        - '<dark_red>Sword but Nethery'
+      enable: true
+      material: IRON_SWORD
+      crafting:
+        materials:
+          QUARTZ: 'Q'
+          BONE: 'B'
+          AIR: 'A'
+        recipe:
+          - 'AQA'
+          - 'AQA'
+          - 'ABA'
+      display:
+        name: '<gray>Quartz Sword'
+        lore:
+          - '<dark_red>Sword but Nethery'
       enchantments:
-		'1':
-          enchant: minecraft:sharpness
-          level: 1
-		'2':
-          enchant: minecraft:unbreaking
-          level: 1
+        minecraft:sharpness: 1
+        minecraft:unbreaking: 1
   netherstar:
-    enable: true
     pickaxe:
-      name: '<aqua>Nether Star Pickaxe'
-      lore:
-        - '<dark_red>Pickaxe but Nethery'
+      enable: true
+      material: DIAMOND_PICKAXE
+      crafting:
+        materials:
+          NETHER_STAR: 'N'
+          BONE: 'B'
+          AIR: 'A'
+        recipe:
+          - 'NNN'
+          - 'ABA'
+          - 'ABA'
+      display:
+        name: '<aqua>Nether Star Pickaxe'
+        lore:
+          - '<dark_red>Pickaxe but Nethery'
       enchantments:
-		'1':
-          enchant: minecraft:efficiency
-          level: 1
-		'2':
-          enchant: minecraft:unbreaking
-          level: 1
+        minecraft:efficiency: 1
+        minecraft:unbreaking: 1
     axe:
-      name: '<aqua>Nether Star Axe'
-      lore:
-        - '<dark_red>Axe but Nethery'
+      enable: true
+      material: DIAMOND_AXE
+      crafting:
+        materials:
+          NETHER_STAR: 'N'
+          BONE: 'B'
+          AIR: 'A'
+        recipe:
+          - 'NNA'
+          - 'NBA'
+          - 'ABA'
+      display:
+        name: '<aqua>Nether Star Axe'
+        lore:
+          - '<dark_red>Axe but Nethery'
       enchantments:
-		'1':
-          enchant: minecraft:efficiency
-          level: 1
-		'2':
-          enchant: minecraft:unbreaking
-          level: 1
+        minecraft:efficiency: 1
+        minecraft:unbreaking: 1
     shovel:
-      name: '<aqua>Nether Star Shovel'
-      lore:
-        - '<dark_red>Shovel but Nethery'
+      enable: true
+      material: DIAMOND_SHOVEL
+      crafting:
+        materials:
+          NETHER_STAR: 'N'
+          BONE: 'B'
+          AIR: 'A'
+        recipe:
+          - 'ANA'
+          - 'ABA'
+          - 'ABA'
+      display:
+        name: '<aqua>Nether Star Shovel'
+        lore:
+          - '<dark_red>Shovel but Nethery'
       enchantments:
-		'1':
-          enchant: minecraft:efficiency
-          level: 1
-		'2':
-          enchant: minecraft:unbreaking
-          level: 1
+        minecraft:efficiency: 1
+        minecraft:unbreaking: 1
     hoe:
-      name: '<aqua>Nether Star Hoe'
-      lore:
-        - '<dark_red>Hoe but Nethery'
+      enable: true
+      material: DIAMOND_HOE
+      crafting:
+        materials:
+          NETHER_STAR: 'N'
+          BONE: 'B'
+          AIR: 'A'
+        recipe:
+          - 'NNA'
+          - 'ABA'
+          - 'ABA'
+      display:
+        name: '<aqua>Nether Star Hoe'
+        lore:
+          - '<dark_red>Hoe but Nethery'
       enchantments:
-		'1':
-          enchant: minecraft:efficiency
-          level: 1
-		'2':
-          enchant: minecraft:unbreaking
-          level: 1
+        minecraft:efficiency: 1
+        minecraft:unbreaking: 1
     sword:
-      name: '<aqua>Nether Star Sword'
-      lore:
-        - '<dark_red>Sword but Nethery'
+      enable: true
+      material: DIAMOND_SWORD
+      crafting:
+        materials:
+          NETHER_STAR: 'N'
+          BONE: 'B'
+          AIR: 'A'
+        recipe:
+          - 'ANA'
+          - 'ANA'
+          - 'ABA'
+      display:
+        name: '<aqua>Nether Star Sword'
+        lore:
+          - '<dark_red>Sword but Nethery'
       enchantments:
-		'1':
-          enchant: minecraft:sharpness
-          level: 1
-		'2':
-          enchant: minecraft:unbreaking
-          level: 1
+        minecraft:sharpness: 1
+        minecraft:unbreaking: 1
 armor:
   netherrack:
-    enable: true
     helmet:
-      name: '<red>Nether Helmet'
-      lore: 
-        - '<dark_red>Helmet but Nethery'
+      enable: true
+      material: LEATHER_HELMET
+      crafting:
+        materials:
+          NETHERRACK: 'N'
+          AIR: 'A'
+        recipe:
+          - 'NNN'
+          - 'NAN'
+          - 'AAA'
+      display:
+        name: '<red>Nether Helmet'
+        lore: 
+          - '<dark_red>Helmet but Nethery'
       enchantments:
-		'1':
-          enchant: minecraft:protection
-          level: 3
-		'2':
-          enchant: minecraft:fire_protection
-          level: 1
+        minecraft:protection: 3
+        minecraft:fire_protection: 1
     chestplate:
-      name: '<red>Nether Chest Plate'
-      lore: 
-        - '<dark_red>Chest Plate but Nethery'
+      enable: true
+      material: LEATHER_CHESTPLATE
+      crafting:
+        materials:
+          NETHERRACK: 'N'
+          AIR: 'A'
+        recipe:
+          - 'NAN'
+          - 'NNN'
+          - 'NNN'
+      display:
+        name: '<red>Nether Chest Plate'
+        lore: 
+          - '<dark_red>Chest Plate but Nethery'
       enchantments:
-		'1':
-          enchant: minecraft:protection
-          level: 3
-		'2':
-          enchant: minecraft:fire_protection
-          level: 1
+        minecraft:protection: 3
+        minecraft:fire_protection: 1
     leggings:
-      name: '<red>Nether Leggings'
-      lore: 
-        - '<dark_red>Leggings but Nethery'
+      enable: true
+      material: LEATHER_LEGGINGS
+      crafting:
+        materials:
+          NETHERRACK: 'N'
+          AIR: 'A'
+        recipe:
+          - 'NNN'
+          - 'NAN'
+          - 'NNN'
+      display:
+        name: '<red>Nether Leggings'
+        lore: 
+          - '<dark_red>Leggings but Nethery'
       enchantments:
-		'1':
-          enchant: minecraft:protection
-          level: 3
-		'2':
-          enchant: minecraft:fire_protection
-          level: 1
+        minecraft:protection: 3
+        minecraft:fire_protection: 1
     boots:
-      name: '<red>Nether Boots'
-      lore: 
-        - '<dark_red>Boots but Nethery'
+      enable: true
+      material: LEATHER_BOOTS
+      crafting:
+        materials:
+          NETHERRACK: 'N'
+          AIR: 'A'
+        recipe:
+          - 'AAA'
+          - 'NAN'
+          - 'NAN'
+      display:
+        name: '<red>Nether Boots'
+        lore: 
+          - '<dark_red>Boots but Nethery'
       enchantments:
-		'1':
-          enchant: minecraft:protection
-          level: 3
-		'2':
-          enchant: minecraft:fire_protection
-          level: 1
+        minecraft:protection: 3
+        minecraft:fire_protection: 1
   glowstone:
-    enable: true
-    night-vision: true
     helmet:
-      name: '<yellow>Glowstone Helmet'
-      lore: 
-        - '<dark_red>Helmet but Nethery'
+      enable: true
+      night-vision: true
+      material: GOLDEN_HELMET
+      crafting:
+        materials:
+          GLOWSTONE: 'G'
+          AIR: 'A'
+        recipe:
+          - 'GGG'
+          - 'GAG'
+          - 'AAA'
+      display:
+        name: '<yellow>Glowstone Helmet'
+        lore: 
+          - '<dark_red>Helmet but Nethery'
       enchantments:
-		'1':
-          enchant: minecraft:protection
-          level: 3
-		'2':
-          enchant: minecraft:fire_protection
-          level: 1
+        minecraft:protection: 3
+        minecraft:fire_protection: 1
     chestplate:
-      name: '<yellow>Glowstone Chest Plate'
-      lore: 
-        - '<dark_red>Chest Plate but Nethery'
+      enable: true
+      night-vision: true
+      material: GOLDEN_CHESTPLATE
+      crafting:
+        materials:
+          GLOWSTONE: 'G'
+          AIR: 'A'
+        recipe:
+          - 'GAG'
+          - 'GGG'
+          - 'GGG'
+      display:
+        name: '<yellow>Glowstone Chest Plate'
+        lore: 
+          - '<dark_red>Chest Plate but Nethery'
       enchantments:
-		'1':
-          enchant: minecraft:protection
-          level: 3
-		'2':
-          enchant: minecraft:fire_protection
-          level: 1
+        minecraft:protection: 3
+        minecraft:fire_protection: 1
     leggings:
-      name: '<yellow>Glowstone Leggings'
-      lore: 
-        - '<dark_red>Leggings but Nethery'
+      enable: true
+      night-vision: true
+      material: GOLDEN_LEGGINGS
+      crafting:
+        materials:
+          GLOWSTONE: 'G'
+          AIR: 'A'
+        recipe:
+          - 'GGG'
+          - 'GAG'
+          - 'GAG'
+      display:
+        name: '<yellow>Glowstone Leggings'
+        lore: 
+          - '<dark_red>Leggings but Nethery'
       enchantments:
-		'1':
-          enchant: minecraft:protection
-          level: 3
-		'2':
-          enchant: minecraft:fire_protection
-          level: 1
+        minecraft:protection: 3
+        minecraft:fire_protection: 1
     boots:
-      name: '<yellow>Glowstone Boots'
-      lore: 
-        - '<dark_red>Boots but Nethery'
+      enable: true
+      night-vision: true
+      material: GOLDEN_BOOTS
+      crafting: 
+        materials:
+          GLOWSTONE: 'G'
+          AIR: 'A'
+        recipe:
+          - 'AAA'
+          - 'GAG'
+          - 'GAG'
+      display:
+        name: '<yellow>Glowstone Boots'
+        lore: 
+          - '<dark_red>Boots but Nethery'
       enchantments:
-		'1':
-          enchant: minecraft:protection
-          level: 3
-		'2':
-          enchant: minecraft:fire_protection
-          level: 1
+        minecraft:protection: 3
+        minecraft:fire_protection: 1
   quartz:
-    enable: true
-    helmet:
-      name: '<gray>Quartz Helmet'
-      lore: 
-        - '<dark_red>Helmet but Nethery'
+    helmet: 
+      enable: true
+      material: IRON_HELMET
+      crafting:
+        materials:
+          QUARTZ: 'Q'
+          AIR: 'A'
+        recipe:
+          - 'QQQ'
+          - 'QAQ'
+          - 'AAA'
+      display:
+        name: '<gray>Quartz Helmet'
+        lore: 
+          - '<dark_red>Helmet but Nethery'
       enchantments:
-		'1':
-          enchant: minecraft:protection
-          level: 3
-		'2':
-          enchant: minecraft:fire_protection
-          level: 1
+        minecraft:protection: 3
+        minecraft:fire_protection: 1
     chestplate:
-      name: '<gray>Quartz Chest Plate'
-      lore: 
-        - '<dark_red>Chest Plate but Nethery'
+      enable: true
+      material: IRON_CHESTPLATE
+      crafting:
+        materials:
+          QUARTZ: 'Q'
+          AIR: 'A'
+        recipe:
+          - 'QAQ'
+          - 'QQQ'
+          - 'QQQ'
+      display:
+        name: '<gray>Quartz Chest Plate'
+        lore: 
+          - '<dark_red>Chest Plate but Nethery'
       enchantments:
-		'1':
-          enchant: minecraft:protection
-          level: 3
-		'2':
-          enchant: minecraft:fire_protection
-          level: 1
+        minecraft:protection: 3
+        minecraft:fire_protection: 1
     leggings:
-      name: '<gray>Quartz Leggings'
-      lore: 
-        - '<dark_red>Leggings but Nethery'
+      enable: true
+      material: IRON_LEGGINGS
+      crafting:
+        materials:
+          QUARTZ: 'Q'
+          AIR: 'A'
+        recipe:
+          - 'QQQ'
+          - 'QAQ'
+          - 'QAQ'
+      display:
+        name: '<gray>Quartz Leggings'
+        lore: 
+          - '<dark_red>Leggings but Nethery'
       enchantments:
-		'1':
-          enchant: minecraft:protection
-          level: 3
-		'2':
-          enchant: minecraft:fire_protection
-          level: 1
+        minecraft:protection: 3
+        minecraft:fire_protection: 1
     boots:
-      name: '<gray>Quartz Boots'
-      lore: 
-        - '<dark_red>Boots but Nethery'
+      enable: true
+      material: IRON_BOOTS
+      crafting:
+        materials:
+          QUARTZ: 'Q'
+          AIR: 'A'
+        recipe:
+          - 'AAA'
+          - 'QAQ'
+          - 'QAQ'
+      display:
+        name: '<gray>Quartz Boots'
+        lore: 
+          - '<dark_red>Boots but Nethery'
       enchantments:
-		'1':
-          enchant: minecraft:protection
-          level: 3
-		'2':
-          enchant: minecraft:fire_protection
-          level: 1
+        minecraft:protection: 3
+        minecraft:fire_protection: 1
   netherstar:
-    enable: true
     helmet:
-      name: '<aqua>Nether Star Helmet'
-      lore: 
-        - '<dark_red>Helmet but Nethery'
+      enable: true
+      material: DIAMOND_HELMET
+      crafting:
+        materials:
+          NETHER_STAR: 'N'
+          AIR: 'A'
+        recipe:
+          - 'NNN'
+          - 'NAN'
+          - 'NNN'
+      display:
+        name: '<aqua>Nether Star Helmet'
+        lore: 
+          - '<dark_red>Helmet but Nethery'
       enchantments:
-		'1':
-          enchant: minecraft:protection
-          level: 3
-		'2':
-          enchant: minecraft:fire_protection
-          level: 1
+        minecraft:protection: 3
+        minecraft:fire_protection: 1
     chestplate:
-      name: '<aqua>Nether Star Chest Plate'
-      lore: 
-        - '<dark_red>Chest Plate but Nethery'
+      enable: true
+      material: DIAMOND_CHESTPLATE
+      crafting:
+        materials:
+          NETHER_STAR: 'N'
+          AIR: 'A'
+        recipe:
+          - 'NAN'
+          - 'NNN'
+          - 'NNN'
+      display:
+        name: '<aqua>Nether Star Chest Plate'
+        lore: 
+          - '<dark_red>Chest Plate but Nethery'
       enchantments:
-		'1':
-          enchant: minecraft:protection
-          level: 3
-		'2':
-          enchant: minecraft:fire_protection
-          level: 1
+        minecraft:protection: 3
+        minecraft:fire_protection: 1
     leggings:
-      name: '<aqua>Nether Star Leggings'
-      lore: 
-        - '<dark_red>Leggings but Nethery'
+      enable: true
+      material: DIAMOND_LEGGINGS
+      crafting:
+        materials:
+          NETHER_STAR: 'N'
+          AIR: 'A'
+        recipe:
+          - 'NNN'
+          - 'NAN'
+          - 'NAN'
+      display:
+        name: '<aqua>Nether Star Leggings'
+        lore: 
+          - '<dark_red>Leggings but Nethery'
       enchantments:
-        '1':
-          enchant: minecraft:protection
-          level: 3
-        '2':
-          enchant: minecraft:fire_protection
-          level: 1
+        minecraft:protection: 3
+        minecraft:fire_protection: 1
     boots:
-      name: '<aqua>Nether Star Boots'
-      lore: 
-        - '<dark_red>Boots but Nethery'
+      enable: true
+      material: DIAMOND_BOOTS
+      crafting:
+        materials:
+          NETHER_STAR: 'N'
+          AIR: 'A'
+        recipe:
+          - 'AAA'
+          - 'NAN'
+          - 'NAN'
+      display:
+        name: '<aqua>Nether Star Boots'
+        lore: 
+          - '<dark_red>Boots but Nethery'
       enchantments:
-        '1':
-          enchant: minecraft:protection
-          level: 3
-        '2':
-          enchant: minecraft:fire_protection
-          level: 1
+        minecraft:protection: 3
+        minecraft:fire_protection: 1
 
 wither-stats:
   random-stats: true
@@ -1295,9 +1964,11 @@ lava-fishing-options:
     limitation:
       enable: true
       earnings: '10000' # Expressions can be used here
+    # You can use expressions here if you want some players to earn more from selling fish
+    earnings-multiplier: 1
     # Layout for the market menu
     layout:
-      - 'AAAAAAAAA'
+      - 'AAAAAAAAC'
       - 'AIIIIIIIA'
       - 'AIIIIIIIA'
       - 'AIIIIIIIA'
@@ -1440,6 +2111,23 @@ lava-fishing-options:
         material: BLACK_STAINED_GLASS_PANE
         display:
           name: ' '
+        components:
+          minecraft:hide_tooltip: {}
+      close-icon:
+        symbol: 'C'
+        material: RED_STAINED_GLASS_PANE
+        display:
+          name: '<red>Close Menu'
+        action:
+          sound_action: 
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+          close_action:
+            type: close-inv
         components:
           minecraft:hide_tooltip: {}
 

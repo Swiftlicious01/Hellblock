@@ -2,15 +2,16 @@ package com.swiftlicious.hellblock.gui.reset;
 
 import java.util.HashMap;
 import java.util.Map;
+
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.inventory.Inventory;
 import org.jetbrains.annotations.Nullable;
 
-import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.player.Context;
+import com.swiftlicious.hellblock.player.ContextKeys;
 import com.swiftlicious.hellblock.player.HellblockData;
 
 public class ResetConfirmGUI {
@@ -40,7 +41,7 @@ public class ResetConfirmGUI {
 	private void init() {
 		int line = 0;
 		for (String content : manager.layout) {
-			for (int index = 0; index < 9; index++) {
+			for (int index = 0; index < (this.inventory.getType() == InventoryType.HOPPER ? 5 : 9); index++) {
 				char symbol;
 				if (index < content.length())
 					symbol = content.charAt(index);
@@ -48,8 +49,9 @@ public class ResetConfirmGUI {
 					symbol = ' ';
 				ResetConfirmGUIElement element = itemsCharMap.get(symbol);
 				if (element != null) {
-					element.addSlot(index + line * 9);
-					itemsSlotMap.put(index + line * 9, element);
+					element.addSlot(index + line * (this.inventory.getType() == InventoryType.HOPPER ? 5 : 9));
+					itemsSlotMap.put(index + line * (this.inventory.getType() == InventoryType.HOPPER ? 5 : 9),
+							element);
 				}
 			}
 			line++;
@@ -73,7 +75,7 @@ public class ResetConfirmGUI {
 
 	public void show() {
 		context.holder().openInventory(inventory);
-		HellblockPlugin.getInstance().getVersionManager().getNMSManager().updateInventoryTitle(context.holder(),
+		manager.instance.getVersionManager().getNMSManager().updateInventoryTitle(context.holder(),
 				AdventureHelper.componentToJson(AdventureHelper.miniMessage(manager.title.render(context))));
 	}
 
@@ -93,6 +95,17 @@ public class ResetConfirmGUI {
 	 * @return The ResetConfirmGUI instance.
 	 */
 	public ResetConfirmGUI refresh() {
+		context.arg(ContextKeys.RESET_COOLDOWN, hellblockData.getResetCooldown()).arg(
+				ContextKeys.RESET_COOLDOWN_FORMATTED,
+				manager.instance.getFormattedCooldown(hellblockData.getResetCooldown()));
+		ResetConfirmDynamicGUIElement denyElement = (ResetConfirmDynamicGUIElement) getElement(manager.denySlot);
+		if (denyElement != null && !denyElement.getSlots().isEmpty()) {
+			denyElement.setItemStack(manager.denyIcon.build(context));
+		}
+		ResetConfirmDynamicGUIElement confirmElement = (ResetConfirmDynamicGUIElement) getElement(manager.confirmSlot);
+		if (confirmElement != null && !confirmElement.getSlots().isEmpty()) {
+			confirmElement.setItemStack(manager.confirmIcon.build(context));
+		}
 		for (Map.Entry<Integer, ResetConfirmGUIElement> entry : itemsSlotMap.entrySet()) {
 			if (entry.getValue() instanceof ResetConfirmDynamicGUIElement dynamicGUIElement) {
 				this.inventory.setItem(entry.getKey(), dynamicGUIElement.getItemStack().clone());

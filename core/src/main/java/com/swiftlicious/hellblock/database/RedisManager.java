@@ -191,19 +191,8 @@ public class RedisManager extends AbstractStorage {
 			return;
 		String type = input.readUTF();
 		switch (type) {
-		case "hellblock" -> {
-			String action = input.readUTF();
-			switch (action) {
-			case "start" -> {
-
-			}
-			case "stop" -> {
-
-			}
-			}
-		}
 		case "online" -> {
-
+			plugin.getPlayerListener().updatePlayerCount(UUID.fromString(input.readUTF()), input.readInt());
 		}
 		}
 	}

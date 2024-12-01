@@ -20,12 +20,16 @@ import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
+import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Registry;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventPriority;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.inventory.meta.PotionMeta;
+import org.bukkit.potion.PotionType;
 import org.yaml.snakeyaml.constructor.ConstructorException;
 
 import com.saicone.rtag.RtagItem;
@@ -54,7 +58,6 @@ import com.swiftlicious.hellblock.loot.StatisticsKeys;
 import com.swiftlicious.hellblock.mechanics.MechanicType;
 import com.swiftlicious.hellblock.player.Context;
 import com.swiftlicious.hellblock.player.ContextKeys;
-import com.swiftlicious.hellblock.utils.ColorUtils;
 import com.swiftlicious.hellblock.utils.ItemStackUtils;
 import com.swiftlicious.hellblock.utils.ListUtils;
 import com.swiftlicious.hellblock.utils.OffsetUtils;
@@ -162,9 +165,11 @@ public class ConfigManager extends ConfigHandler {
 		debug = config.getBoolean("debug", false);
 
 		worldName = config.getString("general.world", "hellworld");
+		perPlayerWorlds = config.getBoolean("general.per-player-worlds", false);
 		spawnSize = config.getInt("general.spawn-size", 25);
 
 		transferIslands = config.getBoolean("hellblock.can-transfer-islands", true);
+		linkHellblocks = config.getBoolean("hellblock.can-link-hellblocks", true);
 		partySize = config.getInt("hellblock.max-party-size", 4);
 		schematicPaster = config.getString("hellblock.schematic-paster", "worldedit");
 		islandOptions = config.getStringList("hellblock.island-options");
@@ -173,6 +178,7 @@ public class ConfigManager extends ConfigHandler {
 		worldguardProtect = config.getBoolean("hellblock.use-worldguard-protection", false);
 		protectionRange = config.getInt("hellblock.protection-range", 105);
 		resetInventory = config.getBoolean("hellblock.clear-inventory-on-reset", true);
+		resetEnderchest = config.getBoolean("hellblock.clear-enderchest-on-reset", true);
 		abandonTime = config.getInt("hellblock.abandon-after-days", 30);
 		entryMessageEnabled = config.getBoolean("hellblock.entry-message-enabled", true);
 		farewellMessageEnabled = config.getBoolean("hellblock.farewell-message-enabled", true);
@@ -187,21 +193,6 @@ public class ConfigManager extends ConfigHandler {
 
 		clearDefaultOutcome = config.getBoolean("piglin-bartering.clear-default-outcome", true);
 		barteringItems = config.getStringList("piglin-bartering.materials");
-
-		brewingBottleEnabled = config.getBoolean("brewing.nether-bottle.enable", true);
-		brewingBottleName = config.getString("brewing.nether-bottle.potion.name", "<red>Nether Bottle");
-		brewingBottleLore = config.getStringList("brewing.nether-bottle.potion.lore");
-		brewingBottleColor = ColorUtils.getColor(config.getString("brewing.nether-bottle.potion.color", "RED"));
-
-		netherrackArmorEnabled = config.getBoolean("armor.netherrack.enable", true);
-		glowstoneArmorEnabled = config.getBoolean("armor.glowstone.enable", true);
-		quartzArmorEnabled = config.getBoolean("armor.quartz.enable", true);
-		netherstarArmorEnabled = config.getBoolean("armor.netherstar.enable", true);
-		glowstoneToolsEnabled = config.getBoolean("tools.glowstone.enable", true);
-		quartzToolsEnabled = config.getBoolean("tools.quartz.enable", true);
-		netherstarToolsEnabled = config.getBoolean("tools.netherstar.enable", true);
-		glowstoneNightVisionArmorEnabled = config.getBoolean("armor.glowstone.night-vision", true);
-		glowstoneNightVisionToolsEnabled = config.getBoolean("tools.glowstone.night-vision", true);
 
 		randomStats = config.getBoolean("wither-stats.random-stats", true);
 		randomMinHealth = config.getInt("wither-stats.random-min-health", 200);
@@ -266,6 +257,26 @@ public class ConfigManager extends ConfigHandler {
 					Sound.Source.valueOf(linkingSoundSection.getString("source", "PLAYER").toUpperCase(Locale.ENGLISH)),
 					linkingSoundSection.getFloat("volume", 1.0F).floatValue(),
 					linkingSoundSection.getFloat("pitch", 1.0F).floatValue());
+		}
+
+		Section creatingSoundSection = config.getSection("hellblock.creating-hellblock-sound");
+		if (creatingSoundSection != null) {
+			creatingHellblockSound = Sound.sound(net.kyori.adventure.key.Key.key(creatingSoundSection.getString("key")),
+					Sound.Source
+							.valueOf(creatingSoundSection.getString("source", "PLAYER").toUpperCase(Locale.ENGLISH)),
+					creatingSoundSection.getFloat("volume", 1.0F).floatValue(),
+					creatingSoundSection.getFloat("pitch", 1.0F).floatValue());
+		}
+
+		Section titleScreenSection = config.getSection("hellblock.creation-title-screen");
+		if (titleScreenSection != null) {
+			boolean enabled = titleScreenSection.getBoolean("enabled", true);
+			String title = titleScreenSection.getString("title");
+			String subtitle = titleScreenSection.getString("subtitle");
+			int fadeIn = titleScreenSection.getInt("fadeIn") * 20;
+			int stay = titleScreenSection.getInt("stay") * 20;
+			int fadeOut = titleScreenSection.getInt("fadeOut") * 20;
+			creationTitleScreen = new TitleScreenInfo(enabled, title, subtitle, fadeIn, stay, fadeOut);
 		}
 
 		itemDetectOrder = config.getStringList("other-settings.item-detection-order").toArray(new String[0]);
@@ -370,7 +381,27 @@ public class ConfigManager extends ConfigHandler {
 		}
 	}
 
-	private Map<Key, Short> getEnchantments(Section section) {
+	public Map<ItemStack, Character> getCraftingMaterials(Section section) {
+		Map<ItemStack, Character> map = new HashMap<>();
+		for (Map.Entry<String, Object> entry : section.getStringRouteMappedValues(false).entrySet()) {
+			Character symbol = (Character) entry.getValue();
+			if (entry.getKey().equals("WATER_BOTTLE")) {
+				ItemStack bottle = new ItemStack(Material.POTION);
+				ItemMeta potionMeta = bottle.getItemMeta();
+				PotionMeta pmeta = (PotionMeta) potionMeta;
+				pmeta.setBasePotionType(PotionType.WATER);
+				bottle.setItemMeta(pmeta);
+				map.put(bottle, symbol);
+			} else {
+				if (Material.getMaterial(entry.getKey()) != null) {
+					map.put(new ItemStack(Material.getMaterial(entry.getKey())), symbol);
+				}
+			}
+		}
+		return map;
+	}
+
+	public Map<Key, Short> getEnchantments(Section section) {
 		Map<Key, Short> map = new HashMap<>();
 		for (Map.Entry<String, Object> entry : section.getStringRouteMappedValues(false).entrySet()) {
 			int level = Math.min(255, Math.max(1, (int) entry.getValue()));
@@ -495,11 +526,15 @@ public class ConfigManager extends ConfigHandler {
 		this.registerItemParser(arg -> {
 			String effect = (String) arg;
 			return (item, context) -> item.potionEffect(effect);
-		}, 5300, "potion-effect");
+		}, 5300, "potion", "effect");
+		this.registerItemParser(arg -> {
+			int color = (int) arg;
+			return (item, context) -> item.potionColor(color);
+		}, 5400, "potion", "color");
 		this.registerItemParser(arg -> {
 			boolean glint = (boolean) arg;
 			return (item, context) -> item.glint(glint);
-		}, 5300, "enchantment-glint");
+		}, 5500, "glowing");
 		this.registerItemParser(arg -> {
 			List<String> args = ListUtils.toList(arg);
 			return (item, context) -> item.itemFlags(args);
@@ -706,7 +741,7 @@ public class ConfigManager extends ConfigHandler {
 				}
 			}));
 		}
-		case "group-mod" -> {
+		case "group-mod", "group_mod" -> {
 			var op = parseGroupWeightOperation(section.getStringList("value"));
 			return (((effect, context, phase) -> {
 				if (phase == 1) {
@@ -715,7 +750,7 @@ public class ConfigManager extends ConfigHandler {
 				}
 			}));
 		}
-		case "group-mod-ignore-conditions" -> {
+		case "group-mod-ignore-conditions", "group_mod_ignore_conditions" -> {
 			var op = parseGroupWeightOperation(section.getStringList("value"));
 			return (((effect, context, phase) -> {
 				if (phase == 1) {
@@ -724,7 +759,7 @@ public class ConfigManager extends ConfigHandler {
 				}
 			}));
 		}
-		case "wait-time" -> {
+		case "wait-time", "wait_time" -> {
 			MathValue<Player> value = MathValue.auto(section.get("value"));
 			return (((effect, context, phase) -> {
 				if (phase == 2) {
@@ -733,7 +768,7 @@ public class ConfigManager extends ConfigHandler {
 				}
 			}));
 		}
-		case "hook-time", "wait-time-multiplier" -> {
+		case "hook-time", "hook_time", "wait-time-multiplier", "wait_time_multiplier" -> {
 			MathValue<Player> value = MathValue.auto(section.get("value"));
 			return (((effect, context, phase) -> {
 				if (phase == 2) {
@@ -1054,5 +1089,48 @@ public class ConfigManager extends ConfigHandler {
 			StatisticsKeys keys = new StatisticsKeys(section.getString("amount"), section.getString("size"));
 			return builder -> builder.statisticsKeys(keys);
 		}, "statistics");
+	}
+
+	public class TitleScreenInfo {
+
+		private boolean enabled;
+		private String title;
+		private String subtitle;
+		private int fadeIn;
+		private int stay;
+		private int fadeOut;
+
+		public TitleScreenInfo(boolean enabled, String title, String subtitle, int fadeIn, int stay, int fadeOut) {
+			this.enabled = enabled;
+			this.title = title;
+			this.subtitle = subtitle;
+			this.fadeIn = fadeIn;
+			this.stay = stay;
+			this.fadeOut = fadeOut;
+		}
+
+		public boolean enabled() {
+			return enabled;
+		}
+
+		public String title() {
+			return title;
+		}
+
+		public String subtitle() {
+			return subtitle;
+		}
+
+		public int fadeIn() {
+			return fadeIn;
+		}
+
+		public int stay() {
+			return stay;
+		}
+
+		public int fadeOut() {
+			return fadeOut;
+		}
 	}
 }

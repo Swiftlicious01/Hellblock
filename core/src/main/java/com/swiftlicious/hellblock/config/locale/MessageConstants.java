@@ -248,10 +248,14 @@ public interface MessageConstants {
 			.key("message.hellblock.coop.owner_transfer_success");
 	TranslatableComponent.Builder MSG_HELLBLOCK_CHALLENGE_COMPLETED = Component.translatable()
 			.key("message.hellblock.challenge.completed");
+	TranslatableComponent.Builder MSG_HELLBLOCK_CHALLENGE_PROGRESS_BAR = Component.translatable()
+			.key("message.hellblock.challenge.progress.bar");
 
 	TranslatableComponent.Builder FORMAT_OPEN = Component.translatable().key("format.open");
 	TranslatableComponent.Builder FORMAT_CLOSED = Component.translatable().key("format.closed");
 	TranslatableComponent.Builder FORMAT_NONE = Component.translatable().key("format.none");
+	TranslatableComponent.Builder FORMAT_UNRANKED = Component.translatable().key("format.unranked");
+	TranslatableComponent.Builder FORMAT_UNKNOWN = Component.translatable().key("format.unknown");
 
 	TranslatableComponent.Builder FORMAT_SECOND = Component.translatable().key("format.second");
 	TranslatableComponent.Builder FORMAT_MINUTE = Component.translatable().key("format.minute");

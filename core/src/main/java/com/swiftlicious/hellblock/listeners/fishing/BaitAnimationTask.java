@@ -42,7 +42,7 @@ public class BaitAnimationTask implements Runnable {
 		HellblockPlugin.getInstance().getVersionManager().getNMSManager().sendClientSideEntityMotion(player,
 				fishHook.getVelocity(), entityID);
 		HellblockPlugin.getInstance().getVersionManager().getNMSManager().sendClientSideTeleportEntity(player,
-				fishHook.getLocation().clone().subtract(0, 0.6, 0), false, entityID);
+				fishHook.getLocation().clone().subtract(0, 0.6, 0), fishHook.getVelocity(), false, entityID);
 	}
 
 	/**

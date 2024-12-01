@@ -176,6 +176,11 @@ public class RandomUtils {
 		return entities.get(randomIndex);
 	}
 
+	/**
+	 * Picks a random sapling.
+	 * 
+	 * @return a random sapling
+	 */
 	public static @NotNull Material pickRandomSapling() {
 		List<Material> saplings = List.of(Material.OAK_SAPLING, Material.BIRCH_SAPLING, Material.SPRUCE_SAPLING,
 				Material.JUNGLE_SAPLING, Material.ACACIA_SAPLING, Material.DARK_OAK_SAPLING, Material.CHERRY_SAPLING);

@@ -2,15 +2,17 @@ package com.swiftlicious.hellblock.gui.choice;
 
 import java.util.HashMap;
 import java.util.Map;
+
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.inventory.Inventory;
 import org.jetbrains.annotations.Nullable;
 
-import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.generation.IslandOptions;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.player.Context;
+import com.swiftlicious.hellblock.player.ContextKeys;
 import com.swiftlicious.hellblock.player.HellblockData;
 
 public class IslandChoiceGUI {
@@ -43,7 +45,7 @@ public class IslandChoiceGUI {
 	private void init() {
 		int line = 0;
 		for (String content : manager.layout) {
-			for (int index = 0; index < 9; index++) {
+			for (int index = 0; index < (this.inventory.getType() == InventoryType.HOPPER ? 5 : 9); index++) {
 				char symbol;
 				if (index < content.length())
 					symbol = content.charAt(index);
@@ -51,8 +53,9 @@ public class IslandChoiceGUI {
 					symbol = ' ';
 				IslandChoiceGUIElement element = itemsCharMap.get(symbol);
 				if (element != null) {
-					element.addSlot(index + line * 9);
-					itemsSlotMap.put(index + line * 9, element);
+					element.addSlot(index + line * (this.inventory.getType() == InventoryType.HOPPER ? 5 : 9));
+					itemsSlotMap.put(index + line * (this.inventory.getType() == InventoryType.HOPPER ? 5 : 9),
+							element);
 				}
 			}
 			line++;
@@ -76,7 +79,7 @@ public class IslandChoiceGUI {
 
 	public void show() {
 		context.holder().openInventory(inventory);
-		HellblockPlugin.getInstance().getVersionManager().getNMSManager().updateInventoryTitle(context.holder(),
+		manager.instance.getVersionManager().getNMSManager().updateInventoryTitle(context.holder(),
 				AdventureHelper.componentToJson(AdventureHelper.miniMessage(manager.title.render(context))));
 	}
 
@@ -96,6 +99,30 @@ public class IslandChoiceGUI {
 	 * @return The IslandChoiceGUI instance.
 	 */
 	public IslandChoiceGUI refresh() {
+		context.arg(ContextKeys.RESET_COOLDOWN, hellblockData.getResetCooldown()).arg(
+				ContextKeys.RESET_COOLDOWN_FORMATTED,
+				manager.instance.getFormattedCooldown(hellblockData.getResetCooldown()));
+		if (manager.instance.getConfigManager().islandOptions().contains(IslandOptions.DEFAULT.getName())) {
+			IslandChoiceDynamicGUIElement defaultElement = (IslandChoiceDynamicGUIElement) getElement(
+					manager.defaultSlot);
+			if (defaultElement != null && !defaultElement.getSlots().isEmpty()) {
+				defaultElement.setItemStack(manager.defaultIcon.build(context));
+			}
+		}
+		if (manager.instance.getConfigManager().islandOptions().contains(IslandOptions.CLASSIC.getName())) {
+			IslandChoiceDynamicGUIElement classicElement = (IslandChoiceDynamicGUIElement) getElement(
+					manager.classicSlot);
+			if (classicElement != null && !classicElement.getSlots().isEmpty()) {
+				classicElement.setItemStack(manager.classicIcon.build(context));
+			}
+		}
+		if (manager.instance.getSchematicGUIManager().checkForSchematics()) {
+			IslandChoiceDynamicGUIElement schematicElement = (IslandChoiceDynamicGUIElement) getElement(
+					manager.schematicSlot);
+			if (schematicElement != null && !schematicElement.getSlots().isEmpty()) {
+				schematicElement.setItemStack(manager.schematicIcon.build(context));
+			}
+		}
 		for (Map.Entry<Integer, IslandChoiceGUIElement> entry : itemsSlotMap.entrySet()) {
 			if (entry.getValue() instanceof IslandChoiceDynamicGUIElement dynamicGUIElement) {
 				this.inventory.setItem(entry.getKey(), dynamicGUIElement.getItemStack().clone());

@@ -78,7 +78,7 @@ public class NetherrackGenerator implements Listener {
 	@EventHandler
 	public void onNetherrackGeneration(BlockFromToEvent event) {
 		Block fromBlock = event.getBlock();
-		if (!fromBlock.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(fromBlock.getWorld()))
 			return;
 
 		BlockFace face = event.getFace();
@@ -200,7 +200,7 @@ public class NetherrackGenerator implements Listener {
 
 	@EventHandler
 	public void onBlockChange(EntityChangeBlockEvent event) {
-		if (!event.getBlock().getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(event.getBlock().getWorld()))
 			return;
 		if (event.getEntityType() != EntityType.FALLING_BLOCK
 				|| !(event.getTo() == Material.AIR || event.getTo() == Material.LAVA))
@@ -215,7 +215,7 @@ public class NetherrackGenerator implements Listener {
 
 	@EventHandler
 	public void onPistonPush(BlockPistonExtendEvent event) {
-		if (!event.getBlock().getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(event.getBlock().getWorld()))
 			return;
 		if (!instance.getConfigManager().pistonAutomation())
 			return;
@@ -231,7 +231,7 @@ public class NetherrackGenerator implements Listener {
 
 	@EventHandler
 	public void onBlockPlace(BlockPlaceEvent event) {
-		if (!event.getBlock().getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(event.getBlock().getWorld()))
 			return;
 
 		Location location = event.getBlock().getLocation();
@@ -256,7 +256,7 @@ public class NetherrackGenerator implements Listener {
 
 	@EventHandler
 	public void onGeneratedBlockBreak(BlockBreakEvent event) {
-		if (!event.getBlock().getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(event.getBlock().getWorld()))
 			return;
 		Location location = event.getBlock().getLocation();
 		final Player player = event.getPlayer();
@@ -274,7 +274,8 @@ public class NetherrackGenerator implements Listener {
 			if (genEvent.isCancelled())
 				return;
 			Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
-			if (onlineUser.isEmpty() || onlineUser.get().getPlayer() == null)
+			if (onlineUser.isEmpty() || onlineUser.get().getPlayer() == null
+					|| !onlineUser.get().getHellblockData().hasHellblock())
 				return;
 			if (!onlineUser.get().getChallengeData().isChallengeActive(ChallengeType.NETHERRACK_GENERATOR_CHALLENGE)
 					&& !onlineUser.get().getChallengeData()
@@ -296,7 +297,7 @@ public class NetherrackGenerator implements Listener {
 
 	@EventHandler
 	public void onBlockExplode(BlockExplodeEvent event) {
-		if (!event.getBlock().getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(event.getBlock().getWorld()))
 			return;
 		if (!instance.getConfigManager().pistonAutomation())
 			return;

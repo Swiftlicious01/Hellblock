@@ -15,12 +15,12 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-import org.bukkit.Color;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventPriority;
 import org.bukkit.inventory.ItemStack;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.api.Reloadable;
+import com.swiftlicious.hellblock.config.ConfigManager.TitleScreenInfo;
 import com.swiftlicious.hellblock.config.node.Node;
 import com.swiftlicious.hellblock.config.parser.function.BaseEffectParserFunction;
 import com.swiftlicious.hellblock.config.parser.function.BlockParserFunction;
@@ -71,6 +71,8 @@ public abstract class ConfigHandler implements ConfigLoader, Reloadable {
 	protected boolean redisRanking;
 	protected Sound challengeCompletedSound;
 	protected Sound linkingHellblockSound;
+	protected Sound creatingHellblockSound;
+	protected TitleScreenInfo creationTitleScreen;
 	protected String serverGroup;
 	protected String[] itemDetectOrder = new String[0];
 	protected String[] blockDetectOrder = new String[0];
@@ -94,8 +96,11 @@ public abstract class ConfigHandler implements ConfigLoader, Reloadable {
 	protected List<TriConsumer<Effect, Context<Player>, Integer>> globalEffects;
 
 	protected boolean worldguardProtect;
+	protected boolean perPlayerWorlds;
 	protected boolean transferIslands;
+	protected boolean linkHellblocks;
 	protected boolean resetInventory;
+	protected boolean resetEnderchest;
 	protected boolean entryMessageEnabled;
 	protected boolean farewellMessageEnabled;
 	protected boolean disableBedExplosions;
@@ -117,22 +122,6 @@ public abstract class ConfigHandler implements ConfigLoader, Reloadable {
 
 	protected boolean clearDefaultOutcome;
 	protected List<String> barteringItems;
-
-	protected boolean brewingBottleEnabled;
-	protected String brewingBottleName;
-	protected List<String> brewingBottleLore;
-	protected Color brewingBottleColor;
-
-	protected boolean netherrackArmorEnabled;
-	protected boolean glowstoneArmorEnabled;
-	protected boolean quartzArmorEnabled;
-	protected boolean netherstarArmorEnabled;
-	protected boolean netherrackToolsEnabled;
-	protected boolean glowstoneToolsEnabled;
-	protected boolean quartzToolsEnabled;
-	protected boolean netherstarToolsEnabled;
-	protected boolean glowstoneNightVisionArmorEnabled;
-	protected boolean glowstoneNightVisionToolsEnabled;
 
 	protected boolean randomStats;
 	protected int randomMinHealth;
@@ -167,12 +156,24 @@ public abstract class ConfigHandler implements ConfigLoader, Reloadable {
 		return worldguardProtect;
 	}
 
+	public boolean perPlayerWorlds() {
+		return perPlayerWorlds;
+	}
+
 	public boolean transferIslands() {
 		return transferIslands;
 	}
 
+	public boolean linkHellblocks() {
+		return linkHellblocks;
+	}
+
 	public boolean resetInventory() {
 		return resetInventory;
+	}
+
+	public boolean resetEnderchest() {
+		return resetEnderchest;
 	}
 
 	public boolean entryMessageEnabled() {
@@ -249,62 +250,6 @@ public abstract class ConfigHandler implements ConfigLoader, Reloadable {
 
 	public List<String> barteringItems() {
 		return barteringItems;
-	}
-
-	public boolean brewingBottleEnabled() {
-		return brewingBottleEnabled;
-	}
-
-	public String brewingBottleName() {
-		return brewingBottleName;
-	}
-
-	public List<String> brewingBottleLore() {
-		return brewingBottleLore;
-	}
-
-	public Color brewingBottleColor() {
-		return brewingBottleColor;
-	}
-
-	public boolean netherrackArmor() {
-		return netherrackArmorEnabled;
-	}
-
-	public boolean glowstoneArmor() {
-		return glowstoneArmorEnabled;
-	}
-
-	public boolean quartzArmor() {
-		return quartzArmorEnabled;
-	}
-
-	public boolean netherstarArmor() {
-		return netherstarArmorEnabled;
-	}
-
-	public boolean netherrackTools() {
-		return netherrackToolsEnabled;
-	}
-
-	public boolean glowstoneTools() {
-		return glowstoneToolsEnabled;
-	}
-
-	public boolean quartzTools() {
-		return quartzToolsEnabled;
-	}
-
-	public boolean netherstarTools() {
-		return netherstarToolsEnabled;
-	}
-
-	public boolean nightVisionArmor() {
-		return glowstoneNightVisionArmorEnabled;
-	}
-
-	public boolean nightVisionTools() {
-		return glowstoneNightVisionToolsEnabled;
 	}
 
 	public boolean randomStats() {
@@ -398,9 +343,17 @@ public abstract class ConfigHandler implements ConfigLoader, Reloadable {
 	public Sound challengeCompleteSound() {
 		return challengeCompletedSound;
 	}
-	
+
 	public Sound linkingHellblockSound() {
 		return linkingHellblockSound;
+	}
+
+	public Sound creatingHellblockSound() {
+		return creatingHellblockSound;
+	}
+
+	public TitleScreenInfo creationTitleScreen() {
+		return creationTitleScreen;
 	}
 
 	public int dataSaveInterval() {

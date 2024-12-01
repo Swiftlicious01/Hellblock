@@ -16,6 +16,7 @@ softdepend:
 - Jobs
 - AdvancedEnchantments
 - Multiverse-Core
+- SlimeWorldManager
 
 permissions:
   hellblock.user:

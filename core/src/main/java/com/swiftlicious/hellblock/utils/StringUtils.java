@@ -90,5 +90,4 @@ public class StringUtils {
 		double z = Double.parseDouble(locParts[3]);
 		return new Location(world, x, y, z);
 	}
-
 }

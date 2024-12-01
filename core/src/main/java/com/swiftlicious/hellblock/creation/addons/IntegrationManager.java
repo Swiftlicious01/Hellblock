@@ -11,6 +11,7 @@ import org.bukkit.plugin.Plugin;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import com.grinderwolf.swm.api.SlimePlugin;
 import com.onarandombox.MultiverseCore.MultiverseCore;
 import com.sk89q.worldguard.WorldGuard;
 import com.sk89q.worldguard.bukkit.WorldGuardPlugin;
@@ -79,6 +80,12 @@ public class IntegrationManager implements IntegrationManagerInterface {
 			Plugin multiverse = Bukkit.getPluginManager().getPlugin("Multiverse-Core");
 			if (multiverse != null && multiverse instanceof MultiverseCore) {
 				instance.getHellblockHandler().setMVWorldManager(((MultiverseCore) multiverse).getMVWorldManager());
+			}
+		}
+		if (isHooked("SlimeWorldManager")) {
+			Plugin slimeWorld = Bukkit.getPluginManager().getPlugin("SlimeWorldManager");
+			if (slimeWorld != null && slimeWorld instanceof SlimePlugin) {
+				instance.getHellblockHandler().setSlimeWorldManager(((SlimePlugin) slimeWorld));
 			}
 		}
 		if (isHooked("WorldGuard", "7")) {

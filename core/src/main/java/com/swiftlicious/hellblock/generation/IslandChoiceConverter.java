@@ -60,18 +60,7 @@ public class IslandChoiceConverter {
 				});
 			}
 		case IslandOptions.SCHEMATIC:
-			boolean schematicsAvailable = false;
-			for (String list : instance.getConfigManager().islandOptions()) {
-				if (list.equalsIgnoreCase(IslandOptions.CLASSIC.getName())
-						|| list.equalsIgnoreCase(IslandOptions.DEFAULT.getName()))
-					continue;
-				if (!instance.getSchematicManager().availableSchematics.contains(list))
-					continue;
-
-				schematicsAvailable = true;
-				break;
-			}
-			if (schematicsAvailable) {
+			if (instance.getSchematicGUIManager().checkForSchematics()) {
 				return instance.getIslandGenerator().generateHellblockSchematic(location, player, schematic)
 						.thenRun(() -> {
 							onlineUser.get().getHellblockData().setHomeLocation(

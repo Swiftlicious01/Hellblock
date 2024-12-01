@@ -30,6 +30,15 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import com.google.common.io.Files;
+import com.grinderwolf.swm.api.SlimePlugin;
+import com.grinderwolf.swm.api.exceptions.CorruptedWorldException;
+import com.grinderwolf.swm.api.exceptions.NewerFormatException;
+import com.grinderwolf.swm.api.exceptions.UnknownWorldException;
+import com.grinderwolf.swm.api.exceptions.WorldAlreadyExistsException;
+import com.grinderwolf.swm.api.exceptions.WorldInUseException;
+import com.grinderwolf.swm.api.world.SlimeWorld;
+import com.grinderwolf.swm.api.world.properties.SlimeProperties;
+import com.grinderwolf.swm.api.world.properties.SlimePropertyMap;
 import com.onarandombox.MultiverseCore.api.MVWorldManager;
 import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldguard.protection.managers.RegionManager;
@@ -40,15 +49,14 @@ import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.api.compatibility.WorldGuardHook;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
+import com.swiftlicious.hellblock.player.HellblockData;
 import com.swiftlicious.hellblock.player.UserData;
+import com.swiftlicious.hellblock.protection.HellblockFlag;
 import com.swiftlicious.hellblock.utils.ChunkUtils;
 import com.swiftlicious.hellblock.utils.LocationUtils;
 
 import dev.dejvokep.boostedyaml.YamlDocument;
 import net.kyori.adventure.audience.Audience;
-import net.kyori.adventure.key.Key;
-import net.kyori.adventure.sound.Sound;
-import net.kyori.adventure.sound.Sound.Source;
 
 public class HellblockHandler {
 
@@ -58,6 +66,7 @@ public class HellblockHandler {
 	private YamlDocument lastHellblock;
 
 	private MVWorldManager mvWorldManager;
+	private SlimePlugin slimeWorldManager;
 
 	public HellblockHandler(HellblockPlugin plugin) {
 		this.instance = plugin;
@@ -71,12 +80,20 @@ public class HellblockHandler {
 		return this.schematicsDirectory;
 	}
 
-	public MVWorldManager getMVWorldManager() {
+	public @Nullable MVWorldManager getMVWorldManager() {
 		return this.mvWorldManager;
+	}
+
+	public @Nullable SlimePlugin getSlimeWorldManager() {
+		return this.slimeWorldManager;
 	}
 
 	public void setMVWorldManager(@NotNull MVWorldManager mvWorldManager) {
 		this.mvWorldManager = mvWorldManager;
+	}
+
+	public void setSlimeWorldManager(@NotNull SlimePlugin slimeWorldManager) {
+		this.slimeWorldManager = slimeWorldManager;
 	}
 
 	public void startCountdowns() {
@@ -101,6 +118,9 @@ public class HellblockHandler {
 									offlineUser.getHellblockData().setTransferCooldown(
 											offlineUser.getHellblockData().getTransferCooldown() - 1);
 								}
+							}
+							if (!offlineUser.getHellblockData().hasHellblock()
+									&& offlineUser.getHellblockData().getInvitations() != null) {
 								for (Map.Entry<UUID, Long> invites : offlineUser.getHellblockData().getInvitations()
 										.entrySet()) {
 									if (invites.getValue() > 0) {
@@ -126,30 +146,97 @@ public class HellblockHandler {
 						.render(MessageConstants.COMMAND_DATA_FAILURE_NOT_LOADED.build()));
 				return;
 			}
-			Location last = this.getLastHellblock();
+			HellblockWorld<?> worldData;
+			if (instance.getConfigManager().perPlayerWorlds()) {
+				if (getSlimeWorldManager() != null && instance.getStorageManager().getSlimeLoader() != null) {
+					try {
+						if (!instance.getStorageManager().getSlimeLoader().worldExists(player.getName())) {
+							SlimePropertyMap properties = new SlimePropertyMap();
+							properties.setInt(SlimeProperties.SPAWN_X, 0);
+							properties.setInt(SlimeProperties.SPAWN_Y, instance.getConfigManager().height());
+							properties.setInt(SlimeProperties.SPAWN_Z, 0);
+							properties.setBoolean(SlimeProperties.ALLOW_ANIMALS,
+									HellblockFlag.FlagType.MOB_SPAWNING.getDefaultValue());
+							properties.setBoolean(SlimeProperties.ALLOW_MONSTERS,
+									HellblockFlag.FlagType.MOB_SPAWNING.getDefaultValue());
+							properties.setBoolean(SlimeProperties.PVP, HellblockFlag.FlagType.PVP.getDefaultValue());
+							properties.setString(SlimeProperties.DIFFICULTY, "normal");
+							properties.setString(SlimeProperties.ENVIRONMENT, "nether");
+							SlimeWorld world = getSlimeWorldManager().createEmptyWorld(
+									instance.getStorageManager().getSlimeLoader(), player.getUniqueId().toString(),
+									false, properties);
+							getSlimeWorldManager().generateWorld(world);
+							Location spawn = new Location(Bukkit.getWorld(world.getName()),
+									properties.getInt(SlimeProperties.SPAWN_X),
+									properties.getInt(SlimeProperties.SPAWN_Y),
+									properties.getInt(SlimeProperties.SPAWN_Z));
+							worldData = new HellblockWorld<SlimeWorld>(world, spawn);
+						} else {
+							SlimePropertyMap properties = new SlimePropertyMap();
+							properties.setInt(SlimeProperties.SPAWN_X, 0);
+							properties.setInt(SlimeProperties.SPAWN_Y, instance.getConfigManager().height());
+							properties.setInt(SlimeProperties.SPAWN_Z, 0);
+							properties.setBoolean(SlimeProperties.ALLOW_ANIMALS,
+									HellblockFlag.FlagType.MOB_SPAWNING.getDefaultValue());
+							properties.setBoolean(SlimeProperties.ALLOW_MONSTERS,
+									HellblockFlag.FlagType.MOB_SPAWNING.getDefaultValue());
+							properties.setBoolean(SlimeProperties.PVP, HellblockFlag.FlagType.PVP.getDefaultValue());
+							properties.setString(SlimeProperties.DIFFICULTY, "normal");
+							properties.setString(SlimeProperties.ENVIRONMENT, "nether");
+							SlimeWorld world = getSlimeWorldManager().loadWorld(
+									instance.getStorageManager().getSlimeLoader(), player.getUniqueId().toString(),
+									false, properties);
+							Location spawn = new Location(Bukkit.getWorld(world.getName()),
+									properties.getInt(SlimeProperties.SPAWN_X),
+									properties.getInt(SlimeProperties.SPAWN_Y),
+									properties.getInt(SlimeProperties.SPAWN_Z));
+							worldData = new HellblockWorld<SlimeWorld>(world, spawn);
+						}
+					} catch (WorldAlreadyExistsException | IOException | UnknownWorldException | CorruptedWorldException
+							| NewerFormatException | WorldInUseException ex) {
+						instance.getPluginLogger()
+								.severe(String.format(
+										"Failed to create new player world for the player %s using SlimeWorldManager.",
+										onlineUser.get().getName()));
+						return;
+					}
+				} else {
+					throw new NullPointerException(
+							"Failed to retrieve SlimeWorldManager instance for creating new player world.");
+				}
+			} else {
+				worldData = new HellblockWorld<World>(getHellblockWorld(), this.getLastHellblock());
+			}
 			nextHellblockID(player.getUniqueId()).thenAccept((nextID) -> {
-				if (nextID.getNextID() == 0) {
+				int id = nextID.getNextID();
+				if (id == 0) {
 					instance.getPluginLogger()
 							.severe(String.format(
 									"Failed to retrieve the next hellblock ID for hellblock creation: %s.",
-									onlineUser.get().getUUID()));
+									onlineUser.get().getName()));
 					return;
 				}
-				Location next = this.nextHellblockLocation(last, nextID.getNextID());
-				do {
-					next = this.nextHellblockLocation(next, nextID.getNextID());
-				} while (this.hellblockInSpawn(next));
-				this.setLastHellblock(next, nextID.getNextID());
-				onlineUser.get().getHellblockData().setDefaultHellblockData(true, next, nextID.getNextID());
-				onlineUser.get().getHellblockData().clearInvitations();
-				onlineUser.get().getHellblockData().setIslandChoice(islandChoice);
-				onlineUser.get().getHellblockData().setBiomeCooldown(0L);
-				onlineUser.get().getHellblockData().setLockedStatus(false);
-				onlineUser.get().getHellblockData().setOwnerUUID(player.getUniqueId());
-				onlineUser.get().getHellblockData().setProtectionFlags(new HashMap<>());
-				onlineUser.get().getHellblockData().setParty(new HashSet<>());
-				onlineUser.get().getHellblockData().setTrusted(new HashSet<>());
-				onlineUser.get().getHellblockData().setBanned(new HashSet<>());
+				Location next;
+				if (worldData.getWorld() instanceof World) {
+					next = this.nextHellblockLocation(worldData.getSpawnLocation(), id);
+					do {
+						next = this.nextHellblockLocation(next, id);
+					} while (this.hellblockInSpawn(next));
+					this.setLastHellblock(next, id);
+				} else {
+					next = worldData.getSpawnLocation();
+				}
+				HellblockData hellblockData = onlineUser.get().getHellblockData();
+				hellblockData.setDefaultHellblockData(true, next, id);
+				hellblockData.clearInvitations();
+				hellblockData.setIslandChoice(islandChoice);
+				hellblockData.setBiomeCooldown(0L);
+				hellblockData.setLockedStatus(false);
+				hellblockData.setOwnerUUID(player.getUniqueId());
+				hellblockData.setProtectionFlags(new HashMap<>());
+				hellblockData.setParty(new HashSet<>());
+				hellblockData.setTrusted(new HashSet<>());
+				hellblockData.setBanned(new HashSet<>());
 				ProtectionTask protection = new ProtectionTask();
 				if (instance.getConfigManager().worldguardProtect()) {
 					protection.setProtectionTask(instance.getWorldGuardHandler().protectHellblock(onlineUser.get()));
@@ -161,10 +248,11 @@ public class HellblockHandler {
 				IslandChoiceTask choice = new IslandChoiceTask();
 				protection.getProtectionTask().thenRunAsync(() -> {
 					if (islandChoice == IslandOptions.SCHEMATIC && schematic != null && !schematic.isEmpty()
-							&& instance.getSchematicManager().availableSchematics.stream()
-									.filter(sch -> sch.equalsIgnoreCase(Files.getNameWithoutExtension(schematic)))
+							&& instance.getSchematicManager().schematicFiles.keySet().stream()
+									.filter(sch -> Files.getNameWithoutExtension(sch)
+											.equalsIgnoreCase(Files.getNameWithoutExtension(schematic)))
 									.findAny().isPresent()) {
-						onlineUser.get().getHellblockData().setUsedSchematic(Files.getNameWithoutExtension(schematic));
+						hellblockData.setUsedSchematic(Files.getNameWithoutExtension(schematic));
 						choice.setIslandChoiceTask(instance.getIslandChoiceConverter().convertIslandChoice(player,
 								nextHellblock, schematic));
 					} else {
@@ -175,56 +263,51 @@ public class HellblockHandler {
 							.render(MessageConstants.MSG_HELLBLOCK_CREATE_PROCESS.build()));
 				}).thenRunAsync(() -> {
 					choice.getIslandChoiceTask().thenRunAsync(() -> {
-						if (onlineUser.get().getHellblockData().getHomeLocation() == null)
+						if (hellblockData.getHomeLocation() == null)
 							throw new NullPointerException(
 									"Hellblock home location returned null, please report this to the developer.");
 
-						LocationUtils.isSafeLocationAsync(onlineUser.get().getHellblockData().getHomeLocation())
-								.thenAcceptAsync((result) -> {
-									if (!result.booleanValue()) {
-										locateBedrock(player.getUniqueId()).thenAcceptAsync((bedrock) -> {
-											onlineUser.get().getHellblockData()
-													.setHomeLocation(bedrock.getBedrockLocation());
-										});
-									}
-								}).thenRunAsync(() -> {
-									ChunkUtils.teleportAsync(player,
-											onlineUser.get().getHellblockData().getHomeLocation(), TeleportCause.PLUGIN)
-											.thenRunAsync(() -> {
-												AdventureHelper.sendTitle(
-														instance.getSenderFactory().getAudience(player),
-														AdventureHelper.miniMessage(String
-																.format("<red>Welcome <dark_red>%s", player.getName())),
-														AdventureHelper.miniMessage("<red>To Your Hellblock!"), 2 * 20,
-														3 * 20, 2 * 20);
-												instance.getSenderFactory().getAudience(player)
-														.playSound(Sound.sound(Key.key("minecraft:item.totem.use"),
-																Source.PLAYER, 1.0F, 1.0F));
-												onlineUser.get().getHellblockData()
-														.setCreation(System.currentTimeMillis());
-												if (instance.getConfigManager().worldguardProtect()) {
-													ProtectedRegion region = instance.getWorldGuardHandler().getRegion(
-															onlineUser.get().getUUID(),
-															onlineUser.get().getHellblockData().getID());
-													if (region != null)
-														instance.getBiomeHandler().setHellblockBiome(region,
-																onlineUser.get().getHellblockData().getBiome()
-																		.getConvertedBiome());
-												} else {
-													// TODO: using plugin protection
-												}
-												instance.debug(String.format("Creating new hellblock for %s",
-														player.getName()));
-											}).thenRunAsync(() -> {
-												if (isReset) {
-													onlineUser.get().getHellblockData().setResetCooldown(86400L);
-												}
-											}).thenRunAsync(() -> {
-												instance.getStorageManager().getDataSource().updateOrInsertPlayerData(
-														onlineUser.get().getUUID(), onlineUser.get().toPlayerData(),
-														instance.getConfigManager().lockData());
-											});
+						LocationUtils.isSafeLocationAsync(hellblockData.getHomeLocation()).thenAcceptAsync((result) -> {
+							if (!result.booleanValue()) {
+								locateBedrock(player.getUniqueId()).thenAcceptAsync((bedrock) -> {
+									hellblockData.setHomeLocation(bedrock.getBedrockLocation());
 								});
+							}
+						}).thenRunAsync(() -> {
+							ChunkUtils.teleportAsync(player, hellblockData.getHomeLocation(), TeleportCause.PLUGIN)
+									.thenRunAsync(() -> {
+										if (instance.getConfigManager().creationTitleScreen() != null
+												&& instance.getConfigManager().creationTitleScreen().enabled())
+											AdventureHelper.sendTitle(audience,
+													AdventureHelper.miniMessage(
+															instance.getConfigManager().creationTitleScreen().title()
+																	.replace("{player}", player.getName())),
+													AdventureHelper.miniMessage(
+															instance.getConfigManager().creationTitleScreen().subtitle()
+																	.replace("{player}", player.getName())),
+													instance.getConfigManager().creationTitleScreen().fadeIn(),
+													instance.getConfigManager().creationTitleScreen().stay(),
+													instance.getConfigManager().creationTitleScreen().fadeOut());
+										if (instance.getConfigManager().creatingHellblockSound() != null)
+											audience.playSound(instance.getConfigManager().creatingHellblockSound());
+										hellblockData.setCreation(System.currentTimeMillis());
+										if (instance.getConfigManager().worldguardProtect()) {
+											ProtectedRegion region = instance.getWorldGuardHandler()
+													.getRegion(onlineUser.get().getUUID(), hellblockData.getID());
+											if (region != null)
+												instance.getBiomeHandler().setHellblockBiome(region,
+														hellblockData.getBiome().getConvertedBiome());
+										} else {
+											// TODO: using plugin protection
+										}
+										instance.debug(
+												String.format("Creating new hellblock for %s", player.getName()));
+									}).thenRunAsync(() -> {
+										if (isReset) {
+											hellblockData.setResetCooldown(86400L);
+										}
+									});
+						});
 					});
 				});
 			});
@@ -369,6 +452,9 @@ public class HellblockHandler {
 											player.getInventory().clear();
 											player.getInventory().setArmorContents(null);
 										}
+										if (instance.getConfigManager().resetEnderchest()) {
+											player.getEnderChest().clear();
+										}
 										teleportToSpawn(player, true);
 									}
 									instance.getScheduler().executeSync(() -> {
@@ -387,10 +473,6 @@ public class HellblockHandler {
 												instance.getIslandChoiceGUIManager().openIslandChoiceGUI(player, true);
 											}, 1 * 20, home);
 										}
-									} else {
-										instance.getStorageManager().getDataSource().updateOrInsertPlayerData(
-												offlineUser.getUUID(), offlineUser.toPlayerData(),
-												instance.getConfigManager().lockData());
 									}
 								});
 							});
@@ -474,10 +556,11 @@ public class HellblockHandler {
 			}
 		});
 		return location;
+
 	}
 
-	public boolean isHellblockOwner(@NotNull UUID fileID, @NotNull UUID configID) {
-		return fileID.equals(configID);
+	public boolean isHellblockOwner(@NotNull UUID playerID, @NotNull UUID ownerID) {
+		return playerID.equals(ownerID);
 	}
 
 	private @NotNull Location nextHellblockLocation(@NotNull Location last, int hellblockID) {
@@ -552,6 +635,21 @@ public class HellblockHandler {
 
 	public @NotNull ChunkGenerator getDefaultWorldGenerator(@NotNull String worldName, @NotNull String id) {
 		return new VoidGenerator();
+	}
+
+	public boolean isInCorrectWorld(@NotNull Player player) {
+		if (!instance.getConfigManager().perPlayerWorlds())
+			return player.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName());
+
+		return player.getWorld().getName().equalsIgnoreCase(player.getUniqueId().toString());
+	}
+
+	public boolean isInCorrectWorld(@NotNull World world) {
+		if (!instance.getConfigManager().perPlayerWorlds())
+			return world.getName().equalsIgnoreCase(instance.getConfigManager().worldName());
+
+		return world.getEnvironment() == Environment.NETHER
+				&& world.getGenerator() == getDefaultWorldGenerator(world.getName(), world.getUID().toString());
 	}
 
 	@SuppressWarnings("deprecation")
@@ -745,6 +843,24 @@ public class HellblockHandler {
 
 		public void setSpawnLocation(@NotNull Location spawnLocation) {
 			this.spawnLocation = spawnLocation;
+		}
+	}
+
+	protected class HellblockWorld<T> {
+		private T world;
+		private Location spawnLocation;
+
+		public HellblockWorld(T world, Location spawnLocation) {
+			this.world = world;
+			this.spawnLocation = spawnLocation;
+		}
+
+		public T getWorld() {
+			return this.world;
+		}
+
+		public Location getSpawnLocation() {
+			return this.spawnLocation;
 		}
 	}
 
