@@ -28,13 +28,14 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
-import com.swiftlicious.hellblock.api.compatibility.VaultHook;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
+import com.swiftlicious.hellblock.creation.addons.VaultHook;
 import com.swiftlicious.hellblock.creation.item.Item;
 import com.swiftlicious.hellblock.effects.EffectInterface;
 import com.swiftlicious.hellblock.nms.entity.FakeEntity;
 import com.swiftlicious.hellblock.nms.entity.armorstand.FakeArmorStand;
 import com.swiftlicious.hellblock.nms.entity.display.FakeItemDisplay;
+import com.swiftlicious.hellblock.nms.toast.AdvancementType;
 import com.swiftlicious.hellblock.player.ContextKeys;
 import com.swiftlicious.hellblock.scheduler.SchedulerTask;
 import com.swiftlicious.hellblock.utils.ListUtils;
@@ -140,6 +141,7 @@ public class ActionManager implements ActionManagerInterface<Player> {
 
 	private void registerBuiltInActions() {
 		this.registerMessageAction();
+		this.registerToastAction();
 		this.registerCommandAction();
 		this.registerActionBarAction();
 		this.registerCloseInvAction();
@@ -307,6 +309,37 @@ public class ActionManager implements ActionManagerInterface<Player> {
 				return;
 			context.holder().closeInventory();
 		}, "close-inv");
+	}
+
+	private void registerToastAction() {
+		registerAction((args, chance) -> {
+			if (args instanceof Section section) {
+				String title = section.getString("title");
+				AdvancementType advancementType = AdvancementType
+						.valueOf(Objects.requireNonNull(section.getString("advancement-type")));
+				String material = section.getString("icon");
+				return context -> {
+					if (Math.random() > chance.evaluate(context))
+						return;
+					if (Material.getMaterial(material) == null || Material.getMaterial(material) == Material.AIR)
+						return;
+					Player player = context.holder();
+					ItemStack itemStack = new ItemStack(Material.getMaterial(material));
+					if (itemStack != null) {
+						String temp;
+						temp = instance.getPlaceholderManager().parse(context.holder(), title,
+								context.placeholderMap());
+						instance.getVersionManager().getNMSManager().sendToast(player, itemStack,
+								AdventureHelper.componentToJson(AdventureHelper.getMiniMessage().deserialize(temp)),
+								advancementType.name());
+					}
+				};
+			} else {
+				instance.getPluginLogger().warn("Invalid value type: " + args.getClass().getSimpleName()
+						+ " found at toast action which is expected to be `Section`");
+				return Action.empty();
+			}
+		}, "toast");
 	}
 
 	private void registerActionBarAction() {

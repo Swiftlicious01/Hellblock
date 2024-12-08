@@ -1,6 +1,7 @@
 package com.swiftlicious.hellblock.commands.sub;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
@@ -26,6 +27,7 @@ import com.swiftlicious.hellblock.config.locale.MessageConstants;
 import com.swiftlicious.hellblock.player.UUIDFetcher;
 import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.utils.ChunkUtils;
+import com.swiftlicious.hellblock.world.HellblockWorld;
 
 import net.kyori.adventure.text.Component;
 
@@ -99,12 +101,19 @@ public class AdminTeleportCommand extends BukkitCommandFeature<CommandSender> {
 													return;
 												}
 												UserData ownerUser = owner.get();
-												World world = HellblockPlugin.getInstance().getHellblockHandler()
-														.getHellblockWorld();
+												Optional<HellblockWorld<?>> world = HellblockPlugin.getInstance()
+														.getWorldManager()
+														.getWorld(HellblockPlugin.getInstance().getWorldManager()
+																.getHellblockWorldFormat(
+																		ownerUser.getHellblockData().getID()));
+												if (world.isEmpty() || world.get() == null)
+													throw new NullPointerException(
+															"World returned null, please try to regenerate the world before reporting this issue.");
+												World bukkitWorld = world.get().bukkitWorld();
 												int x = ownerUser.getHellblockData().getHellblockLocation().getBlockX();
 												int z = ownerUser.getHellblockData().getHellblockLocation().getBlockZ();
-												Location highest = new Location(world, x,
-														world.getHighestBlockYAt(x, z), z);
+												Location highest = new Location(bukkitWorld, x,
+														bukkitWorld.getHighestBlockYAt(x, z), z);
 												ChunkUtils.teleportAsync(player, highest, TeleportCause.PLUGIN)
 														.thenRun(() -> handleFeedback(context,
 																MessageConstants.MSG_HELLBLOCK_ADMIN_FORCE_TELEPORT

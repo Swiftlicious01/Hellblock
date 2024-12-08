@@ -17,6 +17,13 @@ public record Key(String namespace, String value) {
 		return new Key(namespace, value);
 	}
 
+	public static Key of(String key) {
+		int index = key.indexOf(":");
+		String namespace = index >= 1 ? key.substring(0, index) : "minecraft";
+		String value = index >= 0 ? key.substring(index + 1) : key;
+		return of(namespace, value);
+	}
+
 	/**
 	 * Creates a new {@link Key} instance from a string in the format
 	 * "namespace:value".
@@ -31,7 +38,19 @@ public record Key(String namespace, String value) {
 
 	@Override
 	public int hashCode() {
-		return toString().hashCode();
+		return asString().hashCode();
+	}
+
+	public String asString() {
+		return namespace + ":" + value;
+	}
+
+	public String namespace() {
+		return namespace;
+	}
+
+	public String value() {
+		return value;
 	}
 
 	@Override
@@ -46,6 +65,6 @@ public record Key(String namespace, String value) {
 
 	@Override
 	public String toString() {
-		return namespace + ":" + value;
+		return "Key{" + "namespace='" + namespace + '\'' + ", value='" + value + '\'' + '}';
 	}
 }

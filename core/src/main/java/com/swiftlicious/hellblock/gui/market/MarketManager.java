@@ -119,7 +119,7 @@ public class MarketManager implements MarketManagerInterface, Listener {
 		HandlerList.unregisterAll(this);
 		this.priceMap.clear();
 		this.decorativeIcons.clear();
-		if (this.resetEarningsTask != null)
+		if (this.resetEarningsTask.isCancelled())
 			this.resetEarningsTask.cancel();
 	}
 

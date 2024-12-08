@@ -2,10 +2,12 @@ package com.swiftlicious.hellblock.scheduler;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.World;
 import org.bukkit.plugin.Plugin;
+import org.bukkit.scheduler.BukkitTask;
 
 @SuppressWarnings("deprecation")
-public class BukkitExecutor implements RegionExecutor<Location> {
+public class BukkitExecutor implements RegionExecutor<Location, World> {
 
 	private final Plugin plugin;
 
@@ -17,9 +19,14 @@ public class BukkitExecutor implements RegionExecutor<Location> {
 	public void run(Runnable r, Location l) {
 		if (Bukkit.isPrimaryThread()) {
 			r.run();
-			return;
+		} else {
+			Bukkit.getScheduler().runTask(plugin, r);
 		}
-		Bukkit.getScheduler().runTask(plugin, r);
+	}
+
+	@Override
+	public void run(Runnable r, World world, int x, int z) {
+		run(r);
 	}
 
 	@Override
@@ -27,17 +34,35 @@ public class BukkitExecutor implements RegionExecutor<Location> {
 		if (delayTicks == 0) {
 			if (Bukkit.isPrimaryThread()) {
 				r.run();
-				return () -> {
-				};
+				return new DummyTask();
 			} else {
-				return Bukkit.getScheduler().runTask(plugin, r)::cancel;
+				return new BukkitCancellable(Bukkit.getScheduler().runTask(plugin, r));
 			}
 		}
-		return Bukkit.getScheduler().runTaskLater(plugin, r, delayTicks)::cancel;
+		return new BukkitCancellable(Bukkit.getScheduler().runTaskLater(plugin, r, delayTicks));
 	}
 
 	@Override
 	public SchedulerTask runRepeating(Runnable r, long delayTicks, long period, Location l) {
-		return Bukkit.getScheduler().runTaskTimer(plugin, r, delayTicks, period)::cancel;
+		return new BukkitCancellable(Bukkit.getScheduler().runTaskTimer(plugin, r, delayTicks, period));
+	}
+
+	public static class BukkitCancellable implements SchedulerTask {
+
+		private final BukkitTask task;
+
+		public BukkitCancellable(BukkitTask task) {
+			this.task = task;
+		}
+
+		@Override
+		public void cancel() {
+			this.task.cancel();
+		}
+
+		@Override
+		public boolean isCancelled() {
+			return this.task.isCancelled();
+		}
 	}
 }

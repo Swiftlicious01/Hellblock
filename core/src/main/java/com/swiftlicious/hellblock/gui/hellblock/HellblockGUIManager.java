@@ -482,8 +482,9 @@ public class HellblockGUIManager implements HellblockGUIManagerInterface, Listen
 				event.setCancelled(true);
 				hellblockData.setLockedStatus(true);
 				gui.context.arg(ContextKeys.HELLBLOCK_STATUS, hellblockData.isLocked());
-				instance.getCoopManager().kickVisitorsIfLocked(gui.context.holder().getUniqueId());
-				instance.getCoopManager().changeLockStatus(userData.get());
+				instance.getCoopManager().kickVisitorsIfLocked(userData.get().getUUID());
+				instance.getProtectionManager().changeLockStatus(gui.context.holder().getWorld(),
+						userData.get().getUUID());
 				ActionManagerInterface.trigger(gui.context, lockActions);
 			}
 
@@ -491,7 +492,9 @@ public class HellblockGUIManager implements HellblockGUIManagerInterface, Listen
 				event.setCancelled(true);
 				hellblockData.setLockedStatus(false);
 				gui.context.arg(ContextKeys.HELLBLOCK_STATUS, hellblockData.isLocked());
-				instance.getCoopManager().changeLockStatus(userData.get());
+				instance.getCoopManager().kickVisitorsIfLocked(userData.get().getUUID());
+				instance.getProtectionManager().changeLockStatus(gui.context.holder().getWorld(),
+						userData.get().getUUID());
 				ActionManagerInterface.trigger(gui.context, unlockActions);
 			}
 

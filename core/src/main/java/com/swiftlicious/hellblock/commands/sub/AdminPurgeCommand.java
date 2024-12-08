@@ -1,11 +1,13 @@
 package com.swiftlicious.hellblock.commands.sub;
 
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
+import org.bukkit.World;
 import org.bukkit.command.CommandSender;
 import org.incendo.cloud.Command;
 import org.incendo.cloud.CommandManager;
@@ -17,6 +19,7 @@ import com.swiftlicious.hellblock.commands.HellblockCommandManager;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
 import com.swiftlicious.hellblock.player.HellblockData;
 import com.swiftlicious.hellblock.player.UserData;
+import com.swiftlicious.hellblock.world.HellblockWorld;
 
 import net.kyori.adventure.text.Component;
 
@@ -59,33 +62,30 @@ public class AdminPurgeCommand extends BukkitCommandFeature<CommandSender> {
 								UserData offlineUser = result.get();
 								if (offlineUser.getHellblockData().hasHellblock()
 										&& offlineUser.getHellblockData().getOwnerUUID() != null) {
-									if (HellblockPlugin.getInstance().getHellblockHandler().isHellblockOwner(id,
-											offlineUser.getHellblockData().getOwnerUUID())) {
+									if (id.equals(offlineUser.getHellblockData().getOwnerUUID())) {
 										float level = offlineUser.getHellblockData().getLevel();
 										if (level == HellblockData.DEFAULT_LEVEL) {
-
+											Optional<HellblockWorld<?>> world = HellblockPlugin.getInstance()
+													.getWorldManager()
+													.getWorld(HellblockPlugin.getInstance().getWorldManager()
+															.getHellblockWorldFormat(
+																	offlineUser.getHellblockData().getID()));
+											if (world.isEmpty() || world.get() == null)
+												throw new NullPointerException(
+														"World returned null, please try to regenerate the world before reporting this issue.");
+											World bukkitWorld = world.get().bukkitWorld();
 											offlineUser.getHellblockData().setAsAbandoned(true);
-											int hellblockID = offlineUser.getHellblockData().getID();
-											if (HellblockPlugin.getInstance().getWorldGuardHandler().getRegion(
-													offlineUser.getHellblockData().getOwnerUUID(),
-													hellblockID) != null) {
-												HellblockPlugin.getInstance().getWorldGuardHandler()
-														.updateHellblockMessages(
-																offlineUser.getHellblockData().getOwnerUUID(),
-																HellblockPlugin.getInstance().getWorldGuardHandler()
-																		.getRegion(offlineUser.getHellblockData()
-																				.getOwnerUUID(), hellblockID));
-												HellblockPlugin.getInstance().getWorldGuardHandler().abandonIsland(
-														offlineUser.getHellblockData().getOwnerUUID(),
-														HellblockPlugin.getInstance().getWorldGuardHandler().getRegion(
-																offlineUser.getHellblockData().getOwnerUUID(),
-																hellblockID));
-												purgeCount.getAndIncrement();
-											}
+											HellblockPlugin.getInstance().getProtectionManager().getIslandProtection()
+													.updateHellblockMessages(bukkitWorld,
+															offlineUser.getHellblockData().getOwnerUUID());
+											HellblockPlugin.getInstance().getProtectionManager().getIslandProtection()
+													.abandonIsland(bukkitWorld,
+															offlineUser.getHellblockData().getOwnerUUID());
+											purgeCount.getAndIncrement();
 										}
 									}
 								}
-							}).join();
+							});
 				}
 			}
 
@@ -97,6 +97,7 @@ public class AdminPurgeCommand extends BukkitCommandFeature<CommandSender> {
 				return;
 			}
 		});
+
 	}
 
 	@Override

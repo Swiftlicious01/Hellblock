@@ -210,7 +210,7 @@ public class InviteGUIManager implements InviteGUIManagerInterface, Listener {
 		InviteGUI gui = inviteGUICache.remove(player.getUniqueId());
 		if (gui != null) {
 			gui.returnItems();
-			if (gui.searchTask != null)
+			if (gui.searchTask.isCancelled())
 				gui.searchTask.cancel();
 		}
 	}
@@ -225,7 +225,7 @@ public class InviteGUIManager implements InviteGUIManagerInterface, Listener {
 		InviteGUI gui = inviteGUICache.remove(event.getPlayer().getUniqueId());
 		if (gui != null) {
 			gui.returnItems();
-			if (gui.searchTask != null)
+			if (gui.searchTask.isCancelled())
 				gui.searchTask.cancel();
 		}
 	}
@@ -414,6 +414,9 @@ public class InviteGUIManager implements InviteGUIManagerInterface, Listener {
 							return;
 						instance.getCoopManager().sendInvite(userData.get(), invitingPlayer.get());
 						ActionManagerInterface.trigger(gui.context, playerFoundActions);
+						instance.getPartyGUIManager().openPartyGUI(gui.context.holder(),
+								gui.hellblockData.getOwnerUUID().equals(gui.context.holder().getUniqueId()));
+						return;
 					} else {
 						ActionManagerInterface.trigger(gui.context, playerNotFoundActions);
 						return;

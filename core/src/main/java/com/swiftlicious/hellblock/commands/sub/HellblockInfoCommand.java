@@ -119,10 +119,11 @@ public class HellblockInfoCommand extends BukkitCommandFeature<CommandSender> {
 															MessageConstants.FORMAT_OPEN.build().key())),
 									Component.text(offlineUser.getHellblockData().getTotalVisits()),
 									Component.text(StringUtils
-											.toProperCase(offlineUser.getHellblockData().getIslandChoice().getName())),
+											.toProperCase(offlineUser.getHellblockData().getIslandChoice().toString())),
 									Component.text(offlineUser.getHellblockData().getBiome().getName()),
 									Component.text(offlineUser.getHellblockData().getParty().size()),
-									Component.text(HellblockPlugin.getInstance().getConfigManager().partySize()),
+									Component.text(HellblockPlugin.getInstance().getCoopManager()
+											.getMaxPartySize(offlineUser)),
 									Component.text((!partyString.isEmpty()
 											? partyString.toString().substring(0, partyString.toString().length() - 2)
 											: HellblockPlugin.getInstance().getTranslationManager()

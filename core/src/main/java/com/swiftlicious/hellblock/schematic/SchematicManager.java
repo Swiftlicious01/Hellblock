@@ -9,18 +9,18 @@ import java.util.concurrent.CompletableFuture;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.World;
+import org.bukkit.util.BoundingBox;
 import org.jetbrains.annotations.NotNull;
 
-import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.api.Reloadable;
-import com.swiftlicious.hellblock.api.compatibility.FastAsyncWorldEditHook;
-import com.swiftlicious.hellblock.api.compatibility.WorldEditHook;
 
 public class SchematicManager implements Reloadable {
 
 	protected final HellblockPlugin instance;
 	public SchematicPaster schematicPaster;
+	public File schematicsDirectory;
 	public final Map<String, File> schematicFiles;
 	public final TreeMap<String, SchematicPaster> availablePasters;
 
@@ -30,6 +30,9 @@ public class SchematicManager implements Reloadable {
 
 	public SchematicManager(HellblockPlugin plugin) {
 		instance = plugin;
+		this.schematicsDirectory = new File(instance.getDataFolder() + File.separator + "schematics");
+		if (!this.schematicsDirectory.exists())
+			this.schematicsDirectory.mkdirs();
 		availablePasters = new TreeMap<>();
 		availablePasters.put("internalAsync", new SchematicAsync());
 		if ((worldEdit) && WorldEditHook.isWorking()) {
@@ -53,8 +56,7 @@ public class SchematicManager implements Reloadable {
 		setPasterFromConfig();
 
 		this.schematicFiles = new HashMap<>();
-		File parent = instance.getHellblockHandler().getSchematicsDirectory();
-		for (File file : parent.listFiles()) {
+		for (File file : getSchematics()) {
 			schematicFiles.put(file.getName(), file);
 		}
 	}
@@ -80,18 +82,21 @@ public class SchematicManager implements Reloadable {
 		}
 	}
 
+	private @NotNull File[] getSchematics() {
+		return this.schematicsDirectory.listFiles();
+	}
+
 	public void loadCache() {
 		schematicFiles.clear();
-		File parent = instance.getHellblockHandler().getSchematicsDirectory();
-		for (File file : parent.listFiles()) {
+		for (File file : getSchematics()) {
 			schematicFiles.put(file.getName(), file);
 		}
 	}
 
-	public @NotNull CompletableFuture<Void> pasteSchematic(@NotNull String schematic, @NotNull ProtectedRegion region) {
+	public @NotNull CompletableFuture<Void> pasteSchematic(@NotNull World world, @NotNull String schematic,
+			@NotNull BoundingBox bounds) {
 		CompletableFuture<Void> completableFuture = new CompletableFuture<>();
-		Location location = instance.getWorldGuardHandler().getCenter(region)
-				.toLocation(instance.getHellblockHandler().getHellblockWorld());
+		Location location = bounds.getCenter().toLocation(world);
 		location.add(0, instance.getConfigManager().height(), 0);
 		File file = schematicFiles.getOrDefault(schematic, schematicFiles.values().stream().findFirst().orElse(null));
 		instance.getScheduler().sync().run(() -> {

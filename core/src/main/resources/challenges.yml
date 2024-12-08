@@ -1,0 +1,103 @@
+# Hellblock Challenges #
+# Global actions that are called when any challenge is completed.
+global:
+  action:
+    sound_action:
+      type: sound
+      value:
+        key: 'minecraft:entity.ender_dragon.growl'
+        source: 'player'
+        volume: 1.0
+        pitch: 1.0
+    message_action:
+      type: message
+      value: "You've claimed your challenge reward!"
+    toast_action:
+      type: toast
+      value:
+        title: "Challenge Completed!"
+        advancement-type: CHALLENGE
+        icon: DIAMOND
+
+challenges:
+  # available action types:
+  # [BREAK, GROW, FISH, CRAFT, BREW, BARTER, INTERACT, FARM, KILL, SPAWN]
+  NETHERRACK_GENERATOR_CHALLENGE:
+    amount: 750
+    action: BREAK
+  GLOWSTONE_TREE_CHALLENGE:
+    amount: 25
+    action: GROW
+  LAVA_FISHING_CHALLENGE:
+    amount: 75
+    action: FISH
+  NETHER_CRAFTING_CHALLENGE:
+    amount: 36
+    action: CRAFT
+  NETHER_BREWING_CHALLENGE:
+    amount: 12
+    action: BREW
+  NETHER_BARTER_CHALLENGE:
+    amount: 50
+    action: BARTER
+  INFINITE_LAVA_CHALLENGE:
+    amount: 60
+    action: INTERACT
+  NETHER_FARMING_CHALLENGE:
+    amount: 150
+    action: FARM
+  WITHER_CHALLENGE:
+    amount: 20
+    action: KILL
+  GOLEM_CHALLENGE:
+    amount: 40
+    action: SPAWN
+
+rewards:
+  NETHERRACK_GENERATOR_CHALLENGE:
+    action:
+      item_action:
+        type: 'give-vanilla-item'
+        value:
+          to-inventory: true
+          material: BOOK
+          display:
+            lore:
+              - '<light_purple>A nice book!'
+  GLOWSTONE_TREE_CHALLENGE:
+    action:
+      item_action:
+        type: 'give-vanilla-item'
+        value:
+          to-inventory: true
+          material: GOLD_INGOT
+          amount: 3
+          display:
+            name: '<gold>Gold Ingot'
+  LAVA_FISHING_CHALLENGE:
+    action:
+      item_action:
+        type: 'give-vanilla-item'
+        value:
+          to-inventory: true
+		  material: COBBLESTONE
+          amount: 1
+  NETHER_GOLEM_CHALLENGE:
+    action:
+      money_action:
+        type: 'give-money'
+        value: 50
+  NETHER_CRAFTING_CHALLENGE:
+    action:
+      item_action:
+        type: 'give-vanilla-item'
+        value:
+          to-inventory: true
+          material: WOOD_SWORD
+          enchantments:
+            enchant: minecraft:sharpness: 5
+  NETHER_BREWING_CHALLENGE:
+    action:
+      exp_action:
+        type: 'exp'
+        value: 100

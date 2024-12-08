@@ -6,15 +6,18 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import org.bukkit.Material;
+import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventPriority;
 import org.bukkit.inventory.ItemStack;
@@ -33,19 +36,23 @@ import com.swiftlicious.hellblock.config.parser.function.ItemParserFunction;
 import com.swiftlicious.hellblock.config.parser.function.LootParserFunction;
 import com.swiftlicious.hellblock.creation.block.BlockConfig;
 import com.swiftlicious.hellblock.creation.entity.EntityConfig;
+import com.swiftlicious.hellblock.creation.item.CustomItem;
 import com.swiftlicious.hellblock.creation.item.Item;
 import com.swiftlicious.hellblock.effects.Effect;
 import com.swiftlicious.hellblock.effects.EffectModifier;
+import com.swiftlicious.hellblock.generation.IslandOptions;
 import com.swiftlicious.hellblock.handlers.EventCarrier;
 import com.swiftlicious.hellblock.loot.Loot;
 import com.swiftlicious.hellblock.loot.LootBaseEffect;
 import com.swiftlicious.hellblock.mechanics.hook.HookConfig;
 import com.swiftlicious.hellblock.player.Context;
+import com.swiftlicious.hellblock.utils.extras.MathValue;
 import com.swiftlicious.hellblock.utils.extras.Pair;
 import com.swiftlicious.hellblock.utils.extras.Requirement;
 import com.swiftlicious.hellblock.utils.extras.TriConsumer;
+import com.swiftlicious.hellblock.utils.extras.Tuple;
+
 import dev.dejvokep.boostedyaml.YamlDocument;
-import dev.dejvokep.boostedyaml.block.implementation.Section;
 import dev.dejvokep.boostedyaml.dvs.versioning.BasicVersioning;
 import dev.dejvokep.boostedyaml.libs.org.snakeyaml.engine.v2.common.ScalarStyle;
 import dev.dejvokep.boostedyaml.libs.org.snakeyaml.engine.v2.nodes.Tag;
@@ -106,22 +113,24 @@ public abstract class ConfigHandler implements ConfigLoader, Reloadable {
 	protected boolean disableBedExplosions;
 	protected boolean growNaturalTrees;
 	protected boolean voidTeleport;
+	protected boolean asyncWorldSaving;
 	protected String schematicPaster;
 	protected String worldName;
 	protected String chestInventoryName;
-	protected int spawnSize;
+	protected String spawnCommand;
+	protected String absoluteWorldPath;
+	protected int partySize;
 	protected int distance;
 	protected int height;
-	protected int partySize;
 	protected int protectionRange;
 	protected int abandonTime;
-	protected List<String> islandOptions = new ArrayList<>();
-	protected Section chestItems;
+	protected Set<IslandOptions> islandOptions = new HashSet<>();
+	protected Map<Integer, Pair<Integer, CustomItem>> chestItems = new HashMap<>();
 
-	protected List<String> levelSystem = new ArrayList<>();
+	protected Map<Integer, Tuple<Material, EntityType, Float>> levelSystem = new HashMap<>();
 
 	protected boolean clearDefaultOutcome;
-	protected List<String> barteringItems;
+	protected Set<CustomItem> barteringItems = new HashSet<>();
 
 	protected boolean randomStats;
 	protected int randomMinHealth;
@@ -142,7 +151,7 @@ public abstract class ConfigHandler implements ConfigLoader, Reloadable {
 
 	protected double searchRadius;
 	protected boolean pistonAutomation;
-	protected List<String> generationResults;
+	protected Map<Material, MathValue<Player>> generationResults = new HashMap<>();
 
 	public ConfigHandler(HellblockPlugin plugin) {
 		instance = plugin;
@@ -151,13 +160,13 @@ public abstract class ConfigHandler implements ConfigLoader, Reloadable {
 	public boolean debug() {
 		return debug;
 	}
+	
+	public boolean perPlayerWorlds() {
+		return perPlayerWorlds;
+	}
 
 	public boolean worldguardProtect() {
 		return worldguardProtect;
-	}
-
-	public boolean perPlayerWorlds() {
-		return perPlayerWorlds;
 	}
 
 	public boolean transferIslands() {
@@ -196,6 +205,10 @@ public abstract class ConfigHandler implements ConfigLoader, Reloadable {
 		return voidTeleport;
 	}
 
+	public boolean asyncWorldSaving() {
+		return asyncWorldSaving;
+	}
+	
 	public String schematicPaster() {
 		return schematicPaster;
 	}
@@ -208,12 +221,20 @@ public abstract class ConfigHandler implements ConfigLoader, Reloadable {
 		return chestInventoryName;
 	}
 
-	public Section chestItems() {
+	public String spawnCommand() {
+		return spawnCommand;
+	}
+
+	public String absoluteWorldPath() {
+		return absoluteWorldPath;
+	}
+
+	public Map<Integer, Pair<Integer, CustomItem>> chestItems() {
 		return chestItems;
 	}
 
-	public int spawnSize() {
-		return spawnSize;
+	public int partySize() {
+		return partySize;
 	}
 
 	public int protectionRange() {
@@ -228,19 +249,15 @@ public abstract class ConfigHandler implements ConfigLoader, Reloadable {
 		return distance;
 	}
 
-	public int partySize() {
-		return partySize;
-	}
-
 	public int abandonAfterDays() {
 		return abandonTime;
 	}
 
-	public List<String> islandOptions() {
+	public Set<IslandOptions> islandOptions() {
 		return islandOptions;
 	}
 
-	public List<String> levelSystem() {
+	public Map<Integer, Tuple<Material, EntityType, Float>> levelSystem() {
 		return levelSystem;
 	}
 
@@ -248,7 +265,7 @@ public abstract class ConfigHandler implements ConfigLoader, Reloadable {
 		return clearDefaultOutcome;
 	}
 
-	public List<String> barteringItems() {
+	public Set<CustomItem> barteringItems() {
 		return barteringItems;
 	}
 
@@ -316,7 +333,7 @@ public abstract class ConfigHandler implements ConfigLoader, Reloadable {
 		return pistonAutomation;
 	}
 
-	public List<String> generationResults() {
+	public Map<Material, MathValue<Player>> generationResults() {
 		return generationResults;
 	}
 

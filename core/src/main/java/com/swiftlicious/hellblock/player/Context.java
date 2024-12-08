@@ -2,8 +2,12 @@ package com.swiftlicious.hellblock.player;
 
 import java.util.Map;
 
+import org.bukkit.Location;
 import org.bukkit.entity.Player;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+
+import com.swiftlicious.hellblock.world.HellblockBlockState;
 
 /**
  * The Context interface represents a generic context for custom mechanics. It
@@ -63,6 +67,20 @@ public interface Context<T> {
 	<C> C arg(ContextKeys<C> key);
 
 	/**
+	 * Retrieves the value of a specific argument from the context. This method
+	 * fetches the value associated with the specified ContextKeys key.
+	 *
+	 * @param <C> the type of the value being retrieved.
+	 * @param key the ContextKeys key representing the argument to be retrieved.
+	 * @return the value associated with the specified key, or null if the key does
+	 *         not exist.
+	 */
+	default <C> C argOrDefault(ContextKeys<C> key, C value) {
+		C result = arg(key);
+		return result == null ? value : result;
+	}
+
+	/**
 	 * Remove the key from the context
 	 *
 	 * @param key the ContextKeys key
@@ -94,6 +112,17 @@ public interface Context<T> {
 		return new PlayerContext(player, false);
 	}
 
+    /**
+     * Creates a block-specific context.
+     *
+     * @param block the block to be used as the holder of the context.
+     * @param location the location of the block
+     * @return a new Context instance with the specified block as the holder.
+     */
+    static Context<HellblockBlockState> block(@NotNull HellblockBlockState block, @NotNull Location location) {
+        return new BlockContext(block, location, false);
+    }
+
 	/**
 	 * Creates a player-specific context.
 	 *
@@ -103,5 +132,28 @@ public interface Context<T> {
 	 */
 	static Context<Player> player(@Nullable Player player, boolean threadSafe) {
 		return new PlayerContext(player, threadSafe);
+	}
+
+    /**
+     * Creates a block-specific context.
+     *
+     * @param block the block to be used as the holder of the context.
+     * @param location the location of the block
+     * @param threadSafe is the created map thread safe
+     * @return a new Context instance with the specified block as the holder.
+     */
+    static Context<HellblockBlockState> block(@NotNull HellblockBlockState block, @NotNull Location location, boolean threadSafe) {
+        return new BlockContext(block, location, threadSafe);
+    }
+
+	/**
+	 * Updates location for the context
+	 *
+	 * @param location location
+	 */
+	default void updateLocation(Location location) {
+		arg(ContextKeys.LOCATION, location).arg(ContextKeys.X, location.getBlockX())
+				.arg(ContextKeys.Y, location.getBlockY()).arg(ContextKeys.Z, location.getBlockZ())
+				.arg(ContextKeys.WORLD, location.getWorld().getName());
 	}
 }

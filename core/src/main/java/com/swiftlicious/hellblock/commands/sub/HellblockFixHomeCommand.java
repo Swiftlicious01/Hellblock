@@ -2,7 +2,6 @@ package com.swiftlicious.hellblock.commands.sub;
 
 import java.util.Optional;
 
-import org.bukkit.Location;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
@@ -48,17 +47,15 @@ public class HellblockFixHomeCommand extends BukkitCommandFeature<CommandSender>
 					handleFeedback(context, MessageConstants.MSG_HELLBLOCK_IS_ABANDONED);
 					return;
 				}
-				if (onlineUser.get().getHellblockData().getHomeLocation() != null && !HellblockPlugin.getInstance()
-						.getHellblockHandler().checkIfInSpawn(onlineUser.get().getHellblockData().getHomeLocation())) {
+				if (onlineUser.get().getHellblockData().getHomeLocation() != null && onlineUser.get().getHellblockData()
+						.getBoundingBox().contains(onlineUser.get().getHellblockData().getHomeLocation().toVector())) {
 					handleFeedback(context, MessageConstants.MSG_HELLBLOCK_HOME_NOT_BROKEN);
 					return;
 				}
 
 				HellblockPlugin.getInstance().getHellblockHandler().locateBedrock(player.getUniqueId())
-						.thenAccept((result) -> {
-							Location bedrock = result.getBedrockLocation();
-							bedrock.setY(HellblockPlugin.getInstance().getHellblockHandler().getHellblockWorld()
-									.getHighestBlockYAt(bedrock));
+						.thenAccept((bedrock) -> {
+							bedrock.setY(player.getWorld().getHighestBlockYAt(bedrock));
 							onlineUser.get().getHellblockData().setHomeLocation(bedrock);
 							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_RESET_HOME_TO_BEDROCK);
 						});

@@ -288,7 +288,7 @@ public class LocationUtils {
 	}
 
 	public static void serializeLocation(@NotNull Section section, @Nullable Location location, boolean includeExtras) {
-		String world = HellblockPlugin.getInstance().getConfigManager().worldName();
+		String world = "";
 		double x = 0.0D;
 		double y = (double) HellblockPlugin.getInstance().getConfigManager().height();
 		double z = 0.0D;
@@ -303,20 +303,22 @@ public class LocationUtils {
 			pitch = location.getPitch();
 		}
 
-		section.set("world", world);
-		section.set("x", round(x, 3));
-		section.set("y", round(y, 3));
-		section.set("z", round(z, 3));
-		if (includeExtras) {
-			section.set("yaw", round(yaw, 3));
-			section.set("pitch", round(pitch, 3));
+		if (!world.isEmpty()) {
+			section.set("world", world);
+			section.set("x", round(x, 3));
+			section.set("y", round(y, 3));
+			section.set("z", round(z, 3));
+			if (includeExtras) {
+				section.set("yaw", round(yaw, 3));
+				section.set("pitch", round(pitch, 3));
+			}
 		}
 	}
 
 	public static @Nullable Location deserializeLocation(@NotNull Section section) {
 		World world = Bukkit.getWorld(section.getString("world"));
 		if (world == null)
-			world = HellblockPlugin.getInstance().getHellblockHandler().getHellblockWorld();
+			return null;
 		double x = section.getDouble("x");
 		double y = section.getDouble("y");
 		double z = section.getDouble("z");
@@ -335,5 +337,32 @@ public class LocationUtils {
 	public static double round(double value, int decimals) {
 		double p = Math.pow(10, decimals);
 		return Math.round(value * p) / p;
+	}
+
+	@NotNull
+	public static Location toBlockLocation(Location location) {
+		Location blockLoc = location.clone();
+		blockLoc.setX(location.getBlockX());
+		blockLoc.setY(location.getBlockY());
+		blockLoc.setZ(location.getBlockZ());
+		return blockLoc;
+	}
+
+	@NotNull
+	public static Location toBlockCenterLocation(Location location) {
+		Location centerLoc = location.clone();
+		centerLoc.setX(location.getBlockX() + 0.5);
+		centerLoc.setY(location.getBlockY() + 0.5);
+		centerLoc.setZ(location.getBlockZ() + 0.5);
+		return centerLoc;
+	}
+
+	@NotNull
+	public static Location toSurfaceCenterLocation(Location location) {
+		Location centerLoc = location.clone();
+		centerLoc.setX(location.getBlockX() + 0.5);
+		centerLoc.setZ(location.getBlockZ() + 0.5);
+		centerLoc.setY(location.getBlockY());
+		return centerLoc;
 	}
 }

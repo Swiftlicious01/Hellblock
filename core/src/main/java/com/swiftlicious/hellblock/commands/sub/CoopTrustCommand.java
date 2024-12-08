@@ -107,12 +107,13 @@ public class CoopTrustCommand extends BukkitCommandFeature<CommandSender> {
 							return;
 						}
 						trustedPlayer.get().getHellblockData().addTrustPermission(player.getUniqueId());
-						HellblockPlugin.getInstance().getCoopManager().addTrustAccess(onlineUser.get(), user.getName(),
-								id);
-						handleFeedback(context, MessageConstants.MSG_HELLBLOCK_COOP_TRUST_GIVEN
-								.arguments(Component.text(user.getName())));
-						handleFeedback(user, MessageConstants.MSG_HELLBLOCK_COOP_TRUST_GAINED
-								.arguments(Component.text(player.getName())));
+						HellblockPlugin.getInstance().getCoopManager()
+								.addTrustAccess(onlineUser.get(), user.getName(), id).thenAccept(trust -> {
+									handleFeedback(context, MessageConstants.MSG_HELLBLOCK_COOP_TRUST_GIVEN
+											.arguments(Component.text(user.getName())));
+									handleFeedback(user, MessageConstants.MSG_HELLBLOCK_COOP_TRUST_GAINED
+											.arguments(Component.text(player.getName())));
+								});
 					} else {
 						handleFeedback(context, MessageConstants.MSG_HELLBLOCK_NOT_FOUND);
 						return;

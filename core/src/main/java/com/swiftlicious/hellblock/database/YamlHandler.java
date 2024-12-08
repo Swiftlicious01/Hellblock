@@ -10,7 +10,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.ArrayList;
-import java.util.Map.Entry;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
@@ -22,7 +21,7 @@ import org.bukkit.util.BoundingBox;
 import com.google.common.io.Files;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.challenges.ChallengeResult;
-import com.swiftlicious.hellblock.challenges.HellblockChallenge.ChallengeType;
+import com.swiftlicious.hellblock.challenges.ChallengeType;
 import com.swiftlicious.hellblock.challenges.HellblockChallenge.CompletionStatus;
 import com.swiftlicious.hellblock.generation.HellBiome;
 import com.swiftlicious.hellblock.generation.IslandOptions;
@@ -102,17 +101,19 @@ public class YamlHandler extends AbstractStorage {
 		}
 		if (data.getSection("challenges") != null) {
 			data.getSection("challenges").getKeys().forEach(key -> {
-				ChallengeType challenge = ChallengeType.valueOf(key.toString());
-				CompletionStatus completion = CompletionStatus
-						.valueOf(data.getString("challenges." + key.toString() + ".status"));
-				int progress = data.getInt("challenges." + key.toString() + ".progress", challenge.getNeededAmount());
-				boolean claimedReward = data.getBoolean("challenges." + key.toString() + ".claimed-reward", false);
-				challenges.put(challenge, new ChallengeResult(completion, progress, claimedReward));
+				ChallengeType challenge = HellblockPlugin.getInstance().getChallengeManager().getById(key.toString());
+				if (challenge != null) {
+					CompletionStatus completion = CompletionStatus
+							.valueOf(data.getString("challenges." + key.toString() + ".status"));
+					int progress = data.getInt("challenges." + key.toString() + ".progress",
+							challenge.getNeededAmount());
+					boolean claimedReward = data.getBoolean("challenges." + key.toString() + ".claimed-reward", false);
+					challenges.put(challenge, new ChallengeResult(completion, progress, claimedReward));
+				}
 			});
 		}
-		BoundingBox bounds = new BoundingBox(data.getDouble("bounds.min-x"),
-				plugin.getHellblockHandler().getHellblockWorld().getMinHeight(), data.getDouble("bounds.min-z"),
-				data.getDouble("bounds.max-x"), plugin.getHellblockHandler().getHellblockWorld().getMaxHeight(),
+		BoundingBox bounds = new BoundingBox(data.getDouble("bounds.min-x"), data.getDouble("bounds.min-y"),
+				data.getDouble("bounds.min-z"), data.getDouble("bounds.max-x"), data.getDouble("bounds.max-y"),
 				data.getDouble("bounds.max-z"));
 		Location home = null, location = null;
 		if (data.getSection("home") != null)
@@ -141,13 +142,18 @@ public class YamlHandler extends AbstractStorage {
 						plugin.getConfigManager().pistonAutomation() ? data.getStringList("pistons")
 								: new ArrayList<>(),
 						data.getStringList("level-blocks")))
-				.setName(data.getString("name", "")).build();
+				.setName(data.getString("name", "")).setInUnsafeLocation(data.getBoolean("unsafe", false))
+				.setToClearItems(data.getBoolean("clearinv", false)).build();
 		return CompletableFuture.completedFuture(Optional.of(playerData));
 	}
 
 	@Override
 	public CompletableFuture<Boolean> updatePlayerData(UUID uuid, PlayerData playerData, boolean ignore) {
 		YamlDocument data = plugin.getConfigManager().loadData(getPlayerDataFile(uuid));
+		if (playerData.inUnsafeLocation())
+			data.set("unsafe", playerData.inUnsafeLocation());
+		if (playerData.isClearingItems())
+			data.set("clearinv", playerData.isClearingItems());
 		data.set("name", playerData.getName());
 		if (playerData.getLocationCacheData().getPistonLocations() != null
 				&& !playerData.getLocationCacheData().getPistonLocations().isEmpty()
@@ -164,7 +170,6 @@ public class YamlHandler extends AbstractStorage {
 			if (!levelBlockString.isEmpty())
 				data.set("level-blocks", levelBlockString);
 		}
-		data.set("name", playerData.getName());
 		data.set("date", playerData.getEarningData().getDate());
 		if (playerData.getEarningData().getEarnings() > 0.0)
 			data.set("earnings", playerData.getEarningData().getEarnings());
@@ -197,10 +202,13 @@ public class YamlHandler extends AbstractStorage {
 				&& !playerData.getHellblockData().getParty().contains(playerData.getHellblockData().getLinkedUUID()))
 			data.set("linked-hellblock", playerData.getHellblockData().getLinkedUUID().toString());
 		if (playerData.getHellblockData().hasHellblock() && playerData.getHellblockData().getBoundingBox() != null) {
-			data.set("bounds.min-x", playerData.getHellblockData().getBoundingBox().getMinX());
-			data.set("bounds.min-z", playerData.getHellblockData().getBoundingBox().getMinZ());
-			data.set("bounds.max-x", playerData.getHellblockData().getBoundingBox().getMaxX());
-			data.set("bounds.max-z", playerData.getHellblockData().getBoundingBox().getMaxZ());
+			BoundingBox bounds = playerData.getHellblockData().getBoundingBox();
+			data.set("bounds.min-x", bounds.getMinX());
+			data.set("bounds.min-y", bounds.getMinY());
+			data.set("bounds.min-z", bounds.getMinZ());
+			data.set("bounds.max-x", bounds.getMaxX());
+			data.set("bounds.max-y", bounds.getMaxY());
+			data.set("bounds.max-z", bounds.getMaxZ());
 		}
 		if (playerData.getHellblockData().getParty() != null && !playerData.getHellblockData().getParty().isEmpty()) {
 			Set<String> partyString = playerData.getHellblockData().getParty().stream().filter(Objects::nonNull)
@@ -253,7 +261,7 @@ public class YamlHandler extends AbstractStorage {
 				&& !playerData.getChallengeData().getChallenges().isEmpty()) {
 			if (data.getSection("challenges") == null)
 				data.createSection("challenges");
-			for (Entry<ChallengeType, ChallengeResult> challenges : playerData.getChallengeData().getChallenges()
+			for (Map.Entry<ChallengeType, ChallengeResult> challenges : playerData.getChallengeData().getChallenges()
 					.entrySet()) {
 				if (challenges.getValue().getStatus() == CompletionStatus.NOT_STARTED)
 					continue;

@@ -1,7 +1,12 @@
 package com.swiftlicious.hellblock.v1_18_r2;
 
 import java.lang.reflect.Field;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Random;
 import java.util.UUID;
@@ -39,6 +44,13 @@ import com.swiftlicious.hellblock.nms.inventory.HandSlot;
 import com.swiftlicious.hellblock.nms.util.SelfIncreaseEntityID;
 
 import io.netty.buffer.Unpooled;
+import net.minecraft.advancements.Advancement;
+import net.minecraft.advancements.AdvancementProgress;
+import net.minecraft.advancements.AdvancementRewards;
+import net.minecraft.advancements.Criterion;
+import net.minecraft.advancements.DisplayInfo;
+import net.minecraft.advancements.FrameType;
+import net.minecraft.advancements.critereon.ImpossibleTrigger;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Registry;
 import net.minecraft.network.FriendlyByteBuf;
@@ -50,6 +62,7 @@ import net.minecraft.network.protocol.game.ClientboundSetEntityDataPacket;
 import net.minecraft.network.protocol.game.ClientboundOpenScreenPacket;
 import net.minecraft.network.protocol.game.ClientboundSetEntityMotionPacket;
 import net.minecraft.network.protocol.game.ClientboundTeleportEntityPacket;
+import net.minecraft.network.protocol.game.ClientboundUpdateAdvancementsPacket;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
@@ -98,6 +111,32 @@ public class NMSUtils1_18_R2 implements NMSHandler {
 		FluidDataInstance.register(WaterFluid.Source.class, FallingFluidDataInstance::new);
 		FluidDataInstance.register(LavaFluid.Flowing.class, FlowingFluidDataInstance::new);
 		FluidDataInstance.register(WaterFluid.Flowing.class, FlowingFluidDataInstance::new);
+	}
+
+	@Override
+	public void sendToast(Player player, ItemStack icon, String titleJson, String advancementType) {
+		ServerPlayer serverPlayer = ((CraftPlayer) player).getHandle();
+		net.minecraft.world.item.ItemStack nmsStack = CraftItemStack.asNMSCopy(icon);
+		DisplayInfo displayInfo = new DisplayInfo(nmsStack,
+				Objects.requireNonNull(Component.Serializer.fromJson(titleJson)), Component.nullToEmpty(""), null,
+				FrameType.valueOf(advancementType), true, false, true);
+		AdvancementRewards advancementRewards = AdvancementRewards.EMPTY;
+		ResourceLocation id = new ResourceLocation("hellblock", "toast");
+		Criterion criterion = new Criterion(new ImpossibleTrigger.TriggerInstance());
+		HashMap<String, Criterion> criteria = new HashMap<>(Map.of("impossible", criterion));
+		String[][] requirements = { { "impossible" } };
+		Advancement advancement = new Advancement(id, null, displayInfo, advancementRewards, criteria, requirements);
+		Map<ResourceLocation, AdvancementProgress> advancementsToGrant = new HashMap<>();
+		AdvancementProgress advancementProgress = new AdvancementProgress();
+		advancementProgress.update(criteria, requirements);
+		Objects.requireNonNull(advancementProgress.getCriterion("impossible")).grant();
+		advancementsToGrant.put(id, advancementProgress);
+		ClientboundUpdateAdvancementsPacket packet1 = new ClientboundUpdateAdvancementsPacket(false,
+				new ArrayList<>(List.of(advancement)), new HashSet<>(), advancementsToGrant);
+		serverPlayer.connection.send(packet1);
+		ClientboundUpdateAdvancementsPacket packet2 = new ClientboundUpdateAdvancementsPacket(false, new ArrayList<>(),
+				new HashSet<>(List.of(id)), new HashMap<>());
+		serverPlayer.connection.send(packet2);
 	}
 
 	@Override

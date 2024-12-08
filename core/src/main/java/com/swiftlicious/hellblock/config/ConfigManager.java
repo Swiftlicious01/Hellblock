@@ -24,6 +24,7 @@ import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Registry;
 import org.bukkit.enchantments.Enchantment;
+import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventPriority;
 import org.bukkit.inventory.ItemStack;
@@ -36,18 +37,21 @@ import com.saicone.rtag.RtagItem;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.config.node.Node;
 import com.swiftlicious.hellblock.config.parser.ConfigType;
+import com.swiftlicious.hellblock.config.parser.SingleItemParser;
 import com.swiftlicious.hellblock.config.parser.function.ConfigParserFunction;
 import com.swiftlicious.hellblock.creation.block.BlockDataModifier;
 import com.swiftlicious.hellblock.creation.block.BlockDataModifierFactory;
 import com.swiftlicious.hellblock.creation.block.BlockStateModifier;
 import com.swiftlicious.hellblock.creation.block.BlockStateModifierFactory;
 import com.swiftlicious.hellblock.creation.item.AbstractItem;
+import com.swiftlicious.hellblock.creation.item.CustomItem;
 import com.swiftlicious.hellblock.creation.item.Item;
 import com.swiftlicious.hellblock.creation.item.ItemEditor;
 import com.swiftlicious.hellblock.creation.item.damage.CustomDurabilityItem;
 import com.swiftlicious.hellblock.database.dependency.HellblockProperties;
 import com.swiftlicious.hellblock.effects.Effect;
 import com.swiftlicious.hellblock.effects.EffectProperties;
+import com.swiftlicious.hellblock.generation.IslandOptions;
 import com.swiftlicious.hellblock.handlers.ActionManagerInterface;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.handlers.EventManagerInterface;
@@ -62,6 +66,7 @@ import com.swiftlicious.hellblock.utils.ItemStackUtils;
 import com.swiftlicious.hellblock.utils.ListUtils;
 import com.swiftlicious.hellblock.utils.OffsetUtils;
 import com.swiftlicious.hellblock.utils.RandomUtils;
+import com.swiftlicious.hellblock.utils.StringUtils;
 import com.swiftlicious.hellblock.utils.WeightUtils;
 import com.swiftlicious.hellblock.utils.extras.Action;
 import com.swiftlicious.hellblock.utils.extras.ActionTrigger;
@@ -87,10 +92,10 @@ import net.kyori.adventure.sound.Sound;
 
 public class ConfigManager extends ConfigHandler {
 
-	private YamlDocument MAIN_CONFIG;
+	private YamlDocument mainConfig;
 
 	public YamlDocument getMainConfig() {
-		return MAIN_CONFIG;
+		return mainConfig;
 	}
 
 	public ConfigManager(HellblockPlugin plugin) {
@@ -109,7 +114,7 @@ public class ConfigManager extends ConfigHandler {
 	public void load() {
 		String configVersion = HellblockProperties.getValue("config");
 		try (InputStream inputStream = new FileInputStream(resolveConfig("config.yml").toFile())) {
-			MAIN_CONFIG = YamlDocument.create(inputStream, instance.getResource("config.yml".replace("\\", "/")),
+			mainConfig = YamlDocument.create(inputStream, instance.getResource("config.yml".replace("\\", "/")),
 					GeneralSettings.builder().setRouteSeparator('.').setUseDefaults(false).build(),
 					LoaderSettings.builder().setAutoUpdate(true).build(),
 					DumperSettings.builder().setScalarFormatter((tag, value, role, def) -> {
@@ -134,7 +139,7 @@ public class ConfigManager extends ConfigHandler {
 							.addIgnoredRoute(configVersion, "netherrack-generator-options.generation.blocks", '.')
 							.addIgnoredRoute(configVersion, "hellblock.island-options", '.')
 							.addIgnoredRoute(configVersion, "hellblock.starter-chest.items", '.').build());
-			MAIN_CONFIG.save(resolveConfig("config.yml").toFile());
+			mainConfig.save(resolveConfig("config.yml").toFile());
 		} catch (IOException ex) {
 			throw new RuntimeException(ex);
 		}
@@ -164,18 +169,26 @@ public class ConfigManager extends ConfigHandler {
 		checkUpdate = config.getBoolean("update-checker", true);
 		debug = config.getBoolean("debug", false);
 
-		worldName = config.getString("general.world", "hellworld");
-		perPlayerWorlds = config.getBoolean("general.per-player-worlds", false);
-		spawnSize = config.getInt("general.spawn-size", 25);
+		worldName = config.getString("general.worlds.world", "hellworld");
+		spawnCommand = config.getString("general.spawn-command", "/spawn");
+		if (!spawnCommand.startsWith("/")) {
+			spawnCommand = "/spawn";
+			instance.getPluginLogger().warn(
+					"The defined general.spawn-command field in the config.yml was not a valid command. Defaulting to /spawn.");
+		}
+		absoluteWorldPath = config.getString("general.worlds.absolute-world-folder-path");
+		asyncWorldSaving = config.getBoolean("other-settings.async-world-saving", true);
+		perPlayerWorlds = config.getBoolean("general.worlds.per-player-worlds", false);
 
 		transferIslands = config.getBoolean("hellblock.can-transfer-islands", true);
 		linkHellblocks = config.getBoolean("hellblock.can-link-hellblocks", true);
-		partySize = config.getInt("hellblock.max-party-size", 4);
 		schematicPaster = config.getString("hellblock.schematic-paster", "worldedit");
-		islandOptions = config.getStringList("hellblock.island-options");
+		config.getStringList("hellblock.island-options").forEach(s -> islandOptions.add(IslandOptions.valueOf(s)));
 		height = config.getInt("hellblock.height", 150);
+		partySize = config.getInt("hellblock.max-party-size", 20);
 		distance = config.getInt("hellblock.distance", 110);
 		worldguardProtect = config.getBoolean("hellblock.use-worldguard-protection", false);
+		// TODO: have a way to increase the range
 		protectionRange = config.getInt("hellblock.protection-range", 105);
 		resetInventory = config.getBoolean("hellblock.clear-inventory-on-reset", true);
 		resetEnderchest = config.getBoolean("hellblock.clear-enderchest-on-reset", true);
@@ -187,12 +200,56 @@ public class ConfigManager extends ConfigHandler {
 		voidTeleport = config.getBoolean("hellblock.void-teleport", true);
 
 		chestInventoryName = config.getString("hellblock.starter-chest.inventory-name", "Chest");
-		chestItems = config.getSection("hellblock.starter-chest.items");
+		Section chestItemsSection = config.getSection("hellblock.starter-chest.items");
+		if (chestItemsSection != null) {
+			for (Map.Entry<String, Object> entry : chestItemsSection.getStringRouteMappedValues(false).entrySet()) {
+				if (StringUtils.isNotInteger(entry.getKey()))
+					continue;
+				int itemID = Integer.parseInt(entry.getKey());
+				if (entry.getValue() instanceof Section inner) {
+					int slot = inner.getInt("slot", RandomUtils.generateRandomInt(0, 26));
+					CustomItem item = new SingleItemParser("chest_item_" + itemID, inner,
+							instance.getConfigManager().getItemFormatFunctions()).getItem();
+					chestItems.putIfAbsent(itemID, Pair.of(slot, item));
+				}
+			}
+		}
 
-		levelSystem = config.getStringList("level-system.blocks");
+		Section levelSystemSection = config.getSection("level-system.blocks");
+		if (levelSystemSection != null) {
+			int i = 0;
+			for (Map.Entry<String, Object> entry : levelSystemSection.getStringRouteMappedValues(false).entrySet()) {
+				float level = (float) entry.getValue();
+				Material material;
+				EntityType entity = null;
+				if (entry.getKey().contains(":")) {
+					String[] split = entry.getKey().split(":");
+					material = Material.getMaterial(split[0].toUpperCase());
+					if (material == Material.SPAWNER) {
+						entity = EntityType.valueOf(split[1].toUpperCase());
+					}
+				} else {
+					material = Material.getMaterial(entry.getKey().toUpperCase());
+				}
+				if (material != null && level > 0.0F)
+					levelSystem.putIfAbsent(i++, Tuple.of(material, entity, level));
+			}
+		}
 
 		clearDefaultOutcome = config.getBoolean("piglin-bartering.clear-default-outcome", true);
-		barteringItems = config.getStringList("piglin-bartering.materials");
+		Section barteringSection = config.getSection("piglin-bartering.items");
+		if (barteringSection != null) {
+			for (Map.Entry<String, Object> entry : barteringSection.getStringRouteMappedValues(false).entrySet()) {
+				if (StringUtils.isNotInteger(entry.getKey()))
+					continue;
+				int itemID = Integer.parseInt(entry.getKey());
+				if (entry.getValue() instanceof Section inner) {
+					CustomItem item = new SingleItemParser("barter_item_" + itemID, inner,
+							instance.getConfigManager().getItemFormatFunctions()).getItem();
+					barteringItems.add(item);
+				}
+			}
+		}
 
 		randomStats = config.getBoolean("wither-stats.random-stats", true);
 		randomMinHealth = config.getInt("wither-stats.random-min-health", 200);
@@ -210,9 +267,9 @@ public class ConfigManager extends ConfigHandler {
 		defaultStrength = config.getDouble("wither-stats.default-strength", 1.25);
 		defaultHealth = config.getInt("wither-stats.default-health", 300);
 
-		infiniteLavaEnabled = config.getBoolean("infinite-lava-options.enabled", true);
+		infiniteLavaEnabled = config.getBoolean("infinite-lava-options.enable", true);
 
-		lavaRainEnabled = config.getBoolean("lava-rain-options.enabled", true);
+		lavaRainEnabled = config.getBoolean("lava-rain-options.enable", true);
 		radius = Math.abs(config.getInt("lava-rain-options.radius", 16));
 		fireChance = Math.abs(config.getInt("lava-rain-options.fire-chance", 1));
 		delay = Math.abs(config.getInt("lava-rain-options.task-delay", 3));
@@ -221,9 +278,18 @@ public class ConfigManager extends ConfigHandler {
 
 		searchRadius = config.getDouble("netherrack-generator-options.player-search-radius", 4D);
 		pistonAutomation = config.getBoolean("netherrack-generator-options.automation.pistons", false);
-		generationResults = config.getStringList("netherrack-generator-options.generation.blocks");
+		Section genResultSection = config.getSection("netherrack-generator-options.generation.blocks");
+		if (genResultSection != null) {
+			for (Map.Entry<String, Object> entry : genResultSection.getStringRouteMappedValues(false).entrySet()) {
+				Material material = Material.getMaterial(entry.getKey().toUpperCase());
+				MathValue<Player> chance = MathValue.auto(entry.getValue());
+				if (material != null) {
+					generationResults.putIfAbsent(material, chance);
+				}
+			}
+		}
 
-		lavaFishingEnabled = config.getBoolean("lava-fishing-options.enabled", true);
+		lavaFishingEnabled = config.getBoolean("lava-fishing-options.enable", true);
 		lavaMinTime = config.getInt("lava-fishing-options.lava-fishing.min-wait-time", 100);
 		lavaMaxTime = config.getInt("lava-fishing-options.lava-fishing.max-wait-time", 600);
 
@@ -270,12 +336,12 @@ public class ConfigManager extends ConfigHandler {
 
 		Section titleScreenSection = config.getSection("hellblock.creation-title-screen");
 		if (titleScreenSection != null) {
-			boolean enabled = titleScreenSection.getBoolean("enabled", true);
+			boolean enabled = titleScreenSection.getBoolean("enable", true);
 			String title = titleScreenSection.getString("title");
 			String subtitle = titleScreenSection.getString("subtitle");
-			int fadeIn = titleScreenSection.getInt("fadeIn") * 20;
-			int stay = titleScreenSection.getInt("stay") * 20;
-			int fadeOut = titleScreenSection.getInt("fadeOut") * 20;
+			int fadeIn = titleScreenSection.getInt("fadeIn", 3) * 20;
+			int stay = titleScreenSection.getInt("stay", 2) * 20;
+			int fadeOut = titleScreenSection.getInt("fadeOut", 3) * 20;
 			creationTitleScreen = new TitleScreenInfo(enabled, title, subtitle, fadeIn, stay, fadeOut);
 		}
 
@@ -523,14 +589,6 @@ public class ConfigManager extends ConfigHandler {
 			String base64 = (String) arg;
 			return (item, context) -> item.skull(base64);
 		}, 5200, "head64");
-		this.registerItemParser(arg -> {
-			String effect = (String) arg;
-			return (item, context) -> item.potionEffect(effect);
-		}, 5300, "potion", "effect");
-		this.registerItemParser(arg -> {
-			int color = (int) arg;
-			return (item, context) -> item.potionColor(color);
-		}, 5400, "potion", "color");
 		this.registerItemParser(arg -> {
 			boolean glint = (boolean) arg;
 			return (item, context) -> item.glint(glint);

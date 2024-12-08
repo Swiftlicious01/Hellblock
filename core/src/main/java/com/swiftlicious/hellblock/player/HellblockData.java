@@ -12,7 +12,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.Map.Entry;
 
 import org.bukkit.Location;
 import org.bukkit.util.BoundingBox;
@@ -21,6 +20,7 @@ import org.jetbrains.annotations.Nullable;
 
 import com.google.gson.annotations.Expose;
 import com.google.gson.annotations.SerializedName;
+import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.coop.HellblockParty;
 import com.swiftlicious.hellblock.generation.HellBiome;
 import com.swiftlicious.hellblock.generation.IslandOptions;
@@ -175,9 +175,11 @@ public class HellblockData {
 	public @NotNull String getCreationTime() {
 		LocalDateTime localDate = LocalDateTime.ofInstant(Instant.ofEpochMilli(this.creationTime),
 				ZoneId.systemDefault());
-		DateTimeFormatter formatter = DateTimeFormatter.ofPattern("KK:mm:ss a", Locale.ENGLISH);
+		Locale locale = HellblockPlugin.getInstance().getTranslationManager().parseLocale(
+				HellblockPlugin.getInstance().getConfigManager().getMainConfig().getString("force-locale", ""));
+		DateTimeFormatter formatter = DateTimeFormatter.ofPattern("KK:mm:ss a", locale);
 		String now = localDate.format(formatter);
-		return String.format("%s %s %s %s", localDate.getMonth().getDisplayName(TextStyle.FULL, Locale.ENGLISH),
+		return String.format("%s %s %s %s", localDate.getMonth().getDisplayName(TextStyle.FULL, locale),
 				localDate.getDayOfMonth(), localDate.getYear(), now);
 	}
 
@@ -236,7 +238,7 @@ public class HellblockData {
 	public boolean hasInvite(@NotNull UUID playerID) {
 		boolean inviteExists = false;
 		if (!this.invitations.isEmpty()) {
-			for (Entry<UUID, Long> invites : this.invitations.entrySet()) {
+			for (Map.Entry<UUID, Long> invites : this.invitations.entrySet()) {
 				if (invites.getKey().equals(playerID)) {
 					inviteExists = true;
 					break;
@@ -249,7 +251,7 @@ public class HellblockData {
 	public boolean hasInviteExpired(@NotNull UUID playerID) {
 		boolean expired = false;
 		if (!this.invitations.isEmpty()) {
-			for (Entry<UUID, Long> invites : this.invitations.entrySet()) {
+			for (Map.Entry<UUID, Long> invites : this.invitations.entrySet()) {
 				if (invites.getKey().equals(playerID)) {
 					if (invites.getValue().longValue() == 0) {
 						expired = true;
@@ -268,7 +270,7 @@ public class HellblockData {
 	public @NotNull AccessType getProtectionValue(@NotNull FlagType flag) {
 		AccessType returnValue = flag.getDefaultValue() ? AccessType.ALLOW : AccessType.DENY;
 		if (!this.flags.isEmpty()) {
-			for (Entry<FlagType, AccessType> flags : this.flags.entrySet()) {
+			for (Map.Entry<FlagType, AccessType> flags : this.flags.entrySet()) {
 				if (flags.getKey().getName().equalsIgnoreCase(flag.getName())) {
 					returnValue = flags.getValue();
 					break;
@@ -499,9 +501,9 @@ public class HellblockData {
 
 	public void setProtectionValue(@NotNull HellblockFlag flag) {
 		if (!this.flags.isEmpty()) {
-			for (Iterator<Entry<FlagType, AccessType>> iterator = this.flags.entrySet().iterator(); iterator
+			for (Iterator<Map.Entry<FlagType, AccessType>> iterator = this.flags.entrySet().iterator(); iterator
 					.hasNext();) {
-				Entry<FlagType, AccessType> flags = iterator.next();
+				Map.Entry<FlagType, AccessType> flags = iterator.next();
 				if (flags.getKey().getName().equalsIgnoreCase(flag.getFlag().getName())) {
 					iterator.remove();
 				}

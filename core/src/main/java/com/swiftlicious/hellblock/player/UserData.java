@@ -10,8 +10,9 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
-import com.swiftlicious.hellblock.generation.HellblockBorderTask;
-import com.swiftlicious.hellblock.listeners.NetherAnimalSpawningTask;
+import com.swiftlicious.hellblock.generation.BorderHandler;
+import com.swiftlicious.hellblock.listeners.AnimalHandler;
+import com.swiftlicious.hellblock.listeners.FortressHandler;
 
 public class UserData implements UserDataInterface {
 
@@ -23,15 +24,17 @@ public class UserData implements UserDataInterface {
 	private final HellblockData hellblockData;
 	private final LocationCacheData locationCacheData;
 	private final boolean isLocked;
+	private final boolean unsafeLocation;
+	private final boolean clearItems;
 
-	protected transient HellblockBorderTask borderTask;
-	protected transient NetherAnimalSpawningTask animalSpawningTask;
+	protected transient BorderHandler borderTask;
+	protected transient AnimalHandler animalSpawningTask;
+	protected transient FortressHandler fortressSpawningTask;
 	protected transient boolean wearingGlowstoneArmor, holdingGlowstoneTool;
-	protected transient boolean unsafeLocation;
 
 	public UserData(String name, UUID uuid, EarningData earningData, FishingStatistics statisticData,
 			ChallengeData challengeData, HellblockData hellblockData, LocationCacheData locationCacheData,
-			boolean isLocked) {
+			boolean isLocked, boolean unsafeLocation, boolean clearItems) {
 		this.name = name;
 		this.uuid = uuid;
 		this.earningData = earningData;
@@ -40,6 +43,8 @@ public class UserData implements UserDataInterface {
 		this.hellblockData = hellblockData;
 		this.locationCacheData = locationCacheData;
 		this.isLocked = isLocked;
+		this.unsafeLocation = unsafeLocation;
+		this.clearItems = clearItems;
 	}
 
 	public static class Builder implements BuilderInterface {
@@ -51,6 +56,8 @@ public class UserData implements UserDataInterface {
 		private HellblockData hellblockData;
 		private LocationCacheData locationCacheData;
 		private boolean isLocked;
+		private boolean unsafeLocation;
+		private boolean clearItems;
 
 		@Override
 		public Builder setName(String name) {
@@ -101,8 +108,22 @@ public class UserData implements UserDataInterface {
 		}
 
 		@Override
+		public Builder setUnsafeLocation(boolean unsafeLocation) {
+			this.unsafeLocation = unsafeLocation;
+			return this;
+		}
+
+		@Override
+		public Builder setClearInventory(boolean clearItems) {
+			this.clearItems = clearItems;
+			return this;
+		}
+
+		@Override
 		public Builder setData(PlayerData playerData) {
 			this.isLocked = playerData.isLocked();
+			this.unsafeLocation = playerData.inUnsafeLocation();
+			this.clearItems = playerData.isClearingItems();
 			this.uuid = playerData.getUUID();
 			this.name = playerData.getName();
 			this.earningData = playerData.getEarningData().copy();
@@ -118,7 +139,7 @@ public class UserData implements UserDataInterface {
 		@Override
 		public UserData build() {
 			return new UserData(this.name, this.uuid, this.earningData, this.statisticData, this.challengeData,
-					this.hellblockData, this.locationCacheData, this.isLocked);
+					this.hellblockData, this.locationCacheData, this.isLocked, this.unsafeLocation, this.clearItems);
 		}
 	}
 
@@ -180,8 +201,18 @@ public class UserData implements UserDataInterface {
 		return this.isLocked;
 	}
 
+	@Override
+	public boolean inUnsafeLocation() {
+		return this.unsafeLocation;
+	}
+
+	@Override
+	public boolean isClearingInventory() {
+		return this.clearItems;
+	}
+
 	public void showBorder() {
-		this.borderTask = new HellblockBorderTask(HellblockPlugin.getInstance(), this.uuid);
+		this.borderTask = new BorderHandler(HellblockPlugin.getInstance(), this.uuid);
 	}
 
 	public void hideBorder() {
@@ -192,13 +223,24 @@ public class UserData implements UserDataInterface {
 	}
 
 	public void startSpawningAnimals() {
-		this.animalSpawningTask = new NetherAnimalSpawningTask(HellblockPlugin.getInstance(), this.uuid);
+		this.animalSpawningTask = new AnimalHandler(HellblockPlugin.getInstance(), this.uuid);
 	}
 
 	public void stopSpawningAnimals() {
 		if (this.animalSpawningTask != null) {
 			this.animalSpawningTask.stopAnimalSpawning();
 			this.animalSpawningTask = null;
+		}
+	}
+
+	public void startSpawningFortressMobs() {
+		this.fortressSpawningTask = new FortressHandler(HellblockPlugin.getInstance(), this.uuid);
+	}
+
+	public void stopSpawningFortressMobs() {
+		if (this.fortressSpawningTask != null) {
+			this.fortressSpawningTask.stopFortressSpawning();
+			this.fortressSpawningTask = null;
 		}
 	}
 
@@ -216,14 +258,6 @@ public class UserData implements UserDataInterface {
 
 	public void isHoldingGlowstoneTool(boolean holdingGlowstoneTool) {
 		this.holdingGlowstoneTool = holdingGlowstoneTool;
-	}
-
-	public boolean inUnsafeLocation() {
-		return this.unsafeLocation;
-	}
-
-	public void setInUnsafeLocation(boolean unsafe) {
-		this.unsafeLocation = unsafe;
 	}
 
 	@NotNull

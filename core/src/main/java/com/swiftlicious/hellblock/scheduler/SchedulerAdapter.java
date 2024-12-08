@@ -6,7 +6,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * A scheduler for running tasks using the systems provided by the platform
  */
-public interface SchedulerAdapter<T> {
+public interface SchedulerAdapter<T, W> {
 
 	/**
 	 * Gets an async executor instance
@@ -20,7 +20,7 @@ public interface SchedulerAdapter<T> {
 	 *
 	 * @return a sync executor instance
 	 */
-	RegionExecutor<T> sync();
+	RegionExecutor<T, W> sync();
 
 	/**
 	 * Executes a task async
@@ -40,6 +40,11 @@ public interface SchedulerAdapter<T> {
 		sync().run(task, location);
 	}
 
+	/**
+	 * Executes a task sync
+	 *
+	 * @param task the task
+	 */
 	default void executeSync(Runnable task) {
 		sync().run(task, null);
 	}
@@ -82,5 +87,4 @@ public interface SchedulerAdapter<T> {
 	 * </p>
 	 */
 	void shutdownExecutor();
-
 }

@@ -11,12 +11,7 @@ import org.bukkit.plugin.Plugin;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import com.grinderwolf.swm.api.SlimePlugin;
-import com.onarandombox.MultiverseCore.MultiverseCore;
-import com.sk89q.worldguard.WorldGuard;
-import com.sk89q.worldguard.bukkit.WorldGuardPlugin;
 import com.swiftlicious.hellblock.HellblockPlugin;
-import com.swiftlicious.hellblock.api.compatibility.VaultHook;
 import com.swiftlicious.hellblock.creation.addons.enchant.AdvancedEnchantmentsProvider;
 import com.swiftlicious.hellblock.creation.addons.enchant.EnchantmentProvider;
 import com.swiftlicious.hellblock.creation.addons.enchant.VanillaEnchantmentsProvider;
@@ -32,7 +27,6 @@ import com.swiftlicious.hellblock.creation.entity.MythicEntityProvider;
 import com.swiftlicious.hellblock.creation.item.ItemManager;
 import com.swiftlicious.hellblock.creation.item.ItemProvider;
 import com.swiftlicious.hellblock.creation.item.MythicMobsItemProvider;
-import com.swiftlicious.hellblock.events.worldguard.Entry;
 import com.swiftlicious.hellblock.utils.extras.Pair;
 
 public class IntegrationManager implements IntegrationManagerInterface {
@@ -45,8 +39,8 @@ public class IntegrationManager implements IntegrationManagerInterface {
 		instance = plugin;
 		try {
 			this.load();
-		} catch (Exception e) {
-			plugin.getPluginLogger().warn("Failed to load integrations", e);
+		} catch (Exception ex) {
+			plugin.getPluginLogger().warn("Failed to load integrations", ex);
 		}
 	}
 
@@ -75,43 +69,6 @@ public class IntegrationManager implements IntegrationManagerInterface {
 		if (isHooked("PlaceholderAPI")) {
 			new HellblockPapi(instance).load();
 			new StatisticsPapi(instance).load();
-		}
-		if (isHooked("Multiverse-Core")) {
-			Plugin multiverse = Bukkit.getPluginManager().getPlugin("Multiverse-Core");
-			if (multiverse != null && multiverse instanceof MultiverseCore) {
-				instance.getHellblockHandler().setMVWorldManager(((MultiverseCore) multiverse).getMVWorldManager());
-			}
-		}
-		if (isHooked("SlimeWorldManager")) {
-			Plugin slimeWorld = Bukkit.getPluginManager().getPlugin("SlimeWorldManager");
-			if (slimeWorld != null && slimeWorld instanceof SlimePlugin) {
-				instance.getHellblockHandler().setSlimeWorldManager(((SlimePlugin) slimeWorld));
-			}
-		}
-		if (isHooked("WorldGuard", "7")) {
-			if (instance.getConfigManager().worldguardProtect()) {
-				Plugin worldGuard = Bukkit.getPluginManager().getPlugin("WorldGuard");
-				if (worldGuard != null && worldGuard instanceof WorldGuardPlugin) {
-					if (!WorldGuard.getInstance().getPlatform().getSessionManager().registerHandler(Entry.factory,
-							null)) {
-						instance.getPluginLogger().warn("Could not register the WorldGuard handler for Hellblock.");
-						return;
-					}
-					instance.getWorldGuardHandler().setWorldGuardPlatform(WorldGuard.getInstance().getPlatform());
-				}
-			}
-		} else {
-			if (instance.getConfigManager().worldguardProtect()) {
-				Plugin worldGuard = Bukkit.getPluginManager().getPlugin("WorldGuard");
-				if (worldGuard != null && worldGuard instanceof WorldGuardPlugin) {
-					String version = WorldGuard.getVersion();
-					if (!version.startsWith("7.")) {
-						instance.getPluginLogger()
-								.warn("WorldGuard version must be 7.0 or higher to be able to use it for Hellblock.");
-						return;
-					}
-				}
-			}
 		}
 	}
 

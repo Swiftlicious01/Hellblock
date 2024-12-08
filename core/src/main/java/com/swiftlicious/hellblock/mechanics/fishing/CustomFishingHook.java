@@ -232,7 +232,7 @@ public class CustomFishingHook {
 		if (!this.valid)
 			return;
 		this.valid = false;
-		if (this.task != null)
+		if (this.task.isCancelled())
 			this.task.cancel();
 		if (this.hook.isValid())
 			this.hook.remove();

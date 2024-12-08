@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.TimeUnit;
 
 import org.bukkit.Bukkit;
 import org.bukkit.event.EventHandler;
@@ -15,6 +16,7 @@ import org.bukkit.event.player.PlayerQuitEvent;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.api.Reloadable;
+import com.swiftlicious.hellblock.player.UserData;
 
 /**
  * Manages cooldowns for various actions or events. Keeps track of cooldown
@@ -28,6 +30,47 @@ public class CoolDownManager implements Listener, Reloadable {
 	public CoolDownManager(HellblockPlugin plugin) {
 		this.dataMap = new ConcurrentHashMap<>();
 		this.instance = plugin;
+		instance.getScheduler().asyncLater(() -> startCountdowns(), 5, TimeUnit.SECONDS);
+	}
+
+	public void startCountdowns() {
+		instance.getScheduler().asyncRepeating(() -> {
+			for (UUID playerData : instance.getStorageManager().getDataSource().getUniqueUsers()) {
+				instance.getStorageManager().getOfflineUserData(playerData, instance.getConfigManager().lockData())
+						.thenAccept((result) -> {
+							if (result.isEmpty())
+								return;
+							UserData offlineUser = result.get();
+							UUID ownerUUID = offlineUser.getHellblockData().getOwnerUUID();
+							if (ownerUUID != null && playerData.equals(ownerUUID)) {
+								if (offlineUser.getHellblockData().getResetCooldown() > 0) {
+									offlineUser.getHellblockData()
+											.setResetCooldown(offlineUser.getHellblockData().getResetCooldown() - 1);
+								}
+								if (offlineUser.getHellblockData().getBiomeCooldown() > 0) {
+									offlineUser.getHellblockData()
+											.setBiomeCooldown(offlineUser.getHellblockData().getBiomeCooldown() - 1);
+								}
+								if (offlineUser.getHellblockData().getTransferCooldown() > 0) {
+									offlineUser.getHellblockData().setTransferCooldown(
+											offlineUser.getHellblockData().getTransferCooldown() - 1);
+								}
+							}
+							if (!offlineUser.getHellblockData().hasHellblock()
+									&& offlineUser.getHellblockData().getInvitations() != null) {
+								for (Map.Entry<UUID, Long> invites : offlineUser.getHellblockData().getInvitations()
+										.entrySet()) {
+									if (invites.getValue() > 0) {
+										offlineUser.getHellblockData().getInvitations().replace(invites.getKey(),
+												invites.getValue() - 1);
+									} else {
+										offlineUser.getHellblockData().getInvitations().remove(invites.getKey());
+									}
+								}
+							}
+						});
+			}
+		}, 0, 1, TimeUnit.SECONDS);
 	}
 
 	/**

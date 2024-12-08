@@ -118,15 +118,21 @@ public class FishingManager implements Listener, FishingManagerInterface {
 
 	@EventHandler(ignoreCancelled = true)
 	public void onItemHeldChange(PlayerItemHeldEvent event) {
-		if (getFishHook(event.getPlayer()).isPresent()) {
-			this.destroyHook(event.getPlayer().getUniqueId());
+		Player player = event.getPlayer();
+		if (!instance.getHellblockHandler().isInCorrectWorld(player.getWorld()))
+			return;
+		if (getFishHook(player).isPresent()) {
+			this.destroyHook(player.getUniqueId());
 		}
 	}
 
 	@EventHandler(ignoreCancelled = true)
 	public void onSwapItem(PlayerSwapHandItemsEvent event) {
-		getFishHook(event.getPlayer()).ifPresent(hook -> {
-			this.destroyHook(event.getPlayer().getUniqueId());
+		Player player = event.getPlayer();
+		if (!instance.getHellblockHandler().isInCorrectWorld(player.getWorld()))
+			return;
+		getFishHook(player).ifPresent(hook -> {
+			this.destroyHook(player.getUniqueId());
 		});
 	}
 
@@ -149,28 +155,32 @@ public class FishingManager implements Listener, FishingManagerInterface {
 		}
 	}
 
-	// for vanilla mechanics
 	private void onFailedAttempt(PlayerFishEvent event) {
 		Player player = event.getPlayer();
+		if (!instance.getHellblockHandler().isInCorrectWorld(player.getWorld()))
+			return;
 		getFishHook(player).ifPresent(hook -> {
-			if (hook.getCurrentHookMechanic() instanceof LavaFishingMechanic vanillaMechanic) {
-				vanillaMechanic.onFailedAttempt();
+			if (hook.getCurrentHookMechanic() instanceof LavaFishingMechanic mechanic) {
+				mechanic.onFailedAttempt();
 			}
 		});
 	}
 
-	// for vanilla mechanics
 	private void onBite(PlayerFishEvent event) {
 		Player player = event.getPlayer();
+		if (!instance.getHellblockHandler().isInCorrectWorld(player.getWorld()))
+			return;
 		getFishHook(player).ifPresent(hook -> {
-			if (hook.getCurrentHookMechanic() instanceof LavaFishingMechanic vanillaMechanic) {
-				vanillaMechanic.onBite();
+			if (hook.getCurrentHookMechanic() instanceof LavaFishingMechanic mechanic) {
+				mechanic.onBite();
 			}
 		});
 	}
 
 	private void onCaughtEntity(PlayerFishEvent event) {
 		final Player player = event.getPlayer();
+		if (!instance.getHellblockHandler().isInCorrectWorld(player.getWorld()))
+			return;
 		Optional<CustomFishingHook> hook = getFishHook(player);
 		if (hook.isPresent()) {
 			Entity entity = event.getCaught();
@@ -199,6 +209,8 @@ public class FishingManager implements Listener, FishingManagerInterface {
 
 	private void onReelIn(PlayerFishEvent event) {
 		Player player = event.getPlayer();
+		if (!instance.getHellblockHandler().isInCorrectWorld(player.getWorld()))
+			return;
 		getFishHook(player).ifPresent(hook -> {
 			event.setCancelled(true);
 			hook.onReelIn();
@@ -207,6 +219,8 @@ public class FishingManager implements Listener, FishingManagerInterface {
 
 //    private void onCaughtFish(PlayerFishEvent event) {
 //        Player player = event.getPlayer();
+//		  if (!instance.getHellblockHandler().isInCorrectWorld(player.getWorld()))
+//		      return;
 //        getFishHook(player).ifPresent(hook -> {
 //            event.setCancelled(true);
 //            hook.onReelIn();
@@ -216,6 +230,8 @@ public class FishingManager implements Listener, FishingManagerInterface {
 	private void onCastRod(PlayerFishEvent event) {
 		FishHook hook = event.getHook();
 		Player player = event.getPlayer();
+		if (!instance.getHellblockHandler().isInCorrectWorld(player.getWorld()))
+			return;
 		Context<Player> context = Context.player(player);
 		FishingGears gears = new FishingGears(context);
 		if (!RequirementManagerInterface.isSatisfied(context, instance.getConfigManager().fishingRequirements())) {
@@ -240,6 +256,8 @@ public class FishingManager implements Listener, FishingManagerInterface {
 
 	private void onInGround(PlayerFishEvent event) {
 		final Player player = event.getPlayer();
+		if (!instance.getHellblockHandler().isInCorrectWorld(player.getWorld()))
+			return;
 		if (player.getGameMode() != GameMode.CREATIVE) {
 			ItemStack itemStack = player.getInventory().getItemInMainHand();
 			if (itemStack.getType() != Material.FISHING_ROD)
@@ -257,6 +275,8 @@ public class FishingManager implements Listener, FishingManagerInterface {
 	@EventHandler
 	public void onHookStateChange(FishingHookStateEvent event) {
 		Player player = event.getPlayer();
+		if (!instance.getHellblockHandler().isInCorrectWorld(player.getWorld()))
+			return;
 		getFishHook(player).ifPresent(hook -> {
 			switch (event.getState()) {
 			case BITE -> hook.onBite();
@@ -270,6 +290,8 @@ public class FishingManager implements Listener, FishingManagerInterface {
 	@EventHandler(priority = EventPriority.LOW)
 	public void onInteractEntity(PlayerInteractAtEntityEvent event) {
 		Entity entity = event.getRightClicked();
+		if (!instance.getHellblockHandler().isInCorrectWorld(entity.getWorld()))
+			return;
 		if (entity.getType() != EntityType.ARMOR_STAND)
 			return;
 		if (entity.getPersistentDataContainer()
@@ -281,6 +303,8 @@ public class FishingManager implements Listener, FishingManagerInterface {
 	@EventHandler(priority = EventPriority.LOW)
 	public void onInteractEntity(PlayerInteractEntityEvent event) {
 		Entity entity = event.getRightClicked();
+		if (!instance.getHellblockHandler().isInCorrectWorld(entity.getWorld()))
+			return;
 		if (entity.getType() != EntityType.ARMOR_STAND)
 			return;
 		if (entity.getPersistentDataContainer()

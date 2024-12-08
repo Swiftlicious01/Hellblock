@@ -49,6 +49,8 @@ hellblock_create:
     - /hb create
     - /hellblock new
     - /hb new
+    - /newisland 
+    - /newhellblock
 
 # Reset hellblock to a new one
 # Usage: [COMMAND]
@@ -274,15 +276,6 @@ admin_teleport:
     - /hb admin tp
     - /hellblock admin goto
     - /hb admin goto
-
-# Force generate the spawn area for the hellblock world
-# Usage: [COMMAND]
-admin_genspawn:
-  enable: true
-  permission: hellblock.admin
-  usage:
-    - /hellblock admin genspawn
-    - /hb admin genspawn
 
 # Force delete a player's hellblock
 # Usage: [COMMAND] [username]

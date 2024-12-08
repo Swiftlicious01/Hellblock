@@ -102,14 +102,14 @@ public class IslandChoiceGUI {
 		context.arg(ContextKeys.RESET_COOLDOWN, hellblockData.getResetCooldown()).arg(
 				ContextKeys.RESET_COOLDOWN_FORMATTED,
 				manager.instance.getFormattedCooldown(hellblockData.getResetCooldown()));
-		if (manager.instance.getConfigManager().islandOptions().contains(IslandOptions.DEFAULT.getName())) {
+		if (manager.instance.getConfigManager().islandOptions().contains(IslandOptions.DEFAULT)) {
 			IslandChoiceDynamicGUIElement defaultElement = (IslandChoiceDynamicGUIElement) getElement(
 					manager.defaultSlot);
 			if (defaultElement != null && !defaultElement.getSlots().isEmpty()) {
 				defaultElement.setItemStack(manager.defaultIcon.build(context));
 			}
 		}
-		if (manager.instance.getConfigManager().islandOptions().contains(IslandOptions.CLASSIC.getName())) {
+		if (manager.instance.getConfigManager().islandOptions().contains(IslandOptions.CLASSIC)) {
 			IslandChoiceDynamicGUIElement classicElement = (IslandChoiceDynamicGUIElement) getElement(
 					manager.classicSlot);
 			if (classicElement != null && !classicElement.getSlots().isEmpty()) {

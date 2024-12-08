@@ -2,7 +2,11 @@ package com.swiftlicious.hellblock.v1_20_r3;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -37,6 +41,15 @@ import com.swiftlicious.hellblock.nms.inventory.HandSlot;
 import com.swiftlicious.hellblock.nms.util.SelfIncreaseEntityID;
 
 import io.netty.buffer.Unpooled;
+import net.minecraft.advancements.Advancement;
+import net.minecraft.advancements.AdvancementHolder;
+import net.minecraft.advancements.AdvancementProgress;
+import net.minecraft.advancements.AdvancementRequirements;
+import net.minecraft.advancements.AdvancementRewards;
+import net.minecraft.advancements.AdvancementType;
+import net.minecraft.advancements.Criterion;
+import net.minecraft.advancements.DisplayInfo;
+import net.minecraft.advancements.critereon.ImpossibleTrigger;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.FriendlyByteBuf;
@@ -50,6 +63,7 @@ import net.minecraft.network.protocol.game.ClientboundRemoveEntitiesPacket;
 import net.minecraft.network.protocol.game.ClientboundSetEntityDataPacket;
 import net.minecraft.network.protocol.game.ClientboundSetEntityMotionPacket;
 import net.minecraft.network.protocol.game.ClientboundTeleportEntityPacket;
+import net.minecraft.network.protocol.game.ClientboundUpdateAdvancementsPacket;
 import net.minecraft.network.protocol.game.ClientboundOpenScreenPacket;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
@@ -97,6 +111,39 @@ public class NMSUtils1_20_R3 implements NMSHandler {
 		FluidDataInstance.register(WaterFluid.Source.class, FallingFluidDataInstance::new);
 		FluidDataInstance.register(LavaFluid.Flowing.class, FlowingFluidDataInstance::new);
 		FluidDataInstance.register(WaterFluid.Flowing.class, FlowingFluidDataInstance::new);
+	}
+
+	@Override
+	public void sendToast(Player player, ItemStack icon, String titleJson, String advancementType) {
+		ServerPlayer serverPlayer = ((CraftPlayer) player).getHandle();
+		net.minecraft.world.item.ItemStack nmsStack = CraftItemStack.asNMSCopy(icon);
+		Optional<DisplayInfo> displayInfo = Optional.of(new DisplayInfo(nmsStack,
+				Objects.requireNonNull(Component.Serializer.fromJson(titleJson)), Component.literal(""),
+				Optional.empty(), AdvancementType.valueOf(advancementType), true, false, true));
+		AdvancementRewards advancementRewards = AdvancementRewards.EMPTY;
+		Optional<ResourceLocation> id = Optional.of(new ResourceLocation("hellblock", "toast"));
+		Criterion<ImpossibleTrigger.TriggerInstance> impossibleTrigger = new Criterion<>(new ImpossibleTrigger(),
+				new ImpossibleTrigger.TriggerInstance());
+		HashMap<String, Criterion<?>> criteria = new HashMap<>(Map.of("impossible", impossibleTrigger));
+		AdvancementRequirements advancementRequirements = new AdvancementRequirements(
+				new ArrayList<>(List.of(new ArrayList<>(List.of("impossible")))));
+		Advancement advancement = new Advancement(Optional.empty(), displayInfo, advancementRewards, criteria,
+				advancementRequirements, false);
+		Map<ResourceLocation, AdvancementProgress> advancementsToGrant = new HashMap<>();
+		AdvancementProgress advancementProgress = new AdvancementProgress();
+		advancementProgress.update(advancementRequirements);
+		Objects.requireNonNull(advancementProgress.getCriterion("impossible")).grant();
+		advancementsToGrant.put(id.get(), advancementProgress);
+		ClientboundUpdateAdvancementsPacket packet1 = new ClientboundUpdateAdvancementsPacket(false,
+				new ArrayList<>(List.of(new AdvancementHolder(id.get(), advancement))), new HashSet<>(),
+				advancementsToGrant);
+		ClientboundUpdateAdvancementsPacket packet2 = new ClientboundUpdateAdvancementsPacket(false, new ArrayList<>(),
+				new HashSet<>(List.of(id.get())), new HashMap<>());
+		ArrayList<Packet<ClientGamePacketListener>> packetListeners = new ArrayList<>();
+		packetListeners.add(packet1);
+		packetListeners.add(packet2);
+		ClientboundBundlePacket bundlePacket = new ClientboundBundlePacket(packetListeners);
+		serverPlayer.connection.send(bundlePacket);
 	}
 
 	@Override

@@ -1,8 +1,8 @@
 package com.swiftlicious.hellblock.gui.biome;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
@@ -22,6 +22,8 @@ import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
@@ -30,12 +32,15 @@ import com.swiftlicious.hellblock.creation.item.CustomItem;
 import com.swiftlicious.hellblock.generation.HellBiome;
 import com.swiftlicious.hellblock.handlers.ActionManagerInterface;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
+import com.swiftlicious.hellblock.handlers.RequirementManagerInterface;
 import com.swiftlicious.hellblock.player.Context;
 import com.swiftlicious.hellblock.player.ContextKeys;
 import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.utils.extras.Action;
 import com.swiftlicious.hellblock.utils.extras.Pair;
+import com.swiftlicious.hellblock.utils.extras.Requirement;
 import com.swiftlicious.hellblock.utils.extras.TextValue;
+import com.swiftlicious.hellblock.utils.extras.Tuple;
 
 import dev.dejvokep.boostedyaml.block.implementation.Section;
 import net.kyori.adventure.audience.Audience;
@@ -49,42 +54,18 @@ public class BiomeGUIManager implements BiomeGUIManagerInterface, Listener {
 	protected String[] layout;
 	protected boolean highlightSelection;
 	protected final Map<Character, Pair<CustomItem, Action<Player>[]>> decorativeIcons;
+	protected final Map<Character, Tuple<Section, HellBiome, Tuple<CustomItem, Action<Player>[], Requirement<Player>[]>>> biomeIcons;
 	protected final ConcurrentMap<UUID, BiomeGUI> biomeGUICache;
 
 	protected char backSlot;
-	protected char soulSandValleySlot;
-	protected char warpedForestSlot;
-	protected char crimsonForestSlot;
-	protected char netherWastesSlot;
-	protected char basaltDeltasSlot;
-
-	protected List<String> soulSandValleySelectedLore;
-	protected List<String> soulSandValleyUnSelectedLore;
-	protected List<String> warpedForestSelectedLore;
-	protected List<String> warpedForestUnSelectedLore;
-	protected List<String> crimsonForestSelectedLore;
-	protected List<String> crimsonForestUnSelectedLore;
-	protected List<String> netherWastesSelectedLore;
-	protected List<String> netherWastesUnSelectedLore;
-	protected List<String> basaltDeltasSelectedLore;
-	protected List<String> basaltDeltasUnSelectedLore;
 
 	protected CustomItem backIcon;
-	protected CustomItem soulSandValleyIcon;
-	protected CustomItem warpedForestIcon;
-	protected CustomItem crimsonForestIcon;
-	protected CustomItem netherWastesIcon;
-	protected CustomItem basaltDeltasIcon;
 	protected Action<Player>[] backActions;
-	protected Action<Player>[] soulSandValleyActions;
-	protected Action<Player>[] warpedForestActions;
-	protected Action<Player>[] crimsonForestActions;
-	protected Action<Player>[] netherWastesActions;
-	protected Action<Player>[] basaltDeltasActions;
 
 	public BiomeGUIManager(HellblockPlugin plugin) {
 		this.instance = plugin;
 		this.decorativeIcons = new HashMap<>();
+		this.biomeIcons = new HashMap<>();
 		this.biomeGUICache = new ConcurrentHashMap<>();
 	}
 
@@ -98,6 +79,7 @@ public class BiomeGUIManager implements BiomeGUIManagerInterface, Listener {
 	public void unload() {
 		HandlerList.unregisterAll(this);
 		this.decorativeIcons.clear();
+		this.biomeIcons.clear();
 	}
 
 	private void loadConfig() {
@@ -116,60 +98,23 @@ public class BiomeGUIManager implements BiomeGUIManagerInterface, Listener {
 			backActions = instance.getActionManager().parseActions(backSection.getSection("action"));
 		}
 
-		Section soulSandValleySection = config.getSection("soul-sand-valley-icon");
-		if (soulSandValleySection != null) {
-			soulSandValleySlot = soulSandValleySection.getString("symbol", "S").charAt(0);
-			soulSandValleySelectedLore = soulSandValleySection.getStringList("display.selected-lore");
-			soulSandValleyUnSelectedLore = soulSandValleySection.getStringList("display.unselected-lore");
+		Section biomesSection = config.getSection("biome-icons");
+		if (biomesSection != null) {
+			for (Map.Entry<String, Object> entry : biomesSection.getStringRouteMappedValues(false).entrySet()) {
+				if (entry.getValue() instanceof Section innerSection) {
+					char symbol = Objects.requireNonNull(innerSection.getString("symbol")).charAt(0);
+					HellBiome biome = HellBiome.valueOf(Objects.requireNonNull(innerSection.getString("biome")));
+					biomeIcons.put(symbol,
+							Tuple.of(innerSection, biome,
+									Tuple.of(
+											new SingleItemParser("biome", innerSection,
+													instance.getConfigManager().getItemFormatFunctions()).getItem(),
+											instance.getActionManager().parseActions(innerSection.getSection("action")),
+											instance.getRequirementManager()
+													.parseRequirements(innerSection.getSection("requirement"), true))));
+				}
 
-			soulSandValleyIcon = new SingleItemParser("soulsandvalley", soulSandValleySection,
-					instance.getConfigManager().getItemFormatFunctions()).getItem();
-			soulSandValleyActions = instance.getActionManager()
-					.parseActions(soulSandValleySection.getSection("action"));
-		}
-
-		Section warpedForestSection = config.getSection("warped-forest-icon");
-		if (warpedForestSection != null) {
-			warpedForestSlot = warpedForestSection.getString("symbol", "W").charAt(0);
-			warpedForestSelectedLore = warpedForestSection.getStringList("display.selected-lore");
-			warpedForestUnSelectedLore = warpedForestSection.getStringList("display.unselected-lore");
-
-			warpedForestIcon = new SingleItemParser("warpedforest", warpedForestSection,
-					instance.getConfigManager().getItemFormatFunctions()).getItem();
-			warpedForestActions = instance.getActionManager().parseActions(warpedForestSection.getSection("action"));
-		}
-
-		Section crimsonForestSection = config.getSection("crimson-forest-icon");
-		if (crimsonForestSection != null) {
-			crimsonForestSlot = crimsonForestSection.getString("symbol", "C").charAt(0);
-			crimsonForestSelectedLore = crimsonForestSection.getStringList("display.selected-lore");
-			crimsonForestUnSelectedLore = crimsonForestSection.getStringList("display.unselected-lore");
-
-			crimsonForestIcon = new SingleItemParser("crimsonforest", crimsonForestSection,
-					instance.getConfigManager().getItemFormatFunctions()).getItem();
-			crimsonForestActions = instance.getActionManager().parseActions(crimsonForestSection.getSection("action"));
-		}
-
-		Section netherWastesSection = config.getSection("nether-wastes-icon");
-		if (netherWastesSection != null) {
-			netherWastesSlot = netherWastesSection.getString("symbol", "N").charAt(0);
-			netherWastesSelectedLore = netherWastesSection.getStringList("display.selected-lore");
-			netherWastesUnSelectedLore = netherWastesSection.getStringList("display.unselected-lore");
-
-			netherWastesIcon = new SingleItemParser("netherwastes", netherWastesSection,
-					instance.getConfigManager().getItemFormatFunctions()).getItem();
-			netherWastesActions = instance.getActionManager().parseActions(netherWastesSection.getSection("action"));
-		}
-
-		Section basaltDeltasSection = config.getSection("basalt-deltas-icon");
-		if (basaltDeltasSection != null) {
-			basaltDeltasSlot = basaltDeltasSection.getString("symbol", "B").charAt(0);
-			basaltDeltasSelectedLore = basaltDeltasSection.getStringList("display.selected-lore");
-			basaltDeltasUnSelectedLore = basaltDeltasSection.getStringList("display.unselected-lore");
-
-			basaltDeltasIcon = new SingleItemParser("basaltdeltas", basaltDeltasSection,
-					instance.getConfigManager().getItemFormatFunctions()).getItem();
-			basaltDeltasActions = instance.getActionManager().parseActions(basaltDeltasSection.getSection("action"));
+			}
 		}
 
 		// Load decorative icons from the configuration
@@ -211,11 +156,10 @@ public class BiomeGUIManager implements BiomeGUIManagerInterface, Listener {
 		Context<Player> context = Context.player(player);
 		BiomeGUI gui = new BiomeGUI(this, context, optionalUserData.get().getHellblockData());
 		gui.addElement(new BiomeDynamicGUIElement(backSlot, new ItemStack(Material.AIR)));
-		gui.addElement(new BiomeDynamicGUIElement(soulSandValleySlot, new ItemStack(Material.AIR)));
-		gui.addElement(new BiomeDynamicGUIElement(warpedForestSlot, new ItemStack(Material.AIR)));
-		gui.addElement(new BiomeDynamicGUIElement(crimsonForestSlot, new ItemStack(Material.AIR)));
-		gui.addElement(new BiomeDynamicGUIElement(netherWastesSlot, new ItemStack(Material.AIR)));
-		gui.addElement(new BiomeDynamicGUIElement(basaltDeltasSlot, new ItemStack(Material.AIR)));
+		for (Entry<Character, Tuple<Section, HellBiome, Tuple<CustomItem, Action<Player>[], Requirement<Player>[]>>> entry : biomeIcons
+				.entrySet()) {
+			gui.addElement(new BiomeDynamicGUIElement(entry.getKey(), new ItemStack(Material.AIR)));
+		}
 		for (Map.Entry<Character, Pair<CustomItem, Action<Player>[]>> entry : decorativeIcons.entrySet()) {
 			gui.addElement(new BiomeGUIElement(entry.getKey(), entry.getValue().left().build(context)));
 		}
@@ -359,86 +303,44 @@ public class BiomeGUIManager implements BiomeGUIManagerInterface, Listener {
 						net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
 				return;
 			}
-			
+
 			HellBiome biome = gui.hellblockData.getBiome();
 
-			if (element.getSymbol() == soulSandValleySlot) {
-				event.setCancelled(true);
-				if (biome == HellBiome.SOUL_SAND_VALLEY) {
-					audience.sendMessage(
-							instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_BIOME_SAME_BIOME
-									.arguments(AdventureHelper.miniMessage(biome.getName())).build()));
-					audience.playSound(Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
-							net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
-					return;
+			for (Entry<Character, Tuple<Section, HellBiome, Tuple<CustomItem, Action<Player>[], Requirement<Player>[]>>> entry : biomeIcons
+					.entrySet()) {
+				if (element.getSymbol() == entry.getKey()) {
+					event.setCancelled(true);
+					if (biome == entry.getValue().mid()) {
+						audience.sendMessage(
+								instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_BIOME_SAME_BIOME
+										.arguments(AdventureHelper.miniMessage(biome.getName())).build()));
+						audience.playSound(Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
+								net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
+						return;
+					}
+					if (RequirementManagerInterface.isSatisfied(gui.context, entry.getValue().right().right())) {
+						instance.getBiomeHandler().changeHellblockBiome(userData.get(), entry.getValue().mid(), true);
+						gui.context.arg(ContextKeys.HELLBLOCK_BIOME, gui.hellblockData.getBiome());
+						ActionManagerInterface.trigger(gui.context, entry.getValue().right().mid());
+						break;
+					}
 				}
-				instance.getBiomeHandler().changeHellblockBiome(userData.get(), HellBiome.SOUL_SAND_VALLEY);
-				gui.context.arg(ContextKeys.HELLBLOCK_BIOME, gui.hellblockData.getBiome());
-				ActionManagerInterface.trigger(gui.context, soulSandValleyActions);
-			}
-
-			if (element.getSymbol() == warpedForestSlot) {
-				event.setCancelled(true);
-				if (biome == HellBiome.WARPED_FOREST) {
-					audience.sendMessage(
-							instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_BIOME_SAME_BIOME
-									.arguments(AdventureHelper.miniMessage(biome.getName())).build()));
-					audience.playSound(Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
-							net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
-					return;
-				}
-				instance.getBiomeHandler().changeHellblockBiome(userData.get(), HellBiome.WARPED_FOREST);
-				gui.context.arg(ContextKeys.HELLBLOCK_BIOME, gui.hellblockData.getBiome());
-				ActionManagerInterface.trigger(gui.context, warpedForestActions);
-			}
-
-			if (element.getSymbol() == crimsonForestSlot) {
-				event.setCancelled(true);
-				if (biome == HellBiome.CRIMSON_FOREST) {
-					audience.sendMessage(
-							instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_BIOME_SAME_BIOME
-									.arguments(AdventureHelper.miniMessage(biome.getName())).build()));
-					audience.playSound(Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
-							net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
-					return;
-				}
-				instance.getBiomeHandler().changeHellblockBiome(userData.get(), HellBiome.CRIMSON_FOREST);
-				gui.context.arg(ContextKeys.HELLBLOCK_BIOME, gui.hellblockData.getBiome());
-				ActionManagerInterface.trigger(gui.context, crimsonForestActions);
-			}
-
-			if (element.getSymbol() == netherWastesSlot) {
-				event.setCancelled(true);
-				if (biome == HellBiome.NETHER_WASTES) {
-					audience.sendMessage(
-							instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_BIOME_SAME_BIOME
-									.arguments(AdventureHelper.miniMessage(biome.getName())).build()));
-					audience.playSound(Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
-							net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
-					return;
-				}
-				instance.getBiomeHandler().changeHellblockBiome(userData.get(), HellBiome.NETHER_WASTES);
-				gui.context.arg(ContextKeys.HELLBLOCK_BIOME, gui.hellblockData.getBiome());
-				ActionManagerInterface.trigger(gui.context, netherWastesActions);
-			}
-
-			if (element.getSymbol() == basaltDeltasSlot) {
-				event.setCancelled(true);
-				if (biome == HellBiome.BASALT_DELTAS) {
-					audience.sendMessage(
-							instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_BIOME_SAME_BIOME
-									.arguments(AdventureHelper.miniMessage(biome.getName())).build()));
-					audience.playSound(Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
-							net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
-					return;
-				}
-				instance.getBiomeHandler().changeHellblockBiome(userData.get(), HellBiome.BASALT_DELTAS);
-				gui.context.arg(ContextKeys.HELLBLOCK_BIOME, gui.hellblockData.getBiome());
-				ActionManagerInterface.trigger(gui.context, basaltDeltasActions);
 			}
 		}
 
 		// Refresh the GUI
 		instance.getScheduler().sync().runLater(gui::refresh, 1, player.getLocation());
+	}
+
+	public @Nullable Requirement<Player>[] getBiomeRequirements(@NotNull HellBiome biome) {
+		Requirement<Player>[] requirements = null;
+		for (Entry<Character, Tuple<Section, HellBiome, Tuple<CustomItem, Action<Player>[], Requirement<Player>[]>>> entry : biomeIcons
+				.entrySet()) {
+			if (biome == entry.getValue().mid()) {
+				requirements = entry.getValue().right().right();
+				break;
+			}
+		}
+		return requirements;
 	}
 }

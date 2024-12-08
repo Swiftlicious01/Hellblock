@@ -19,14 +19,13 @@ import com.swiftlicious.hellblock.HellblockPlugin;
  * Abstract implementation of {@link SchedulerAdapter} using a
  * {@link ScheduledExecutorService}.
  */
-public abstract class AbstractJavaScheduler<T> implements SchedulerAdapter<T> {
+public abstract class AbstractJavaScheduler<T, W> implements SchedulerAdapter<T, W> {
 	private static final int PARALLELISM = 16;
 
 	private final ScheduledThreadPoolExecutor scheduler;
 	private final ForkJoinPool worker;
 
 	public AbstractJavaScheduler(HellblockPlugin plugin) {
-
 		this.scheduler = new ScheduledThreadPoolExecutor(4, r -> {
 			Thread thread = Executors.defaultThreadFactory().newThread(r);
 			thread.setName("hellblock-scheduler");
@@ -44,15 +43,14 @@ public abstract class AbstractJavaScheduler<T> implements SchedulerAdapter<T> {
 
 	@Override
 	public SchedulerTask asyncLater(Runnable task, long delay, TimeUnit unit) {
-		ScheduledFuture<?> future = this.scheduler.schedule(() -> this.worker.execute(task), delay, unit);
-		return () -> future.cancel(false);
+        ScheduledFuture<?> future = this.scheduler.schedule(() -> this.worker.execute(task), delay, unit);
+        return new JavaCancellable(future);
 	}
 
 	@Override
 	public SchedulerTask asyncRepeating(Runnable task, long delay, long interval, TimeUnit unit) {
-		ScheduledFuture<?> future = this.scheduler.scheduleAtFixedRate(() -> this.worker.execute(task), delay, interval,
-				unit);
-		return () -> future.cancel(false);
+        ScheduledFuture<?> future = this.scheduler.scheduleAtFixedRate(() -> this.worker.execute(task), delay, interval, unit);
+        return new JavaCancellable(future);
 	}
 
 	@Override
@@ -111,6 +109,25 @@ public abstract class AbstractJavaScheduler<T> implements SchedulerAdapter<T> {
 		public void uncaughtException(Thread t, Throwable ex) {
 			HellblockPlugin.getInstance().getPluginLogger()
 					.warn("Thread " + t.getName() + " threw an uncaught exception", ex);
+		}
+	}
+
+	public static class JavaCancellable implements SchedulerTask {
+
+		private final ScheduledFuture<?> future;
+
+		public JavaCancellable(ScheduledFuture<?> future) {
+			this.future = future;
+		}
+
+		@Override
+		public void cancel() {
+			this.future.cancel(false);
+		}
+
+		@Override
+		public boolean isCancelled() {
+			return future.isCancelled();
 		}
 	}
 }

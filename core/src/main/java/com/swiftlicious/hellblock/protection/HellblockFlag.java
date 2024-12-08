@@ -31,15 +31,18 @@ public class HellblockFlag {
 		INTERACT("interact", false), SLEEP("sleep", false), SNOWMAN_TRAILS("snowman-trails", true),
 		ENDER_BUILD("enderman-grief", true), GHAST_FIREBALL("ghast-fireball", true), FALL_DAMAGE("fall-damage", true),
 		HEALTH_REGEN("natural-health-regen", true), HUNGER_DRAIN("natural-hunger-drain", true), ENTRY("entry", true),
-		GREET_MESSAGE("greeting", true), FAREWELL_MESSAGE("farewell", true), INVINCIBILITY("invincible", false),
+		GREET_MESSAGE("greeting", true, ""), FAREWELL_MESSAGE("farewell", true, ""), INVINCIBILITY("invincible", false),
 		BUILD("build", true);
 
 		private String name;
 		private boolean defaultValue;
+		private String[] data;
 
-		FlagType(String name, boolean defaultValue) {
+		FlagType(String name, boolean defaultValue, String... data) {
 			this.name = name;
 			this.defaultValue = defaultValue;
+			if (data.length > 0)
+				this.data = data;
 		}
 
 		public String getName() {
@@ -48,6 +51,14 @@ public class HellblockFlag {
 
 		public boolean getDefaultValue() {
 			return this.defaultValue;
+		}
+
+		public String[] getData() {
+			return this.data;
+		}
+
+		public void setData(String[] data) {
+			this.data = data;
 		}
 	}
 

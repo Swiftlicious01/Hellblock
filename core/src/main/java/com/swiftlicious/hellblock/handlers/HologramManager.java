@@ -19,17 +19,17 @@ import java.util.concurrent.ConcurrentMap;
 
 public class HologramManager implements Reloadable {
 
-	private final HellblockPlugin plugin;
+	protected final HellblockPlugin instance;
 	private final ConcurrentMap<Location, Hologram> holograms = new ConcurrentHashMap<>();
 	private SchedulerTask task;
 
 	public HologramManager(HellblockPlugin plugin) {
-		this.plugin = plugin;
+		this.instance = plugin;
 	}
 
 	@Override
 	public void load() {
-		this.task = plugin.getScheduler().sync().runRepeating(() -> {
+		this.task = instance.getScheduler().sync().runRepeating(() -> {
 			List<Location> toRemove = new ArrayList<>();
 			for (Map.Entry<Location, Hologram> entry : holograms.entrySet()) {
 				if (entry.getValue().reduceTicks()) {
@@ -45,7 +45,7 @@ public class HologramManager implements Reloadable {
 
 	@Override
 	public void unload() {
-		if (this.task != null) {
+		if (this.task.isCancelled()) {
 			this.task.cancel();
 		}
 		for (Hologram hologram : holograms.values()) {
@@ -59,14 +59,13 @@ public class HologramManager implements Reloadable {
 		Hologram hologram = holograms.get(location);
 		if (hologram == null) {
 			FakeNamedEntity fakeNamedEntity;
-			if (displayEntity && HellblockPlugin.getInstance().getVersionManager().isVersionNewerThan1_19_4()) {
-				FakeTextDisplay textDisplay = HellblockPlugin.getInstance().getVersionManager().getNMSManager()
+			if (displayEntity && instance.getVersionManager().isVersionNewerThan1_19_4()) {
+				FakeTextDisplay textDisplay = instance.getVersionManager().getNMSManager()
 						.createFakeTextDisplay(location);
 				textDisplay.rgba(rgba[0], rgba[1], rgba[2], rgba[3]);
 				fakeNamedEntity = textDisplay;
 			} else {
-				FakeArmorStand armorStand = HellblockPlugin.getInstance().getVersionManager().getNMSManager()
-						.createFakeArmorStand(location);
+				FakeArmorStand armorStand = instance.getVersionManager().getNMSManager().createFakeArmorStand(location);
 				armorStand.small(true);
 				armorStand.invisible(true);
 				fakeNamedEntity = armorStand;

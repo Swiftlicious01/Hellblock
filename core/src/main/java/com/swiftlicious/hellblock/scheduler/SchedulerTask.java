@@ -9,4 +9,6 @@ public interface SchedulerTask {
 	 * Cancels the task.
 	 */
 	void cancel();
+
+    boolean isCancelled();
 }

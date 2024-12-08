@@ -21,6 +21,17 @@ import com.swiftlicious.hellblock.nms.inventory.HandSlot;
 public interface NMSHandler {
 
 	/**
+	 * Sends a toast (tutorial / advancement tab in the top right corner of the
+	 * screen).
+	 * 
+	 * @param player          the player to show the toast to.
+	 * @param icon            the item of the toast.
+	 * @param titleJson       the title of the toast.
+	 * @param advancementType the advancement type of the toast.
+	 */
+	abstract void sendToast(Player player, ItemStack icon, String titleJson, String advancementType);
+
+	/**
 	 * Retrieve the fluid data from the defined location.
 	 * 
 	 * @param location the location to retrieve the fluid data from.

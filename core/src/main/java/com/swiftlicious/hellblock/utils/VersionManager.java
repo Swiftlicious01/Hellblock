@@ -45,7 +45,7 @@ public class VersionManager implements VersionManagerInterface {
 
 		this.supportedVersions = List.of("1.17.1", "1.18", "1.18.1", "1.18.2", "1.19", "1.19.1", "1.19.2", "1.19.3",
 				"1.19.4", "1.20", "1.20.1", "1.20.2", "1.20.3", "1.20.4", "1.20.5", "1.20.6", "1.21", "1.21.1",
-				"1.21.2", "1.21.3");
+				"1.21.2", "1.21.3", "1.21.4");
 
 		// Check if the server is Spigot or Paper
 		try {
@@ -78,7 +78,7 @@ public class VersionManager implements VersionManagerInterface {
 		String bukkitVersion = getServerVersion();
 		String packageName;
 		switch (bukkitVersion) {
-		case "1.21.2", "1.21.3" -> packageName = "1_21_R2";
+		case "1.21.2", "1.21.3", "1.21.4" -> packageName = "1_21_R2";
 		case "1.21", "1.21.1" -> packageName = "1_21_R1";
 		case "1.20.5", "1.20.6" -> packageName = "1_20_R4";
 		case "1.20.3", "1.20.4" -> packageName = "1_20_R3";
@@ -303,6 +303,14 @@ public class VersionManager implements VersionManagerInterface {
 
 	public boolean isVersion1_21_3() {
 		return version == 21.3;
+	}
+
+	public boolean isVersionNewerThan1_21_4() {
+		return version >= 21.39;
+	}
+
+	public boolean isVersion1_21_4() {
+		return version == 21.4;
 	}
 
 	// Method to asynchronously check for plugin updates

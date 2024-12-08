@@ -13,7 +13,6 @@ import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.commands.sub.AboutCommand;
 import com.swiftlicious.hellblock.commands.sub.AddStatisticsCommand;
 import com.swiftlicious.hellblock.commands.sub.AdminDeleteCommand;
-import com.swiftlicious.hellblock.commands.sub.AdminGenSpawnCommand;
 import com.swiftlicious.hellblock.commands.sub.AdminHelpCommand;
 import com.swiftlicious.hellblock.commands.sub.AdminPurgeCommand;
 import com.swiftlicious.hellblock.commands.sub.AdminTeleportCommand;
@@ -70,17 +69,16 @@ public class BukkitCommandManager extends AbstractCommandManager<CommandSender> 
 			new ImportDataCommand(this), new ExportDataCommand(this), new AddStatisticsCommand(this),
 			new SetStatisticsCommand(this), new ResetStatisticsCommand(this), new QueryStatisticsCommand(this),
 			new DebugLootCommand(this), new DebugNBTCommand(this), new DebugBiomeCommand(this),
-			new HellblockCommand(this), new AdminTeleportCommand(this), new AdminGenSpawnCommand(this),
-			new AdminHelpCommand(this), new AdminDeleteCommand(this), new AdminPurgeCommand(this),
-			new CoopLeaveCommand(this), new CoopCancelCommand(this), new CoopKickCommand(this),
-			new CoopRejectCommand(this), new CoopInviteCommand(this), new CoopOwnerCommand(this),
-			new CoopTrustCommand(this), new CoopUntrustCommand(this), new CoopInvitationsCommand(this),
-			new CoopAcceptCommand(this), new CoopHelpCommand(this), new HellblockHelpCommand(this),
-			new HellblockInfoCommand(this), new HellblockCreateCommand(this), new HellblockLockCommand(this),
-			new HellblockTopCommand(this), new HellblockHomeCommand(this), new HellblockFixHomeCommand(this),
-			new HellblockNewHomeCommand(this), new HellblockBanCommand(this), new HellblockUnbanCommand(this),
-			new HellblockVisitCommand(this), resetCommand = new HellblockResetCommand(this),
-			resetCommand.new HellblockResetConfirmCommand(this));
+			new HellblockCommand(this), new AdminTeleportCommand(this), new AdminHelpCommand(this),
+			new AdminDeleteCommand(this), new AdminPurgeCommand(this), new CoopLeaveCommand(this),
+			new CoopCancelCommand(this), new CoopKickCommand(this), new CoopRejectCommand(this),
+			new CoopInviteCommand(this), new CoopOwnerCommand(this), new CoopTrustCommand(this),
+			new CoopUntrustCommand(this), new CoopInvitationsCommand(this), new CoopAcceptCommand(this),
+			new CoopHelpCommand(this), new HellblockHelpCommand(this), new HellblockInfoCommand(this),
+			new HellblockCreateCommand(this), new HellblockLockCommand(this), new HellblockTopCommand(this),
+			new HellblockHomeCommand(this), new HellblockFixHomeCommand(this), new HellblockNewHomeCommand(this),
+			new HellblockBanCommand(this), new HellblockUnbanCommand(this), new HellblockVisitCommand(this),
+			resetCommand = new HellblockResetCommand(this), resetCommand.new HellblockResetConfirmCommand(this));
 
 	private final Index<String, CommandFeature<CommandSender>> INDEX = Index.create(CommandFeature::getFeatureID,
 			FEATURES);

@@ -34,8 +34,7 @@ public enum Dependency {
 			Relocation.of("cloud", "org{}incendo{}cloud"), Relocation.of("adventure", "net{}kyori{}adventure"),
 			Relocation.of("option", "net{}kyori{}option"), Relocation.of("examination", "net{}kyori{}examination"),
 			Relocation.of("geantyref", "io{}leangen{}geantyref")),
-	GEANTY_REF(
-			"io{}leangen{}geantyref", "geantyref", "maven", "geantyref",
+	GEANTY_REF("io{}leangen{}geantyref", "geantyref", "maven", "geantyref",
 			Relocation.of("geantyref", "io{}leangen{}geantyref")),
 	BOOSTED_YAML("dev{}dejvokep", "boosted-yaml", "maven", "boosted-yaml",
 			Relocation.of("boostedyaml", "dev{}dejvokep{}boostedyaml")),
@@ -77,7 +76,7 @@ public enum Dependency {
 			return Dependency.SLF4J_API.getVersion();
 		}
 	},
-	SLF4J_API("org.slf4j", "slf4j-api", "maven", "slf4j");
+	SLF4J_API("org.slf4j", "slf4j-api", "maven", "slf4j"), ZSTD("com.github.luben", "zstd-jni", "maven", "zstd-jni");
 
 	private final String groupId;
 	private final String artifactId;

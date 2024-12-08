@@ -21,6 +21,7 @@ public class ContextKeys<T> {
 	public static final ContextKeys<Integer> Y = of("y", Integer.class);
 	public static final ContextKeys<Integer> Z = of("z", Integer.class);
 	public static final ContextKeys<String> WORLD = of("world", String.class);
+    public static final ContextKeys<Boolean> OFFLINE = of("offline", Boolean.class);
 	public static final ContextKeys<String> ID = of("id", String.class);
 	public static final ContextKeys<LootType> LOOT = of("loot", LootType.class);
 	public static final ContextKeys<String> NICK = of("nick", String.class);

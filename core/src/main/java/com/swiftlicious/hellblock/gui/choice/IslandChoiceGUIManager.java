@@ -302,8 +302,8 @@ public class IslandChoiceGUIManager implements IslandChoiceGUIManagerInterface, 
 	}
 
 	private boolean noIslandOptionsAvailable() {
-		return !instance.getConfigManager().islandOptions().contains(IslandOptions.DEFAULT.getName())
-				&& !instance.getConfigManager().islandOptions().contains(IslandOptions.CLASSIC.getName())
+		return !instance.getConfigManager().islandOptions().contains(IslandOptions.DEFAULT)
+				&& !instance.getConfigManager().islandOptions().contains(IslandOptions.CLASSIC)
 				&& !instance.getSchematicGUIManager().checkForSchematics();
 	}
 }

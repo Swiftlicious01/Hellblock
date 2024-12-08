@@ -14,19 +14,21 @@ import dev.dejvokep.boostedyaml.block.implementation.Section;
 
 public class GeneratorModeManager {
 
+	protected final HellblockPlugin instance;
 	private GenMode generatorMode;
 
 	public GeneratorModeManager(HellblockPlugin plugin) {
+		instance = plugin;
 		generatorMode = new GenMode(Material.NETHERRACK);
 	}
 
 	public void loadFromConfig() {
-		YamlDocument config = HellblockPlugin.getInstance().getConfigManager().getMainConfig();
+		YamlDocument config = instance.getConfigManager().getMainConfig();
 		if (config.contains("netherrack-generator-options.generation")) {
 
 			Section section = config.getSection("netherrack-generator-options.generation");
 			if (section == null) {
-				HellblockPlugin.getInstance().getPluginLogger().severe("No generation mode section found.");
+				instance.getPluginLogger().severe("No generation mode section found.");
 				return;
 			}
 			Material fallbackMaterial = null;
@@ -34,7 +36,7 @@ public class GeneratorModeManager {
 				fallbackMaterial = Material
 						.getMaterial(Objects.requireNonNull(section.getString("fallback", "NETHERRACK").toUpperCase()));
 				if (fallbackMaterial == null || fallbackMaterial == Material.AIR) {
-					HellblockPlugin.getInstance().getPluginLogger().severe(
+					instance.getPluginLogger().severe(
 							String.format("%s is not a valid fallback material.", section.getString("fallback")));
 				}
 			}
@@ -54,9 +56,8 @@ public class GeneratorModeManager {
 				if (particleString != null && !particleString.equalsIgnoreCase("none")) {
 					Arrays.stream(Particle.values())
 							.filter(particleEffect -> particleEffect.name().equalsIgnoreCase(particleString))
-							.findFirst().ifPresentOrElse(mode::setParticleEffect,
-									() -> HellblockPlugin.getInstance().getPluginLogger()
-											.severe(String.format("The particle %s does not exist.", particleString)));
+							.findFirst().ifPresentOrElse(mode::setParticleEffect, () -> instance.getPluginLogger()
+									.severe(String.format("The particle %s does not exist.", particleString)));
 				}
 			}
 			if (section.contains("can-generate-while-lava-raining")) {

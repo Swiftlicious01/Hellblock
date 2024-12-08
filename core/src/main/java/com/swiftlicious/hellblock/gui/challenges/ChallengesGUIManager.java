@@ -24,7 +24,7 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
-import com.swiftlicious.hellblock.challenges.HellblockChallenge.ChallengeType;
+import com.swiftlicious.hellblock.challenges.ChallengeType;
 import com.swiftlicious.hellblock.config.parser.SingleItemParser;
 import com.swiftlicious.hellblock.creation.item.CustomItem;
 import com.swiftlicious.hellblock.handlers.ActionManagerInterface;
@@ -96,14 +96,15 @@ public class ChallengesGUIManager implements ChallengesGUIManagerInterface, List
 			for (Map.Entry<String, Object> entry : challengesSection.getStringRouteMappedValues(false).entrySet()) {
 				if (entry.getValue() instanceof Section innerSection) {
 					char symbol = Objects.requireNonNull(innerSection.getString("symbol")).charAt(0);
-					ChallengeType challenge = ChallengeType
-							.valueOf(Objects.requireNonNull(innerSection.getString("challenge-type")));
-					challengeIcons.add(Tuple.of(symbol, innerSection,
-							Tuple.of(
-									new SingleItemParser("challenge", innerSection,
-											instance.getConfigManager().getItemFormatFunctions()).getItem(),
-									challenge,
-									instance.getActionManager().parseActions(innerSection.getSection("action")))));
+					ChallengeType challenge = instance.getChallengeManager()
+							.getById(Objects.requireNonNull(innerSection.getString("challenge-type")));
+					if (challenge != null) {
+						challengeIcons.add(Tuple.of(symbol, innerSection, Tuple.of(
+								new SingleItemParser("challenge", innerSection,
+										instance.getConfigManager().getItemFormatFunctions()).getItem(),
+								challenge,
+								instance.getActionManager().parseActions(innerSection.getSection("action")))));
+					}
 				}
 
 			}
@@ -266,7 +267,7 @@ public class ChallengesGUIManager implements ChallengesGUIManagerInterface, List
 					ChallengeType challengeType = challenge.right().mid();
 					if (challengeData.isChallengeCompleted(challengeType)
 							&& !challengeData.isChallengeRewardClaimed(challengeType)) {
-						instance.getChallengeRewardBuilder().performChallengeRewardActions(gui.context.holder(),
+						instance.getChallengeManager().performChallengeRewardActions(gui.context.holder(),
 								challengeType);
 						ActionManagerInterface.trigger(gui.context, challenge.right().right());
 						break;

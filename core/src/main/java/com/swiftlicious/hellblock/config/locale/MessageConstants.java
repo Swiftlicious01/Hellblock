@@ -97,6 +97,8 @@ public interface MessageConstants {
 			.key("command.hellblock.owner.data.not_loaded");
 	TranslatableComponent.Builder MSG_HELLBLOCK_UNSAFE_ENVIRONMENT = Component.translatable()
 			.key("message.hellblock.login.unsafe.environment");
+	TranslatableComponent.Builder MSG_HELLBLOCK_CLEARED_INVENTORY = Component.translatable()
+			.key("message.hellblock.login.clear.inventory");
 	TranslatableComponent.Builder MSG_HELLBLOCK_LOGIN_ABANDONED = Component.translatable()
 			.key("message.hellblock.login.abandoned");
 	TranslatableComponent.Builder MSG_HELLBLOCK_GROWING_GLOWSTONE_TREE = Component.translatable()
@@ -150,10 +152,6 @@ public interface MessageConstants {
 			.key("message.hellblock.player.data.failure.load");
 	TranslatableComponent.Builder MSG_HELLBLOCK_ADMIN_WRONG_WORLD = Component.translatable()
 			.key("message.hellblock.admin.wrong_world");
-	TranslatableComponent.Builder MSG_HELLBLOCK_ADMIN_SPAWN_ALREADY_EXISTS = Component.translatable()
-			.key("message.hellblock.admin.spawn_already_exists");
-	TranslatableComponent.Builder MSG_HELLBLOCK_ADMIN_SPAWN_GENERATED = Component.translatable()
-			.key("message.hellblock.admin.spawn_generated");
 	TranslatableComponent.Builder MSG_HELLBLOCK_ADMIN_ISLAND_DELETED = Component.translatable()
 			.key("message.hellblock.admin.island_deleted");
 	TranslatableComponent.Builder MSG_HELLBLOCK_ADMIN_PURGE_UNAVAILABLE = Component.translatable()

@@ -1,5 +1,6 @@
 package com.swiftlicious.hellblock.gui.party;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -20,6 +21,7 @@ import com.swiftlicious.hellblock.creation.item.CustomItem;
 import com.swiftlicious.hellblock.creation.item.Item;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.player.Context;
+import com.swiftlicious.hellblock.player.GameProfileBuilder;
 import com.swiftlicious.hellblock.player.HellblockData;
 import com.swiftlicious.hellblock.utils.extras.Action;
 import com.swiftlicious.hellblock.utils.extras.Pair;
@@ -116,26 +118,30 @@ public class PartyGUI {
 		}
 		PartyDynamicGUIElement ownerElement = (PartyDynamicGUIElement) getElement(manager.ownerSlot);
 		if (ownerElement != null && !ownerElement.getSlots().isEmpty()) {
-			UUID ownerUUID = hellblockData.getOwnerUUID();
-			Item<ItemStack> item = manager.instance.getItemManager().wrap(manager.ownerIcon.build(context));
-			String username = Bukkit.getPlayer(ownerUUID) != null ? Bukkit.getPlayer(ownerUUID).getName()
-					: Bukkit.getOfflinePlayer(ownerUUID).hasPlayedBefore()
-							&& Bukkit.getOfflinePlayer(ownerUUID).getName() != null
-									? Bukkit.getOfflinePlayer(ownerUUID).getName()
-									: null;
-			if (username != null) {
-				String newName = AdventureHelper.miniMessageToJson(manager.ownerName.replace("{player}", username));
-				item.displayName(newName);
-				List<String> newLore = new ArrayList<>();
-				for (String lore : manager.ownerLore) {
-					newLore.add(AdventureHelper.miniMessageToJson(lore.replace("{player}", username)));
+			try {
+				UUID ownerUUID = hellblockData.getOwnerUUID();
+				Item<ItemStack> item = manager.instance.getItemManager().wrap(manager.ownerIcon.build(context));
+				String username = Bukkit.getPlayer(ownerUUID) != null ? Bukkit.getPlayer(ownerUUID).getName()
+						: Bukkit.getOfflinePlayer(ownerUUID).hasPlayedBefore()
+								&& Bukkit.getOfflinePlayer(ownerUUID).getName() != null
+										? Bukkit.getOfflinePlayer(ownerUUID).getName()
+										: null;
+				if (username != null) {
+					String newName = AdventureHelper.miniMessageToJson(manager.ownerName.replace("{player}", username));
+					item.displayName(newName);
+					List<String> newLore = new ArrayList<>();
+					for (String lore : manager.ownerLore) {
+						newLore.add(AdventureHelper.miniMessageToJson(lore.replace("{player}", username)));
+					}
+					item.lore(newLore);
 				}
-				item.lore(newLore);
+				GameProfile profile = GameProfileBuilder.fetch(ownerUUID);
+				item.skull(profile.getProperties().get("textures").iterator().next().getValue());
+				ownerElement.setUUID(ownerUUID);
+				ownerElement.setItemStack(item.load());
+			} catch (IllegalArgumentException | IOException ex) {
+				// ignored
 			}
-			GameProfile profile = new GameProfile(ownerUUID, username);
-			item.skull(profile.getProperties().get("textures").iterator().next().getValue());
-			ownerElement.setUUID(ownerUUID);
-			ownerElement.setItemStack(item.load());
 		}
 		Set<UUID> party = hellblockData.getParty();
 		if (party == null || party.isEmpty()) {
@@ -173,10 +179,14 @@ public class PartyGUI {
 							}
 							item.lore(newLore);
 						}
-						GameProfile profile = new GameProfile(id, username);
-						item.skull(profile.getProperties().get("textures").iterator().next().getValue());
-						memberElement.setUUID(id);
-						memberElement.setItemStack(item.load());
+						try {
+							GameProfile profile = GameProfileBuilder.fetch(id);
+							item.skull(profile.getProperties().get("textures").iterator().next().getValue());
+							memberElement.setUUID(id);
+							memberElement.setItemStack(item.load());
+						} catch (IllegalArgumentException | IOException ex) {
+							// ignored
+						}
 					}
 				}
 			}

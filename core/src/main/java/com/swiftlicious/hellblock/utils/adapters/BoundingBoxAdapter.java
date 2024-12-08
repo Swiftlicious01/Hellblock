@@ -8,7 +8,6 @@ import com.google.gson.TypeAdapter;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonToken;
 import com.google.gson.stream.JsonWriter;
-import com.swiftlicious.hellblock.HellblockPlugin;
 
 public class BoundingBoxAdapter extends TypeAdapter<BoundingBox> {
 
@@ -20,8 +19,10 @@ public class BoundingBoxAdapter extends TypeAdapter<BoundingBox> {
 		}
 		out.beginArray();
 		out.value(boundingBox.getMinX());
+		out.value(boundingBox.getMinY());
 		out.value(boundingBox.getMinZ());
 		out.value(boundingBox.getMaxX());
+		out.value(boundingBox.getMaxY());
 		out.value(boundingBox.getMaxZ());
 		out.endArray();
 	}
@@ -34,10 +35,10 @@ public class BoundingBoxAdapter extends TypeAdapter<BoundingBox> {
 		}
 		in.beginArray();
 		double minX = in.nextDouble();
-		double minY = HellblockPlugin.getInstance().getHellblockHandler().getHellblockWorld().getMinHeight();
+		double minY = in.nextDouble();
 		double minZ = in.nextDouble();
 		double maxX = in.nextDouble();
-		double maxY = HellblockPlugin.getInstance().getHellblockHandler().getHellblockWorld().getMaxHeight();
+		double maxY = in.nextDouble();
 		double maxZ = in.nextDouble();
 		in.endArray();
 		return new BoundingBox(minX, minY, minZ, maxX, maxY, maxZ);

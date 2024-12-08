@@ -20,7 +20,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
-import com.swiftlicious.hellblock.api.compatibility.VaultHook;
+import com.swiftlicious.hellblock.creation.addons.VaultHook;
 import com.swiftlicious.hellblock.creation.addons.level.LevelerProvider;
 import com.swiftlicious.hellblock.effects.EffectProperties;
 import com.swiftlicious.hellblock.loot.LootInterface;

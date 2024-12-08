@@ -13,6 +13,8 @@ repositories {
     maven { url = 'https://repo.onarandombox.com/content/groups/public/' } // multiverse-core
     maven { url = 'https://hub.spigotmc.org/nexus/content/repositories/snapshots/' } // spigot
     maven { url = 'https://repo.glaremasters.me/repository/concuncan/' } // slimeworldmanager
+    maven { url = 'https://repo.infernalsuite.com/repository/maven-snapshots/' } // advancedslimepaper
+    maven { url = 'https://repo.rapture.pw/repository/maven-releases/' } // flow nbt
     // placeholderapi
     maven {
     	url 'https://repo.extendedclip.com/content/repositories/placeholderapi/'
@@ -78,10 +80,10 @@ dependencies {
     // mythic mobs
     compileOnly "io.lumine:Mythic-Dist:${rootProject.properties["mythic_mobs_version"]}"
     
-    // multiverse world support
-    compileOnly "com.onarandombox.multiversecore:Multiverse-Core:${rootProject.properties["multiverse_core_version"]}-SNAPSHOT"
     // slime world manager support
-    compileOnly "com.grinderwolf:slimeworldmanager-api:${rootProject.properties["slime_world_version"]}"
+    compileOnly "com.infernalsuite.aswm:api:${rootProject.properties["paper_version"]}-R0.1-SNAPSHOT"
+    
+    implementation("com.flowpowered:flow-nbt:${rootProject.properties["flow_nbt_version"]}") // do not relocate (compatibility with AdvancedSlimePaper)
 
     // worldedit & worldguard
     compileOnly("com.sk89q.worldedit:worldedit-bukkit:${rootProject.properties["worldedit_version"]}-SNAPSHOT") {
@@ -138,6 +140,7 @@ shadowJar {
     destinationDirectory.set(file('$rootDir/target'))
     archiveClassifier.set('')
     archiveFileName = "Hellblock-${rootProject.properties["project_version"]}.jar"
+    minimize()
     	
     relocate 'com.mysql', 'com.swiftlicious.hellblock.libraries.mysql'
     relocate 'org.mariadb', 'com.swiftlicious.hellblock.libraries.mariadb'

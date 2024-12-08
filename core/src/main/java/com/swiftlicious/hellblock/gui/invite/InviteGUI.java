@@ -1,8 +1,8 @@
 package com.swiftlicious.hellblock.gui.invite;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.UUID;
 
 import org.bukkit.Bukkit;
@@ -17,6 +17,7 @@ import com.mojang.authlib.GameProfile;
 import com.swiftlicious.hellblock.creation.item.Item;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.player.Context;
+import com.swiftlicious.hellblock.player.GameProfileBuilder;
 import com.swiftlicious.hellblock.player.HellblockData;
 import com.swiftlicious.hellblock.player.UUIDFetcher;
 import com.swiftlicious.hellblock.player.UserData;
@@ -163,12 +164,12 @@ public class InviteGUI {
 						UUID id = UUIDFetcher.getUUID(username);
 						if (id != null) {
 							headElement.setUUID(id);
-							GameProfile profile = new GameProfile(id, username);
+							GameProfile profile = GameProfileBuilder.fetch(id);
 							head.skull(profile.getProperties().get("textures").iterator().next().getValue());
 							headElement.setItemStack(head.load());
 						}
 					}
-				} catch (IllegalArgumentException ex) {
+				} catch (IllegalArgumentException | IOException ex) {
 					// ignored
 				}
 			} else {
@@ -176,7 +177,7 @@ public class InviteGUI {
 				headElement.setUUID(null);
 			}
 		}
-		for (Entry<Integer, InviteGUIElement> entry : getOnlinePlayerHeads().entrySet()) {
+		for (Map.Entry<Integer, InviteGUIElement> entry : getOnlinePlayerHeads().entrySet()) {
 			if (entry.getValue() instanceof InviteDynamicGUIElement dynamicGUIElement) {
 				context.holder().getInventory().setItem(entry.getKey(), dynamicGUIElement.getItemStack().clone());
 			}
@@ -218,17 +219,21 @@ public class InviteGUI {
 					|| userData.getHellblockData().hasInvite(context.holder().getUniqueId()))
 				continue;
 
-			Item<ItemStack> head = manager.instance.getItemManager().wrap(manager.playerIcon.build(context));
-			GameProfile profile = new GameProfile(id, userData.getName());
-			String username = AdventureHelper
-					.miniMessageToJson(manager.playerName.replace("{player}", userData.getName()));
-			head.displayName(username);
-			head.skull(profile.getProperties().get("textures").iterator().next().getValue());
-			for (int i = 9; i <= 35; i++) {
-				InviteDynamicGUIElement element = new InviteDynamicGUIElement(manager.playerSlot, head.load());
-				element.setUUID(id);
-				cachedHeads.put(i, element);
-				heads.putIfAbsent(i, element);
+			try {
+				Item<ItemStack> head = manager.instance.getItemManager().wrap(manager.playerIcon.build(context));
+				GameProfile profile = GameProfileBuilder.fetch(id);
+				String username = AdventureHelper
+						.miniMessageToJson(manager.playerName.replace("{player}", userData.getName()));
+				head.displayName(username);
+				head.skull(profile.getProperties().get("textures").iterator().next().getValue());
+				for (int i = 9; i <= 35; i++) {
+					InviteDynamicGUIElement element = new InviteDynamicGUIElement(manager.playerSlot, head.load());
+					element.setUUID(id);
+					cachedHeads.put(i, element);
+					heads.putIfAbsent(i, element);
+				}
+			} catch (IllegalArgumentException | IOException ex) {
+				// ignored
 			}
 		}
 		return heads;
@@ -255,15 +260,19 @@ public class InviteGUI {
 				if (cachedHeads.get(i).getUUID().equals(id))
 					continue;
 
-				Item<ItemStack> head = manager.instance.getItemManager().wrap(manager.playerIcon.build(context));
-				GameProfile profile = new GameProfile(id, userData.getName());
-				String username = AdventureHelper
-						.miniMessageToJson(manager.playerName.replace("{player}", userData.getName()));
-				head.displayName(username);
-				head.skull(profile.getProperties().get("textures").iterator().next().getValue());
-				InviteDynamicGUIElement element = new InviteDynamicGUIElement(manager.playerSlot, head.load());
-				element.setUUID(id);
-				context.holder().getInventory().setItem(i, element.getItemStack());
+				try {
+					Item<ItemStack> head = manager.instance.getItemManager().wrap(manager.playerIcon.build(context));
+					GameProfile profile = GameProfileBuilder.fetch(id);
+					String username = AdventureHelper
+							.miniMessageToJson(manager.playerName.replace("{player}", userData.getName()));
+					head.displayName(username);
+					head.skull(profile.getProperties().get("textures").iterator().next().getValue());
+					InviteDynamicGUIElement element = new InviteDynamicGUIElement(manager.playerSlot, head.load());
+					element.setUUID(id);
+					context.holder().getInventory().setItem(i, element.getItemStack());
+				} catch (IllegalArgumentException | IOException ex) {
+					// ignored
+				}
 			}
 		}
 	}

@@ -4,6 +4,7 @@ import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -14,6 +15,7 @@ import java.util.function.Supplier;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.OfflinePlayer;
+import org.bukkit.World;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.event.HandlerList;
@@ -22,10 +24,8 @@ import org.bukkit.potion.PotionEffectType;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import com.swiftlicious.hellblock.api.compatibility.Metrics;
-import com.swiftlicious.hellblock.api.compatibility.WorldEditHook;
-import com.swiftlicious.hellblock.api.compatibility.WorldGuardHook;
-import com.swiftlicious.hellblock.challenges.ChallengeRewardBuilder;
+import com.swiftlicious.hellblock.api.Metrics;
+import com.swiftlicious.hellblock.challenges.ChallengeManager;
 import com.swiftlicious.hellblock.commands.BukkitCommandManager;
 import com.swiftlicious.hellblock.config.ConfigManager;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
@@ -61,29 +61,29 @@ import com.swiftlicious.hellblock.handlers.CoolDownManager;
 import com.swiftlicious.hellblock.handlers.EventManager;
 import com.swiftlicious.hellblock.handlers.HologramManager;
 import com.swiftlicious.hellblock.handlers.RequirementManager;
-import com.swiftlicious.hellblock.listeners.GlowstoneTree;
-import com.swiftlicious.hellblock.listeners.InfiniteLava;
-import com.swiftlicious.hellblock.listeners.IslandLevelHandler;
-import com.swiftlicious.hellblock.listeners.NetherArmor;
-import com.swiftlicious.hellblock.listeners.NetherBrewing;
-import com.swiftlicious.hellblock.listeners.NetherFarming;
-import com.swiftlicious.hellblock.listeners.NetherSnowGolem;
-import com.swiftlicious.hellblock.listeners.NetherTools;
-import com.swiftlicious.hellblock.listeners.NetherrackGenerator;
-import com.swiftlicious.hellblock.listeners.PiglinBartering;
+import com.swiftlicious.hellblock.listeners.GlowTreeHandler;
+import com.swiftlicious.hellblock.listeners.LavaHandler;
+import com.swiftlicious.hellblock.listeners.LevelHandler;
+import com.swiftlicious.hellblock.listeners.ArmorHandler;
+import com.swiftlicious.hellblock.listeners.BrewingHandler;
+import com.swiftlicious.hellblock.listeners.FarmingHandler;
+import com.swiftlicious.hellblock.listeners.GolemHandler;
+import com.swiftlicious.hellblock.listeners.ToolsHandler;
+import com.swiftlicious.hellblock.listeners.NetherGeneratorHandler;
+import com.swiftlicious.hellblock.listeners.PiglinBarterHandler;
 import com.swiftlicious.hellblock.listeners.PlayerListener;
-import com.swiftlicious.hellblock.listeners.WitherBoss;
+import com.swiftlicious.hellblock.listeners.WitherHandler;
 import com.swiftlicious.hellblock.listeners.fishing.FishingManager;
 import com.swiftlicious.hellblock.listeners.fishing.HookManager;
 import com.swiftlicious.hellblock.listeners.fishing.StatisticsManager;
-import com.swiftlicious.hellblock.listeners.rain.LavaRain;
+import com.swiftlicious.hellblock.listeners.rain.RainHandler;
 import com.swiftlicious.hellblock.logging.JavaPluginLogger;
 import com.swiftlicious.hellblock.logging.PluginLogger;
 import com.swiftlicious.hellblock.loot.LootManager;
 import com.swiftlicious.hellblock.placeholders.PlaceholderManager;
 import com.swiftlicious.hellblock.player.HellblockData;
 import com.swiftlicious.hellblock.player.UserData;
-import com.swiftlicious.hellblock.protection.IslandProtection;
+import com.swiftlicious.hellblock.protection.ProtectionManager;
 import com.swiftlicious.hellblock.scheduler.BukkitSchedulerAdapter;
 import com.swiftlicious.hellblock.scheduler.AbstractJavaScheduler;
 import com.swiftlicious.hellblock.schematic.SchematicManager;
@@ -91,6 +91,8 @@ import com.swiftlicious.hellblock.sender.SenderFactory;
 import com.swiftlicious.hellblock.sender.BukkitSenderFactory;
 import com.swiftlicious.hellblock.utils.EventUtils;
 import com.swiftlicious.hellblock.utils.VersionManager;
+import com.swiftlicious.hellblock.world.HellblockWorld;
+import com.swiftlicious.hellblock.world.WorldManager;
 
 import io.papermc.lib.PaperLib;
 
@@ -98,34 +100,34 @@ public class HellblockPlugin extends JavaPlugin {
 
 	protected static HellblockPlugin instance;
 
-	protected GlowstoneTree glowstoneTreeHandler;
-	protected LavaRain lavaRainHandler;
-	protected InfiniteLava infiniteLavaHandler;
-	protected NetherBrewing netherBrewingHandler;
-	protected NetherFarming netherFarmingHandler;
-	protected NetherTools netherToolsHandler;
-	protected NetherArmor netherArmorHandler;
-	protected PiglinBartering piglinBarterHandler;
-	protected NetherSnowGolem netherSnowGolemHandler;
-	protected WitherBoss witherBossHandler;
+	protected GlowTreeHandler glowstoneTreeHandler;
+	protected RainHandler lavaRainHandler;
+	protected LavaHandler infiniteLavaHandler;
+	protected BrewingHandler netherBrewingHandler;
+	protected FarmingHandler netherFarmingHandler;
+	protected ToolsHandler netherToolsHandler;
+	protected ArmorHandler netherArmorHandler;
+	protected PiglinBarterHandler piglinBarterHandler;
+	protected GolemHandler netherSnowGolemHandler;
+	protected WitherHandler witherBossHandler;
 	protected PlayerListener playerListener;
-	protected NetherrackGenerator netherrackGeneratorHandler;
+	protected NetherGeneratorHandler netherrackGeneratorHandler;
 	protected IslandGenerator islandGenerator;
-	protected WorldEditHook worldEditHandler;
-	protected WorldGuardHook worldGuardHandler;
+	protected ProtectionManager protectionManager;
 	protected HellblockHandler hellblockHandler;
 	protected BiomeHandler biomeHandler;
 	protected IslandChoiceConverter islandChoiceConverter;
 	protected CoopManager coopManager;
-	protected IslandProtection islandProtectionManager;
-	protected IslandLevelHandler islandLevelManager;
+	protected LevelHandler islandLevelManager;
 	protected SchematicManager schematicManager;
-	protected ChallengeRewardBuilder challengeRewardBuilder;
+	protected WorldManager worldManager;
+	protected ChallengeManager challengeManager;
 	protected ConfigManager configManager;
+
 	protected PluginLogger pluginLogger;
 	protected SenderFactory<HellblockPlugin, CommandSender> senderFactory;
+	protected AbstractJavaScheduler<Location, World> scheduler;
 
-	protected AbstractJavaScheduler<Location> scheduler;
 	protected LootManager lootManager;
 	protected ActionManager actionManager;
 	protected HologramManager hologramManager;
@@ -179,7 +181,7 @@ public class HellblockPlugin extends JavaPlugin {
 	public void onEnable() {
 		double startTime = System.currentTimeMillis();
 
-		// TODO: possible backwards support up to 1.17
+		// TODO: test support from 1.17 to 1.21
 		if (!this.versionManager.getSupportedVersions().contains(this.versionManager.getServerVersion())) {
 			getPluginLogger().severe(
 					"Hellblock only supports legacy versions down to 1.17. Please update your server to be able to properly use this plugin.");
@@ -188,7 +190,7 @@ public class HellblockPlugin extends JavaPlugin {
 			return;
 		}
 
-		// TODO: add support for spigot
+		// TODO: test spigot
 		if (!this.versionManager.isPaper()) {
 			getPluginLogger().severe("Hellblock is more suited towards Paper, but will still work with Spigot.");
 			PaperLib.suggestPaper(this);
@@ -200,22 +202,19 @@ public class HellblockPlugin extends JavaPlugin {
 		this.debugger = getConfigManager().debug() ? (s) -> pluginLogger.info("[DEBUG] " + s.get()) : (s) -> {
 		};
 
-		this.netherrackGeneratorHandler = new NetherrackGenerator(this);
-		this.lavaRainHandler = new LavaRain(this);
-		this.netherFarmingHandler = new NetherFarming(this);
+		this.netherrackGeneratorHandler = new NetherGeneratorHandler(this);
+		this.lavaRainHandler = new RainHandler(this);
+		this.netherFarmingHandler = new FarmingHandler(this);
 		this.islandGenerator = new IslandGenerator(this);
-		this.glowstoneTreeHandler = new GlowstoneTree(this);
-		this.infiniteLavaHandler = new InfiniteLava(this);
-		this.witherBossHandler = new WitherBoss(this);
-		this.worldEditHandler = new WorldEditHook();
-		this.worldGuardHandler = new WorldGuardHook(this);
+		this.glowstoneTreeHandler = new GlowTreeHandler(this);
+		this.infiniteLavaHandler = new LavaHandler(this);
+		this.witherBossHandler = new WitherHandler(this);
 		this.biomeHandler = new BiomeHandler(this);
 		this.islandChoiceConverter = new IslandChoiceConverter(this);
 		this.coopManager = new CoopManager(this);
-		this.islandLevelManager = new IslandLevelHandler(this);
-		this.islandProtectionManager = new IslandProtection(this);
-		this.challengeRewardBuilder = new ChallengeRewardBuilder(this);
-
+		this.islandLevelManager = new LevelHandler(this);
+		this.protectionManager = new ProtectionManager(this);
+		this.challengeManager = new ChallengeManager(this);
 		this.senderFactory = new BukkitSenderFactory(this);
 		this.actionManager = new ActionManager(this);
 		this.blockManager = new BlockManager(this);
@@ -245,15 +244,15 @@ public class HellblockPlugin extends JavaPlugin {
 		this.hologramManager = new HologramManager(this);
 		this.hookManager = new HookManager(this);
 		this.schematicManager = new SchematicManager(this);
+		this.worldManager = new WorldManager(this);
 		this.translationManager = new TranslationManager(this);
 		this.commandManager = new BukkitCommandManager(this);
 		this.commandManager.registerDefaultFeatures();
-
-		this.netherBrewingHandler = new NetherBrewing(this);
-		this.netherToolsHandler = new NetherTools(this);
-		this.netherArmorHandler = new NetherArmor(this);
-		this.piglinBarterHandler = new PiglinBartering(this);
-		this.netherSnowGolemHandler = new NetherSnowGolem(this);
+		this.netherBrewingHandler = new BrewingHandler(this);
+		this.netherToolsHandler = new ToolsHandler(this);
+		this.netherArmorHandler = new ArmorHandler(this);
+		this.piglinBarterHandler = new PiglinBarterHandler(this);
+		this.netherSnowGolemHandler = new GolemHandler(this);
 
 		reload();
 
@@ -283,29 +282,33 @@ public class HellblockPlugin extends JavaPlugin {
 			UUID id = player.getUniqueId();
 			onlineUser.showBorder();
 			onlineUser.startSpawningAnimals();
+			onlineUser.startSpawningFortressMobs();
 			getNetherFarmingHandler().trackNetherFarms(onlineUser);
 			getIslandLevelManager().loadCache(id);
 			getNetherrackGeneratorHandler().loadPistons(id);
-			if (getCoopManager().getHellblockOwnerOfVisitingIsland(player) != null) {
-				if (getCoopManager().trackBannedPlayer(getCoopManager().getHellblockOwnerOfVisitingIsland(player),
-						id)) {
-					if (onlineUser.getHellblockData().hasHellblock()) {
-						if (onlineUser.getHellblockData().getOwnerUUID() == null) {
-							throw new NullPointerException(
-									"Owner reference returned null, please report this to the developer.");
+			getCoopManager().getHellblockOwnerOfVisitingIsland(player).thenAccept(ownerUUID -> {
+				if (ownerUUID == null)
+					return;
+				getCoopManager().trackBannedPlayer(ownerUUID, id).thenAccept((status) -> {
+					if (status) {
+						if (onlineUser.getHellblockData().hasHellblock()) {
+							if (onlineUser.getHellblockData().getOwnerUUID() == null) {
+								throw new NullPointerException(
+										"Owner reference returned null, please report this to the developer.");
+							}
+							getStorageManager().getOfflineUserData(onlineUser.getHellblockData().getOwnerUUID(),
+									getConfigManager().lockData()).thenAccept((owner) -> {
+										if (owner.isEmpty())
+											return;
+										UserData bannedOwner = owner.get();
+										getCoopManager().makeHomeLocationSafe(bannedOwner, onlineUser);
+									});
+						} else {
+							getHellblockHandler().teleportToSpawn(player, true);
 						}
-						getStorageManager().getOfflineUserData(onlineUser.getHellblockData().getOwnerUUID(),
-								getConfigManager().lockData()).thenAccept((owner) -> {
-									if (owner.isEmpty())
-										return;
-									UserData bannedOwner = owner.get();
-									getCoopManager().makeHomeLocationSafe(bannedOwner, onlineUser);
-								});
-					} else {
-						getHellblockHandler().teleportToSpawn(player, true);
 					}
-				}
-			}
+				});
+			});
 		}
 
 		int purgeDays = getConfigManager().abandonAfterDays();
@@ -328,40 +331,31 @@ public class HellblockPlugin extends JavaPlugin {
 						UserData offlineUser = result.get();
 						if (offlineUser.getHellblockData().hasHellblock()
 								&& offlineUser.getHellblockData().getOwnerUUID() != null) {
-							if (getHellblockHandler().isHellblockOwner(id,
-									offlineUser.getHellblockData().getOwnerUUID())) {
+							if (id.equals(offlineUser.getHellblockData().getOwnerUUID())) {
 								float level = offlineUser.getHellblockData().getLevel();
 								if (level == HellblockData.DEFAULT_LEVEL) {
-
+									Optional<HellblockWorld<?>> world = getWorldManager().getWorld(getWorldManager()
+											.getHellblockWorldFormat(offlineUser.getHellblockData().getID()));
+									if (world.isEmpty() || world.get() == null)
+										throw new NullPointerException(
+												"World returned null, please try to regenerate the world before reporting this issue.");
+									World bukkitWorld = world.get().bukkitWorld();
 									offlineUser.getHellblockData().setAsAbandoned(true);
-									int hellblockID = offlineUser.getHellblockData().getID();
-									if (getWorldGuardHandler().getRegion(offlineUser.getHellblockData().getOwnerUUID(),
-											hellblockID) != null) {
-										getWorldGuardHandler()
-												.updateHellblockMessages(offlineUser.getHellblockData().getOwnerUUID(),
-														getWorldGuardHandler().getRegion(
-																offlineUser.getHellblockData().getOwnerUUID(),
-																hellblockID));
-										getWorldGuardHandler()
-												.abandonIsland(offlineUser.getHellblockData().getOwnerUUID(),
-														getWorldGuardHandler().getRegion(
-																offlineUser.getHellblockData().getOwnerUUID(),
-																hellblockID));
-										purgeCount.getAndIncrement();
-									}
+									getProtectionManager().getIslandProtection().updateHellblockMessages(bukkitWorld,
+											offlineUser.getHellblockData().getOwnerUUID());
+									getProtectionManager().getIslandProtection().abandonIsland(bukkitWorld,
+											offlineUser.getHellblockData().getOwnerUUID());
+									purgeCount.getAndIncrement();
 								}
 							}
 						}
-					}).join();
+					});
 				}
 			}
 			if (purgeCount.get() > 0)
 				getPluginLogger()
 						.info(String.format("A total of %s hellblocks have been set as abandoned.", purgeCount.get()));
 		}
-
-		if (!getConfigManager().perPlayerWorlds())
-			getScheduler().sync().runLater(() -> getHellblockHandler().getHellblockWorld(), 5 * 20, null);
 	}
 
 	@Override
@@ -375,6 +369,7 @@ public class HellblockPlugin extends JavaPlugin {
 					continue;
 				onlineUser.hideBorder();
 				onlineUser.stopSpawningAnimals();
+				onlineUser.stopSpawningFortressMobs();
 				getIslandLevelManager().saveCache(onlineUser.getUUID());
 				getNetherrackGeneratorHandler().savePistons(onlineUser.getUUID());
 				Player player = onlineUser.getPlayer();
@@ -430,6 +425,8 @@ public class HellblockPlugin extends JavaPlugin {
 			this.integrationManager.disable();
 		if (this.storageManager != null)
 			this.storageManager.disable();
+		if (this.worldManager != null)
+			this.worldManager.disable();
 		if (this.placeholderManager != null)
 			this.placeholderManager.disable();
 		if (this.actionManager != null)
@@ -459,13 +456,13 @@ public class HellblockPlugin extends JavaPlugin {
 		this.debugger = getConfigManager().debug() ? (s) -> pluginLogger.info("[DEBUG] " + s.get()) : (s) -> {
 		};
 		this.playerListener.reload();
-		this.worldGuardHandler.reload();
 		this.requirementManager.reload();
-		this.challengeRewardBuilder.reload();
+		this.challengeManager.reload();
 		this.actionManager.reload();
 		this.netherToolsHandler.reload();
 		this.netherArmorHandler.reload();
 		this.netherBrewingHandler.reload();
+		this.netherFarmingHandler.reload();
 		this.statisticsManager.reload();
 		this.itemManager.reload();
 		this.lootManager.reload();
@@ -488,6 +485,8 @@ public class HellblockPlugin extends JavaPlugin {
 		this.hookManager.reload();
 		this.hologramManager.reload();
 		this.schematicManager.reload();
+		this.worldManager.reload();
+		this.protectionManager.reload();
 		this.translationManager.reload();
 		EventUtils.fireAndForget(new LavaFishingReloadEvent(this));
 	}
@@ -513,6 +512,10 @@ public class HellblockPlugin extends JavaPlugin {
 
 	public SchematicManager getSchematicManager() {
 		return this.schematicManager;
+	}
+
+	public WorldManager getWorldManager() {
+		return this.worldManager;
 	}
 
 	public VersionManager getVersionManager() {
@@ -635,15 +638,7 @@ public class HellblockPlugin extends JavaPlugin {
 		return this.islandGenerator;
 	}
 
-	public WorldGuardHook getWorldGuardHandler() {
-		return this.worldGuardHandler;
-	}
-
-	public WorldEditHook getWorldEditHandler() {
-		return this.worldEditHandler;
-	}
-
-	public IslandLevelHandler getIslandLevelManager() {
+	public LevelHandler getIslandLevelManager() {
 		return this.islandLevelManager;
 	}
 
@@ -651,52 +646,52 @@ public class HellblockPlugin extends JavaPlugin {
 		return this.islandChoiceConverter;
 	}
 
-	public GlowstoneTree getGlowstoneTreeHandler() {
+	public GlowTreeHandler getGlowstoneTreeHandler() {
 		return this.glowstoneTreeHandler;
 	}
 
-	public InfiniteLava getInfiniteLavaHandler() {
+	public LavaHandler getInfiniteLavaHandler() {
 		return this.infiniteLavaHandler;
 	}
 
-	public NetherrackGenerator getNetherrackGeneratorHandler() {
+	public NetherGeneratorHandler getNetherrackGeneratorHandler() {
 		return this.netherrackGeneratorHandler;
 	}
 
-	public LavaRain getLavaRainHandler() {
+	public RainHandler getLavaRainHandler() {
 		return this.lavaRainHandler;
 	}
 
-	public PiglinBartering getPiglinBarterHandler() {
+	public PiglinBarterHandler getPiglinBarterHandler() {
 		return this.piglinBarterHandler;
 	}
 
-	public WitherBoss getWitherBossHandler() {
+	public WitherHandler getWitherBossHandler() {
 		return this.witherBossHandler;
 	}
 
-	public NetherBrewing getNetherBrewingHandler() {
+	public BrewingHandler getNetherBrewingHandler() {
 		return this.netherBrewingHandler;
 	}
 
-	public NetherFarming getNetherFarmingHandler() {
+	public FarmingHandler getNetherFarmingHandler() {
 		return this.netherFarmingHandler;
 	}
 
-	public NetherArmor getNetherArmorHandler() {
+	public ArmorHandler getNetherArmorHandler() {
 		return this.netherArmorHandler;
 	}
 
-	public NetherTools getNetherToolsHandler() {
+	public ToolsHandler getNetherToolsHandler() {
 		return this.netherToolsHandler;
 	}
 
-	public ChallengeRewardBuilder getChallengeRewardBuilder() {
-		return this.challengeRewardBuilder;
+	public ChallengeManager getChallengeManager() {
+		return this.challengeManager;
 	}
 
-	public IslandProtection getIslandProtectionManager() {
-		return this.islandProtectionManager;
+	public ProtectionManager getProtectionManager() {
+		return this.protectionManager;
 	}
 
 	public HellblockHandler getHellblockHandler() {
@@ -707,7 +702,7 @@ public class HellblockPlugin extends JavaPlugin {
 		return this.biomeHandler;
 	}
 
-	public NetherSnowGolem getNetherSnowGolemHandler() {
+	public GolemHandler getNetherSnowGolemHandler() {
 		return this.netherSnowGolemHandler;
 	}
 
@@ -715,7 +710,7 @@ public class HellblockPlugin extends JavaPlugin {
 		return this.playerListener;
 	}
 
-	public AbstractJavaScheduler<Location> getScheduler() {
+	public AbstractJavaScheduler<Location, World> getScheduler() {
 		return this.scheduler;
 	}
 

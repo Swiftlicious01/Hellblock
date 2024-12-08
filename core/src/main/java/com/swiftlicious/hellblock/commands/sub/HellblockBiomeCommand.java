@@ -87,7 +87,8 @@ public class HellblockBiomeCommand extends BukkitCommandFeature<CommandSender> {
 													onlineUser.get().getHellblockData().getBiomeCooldown()))));
 							return;
 						}
-						HellblockPlugin.getInstance().getBiomeHandler().changeHellblockBiome(onlineUser.get(), biome);
+						HellblockPlugin.getInstance().getBiomeHandler().changeHellblockBiome(onlineUser.get(), biome,
+								false);
 					} else {
 						handleFeedback(context, MessageConstants.MSG_HELLBLOCK_NOT_FOUND);
 						return;

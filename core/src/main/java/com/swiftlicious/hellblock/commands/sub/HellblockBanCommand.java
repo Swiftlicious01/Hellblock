@@ -113,49 +113,54 @@ public class HellblockBanCommand extends BukkitCommandFeature<CommandSender> {
 
 						onlineUser.get().getHellblockData().banPlayer(id);
 						if (Bukkit.getPlayer(user) != null) {
-							if (HellblockPlugin.getInstance().getCoopManager().trackBannedPlayer(player.getUniqueId(),
-									id)) {
-								Optional<UserData> bannedPlayer = HellblockPlugin.getInstance().getStorageManager()
-										.getOnlineUser(id);
-								if (bannedPlayer.isEmpty()) {
-									handleFeedback(context, MessageConstants.MSG_HELLBLOCK_PLAYER_DATA_FAILURE_LOAD
-											.arguments(Component.text(user)));
-									return;
-								}
-								if (bannedPlayer.get().getHellblockData().hasHellblock()) {
-									if (bannedPlayer.get().getHellblockData().getOwnerUUID() == null) {
-										throw new NullPointerException(
-												"Owner reference returned null, please report this to the developer.");
-									}
-									HellblockPlugin.getInstance().getStorageManager()
-											.getOfflineUserData(bannedPlayer.get().getHellblockData().getOwnerUUID(),
-													HellblockPlugin.getInstance().getConfigManager().lockData())
-											.thenAccept((owner) -> {
-												if (owner.isEmpty()) {
-													String username = Bukkit.getOfflinePlayer(
-															bannedPlayer.get().getHellblockData().getOwnerUUID())
-															.getName() != null
-																	? Bukkit.getOfflinePlayer(bannedPlayer.get()
-																			.getHellblockData().getOwnerUUID())
-																			.getName()
-																	: "???";
-													handleFeedback(context,
-															MessageConstants.MSG_HELLBLOCK_PLAYER_DATA_FAILURE_LOAD
-																	.arguments(Component.text(username)));
-													return;
+							HellblockPlugin.getInstance().getCoopManager().trackBannedPlayer(player.getUniqueId(), id)
+									.thenAccept((status) -> {
+										if (status) {
+											Optional<UserData> bannedPlayer = HellblockPlugin.getInstance()
+													.getStorageManager().getOnlineUser(id);
+											if (bannedPlayer.isEmpty()) {
+												handleFeedback(context,
+														MessageConstants.MSG_HELLBLOCK_PLAYER_DATA_FAILURE_LOAD
+																.arguments(Component.text(user)));
+												return;
+											}
+											if (bannedPlayer.get().getHellblockData().hasHellblock()) {
+												if (bannedPlayer.get().getHellblockData().getOwnerUUID() == null) {
+													throw new NullPointerException(
+															"Owner reference returned null, please report this to the developer.");
 												}
-												UserData bannedOwner = owner.get();
-												HellblockPlugin.getInstance().getCoopManager()
-														.makeHomeLocationSafe(bannedOwner, bannedPlayer.get());
-											}).thenRun(() -> {
-												handleFeedback(Bukkit.getPlayer(user), MessageConstants.MSG_HELLBLOCK_BANNED_ENTRY);
-											});
-								} else {
-									HellblockPlugin.getInstance().getHellblockHandler()
-											.teleportToSpawn(Bukkit.getPlayer(user), true);
-
-								}
-							}
+												HellblockPlugin.getInstance().getStorageManager().getOfflineUserData(
+														bannedPlayer.get().getHellblockData().getOwnerUUID(),
+														HellblockPlugin.getInstance().getConfigManager().lockData())
+														.thenAccept((owner) -> {
+															if (owner.isEmpty()) {
+																String username = Bukkit
+																		.getOfflinePlayer(bannedPlayer.get()
+																				.getHellblockData().getOwnerUUID())
+																		.getName() != null
+																				? Bukkit.getOfflinePlayer(bannedPlayer
+																						.get().getHellblockData()
+																						.getOwnerUUID()).getName()
+																				: "???";
+																handleFeedback(context,
+																		MessageConstants.MSG_HELLBLOCK_PLAYER_DATA_FAILURE_LOAD
+																				.arguments(Component.text(username)));
+																return;
+															}
+															UserData bannedOwner = owner.get();
+															HellblockPlugin.getInstance().getCoopManager()
+																	.makeHomeLocationSafe(bannedOwner,
+																			bannedPlayer.get());
+														}).thenRun(() -> {
+															handleFeedback(Bukkit.getPlayer(user),
+																	MessageConstants.MSG_HELLBLOCK_BANNED_ENTRY);
+														});
+											} else {
+												HellblockPlugin.getInstance().getHellblockHandler()
+														.teleportToSpawn(Bukkit.getPlayer(user), false);
+											}
+										}
+									});
 						}
 						handleFeedback(context,
 								MessageConstants.MSG_HELLBLOCK_BANNED_PLAYER.arguments(Component.text(user)));

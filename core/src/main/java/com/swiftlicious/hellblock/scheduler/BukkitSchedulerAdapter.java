@@ -1,11 +1,12 @@
 package com.swiftlicious.hellblock.scheduler;
 
 import org.bukkit.Location;
+import org.bukkit.World;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 
-public class BukkitSchedulerAdapter extends AbstractJavaScheduler<Location> {
-	protected RegionExecutor<Location> sync;
+public class BukkitSchedulerAdapter extends AbstractJavaScheduler<Location, World> {
+	protected RegionExecutor<Location, World> sync;
 
 	public BukkitSchedulerAdapter(HellblockPlugin plugin) {
 		super(plugin);
@@ -17,7 +18,7 @@ public class BukkitSchedulerAdapter extends AbstractJavaScheduler<Location> {
 	}
 
 	@Override
-	public RegionExecutor<Location> sync() {
+	public RegionExecutor<Location, World> sync() {
 		return this.sync;
 	}
 }

@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Set;
 import java.util.UUID;
 
@@ -53,11 +52,11 @@ public class GeneratorManager {
 
 	public void cleanupExpiredLocations() {
 		// Remove all expired GenBlock entries
-		Set<Entry<Location, GenBlock>> entrySet = genBreaks.entrySet();
+		Set<Map.Entry<Location, GenBlock>> entrySet = genBreaks.entrySet();
 		if (entrySet.isEmpty())
 			return;
 		List<GenBlock> expiredBlocks = new ArrayList<>();
-		for (Entry<Location, GenBlock> entry : entrySet) {
+		for (Map.Entry<Location, GenBlock> entry : entrySet) {
 			GenBlock gb = entry.getValue();
 			if (gb.hasExpired()) {
 				expiredBlocks.add(gb);
@@ -72,11 +71,11 @@ public class GeneratorManager {
 		// Remove all expired GenBlock entries
 		if (knownGenPistons == null)
 			return;
-		Set<Entry<Location, GenPiston>> entrySet = knownGenPistons.entrySet();
+		Set<Map.Entry<Location, GenPiston>> entrySet = knownGenPistons.entrySet();
 		if (entrySet.isEmpty())
 			return;
 		List<GenPiston> expiredPistons = new ArrayList<>();
-		for (Entry<Location, GenPiston> entry : entrySet) {
+		for (Map.Entry<Location, GenPiston> entry : entrySet) {
 			GenPiston piston = entry.getValue();
 			piston.getLoc().getBlock();
 			if (piston.getLoc().getBlock().getType() == Material.PISTON) {

@@ -1,0 +1,232 @@
+package com.swiftlicious.hellblock.listeners;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+import org.bukkit.Bukkit;
+import org.bukkit.Location;
+import org.bukkit.Material;
+import org.bukkit.block.Block;
+import org.bukkit.block.BlockFace;
+import org.bukkit.damage.DamageType;
+import org.bukkit.entity.Entity;
+import org.bukkit.entity.EntityType;
+import org.bukkit.entity.LivingEntity;
+import org.bukkit.entity.Player;
+import org.bukkit.entity.Snowball;
+import org.bukkit.entity.Snowman;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.Listener;
+import org.bukkit.event.block.BlockPistonExtendEvent;
+import org.bukkit.event.block.BlockPlaceEvent;
+import org.bukkit.event.entity.EntityCombustEvent;
+import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.entity.EntityDamageEvent;
+import org.jetbrains.annotations.NotNull;
+
+import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.challenges.HellblockChallenge.ActionType;
+import com.swiftlicious.hellblock.player.UserData;
+import com.swiftlicious.hellblock.protection.HellblockFlag;
+import com.swiftlicious.hellblock.protection.HellblockFlag.AccessType;
+
+public class GolemHandler implements Listener {
+
+	protected final HellblockPlugin instance;
+
+	public GolemHandler(HellblockPlugin plugin) {
+		instance = plugin;
+		Bukkit.getPluginManager().registerEvents(this, instance);
+	}
+
+	public List<Block> checkHellGolemBuild(@NotNull Location location) {
+		if (location.getWorld() == null)
+			return new ArrayList<>();
+		if (!instance.getHellblockHandler().isInCorrectWorld(location.getWorld()))
+			return new ArrayList<>();
+
+		List<Block> blocks = new ArrayList<>();
+
+		if (location.getBlock().getRelative(BlockFace.UP).getType() == Material.FIRE) {
+			if (location.getBlock().getType() == Material.JACK_O_LANTERN) {
+				if (location.getBlock().getRelative(BlockFace.DOWN).getType() == Material.SOUL_SOIL) {
+					if (location.getBlock().getRelative(BlockFace.DOWN).getRelative(BlockFace.DOWN)
+							.getType() == Material.SOUL_SOIL) {
+						blocks.addAll(List.of(location.getBlock().getRelative(BlockFace.UP),
+								location.getBlock().getRelative(BlockFace.DOWN),
+								location.getBlock().getRelative(BlockFace.DOWN).getRelative(BlockFace.DOWN),
+								location.getBlock()));
+					}
+				}
+			}
+		}
+
+		if (location.getBlock().getType() == Material.FIRE) {
+			if (location.getBlock().getRelative(BlockFace.DOWN).getType() == Material.JACK_O_LANTERN) {
+				if (location.getBlock().getRelative(BlockFace.DOWN).getRelative(BlockFace.DOWN)
+						.getType() == Material.SOUL_SOIL) {
+					if (location.getBlock().getRelative(BlockFace.DOWN).getRelative(BlockFace.DOWN)
+							.getRelative(BlockFace.DOWN).getType() == Material.SOUL_SOIL) {
+						blocks.addAll(List.of(location.getBlock().getRelative(BlockFace.DOWN),
+								location.getBlock().getRelative(BlockFace.DOWN).getRelative(BlockFace.DOWN),
+								location.getBlock().getRelative(BlockFace.DOWN).getRelative(BlockFace.DOWN)
+										.getRelative(BlockFace.DOWN),
+								location.getBlock()));
+					}
+				}
+			}
+		}
+
+		if (location.getBlock().getRelative(BlockFace.UP).getRelative(BlockFace.UP).getType() == Material.FIRE) {
+			if (location.getBlock().getRelative(BlockFace.UP).getType() == Material.JACK_O_LANTERN) {
+				if (location.getBlock().getType() == Material.SOUL_SOIL) {
+					if (location.getBlock().getRelative(BlockFace.DOWN).getType() == Material.SOUL_SOIL) {
+						blocks.addAll(List.of(location.getBlock().getRelative(BlockFace.UP).getRelative(BlockFace.UP),
+								location.getBlock().getRelative(BlockFace.UP),
+								location.getBlock().getRelative(BlockFace.DOWN), location.getBlock()));
+					}
+				}
+			}
+		}
+
+		if (location.getBlock().getRelative(BlockFace.UP).getRelative(BlockFace.UP).getRelative(BlockFace.UP)
+				.getType() == Material.FIRE) {
+			if (location.getBlock().getRelative(BlockFace.UP).getRelative(BlockFace.UP)
+					.getType() == Material.JACK_O_LANTERN) {
+				if (location.getBlock().getRelative(BlockFace.UP).getType() == Material.SOUL_SOIL) {
+					if (location.getBlock().getType() == Material.SOUL_SOIL) {
+						blocks.addAll(List.of(
+								location.getBlock().getRelative(BlockFace.UP).getRelative(BlockFace.UP)
+										.getRelative(BlockFace.UP),
+								location.getBlock().getRelative(BlockFace.UP).getRelative(BlockFace.UP),
+								location.getBlock().getRelative(BlockFace.UP), location.getBlock()));
+					}
+				}
+			}
+		}
+		return blocks;
+	}
+
+	public void spawnHellGolem(@NotNull Player player, @NotNull UUID id, @NotNull Location location) {
+		if (location.getWorld() == null)
+			return;
+		if (!instance.getHellblockHandler().isInCorrectWorld(location.getWorld()))
+			return;
+		if (checkHellGolemBuild(location).isEmpty())
+			return;
+
+		instance.getStorageManager().getOfflineUserData(id, instance.getConfigManager().lockData())
+				.thenAccept((result) -> {
+					if (result.isEmpty())
+						return;
+					UserData offlineUser = result.get();
+					if (offlineUser.getHellblockData()
+							.getProtectionValue(HellblockFlag.FlagType.MOB_SPAWNING) == AccessType.ALLOW) {
+						List<Block> blocks = checkHellGolemBuild(location);
+						for (Block block : blocks) {
+							block.setType(Material.AIR);
+						}
+						Snowman hellGolem = (Snowman) location.getWorld().spawnEntity(location, EntityType.SNOW_GOLEM);
+						hellGolem.setAware(true);
+						hellGolem.setDerp(false);
+						hellGolem.setVisualFire(true);
+						Optional<UserData> onlineUser = instance.getStorageManager()
+								.getOnlineUser(player.getUniqueId());
+						if (onlineUser.isEmpty() || onlineUser.get().getPlayer() == null
+								|| !onlineUser.get().getHellblockData().hasHellblock())
+							return;
+						if (!onlineUser.get().getChallengeData().isChallengeActive(instance.getChallengeManager().getByActionType(ActionType.SPAWN))
+								&& !onlineUser.get().getChallengeData()
+										.isChallengeCompleted(instance.getChallengeManager().getByActionType(ActionType.SPAWN))) {
+							onlineUser.get().getChallengeData().beginChallengeProgression(onlineUser.get().getPlayer(),
+									instance.getChallengeManager().getByActionType(ActionType.SPAWN));
+						} else {
+							onlineUser.get().getChallengeData().updateChallengeProgression(onlineUser.get().getPlayer(),
+									instance.getChallengeManager().getByActionType(ActionType.SPAWN), 1);
+							if (onlineUser.get().getChallengeData()
+									.isChallengeCompleted(
+											instance.getChallengeManager().getByActionType(ActionType.SPAWN))) {
+								onlineUser.get().getChallengeData().completeChallenge(onlineUser.get().getPlayer(),
+										instance.getChallengeManager().getByActionType(ActionType.SPAWN));
+							}
+						}
+					}
+				});
+	}
+
+	@EventHandler
+	public void onCreationOfHellGolem(BlockPlaceEvent event) {
+		final Player player = event.getPlayer();
+		if (!instance.getHellblockHandler().isInCorrectWorld(player))
+			return;
+
+		final Block block = event.getBlockPlaced();
+		instance.getCoopManager().getHellblockOwnerOfVisitingIsland(player).thenAccept(ownerUUID -> {
+			if (ownerUUID == null)
+				return;
+			spawnHellGolem(player, ownerUUID, block.getLocation());
+		});
+	}
+
+	@EventHandler
+	public void onPistonPushCreationOfHellGolem(BlockPistonExtendEvent event) {
+		final List<Block> blocks = event.getBlocks();
+		for (final Block block : blocks) {
+			if (!instance.getHellblockHandler().isInCorrectWorld(block.getWorld()))
+				return;
+
+			Collection<Entity> playersNearby = block.getWorld().getNearbyEntities(block.getLocation(), 25, 25, 25)
+					.stream().filter(e -> e.getType() == EntityType.PLAYER).toList();
+			Player player = instance.getNetherrackGeneratorHandler().getClosestPlayer(block.getLocation(),
+					playersNearby);
+			if (player != null) {
+				instance.getCoopManager().getHellblockOwnerOfVisitingIsland(player).thenAccept(ownerUUID -> {
+					if (ownerUUID == null)
+						return;
+					spawnHellGolem(player, ownerUUID, block.getLocation());
+				});
+			}
+		}
+	}
+
+	@EventHandler
+	public void onEntityCombust(EntityCombustEvent event) {
+		Entity entity = event.getEntity();
+		if (!instance.getHellblockHandler().isInCorrectWorld(entity.getWorld()))
+			return;
+		if (entity instanceof Snowman && entity.isVisualFire()) {
+			event.setCancelled(true);
+		}
+	}
+
+	@EventHandler
+	public void onEntityDamage(EntityDamageEvent event) {
+		Entity entity = event.getEntity();
+		if (!instance.getHellblockHandler().isInCorrectWorld(entity.getWorld()))
+			return;
+		if (entity instanceof Snowman && entity.isVisualFire()) {
+			if (event.getDamageSource().getDamageType() == DamageType.ON_FIRE) {
+				event.setCancelled(true);
+			}
+		}
+	}
+
+	@EventHandler
+	public void onSnowball(EntityDamageByEntityEvent event) {
+		if (!instance.getHellblockHandler().isInCorrectWorld(event.getEntity().getWorld()))
+			return;
+		if (event.getEntity() instanceof LivingEntity living) {
+			if (event.getDamager() instanceof Snowball snowball) {
+				if (snowball.getShooter() != null && snowball.getShooter() instanceof Snowman snowman) {
+					if (snowman.isVisualFire()) {
+						snowball.setVisualFire(true);
+						living.setFireTicks(40);
+					}
+				}
+			}
+		}
+	}
+}

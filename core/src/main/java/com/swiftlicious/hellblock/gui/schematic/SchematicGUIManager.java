@@ -107,7 +107,7 @@ public class SchematicGUIManager implements SchematicGUIManagerInterface, Listen
 											instance.getConfigManager().getItemFormatFunctions()).getItem(),
 									instance.getActionManager().parseActions(innerSection.getSection("action")),
 									instance.getRequirementManager()
-											.parseRequirements(innerSection.getSection("requirement"), false))));
+											.parseRequirements(innerSection.getSection("requirement"), true))));
 				}
 
 			}
@@ -305,11 +305,11 @@ public class SchematicGUIManager implements SchematicGUIManagerInterface, Listen
 
 	public boolean checkForSchematics() {
 		boolean schematicsAvailable = false;
-		for (String list : instance.getConfigManager().islandOptions()) {
-			if (list.equalsIgnoreCase(IslandOptions.CLASSIC.getName())
-					|| list.equalsIgnoreCase(IslandOptions.DEFAULT.getName()))
+		for (IslandOptions list : instance.getConfigManager().islandOptions()) {
+			if (list.equals(IslandOptions.CLASSIC) || list.equals(IslandOptions.DEFAULT))
 				continue;
-			if (!instance.getSchematicManager().schematicFiles.keySet().contains(Files.getNameWithoutExtension(list)))
+			if (!instance.getSchematicManager().schematicFiles.keySet()
+					.contains(Files.getNameWithoutExtension(list.toString())))
 				continue;
 
 			schematicsAvailable = true;

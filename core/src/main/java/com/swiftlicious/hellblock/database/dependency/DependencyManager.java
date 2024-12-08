@@ -30,6 +30,7 @@ import com.swiftlicious.hellblock.utils.FileUtils;
  */
 public class DependencyManager implements DependencyManagerInterface {
 
+	protected final HellblockPlugin instance;
 	/** A registry containing plugin specific behaviour for dependencies. */
 	private final DependencyRegistry registry;
 	/** The path where library jars are cached. */
@@ -46,6 +47,7 @@ public class DependencyManager implements DependencyManagerInterface {
 	private @MonotonicNonNull RelocationHandler relocationHandler = null;
 
 	public DependencyManager(HellblockPlugin plugin, ClassPathAppender classPathAppender) {
+		instance = plugin;
 		this.registry = new DependencyRegistry();
 		this.cacheDirectory = setupCacheDirectory(plugin);
 		this.classPathAppender = classPathAppender;
@@ -103,7 +105,8 @@ public class DependencyManager implements DependencyManagerInterface {
 				try {
 					loadDependency(dependency);
 				} catch (Throwable ex) {
-					HellblockPlugin.getInstance().getPluginLogger().warn(String.format("Unable to load dependency %s", dependency.name()), ex);
+					instance.getPluginLogger().warn(String.format("Unable to load dependency %s", dependency.name()),
+							ex);
 				} finally {
 					latch.countDown();
 				}
@@ -147,10 +150,10 @@ public class DependencyManager implements DependencyManagerInterface {
 			int i = 0;
 			while (i < repository.size()) {
 				try {
-					HellblockPlugin.getInstance().getPluginLogger().info(String.format("Downloading dependency(%s) [%s%s]", fileName,
+					instance.getPluginLogger().info(String.format("Downloading dependency(%s) [%s%s]", fileName,
 							repository.get(i).getUrl(), dependency.getMavenRepoPath()));
 					repository.get(i).download(dependency, file);
-					HellblockPlugin.getInstance().getPluginLogger().info(String.format("Successfully downloaded %s", fileName));
+					instance.getPluginLogger().info(String.format("Successfully downloaded %s", fileName));
 					return file;
 				} catch (DependencyDownloadException ex) {
 					lastError = ex;
@@ -175,9 +178,9 @@ public class DependencyManager implements DependencyManagerInterface {
 			return remappedFile;
 		}
 
-		HellblockPlugin.getInstance().getPluginLogger().info("Remapping " + dependency.getFileName(null));
+		instance.getPluginLogger().info("Remapping " + dependency.getFileName(null));
 		getRelocationHandler().remap(normalFile, remappedFile, rules);
-		HellblockPlugin.getInstance().getPluginLogger().info("Successfully remapped " + dependency.getFileName(null));
+		instance.getPluginLogger().info("Successfully remapped " + dependency.getFileName(null));
 		return remappedFile;
 	}
 
@@ -209,7 +212,7 @@ public class DependencyManager implements DependencyManagerInterface {
 		}
 
 		if (firstEx != null) {
-			HellblockPlugin.getInstance().getPluginLogger().severe(firstEx.getMessage(), firstEx);
+			instance.getPluginLogger().severe(firstEx.getMessage(), firstEx);
 		}
 	}
 }

@@ -11,7 +11,7 @@ public class DependencyRegistry {
 		return switch (dependency) {
 		// all used within 'isolated' classloaders, and are therefore not
 		// relocated.
-		case ASM, ASM_COMMONS, JAR_RELOCATOR, H2_DRIVER, SQLITE_DRIVER -> false;
+		case ASM, ASM_COMMONS, JAR_RELOCATOR, H2_DRIVER, SQLITE_DRIVER, ZSTD -> false;
 		default -> true;
 		};
 	}

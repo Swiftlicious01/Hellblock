@@ -40,19 +40,22 @@ public class StatisticsPapi extends PlaceholderExpansion {
 		super.unregister();
 	}
 
+	@SuppressWarnings("deprecation")
 	@Override
 	public @NotNull String getIdentifier() {
-		return "fishingstats";
+		return plugin.getDescription().getName() + "_fishingstats";
 	}
 
+	@SuppressWarnings("deprecation")
 	@Override
 	public @NotNull String getAuthor() {
-		return "Swiftlicious";
+		return plugin.getDescription().getAuthors().getFirst();
 	}
 
+	@SuppressWarnings("deprecation")
 	@Override
 	public @NotNull String getVersion() {
-		return "1.0-ALPHA";
+		return plugin.getDescription().getVersion();
 	}
 
 	@Override

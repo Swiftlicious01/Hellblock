@@ -12,12 +12,18 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.Nullable;
 
+import com.swiftlicious.hellblock.creation.item.CustomItem;
 import com.swiftlicious.hellblock.creation.item.Item;
 import com.swiftlicious.hellblock.generation.HellBiome;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.player.Context;
 import com.swiftlicious.hellblock.player.ContextKeys;
 import com.swiftlicious.hellblock.player.HellblockData;
+import com.swiftlicious.hellblock.utils.extras.Action;
+import com.swiftlicious.hellblock.utils.extras.Requirement;
+import com.swiftlicious.hellblock.utils.extras.Tuple;
+
+import dev.dejvokep.boostedyaml.block.implementation.Section;
 
 public class BiomeGUI {
 
@@ -109,135 +115,34 @@ public class BiomeGUI {
 		if (backElement != null && !backElement.getSlots().isEmpty()) {
 			backElement.setItemStack(manager.backIcon.build(context));
 		}
-		if (biome == HellBiome.SOUL_SAND_VALLEY) {
-			BiomeDynamicGUIElement soulSandValleyElement = (BiomeDynamicGUIElement) getElement(
-					manager.soulSandValleySlot);
-			if (soulSandValleyElement != null && !soulSandValleyElement.getSlots().isEmpty()) {
-				Item<ItemStack> item = manager.instance.getItemManager()
-						.wrap(manager.soulSandValleyIcon.build(context));
-				List<String> newLore = new ArrayList<>();
-				for (String lore : manager.soulSandValleySelectedLore) {
-					newLore.add(AdventureHelper.miniMessageToJson(lore));
+		for (Map.Entry<Character, Tuple<Section, HellBiome, Tuple<CustomItem, Action<Player>[], Requirement<Player>[]>>> biomes : manager.biomeIcons
+				.entrySet()) {
+			if (biome == biomes.getValue().mid()) {
+				BiomeDynamicGUIElement biomeElement = (BiomeDynamicGUIElement) getElement(biomes.getKey());
+				if (biomeElement != null && !biomeElement.getSlots().isEmpty()) {
+					Item<ItemStack> item = manager.instance.getItemManager()
+							.wrap(biomes.getValue().right().left().build(context));
+					List<String> newLore = new ArrayList<>();
+					for (String lore : biomes.getValue().left().getStringList("display.selected-lore")) {
+						newLore.add(AdventureHelper.miniMessageToJson(lore));
+					}
+					item.lore(newLore);
+					if (manager.highlightSelection)
+						item.glint(true);
+					biomeElement.setItemStack(item.load());
 				}
-				item.lore(newLore);
-				if (manager.highlightSelection)
-					item.glint(true);
-				soulSandValleyElement.setItemStack(item.load());
-			}
-		} else {
-			BiomeDynamicGUIElement soulSandValleyElement = (BiomeDynamicGUIElement) getElement(
-					manager.soulSandValleySlot);
-			if (soulSandValleyElement != null && !soulSandValleyElement.getSlots().isEmpty()) {
-				Item<ItemStack> item = manager.instance.getItemManager()
-						.wrap(manager.soulSandValleyIcon.build(context));
-				List<String> newLore = new ArrayList<>();
-				for (String lore : manager.soulSandValleyUnSelectedLore) {
-					newLore.add(AdventureHelper.miniMessageToJson(lore));
+			} else {
+				BiomeDynamicGUIElement biomeElement = (BiomeDynamicGUIElement) getElement(biomes.getKey());
+				if (biomeElement != null && !biomeElement.getSlots().isEmpty()) {
+					Item<ItemStack> item = manager.instance.getItemManager()
+							.wrap(biomes.getValue().right().left().build(context));
+					List<String> newLore = new ArrayList<>();
+					for (String lore : biomes.getValue().left().getStringList("display.unselected-lore")) {
+						newLore.add(AdventureHelper.miniMessageToJson(lore));
+					}
+					item.lore(newLore);
+					biomeElement.setItemStack(item.load());
 				}
-				item.lore(newLore);
-				soulSandValleyElement.setItemStack(item.load());
-			}
-		}
-		if (biome == HellBiome.WARPED_FOREST) {
-			BiomeDynamicGUIElement warpedForestElement = (BiomeDynamicGUIElement) getElement(manager.warpedForestSlot);
-			if (warpedForestElement != null && !warpedForestElement.getSlots().isEmpty()) {
-				Item<ItemStack> item = manager.instance.getItemManager().wrap(manager.warpedForestIcon.build(context));
-				List<String> newLore = new ArrayList<>();
-				for (String lore : manager.warpedForestSelectedLore) {
-					newLore.add(AdventureHelper.miniMessageToJson(lore));
-				}
-				item.lore(newLore);
-				if (manager.highlightSelection)
-					item.glint(true);
-				warpedForestElement.setItemStack(item.load());
-			}
-		} else {
-			BiomeDynamicGUIElement warpedForestElement = (BiomeDynamicGUIElement) getElement(manager.warpedForestSlot);
-			if (warpedForestElement != null && !warpedForestElement.getSlots().isEmpty()) {
-				Item<ItemStack> item = manager.instance.getItemManager().wrap(manager.warpedForestIcon.build(context));
-				List<String> newLore = new ArrayList<>();
-				for (String lore : manager.warpedForestUnSelectedLore) {
-					newLore.add(AdventureHelper.miniMessageToJson(lore));
-				}
-				item.lore(newLore);
-				warpedForestElement.setItemStack(item.load());
-			}
-		}
-		if (biome == HellBiome.CRIMSON_FOREST) {
-			BiomeDynamicGUIElement crimsonForestElement = (BiomeDynamicGUIElement) getElement(
-					manager.crimsonForestSlot);
-			if (crimsonForestElement != null && !crimsonForestElement.getSlots().isEmpty()) {
-				Item<ItemStack> item = manager.instance.getItemManager().wrap(manager.crimsonForestIcon.build(context));
-				List<String> newLore = new ArrayList<>();
-				for (String lore : manager.crimsonForestSelectedLore) {
-					newLore.add(AdventureHelper.miniMessageToJson(lore));
-				}
-				item.lore(newLore);
-				if (manager.highlightSelection)
-					item.glint(true);
-				crimsonForestElement.setItemStack(item.load());
-			}
-		} else {
-			BiomeDynamicGUIElement crimsonForestElement = (BiomeDynamicGUIElement) getElement(
-					manager.crimsonForestSlot);
-			if (crimsonForestElement != null && !crimsonForestElement.getSlots().isEmpty()) {
-				Item<ItemStack> item = manager.instance.getItemManager().wrap(manager.crimsonForestIcon.build(context));
-				List<String> newLore = new ArrayList<>();
-				for (String lore : manager.crimsonForestUnSelectedLore) {
-					newLore.add(AdventureHelper.miniMessageToJson(lore));
-				}
-				item.lore(newLore);
-				crimsonForestElement.setItemStack(item.load());
-			}
-		}
-		if (biome == HellBiome.NETHER_WASTES) {
-			BiomeDynamicGUIElement netherWastesElement = (BiomeDynamicGUIElement) getElement(manager.netherWastesSlot);
-			if (netherWastesElement != null && !netherWastesElement.getSlots().isEmpty()) {
-				Item<ItemStack> item = manager.instance.getItemManager().wrap(manager.netherWastesIcon.build(context));
-				List<String> newLore = new ArrayList<>();
-				for (String lore : manager.netherWastesSelectedLore) {
-					newLore.add(AdventureHelper.miniMessageToJson(lore));
-				}
-				item.lore(newLore);
-				if (manager.highlightSelection)
-					item.glint(true);
-				netherWastesElement.setItemStack(item.load());
-			}
-		} else {
-			BiomeDynamicGUIElement netherWastesElement = (BiomeDynamicGUIElement) getElement(manager.netherWastesSlot);
-			if (netherWastesElement != null && !netherWastesElement.getSlots().isEmpty()) {
-				Item<ItemStack> item = manager.instance.getItemManager().wrap(manager.netherWastesIcon.build(context));
-				List<String> newLore = new ArrayList<>();
-				for (String lore : manager.netherWastesUnSelectedLore) {
-					newLore.add(AdventureHelper.miniMessageToJson(lore));
-				}
-				item.lore(newLore);
-				netherWastesElement.setItemStack(item.load());
-			}
-		}
-		if (biome == HellBiome.BASALT_DELTAS) {
-			BiomeDynamicGUIElement basaltDeltasElement = (BiomeDynamicGUIElement) getElement(manager.basaltDeltasSlot);
-			if (basaltDeltasElement != null && !basaltDeltasElement.getSlots().isEmpty()) {
-				Item<ItemStack> item = manager.instance.getItemManager().wrap(manager.basaltDeltasIcon.build(context));
-				List<String> newLore = new ArrayList<>();
-				for (String lore : manager.basaltDeltasSelectedLore) {
-					newLore.add(AdventureHelper.miniMessageToJson(lore));
-				}
-				item.lore(newLore);
-				if (manager.highlightSelection)
-					item.glint(true);
-				basaltDeltasElement.setItemStack(item.load());
-			}
-		} else {
-			BiomeDynamicGUIElement basaltDeltasElement = (BiomeDynamicGUIElement) getElement(manager.basaltDeltasSlot);
-			if (basaltDeltasElement != null && !basaltDeltasElement.getSlots().isEmpty()) {
-				Item<ItemStack> item = manager.instance.getItemManager().wrap(manager.basaltDeltasIcon.build(context));
-				List<String> newLore = new ArrayList<>();
-				for (String lore : manager.basaltDeltasUnSelectedLore) {
-					newLore.add(AdventureHelper.miniMessageToJson(lore));
-				}
-				item.lore(newLore);
-				basaltDeltasElement.setItemStack(item.load());
 			}
 		}
 		for (Map.Entry<Integer, BiomeGUIElement> entry : itemsSlotMap.entrySet()) {

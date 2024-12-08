@@ -50,10 +50,8 @@ public class HellblockLockCommand extends BukkitCommandFeature<CommandSender> {
 				} else {
 					handleFeedback(context, MessageConstants.MSG_HELLBLOCK_UNLOCK_SUCCESS);
 				}
-				if (onlineUser.get().getHellblockData().isLocked()) {
-					HellblockPlugin.getInstance().getCoopManager().kickVisitorsIfLocked(player.getUniqueId());
-					HellblockPlugin.getInstance().getCoopManager().changeLockStatus(onlineUser.get());
-				}
+				HellblockPlugin.getInstance().getCoopManager().kickVisitorsIfLocked(onlineUser.get().getUUID());
+				HellblockPlugin.getInstance().getProtectionManager().changeLockStatus(player.getWorld(), onlineUser.get().getUUID());
 			} else {
 				handleFeedback(context, MessageConstants.MSG_HELLBLOCK_NOT_FOUND);
 				return;

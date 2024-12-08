@@ -23,7 +23,6 @@ import org.bukkit.World.Environment;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.entity.FallingBlock;
-import org.bukkit.entity.Firework;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Event.Result;
@@ -142,10 +141,8 @@ public class PlayerListener implements Listener, Reloadable {
 		if (event.getEntity() instanceof Player player) {
 			if (!instance.getHellblockHandler().isInCorrectWorld(player))
 				return;
-			if (event.getDamager() instanceof Firework firework) {
-				if (firework instanceof FakeFirework) {
-					event.setCancelled(true);
-				}
+			if (event.getDamager() instanceof FakeFirework) {
+				event.setCancelled(true);
 			}
 		}
 	}
@@ -173,15 +170,16 @@ public class PlayerListener implements Listener, Reloadable {
 		final UUID id = player.getUniqueId();
 		if (player.getLocation() == null)
 			return;
-		Audience audience = instance.getSenderFactory().getAudience(player);
-		if (instance.getConfigManager().worldguardProtect()) {
-			if (instance.getHellblockHandler().checkIfInSpawn(player.getLocation()))
+		if (event.getTo().getBlockX() == event.getFrom().getBlockX()
+				&& event.getTo().getBlockY() == event.getFrom().getBlockY()
+				&& event.getTo().getBlockZ() == event.getFrom().getBlockZ()) {
+			return; // user didnt actually move a full block
+		}
+		instance.getCoopManager().getHellblockOwnerOfVisitingIsland(player).thenAccept(ownerUUID -> {
+			if (ownerUUID == null)
 				return;
-			if (instance.getCoopManager().getHellblockOwnerOfVisitingIsland(player) == null)
-				return;
-			instance.getStorageManager()
-					.getOfflineUserData(instance.getCoopManager().getHellblockOwnerOfVisitingIsland(player),
-							instance.getConfigManager().lockData())
+			Audience audience = instance.getSenderFactory().getAudience(player);
+			instance.getStorageManager().getOfflineUserData(ownerUUID, instance.getConfigManager().lockData())
 					.thenAccept((result) -> {
 						if (result.isEmpty())
 							return;
@@ -203,10 +201,9 @@ public class PlayerListener implements Listener, Reloadable {
 														.render(MessageConstants.MSG_HELLBLOCK_UNSAFE_TELEPORT_TO_ISLAND
 																.build()));
 
-												if (onlineUser.get().getHellblockData().getOwnerUUID() == null) {
+												if (onlineUser.get().getHellblockData().getOwnerUUID() == null)
 													throw new NullPointerException(
 															"Owner reference returned null, please report this to the developer.");
-												}
 												instance.getStorageManager()
 														.getOfflineUserData(
 																onlineUser.get().getHellblockData().getOwnerUUID(),
@@ -234,7 +231,7 @@ public class PlayerListener implements Listener, Reloadable {
 							}
 						}
 					});
-		}
+		});
 	}
 
 	@EventHandler
@@ -247,15 +244,11 @@ public class PlayerListener implements Listener, Reloadable {
 			final UUID id = player.getUniqueId();
 			if (player.getLocation() == null)
 				return;
-			Audience audience = instance.getSenderFactory().getAudience(player);
-			if (instance.getConfigManager().worldguardProtect()) {
-				if (instance.getHellblockHandler().checkIfInSpawn(player.getLocation()))
+			instance.getCoopManager().getHellblockOwnerOfVisitingIsland(player).thenAccept(ownerUUID -> {
+				if (ownerUUID == null)
 					return;
-				if (instance.getCoopManager().getHellblockOwnerOfVisitingIsland(player) == null)
-					return;
-				instance.getStorageManager()
-						.getOfflineUserData(instance.getCoopManager().getHellblockOwnerOfVisitingIsland(player),
-								instance.getConfigManager().lockData())
+				Audience audience = instance.getSenderFactory().getAudience(player);
+				instance.getStorageManager().getOfflineUserData(ownerUUID, instance.getConfigManager().lockData())
 						.thenAccept((result) -> {
 							if (result.isEmpty())
 								return;
@@ -309,7 +302,7 @@ public class PlayerListener implements Listener, Reloadable {
 								}
 							}
 						});
-			}
+			});
 		}
 	}
 
@@ -606,6 +599,11 @@ public class PlayerListener implements Listener, Reloadable {
 		final Player player = event.getPlayer();
 		if (!instance.getHellblockHandler().isInCorrectWorld(player))
 			return;
+        if (event.getTo().getBlockX() == event.getFrom().getBlockX() &&
+                event.getTo().getBlockY() == event.getFrom().getBlockY() &&
+                event.getTo().getBlockZ() == event.getFrom().getBlockZ()) {
+            return; // user didnt actually move a full block
+        }
 		if (playerInPortal(player))
 			return;
 		final UUID id = player.getUniqueId();
@@ -628,7 +626,7 @@ public class PlayerListener implements Listener, Reloadable {
 	@EventHandler(priority = EventPriority.HIGHEST)
 	public void onRespawn(PlayerRespawnEvent event) {
 		final Player player = event.getPlayer();
-		if (player.getBedSpawnLocation() == null)
+		if (player.getWorld().isRespawnAnchorWorks() && player.getBedSpawnLocation() == null)
 			return;
 		if (event.getRespawnReason() == RespawnReason.DEATH) {
 			Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
@@ -659,6 +657,11 @@ public class PlayerListener implements Listener, Reloadable {
 		final Player player = event.getPlayer();
 		if (!instance.getHellblockHandler().isInCorrectWorld(player))
 			return;
+        if (event.getTo().getBlockX() == event.getFrom().getBlockX() &&
+                event.getTo().getBlockY() == event.getFrom().getBlockY() &&
+                event.getTo().getBlockZ() == event.getFrom().getBlockZ()) {
+            return; // user didnt actually move a full block
+        }
 		final UUID id = player.getUniqueId();
 		if (player.getLocation().getY() <= 0) {
 			Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(id);

@@ -93,6 +93,20 @@ public interface UserDataInterface {
 	boolean isLocked();
 
 	/**
+	 * Checks if location is unsafe.
+	 *
+	 * @return true if the location is unsafe, false otherwise
+	 */
+	boolean inUnsafeLocation();
+
+	/**
+	 * Checks if the inventory should be cleared.
+	 *
+	 * @return true if the inventory should be cleared, false otherwise
+	 */
+	boolean isClearingInventory();
+
+	/**
 	 * Converts the user data to a minimized format that can be saved.
 	 *
 	 * @return the {@link PlayerData}
@@ -177,6 +191,23 @@ public interface UserDataInterface {
 		 * @return the current {@link Builder} instance for method chaining
 		 */
 		Builder setLocked(boolean isLocked);
+
+		/**
+		 * Sets whether the location is unsafe for the {@link UserData} being built.
+		 *
+		 * @param unsafeLocation true if the location is unsafe, false otherwise
+		 * @return the current {@link Builder} instance for method chaining
+		 */
+		Builder setUnsafeLocation(boolean unsafeLocation);
+
+		/**
+		 * Sets whether the inventory should be cleared for the {@link UserData} being
+		 * built.
+		 *
+		 * @param clearItems true if the items should be cleared, false otherwise
+		 * @return the current {@link Builder} instance for method chaining
+		 */
+		Builder setClearInventory(boolean clearItems);
 
 		/**
 		 * Sets the player data for the {@link UserData} being built.

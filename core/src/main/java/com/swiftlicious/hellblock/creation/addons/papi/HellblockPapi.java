@@ -29,19 +29,22 @@ public class HellblockPapi extends PlaceholderExpansion {
 		super.unregister();
 	}
 
+	@SuppressWarnings("deprecation")
 	@Override
 	public @NotNull String getIdentifier() {
-		return "Hellblock";
+		return plugin.getDescription().getName();
 	}
 
+	@SuppressWarnings("deprecation")
 	@Override
 	public @NotNull String getAuthor() {
-		return "Swiftlicious";
+		return plugin.getDescription().getAuthors().getFirst();
 	}
 
+	@SuppressWarnings("deprecation")
 	@Override
 	public @NotNull String getVersion() {
-		return "1.0-ALPHA";
+		return plugin.getDescription().getVersion();
 	}
 
 	@Override
@@ -58,6 +61,36 @@ public class HellblockPapi extends PlaceholderExpansion {
 		switch (split[0]) {
 		case "random" -> {
 			return String.valueOf(RandomUtils.generateRandomDouble(0, 1));
+		}
+		case "level" -> {
+			UserData user;
+			if (split.length < 3) {
+				user = plugin.getStorageManager().getOnlineUser(player.getUniqueId()).orElse(null);
+			} else {
+				Player another = Bukkit.getPlayer(split[2]);
+				if (another == null) {
+					return "";
+				}
+				user = plugin.getStorageManager().getOnlineUser(another.getUniqueId()).orElse(null);
+			}
+			if (user == null)
+				return "";
+			return String.format("%s", user.getHellblockData().getLevel());
+		}
+		case "visits" -> {
+			UserData user;
+			if (split.length < 3) {
+				user = plugin.getStorageManager().getOnlineUser(player.getUniqueId()).orElse(null);
+			} else {
+				Player another = Bukkit.getPlayer(split[2]);
+				if (another == null) {
+					return "";
+				}
+				user = plugin.getStorageManager().getOnlineUser(another.getUniqueId()).orElse(null);
+			}
+			if (user == null)
+				return "";
+			return String.format("%s", user.getHellblockData().getTotalVisits());
 		}
 		case "market" -> {
 			if (split.length < 2)

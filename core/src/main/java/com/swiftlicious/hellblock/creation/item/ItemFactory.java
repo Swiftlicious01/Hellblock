@@ -47,10 +47,6 @@ public abstract class ItemFactory<P extends HellblockPlugin, R, I> {
 
 	protected abstract void skull(R item, String skullData);
 
-	protected abstract void potionEffect(R item, String effect);
-
-	protected abstract void potionColor(R item, int color);
-
 	protected abstract Optional<List<String>> lore(R item);
 
 	protected abstract void lore(R item, List<String> lore);

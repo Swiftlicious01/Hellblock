@@ -1,10 +1,9 @@
 package com.swiftlicious.hellblock.generation;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
-import java.util.Set;
-import java.util.UUID;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
@@ -14,16 +13,16 @@ import org.bukkit.World;
 import org.bukkit.block.Biome;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
+import org.bukkit.util.BoundingBox;
 import org.jetbrains.annotations.NotNull;
-
-import com.sk89q.worldedit.bukkit.BukkitAdapter;
-import com.sk89q.worldedit.math.BlockVector3;
-import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
+import com.swiftlicious.hellblock.handlers.RequirementManagerInterface;
+import com.swiftlicious.hellblock.player.Context;
 import com.swiftlicious.hellblock.player.UserData;
+import com.swiftlicious.hellblock.world.HellblockWorld;
 
 import net.kyori.adventure.audience.Audience;
 
@@ -35,7 +34,7 @@ public class BiomeHandler {
 		instance = plugin;
 	}
 
-	public void changeHellblockBiome(@NotNull UserData user, @NotNull HellBiome biome) {
+	public void changeHellblockBiome(@NotNull UserData user, @NotNull HellBiome biome, boolean performedByGUI) {
 		Player player = user.getPlayer();
 		if (player != null) {
 			Audience audience = instance.getSenderFactory().getAudience(player);
@@ -67,52 +66,53 @@ public class BiomeHandler {
 				return;
 			}
 
-			if (instance.getConfigManager().worldguardProtect()) {
-				ProtectedRegion region = instance.getWorldGuardHandler().getRegion(player.getUniqueId(),
-						user.getHellblockData().getID());
-				if (region == null) {
-					throw new NullPointerException("Region returned null, please report this to the developer.");
-				}
-				Set<UUID> owners = region.getOwners().getUniqueIds();
-				if (!owners.contains(player.getUniqueId())) {
-					audience.sendMessage(instance.getTranslationManager()
-							.render(MessageConstants.MSG_NOT_OWNER_OF_HELLBLOCK.build()));
-					return;
-				}
-
-				if (player.getLocation() != null && !region.contains(player.getLocation().getBlockX(),
-						player.getLocation().getBlockY(), player.getLocation().getBlockZ())) {
-					audience.sendMessage(instance.getTranslationManager()
-							.render(MessageConstants.MSG_HELLBLOCK_MUST_BE_ON_ISLAND.build()));
-					return;
-				}
-
-				if (user.getHellblockData().getHomeLocation().getBlock().getBiome().getKey().getKey()
-						.equalsIgnoreCase(biome.toString().toLowerCase())) {
-					audience.sendMessage(
-							instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_BIOME_SAME_BIOME
-									.arguments(AdventureHelper.miniMessage(biome.getName())).build()));
-					return;
-				}
-
-				setHellblockBiome(region, biome.getConvertedBiome());
-
-				user.getHellblockData().setBiome(biome);
-				user.getHellblockData().setBiomeCooldown(86400L);
-				audience.sendMessage(
-						instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_BIOME_CHANGED
-								.arguments(AdventureHelper.miniMessage(biome.getName())).build()));
-			} else {
-				// TODO: using plugin protection
+			if (player.getLocation() != null
+					&& !user.getHellblockData().getBoundingBox().contains(player.getLocation().getBlockX(),
+							player.getLocation().getBlockY(), player.getLocation().getBlockZ())) {
+				audience.sendMessage(instance.getTranslationManager()
+						.render(MessageConstants.MSG_HELLBLOCK_MUST_BE_ON_ISLAND.build()));
+				return;
 			}
+
+			if (user.getHellblockData().getHomeLocation().getBlock().getBiome().getKey().getKey()
+					.equalsIgnoreCase(biome.toString().toLowerCase())) {
+				audience.sendMessage(
+						instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_BIOME_SAME_BIOME
+								.arguments(AdventureHelper.miniMessage(biome.getName())).build()));
+				return;
+			}
+
+			if (!performedByGUI && instance.getBiomeGUIManager().getBiomeRequirements(biome) != null) {
+				if (!RequirementManagerInterface.isSatisfied(Context.player(player),
+						instance.getBiomeGUIManager().getBiomeRequirements(biome))) {
+					return;
+				}
+			}
+
+			Optional<HellblockWorld<?>> world = instance.getWorldManager()
+					.getWorld(instance.getWorldManager().getHellblockWorldFormat(user.getHellblockData().getID()));
+			if (world.isEmpty() || world.get() == null)
+				throw new NullPointerException(
+						"World returned null, please try to regenerate the world before reporting this issue.");
+			World bukkitWorld = world.get().bukkitWorld();
+
+			setHellblockBiome(bukkitWorld, user.getHellblockData().getBoundingBox(), biome.getConvertedBiome());
+
+			user.getHellblockData().setBiome(biome);
+			user.getHellblockData().setBiomeCooldown(86400L);
+			audience.sendMessage(instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_BIOME_CHANGED
+					.arguments(AdventureHelper.miniMessage(biome.getName())).build()));
 		}
 	}
 
-	public void setHellblockBiome(@NotNull ProtectedRegion region, @NotNull Biome biome) {
-		World world = instance.getHellblockHandler().getHellblockWorld();
-		getHellblockChunks(region).thenAccept(chunks -> {
-			Location min = BukkitAdapter.adapt(world, region.getMinimumPoint());
-			Location max = BukkitAdapter.adapt(world, region.getMaximumPoint());
+	public void setHellblockBiome(@NotNull World world, @NotNull BoundingBox bounds, @NotNull Biome biome) {
+		Objects.requireNonNull(biome, () -> "Unsupported biome: " + biome.name());
+		Objects.requireNonNull(world, "Cannot set biome of null world");
+		Objects.requireNonNull(bounds, "Cannot set biome of null bounding box");
+
+		getHellblockChunks(world, bounds).thenAccept(chunks -> {
+			Location min = new Location(world, bounds.getMinX(), bounds.getMinY(), bounds.getMinZ());
+			Location max = new Location(world, bounds.getMaxX(), bounds.getMaxY(), bounds.getMaxZ());
 			setBiome(min, max, biome).thenRun(() -> {
 				for (Chunk chunk : chunks) {
 					chunk.getWorld().refreshChunk(chunk.getX(), chunk.getZ());
@@ -124,7 +124,18 @@ public class BiomeHandler {
 		});
 	}
 
+	/**
+	 * Change the biome in the selected region. Unloaded chunks will be ignored.
+	 * Note that this doesn't send any update packets to the nearby clients.
+	 *
+	 * @param start the start position.
+	 * @param end   the end position.
+	 **/
+	@NotNull
 	public CompletableFuture<Void> setBiome(@NotNull Location start, @NotNull Location end, @NotNull Biome biome) {
+		Objects.requireNonNull(start, "Start location cannot be null");
+		Objects.requireNonNull(end, "End location cannot be null");
+		Objects.requireNonNull(biome, () -> "Unsupported biome: " + biome.name());
 		World world = start.getWorld(); // Avoid getting from weak reference in a loop.
 		if (!world.getUID().equals(end.getWorld().getUID()))
 			throw new IllegalArgumentException("Location worlds mismatch");
@@ -140,8 +151,7 @@ public class BiomeHandler {
 					for (int z = start.getBlockZ(); z < end.getBlockZ(); z++) {
 						Block block = new Location(world, x, y, z).getBlock();
 						if (block.getBiome() != biome)
-							if (block.getBiome() != biome)
-								block.setBiome(biome);
+							block.setBiome(biome);
 					}
 				}
 			}
@@ -151,28 +161,23 @@ public class BiomeHandler {
 		});
 	}
 
-	public CompletableFuture<List<Chunk>> getHellblockChunks(@NotNull ProtectedRegion region) {
-		return CompletableFuture.supplyAsync(() -> {
-			List<Chunk> chunks = new ArrayList<>();
+	@NotNull
+	public CompletableFuture<List<Chunk>> getHellblockChunks(@NotNull World world, @NotNull BoundingBox bounds) {
+		Objects.requireNonNull(bounds, "Cannot get chunks of null bounding box");
+		CompletableFuture<List<Chunk>> chunkData = new CompletableFuture<>();
+		List<Chunk> chunks = new ArrayList<>();
 
-			World world = instance.getHellblockHandler().getHellblockWorld();
-			BlockVector3 pos1 = region.getMinimumPoint();
-			BlockVector3 pos2 = region.getMaximumPoint();
+		int minX = (int) bounds.getMinX() >> 4;
+		int minZ = (int) bounds.getMinZ() >> 4;
+		int maxX = (int) bounds.getMaxX() >> 4;
+		int maxZ = (int) bounds.getMaxZ() >> 4;
 
-			int minX = pos1.x() >> 4;
-			int minZ = pos1.z() >> 4;
-			int maxX = pos2.x() >> 4;
-			int maxZ = pos2.z() >> 4;
-
-			for (int x = minX; x <= maxX; x++) {
-				for (int z = minZ; z <= maxZ; z++) {
-					chunks.add(world.getChunkAt(x, z));
-				}
+		for (int x = minX; x <= maxX; x++) {
+			for (int z = minZ; z <= maxZ; z++) {
+				chunks.add(world.getChunkAt(x, z));
 			}
-			return chunks.stream().collect(Collectors.toList());
-		}).exceptionally(throwable -> {
-			throwable.printStackTrace();
-			return Collections.emptyList();
-		});
+		}
+		chunkData.complete(chunks.stream().collect(Collectors.toList()));
+		return chunkData;
 	}
 }

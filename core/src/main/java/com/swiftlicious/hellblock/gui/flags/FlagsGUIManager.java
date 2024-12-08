@@ -281,7 +281,8 @@ public class FlagsGUIManager implements FlagsGUIManagerInterface, Listener {
 				if (element.getSymbol() == flag.left()) {
 					event.setCancelled(true);
 					FlagType flagType = flag.right().mid();
-					instance.getIslandProtectionManager().changeProtectionFlag(gui.context.holder().getUniqueId(),
+					instance.getProtectionManager().changeProtectionFlag(gui.context.holder().getWorld(),
+							gui.context.holder().getUniqueId(),
 							new HellblockFlag(flagType,
 									(gui.hellblockData.getProtectionValue(flagType) == AccessType.ALLOW
 											? AccessType.DENY

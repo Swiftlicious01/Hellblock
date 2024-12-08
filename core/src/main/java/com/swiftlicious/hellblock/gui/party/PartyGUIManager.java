@@ -167,15 +167,31 @@ public class PartyGUIManager implements PartyGUIManagerInterface, Listener {
 					.warn("Player " + player.getName() + "'s hellblock data has not been loaded yet.");
 			return false;
 		}
+		if (optionalUserData.get().getHellblockData().getOwnerUUID() == null) {
+			instance.getPluginLogger()
+					.warn("Owner UUID for player " + player.getName() + "'s was unable to be retrieved.");
+			return false;
+		}
 		Context<Player> context = Context.player(player);
 		PartyGUI gui = new PartyGUI(this, context, optionalUserData.get().getHellblockData(), isOwner);
 		gui.addElement(new PartyDynamicGUIElement(backSlot, new ItemStack(Material.AIR)));
 		gui.addElement(new PartyDynamicGUIElement(ownerSlot, new ItemStack(Material.AIR)));
-		for (Tuple<Character, Section, Tuple<CustomItem, UUID, Action<Player>[]>> entry : memberIcons) {
-			gui.addElement(new PartyDynamicGUIElement(entry.left(), new ItemStack(Material.AIR)));
+		Optional<UserData> optionalOwnerData = instance.getStorageManager()
+				.getOnlineUser(optionalUserData.get().getHellblockData().getOwnerUUID());
+		if (optionalOwnerData.isEmpty()) {
+			instance.getPluginLogger().warn("Player " + player.getName() + "'s hellblock owner data for "
+					+ optionalUserData.get().getHellblockData().getOwnerUUID() + "  has not been loaded yet.");
+			return false;
 		}
-		for (Map.Entry<Character, Pair<CustomItem, Action<Player>[]>> entry : newMemberIcons.entrySet()) {
-			gui.addElement(new PartyDynamicGUIElement(entry.getKey(), new ItemStack(Material.AIR)));
+		for (int i = 0; i < instance.getCoopManager().getMaxPartySize(optionalOwnerData.get()); i++) {
+			for (Tuple<Character, Section, Tuple<CustomItem, UUID, Action<Player>[]>> entry : memberIcons) {
+				gui.addElement(new PartyDynamicGUIElement(entry.left(), new ItemStack(Material.AIR)));
+			}
+			if (isOwner) {
+				for (Map.Entry<Character, Pair<CustomItem, Action<Player>[]>> entry : newMemberIcons.entrySet()) {
+					gui.addElement(new PartyDynamicGUIElement(entry.getKey(), new ItemStack(Material.AIR)));
+				}
+			}
 		}
 		for (Map.Entry<Character, Pair<CustomItem, Action<Player>[]>> entry : decorativeIcons.entrySet()) {
 			gui.addElement(new PartyGUIElement(entry.getKey(), entry.getValue().left().build(context)));

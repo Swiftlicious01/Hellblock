@@ -37,6 +37,12 @@ public class PlayerData {
 	@Expose
 	@SerializedName("cachedlocations")
 	protected LocationCacheData locationCacheData;
+	@Expose
+	@SerializedName("unsafe")
+	protected boolean unsafeLocation;
+	@Expose
+	@SerializedName("clearinv")
+	protected boolean clearItems;
 
 	transient private UUID uuid;
 	transient private boolean locked;
@@ -44,7 +50,7 @@ public class PlayerData {
 
 	public PlayerData(UUID uuid, String name, EarningData earningData, StatisticData statisticData,
 			ChallengeData challengeData, HellblockData hellblockData, LocationCacheData locationCacheData,
-			boolean isLocked) {
+			boolean isLocked, boolean unsafeLocation, boolean clearItems) {
 		this.name = name;
 		this.earningData = earningData;
 		this.statisticData = statisticData;
@@ -52,6 +58,8 @@ public class PlayerData {
 		this.hellblockData = hellblockData;
 		this.locationCacheData = locationCacheData;
 		this.locked = isLocked;
+		this.unsafeLocation = unsafeLocation;
+		this.clearItems = clearItems;
 		this.uuid = uuid;
 	}
 
@@ -60,8 +68,8 @@ public class PlayerData {
 	}
 
 	public static @NotNull PlayerData empty() {
-		return new Builder().setName(DEFAULT_NAME).setUUID(new UUID(0, 0)).setLocked(false)
-				.setLocationCacheData(DEFAULT_LOCATION).setEarningData(DEFAULT_EARNING)
+		return new Builder().setName(DEFAULT_NAME).setUUID(new UUID(0, 0)).setLocked(false).setInUnsafeLocation(false)
+				.setToClearItems(false).setLocationCacheData(DEFAULT_LOCATION).setEarningData(DEFAULT_EARNING)
 				.setStatisticData(DEFAULT_STATISTIC).setHellblockData(DEFAULT_HELLBLOCK)
 				.setChallengeData(DEFAULT_CHALLENGE).build();
 	}
@@ -75,6 +83,8 @@ public class PlayerData {
 		private HellblockData hellblockData = DEFAULT_HELLBLOCK;
 		private LocationCacheData locationCacheData = DEFAULT_LOCATION;
 		private boolean isLocked = false;
+		private boolean unsafeLocation = false;
+		private boolean clearItems = false;
 		private UUID uuid;
 
 		@NotNull
@@ -92,6 +102,18 @@ public class PlayerData {
 		@NotNull
 		public Builder setLocked(boolean locked) {
 			this.isLocked = locked;
+			return this;
+		}
+
+		@NotNull
+		public Builder setInUnsafeLocation(boolean unsafe) {
+			this.unsafeLocation = unsafe;
+			return this;
+		}
+
+		@NotNull
+		public Builder setToClearItems(boolean clear) {
+			this.clearItems = clear;
 			return this;
 		}
 
@@ -128,7 +150,8 @@ public class PlayerData {
 		@NotNull
 		public PlayerData build() {
 			return new PlayerData(Objects.requireNonNull(this.uuid), this.name, this.earningData, this.statisticData,
-					this.challengeData, this.hellblockData, this.locationCacheData, this.isLocked);
+					this.challengeData, this.hellblockData, this.locationCacheData, this.isLocked, this.unsafeLocation,
+					this.clearItems);
 		}
 	}
 
@@ -196,6 +219,42 @@ public class PlayerData {
 	 */
 	public @NotNull String getName() {
 		return this.name;
+	}
+
+	/**
+	 * Gets if the location is unsafe
+	 *
+	 * @return unsafe or not
+	 */
+	public boolean inUnsafeLocation() {
+		return this.unsafeLocation;
+	}
+
+	/**
+	 * Gets if the inventory is cleared
+	 *
+	 * @return cleared or not
+	 */
+	public boolean isClearingItems() {
+		return this.clearItems;
+	}
+
+	/**
+	 * Set if the location is unsafe
+	 *
+	 * @param unsafe unsafe or not
+	 */
+	public void setInUnsafeLocation(boolean unsafe) {
+		this.unsafeLocation = unsafe;
+	}
+
+	/**
+	 * Set if the inventory is cleared
+	 *
+	 * @param clear cleared or not
+	 */
+	public void setToClearItems(boolean clear) {
+		this.clearItems = clear;
 	}
 
 	/**

@@ -119,15 +119,17 @@ public class CoopUntrustCommand extends BukkitCommandFeature<CommandSender> {
 										return;
 									}
 									offlineUser.getHellblockData().removeTrustPermission(player.getUniqueId());
-									HellblockPlugin.getInstance().getCoopManager().removeTrustAccess(onlineUser.get(),
-											user, id);
-									handleFeedback(context, MessageConstants.MSG_HELLBLOCK_COOP_TRUST_REVOKED
-											.arguments(Component.text(user)));
-									if (offlineUser.isOnline()) {
-										handleFeedback(Bukkit.getPlayer(offlineUser.getUUID()),
-												MessageConstants.MSG_HELLBLOCK_COOP_TRUST_LOST
-														.arguments(Component.text(player.getName())));
-									}
+									HellblockPlugin.getInstance().getCoopManager()
+											.removeTrustAccess(onlineUser.get(), user, id).thenAccept(trust -> {
+												handleFeedback(context,
+														MessageConstants.MSG_HELLBLOCK_COOP_TRUST_REVOKED
+																.arguments(Component.text(user)));
+												if (offlineUser.isOnline()) {
+													handleFeedback(Bukkit.getPlayer(offlineUser.getUUID()),
+															MessageConstants.MSG_HELLBLOCK_COOP_TRUST_LOST
+																	.arguments(Component.text(player.getName())));
+												}
+											});
 								});
 					} else {
 						handleFeedback(context, MessageConstants.MSG_HELLBLOCK_NOT_FOUND);

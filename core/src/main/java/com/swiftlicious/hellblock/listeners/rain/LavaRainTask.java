@@ -2,6 +2,7 @@ package com.swiftlicious.hellblock.listeners.rain;
 
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import org.bukkit.Location;
@@ -22,9 +23,10 @@ import org.bukkit.util.BlockIterator;
 import org.bukkit.util.Vector;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
-import com.swiftlicious.hellblock.listeners.rain.LavaRain.LavaRainLocation;
+import com.swiftlicious.hellblock.listeners.rain.RainHandler.LavaRainLocation;
 import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.scheduler.SchedulerTask;
+import com.swiftlicious.hellblock.utils.LocationUtils;
 import com.swiftlicious.hellblock.utils.RandomUtils;
 
 import net.kyori.adventure.sound.Sound;
@@ -43,6 +45,10 @@ public class LavaRainTask implements Runnable {
 	private boolean hasRainedRecently;
 	private boolean waitCache;
 
+	private final Set<EntityType> immuneMobs = Set.of(EntityType.PLAYER, EntityType.STRIDER, EntityType.BLAZE,
+			EntityType.WITHER_SKELETON, EntityType.ZOMBIFIED_PIGLIN, EntityType.ZOGLIN, EntityType.VEX,
+			EntityType.WITHER, EntityType.WARDEN);
+
 	/**
 	 * Constructs a new LavaRainTask.
 	 *
@@ -57,7 +63,7 @@ public class LavaRainTask implements Runnable {
 		this.hasRainedRecently = hasRainedRecently;
 		this.howLongRainLasts = howLongRainLasts;
 		this.cancellableTask = plugin.getScheduler().sync().runRepeating(this, 0, instance.getConfigManager().delay(),
-				null);
+				LocationUtils.getAnyLocationInstance());
 	}
 
 	@Override
@@ -109,8 +115,7 @@ public class LavaRainTask implements Runnable {
 				Iterator<Block> blocks = lavaRainLocation.getBlocks();
 				Block block;
 				Block particleSpawn;
-				if (instance.getHellblockHandler().isInCorrectWorld(player)
-						&& !instance.getHellblockHandler().checkIfInSpawn(location)) {
+				if (instance.getHellblockHandler().isInCorrectWorld(player)) {
 					while (true) {
 						while (true) {
 							do {
@@ -137,7 +142,7 @@ public class LavaRainTask implements Runnable {
 										}
 										if (instance.getLavaRainHandler().canHurtLivingCreatures()) {
 											Collection<Entity> entities = world.getNearbyEntities(location, 20.0D,
-													20.0D, 20.0D, (e) -> e.getType() != EntityType.PLAYER);
+													20.0D, 20.0D, (e) -> !immuneMobs.contains(e.getType()));
 											for (Entity entity : entities) {
 												if (entity instanceof LivingEntity living) {
 													Block above = instance.getLavaRainHandler()
@@ -261,7 +266,7 @@ public class LavaRainTask implements Runnable {
 	 * Cancels the rain animation and cleans up resources.
 	 */
 	public void cancelAnimation() {
-		if (this.cancellableTask != null)
+		if (this.cancellableTask.isCancelled())
 			this.cancellableTask.cancel();
 		this.isRaining = false;
 		this.howLongRainLasts = 0L;

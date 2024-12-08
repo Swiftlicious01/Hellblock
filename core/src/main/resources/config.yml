@@ -16,11 +16,8 @@ update-checker: false
 force-locale: 'en'
 
 general:
-  world: hellworld
-  spawn-size: 25
-  # Whether or not hellblocks should be all in one world (defined above) or each have a seperate world.
-  # Note: This requires the plugin SlimeWorldManager if you were to use this setting.
-  per-player-worlds: false
+  # This command is used to teleport players out of hellblocks that they shouldn't be in. 
+  spawn-command: '/spawn'
   # Redis sync settings
   redis-synchronization:
     # Use Redis for cross-server data synchronization
@@ -29,10 +26,79 @@ general:
     server-group: default
     # Increase this value to allow more placeholders like {4_player} and {5_level}
     placeholder-limit: 3
+  worlds:
+	# Whether or not to use SlimeWorldManager to control per player worlds used for each hellblock.
+    # If  set to true the follow two fields are ignored and not used.
+	per-player-worlds: false
+	# The name of the world if using bukkit world (opposed to having SlimeWorldManager installed)
+	world: 'hellworld'
+    # Some servers use separate directories for player worlds, which may not be in the server's root directory.
+    # This option allows you to specify a custom path to these world folders. This is only applicable for Bukkit worlds.
+    absolute-world-folder-path: ''
+    # Specifies which worlds the plugin's mechanisms should apply to
+    # Options: whitelist/blacklist/regex
+    mode: blacklist
+    list:
+      - blacklist_world # A world that doesn't exist
+    settings:
+      # Default settings that apply to all worlds
+      _DEFAULT_:
+        # Whether to enable the plugin's pre-configured systems
+        # Disabling this stops all mechanisms from ticking unless fully managed via the API.
+        # If you're not familiar with using Hellblock API, keep this set to true as it meets the needs of 99% of users.
+        enable: true
+        # This is different from the vanilla RandomTickSpeed.
+        # "Random tick" here means randomly selecting n blocks within a 16x16x16 section every second for ticking, unlike Minecraft's per-tick approach.
+        # Therefore, Hellblock' random ticks have minimal impact on the server and run on multiple threads.
+        random-tick-speed: 30
+        # The minimum tick interval in seconds when using scheduled tick mode
+        # A value of 200s means a crop is guaranteed to tick at least once every 180 seconds
+        # For crops, growth rates are nearly uniform under the same conditions
+        min-tick-unit: 200
+        # Settings for ticking while the world is offline
+        # Allows crops to grow even if the world is unloaded or the server is down
+        # This might cause issues with time-dependent conditions
+        offline-tick:
+          enable: false
+          # Maximum offline time recorded in seconds
+          # Avoid setting this too high, as it may cause long-unloaded chunks to take a long time to load
+          max-offline-seconds: 1200
+          # Maximum time allowed for loading a chunk
+          # Sometimes, chunks with large amounts of data that have been unloaded for a long time can take a while to load,
+          # potentially causing unexpected issues
+          # This setting allows the plugin to forcibly interrupt the tick process if loading time exceeds a set threshold
+          max-loading-time: 100 #ms
+        # Crop settings
+        farming:
+          # [RANDOM_TICK]
+          # Random tick mode mirrors vanilla behavior, where crops grow randomly
+          # This randomness can cause significant stage differences among crops grown under identical conditions
+          # [SCHEDULED_TICK]
+          # Scheduled tick mode provides more predictable growth management,
+          # ensuring crops grow at nearly the same rate
+          # [ALL]
+          # Run RANDOM_TICK and SCHEDULED_TICK at the same time
+          mode: RANDOM_TICK
+          # Tick interval determines how many times a block is ticked before its logic is executed
+          tick-interval: 1
+          # Limit the number of crops per chunk (-1 means no limit)
+          max-per-chunk: -1
+      # Override default settings for specific worlds here
+      _WORLDS_:
+        world_nether:
+          enable: false
+        world_the_end:
+          enable: false
 hellblock:
+  # Whether or not players can transfer ownership to others for their hellblocks. 
   can-transfer-islands: true
+  # Whether or not players can link their nether portals to other player's hellblocks. If false a nether portal on any island will just
+  # teleport them to their own hellblock.
   can-link-hellblocks: true
-  max-party-size: 4
+  # This is the maximum amount of players that can join a party without having defined permissions. If you want it set lower than this you can
+  # give the player the permission 'hellcoop.size.<insert number here>' to reduce the number below. The number here is set for when players
+  # have the wildcard permission 'hellcoop.size.*'.
+  max-party-size: 20
   # Can be internalAsync (for us to handle it), fawe or worldedit  
   schematic-paster: worldedit
   # You must add all schematic types (without the .schem or .schematic file type at the end) you want as an option here to be available.
@@ -40,18 +106,26 @@ hellblock:
     - 'default'
     - 'classic'
     - 'example'
+  # The starting height for each hellblock. This will be the height a spawn point is set per hellblock when creating a island.
   height: 150
+  # The distance between each hellblock. This is only accounted for when all hellblocks are stored in one world. Otherwise this is ignored.
   distance: 110
   # Use worldguard for hellblock protection or have us handle it?
   use-worldguard-protection: true
+  # The protection range for each hellblock. This is how far it will protect using WorldGuard or our internal protection system.
   protection-range: 105
+  # Whether or not the owner and party's inventory gets cleared when hellblock gets reset.
   clear-inventory-on-reset: true
-  clear-enderchset-on-reset: true
+  # Whether or not the owner and party's enderchest gets cleared when hellblock gets reset.
+  clear-enderchest-on-reset: true
   # Won't delete the islands but will set them as an abandoned state which removes them from the island region 
   # and any trustees / party members as well. 
   abandon-after-days: 30
+  # Whether entry messages are enabled when entrying hellblock regions.
   entry-message-enabled: true
+  # Whether farewell messages are enabled when leaving hellblock regions.
   farewell-message-enabled: true
+  # If set to true, bed explosions will be disabled in the nether.
   disable-bed-explosions: true
   # If set to true when a sapling is placed on dirt, grass, etc like normal a normal tree will spawn.
   # Otherwise if false it will replace any tree that is grown with a glowstone tree.
@@ -59,7 +133,7 @@ hellblock:
   # If set to true it will teleport players who fall in the void to their hellblock or to spawn if no hellblock is found.
   void-teleport: true
   creation-title-screen:
-    enabled: true
+    enable: true
     title: '<red>Welcome <dark_red>{player}'
     subtitle: '<red>To Your Hellblock!'
     fadeIn: 2
@@ -190,6 +264,14 @@ hellblock:
           - '<gold>Level: <yellow>{hellblock_level}'
           - ' '
           - '<gold>Your overall rank is <yellow><bold>{hellblock_rank}'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:entity.player.levelup'
+            source: 'player'
+            volume: 1
+            pitch: 1
       components:
         minecraft:hide_tooltip: {}
     # Party icon to view party members 
@@ -381,7 +463,11 @@ party:
     title: '<gradient:#A52A2A:#800000:#A52A2A>Hellblock Party</gradient>'
     # The layout for the party menu
     layout:
-      - 'AAOMMMMAX'
+      - 'AAAAAAAAA'
+      - 'AOMMMMMMA'
+      - 'AMMMMMMMA'
+      - 'AMMMMMMMA'
+      - 'AAAAAAAAX'
     # Back icon to return to main menu
     back-icon:
       symbol: 'X'
@@ -480,7 +566,7 @@ invitation:
       - 'LAAAXAAAR'
     # Search icon for typing in the player's icon (Actions aren't acceptable here)
     # The only things that can be changed are what are shown below. name represents what will come up if nothing is typed in.
-	# Otherwise what is typed in the anvil's search bar will be set to the name of the item below.
+    # Otherwise what is typed in the anvil's search bar will be set to the name of the item below.
     search-icon:
       material: NAME_TAG
       display:
@@ -585,7 +671,7 @@ invitation:
             pitch: 1
       components:
         minecraft:hide_tooltip: {}
-	# Decorative icons for visual enhancement
+    # Decorative icons for visual enhancement
     decorative-icons:
       glass-pane:
         symbol: 'A'
@@ -626,7 +712,7 @@ challenges:
       challenge-one:
         symbol: '1'
         material: GOLDEN_PICKAXE
-		# Check the challenge-rewards file for each different challenge types to input here
+        # Check the challenges file for each different challenge types to input here
         challenge-type: NETHERRACK_GENERATOR_CHALLENGE
         display:
           completed-name: '<green>Break {needed_amount} generated blocks!'
@@ -667,7 +753,7 @@ flags:
   gui:
     # The title for the flags menu
     title: '<gradient:#A52A2A:#800000:#A52A2A>Hellblock Flags</gradient>'
-	# The layout for the flags menu
+    # The layout for the flags menu
     layout:
       - 'AAAAAAAAX'
       - 'ABPXXXXXA'
@@ -747,119 +833,156 @@ biome:
     title: '<gradient:#A52A2A:#800000:#A52A2A>Hellblock Biomes</gradient>'
     # The layout for the biome menu
     layout:
-      - 'AASWCNBAX'
+      - 'ASWCNBFAX'
     # Make the biome that is currently selected glow?
     highlight-selected-biome: true
-    # Soul sand valley icon
-    soul-sand-valley-icon:
-      symbol: 'S'
-      material: SOUL_SOIL
-      display:
-        name: '<red>Soul Sand Valley'
-        unselected-lore:
-          - '<dark_red>Click to change to this biome!'
-        selected-lore:
-          - '<dark_red>Click to change to this biome!'
-          - ' '
-          - '<yellow>This is your current selection!'
-      action:
-        sound_action:
-          type: sound
-          value:
-            key: 'minecraft:ui.button.click'
-            source: 'player'
-            volume: 1
-            pitch: 1
-      components:
-        minecraft:hide_tooltip: {}
-    # Warped forest icon
-    warped-forest-icon:
-      symbol: 'W'
-      material: WARPED_STEM
-      display:
-        name: '<red>Warped Forest'
-        unselected-lore:
-          - '<dark_red>Click to change to this biome!'
-        selected-lore:
-          - '<dark_red>Click to change to this biome!'
-          - ' '
-          - '<yellow>This is your current selection!'
-      action:
-        sound_action:
-          type: sound
-          value:
-            key: 'minecraft:ui.button.click'
-            source: 'player'
-            volume: 1
-            pitch: 1
-      components:
-        minecraft:hide_tooltip: {}
-    # Crimson forest icon
-    crimson-forest-icon:
-      symbol: 'C'
-      material: CRIMSON_STEM
-      display:
-        name: '<red>Crimson Forest'
-        unselected-lore:
-          - '<dark_red>Click to change to this biome!'
-        selected-lore:
-          - '<dark_red>Click to change to this biome!'
-          - ' '
-          - '<yellow>This is your current selection!'
-      action:
-        sound_action:
-          type: sound
-          value:
-            key: 'minecraft:ui.button.click'
-            source: 'player'
-            volume: 1
-            pitch: 1
-      components:
-        minecraft:hide_tooltip: {}
-    # Nether wastes icon
-    nether-wastes-icon:
-      symbol: 'N'
-      material: NETHERRACK
-      display:
-        name: '<red>Nether Wastes'
-        unselected-lore:
-          - '<dark_red>Click to change to this biome!'
-        selected-lore:
-          - '<dark_red>Click to change to this biome!'
-          - ' '
-          - '<yellow>This is your current selection!'
-      action:
-        sound_action:
-          type: sound
-          value:
-            key: 'minecraft:ui.button.click'
-            source: 'player'
-            volume: 1
-            pitch: 1
-      components:
-        minecraft:hide_tooltip: {}
-    # Basalt deltas icon
-    basalt-deltas-icon:
-      symbol: 'B'
-      material: NETHERITE_BLOCK
-      display:
-        name: '<red>Basalt Deltas'
-        unselected-lore:
-          - '<dark_red>Click to change to this biome!'
-        selected-lore:
-          - '<dark_red>Click to change to this biome!'
-          - ' '
-          - '<yellow>This is your current selection!'
-      action:
-        sound_action:
-          type: sound
-          value:
-            key: 'minecraft:ui.button.click'
-            source: 'player'
-            volume: 1
-            pitch: 1
-      components:
-        minecraft:hide_tooltip: {}
+    # Biome icons
+    biome-icons:
+      # Soul sand valley icon
+      soul-sand-valley-icon:
+        symbol: 'S'
+        material: SOUL_SOIL
+        # The biome defined for this icon. The options are all listed out below:
+        # [SOUL_SAND_VALLEY, WARPED_FOREST, CRIMSON_FOREST, NETHER_WASTES, BASALT_DELTAS, NETHER_FORTRESS]
+        biome: SOUL_SAND_VALLEY
+        display:
+          name: '<red>Soul Sand Valley'
+          unselected-lore:
+            - '<dark_red>Click to change to this biome!'
+          selected-lore:
+            - '<dark_red>Click to change to this biome!'
+            - ' '
+            - '<yellow>This is your current selection!'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+      # You can also have requirements per biome, for example charging them using Vault economy.
+      # requirement:
+      #   money_requirement:
+      #     type: money
+      #     value: 500
+        components:
+          minecraft:hide_tooltip: {}
+      # Warped forest icon
+      warped-forest-icon:
+        symbol: 'W'
+        material: WARPED_STEM
+        biome: WARPED_FOREST
+        display:
+          name: '<red>Warped Forest'
+          unselected-lore:
+            - '<dark_red>Click to change to this biome!'
+          selected-lore:
+            - '<dark_red>Click to change to this biome!'
+            - ' '
+            - '<yellow>This is your current selection!'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_tooltip: {}
+      # Crimson forest icon
+      crimson-forest-icon:
+        symbol: 'C'
+        material: CRIMSON_STEM
+        biome: CRIMSON_FOREST
+        display:
+          name: '<red>Crimson Forest'
+          unselected-lore:
+            - '<dark_red>Click to change to this biome!'
+          selected-lore:
+            - '<dark_red>Click to change to this biome!'
+            - ' '
+            - '<yellow>This is your current selection!'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_tooltip: {}
+      # Nether wastes icon
+      nether-wastes-icon:
+        symbol: 'N'
+        material: NETHERRACK
+        biome: NETHER_WASTES
+        display:
+          name: '<red>Nether Wastes'
+          unselected-lore:
+            - '<dark_red>Click to change to this biome!'
+          selected-lore:
+            - '<dark_red>Click to change to this biome!'
+            - ' '
+            - '<yellow>This is your current selection!'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_tooltip: {}
+      # Basalt deltas icon
+      basalt-deltas-icon:
+        symbol: 'B'
+        material: NETHERITE_BLOCK
+        biome: BASALT_DELTAS
+        display:
+          name: '<red>Basalt Deltas'
+          unselected-lore:
+            - '<dark_red>Click to change to this biome!'
+          selected-lore:
+            - '<dark_red>Click to change to this biome!'
+            - ' '
+            - '<yellow>This is your current selection!'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_tooltip: {}
+      # Nether fortress icon
+      nether-fortress-icon:
+        symbol: 'F'
+        material: NETHER_BRICK
+        biome: NETHER_FORTRESS
+        display:
+          name: '<red>Nether Fortress'
+          unselected-lore:
+            - '<dark_red>Click to change to this biome!'
+          selected-lore:
+            - '<dark_red>Click to change to this biome!'
+            - ' '
+            - '<yellow>This is your current selection!'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_tooltip: {}
     # Back icon to return to main menu
     back-icon:
       symbol: 'X'
@@ -1075,24 +1198,31 @@ schematic:
 # Example: 'cobblestone:5' will add 5 levels to the hellblock when cobblestone is placed. Doesn't matter if a trusted member, party member or owner places it.
 # Levels are done in a decimal system so it can be 0.5 to only add half a level as well.
 # Blocks will add nothing to the island level unless it is displayed below in the list.
+# If you wish to define a specific mob spawner type you can put the entity's name after like shown in the example below for it to only work for that entity type.
 level-system:
   blocks:
-    - 'COBBLESTONE:0.5'
-    - 'GLOWSTONE:1'
-    - 'NETHERITE_BLOCK:5'
+    COBBLESTONE: 0.5
+    GLOWSTONE: 0.2
+    NETHERITE_BLOCK: 15
+    'SPAWNER:BLAZE': 50
 
 piglin-bartering:
   # If set to true this will clear all default items and only the custom items added below will be dropped.
-  clear-default-outcome: true
+  clear-default-outcome: false
   # This won't change the default items that piglins barter but you can add custom items that are harder to get in the nether here.
-  # The number represents a random chance to get up to that number when bartering between 1 and x where x represents the number you input here.
-  materials:
-    - 'WITHER_ROSE:3'
+  # The amount represents a random chance to get up to that number when bartering between 1 and x where x represents the number you input here.
+  items:
+    '1':
+      material: WITHER_ROSE
+      amount: 3
+      display:
+        name: '<black>Wither Rose'
 
 potions:
   nether-bottle:
     enable: true
     material: POTION
+	glowing: true
     crafting:
       materials:
         GLOWSTONE_DUST: 'G'
@@ -1101,8 +1231,9 @@ potions:
         - 'GGG'
         - 'GBG'
         - 'GGG'
-    potion:
-      color: 25500
+    components:
+      minecraft:potion_contents:
+        custom_color: 16711680
     display:
       name: '<red>Nether Bottle'
       lore:
@@ -1806,10 +1937,10 @@ wither-stats:
   default-health: 300
 
 infinite-lava-options:
-  enabled: true
+  enable: true
   
 lava-rain-options:
-  enabled: true
+  enable: true
   # How far from the player should the lava particles fall (setting this value too high may cause lag !)
   radius: 16
   # Chance to make fire appear on the ground when the lava is falling
@@ -1827,9 +1958,9 @@ netherrack-generator-options:
     pistons: false
   generation:
     blocks:
-      - 'NETHERRACK:95'
-      - 'NETHER_GOLD_ORE:1.5'
-      - 'NETHER_QUARTZ_ORE:2'
+      NETHERRACK: 95
+      NETHER_GOLD_ORE: 1.5
+      NETHER_QUARTZ_ORE: 2
     fallback: NETHERRACK
     particle-effect: LARGE_SMOKE
     generation-sound: 'minecraft:entity.experience_orb.pickup'
@@ -1838,7 +1969,7 @@ netherrack-generator-options:
 
 lava-fishing-options:
   # whether lava fishing is enabled or not.
-  enabled: true
+  enable: true
   # Specifies the conditions required for the lava fishing mechanism to work.
   # Here, the type is !weather, which implies lava fishing won't work if
   # the weather is lava raining.
@@ -2157,6 +2288,9 @@ other-settings:
   # It's recommended to use MiniMessage format. If you insist on using legacy color code "&", enable the support below.
   # Disabling this would improve performance
   legacy-color-code-support: true
+  
+  # Decides whether the process of saving is async
+  async-world-saving: true
 
   # Event priority: MONITOR HIGHEST HIGH NORMAL LOW LOWEST
   event-priority: NORMAL

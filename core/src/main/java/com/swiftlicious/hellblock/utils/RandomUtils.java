@@ -177,6 +177,17 @@ public class RandomUtils {
 	}
 
 	/**
+	 * Spawns a random fortress mob.
+	 *
+	 * @return a random fortress mob
+	 */
+	public static @NotNull EntityType spawnFortressMob() {
+		List<EntityType> entities = List.of(EntityType.BLAZE, EntityType.WITHER_SKELETON);
+		int randomIndex = getInstance().random.nextInt(entities.size());
+		return entities.get(randomIndex);
+	}
+
+	/**
 	 * Picks a random sapling.
 	 * 
 	 * @return a random sapling

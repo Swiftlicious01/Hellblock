@@ -33,14 +33,13 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonSyntaxException;
 import com.google.gson.reflect.TypeToken;
-import com.grinderwolf.swm.api.loaders.SlimeLoader;
 
 import dev.dejvokep.boostedyaml.YamlDocument;
 import net.kyori.adventure.audience.Audience;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.challenges.ChallengeResult;
-import com.swiftlicious.hellblock.challenges.HellblockChallenge.ChallengeType;
+import com.swiftlicious.hellblock.challenges.ChallengeType;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.player.PlayerData;
@@ -64,7 +63,6 @@ public class StorageManager implements StorageManagerInterface, Listener {
 
 	protected final HellblockPlugin instance;
 	private DataStorageInterface dataSource;
-	private SlimeLoader slimeWorldLoader;
 	private StorageType previousType;
 	private final ConcurrentMap<UUID, UserData> onlineUserMap;
 	private final Set<UUID> locked;
@@ -145,24 +143,6 @@ public class StorageManager implements StorageManagerInterface, Listener {
 
 		}
 
-		if (instance.getConfigManager().perPlayerWorlds()
-				&& instance.getHellblockHandler().getSlimeWorldManager() != null) {
-			if (this.dataSource instanceof YamlHandler || this.dataSource instanceof JsonHandler) {
-				this.slimeWorldLoader = instance.getHellblockHandler().getSlimeWorldManager().getLoader("file");
-			} else if (this.dataSource instanceof MongoDBHandler) {
-				this.slimeWorldLoader = instance.getHellblockHandler().getSlimeWorldManager().getLoader("mongodb");
-			} else if (this.dataSource instanceof MySQLHandler || this.dataSource instanceof MariaDBHandler
-					|| this.dataSource instanceof PostgreSQLHandler) {
-				this.slimeWorldLoader = instance.getHellblockHandler().getSlimeWorldManager().getLoader("mysql");
-			} else {
-				this.slimeWorldLoader = null;
-				instance.getPluginLogger()
-						.severe("You can't use per player worlds with the data source set as H2 or SQLite.");
-			}
-		} else {
-			this.slimeWorldLoader = null;
-		}
-
 		// Handle Redis configuration
 		if (!this.hasRedis && config.getBoolean("Redis.enable", false)) {
 			this.redisManager = new RedisManager(instance);
@@ -221,11 +201,6 @@ public class StorageManager implements StorageManagerInterface, Listener {
 
 	public Gson getGson() {
 		return gson;
-	}
-
-	@Nullable
-	public SlimeLoader getSlimeLoader() {
-		return slimeWorldLoader;
 	}
 
 	@NotNull
@@ -310,6 +285,7 @@ public class StorageManager implements StorageManagerInterface, Listener {
 
 		onlineUser.hideBorder();
 		onlineUser.stopSpawningAnimals();
+		onlineUser.stopSpawningFortressMobs();
 
 		if (onlineUser.hasGlowstoneToolEffect() || onlineUser.hasGlowstoneArmorEffect()) {
 			if (player.hasPotionEffect(PotionEffectType.NIGHT_VISION)) {
@@ -443,6 +419,7 @@ public class StorageManager implements StorageManagerInterface, Listener {
 
 		bukkitUser.showBorder();
 		bukkitUser.startSpawningAnimals();
+		bukkitUser.startSpawningFortressMobs();
 		instance.getNetherFarmingHandler().trackNetherFarms(bukkitUser);
 
 		if (!instance.getHellblockHandler().isInCorrectWorld(player))
@@ -473,31 +450,46 @@ public class StorageManager implements StorageManagerInterface, Listener {
 			});
 		}
 
-		if (instance.getCoopManager().getHellblockOwnerOfVisitingIsland(player) != null) {
-			instance.getCoopManager()
-					.kickVisitorsIfLocked(instance.getCoopManager().getHellblockOwnerOfVisitingIsland(player));
-
-			if (instance.getCoopManager().trackBannedPlayer(
-					instance.getCoopManager().getHellblockOwnerOfVisitingIsland(player), player.getUniqueId())) {
-				if (bukkitUser.getHellblockData().hasHellblock()) {
-					if (bukkitUser.getHellblockData().getOwnerUUID() == null) {
-						throw new NullPointerException(
-								"Owner reference returned null, please report this to the developer.");
+		instance.getCoopManager().getHellblockOwnerOfVisitingIsland(player).thenAccept(ownerUUID -> {
+			if (ownerUUID == null)
+				return;
+			instance.getCoopManager().kickVisitorsIfLocked(ownerUUID);
+			instance.getCoopManager().trackBannedPlayer(ownerUUID, player.getUniqueId()).thenAccept((status) -> {
+				if (status) {
+					if (bukkitUser.getHellblockData().hasHellblock()) {
+						if (bukkitUser.getHellblockData().getOwnerUUID() == null) {
+							throw new NullPointerException(
+									"Owner reference returned null, please report this to the developer.");
+						}
+						instance.getStorageManager()
+								.getOfflineUserData(bukkitUser.getHellblockData().getOwnerUUID(), false)
+								.thenAccept((owner) -> {
+									UserData ownerUser = owner.get();
+									instance.getCoopManager().makeHomeLocationSafe(ownerUser, bukkitUser);
+								});
+					} else {
+						instance.getHellblockHandler().teleportToSpawn(player, true);
 					}
-					instance.getStorageManager().getOfflineUserData(bukkitUser.getHellblockData().getOwnerUUID(), false)
-							.thenAccept((owner) -> {
-								UserData ownerUser = owner.get();
-								instance.getCoopManager().makeHomeLocationSafe(ownerUser, bukkitUser);
-							});
-				} else {
-					instance.getHellblockHandler().teleportToSpawn(player, true);
 				}
+			});
+		});
+
+		if (bukkitUser.isClearingInventory()) {
+			if (instance.getConfigManager().resetInventory()) {
+				player.getInventory().clear();
+				player.getInventory().setArmorContents(null);
 			}
+			if (instance.getConfigManager().resetEnderchest()) {
+				player.getEnderChest().clear();
+			}
+			bukkitUser.toPlayerData().setToClearItems(false);
+			audience.sendMessage(
+					instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_CLEARED_INVENTORY.build()));
 		}
 
 		if (bukkitUser.inUnsafeLocation()) {
 			instance.getHellblockHandler().teleportToSpawn(player, true);
-			bukkitUser.setInUnsafeLocation(false);
+			bukkitUser.toPlayerData().setInUnsafeLocation(false);
 			audience.sendMessage(
 					instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_UNSAFE_ENVIRONMENT.build()));
 		}

@@ -14,6 +14,7 @@ import com.swiftlicious.hellblock.scheduler.SchedulerTask;
  */
 public class BaitAnimationTask implements Runnable {
 
+	protected final HellblockPlugin instance;
 	private final SchedulerTask task;
 	private final int entityID;
 	private final Player player;
@@ -28,6 +29,7 @@ public class BaitAnimationTask implements Runnable {
 	 * @param baitItem The bait ItemStack.
 	 */
 	public BaitAnimationTask(HellblockPlugin plugin, Player player, FishHook fishHook, ItemStack baitItem) {
+		instance = plugin;
 		this.player = player;
 		this.fishHook = fishHook;
 		this.task = plugin.getScheduler().asyncRepeating(this, 50, 50, TimeUnit.MILLISECONDS);
@@ -39,9 +41,9 @@ public class BaitAnimationTask implements Runnable {
 
 	@Override
 	public void run() {
-		HellblockPlugin.getInstance().getVersionManager().getNMSManager().sendClientSideEntityMotion(player,
-				fishHook.getVelocity(), entityID);
-		HellblockPlugin.getInstance().getVersionManager().getNMSManager().sendClientSideTeleportEntity(player,
+		instance.getVersionManager().getNMSManager().sendClientSideEntityMotion(player, fishHook.getVelocity(),
+				entityID);
+		instance.getVersionManager().getNMSManager().sendClientSideTeleportEntity(player,
 				fishHook.getLocation().clone().subtract(0, 0.6, 0), fishHook.getVelocity(), false, entityID);
 	}
 
@@ -50,6 +52,6 @@ public class BaitAnimationTask implements Runnable {
 	 */
 	public void cancelAnimation() {
 		task.cancel();
-		HellblockPlugin.getInstance().getVersionManager().getNMSManager().removeClientSideEntity(player, entityID);
+		instance.getVersionManager().getNMSManager().removeClientSideEntity(player, entityID);
 	}
 }

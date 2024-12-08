@@ -88,18 +88,6 @@ public class AbstractItem<R, I> implements Item<I> {
 		factory.skull(item, data);
 		return this;
 	}
-
-	@Override
-	public Item<I> potionEffect(String effect) {
-		factory.potionEffect(item, effect);
-		return this;
-	}
-
-	@Override
-	public Item<I> potionColor(int color) {
-		factory.potionColor(item, color);
-		return this;
-	}
 	
 	@Override
 	public Item<I> glint(boolean glint) {

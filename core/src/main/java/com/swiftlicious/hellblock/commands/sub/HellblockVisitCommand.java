@@ -88,171 +88,195 @@ public class HellblockVisitCommand extends BukkitCommandFeature<CommandSender> {
 						handleFeedback(context, MessageConstants.MSG_HELLBLOCK_PLAYER_OFFLINE);
 						return;
 					}
-					if (HellblockPlugin.getInstance().getCoopManager().trackBannedPlayer(id, player.getUniqueId())) {
-						handleFeedback(context, MessageConstants.MSG_HELLBLOCK_BANNED_ENTRY);
-						return;
-					}
-					HellblockPlugin.getInstance().getStorageManager()
-							.getOfflineUserData(id, HellblockPlugin.getInstance().getConfigManager().lockData())
-							.thenAccept((result) -> {
-								if (result.isEmpty()) {
-									handleFeedback(context, MessageConstants.MSG_HELLBLOCK_PLAYER_DATA_FAILURE_LOAD
-											.arguments(Component.text(user)));
+					HellblockPlugin.getInstance().getCoopManager().trackBannedPlayer(id, player.getUniqueId())
+							.thenAccept((banned) -> {
+								if (banned) {
+									handleFeedback(context, MessageConstants.MSG_HELLBLOCK_BANNED_ENTRY);
 									return;
 								}
-								UserData offlineUser = result.get();
-								if (id.equals(player.getUniqueId())
-										|| offlineUser.getHellblockData().getParty().contains(player.getUniqueId())) {
-									if (!onlineUser.get().getHellblockData().hasHellblock()) {
-										handleFeedback(context, MessageConstants.MSG_HELLBLOCK_NO_ISLAND_FOUND);
-										return;
-									}
-									if (onlineUser.get().getHellblockData().getOwnerUUID() == null) {
-										throw new NullPointerException(
-												"Owner reference returned null, please report this to the developer.");
-									}
-									HellblockPlugin.getInstance().getStorageManager()
-											.getOfflineUserData(onlineUser.get().getHellblockData().getOwnerUUID(),
-													HellblockPlugin.getInstance().getConfigManager().lockData())
-											.thenAccept((owner) -> {
-												if (owner.isEmpty()) {
-													String username = Bukkit
-															.getOfflinePlayer(
-																	onlineUser.get().getHellblockData().getOwnerUUID())
-															.getName() != null
-																	? Bukkit.getOfflinePlayer(onlineUser.get()
-																			.getHellblockData().getOwnerUUID())
-																			.getName()
-																	: "???";
+								HellblockPlugin.getInstance().getStorageManager()
+										.getOfflineUserData(id,
+												HellblockPlugin.getInstance().getConfigManager().lockData())
+										.thenAccept((result) -> {
+											if (result.isEmpty()) {
+												handleFeedback(context,
+														MessageConstants.MSG_HELLBLOCK_PLAYER_DATA_FAILURE_LOAD
+																.arguments(Component.text(user)));
+												return;
+											}
+											UserData offlineUser = result.get();
+											if (id.equals(player.getUniqueId()) || offlineUser.getHellblockData()
+													.getParty().contains(player.getUniqueId())) {
+												if (!onlineUser.get().getHellblockData().hasHellblock()) {
 													handleFeedback(context,
-															MessageConstants.MSG_HELLBLOCK_PLAYER_DATA_FAILURE_LOAD
-																	.arguments(Component.text(username)));
+															MessageConstants.MSG_HELLBLOCK_NO_ISLAND_FOUND);
 													return;
 												}
-												UserData ownerUser = owner.get();
-												if (ownerUser.getHellblockData().isAbandoned()) {
-													handleFeedback(context,
-															MessageConstants.MSG_HELLBLOCK_IS_ABANDONED);
-													return;
-												}
-												if (ownerUser.getHellblockData().getHomeLocation() != null) {
-													HellblockPlugin.getInstance().getCoopManager()
-															.makeHomeLocationSafe(ownerUser, onlineUser.get())
-															.thenRun(() -> handleFeedback(context,
-																	MessageConstants.MSG_HELLBLOCK_HOME_TELEPORT));
-												} else {
-													handleFeedback(context,
-															MessageConstants.MSG_HELLBLOCK_ERROR_HOME_LOCATION);
+												if (onlineUser.get().getHellblockData().getOwnerUUID() == null) {
 													throw new NullPointerException(
-															"Hellblock home location returned null, please report this to the developer.");
+															"Owner reference returned null, please report this to the developer.");
 												}
-											});
-									return;
-								}
+												HellblockPlugin.getInstance().getStorageManager().getOfflineUserData(
+														onlineUser.get().getHellblockData().getOwnerUUID(),
+														HellblockPlugin.getInstance().getConfigManager().lockData())
+														.thenAccept((owner) -> {
+															if (owner.isEmpty()) {
+																String username = Bukkit
+																		.getOfflinePlayer(onlineUser.get()
+																				.getHellblockData().getOwnerUUID())
+																		.getName() != null
+																				? Bukkit.getOfflinePlayer(onlineUser
+																						.get().getHellblockData()
+																						.getOwnerUUID()).getName()
+																				: "???";
+																handleFeedback(context,
+																		MessageConstants.MSG_HELLBLOCK_PLAYER_DATA_FAILURE_LOAD
+																				.arguments(Component.text(username)));
+																return;
+															}
+															UserData ownerUser = owner.get();
+															if (ownerUser.getHellblockData().isAbandoned()) {
+																handleFeedback(context,
+																		MessageConstants.MSG_HELLBLOCK_IS_ABANDONED);
+																return;
+															}
+															if (ownerUser.getHellblockData()
+																	.getHomeLocation() != null) {
+																HellblockPlugin.getInstance().getCoopManager()
+																		.makeHomeLocationSafe(ownerUser,
+																				onlineUser.get())
+																		.thenRun(() -> handleFeedback(context,
+																				MessageConstants.MSG_HELLBLOCK_HOME_TELEPORT));
+															} else {
+																handleFeedback(context,
+																		MessageConstants.MSG_HELLBLOCK_ERROR_HOME_LOCATION);
+																throw new NullPointerException(
+																		"Hellblock home location returned null, please report this to the developer.");
+															}
+														});
+												return;
+											}
 
-								if (offlineUser.getHellblockData().hasHellblock()) {
-									if (offlineUser.getHellblockData().getOwnerUUID() == null) {
-										throw new NullPointerException(
-												"Owner reference returned null, please report this to the developer.");
-									}
-									HellblockPlugin.getInstance().getStorageManager()
-											.getOfflineUserData(offlineUser.getHellblockData().getOwnerUUID(),
-													HellblockPlugin.getInstance().getConfigManager().lockData())
-											.thenAccept((owner) -> {
-												if (owner.isEmpty()) {
-													String username = Bukkit
-															.getOfflinePlayer(
-																	offlineUser.getHellblockData().getOwnerUUID())
-															.getName() != null
-																	? Bukkit.getOfflinePlayer(offlineUser
-																			.getHellblockData().getOwnerUUID())
-																			.getName()
-																	: "???";
-													handleFeedback(context,
-															MessageConstants.MSG_HELLBLOCK_PLAYER_DATA_FAILURE_LOAD
-																	.arguments(Component.text(username)));
-													return;
+											if (offlineUser.getHellblockData().hasHellblock()) {
+												if (offlineUser.getHellblockData().getOwnerUUID() == null) {
+													throw new NullPointerException(
+															"Owner reference returned null, please report this to the developer.");
 												}
-												UserData ownerUser = owner.get();
-												if (ownerUser.getHellblockData().isAbandoned()) {
-													handleFeedback(context,
-															MessageConstants.MSG_HELLBLOCK_VISIT_ABANDONED);
-													return;
-												}
-												if (!ownerUser.getHellblockData().isLocked()
-														&& HellblockPlugin.getInstance().getCoopManager()
-																.checkIfVisitorIsWelcome(player, ownerUser.getUUID())) {
+												HellblockPlugin.getInstance().getStorageManager().getOfflineUserData(
+														offlineUser.getHellblockData().getOwnerUUID(),
+														HellblockPlugin.getInstance().getConfigManager().lockData())
+														.thenAccept((owner) -> {
+															if (owner.isEmpty()) {
+																String username = Bukkit
+																		.getOfflinePlayer(offlineUser.getHellblockData()
+																				.getOwnerUUID())
+																		.getName() != null
+																				? Bukkit.getOfflinePlayer(
+																						offlineUser.getHellblockData()
+																								.getOwnerUUID())
+																						.getName()
+																				: "???";
+																handleFeedback(context,
+																		MessageConstants.MSG_HELLBLOCK_PLAYER_DATA_FAILURE_LOAD
+																				.arguments(Component.text(username)));
+																return;
+															}
+															UserData ownerUser = owner.get();
+															if (ownerUser.getHellblockData().isAbandoned()) {
+																handleFeedback(context,
+																		MessageConstants.MSG_HELLBLOCK_VISIT_ABANDONED);
+																return;
+															}
+															HellblockPlugin.getInstance().getCoopManager()
+																	.checkIfVisitorIsWelcome(player,
+																			ownerUser.getUUID())
+																	.thenAccept((status) -> {
+																		if (!ownerUser.getHellblockData().isLocked()
+																				&& status) {
 
-													if (ownerUser.getHellblockData().getHomeLocation() != null) {
-														LocationUtils
-																.isSafeLocationAsync(
-																		ownerUser.getHellblockData().getHomeLocation())
-																.thenAccept((safe) -> {
-																	if (!safe.booleanValue()) {
-																		handleFeedback(context,
-																				MessageConstants.MSG_HELLBLOCK_UNSAFE_TO_VISIT);
-																		return;
-																	}
-																}).thenRunAsync(() -> {
-																	ChunkUtils
-																			.teleportAsync(player,
-																					ownerUser.getHellblockData()
-																							.getHomeLocation(),
-																					TeleportCause.PLUGIN)
-																			.thenRun(() -> {
-																				if (!visitCache.getIfPresent(
-																						player.getUniqueId())) {
-																					if (ownerUser.getHellblockData()
-																							.getOwnerUUID() == null) {
-																						throw new NullPointerException(
-																								"Owner reference returned null, please report this to the developer.");
-																					}
-																					if (!(ownerUser.getHellblockData()
-																							.getOwnerUUID()
-																							.equals(player
-																									.getUniqueId())
-																							|| ownerUser
-																									.getHellblockData()
-																									.getParty()
-																									.contains(player
-																											.getUniqueId())
-																							|| ownerUser
-																									.getHellblockData()
-																									.getTrusted()
-																									.contains(player
-																											.getUniqueId()))) {
-																						ownerUser.getHellblockData()
-																								.addTotalVisit();
-																						visitCache.put(
-																								player.getUniqueId(),
-																								true);
-																					}
-																				}
+																			if (ownerUser.getHellblockData()
+																					.getHomeLocation() != null) {
+																				LocationUtils
+																						.isSafeLocationAsync(ownerUser
+																								.getHellblockData()
+																								.getHomeLocation())
+																						.thenAccept((safe) -> {
+																							if (!safe.booleanValue()) {
+																								handleFeedback(context,
+																										MessageConstants.MSG_HELLBLOCK_UNSAFE_TO_VISIT);
+																								return;
+																							}
+																						}).thenRunAsync(() -> {
+																							ChunkUtils.teleportAsync(
+																									player,
+																									ownerUser
+																											.getHellblockData()
+																											.getHomeLocation(),
+																									TeleportCause.PLUGIN)
+																									.thenRun(() -> {
+																										if (!visitCache
+																												.getIfPresent(
+																														player.getUniqueId())) {
+																											if (ownerUser
+																													.getHellblockData()
+																													.getOwnerUUID() == null) {
+																												throw new NullPointerException(
+																														"Owner reference returned null, please report this to the developer.");
+																											}
+																											if (!(ownerUser
+																													.getHellblockData()
+																													.getOwnerUUID()
+																													.equals(player
+																															.getUniqueId())
+																													|| ownerUser
+																															.getHellblockData()
+																															.getParty()
+																															.contains(
+																																	player.getUniqueId())
+																													|| ownerUser
+																															.getHellblockData()
+																															.getTrusted()
+																															.contains(
+																																	player.getUniqueId()))) {
+																												ownerUser
+																														.getHellblockData()
+																														.addTotalVisit();
+																												visitCache
+																														.put(player
+																																.getUniqueId(),
+																																true);
+																											}
+																										}
+																										handleFeedback(
+																												context,
+																												MessageConstants.MSG_HELLBLOCK_VISIT_ENTRY
+																														.arguments(
+																																Component
+																																		.text(ownerUser
+																																				.getName())));
+																									});
+																							return;
+																						});
+																			} else {
 																				handleFeedback(context,
-																						MessageConstants.MSG_HELLBLOCK_VISIT_ENTRY
-																								.arguments(Component
-																										.text(ownerUser
-																												.getName())));
-																			});
-																	return;
-																});
-													} else {
-														handleFeedback(context,
-																MessageConstants.MSG_HELLBLOCK_ERROR_HOME_LOCATION);
-														throw new NullPointerException(
-																"Hellblock home location returned null, please report this to the developer.");
-													}
-												} else {
-													handleFeedback(context,
-															MessageConstants.MSG_HELLBLOCK_LOCKED_FROM_VISITORS
-																	.arguments(Component.text(user)));
-													return;
-												}
-											});
-								}
+																						MessageConstants.MSG_HELLBLOCK_ERROR_HOME_LOCATION);
+																				throw new NullPointerException(
+																						"Hellblock home location returned null, please report this to the developer.");
+																			}
+																		} else {
+																			handleFeedback(context,
+																					MessageConstants.MSG_HELLBLOCK_LOCKED_FROM_VISITORS
+																							.arguments(Component
+																									.text(user)));
+																			return;
+																		}
+																	});
+														});
+											}
 
-								handleFeedback(context, MessageConstants.MSG_HELLBLOCK_NO_ISLAND_FOUND);
-								return;
+											handleFeedback(context, MessageConstants.MSG_HELLBLOCK_NO_ISLAND_FOUND);
+											return;
+										});
 							});
 				});
 	}

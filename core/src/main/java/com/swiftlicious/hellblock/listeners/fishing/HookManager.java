@@ -91,6 +91,8 @@ public class HookManager implements Listener, HookManagerInterface {
 	@EventHandler(ignoreCancelled = true)
 	public void onDragDrop(InventoryClickEvent event) {
 		final Player player = (Player) event.getWhoClicked();
+		if (!instance.getHellblockHandler().isInCorrectWorld(player.getWorld()))
+			return;
 		if (event.getClickedInventory() != player.getInventory())
 			return;
 		if (player.getGameMode() != GameMode.SURVIVAL)
