@@ -445,3 +445,12 @@ debug_biome:
   usage:
     - /hellblock debug biome
     - /hb debug biome
+
+# A command to debug worlds
+# Usage: [COMMAND]
+debug_worlds:
+  enable: true
+  permission: hellblock.command.debug
+  usage:
+    - /hellblock debug worlds
+    - /hb debug worlds

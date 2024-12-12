@@ -80,7 +80,7 @@ general:
           # Run RANDOM_TICK and SCHEDULED_TICK at the same time
           mode: RANDOM_TICK
           # Tick interval determines how many times a block is ticked before its logic is executed
-          tick-interval: 1
+          tick-interval: 
           # Limit the number of crops per chunk (-1 means no limit)
           max-per-chunk: -1
       # Override default settings for specific worlds here
@@ -1221,17 +1221,17 @@ piglin-bartering:
         name: '<black>Wither Rose'
 
 potions:
-  nether-bottle:
+  nether-potion:
     enable: true
     material: POTION
 	glowing: true
     crafting:
       materials:
         GLOWSTONE_DUST: 'G'
-        WATER_BOTTLE: 'W'
+        NETHER_POTION: 'P'
       recipe: 
         - 'GGG'
-        - 'GWG'
+        - 'GPG'
         - 'GGG'
     components:
       minecraft:potion_contents:

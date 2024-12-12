@@ -44,15 +44,12 @@ public class PiglinBarterHandler implements Listener {
 		if (!instance.getHellblockHandler().isInCorrectWorld(player))
 			return;
 		final UUID id = player.getUniqueId();
-		ItemStack inHand = player.getInventory().getItemInMainHand();
-		if (inHand.getType() != Material.GOLD_INGOT) {
-			inHand = player.getInventory().getItemInOffHand();
-		}
-		if (inHand.getType() != Material.GOLD_INGOT) {
+		ItemStack inHand = player.getInventory().getItem(event.getHand());
+		if (inHand.getType() == Material.GOLD_INGOT) {
 			if (event.getRightClicked() instanceof Piglin piglin) {
 				if (!piglin.isAdult())
 					return;
-				if (piglin.getEquipment().getItemInOffHand().getType() != Material.GOLD_INGOT) {
+				if (piglin.getEquipment().getItemInOffHand().getType() == Material.AIR) {
 					if (!barterTracker.containsKey(id))
 						barterTracker.put(id, new HashSet<>(Set.of(piglin.getUniqueId())));
 					else {
@@ -113,8 +110,7 @@ public class PiglinBarterHandler implements Listener {
 				instance.getConfigManager().barteringItems().forEach((entry) -> {
 					Item<ItemStack> customItem = instance.getItemManager().wrap(entry.build(context));
 					ItemStack item = customItem.load();
-					item.setAmount(RandomUtils.generateRandomInt(1,
-							(int) entry.amount().evaluate(Context.player(onlineUser.get().getPlayer()))));
+					item.setAmount(RandomUtils.generateRandomInt(1, (int) entry.amount().evaluate(context)));
 					barteredItems.add(item);
 				});
 			}
