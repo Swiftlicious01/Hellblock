@@ -171,7 +171,7 @@ public class RandomUtils {
 	 */
 	public static @NotNull EntityType spawnRandomAnimal() {
 		List<EntityType> entities = List.of(EntityType.PIG, EntityType.COW, EntityType.CHICKEN, EntityType.SHEEP,
-				EntityType.RABBIT);
+				EntityType.RABBIT, EntityType.MOOSHROOM);
 		int randomIndex = getInstance().random.nextInt(entities.size());
 		return entities.get(randomIndex);
 	}

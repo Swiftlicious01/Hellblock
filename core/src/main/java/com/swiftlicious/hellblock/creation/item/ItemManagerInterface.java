@@ -1,10 +1,13 @@
 package com.swiftlicious.hellblock.creation.item;
 
 import java.util.Collection;
+
+import org.bukkit.Location;
 import org.bukkit.entity.FishHook;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Item;
 import org.bukkit.inventory.ItemStack;
+import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -27,8 +30,7 @@ public interface ItemManagerInterface extends Reloadable {
 	boolean registerItem(@NotNull CustomItem item);
 
 	/**
-	 * Builds an internal representation of an item using the given context and item
-	 * ID.
+	 * Builds an item using the given context and item ID.
 	 *
 	 * @param context the {@link Context} in which the item is built
 	 * @param id      the ID of the item to be built
@@ -36,6 +38,7 @@ public interface ItemManagerInterface extends Reloadable {
 	 * @throws NullPointerException if the item ID is not found
 	 */
 	@Nullable
+	@ApiStatus.Internal
 	ItemStack buildInternal(@NotNull Context<Player> context, @NotNull String id) throws NullPointerException;
 
 	/**
@@ -45,7 +48,7 @@ public interface ItemManagerInterface extends Reloadable {
 	 * @param item    the {@link CustomItem} definition
 	 * @return the built {@link ItemStack}
 	 */
-	ItemStack build(@NotNull Context<Player> context, @NotNull CustomItemInterface item);
+	ItemStack build(@NotNull Context<Player> context, @NotNull CustomItem item);
 
 	/**
 	 * Builds any item using the given context and item ID. Example:
@@ -72,6 +75,9 @@ public interface ItemManagerInterface extends Reloadable {
 	 */
 	@NotNull
 	String getItemID(@NotNull ItemStack itemStack);
+
+	@NotNull
+	String getIDFromLocation(Location location);
 
 	/**
 	 * Retrieves the custom item ID if the given item stack is a custom item.

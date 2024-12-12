@@ -36,11 +36,13 @@ import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.challenges.HellblockChallenge.ActionType;
 import com.swiftlicious.hellblock.events.generator.GeneratorGenerateEvent;
 import com.swiftlicious.hellblock.events.generator.PlayerBreakGeneratedBlock;
+import com.swiftlicious.hellblock.handlers.VersionHelper;
 import com.swiftlicious.hellblock.listeners.generator.GenBlock;
 import com.swiftlicious.hellblock.listeners.generator.GenMode;
 import com.swiftlicious.hellblock.listeners.generator.GenPiston;
 import com.swiftlicious.hellblock.listeners.generator.GeneratorManager;
 import com.swiftlicious.hellblock.listeners.generator.GeneratorModeManager;
+import com.swiftlicious.hellblock.listeners.rain.LavaRainTask;
 import com.swiftlicious.hellblock.nms.fluid.FallingFluidData;
 import com.swiftlicious.hellblock.nms.fluid.FluidData;
 import com.swiftlicious.hellblock.player.Context;
@@ -129,12 +131,17 @@ public class NetherGeneratorHandler implements Listener {
 
 					UUID uuid = gb.getUUID(); // Get the uuid of the player who broke the blocks
 
-					if (!(mode.canGenerateWhileLavaRaining()) && instance.getLavaRainHandler().getLavaRainTask() != null
-							&& instance.getLavaRainHandler().getLavaRainTask().isLavaRaining()) {
-						event.setCancelled(true);
-						if (toBlock.getLocation().getBlock().getType() != mode.getFallbackMaterial())
-							toBlock.getLocation().getBlock().setType(mode.getFallbackMaterial());
-						return;
+					if (!(mode.canGenerateWhileLavaRaining())) {
+						Optional<LavaRainTask> lavaRain = instance.getLavaRainHandler().getLavaRainingWorlds().stream()
+								.filter(task -> toBlock.getWorld().getName()
+										.equalsIgnoreCase(task.getWorld().worldName()))
+								.findAny();
+						if (lavaRain.isPresent() && lavaRain.get().isLavaRaining()) {
+							event.setCancelled(true);
+							if (toBlock.getLocation().getBlock().getType() != mode.getFallbackMaterial())
+								toBlock.getLocation().getBlock().setType(mode.getFallbackMaterial());
+							return;
+						}
 					}
 
 					float soundVolume = 2F;
@@ -321,21 +328,21 @@ public class NetherGeneratorHandler implements Listener {
 	}
 
 	private boolean isSource(@NotNull Block block) {
-		FluidData lava = instance.getVersionManager().getNMSManager().getFluidData(block.getLocation());
+		FluidData lava = VersionHelper.getNMSManager().getFluidData(block.getLocation());
 		boolean isLava = lava.getFluidType() == Fluid.LAVA || lava.getFluidType() == Fluid.FLOWING_LAVA;
 		boolean isLavaSource = isLava && lava.isSource();
 		return isLavaSource;
 	}
 
 	private boolean isFlowing(@NotNull Block block) {
-		FluidData lava = instance.getVersionManager().getNMSManager().getFluidData(block.getLocation());
+		FluidData lava = VersionHelper.getNMSManager().getFluidData(block.getLocation());
 		boolean isLava = lava.getFluidType() == Fluid.LAVA || lava.getFluidType() == Fluid.FLOWING_LAVA;
 		boolean isLavaFlowing = isLava && (!(lava instanceof FallingFluidData)) && !lava.isSource();
 		return isLavaFlowing;
 	}
 
 	private @Nullable Vector getFlowDirection(@NotNull Block block) {
-		FluidData lava = instance.getVersionManager().getNMSManager().getFluidData(block.getLocation());
+		FluidData lava = VersionHelper.getNMSManager().getFluidData(block.getLocation());
 		boolean isLava = lava.getFluidType() == Fluid.LAVA || lava.getFluidType() == Fluid.FLOWING_LAVA;
 		if (isLava) {
 			return lava.computeFlowDirection(block.getLocation());

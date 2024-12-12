@@ -9,6 +9,7 @@ import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.commands.BukkitCommandFeature;
 import com.swiftlicious.hellblock.commands.HellblockCommandManager;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
+import com.swiftlicious.hellblock.handlers.VersionHelper;
 
 import net.kyori.adventure.audience.Audience;
 
@@ -25,7 +26,7 @@ public class AboutCommand extends BukkitCommandFeature<CommandSender> {
 		return builder.senderType(Player.class).handler(context -> {
 			final Player player = context.sender();
 			Audience audience = HellblockPlugin.getInstance().getSenderFactory().getAudience(player);
-			String version = HellblockPlugin.getInstance().getVersionManager().getPluginVersion();
+			String version = VersionHelper.getPluginVersion();
 			String desc = HellblockPlugin.getInstance().getDescription().getDescription();
 			String author = HellblockPlugin.getInstance().getDescription().getAuthors().getFirst();
 			String link = HellblockPlugin.getInstance().getDescription().getWebsite();

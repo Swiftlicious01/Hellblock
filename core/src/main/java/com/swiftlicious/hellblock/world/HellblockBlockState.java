@@ -7,7 +7,6 @@ import com.flowpowered.nbt.CompoundTag;
 import com.flowpowered.nbt.Tag;
 import com.swiftlicious.hellblock.utils.TagUtils;
 import com.swiftlicious.hellblock.utils.extras.SynchronizedCompoundMap;
-import com.swiftlicious.hellblock.world.block.HellblockBlock;
 
 public class HellblockBlockState implements HellblockBlockStateInterface {
 

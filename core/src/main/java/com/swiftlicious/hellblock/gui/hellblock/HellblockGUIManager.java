@@ -25,7 +25,7 @@ import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
 import com.swiftlicious.hellblock.config.parser.SingleItemParser;
 import com.swiftlicious.hellblock.creation.item.CustomItem;
-import com.swiftlicious.hellblock.handlers.ActionManagerInterface;
+import com.swiftlicious.hellblock.handlers.ActionManager;
 import com.swiftlicious.hellblock.player.Context;
 import com.swiftlicious.hellblock.player.ContextKeys;
 import com.swiftlicious.hellblock.player.HellblockData;
@@ -115,7 +115,8 @@ public class HellblockGUIManager implements HellblockGUIManagerInterface, Listen
 
 			teleportIcon = new SingleItemParser("teleport", teleportSection,
 					instance.getConfigManager().getItemFormatFunctions()).getItem();
-			teleportActions = instance.getActionManager().parseActions(teleportSection.getSection("action"));
+			teleportActions = instance.getActionManager(Player.class)
+					.parseActions(teleportSection.getSection("action"));
 		}
 
 		Section challengeSection = config.getSection("challenge-icon");
@@ -124,7 +125,8 @@ public class HellblockGUIManager implements HellblockGUIManagerInterface, Listen
 
 			challengeIcon = new SingleItemParser("challenge", challengeSection,
 					instance.getConfigManager().getItemFormatFunctions()).getItem();
-			challengeActions = instance.getActionManager().parseActions(challengeSection.getSection("action"));
+			challengeActions = instance.getActionManager(Player.class)
+					.parseActions(challengeSection.getSection("action"));
 		}
 
 		Section levelSection = config.getSection("level-icon");
@@ -133,7 +135,7 @@ public class HellblockGUIManager implements HellblockGUIManagerInterface, Listen
 
 			levelIcon = new SingleItemParser("level", levelSection,
 					instance.getConfigManager().getItemFormatFunctions()).getItem();
-			levelActions = instance.getActionManager().parseActions(levelSection.getSection("action"));
+			levelActions = instance.getActionManager(Player.class).parseActions(levelSection.getSection("action"));
 		}
 
 		Section partySection = config.getSection("party-icon");
@@ -142,7 +144,7 @@ public class HellblockGUIManager implements HellblockGUIManagerInterface, Listen
 
 			partyIcon = new SingleItemParser("party", partySection,
 					instance.getConfigManager().getItemFormatFunctions()).getItem();
-			partyActions = instance.getActionManager().parseActions(partySection.getSection("action"));
+			partyActions = instance.getActionManager(Player.class).parseActions(partySection.getSection("action"));
 		}
 
 		Section lockSection = config.getSection("lock-icon");
@@ -151,7 +153,7 @@ public class HellblockGUIManager implements HellblockGUIManagerInterface, Listen
 
 			lockIcon = new SingleItemParser("lock", lockSection, instance.getConfigManager().getItemFormatFunctions())
 					.getItem();
-			lockActions = instance.getActionManager().parseActions(lockSection.getSection("action"));
+			lockActions = instance.getActionManager(Player.class).parseActions(lockSection.getSection("action"));
 		}
 
 		Section unlockSection = config.getSection("unlock-icon");
@@ -160,7 +162,7 @@ public class HellblockGUIManager implements HellblockGUIManagerInterface, Listen
 
 			unlockIcon = new SingleItemParser("unlock", unlockSection,
 					instance.getConfigManager().getItemFormatFunctions()).getItem();
-			unlockActions = instance.getActionManager().parseActions(unlockSection.getSection("action"));
+			unlockActions = instance.getActionManager(Player.class).parseActions(unlockSection.getSection("action"));
 		}
 
 		Section biomeSection = config.getSection("biome-icon");
@@ -169,7 +171,7 @@ public class HellblockGUIManager implements HellblockGUIManagerInterface, Listen
 
 			biomeIcon = new SingleItemParser("biome", biomeSection,
 					instance.getConfigManager().getItemFormatFunctions()).getItem();
-			biomeActions = instance.getActionManager().parseActions(biomeSection.getSection("action"));
+			biomeActions = instance.getActionManager(Player.class).parseActions(biomeSection.getSection("action"));
 		}
 
 		Section flagSection = config.getSection("flag-icon");
@@ -178,7 +180,7 @@ public class HellblockGUIManager implements HellblockGUIManagerInterface, Listen
 
 			flagIcon = new SingleItemParser("flag", flagSection, instance.getConfigManager().getItemFormatFunctions())
 					.getItem();
-			flagActions = instance.getActionManager().parseActions(flagSection.getSection("action"));
+			flagActions = instance.getActionManager(Player.class).parseActions(flagSection.getSection("action"));
 		}
 
 		Section resetSection = config.getSection("reset-icon");
@@ -187,7 +189,7 @@ public class HellblockGUIManager implements HellblockGUIManagerInterface, Listen
 
 			resetIcon = new SingleItemParser("reset", resetSection,
 					instance.getConfigManager().getItemFormatFunctions()).getItem();
-			resetActions = instance.getActionManager().parseActions(resetSection.getSection("action"));
+			resetActions = instance.getActionManager(Player.class).parseActions(resetSection.getSection("action"));
 		}
 
 		Section resetCooldownSection = config.getSection("reset-cooldown-icon");
@@ -196,7 +198,8 @@ public class HellblockGUIManager implements HellblockGUIManagerInterface, Listen
 
 			resetCooldownIcon = new SingleItemParser("resetcooldown", resetCooldownSection,
 					instance.getConfigManager().getItemFormatFunctions()).getItem();
-			resetCooldownActions = instance.getActionManager().parseActions(resetCooldownSection.getSection("action"));
+			resetCooldownActions = instance.getActionManager(Player.class)
+					.parseActions(resetCooldownSection.getSection("action"));
 		}
 
 		Section biomeCooldownSection = config.getSection("biome-cooldown-icon");
@@ -205,7 +208,8 @@ public class HellblockGUIManager implements HellblockGUIManagerInterface, Listen
 
 			biomeCooldownIcon = new SingleItemParser("biomecooldown", biomeCooldownSection,
 					instance.getConfigManager().getItemFormatFunctions()).getItem();
-			biomeCooldownActions = instance.getActionManager().parseActions(biomeCooldownSection.getSection("action"));
+			biomeCooldownActions = instance.getActionManager(Player.class)
+					.parseActions(biomeCooldownSection.getSection("action"));
 		}
 
 		// Load decorative icons from the configuration
@@ -217,10 +221,10 @@ public class HellblockGUIManager implements HellblockGUIManagerInterface, Listen
 			for (Map.Entry<String, Object> entry : decorativeSection.getStringRouteMappedValues(false).entrySet()) {
 				if (entry.getValue() instanceof Section innerSection) {
 					char symbol = Objects.requireNonNull(innerSection.getString("symbol")).charAt(0);
-					decorativeIcons.put(symbol,
-							Pair.of(new SingleItemParser("gui", innerSection,
+					decorativeIcons.put(symbol, Pair.of(
+							new SingleItemParser("gui", innerSection,
 									instance.getConfigManager().getItemFormatFunctions()).getItem(),
-									instance.getActionManager().parseActions(innerSection.getSection("action"))));
+							instance.getActionManager(Player.class).parseActions(innerSection.getSection("action"))));
 				}
 			}
 			if (ownerExclusivePlaceholderIcon != null && !ownerExclusivePlaceholderIcon.isEmpty()) {
@@ -363,7 +367,7 @@ public class HellblockGUIManager implements HellblockGUIManagerInterface, Listen
 
 			Pair<CustomItem, Action<Player>[]> decorativeIcon = this.decorativeIcons.get(element.getSymbol());
 			if (decorativeIcon != null) {
-				ActionManagerInterface.trigger(gui.context, decorativeIcon.right());
+				ActionManager.trigger(gui.context, decorativeIcon.right());
 				return;
 			}
 
@@ -394,7 +398,7 @@ public class HellblockGUIManager implements HellblockGUIManagerInterface, Listen
 													instance.getIslandLevelManager().getLevelRank(ownerData.getUUID()))
 											: instance.getTranslationManager().miniMessageTranslation(
 													MessageConstants.FORMAT_UNRANKED.build().key()));
-							ActionManagerInterface.trigger(gui.context, levelActions);
+							ActionManager.trigger(gui.context, levelActions);
 						});
 				return;
 			}
@@ -402,14 +406,14 @@ public class HellblockGUIManager implements HellblockGUIManagerInterface, Listen
 			if (element.getSymbol() == challengeSlot) {
 				event.setCancelled(true);
 				instance.getChallengesGUIManager().openChallengesGUI(gui.context.holder());
-				ActionManagerInterface.trigger(gui.context, challengeActions);
+				ActionManager.trigger(gui.context, challengeActions);
 				return;
 			}
 
 			if (element.getSymbol() == partySlot) {
 				event.setCancelled(true);
 				instance.getPartyGUIManager().openPartyGUI(gui.context.holder(), gui.isOwner);
-				ActionManagerInterface.trigger(gui.context, partyActions);
+				ActionManager.trigger(gui.context, partyActions);
 				return;
 			}
 
@@ -435,7 +439,7 @@ public class HellblockGUIManager implements HellblockGUIManagerInterface, Listen
 								instance.getCoopManager().makeHomeLocationSafe(ownerData, userData.get())
 										.thenRun(() -> {
 											player.closeInventory();
-											ActionManagerInterface.trigger(gui.context, teleportActions);
+											ActionManager.trigger(gui.context, teleportActions);
 										});
 							} else {
 								audience.sendMessage(instance.getTranslationManager()
@@ -469,13 +473,13 @@ public class HellblockGUIManager implements HellblockGUIManagerInterface, Listen
 			if (element.getSymbol() == resetCooldownSlot && hellblockData.getResetCooldown() > 0) {
 				event.setCancelled(true);
 				gui.context.arg(ContextKeys.RESET_COOLDOWN, hellblockData.getResetCooldown());
-				ActionManagerInterface.trigger(gui.context, resetCooldownActions);
+				ActionManager.trigger(gui.context, resetCooldownActions);
 			}
 
 			if (element.getSymbol() == biomeCooldownSlot && hellblockData.getBiomeCooldown() > 0) {
 				event.setCancelled(true);
 				gui.context.arg(ContextKeys.BIOME_COOLDOWN, hellblockData.getBiomeCooldown());
-				ActionManagerInterface.trigger(gui.context, biomeCooldownActions);
+				ActionManager.trigger(gui.context, biomeCooldownActions);
 			}
 
 			if (element.getSymbol() == lockSlot && !hellblockData.isLocked()) {
@@ -485,7 +489,7 @@ public class HellblockGUIManager implements HellblockGUIManagerInterface, Listen
 				instance.getCoopManager().kickVisitorsIfLocked(userData.get().getUUID());
 				instance.getProtectionManager().changeLockStatus(gui.context.holder().getWorld(),
 						userData.get().getUUID());
-				ActionManagerInterface.trigger(gui.context, lockActions);
+				ActionManager.trigger(gui.context, lockActions);
 			}
 
 			if (element.getSymbol() == unlockSlot && hellblockData.isLocked()) {
@@ -495,28 +499,28 @@ public class HellblockGUIManager implements HellblockGUIManagerInterface, Listen
 				instance.getCoopManager().kickVisitorsIfLocked(userData.get().getUUID());
 				instance.getProtectionManager().changeLockStatus(gui.context.holder().getWorld(),
 						userData.get().getUUID());
-				ActionManagerInterface.trigger(gui.context, unlockActions);
+				ActionManager.trigger(gui.context, unlockActions);
 			}
 
 			if (element.getSymbol() == biomeSlot && hellblockData.getBiomeCooldown() == 0) {
 				event.setCancelled(true);
 				gui.context.arg(ContextKeys.HELLBLOCK_BIOME, hellblockData.getBiome());
 				instance.getBiomeGUIManager().openBiomeGUI(gui.context.holder());
-				ActionManagerInterface.trigger(gui.context, biomeActions);
+				ActionManager.trigger(gui.context, biomeActions);
 				return;
 			}
 
 			if (element.getSymbol() == resetSlot && hellblockData.getResetCooldown() == 0) {
 				event.setCancelled(true);
 				instance.getResetConfirmGUIManager().openResetConfirmGUI(gui.context.holder());
-				ActionManagerInterface.trigger(gui.context, resetActions);
+				ActionManager.trigger(gui.context, resetActions);
 				return;
 			}
 
 			if (element.getSymbol() == flagSlot) {
 				event.setCancelled(true);
 				instance.getFlagsGUIManager().openFlagsGUI(gui.context.holder());
-				ActionManagerInterface.trigger(gui.context, flagActions);
+				ActionManager.trigger(gui.context, flagActions);
 				return;
 			}
 		}

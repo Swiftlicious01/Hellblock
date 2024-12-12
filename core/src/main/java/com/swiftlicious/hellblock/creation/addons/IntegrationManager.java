@@ -153,6 +153,11 @@ public class IntegrationManager implements IntegrationManagerInterface {
 	}
 
 	@Override
+	public EntityProvider getEntityProvider(@NotNull String id) {
+		return ((EntityManager) instance.getEntityManager()).getEntityProvider(id);
+	}
+
+	@Override
 	public boolean registerItemProvider(@NotNull ItemProvider item) {
 		return ((ItemManager) instance.getItemManager()).registerItemProvider(item);
 	}
@@ -163,6 +168,11 @@ public class IntegrationManager implements IntegrationManagerInterface {
 	}
 
 	@Override
+	public ItemProvider getItemProvider(@NotNull String id) {
+		return ((ItemManager) instance.getItemManager()).getItemProvider(id);
+	}
+
+	@Override
 	public boolean registerBlockProvider(@NotNull BlockProvider block) {
 		return ((BlockManager) instance.getBlockManager()).registerBlockProvider(block);
 	}
@@ -170,5 +180,10 @@ public class IntegrationManager implements IntegrationManagerInterface {
 	@Override
 	public boolean unregisterBlockProvider(@NotNull String id) {
 		return ((BlockManager) instance.getBlockManager()).unregisterBlockProvider(id);
+	}
+
+	@Override
+	public BlockProvider getBlockProvider(@NotNull String id) {
+		return ((BlockManager) instance.getBlockManager()).getBlockProvider(id);
 	}
 }

@@ -30,10 +30,11 @@ import com.swiftlicious.hellblock.creation.item.damage.DurabilityItem;
 import com.swiftlicious.hellblock.creation.item.damage.VanillaDurabilityItem;
 import com.swiftlicious.hellblock.effects.EffectModifier;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
-import com.swiftlicious.hellblock.handlers.RequirementManagerInterface;
+import com.swiftlicious.hellblock.handlers.RequirementManager;
 import com.swiftlicious.hellblock.mechanics.MechanicType;
 import com.swiftlicious.hellblock.mechanics.hook.HookConfig;
 import com.swiftlicious.hellblock.player.Context;
+import com.swiftlicious.hellblock.player.ContextKeys;
 import com.swiftlicious.hellblock.utils.PlayerUtils;
 
 import net.jpountz.lz4.LZ4Compressor;
@@ -119,7 +120,7 @@ public class HookManager implements Listener, HookManagerInterface {
 			if (hookItemBase64 != null) {
 				itemStack = bytesToHook(hookItemBase64);
 			} else {
-				itemStack = instance.getItemManager().buildInternal(Context.player(player), id);
+				itemStack = instance.getItemManager().buildInternal(Context.player(player).arg(ContextKeys.ID, id), id);
 			}
 			instance.getItemManager().setDamage(player, itemStack, damage);
 
@@ -156,7 +157,7 @@ public class HookManager implements Listener, HookManagerInterface {
 		HookConfig hookConfig = setting.get();
 		Optional<EffectModifier> modifier = instance.getEffectManager().getEffectModifier(hookID, MechanicType.HOOK);
 		if (modifier.isPresent()) {
-			if (!RequirementManagerInterface.isSatisfied(context, modifier.get().requirements())) {
+			if (!RequirementManager.isSatisfied(context, modifier.get().requirements())) {
 				return;
 			}
 		}

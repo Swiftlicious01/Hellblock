@@ -19,7 +19,7 @@ import org.jetbrains.annotations.NotNull;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
-import com.swiftlicious.hellblock.handlers.RequirementManagerInterface;
+import com.swiftlicious.hellblock.handlers.RequirementManager;
 import com.swiftlicious.hellblock.player.Context;
 import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.world.HellblockWorld;
@@ -83,7 +83,7 @@ public class BiomeHandler {
 			}
 
 			if (!performedByGUI && instance.getBiomeGUIManager().getBiomeRequirements(biome) != null) {
-				if (!RequirementManagerInterface.isSatisfied(Context.player(player),
+				if (!RequirementManager.isSatisfied(Context.player(player),
 						instance.getBiomeGUIManager().getBiomeRequirements(biome))) {
 					return;
 				}

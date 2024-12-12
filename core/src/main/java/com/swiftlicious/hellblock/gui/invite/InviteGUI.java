@@ -16,6 +16,7 @@ import org.jetbrains.annotations.Nullable;
 import com.mojang.authlib.GameProfile;
 import com.swiftlicious.hellblock.creation.item.Item;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
+import com.swiftlicious.hellblock.handlers.VersionHelper;
 import com.swiftlicious.hellblock.player.Context;
 import com.swiftlicious.hellblock.player.GameProfileBuilder;
 import com.swiftlicious.hellblock.player.HellblockData;
@@ -100,7 +101,7 @@ public class InviteGUI {
 
 	public void show() {
 		context.holder().openInventory(inventory);
-		manager.instance.getVersionManager().getNMSManager().updateInventoryTitle(context.holder(),
+		VersionHelper.getNMSManager().updateInventoryTitle(context.holder(),
 				AdventureHelper.componentToJson(AdventureHelper.miniMessage(manager.title.render(context))));
 	}
 

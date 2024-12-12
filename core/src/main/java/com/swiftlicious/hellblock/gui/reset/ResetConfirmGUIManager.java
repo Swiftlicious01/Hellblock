@@ -26,7 +26,7 @@ import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
 import com.swiftlicious.hellblock.config.parser.SingleItemParser;
 import com.swiftlicious.hellblock.creation.item.CustomItem;
-import com.swiftlicious.hellblock.handlers.ActionManagerInterface;
+import com.swiftlicious.hellblock.handlers.ActionManager;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.player.Context;
 import com.swiftlicious.hellblock.player.ContextKeys;
@@ -86,7 +86,7 @@ public class ResetConfirmGUIManager implements ResetConfirmGUIManagerInterface, 
 
 			denyIcon = new SingleItemParser("deny", denySection, instance.getConfigManager().getItemFormatFunctions())
 					.getItem();
-			denyActions = instance.getActionManager().parseActions(denySection.getSection("action"));
+			denyActions = instance.getActionManager(Player.class).parseActions(denySection.getSection("action"));
 		}
 
 		Section confirmSection = config.getSection("confirm-icon");
@@ -95,7 +95,7 @@ public class ResetConfirmGUIManager implements ResetConfirmGUIManagerInterface, 
 
 			confirmIcon = new SingleItemParser("confirm", confirmSection,
 					instance.getConfigManager().getItemFormatFunctions()).getItem();
-			confirmActions = instance.getActionManager().parseActions(confirmSection.getSection("action"));
+			confirmActions = instance.getActionManager(Player.class).parseActions(confirmSection.getSection("action"));
 		}
 
 		// Load decorative icons from the configuration
@@ -104,10 +104,10 @@ public class ResetConfirmGUIManager implements ResetConfirmGUIManagerInterface, 
 			for (Map.Entry<String, Object> entry : decorativeSection.getStringRouteMappedValues(false).entrySet()) {
 				if (entry.getValue() instanceof Section innerSection) {
 					char symbol = Objects.requireNonNull(innerSection.getString("symbol")).charAt(0);
-					decorativeIcons.put(symbol,
-							Pair.of(new SingleItemParser("gui", innerSection,
+					decorativeIcons.put(symbol, Pair.of(
+							new SingleItemParser("gui", innerSection,
 									instance.getConfigManager().getItemFormatFunctions()).getItem(),
-									instance.getActionManager().parseActions(innerSection.getSection("action"))));
+							instance.getActionManager(Player.class).parseActions(innerSection.getSection("action"))));
 				}
 			}
 		}
@@ -230,7 +230,7 @@ public class ResetConfirmGUIManager implements ResetConfirmGUIManagerInterface, 
 
 			Pair<CustomItem, Action<Player>[]> decorativeIcon = this.decorativeIcons.get(element.getSymbol());
 			if (decorativeIcon != null) {
-				ActionManagerInterface.trigger(gui.context, decorativeIcon.right());
+				ActionManager.trigger(gui.context, decorativeIcon.right());
 				return;
 			}
 
@@ -238,7 +238,7 @@ public class ResetConfirmGUIManager implements ResetConfirmGUIManagerInterface, 
 				event.setCancelled(true);
 				instance.getHellblockGUIManager().openHellblockGUI(gui.context.holder(),
 						gui.hellblockData.getOwnerUUID().equals(gui.context.holder().getUniqueId()));
-				ActionManagerInterface.trigger(gui.context, denyActions);
+				ActionManager.trigger(gui.context, denyActions);
 				return;
 			}
 
@@ -261,7 +261,7 @@ public class ResetConfirmGUIManager implements ResetConfirmGUIManagerInterface, 
 				instance.getHellblockHandler().resetHellblock(gui.context.holder().getUniqueId(), false)
 						.thenRun(() -> player.closeInventory());
 				gui.context.clearCustomData();
-				ActionManagerInterface.trigger(gui.context, confirmActions);
+				ActionManager.trigger(gui.context, confirmActions);
 			}
 		}
 

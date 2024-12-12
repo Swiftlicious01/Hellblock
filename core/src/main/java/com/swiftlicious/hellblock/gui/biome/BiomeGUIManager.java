@@ -30,9 +30,9 @@ import com.swiftlicious.hellblock.config.locale.MessageConstants;
 import com.swiftlicious.hellblock.config.parser.SingleItemParser;
 import com.swiftlicious.hellblock.creation.item.CustomItem;
 import com.swiftlicious.hellblock.generation.HellBiome;
-import com.swiftlicious.hellblock.handlers.ActionManagerInterface;
+import com.swiftlicious.hellblock.handlers.ActionManager;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
-import com.swiftlicious.hellblock.handlers.RequirementManagerInterface;
+import com.swiftlicious.hellblock.handlers.RequirementManager;
 import com.swiftlicious.hellblock.player.Context;
 import com.swiftlicious.hellblock.player.ContextKeys;
 import com.swiftlicious.hellblock.player.UserData;
@@ -95,7 +95,7 @@ public class BiomeGUIManager implements BiomeGUIManagerInterface, Listener {
 
 			backIcon = new SingleItemParser("back", backSection, instance.getConfigManager().getItemFormatFunctions())
 					.getItem();
-			backActions = instance.getActionManager().parseActions(backSection.getSection("action"));
+			backActions = instance.getActionManager(Player.class).parseActions(backSection.getSection("action"));
 		}
 
 		Section biomesSection = config.getSection("biome-icons");
@@ -104,14 +104,12 @@ public class BiomeGUIManager implements BiomeGUIManagerInterface, Listener {
 				if (entry.getValue() instanceof Section innerSection) {
 					char symbol = Objects.requireNonNull(innerSection.getString("symbol")).charAt(0);
 					HellBiome biome = HellBiome.valueOf(Objects.requireNonNull(innerSection.getString("biome")));
-					biomeIcons.put(symbol,
-							Tuple.of(innerSection, biome,
-									Tuple.of(
-											new SingleItemParser("biome", innerSection,
-													instance.getConfigManager().getItemFormatFunctions()).getItem(),
-											instance.getActionManager().parseActions(innerSection.getSection("action")),
-											instance.getRequirementManager()
-													.parseRequirements(innerSection.getSection("requirement"), true))));
+					biomeIcons.put(symbol, Tuple.of(innerSection, biome, Tuple.of(
+							new SingleItemParser("biome", innerSection,
+									instance.getConfigManager().getItemFormatFunctions()).getItem(),
+							instance.getActionManager(Player.class).parseActions(innerSection.getSection("action")),
+							instance.getRequirementManager(Player.class)
+									.parseRequirements(innerSection.getSection("requirement"), true))));
 				}
 
 			}
@@ -123,10 +121,10 @@ public class BiomeGUIManager implements BiomeGUIManagerInterface, Listener {
 			for (Map.Entry<String, Object> entry : decorativeSection.getStringRouteMappedValues(false).entrySet()) {
 				if (entry.getValue() instanceof Section innerSection) {
 					char symbol = Objects.requireNonNull(innerSection.getString("symbol")).charAt(0);
-					decorativeIcons.put(symbol,
-							Pair.of(new SingleItemParser("gui", innerSection,
+					decorativeIcons.put(symbol, Pair.of(
+							new SingleItemParser("gui", innerSection,
 									instance.getConfigManager().getItemFormatFunctions()).getItem(),
-									instance.getActionManager().parseActions(innerSection.getSection("action"))));
+							instance.getActionManager(Player.class).parseActions(innerSection.getSection("action"))));
 				}
 			}
 		}
@@ -261,7 +259,7 @@ public class BiomeGUIManager implements BiomeGUIManagerInterface, Listener {
 
 			Pair<CustomItem, Action<Player>[]> decorativeIcon = this.decorativeIcons.get(element.getSymbol());
 			if (decorativeIcon != null) {
-				ActionManagerInterface.trigger(gui.context, decorativeIcon.right());
+				ActionManager.trigger(gui.context, decorativeIcon.right());
 				return;
 			}
 
@@ -269,7 +267,7 @@ public class BiomeGUIManager implements BiomeGUIManagerInterface, Listener {
 				event.setCancelled(true);
 				instance.getHellblockGUIManager().openHellblockGUI(gui.context.holder(),
 						gui.context.holder().getUniqueId().equals(gui.hellblockData.getOwnerUUID()));
-				ActionManagerInterface.trigger(gui.context, backActions);
+				ActionManager.trigger(gui.context, backActions);
 				return;
 			}
 
@@ -318,10 +316,10 @@ public class BiomeGUIManager implements BiomeGUIManagerInterface, Listener {
 								net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
 						return;
 					}
-					if (RequirementManagerInterface.isSatisfied(gui.context, entry.getValue().right().right())) {
+					if (RequirementManager.isSatisfied(gui.context, entry.getValue().right().right())) {
 						instance.getBiomeHandler().changeHellblockBiome(userData.get(), entry.getValue().mid(), true);
 						gui.context.arg(ContextKeys.HELLBLOCK_BIOME, gui.hellblockData.getBiome());
-						ActionManagerInterface.trigger(gui.context, entry.getValue().right().mid());
+						ActionManager.trigger(gui.context, entry.getValue().right().mid());
 						break;
 					}
 				}

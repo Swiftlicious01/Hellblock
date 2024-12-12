@@ -16,8 +16,9 @@ import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.api.Reloadable;
 import com.swiftlicious.hellblock.challenges.HellblockChallenge.ActionType;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
-import com.swiftlicious.hellblock.handlers.ActionManagerInterface;
+import com.swiftlicious.hellblock.handlers.ActionManager;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
+import com.swiftlicious.hellblock.handlers.VersionHelper;
 import com.swiftlicious.hellblock.nms.entity.firework.FakeFirework;
 import com.swiftlicious.hellblock.player.Context;
 import com.swiftlicious.hellblock.player.UserData;
@@ -51,7 +52,7 @@ public class ChallengeManager implements Reloadable {
 		this.challengeConfig = instance.getConfigManager().loadData(challengeFile);
 		Section globalChallengeSection = challengeConfig.getSection("global");
 		if (globalChallengeSection != null) {
-			this.challengeGlobalActions = instance.getActionManager()
+			this.challengeGlobalActions = instance.getActionManager(Player.class)
 					.parseActions(globalChallengeSection.getSection("action"));
 		}
 		this.challenges.clear();
@@ -93,7 +94,7 @@ public class ChallengeManager implements Reloadable {
 			audience.playSound(instance.getConfigManager().challengeCompleteSound());
 		if (player.getLocation() == null)
 			return;
-		FakeFirework firework = instance.getVersionManager().getNMSManager().createFakeFirework(player.getLocation());
+		FakeFirework firework = VersionHelper.getNMSManager().createFakeFirework(player.getLocation());
 		firework.flightTime(0);
 		firework.invisible(true);
 		firework.spawn(player);
@@ -107,11 +108,11 @@ public class ChallengeManager implements Reloadable {
 		Context<Player> context = Context.player(player);
 		Section challengeSection = getChallengeConfig().getSection("rewards." + challenge.toString().toUpperCase());
 		if (challengeSection != null) {
-			ActionManagerInterface.trigger(context,
-					instance.getActionManager().parseActions(challengeSection.getSection("action")));
+			ActionManager.trigger(context,
+					instance.getActionManager(Player.class).parseActions(challengeSection.getSection("action")));
 		}
 		onlineUser.get().getChallengeData().setChallengeRewardAsClaimed(challenge, true);
 		if (this.challengeGlobalActions != null)
-			ActionManagerInterface.trigger(context, this.challengeGlobalActions);
+			ActionManager.trigger(context, this.challengeGlobalActions);
 	}
 }

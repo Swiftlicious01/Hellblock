@@ -85,6 +85,10 @@ public class EntityManager implements EntityManagerInterface {
 		return entityProviders.remove(id) != null;
 	}
 
+	public EntityProvider getEntityProvider(String id) {
+		return entityProviders.get(id);
+	}
+
 	@NotNull
 	@Override
 	public Entity summonEntityLoot(Context<Player> context) {

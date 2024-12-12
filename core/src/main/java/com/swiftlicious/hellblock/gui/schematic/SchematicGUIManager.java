@@ -29,9 +29,9 @@ import com.swiftlicious.hellblock.config.locale.MessageConstants;
 import com.swiftlicious.hellblock.config.parser.SingleItemParser;
 import com.swiftlicious.hellblock.creation.item.CustomItem;
 import com.swiftlicious.hellblock.generation.IslandOptions;
-import com.swiftlicious.hellblock.handlers.ActionManagerInterface;
+import com.swiftlicious.hellblock.handlers.ActionManager;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
-import com.swiftlicious.hellblock.handlers.RequirementManagerInterface;
+import com.swiftlicious.hellblock.handlers.RequirementManager;
 import com.swiftlicious.hellblock.player.Context;
 import com.swiftlicious.hellblock.player.ContextKeys;
 import com.swiftlicious.hellblock.player.UserData;
@@ -92,7 +92,7 @@ public class SchematicGUIManager implements SchematicGUIManagerInterface, Listen
 
 			backIcon = new SingleItemParser("back", backSection, instance.getConfigManager().getItemFormatFunctions())
 					.getItem();
-			backActions = instance.getActionManager().parseActions(backSection.getSection("action"));
+			backActions = instance.getActionManager(Player.class).parseActions(backSection.getSection("action"));
 		}
 
 		Section schematicSection = config.getSection("schematic-icons");
@@ -101,13 +101,12 @@ public class SchematicGUIManager implements SchematicGUIManagerInterface, Listen
 				if (entry.getValue() instanceof Section innerSection) {
 					char symbol = Objects.requireNonNull(innerSection.getString("symbol")).charAt(0);
 					String schematic = Objects.requireNonNull(innerSection.getString("schematic"));
-					schematicIcons.add(Tuple.of(symbol, schematic,
-							Tuple.of(
-									new SingleItemParser("schematic", innerSection,
-											instance.getConfigManager().getItemFormatFunctions()).getItem(),
-									instance.getActionManager().parseActions(innerSection.getSection("action")),
-									instance.getRequirementManager()
-											.parseRequirements(innerSection.getSection("requirement"), true))));
+					schematicIcons.add(Tuple.of(symbol, schematic, Tuple.of(
+							new SingleItemParser("schematic", innerSection,
+									instance.getConfigManager().getItemFormatFunctions()).getItem(),
+							instance.getActionManager(Player.class).parseActions(innerSection.getSection("action")),
+							instance.getRequirementManager(Player.class)
+									.parseRequirements(innerSection.getSection("requirement"), true))));
 				}
 
 			}
@@ -119,10 +118,10 @@ public class SchematicGUIManager implements SchematicGUIManagerInterface, Listen
 			for (Map.Entry<String, Object> entry : decorativeSection.getStringRouteMappedValues(false).entrySet()) {
 				if (entry.getValue() instanceof Section innerSection) {
 					char symbol = Objects.requireNonNull(innerSection.getString("symbol")).charAt(0);
-					decorativeIcons.put(symbol,
-							Pair.of(new SingleItemParser("gui", innerSection,
+					decorativeIcons.put(symbol, Pair.of(
+							new SingleItemParser("gui", innerSection,
 									instance.getConfigManager().getItemFormatFunctions()).getItem(),
-									instance.getActionManager().parseActions(innerSection.getSection("action"))));
+							instance.getActionManager(Player.class).parseActions(innerSection.getSection("action"))));
 				}
 			}
 		}
@@ -253,14 +252,14 @@ public class SchematicGUIManager implements SchematicGUIManagerInterface, Listen
 
 			Pair<CustomItem, Action<Player>[]> decorativeIcon = this.decorativeIcons.get(element.getSymbol());
 			if (decorativeIcon != null) {
-				ActionManagerInterface.trigger(gui.context, decorativeIcon.right());
+				ActionManager.trigger(gui.context, decorativeIcon.right());
 				return;
 			}
 
 			if (element.getSymbol() == backSlot) {
 				event.setCancelled(true);
 				instance.getIslandChoiceGUIManager().openIslandChoiceGUI(gui.context.holder(), gui.isReset);
-				ActionManagerInterface.trigger(gui.context, backActions);
+				ActionManager.trigger(gui.context, backActions);
 				return;
 			}
 
@@ -283,11 +282,11 @@ public class SchematicGUIManager implements SchematicGUIManagerInterface, Listen
 				if (element.getSymbol() == schematic.left()
 						&& (schematic.mid().endsWith(".schem") || schematic.mid().endsWith(".schematic"))) {
 					event.setCancelled(true);
-					if (RequirementManagerInterface.isSatisfied(gui.context, schematic.right().right())) {
+					if (RequirementManager.isSatisfied(gui.context, schematic.right().right())) {
 						instance.getHellblockHandler().createHellblock(gui.context.holder(), IslandOptions.SCHEMATIC,
 								schematic.mid(), gui.isReset).thenRun(() -> player.closeInventory());
 						gui.context.clearCustomData();
-						ActionManagerInterface.trigger(gui.context, schematic.right().mid());
+						ActionManager.trigger(gui.context, schematic.right().mid());
 					} else {
 						audience.sendMessage(instance.getTranslationManager()
 								.render(MessageConstants.MSG_HELLBLOCK_NO_SCHEMATIC_PERMISSION.build()));

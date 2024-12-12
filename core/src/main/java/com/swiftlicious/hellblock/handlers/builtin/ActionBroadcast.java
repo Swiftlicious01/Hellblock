@@ -1,0 +1,47 @@
+package com.swiftlicious.hellblock.handlers.builtin;
+
+import java.util.List;
+
+import org.bukkit.Bukkit;
+import org.bukkit.OfflinePlayer;
+import org.bukkit.entity.Player;
+
+import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.handlers.AdventureHelper;
+import com.swiftlicious.hellblock.player.Context;
+import com.swiftlicious.hellblock.player.ContextKeys;
+import com.swiftlicious.hellblock.utils.ListUtils;
+import com.swiftlicious.hellblock.utils.extras.MathValue;
+
+import net.kyori.adventure.audience.Audience;
+
+public class ActionBroadcast<T> extends AbstractBuiltInAction<T> {
+
+	private final List<String> messages;
+
+	public ActionBroadcast(HellblockPlugin plugin, Object args, MathValue<T> chance) {
+		super(plugin, chance);
+		this.messages = ListUtils.toList(args);
+	}
+
+	@Override
+	protected void triggerAction(Context<T> context) {
+		if (context.argOrDefault(ContextKeys.OFFLINE, false))
+			return;
+		OfflinePlayer offlinePlayer = null;
+		if (context.holder() instanceof Player player) {
+			offlinePlayer = player;
+		}
+		List<String> replaced = plugin.getPlaceholderManager().parse(offlinePlayer, messages, context.placeholderMap());
+		for (Player player : Bukkit.getOnlinePlayers()) {
+			Audience audience = plugin.getSenderFactory().getAudience(player);
+			for (String text : replaced) {
+				audience.sendMessage(AdventureHelper.miniMessage(text));
+			}
+		}
+	}
+
+	public List<String> messages() {
+		return messages;
+	}
+}

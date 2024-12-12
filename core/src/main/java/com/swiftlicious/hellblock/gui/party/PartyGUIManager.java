@@ -27,7 +27,7 @@ import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
 import com.swiftlicious.hellblock.config.parser.SingleItemParser;
 import com.swiftlicious.hellblock.creation.item.CustomItem;
-import com.swiftlicious.hellblock.handlers.ActionManagerInterface;
+import com.swiftlicious.hellblock.handlers.ActionManager;
 import com.swiftlicious.hellblock.player.Context;
 import com.swiftlicious.hellblock.player.HellblockData;
 import com.swiftlicious.hellblock.player.UserData;
@@ -96,7 +96,7 @@ public class PartyGUIManager implements PartyGUIManagerInterface, Listener {
 
 			backIcon = new SingleItemParser("back", backSection, instance.getConfigManager().getItemFormatFunctions())
 					.getItem();
-			backActions = instance.getActionManager().parseActions(backSection.getSection("action"));
+			backActions = instance.getActionManager(Player.class).parseActions(backSection.getSection("action"));
 		}
 
 		Section ownerSection = config.getSection("owner-icon");
@@ -107,7 +107,7 @@ public class PartyGUIManager implements PartyGUIManagerInterface, Listener {
 
 			ownerIcon = new SingleItemParser("owner", ownerSection,
 					instance.getConfigManager().getItemFormatFunctions()).getItem();
-			ownerActions = instance.getActionManager().parseActions(ownerSection.getSection("action"));
+			ownerActions = instance.getActionManager(Player.class).parseActions(ownerSection.getSection("action"));
 		}
 
 		Section memberSection = config.getSection("member-icon");
@@ -115,12 +115,11 @@ public class PartyGUIManager implements PartyGUIManagerInterface, Listener {
 			for (Map.Entry<String, Object> entry : memberSection.getStringRouteMappedValues(false).entrySet()) {
 				if (entry.getValue() instanceof Section innerSection) {
 					char symbol = Objects.requireNonNull(innerSection.getString("symbol")).charAt(0);
-					memberIcons.add(Tuple.of(symbol, innerSection,
-							Tuple.of(
-									new SingleItemParser("member", innerSection,
-											instance.getConfigManager().getItemFormatFunctions()).getItem(),
-									null,
-									instance.getActionManager().parseActions(innerSection.getSection("action")))));
+					memberIcons.add(Tuple.of(symbol, innerSection, Tuple.of(
+							new SingleItemParser("member", innerSection,
+									instance.getConfigManager().getItemFormatFunctions()).getItem(),
+							null,
+							instance.getActionManager(Player.class).parseActions(innerSection.getSection("action")))));
 				}
 			}
 		}
@@ -130,10 +129,10 @@ public class PartyGUIManager implements PartyGUIManagerInterface, Listener {
 			for (Map.Entry<String, Object> entry : newMemberSection.getStringRouteMappedValues(false).entrySet()) {
 				if (entry.getValue() instanceof Section innerSection) {
 					char symbol = Objects.requireNonNull(innerSection.getString("symbol")).charAt(0);
-					newMemberIcons.put(symbol,
-							Pair.of(new SingleItemParser("new_member", innerSection,
+					newMemberIcons.put(symbol, Pair.of(
+							new SingleItemParser("new_member", innerSection,
 									instance.getConfigManager().getItemFormatFunctions()).getItem(),
-									instance.getActionManager().parseActions(innerSection.getSection("action"))));
+							instance.getActionManager(Player.class).parseActions(innerSection.getSection("action"))));
 				}
 			}
 		}
@@ -144,10 +143,10 @@ public class PartyGUIManager implements PartyGUIManagerInterface, Listener {
 			for (Map.Entry<String, Object> entry : decorativeSection.getStringRouteMappedValues(false).entrySet()) {
 				if (entry.getValue() instanceof Section innerSection) {
 					char symbol = Objects.requireNonNull(innerSection.getString("symbol")).charAt(0);
-					decorativeIcons.put(symbol,
-							Pair.of(new SingleItemParser("gui", innerSection,
+					decorativeIcons.put(symbol, Pair.of(
+							new SingleItemParser("gui", innerSection,
 									instance.getConfigManager().getItemFormatFunctions()).getItem(),
-									instance.getActionManager().parseActions(innerSection.getSection("action"))));
+							instance.getActionManager(Player.class).parseActions(innerSection.getSection("action"))));
 				}
 			}
 		}
@@ -295,14 +294,14 @@ public class PartyGUIManager implements PartyGUIManagerInterface, Listener {
 
 			Pair<CustomItem, Action<Player>[]> decorativeIcon = this.decorativeIcons.get(element.getSymbol());
 			if (decorativeIcon != null) {
-				ActionManagerInterface.trigger(gui.context, decorativeIcon.right());
+				ActionManager.trigger(gui.context, decorativeIcon.right());
 				return;
 			}
 
 			if (element.getSymbol() == backSlot) {
 				event.setCancelled(true);
 				instance.getHellblockGUIManager().openHellblockGUI(gui.context.holder(), gui.isOwner);
-				ActionManagerInterface.trigger(gui.context, backActions);
+				ActionManager.trigger(gui.context, backActions);
 				return;
 			}
 
@@ -326,7 +325,7 @@ public class PartyGUIManager implements PartyGUIManagerInterface, Listener {
 
 			if (element.getSymbol() == ownerSlot) {
 				event.setCancelled(true);
-				ActionManagerInterface.trigger(gui.context, ownerActions);
+				ActionManager.trigger(gui.context, ownerActions);
 			}
 
 			for (Tuple<Character, Section, Tuple<CustomItem, UUID, Action<Player>[]>> memberIcon : memberIcons) {
@@ -341,7 +340,7 @@ public class PartyGUIManager implements PartyGUIManagerInterface, Listener {
 					if (username != null) {
 						instance.getCoopManager().removeMemberFromHellblock(userData.get(), username,
 								memberIcon.right().mid());
-						ActionManagerInterface.trigger(gui.context, memberIcon.right().right());
+						ActionManager.trigger(gui.context, memberIcon.right().right());
 						break;
 					}
 				}
@@ -351,7 +350,7 @@ public class PartyGUIManager implements PartyGUIManagerInterface, Listener {
 			if (newMemberIcon != null && element.getUUID() == null) {
 				event.setCancelled(true);
 				instance.getInviteGUIManager().openInvitationGUI(player);
-				ActionManagerInterface.trigger(gui.context, newMemberIcon.right());
+				ActionManager.trigger(gui.context, newMemberIcon.right());
 				return;
 			}
 		}

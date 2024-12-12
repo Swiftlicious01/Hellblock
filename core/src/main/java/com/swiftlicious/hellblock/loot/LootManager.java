@@ -16,7 +16,7 @@ import org.jetbrains.annotations.Nullable;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.effects.Effect;
-import com.swiftlicious.hellblock.handlers.RequirementManagerInterface;
+import com.swiftlicious.hellblock.handlers.RequirementManager;
 import com.swiftlicious.hellblock.player.Context;
 import com.swiftlicious.hellblock.utils.WeightUtils;
 import com.swiftlicious.hellblock.utils.extras.ConditionalElement;
@@ -67,7 +67,8 @@ public class LootManager implements LootManagerInterface {
 		if (subSection == null) {
 			return new ConditionalElement<>(
 					instance.getConfigManager().parseWeightOperation(section.getStringList("list")), Map.of(),
-					instance.getRequirementManager().parseRequirements(section.getSection("conditions"), false));
+					instance.getRequirementManager(Player.class).parseRequirements(section.getSection("conditions"),
+							false));
 		} else {
 			Map<String, ConditionalElement<List<Pair<String, BiFunction<Context<Player>, Double, Double>>>, Player>> subElements = new HashMap<>();
 			for (Map.Entry<String, Object> entry : subSection.getStringRouteMappedValues(false).entrySet()) {
@@ -77,7 +78,8 @@ public class LootManager implements LootManagerInterface {
 			}
 			return new ConditionalElement<>(
 					instance.getConfigManager().parseWeightOperation(section.getStringList("list")), subElements,
-					instance.getRequirementManager().parseRequirements(section.getSection("conditions"), false));
+					instance.getRequirementManager(Player.class).parseRequirements(section.getSection("conditions"),
+							false));
 		}
 	}
 
@@ -169,7 +171,7 @@ public class LootManager implements LootManagerInterface {
 			ConditionalElement<List<Pair<String, BiFunction<Context<Player>, Double, Double>>>, Player> conditionalElement) {
 		if (conditionalElement == null)
 			return;
-		if (RequirementManagerInterface.isSatisfied(context, conditionalElement.getRequirements())) {
+		if (RequirementManager.isSatisfied(context, conditionalElement.getRequirements())) {
 			for (Pair<String, BiFunction<Context<Player>, Double, Double>> modifierPair : conditionalElement
 					.getElement()) {
 				double previous = weightMap.getOrDefault(modifierPair.left(), 0d);

@@ -57,11 +57,11 @@ public class BlockManager implements BlockManagerInterface, Listener {
 	private final Map<String, BlockConfig> blocks = new HashMap<>();
 	private final Map<String, BlockDataModifierFactory> dataFactories = new HashMap<>();
 	private final Map<String, BlockStateModifierFactory> stateFactories = new HashMap<>();
-	private BlockProvider[] blockDetectArray;
+	private BlockProvider[] blockDetectArray = new BlockProvider[0];
 
 	public BlockManager(HellblockPlugin plugin) {
 		this.instance = plugin;
-		this.registerInbuiltProperties();
+		this.registerBuiltInProperties();
 		this.registerBlockProvider(new BlockProvider() {
 			@Override
 			public String identifier() {
@@ -210,6 +210,10 @@ public class BlockManager implements BlockManagerInterface, Listener {
 		return success;
 	}
 
+	public BlockProvider getBlockProvider(String id) {
+		return blockProviders.get(id);
+	}
+
 	public boolean registerBlockDataModifierBuilder(String type, BlockDataModifierFactory factory) {
 		if (this.dataFactories.containsKey(type))
 			return false;
@@ -232,7 +236,7 @@ public class BlockManager implements BlockManagerInterface, Listener {
 		return this.stateFactories.remove(type) != null;
 	}
 
-	private void registerInbuiltProperties() {
+	private void registerBuiltInProperties() {
 		this.registerDirectional();
 		this.registerStorage();
 		this.registerRotatable();

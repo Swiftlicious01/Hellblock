@@ -7,6 +7,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.handlers.VersionHelper;
 import com.swiftlicious.hellblock.scheduler.SchedulerTask;
 
 /**
@@ -14,7 +15,6 @@ import com.swiftlicious.hellblock.scheduler.SchedulerTask;
  */
 public class BaitAnimationTask implements Runnable {
 
-	protected final HellblockPlugin instance;
 	private final SchedulerTask task;
 	private final int entityID;
 	private final Player player;
@@ -29,21 +29,19 @@ public class BaitAnimationTask implements Runnable {
 	 * @param baitItem The bait ItemStack.
 	 */
 	public BaitAnimationTask(HellblockPlugin plugin, Player player, FishHook fishHook, ItemStack baitItem) {
-		instance = plugin;
 		this.player = player;
 		this.fishHook = fishHook;
 		this.task = plugin.getScheduler().asyncRepeating(this, 50, 50, TimeUnit.MILLISECONDS);
 		ItemStack itemStack = baitItem.clone();
 		itemStack.setAmount(1);
-		this.entityID = plugin.getVersionManager().getNMSManager().dropFakeItem(player, itemStack,
+		this.entityID = VersionHelper.getNMSManager().dropFakeItem(player, itemStack,
 				fishHook.getLocation().clone().subtract(0, 0.6, 0));
 	}
 
 	@Override
 	public void run() {
-		instance.getVersionManager().getNMSManager().sendClientSideEntityMotion(player, fishHook.getVelocity(),
-				entityID);
-		instance.getVersionManager().getNMSManager().sendClientSideTeleportEntity(player,
+		VersionHelper.getNMSManager().sendClientSideEntityMotion(player, fishHook.getVelocity(), entityID);
+		VersionHelper.getNMSManager().sendClientSideTeleportEntity(player,
 				fishHook.getLocation().clone().subtract(0, 0.6, 0), fishHook.getVelocity(), false, entityID);
 	}
 
@@ -52,6 +50,6 @@ public class BaitAnimationTask implements Runnable {
 	 */
 	public void cancelAnimation() {
 		task.cancel();
-		instance.getVersionManager().getNMSManager().removeClientSideEntity(player, entityID);
+		VersionHelper.getNMSManager().removeClientSideEntity(player, entityID);
 	}
 }

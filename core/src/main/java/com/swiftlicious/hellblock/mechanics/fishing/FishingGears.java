@@ -20,7 +20,7 @@ import com.swiftlicious.hellblock.creation.item.Item;
 import com.swiftlicious.hellblock.effects.EffectModifier;
 import com.swiftlicious.hellblock.effects.EffectModifierInterface;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
-import com.swiftlicious.hellblock.handlers.RequirementManagerInterface;
+import com.swiftlicious.hellblock.handlers.RequirementManager;
 import com.swiftlicious.hellblock.mechanics.MechanicType;
 import com.swiftlicious.hellblock.mechanics.hook.HookConfig;
 import com.swiftlicious.hellblock.nms.inventory.HandSlot;
@@ -191,7 +191,7 @@ public class FishingGears {
 
 			// check requirements before checking totems
 			for (EffectModifier modifier : fishingGears.modifiers) {
-				if (!RequirementManagerInterface.isSatisfied(context, modifier.requirements())) {
+				if (!RequirementManager.isSatisfied(context, modifier.requirements())) {
 					fishingGears.canFish = false;
 				}
 			}

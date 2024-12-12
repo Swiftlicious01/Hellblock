@@ -1,5 +1,6 @@
 package com.swiftlicious.hellblock.creation.block;
 
+import org.bukkit.Location;
 import org.bukkit.block.Block;
 import org.bukkit.entity.FallingBlock;
 import org.bukkit.entity.Player;
@@ -48,6 +49,18 @@ public interface BlockManagerInterface extends Reloadable {
 	 */
 	@NotNull
 	FallingBlock summonBlockLoot(@NotNull Context<Player> context);
+
+    /**
+     * Retrieves the ID of the custom block at the specified location.
+     *
+     * @param location The location of the block.
+     * @return The ID of the block.
+     */
+    @NotNull
+    default String getBlockID(@NotNull Location location) {
+        return getBlockID(location.getBlock());
+    }
+
 
 	/**
 	 * Retrieves the ID of a block.

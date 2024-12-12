@@ -1,0 +1,2351 @@
+# HELLBLOCK CONFIGURATION #
+
+# Developer: @Swiftlicious
+config-version: '${config_version}'
+
+# Debug
+debug: false
+
+# BStats
+metrics: true
+
+# Check updates
+update-checker: false
+
+# Force locale setting, e.g., en
+force-locale: 'en'
+
+general:
+  # This command is used to teleport players out of hellblocks that they shouldn't be in. 
+  spawn-command: '/spawn'
+  # Redis sync settings
+  redis-synchronization:
+    # Use Redis for cross-server data synchronization
+    redis-ranking: false
+    # Server group for redis data
+    server-group: default
+    # Increase this value to allow more placeholders like {4_player} and {5_level}
+    placeholder-limit: 3
+  worlds:
+    # Whether or not to use SlimeWorldManager to control per player worlds used for each hellblock.
+    # If  set to true the follow two fields are ignored and not used.
+    per-player-worlds: false
+    # The name of the world if using bukkit world (opposed to having SlimeWorldManager installed)
+    world: 'hellworld'
+    # Some servers use separate directories for player worlds, which may not be in the server's root directory.
+    # This option allows you to specify a custom path to these world folders. This is only applicable for Bukkit worlds.
+    absolute-world-folder-path: ''
+    # Specifies which worlds the plugin's mechanisms should apply to
+    # Options: whitelist/blacklist/regex
+    mode: blacklist
+    list:
+      - blacklist_world # A world that doesn't exist
+    settings:
+      # Default settings that apply to all worlds
+      _DEFAULT_:
+        # Whether to enable the plugin's pre-configured systems
+        # Disabling this stops all mechanisms from ticking unless fully managed via the API.
+        # If you're not familiar with using Hellblock API, keep this set to true as it meets the needs of 99% of users.
+        enable: true
+        # This is different from the vanilla RandomTickSpeed.
+        # "Random tick" here means randomly selecting n blocks within a 16x16x16 section every second for ticking, unlike Minecraft's per-tick approach.
+        # Therefore, Hellblock' random ticks have minimal impact on the server and run on multiple threads.
+        random-tick-speed: 30
+        # The minimum tick interval in seconds when using scheduled tick mode
+        # A value of 200s means a crop is guaranteed to tick at least once every 180 seconds
+        # For crops, growth rates are nearly uniform under the same conditions
+        min-tick-unit: 200
+        # Settings for ticking while the world is offline
+        # Allows crops to grow even if the world is unloaded or the server is down
+        # This might cause issues with time-dependent conditions
+        offline-tick:
+          enable: false
+          # Maximum offline time recorded in seconds
+          # Avoid setting this too high, as it may cause long-unloaded chunks to take a long time to load
+          max-offline-seconds: 1200
+          # Maximum time allowed for loading a chunk
+          # Sometimes, chunks with large amounts of data that have been unloaded for a long time can take a while to load,
+          # potentially causing unexpected issues
+          # This setting allows the plugin to forcibly interrupt the tick process if loading time exceeds a set threshold
+          max-loading-time: 100 #ms
+        # Crop settings
+        farming:
+          # [RANDOM_TICK]
+          # Random tick mode mirrors vanilla behavior, where crops grow randomly
+          # This randomness can cause significant stage differences among crops grown under identical conditions
+          # [SCHEDULED_TICK]
+          # Scheduled tick mode provides more predictable growth management,
+          # ensuring crops grow at nearly the same rate
+          # [ALL]
+          # Run RANDOM_TICK and SCHEDULED_TICK at the same time
+          mode: RANDOM_TICK
+          # Tick interval determines how many times a block is ticked before its logic is executed
+          tick-interval: 1
+          # Limit the number of crops per chunk (-1 means no limit)
+          max-per-chunk: -1
+      # Override default settings for specific worlds here
+      _WORLDS_:
+        world:
+          enable: false
+        world_nether:
+          enable: false
+        world_the_end:
+          enable: false
+hellblock:
+  # Whether or not players can transfer ownership to others for their hellblocks. 
+  can-transfer-islands: true
+  # Whether or not players can link their nether portals to other player's hellblocks. If false a nether portal on any island will just
+  # teleport them to their own hellblock.
+  can-link-hellblocks: true
+  # This is the maximum amount of players that can join a party without having defined permissions. If you want it set lower than this you can
+  # give the player the permission 'hellcoop.size.<insert number here>' to reduce the number below. The number here is set for when players
+  # have the wildcard permission 'hellcoop.size.*'.
+  max-party-size: 20
+  # Can be internalAsync (for us to handle it), fawe or worldedit  
+  schematic-paster: worldedit
+  # You must add all schematic types (without the .schem or .schematic file type at the end) you want as an option here to be available.
+  island-options:
+    - 'default'
+    - 'classic'
+    - 'example'
+  # The starting height for each hellblock. This will be the height a spawn point is set per hellblock when creating a island.
+  height: 150
+  # The distance between each hellblock. This is only accounted for when all hellblocks are stored in one world. Otherwise this is ignored.
+  distance: 110
+  # Use worldguard for hellblock protection or have us handle it?
+  use-worldguard-protection: true
+  # The protection range for each hellblock. This is how far it will protect using WorldGuard or our internal protection system.
+  protection-range: 105
+  # Whether or not the owner and party's inventory gets cleared when hellblock gets reset.
+  clear-inventory-on-reset: true
+  # Whether or not the owner and party's enderchest gets cleared when hellblock gets reset.
+  clear-enderchest-on-reset: true
+  # Won't delete the islands but will set them as an abandoned state which removes them from the island region 
+  # and any trustees / party members as well. 
+  abandon-after-days: 30
+  # Whether entry messages are enabled when entrying hellblock regions.
+  entry-message-enabled: true
+  # Whether farewell messages are enabled when leaving hellblock regions.
+  farewell-message-enabled: true
+  # If set to true, bed explosions will be disabled in the nether.
+  disable-bed-explosions: true
+  # If set to true when a sapling is placed on dirt, grass, etc like normal a normal tree will spawn.
+  # Otherwise if false it will replace any tree that is grown with a glowstone tree.
+  grow-natural-trees: false
+  # If set to true it will teleport players who fall in the void to their hellblock or to spawn if no hellblock is found.
+  void-teleport: true
+  creation-title-screen:
+    enable: true
+    title: '<red>Welcome <dark_red>{player}'
+    subtitle: '<red>To Your Hellblock!'
+    fadeIn: 2
+    stay: 3
+    fadeOut: 2
+  creating-hellblock-sound:
+    key: 'minecraft:item.totem.use'
+    source: 'player'
+    volume: 1.0
+    pitch: 1.0
+  linking-hellblock-sound:
+    key: 'minecraft:block.end_portal.spawn'
+    source: 'player'
+    volume: 1.0
+    pitch: 1.0
+  challenge-completed-sound:
+    key: 'minecraft:entity.player.levelup'
+    source: 'player'
+    volume: 1.0
+    pitch: 1.0
+  starter-chest: 
+    inventory-name: '<dark_red>Hellblock Chest'
+    items:
+      '1':
+        material: BROWN_MUSHROOM
+        amount: 1
+        slot: 3
+      '2':
+        material: OAK_SIGN
+        amount: 1
+        slot: 4
+      '3':
+        material: RED_MUSHROOM
+        amount: 1
+        slot: 5
+      '4':
+        material: OAK_SAPLING
+        amount: 1
+        slot: 9
+      '5':
+        material: LAVA_BUCKET
+        amount: 1
+        slot: 12
+      '6':
+        material: BUCKET
+        amount: 1
+        slot: 13
+      '7':
+        material: LAVA_BUCKET
+        amount: 1
+        slot: 14
+      '8':
+        material: GRASS_BLOCK
+        amount: 1
+        slot: 18
+      '9':
+        material: BONE
+        amount: 1
+        slot: 21
+      '10':
+        material: NETHER_WART
+        amount: 1
+        slot: 22
+      '11':
+        material: BONE
+        amount: 1
+        slot: 23
+  gui:
+    # Title for the hellblock menu
+    title: '<gradient:#A52A2A:#800000:#A52A2A>Hellblock Menu</gradient>'
+    # Layout for the hellblock menu
+    layout:
+      - 'TECPLBFRX'
+    # For the items that are exclusive to owners only (biome, reset, lock and flags) what decorative item should it use in it's place?
+    # Leave empty ('') for it to replace it with air.
+    owner-exclusive-placeholder-icon: 'glass-pane'
+    # Teleport icon to teleport to hellblock
+    teleport-icon:
+      symbol: 'T'
+      material: ENDER_PEARL
+      display:
+        name: '<green>Teleport to your Hellblock!'
+        lore:
+          - '<aqua>Click to go to your home island!'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:entity.enderman.teleport'
+            source: 'player'
+            volume: 1
+            pitch: 1
+        particle_action:
+          type: particle
+          value:
+            key: 'ENDER_SIGNAL'
+            count: 5
+        message_action:
+          type: message
+          value: '<red>Teleporting you to your hellblock!'
+      components:
+        minecraft:hide_tooltip: {}
+    # Challenge icon to view hellblock challenges
+    challenge-icon:
+      symbol: 'C'
+      material: KNOWLEDGE_BOOK
+      display:
+        name: '<green>View all Hellblock Challenges!'
+        lore:
+          - '<aqua>Click to view a list of challenges for you to complete!'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_tooltip: {}
+    # Level icon to view hellblock level
+    level-icon:
+      symbol: 'E'
+      material: EXPERIENCE_BOTTLE
+      display:
+        name: '<green>View your island level!'
+        lore:
+          - '<gold>Level: <yellow>{hellblock_level}'
+          - ' '
+          - '<gold>Your overall rank is <yellow><bold>{hellblock_rank}'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:entity.player.levelup'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_tooltip: {}
+    # Party icon to view party members 
+    party-icon:
+      symbol: 'P'
+      material: BEACON
+      display:
+        name: '<green>View your party members!'
+        lore:
+          - '<aqua>Click to see a list of your party members!'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_tooltip: {}
+    # Biome icon to change hellblock biome
+    biome-icon:
+      symbol: 'B'
+      material: WARPED_FUNGUS
+      display:
+        name: '<green>Change island biome!'
+        lore:
+          - '<aqua>Click to view all of the biome options!'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_tooltip: {}
+    # Flag icon to change hellblock protection flags
+    flag-icon:
+      symbol: 'F'
+      material: REPEATER
+      display:
+        name: '<green>Change your Hellblock Protection Flags!'
+        lore:
+          - '<aqua>Click to change your hellblock protection flags!'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_tooltip: {}
+    # Lock icon to change visitor status
+    lock-icon:
+      symbol: 'L'
+      material: ENDER_CHEST
+      display:
+        name: '<green>Lock your Hellblock!'
+        lore:
+          - '<aqua>Click to change the visitor status of your hellblock!'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+        message_action:
+          type: message
+          value: "<red>You've just <dark_red>locked <red>your hellblock island!"
+      components:
+        minecraft:hide_tooltip: {}
+    # Unlock icon to change visitor status
+    unlock-icon:
+      symbol: 'L'
+      material: CHEST
+      display:
+        name: '<green>Unlock your Hellblock!'
+        lore:
+          - '<aqua>Click to change the visitor status of your hellblock!'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+        message_action:
+          type: message
+          value: "<red>You've just <dark_red>unlocked <red>your hellblock island!"
+      components:
+        minecraft:hide_tooltip: {}
+    # Reset icon to restart hellblock
+    reset-icon:
+      symbol: 'R'
+      material: NETHER_BRICKS
+      display:
+        name: '<green>Reset your Hellblock'
+        lore:
+          - '<aqua>Click to reset your hellblock island!'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_tooltip: {}
+    # Cooldown icon for reset
+    reset-cooldown-icon:
+      material: BARRIER
+      display:
+        name: '<red>Reset is on cooldown!'
+        lore:
+          - '<dark_red>Your ability to reset is on cooldown for:'
+          - '<red>{reset_cooldown_formatted}'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:entity.villager.no'
+            source: 'player'
+            volume: 1
+            pitch: 1
+        message_action:
+          type: message
+          value: '<red>You've recently reset your hellblock already, you must wait for <dark_red>{reset_cooldown_formatted}<red>!'
+      components:
+        minecraft:hide_tooltip: {}
+    # Cooldown icon for biome
+    biome-cooldown-icon:
+      material: BARRIER
+      display:
+        name: '<red>Biome Change is on cooldown!'
+        lore:
+          - '<dark_red>Your ability to change the biome is on cooldown for:'
+          - '<red>{biome_cooldown_formatted}'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:entity.villager.no'
+            source: 'player'
+            volume: 1
+            pitch: 1
+        message_action:
+          type: message
+          value: '<red>You've recently changed your biome already, you must wait for <dark_red>{biome_cooldown_formatted}<red>!'
+        components:
+          minecraft:hide_tooltip: {}
+    # Decorative icons for visual enhancement
+    decorative-icons:
+      glass-pane:
+        symbol: 'A'
+        material: BLACK_STAINED_GLASS_PANE
+        display:
+          name: ' '  
+        components:
+          minecraft:hide_tooltip: {}
+      close-icon:
+        symbol: 'X'
+        material: RED_STAINED_GLASS_PANE
+        display:
+          name: '<red>Close Menu'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+          close_action:
+            type: close-inv
+        components:
+          minecraft:hide_tooltip: {}
+
+party:
+  gui:
+    # The title for the coop party menu
+    title: '<gradient:#A52A2A:#800000:#A52A2A>Hellblock Party</gradient>'
+    # The layout for the party menu
+    layout:
+      - 'AAAAAAAAA'
+      - 'AOMMMMMMA'
+      - 'AMMMMMMMA'
+      - 'AMMMMMMMA'
+      - 'AAAAAAAAX'
+    # Back icon to return to main menu
+    back-icon:
+      symbol: 'X'
+      material: RED_STAINED_GLASS_PANE
+      display:
+        name: '<red>Return to Main Menu'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_tooltip: {}
+      # Owner icon to view owner of hellblock
+      owner-icon:
+        symbol: 'O'
+        material: PLAYER_HEAD
+        display:
+          name: '<aqua>{player}'
+          lore:
+            - '<yellow>Role: <gold>Owner'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_tooltip: {}
+      # Member icon to view members of hellblock
+      member-icon:
+        symbol: 'M'
+        material: PLAYER_HEAD
+        display:
+          name: '<aqua>{player}'
+          owner-lore: 
+            - '<yellow>Role: <gold>Member'
+            - ' '
+            - '<red>Click to kick them!'
+          member-lore:
+            - '<yellow>Role: <gold>Member'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_tooltip: {}
+      # New member icon to add new players to the hellblock
+      new-member-icon:
+        symbol: 'M'
+        material: PLAYER_HEAD
+        head64: 'eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvYmFkYzA0OGE3Y2U3OGY3ZGFkNzJhMDdkYTI3ZDg1YzA5MTY4ODFlNTUyMmVlZWQxZTNkYWYyMTdhMzhjMWEifX19'
+        display:
+          name: '<dark_green>Empty Slot'
+          owner-lore: 
+            - '<green>Click to invite a new member!'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1 
+        components:
+          minecraft:hide_tooltip: {}
+      # Decorative icons for visual enhancement
+      decorative-icons:
+        glass-pane:
+          symbol: 'A'
+          material: BLACK_STAINED_GLASS_PANE
+          display:
+            name: ' '
+          components:
+            minecraft:hide_tooltip: {}
+
+invitation:
+  gui:
+    # The title for the invite menu
+    title: '<gradient:#A52A2A:#800000:#A52A2A>Hellblock Invitations</gradient>'
+    # The layout for the invite menu
+    # This layout is for the player's actual inventory. Do not edit this to be anything but 4x9 rows.
+    layout:
+      - 'PPPPPPPPP'
+      - 'PPPPPPPPP'
+      - 'PPPPPPPPP'
+      - 'LAAAXAAAR'
+    # Search icon for typing in the player's icon (Actions aren't acceptable here)
+    # The only things that can be changed are what are shown below. name represents what will come up if nothing is typed in.
+    # Otherwise what is typed in the anvil's search bar will be set to the name of the item below.
+    search-icon:
+      material: NAME_TAG
+      display:
+        name: '<Type Name Here>'
+      components:
+        minecraft:hide_tooltip: {}
+    # No player found icon
+    player-not-found-icon:
+      material: BARRIER
+      display:
+        name: '<red>No Player Found'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:entity.villager.no'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_tooltip: {}
+    # Player found icon
+    player-found-icon:
+      material: PLAYER_HEAD
+      display:
+        name: '<green>{player}'
+        lore:
+          - '<dark_green>Click to send invite!'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:block.note_block.pling'
+            source: 'player'
+            volume: 1
+            pitch: 1
+	  components:
+        minecraft:hide_tooltip: {}
+    # Player icon for each different player to invite
+    player-icon:
+      symbol: 'P' 
+      material: PLAYER_HEAD
+      display:
+        name: '<yellow>{player}'
+        lore:
+          - '<gold>Click to invite them!'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_tooltip: {}
+    # Scroll left icon
+    scroll-left-icon:
+      symbol: 'L'
+      material: ORANGE_STAINED_GLASS_PANE
+      display:
+        name: '<gold>Previous Page'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_tooltip: {}
+    # Scroll right icon
+    scroll-right-icon:
+      symbol: 'R'
+      material: ORANGE_STAINED_GLASS_PANE
+      display:
+        name: '<gold>Next Page'
+      action: 
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecrat:hide_tooltip: {}
+    # Back icon to return to party menu
+    back-icon:
+      symbol: 'X'
+      material: RED_STAINED_GLASS_PANE
+      display: 
+        name: '<red>Return to Party Menu'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_tooltip: {}
+    # Decorative icons for visual enhancement
+    decorative-icons:
+      glass-pane:
+        symbol: 'A'
+        material: BLACK_STAINED_GLASS_PANE
+        display:
+          name: ' '
+        components:
+          minecraft:hide_tooltip: {}
+
+challenges:
+  gui:
+    # The title for the challenges menu
+    title: '<gradient:#A52A2A:#800000:#A52A2A>Hellblock Challenges</gradient>'
+    # The layout for the challenges menu
+    layout:
+      - 'A0123456A'
+      - 'AAA789AAX'
+    # Make completed and claimed challenges glow?
+    highlight-completed-challenges: true
+    # Back icon to return to main menu
+    back-icon:
+      symbol: 'X'
+      material: RED_STAINED_GLASS_PANE
+      display:
+        name: '<red>Return to Main Menu'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_tooltip: {}
+    # Challenge icons for each different challenge type
+    challenge-icons:
+      challenge-one:
+        symbol: '1'
+        material: GOLDEN_PICKAXE
+        # Check the challenges file for each different challenge types to input here
+        challenge-type: NETHERRACK_GENERATOR_CHALLENGE
+        display:
+          completed-name: '<green>Break {needed_amount} generated blocks!'
+          uncompleted-name: '<red>Break {needed_amount} generated blocks!'
+          unclaimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - ' '
+            - '<yellow>Click to claim your reward!'
+          claimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - '<yellow>Reward Claimed!'
+          uncompleted-lore:
+            - '<dark_red>Progress: <gray>({current_amount}/{needed_amount})'
+            - '{progress_bar}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_tooltip: {}
+    # Decorative icons for visual enhancement
+    decorative-icons:
+      glass-pane:
+        symbol: 'A'
+        material: BLACK_STAINED_GLASS_PANE
+        display:
+          name: ' '
+        components:
+          minecraft:hide_tooltip: {}
+
+flags:
+  gui:
+    # The title for the flags menu
+    title: '<gradient:#A52A2A:#800000:#A52A2A>Hellblock Flags</gradient>'
+    # The layout for the flags menu
+    layout:
+      - 'AAAAAAAAX'
+      - 'ABPXXXXXA'
+      - 'AXXXXXXXA'
+      - 'AXXXXXXXA'
+      - 'AXXXXXXXA'
+      - 'AAAXXXAAA'
+    # Make the flags that are selected glow?
+    highlight-selected-flags: true
+    # Back icon to return to main menu
+    back-icon:
+      symbol: 'X'
+      material: RED_STAINED_GLASS_PANE
+      display:
+        name: '<red>Return to Main Menu'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_tooltip: {}
+    # Flag icons for each different flag type
+    flag-icons:
+      block-break-icon:
+        symbol: 'B'
+        material: STONE_PICKAXE
+        flag-type: BLOCK_BREAK
+        display:
+          name: '<yellow>Block Break Flag'
+          lore:
+            - '<gold>Allowed: <yellow>{flag_value}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_tooltip: {}
+      block-place-icon:
+        symbol: 'P'
+        material: COBBLESTONE
+        flag-type: BLOCK_PLACE
+        display:
+          name: '<yellow>Block Place Flag'
+          lore:
+            - '<gold>Allowed: <yellow>{flag_value}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_tooltip: {}
+    # Decorative icons for visual enhancement
+    decorative-icons:
+      glass-pane:
+        symbol: 'A'
+        material: BLACK_STAINED_GLASS_PANE
+        display:
+          name: ' '
+        components:
+          minecraft:hide_tooltip: {}
+
+biome:
+  gui:
+    # The title for the biome menu
+    title: '<gradient:#A52A2A:#800000:#A52A2A>Hellblock Biomes</gradient>'
+    # The layout for the biome menu
+    layout:
+      - 'ASWCNBFAX'
+    # Make the biome that is currently selected glow?
+    highlight-selected-biome: true
+    # Biome icons
+    biome-icons:
+      # Soul sand valley icon
+      soul-sand-valley-icon:
+        symbol: 'S'
+        material: SOUL_SOIL
+        # The biome defined for this icon. The options are all listed out below:
+        # [SOUL_SAND_VALLEY, WARPED_FOREST, CRIMSON_FOREST, NETHER_WASTES, BASALT_DELTAS, NETHER_FORTRESS]
+        biome: SOUL_SAND_VALLEY
+        display:
+          name: '<red>Soul Sand Valley'
+          unselected-lore:
+            - '<dark_red>Click to change to this biome!'
+          selected-lore:
+            - '<dark_red>Click to change to this biome!'
+            - ' '
+            - '<yellow>This is your current selection!'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+      # You can also have requirements per biome, for example charging them using Vault economy.
+      # requirement:
+      #   money_requirement:
+      #     type: money
+      #     value: 500
+        components:
+          minecraft:hide_tooltip: {}
+      # Warped forest icon
+      warped-forest-icon:
+        symbol: 'W'
+        material: WARPED_STEM
+        biome: WARPED_FOREST
+        display:
+          name: '<red>Warped Forest'
+          unselected-lore:
+            - '<dark_red>Click to change to this biome!'
+          selected-lore:
+            - '<dark_red>Click to change to this biome!'
+            - ' '
+            - '<yellow>This is your current selection!'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_tooltip: {}
+      # Crimson forest icon
+      crimson-forest-icon:
+        symbol: 'C'
+        material: CRIMSON_STEM
+        biome: CRIMSON_FOREST
+        display:
+          name: '<red>Crimson Forest'
+          unselected-lore:
+            - '<dark_red>Click to change to this biome!'
+          selected-lore:
+            - '<dark_red>Click to change to this biome!'
+            - ' '
+            - '<yellow>This is your current selection!'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_tooltip: {}
+      # Nether wastes icon
+      nether-wastes-icon:
+        symbol: 'N'
+        material: NETHERRACK
+        biome: NETHER_WASTES
+        display:
+          name: '<red>Nether Wastes'
+          unselected-lore:
+            - '<dark_red>Click to change to this biome!'
+          selected-lore:
+            - '<dark_red>Click to change to this biome!'
+            - ' '
+            - '<yellow>This is your current selection!'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_tooltip: {}
+      # Basalt deltas icon
+      basalt-deltas-icon:
+        symbol: 'B'
+        material: NETHERITE_BLOCK
+        biome: BASALT_DELTAS
+        display:
+          name: '<red>Basalt Deltas'
+          unselected-lore:
+            - '<dark_red>Click to change to this biome!'
+          selected-lore:
+            - '<dark_red>Click to change to this biome!'
+            - ' '
+            - '<yellow>This is your current selection!'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_tooltip: {}
+      # Nether fortress icon
+      nether-fortress-icon:
+        symbol: 'F'
+        material: NETHER_BRICK
+        biome: NETHER_FORTRESS
+        display:
+          name: '<red>Nether Fortress'
+          unselected-lore:
+            - '<dark_red>Click to change to this biome!'
+          selected-lore:
+            - '<dark_red>Click to change to this biome!'
+            - ' '
+            - '<yellow>This is your current selection!'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_tooltip: {}
+    # Back icon to return to main menu
+    back-icon:
+      symbol: 'X'
+      material: RED_STAINED_GLASS_PANE
+      display:
+        name: '<red>Return to Main Menu'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_tooltip: {}
+    decorative-icons:
+      glass-pane:
+        symbol: 'A'
+        material: BLACK_STAINED_GLASS_PANE
+        display:
+          name: ' '
+        components:
+          minecraft:hide_tooltip: {}
+
+confirm-reset:
+  gui:
+    # The title for the reset confirm menu
+    title: '<gradient:#A52A2A:#800000:#A52A2A>Confirmation Menu</gradient>'
+    # The layout for the reset confirm menu
+    # One row with 5 characters will result in a hopper inventory menu being used instead of a regular one.
+    layout:
+      - 'ACADA'
+    # Deny icon for denying reset action
+    deny-icon:
+      symbol: 'D'
+      material: RED_WOOL
+      display:
+        name: '<red>Deny Reset Action'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_tooltip: {}
+    # Confirm icon for confirming reset action
+    confirm-icon:
+      symbol: 'C'
+      material: LIME_WOOL
+      display:
+        name: '<green>Confirm Reset Action'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_tooltip: {}
+    # Decorative icons for visual enhancement 
+    decorative-icons:
+      glass-pane:
+        symbol: 'A'
+        material: BLACK_STAINED_GLASS_PANE
+        display:
+          name: ' '  
+        components:
+          minecraft:hide_tooltip: {}
+
+island-choice:
+  gui:
+    # The title for the island choice menu
+    title: '<gradient:#A52A2A:#800000:#A52A2A>Pick your island type!</gradient>'
+    # The layout for the island choice menu
+    layout: 
+      - 'AADACASAA'
+    # Default icon for default island type
+    default-icon:
+      symbol: 'D'
+      material: NETHERRACK
+      display:
+        name: '<red>Default Type'
+        lore:
+          - '<dark_red>Click to generate a default hellblock!'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_tooltip: {}
+    # Classic icon for classic island type
+    classic-icon:
+      symbol: 'C'
+      material: SOUL_SAND
+      display:
+        name: '<red>Classic Type'
+        lore:
+          - '<dark_red>Click to generate a classic hellblock!'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_tooltip: {}
+    # Schematic icon for schematic options
+    schematic-icon:
+      symbol: 'S'
+      material: MAP
+      display:
+        name: '<red>Schematic Options'
+        lore:
+          - '<dark_red>Click to view the schematic options to generate!'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_tooltip: {}
+    # Decorative icons for visual enhancement
+    decorative-icons:
+      glass-pane:
+        symbol: 'A'
+        material: BLACK_STAINED_GLASS_PANE
+        display:
+          name: ' '  
+        components:
+          minecraft:hide_tooltip: {}
+
+schematic:
+  gui:
+    # The title for the schematic menu
+    title: '<gradient:#A52A2A:#800000:#A52A2A>Choose a schematic!</gradient>'
+    # The layout for the schematic menu
+    layout:
+      - 'AAAAAAAAA'
+      - 'A1XXXXXXA'
+      - 'AXXXXXXXA' 
+      - 'AXXXXXXXA'
+      - 'AXXXXXXXA'
+      - 'AAAAAAAAB'
+    # The schematic format for each schematic to be viewed in the menu
+    schematic-icons:
+      schematic-1:
+	    symbol: '1'
+        schematic: 'example.schem'
+        material: PAPER
+        display:
+          name: '<gold>Example'
+          lore:
+            - '<yellow>Click to generate Example!'
+        requirement:
+          permission_requirement:
+            type: permission
+            value: 'hellblock.schematic.example'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_tooltip: {}
+    # The back icon to choose a default island format
+    back-icon:
+      symbol: 'B'
+      material: RED_STAINED_GLASS_PANE
+      display:
+        name: '<red>Back to Main Menu'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecrat:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_tooltip: {}
+    # Decorative icons for visual enhancement
+    decorative-icons:
+      placeholder:
+        symbol: 'X'
+        material: AIR
+      glass-pane:
+        symbol: 'A'
+        material: BLACK_STAINED_GLASS_PANE
+        display:
+          name: ' '
+        components:
+          miencraft:hide_tooltip: {}
+
+# You add the block material type and then the amount of levels you want it to add to the hellblock.
+# Example: 'cobblestone:5' will add 5 levels to the hellblock when cobblestone is placed. Doesn't matter if a trusted member, party member or owner places it.
+# Levels are done in a decimal system so it can be 0.5 to only add half a level as well.
+# Blocks will add nothing to the island level unless it is displayed below in the list.
+# If you wish to define a specific mob spawner type you can put the entity's name after like shown in the example below for it to only work for that entity type.
+level-system:
+  blocks:
+    COBBLESTONE: 0.5
+    GLOWSTONE: 0.2
+    NETHERITE_BLOCK: 15
+    'SPAWNER:BLAZE': 50
+
+piglin-bartering:
+  # If set to true this will clear all default items and only the custom items added below will be dropped.
+  clear-default-outcome: false
+  # This won't change the default items that piglins barter but you can add custom items that are harder to get in the nether here.
+  # The amount represents a random chance to get up to that number when bartering between 1 and x where x represents the number you input here.
+  items:
+    '1':
+      material: WITHER_ROSE
+      amount: 3
+      display:
+        name: '<black>Wither Rose'
+
+potions:
+  nether-bottle:
+    enable: true
+    material: POTION
+	glowing: true
+    crafting:
+      materials:
+        GLOWSTONE_DUST: 'G'
+        WATER_BOTTLE: 'W'
+      recipe: 
+        - 'GGG'
+        - 'GWG'
+        - 'GGG'
+    components:
+      minecraft:potion_contents:
+        custom_color: 16711680
+    display:
+      name: '<red>Nether Bottle'
+      lore:
+        - '<dark_red>Potion but Nethery'
+
+tools:
+  netherrack:
+    pickaxe:
+      enable: true
+      material: STONE_PICKAXE
+      crafting:
+        materials:
+          NETHERRACK: 'N'
+          BONE: 'B'
+          AIR: 'A'
+        recipe:
+          - 'NNN'
+          - 'ABA'
+          - 'ABA'
+      display:
+        name: '<red>Nether Pickaxe'
+        lore:
+          - '<dark_red>Pickaxe but Nethery'
+      enchantments:
+        minecraft:efficiency: 1
+        minecraft:unbreaking: 1
+    axe:
+      enable: true
+      material: STONE_AXE
+      crafting:
+        materials:
+          NETHERRACK: 'N'
+          BONE: 'B'
+          AIR: 'A'
+        recipe:
+          - 'NNA'
+          - 'NBA'
+          - 'ABA'
+      display:
+        name: '<red>Nether Axe'
+        lore:
+          - '<dark_red>Axe but Nethery'
+      enchantments:
+        minecraft:efficiency: 1
+        minecraft:unbreaking: 1
+    shovel:
+      enable: true
+      material: STONE_SHOVEL
+      crafting: 
+        materials:
+          NETHERRACK: 'N'
+          BONE: 'B'
+          AIR: 'A' 
+        recipe:
+          - 'ANA'
+          - 'ABA'
+          - 'ABA'
+      display:
+        name: '<red>Nether Shovel'
+        lore:
+          - '<dark_red>Shovel but Nethery'
+      enchantments:
+        minecraft:efficiency: 1
+        minecraft:unbreaking: 1
+    hoe:
+      enable: true
+      material: STONE_HOE
+      crafting:
+        materials:
+          NETHERRACK: 'N'
+          BONE: 'B'
+          AIR: 'A'
+        recipe:
+          - 'NNA'
+          - 'ABA'
+          - 'ABA'
+      display:
+        name: '<red>Nether Hoe'
+        lore:
+          - '<dark_red>Hoe but Nethery'
+      enchantments:
+        minecraft:efficiency: 1
+        minecraft:unbreaking: 1
+    sword:
+      enable: true
+      material: STONE_SWORD
+      crafting:
+        materials:
+          NETHERRACK: 'N'
+          BONE: 'B'
+          AIR: 'A'
+        recipe:
+          - 'ANA'
+          - 'ANA'
+          - 'ABA'
+      display:
+        name: '<red>Nether Sword'
+        lore:
+          - '<dark_red>Sword but Nethery'
+      enchantments:
+        minecraft:sharpness: 1
+        minecraft:unbreaking: 1
+  glowstone:
+    pickaxe: 
+      enable: true
+      night-vision: true
+      material: GOLDEN_PICKAXE
+      crafting: 
+        materials:
+          GLOWSTONE: 'G' 
+          BONE: 'B'
+          AIR: 'A'
+        recipe:
+          - 'GGG'
+          - 'ABA'
+          - 'ABA'
+      display:
+        name: '<yellow>Glowstone Pickaxe'
+        lore:
+          - '<dark_red>Pickaxe but Nethery'
+      enchantments:
+        minecraft:efficiency: 1
+        minecraft:unbreaking: 1
+    axe:
+      enable: true
+      night-vision: true 
+      material: GOLDEN_AXE
+      crafting:
+        materials: 
+          GLOWSTONE: 'G'
+          BONE: 'B'
+          AIR: 'A'
+        recipe:
+          - 'GGA'
+          - 'GBA'
+          - 'ABA'
+      display:
+        name: '<yellow>Glowstone Axe'
+        lore:
+          - '<dark_red>Axe but Nethery'
+      enchantments:
+        minecraft:efficiency: 1
+        minecraft:unbreaking: 1
+    shovel:
+      enable: true 
+      night-vision: true
+      material: GOLDEN_SHOVEL
+      crafting:
+        materials:
+          GLOWSTONE: 'G'
+          BONE: 'B'
+          AIR: 'A'
+        recipe:
+          - 'AGA'
+          - 'ABA'
+          - 'ABA'
+      display:
+        name: '<yellow>Glowstone Shovel'
+        lore:
+          - '<dark_red>Shovel but Nethery'
+      enchantments:
+        minecraft:efficiency: 1
+        minecraft:unbreaking: 1
+    hoe:
+      enable: true
+      night-vision: true
+      material: GOLDEN_HOE
+      crafting:
+        materials:
+          GLOWSTONE: 'G'
+          BONE: 'B'
+          AIR: 'A'
+        recipe:
+          - 'GGA'
+          - 'ABA'
+          - 'ABA'
+      display:
+        name: '<yellow>Glowstone Hoe'
+        lore:
+          - '<dark_red>Hoe but Nethery'
+      enchantments:
+        minecraft:efficiency: 1
+        minecraft:unbreaking: 1
+    sword:
+      enable: true
+      night-vision: true
+      material: GOLDEN_SWORD
+      crafting:
+        materials:
+          GLOWSTONE: 'G'
+          BONE: 'B'
+          AIR: 'A'
+        recipe:
+          - 'AGA'
+          - 'AGA'
+          - 'ABA'
+      display:
+        name: '<yellow>Glowstone Sword'
+        lore:
+          - '<dark_red>Sword but Nethery'
+      enchantments:
+        minecraft:sharpness: 1
+        minecraft:unbreaking: 1
+  quartz:
+    pickaxe:
+      enable: true
+      material: IRON_PICKAXE
+      crafting:
+        materials:
+          QUARTZ: 'Q'
+          BONE: 'B'
+          AIR: 'A'
+        recipe:
+          - 'QQQ'
+          - 'ABA'
+          - 'ABA'
+      display:
+        name: '<gray>Quartz Pickaxe'
+        lore:
+          - '<dark_red>Pickaxe but Nethery'
+      enchantments:
+        minecraft:efficiency: 1
+        minecraft:unbreaking: 1
+    axe:
+      enable: true
+      material: IRON_AXE 
+      crafting:
+        materials:
+          QUARTZ: 'Q'
+          BONE: 'B'
+          AIR: 'A'
+        recipe:
+          - 'QQA'
+          - 'QBA'
+          - 'ABA'
+      display:
+        name: '<gray>Quartz Axe'
+        lore:
+          - '<dark_red>Axe but Nethery'
+      enchantments:
+        minecraft:efficiency: 1
+        minecraft:unbreaking: 1
+    shovel:
+      enable: true
+      material: IRON_SHOVEL
+      crafting:
+        materials:
+          QUARTZ: 'Q'
+          BONE: 'B'
+          AIR: 'A'
+        recipe:
+          - 'AQA'
+          - 'ABA'
+          - 'ABA'
+      display:
+        name: '<gray>Quartz Shovel'
+        lore:
+          - '<dark_red>Shovel but Nethery'
+      enchantments:
+        minecraft:efficiency: 1
+        minecraft:unbreaking: 1
+    hoe:
+      enable: true 
+      material: IRON_HOE
+      crafting:
+        materials:
+          QUARTZ: 'Q'
+          BONE: 'B'
+          AIR: 'A'
+        recipe:
+          - 'QQA'
+          - 'ABA'
+          - 'ABA'
+      display:
+        name: '<gray>Quartz Hoe'
+        lore:
+          - '<dark_red>Hoe but Nethery'
+      enchantments:
+        minecraft:efficiency: 1
+        minecraft:unbreaking: 1
+    sword:
+      enable: true
+      material: IRON_SWORD
+      crafting:
+        materials:
+          QUARTZ: 'Q'
+          BONE: 'B'
+          AIR: 'A'
+        recipe:
+          - 'AQA'
+          - 'AQA'
+          - 'ABA'
+      display:
+        name: '<gray>Quartz Sword'
+        lore:
+          - '<dark_red>Sword but Nethery'
+      enchantments:
+        minecraft:sharpness: 1
+        minecraft:unbreaking: 1
+  netherstar:
+    pickaxe:
+      enable: true
+      material: DIAMOND_PICKAXE
+      crafting:
+        materials:
+          NETHER_STAR: 'N'
+          BONE: 'B'
+          AIR: 'A'
+        recipe:
+          - 'NNN'
+          - 'ABA'
+          - 'ABA'
+      display:
+        name: '<aqua>Nether Star Pickaxe'
+        lore:
+          - '<dark_red>Pickaxe but Nethery'
+      enchantments:
+        minecraft:efficiency: 1
+        minecraft:unbreaking: 1
+    axe:
+      enable: true
+      material: DIAMOND_AXE
+      crafting:
+        materials:
+          NETHER_STAR: 'N'
+          BONE: 'B'
+          AIR: 'A'
+        recipe:
+          - 'NNA'
+          - 'NBA'
+          - 'ABA'
+      display:
+        name: '<aqua>Nether Star Axe'
+        lore:
+          - '<dark_red>Axe but Nethery'
+      enchantments:
+        minecraft:efficiency: 1
+        minecraft:unbreaking: 1
+    shovel:
+      enable: true
+      material: DIAMOND_SHOVEL
+      crafting:
+        materials:
+          NETHER_STAR: 'N'
+          BONE: 'B'
+          AIR: 'A'
+        recipe:
+          - 'ANA'
+          - 'ABA'
+          - 'ABA'
+      display:
+        name: '<aqua>Nether Star Shovel'
+        lore:
+          - '<dark_red>Shovel but Nethery'
+      enchantments:
+        minecraft:efficiency: 1
+        minecraft:unbreaking: 1
+    hoe:
+      enable: true
+      material: DIAMOND_HOE
+      crafting:
+        materials:
+          NETHER_STAR: 'N'
+          BONE: 'B'
+          AIR: 'A'
+        recipe:
+          - 'NNA'
+          - 'ABA'
+          - 'ABA'
+      display:
+        name: '<aqua>Nether Star Hoe'
+        lore:
+          - '<dark_red>Hoe but Nethery'
+      enchantments:
+        minecraft:efficiency: 1
+        minecraft:unbreaking: 1
+    sword:
+      enable: true
+      material: DIAMOND_SWORD
+      crafting:
+        materials:
+          NETHER_STAR: 'N'
+          BONE: 'B'
+          AIR: 'A'
+        recipe:
+          - 'ANA'
+          - 'ANA'
+          - 'ABA'
+      display:
+        name: '<aqua>Nether Star Sword'
+        lore:
+          - '<dark_red>Sword but Nethery'
+      enchantments:
+        minecraft:sharpness: 1
+        minecraft:unbreaking: 1
+armor:
+  netherrack:
+    helmet:
+      enable: true
+      material: LEATHER_HELMET
+      crafting:
+        materials:
+          NETHERRACK: 'N'
+          AIR: 'A'
+        recipe:
+          - 'NNN'
+          - 'NAN'
+          - 'AAA'
+      display:
+        name: '<red>Nether Helmet'
+        lore: 
+          - '<dark_red>Helmet but Nethery'
+      enchantments:
+        minecraft:protection: 3
+        minecraft:fire_protection: 1
+    chestplate:
+      enable: true
+      material: LEATHER_CHESTPLATE
+      crafting:
+        materials:
+          NETHERRACK: 'N'
+          AIR: 'A'
+        recipe:
+          - 'NAN'
+          - 'NNN'
+          - 'NNN'
+      display:
+        name: '<red>Nether Chest Plate'
+        lore: 
+          - '<dark_red>Chest Plate but Nethery'
+      enchantments:
+        minecraft:protection: 3
+        minecraft:fire_protection: 1
+    leggings:
+      enable: true
+      material: LEATHER_LEGGINGS
+      crafting:
+        materials:
+          NETHERRACK: 'N'
+          AIR: 'A'
+        recipe:
+          - 'NNN'
+          - 'NAN'
+          - 'NNN'
+      display:
+        name: '<red>Nether Leggings'
+        lore: 
+          - '<dark_red>Leggings but Nethery'
+      enchantments:
+        minecraft:protection: 3
+        minecraft:fire_protection: 1
+    boots:
+      enable: true
+      material: LEATHER_BOOTS
+      crafting:
+        materials:
+          NETHERRACK: 'N'
+          AIR: 'A'
+        recipe:
+          - 'AAA'
+          - 'NAN'
+          - 'NAN'
+      display:
+        name: '<red>Nether Boots'
+        lore: 
+          - '<dark_red>Boots but Nethery'
+      enchantments:
+        minecraft:protection: 3
+        minecraft:fire_protection: 1
+  glowstone:
+    helmet:
+      enable: true
+      night-vision: true
+      material: GOLDEN_HELMET
+      crafting:
+        materials:
+          GLOWSTONE: 'G'
+          AIR: 'A'
+        recipe:
+          - 'GGG'
+          - 'GAG'
+          - 'AAA'
+      display:
+        name: '<yellow>Glowstone Helmet'
+        lore: 
+          - '<dark_red>Helmet but Nethery'
+      enchantments:
+        minecraft:protection: 3
+        minecraft:fire_protection: 1
+    chestplate:
+      enable: true
+      night-vision: true
+      material: GOLDEN_CHESTPLATE
+      crafting:
+        materials:
+          GLOWSTONE: 'G'
+          AIR: 'A'
+        recipe:
+          - 'GAG'
+          - 'GGG'
+          - 'GGG'
+      display:
+        name: '<yellow>Glowstone Chest Plate'
+        lore: 
+          - '<dark_red>Chest Plate but Nethery'
+      enchantments:
+        minecraft:protection: 3
+        minecraft:fire_protection: 1
+    leggings:
+      enable: true
+      night-vision: true
+      material: GOLDEN_LEGGINGS
+      crafting:
+        materials:
+          GLOWSTONE: 'G'
+          AIR: 'A'
+        recipe:
+          - 'GGG'
+          - 'GAG'
+          - 'GAG'
+      display:
+        name: '<yellow>Glowstone Leggings'
+        lore: 
+          - '<dark_red>Leggings but Nethery'
+      enchantments:
+        minecraft:protection: 3
+        minecraft:fire_protection: 1
+    boots:
+      enable: true
+      night-vision: true
+      material: GOLDEN_BOOTS
+      crafting: 
+        materials:
+          GLOWSTONE: 'G'
+          AIR: 'A'
+        recipe:
+          - 'AAA'
+          - 'GAG'
+          - 'GAG'
+      display:
+        name: '<yellow>Glowstone Boots'
+        lore: 
+          - '<dark_red>Boots but Nethery'
+      enchantments:
+        minecraft:protection: 3
+        minecraft:fire_protection: 1
+  quartz:
+    helmet: 
+      enable: true
+      material: IRON_HELMET
+      crafting:
+        materials:
+          QUARTZ: 'Q'
+          AIR: 'A'
+        recipe:
+          - 'QQQ'
+          - 'QAQ'
+          - 'AAA'
+      display:
+        name: '<gray>Quartz Helmet'
+        lore: 
+          - '<dark_red>Helmet but Nethery'
+      enchantments:
+        minecraft:protection: 3
+        minecraft:fire_protection: 1
+    chestplate:
+      enable: true
+      material: IRON_CHESTPLATE
+      crafting:
+        materials:
+          QUARTZ: 'Q'
+          AIR: 'A'
+        recipe:
+          - 'QAQ'
+          - 'QQQ'
+          - 'QQQ'
+      display:
+        name: '<gray>Quartz Chest Plate'
+        lore: 
+          - '<dark_red>Chest Plate but Nethery'
+      enchantments:
+        minecraft:protection: 3
+        minecraft:fire_protection: 1
+    leggings:
+      enable: true
+      material: IRON_LEGGINGS
+      crafting:
+        materials:
+          QUARTZ: 'Q'
+          AIR: 'A'
+        recipe:
+          - 'QQQ'
+          - 'QAQ'
+          - 'QAQ'
+      display:
+        name: '<gray>Quartz Leggings'
+        lore: 
+          - '<dark_red>Leggings but Nethery'
+      enchantments:
+        minecraft:protection: 3
+        minecraft:fire_protection: 1
+    boots:
+      enable: true
+      material: IRON_BOOTS
+      crafting:
+        materials:
+          QUARTZ: 'Q'
+          AIR: 'A'
+        recipe:
+          - 'AAA'
+          - 'QAQ'
+          - 'QAQ'
+      display:
+        name: '<gray>Quartz Boots'
+        lore: 
+          - '<dark_red>Boots but Nethery'
+      enchantments:
+        minecraft:protection: 3
+        minecraft:fire_protection: 1
+  netherstar:
+    helmet:
+      enable: true
+      material: DIAMOND_HELMET
+      crafting:
+        materials:
+          NETHER_STAR: 'N'
+          AIR: 'A'
+        recipe:
+          - 'NNN'
+          - 'NAN'
+          - 'NNN'
+      display:
+        name: '<aqua>Nether Star Helmet'
+        lore: 
+          - '<dark_red>Helmet but Nethery'
+      enchantments:
+        minecraft:protection: 3
+        minecraft:fire_protection: 1
+    chestplate:
+      enable: true
+      material: DIAMOND_CHESTPLATE
+      crafting:
+        materials:
+          NETHER_STAR: 'N'
+          AIR: 'A'
+        recipe:
+          - 'NAN'
+          - 'NNN'
+          - 'NNN'
+      display:
+        name: '<aqua>Nether Star Chest Plate'
+        lore: 
+          - '<dark_red>Chest Plate but Nethery'
+      enchantments:
+        minecraft:protection: 3
+        minecraft:fire_protection: 1
+    leggings:
+      enable: true
+      material: DIAMOND_LEGGINGS
+      crafting:
+        materials:
+          NETHER_STAR: 'N'
+          AIR: 'A'
+        recipe:
+          - 'NNN'
+          - 'NAN'
+          - 'NAN'
+      display:
+        name: '<aqua>Nether Star Leggings'
+        lore: 
+          - '<dark_red>Leggings but Nethery'
+      enchantments:
+        minecraft:protection: 3
+        minecraft:fire_protection: 1
+    boots:
+      enable: true
+      material: DIAMOND_BOOTS
+      crafting:
+        materials:
+          NETHER_STAR: 'N'
+          AIR: 'A'
+        recipe:
+          - 'AAA'
+          - 'NAN'
+          - 'NAN'
+      display:
+        name: '<aqua>Nether Star Boots'
+        lore: 
+          - '<dark_red>Boots but Nethery'
+      enchantments:
+        minecraft:protection: 3
+        minecraft:fire_protection: 1
+
+wither-stats:
+  random-stats: true
+  random-min-health: 200
+  random-max-health: 500
+  random-min-strength: 0.5
+  random-max-strength: 2.5
+  default-strength: 1.25
+  default-health: 300
+
+infinite-lava-options:
+  enable: true
+  
+lava-rain-options:
+  enable: true
+  # How far from the player should the lava particles fall (setting this value too high may cause lag !)
+  radius: 16
+  # Chance to make fire appear on the ground when the lava is falling
+  fire-chance: 1
+  # Every how many ticks should the task repeat (20 ticks is 1 second)
+  task-delay: 3
+  # Whether or not lava rain will damage not just players but other mobs / animals if not covered.
+  can-hurt-living-creatures: true
+  # Whether tnt and tnt minecarts will explode if exposed to lava rain.
+  will-tnt-explode: true
+
+netherrack-generator-options:
+  player-search-radius: 4.0
+  automation:
+    pistons: false
+  generation:
+    blocks:
+      NETHERRACK: 95
+      NETHER_GOLD_ORE: 1.5
+      NETHER_QUARTZ_ORE: 2
+    fallback: NETHERRACK
+    particle-effect: LARGE_SMOKE
+    generation-sound: 'minecraft:entity.experience_orb.pickup'
+    can-generate-while-lava-raining: true
+    search-for-players-nearby: true
+
+lava-fishing-options:
+  # whether lava fishing is enabled or not.
+  enable: true
+  # Specifies the conditions required for the lava fishing mechanism to work.
+  # Here, the type is !weather, which implies lava fishing won't work if
+  # the weather is lava raining.
+  fishing-requirements:
+    weather_requirement:
+      type: '!weather'
+      value:
+        - lavarain
+  # Conditions for enabling auto-fishing
+  auto-fishing-requirements:
+    impossible_requirement:
+      type: 'impossible'
+  # Configures global effects, useful for applying certain effects to all players under specific conditions
+  global-effects:
+    effect_1:
+      type: conditional
+      effects:
+        effect_1:
+          type: wait-time-multiplier
+          value: 0.85
+
+  # Configures global events for hook/bait/rod/loot
+  # which would help you reduce duplicated lines
+  global-events:
+    hook: {}
+    bait: {}
+    loot:
+      new_size_record:
+        conditional_size_record_action:
+          type: conditional
+          value:
+            conditions:
+              has-stats: true
+            actions:
+              actionbar_action:
+                type: actionbar
+                value: '<#FFD700>[New Record]</#FFD700> <#FFFFF0>You caught a(n) {nick} which is <#FFA500>{size}cm</#FFA500> long!</#FFFFF0>'
+              sound_action:
+                type: sound
+                value:
+                  key: 'minecraft:block.note_block.cow_bell'
+                  source: 'player'
+                  volume: 1
+                  pitch: 1
+              delayed_sound:
+                type: delay
+                value:
+                  delay: 2
+                  actions:
+                    sound_action:
+                      type: sound
+                      value:
+                        key: 'minecraft:block.note_block.bell'
+                        source: 'player'
+                        volume: 1
+                        pitch: 1
+      success:
+        conditional_size_info_action:
+          type: conditional
+          value:
+            conditions:
+              has-size: true
+              has-stats: true
+            actions:
+              actionbar_action:
+                type: actionbar
+                value: '<gray>You caught a(n) {nick} which is <#F5F5F5>{size}cm</#F5F5F5> long!</gray> <#C0C0C0>(Best record: {record}cm)</#C0C0C0>'
+        title_action:
+          type: random-title
+          value:
+            titles:
+              - '<green>GG!</green>'
+              - '<green>Good Job!</green>'
+            subtitles:
+              - 'You caught a(n) {nick}'
+              - 'Whoa! Nice catch!'
+              - 'Oh {nick} here we go!'
+              - 'Let''s see what it is!'
+            fade-in: 20
+            stay: 30
+            fade-out: 10
+            chance: 1.0
+      failure:
+        title_action:
+          type: random-title
+          value:
+            titles:
+              - '<red>Be concentrated!</red>'
+              - '<red>What a pity!</red>'
+              - '<red>Try next time!</red>'
+              - '<red>Bad luck</red>'
+            subtitles:
+              - 'The fish escaped...'
+            fade-in: 20
+            stay: 30
+            fade-out: 10
+            chance: 1.0
+    rod:
+      land:
+        priority_action:
+          type: priority
+          value:
+            priority_1:
+              conditions:
+                lava-fishing: true
+              actions:
+                fake_item_action:
+                  type: fake-item
+                  value:
+                    duration: 35
+                    position: other
+                    item: util:lava_effect
+
+  # Global properties which would help you reduce duplicated lines
+  global-loot-property:
+    show-in-fishfinder: true
+    disable-stat: false
+
+  market:
+    # Title for the market GUI
+    title: '<gradient:#A52A2A:#800000:#A52A2A>Fish Market</gradient>'
+    # Enable limitations
+    limitation:
+      enable: true
+      earnings: '10000' # Expressions can be used here
+    # You can use expressions here if you want some players to earn more from selling fish
+    earnings-multiplier: 1
+    # Layout for the market menu
+    layout:
+      - 'AAAAAAAAC'
+      - 'AIIIIIIIA'
+      - 'AIIIIIIIA'
+      - 'AIIIIIIIA'
+      - 'AAAABAAAA'
+    # Price formula for custom fishing loot
+    price-formula: '{base} + {bonus} * {size}'
+    # Allow players to sell fish in bundles
+    allow-bundle: false
+    # Allow players to sell fish in shulker boxes
+    allow-shulker-box: false
+    # Prices for vanilla and other plugin items with CustomModelData
+    item-price:
+      # Vanilla items
+      COD: 10
+      PUFFERFISH: 10
+      SALMON: 10
+      TROPICAL_FISH: 10
+      # PAPER (CustomModelData: 999)
+      PAPER:999: 5
+    # Slots to place items in
+    item-slot:
+      symbol: 'I'
+      allow-items-with-no-price: true
+    # Icon allowing players to sell all fish from their inventory
+    # Enable it by placing the symbol in the layout
+    sell-all-icons:
+      symbol: 'S'
+      allow-icon:
+        material: IRON_BLOCK
+        display:
+          name: '<#00CED1><b>● <!b>Sell the fish'
+          lore:
+            - '<font:uniform><gradient:#E6E6FA:#48D1CC:#E6E6FA>You will earn <green>{money_formatted} coins</green> from the fish in your inventory</gradient></font>'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:block.amethyst_block.place'
+              source: 'player'
+              volume: 1
+              pitch: 1
+          message_action:
+            type: message
+            value: 'You earned {money_formatted} coins from the fish! You can still earn {rest_formatted} more coins from the market today.'
+          # Requires Vault and an economy plugin
+          money_action:
+            type: give-money
+            value: '{money}'
+          # Uncomment the command_action if needed
+          # command_action:
+          #   type: command
+          #   value: 'money give {player} {money}'
+    deny-icon:
+      material: REDSTONE_BLOCK
+      display:
+        name: '<red><b>● <!b>Trade Denied'
+        lore:
+          - '<font:uniform><gradient:#E6E6FA:red:#E6E6FA>No items available to sell!</gradient></font>'
+      action:
+        sound_action:
+          type: sound
+            value:
+              key: 'minecraft:entity.villager.no'
+              source: 'player'
+              volume: 1
+              pitch: 1
+    limit-icon:
+      material: REDSTONE_BLOCK
+      display:
+        name: '<red><b>● <!b>Trade Denied'
+        lore:
+          - '<font:uniform><gradient:#E6E6FA:red:#E6E6FA>The total value exceeds the daily limit for earnings!</gradient></font>'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:block.anvil.land'
+            source: 'player'
+            volume: 1
+            pitch: 1
+    # Sell icon for individual transactions
+    sell-icons:
+      symbol: 'B'
+      allow-icon:
+        material: IRON_BLOCK
+        display:
+          name: '<#00CED1><b>● <!b>Sell the fish'
+          lore:
+            - '<font:uniform><gradient:#E6E6FA:#48D1CC:#E6E6FA>You will earn <green>{money_formatted} coins</green> from the fish</gradient></font>'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:block.amethyst_block.place'
+              source: 'player'
+              volume: 1
+              pitch: 1
+          message_action:
+            type: message
+            value: 'You earned {money_formatted} coins from the fish! You can still earn {rest_formatted} more coins from the market today.'
+          money_action:
+            type: give-money
+            value: '{money}'
+          # Uncomment the command_action if needed
+          # command_action:
+          #   type: command
+          #   value: 'money give {player} {money}'
+      deny-icon:
+        material: REDSTONE_BLOCK
+        display:
+          name: '<red><b>● <!b>Trade Denied'
+          lore:
+            - '<font:uniform><gradient:#E6E6FA:red:#E6E6FA>No items available to sell!</gradient></font>'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:entity.villager.no'
+              source: 'player'
+              volume: 1
+              pitch: 1
+      limit-icon:
+        material: REDSTONE_BLOCK
+        display:
+          name: '<red><b>● <!b>Trade Denied'
+          lore:
+            - '<font:uniform><gradient:#E6E6FA:red:#E6E6FA>The total value exceeds the daily limit for earnings!</gradient></font>'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:block.anvil.land'
+              source: 'player'
+              volume: 1
+              pitch: 1
+    # Decorative icons for visual enhancement
+    decorative-icons:
+      glass-pane:
+        symbol: 'A'
+        material: BLACK_STAINED_GLASS_PANE
+        display:
+          name: ' '
+        components:
+          minecraft:hide_tooltip: {}
+      close-icon:
+        symbol: 'C'
+        material: RED_STAINED_GLASS_PANE
+        display:
+          name: '<red>Close Menu'
+        action:
+          sound_action: 
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+          close_action:
+            type: close-inv
+        components:
+          minecraft:hide_tooltip: {}
+
+  # Lava fishing settings
+  # To modify vanilla fishing time, you should edit paper-world-defaults.yml where there's a section called fishing-time-range
+  lava-fishing:
+    # ticks
+    min-wait-time: 100
+    max-wait-time: 600
+
+  # Size settings
+  size:
+    # Some effects would increase/decrease size so the option decides whether they could ignore the limit
+    restricted-size-range: true
+
+  # If a player could get multiple loots from fishing, should the loots spawn at the same time or have delays for each (tick)
+  multiple-loot-spawn-delay: 4
+
+  # Enable fake bait casting animations
+  show-bait-animation: true
+
+# Other settings
+other-settings:
+  # Anti-auto-fishing mod toggle
+  anti-auto-fishing-mod: false
+	
+  # It's recommended to use MiniMessage format. If you insist on using legacy color code "&", enable the support below.
+  # Disabling this would improve performance
+  legacy-color-code-support: true
+  
+  # Decides whether the process of saving is async
+  async-world-saving: true
+
+  # Event priority: MONITOR HIGHEST HIGH NORMAL LOW LOWEST
+  event-priority: NORMAL
+
+  # Save the data from cache to file periodically to minimize the data loss if server crashes
+  # -1 to disable
+  data-saving-interval: 600
+
+  # Log the consumption of time on data saving
+  log-data-saving: true
+
+  # Lock player's data if a player is playing on a server that connected to database
+  # If you can ensure low database link latency and fast processing, you can consider disabling this option to improve performance
+  lock-data: true
+
+  # Requires PlaceholderAPI to work
+  placeholder-register:
+    # Requires server expansion
+    '{date}': '%server_time_yyyy-MM-dd-HH:mm:ss%'
+    # Requires player expansion
+    '{yaw}': '%player_yaw%'
+
+  # LavaFishing supports using items/blocks from other plugins
+  # If items share the same id, they would inherit the effects
+  # Check the wiki for examples
+  item-detection-order:
+    - CustomItem
+    - vanilla
+  block-detection-order:
+    - vanilla
+
+  # Custom durability format
+  custom-durability-format:
+    - ''
+    - '<gray>Durability</gray><white>: {dur} <gray>/</gray> {max}</white>'
+
+  # Offset characters' unicodes
+  # Never edit this unless you know what you are doing
+  offset-characters:
+    font: hellblock:offset_chars
+    '1': 
+    '2': 
+    '4': 
+    '8': 
+    '16': 
+    '32': 
+    '64': 
+    '128': 
+    '-1': 
+    '-2': 
+    '-4': 
+    '-8': 
+    '-16': 
+    '-32': 
+    '-64': 
+    '-128': 

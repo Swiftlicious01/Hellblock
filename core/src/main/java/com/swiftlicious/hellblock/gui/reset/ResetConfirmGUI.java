@@ -10,6 +10,7 @@ import org.bukkit.inventory.Inventory;
 import org.jetbrains.annotations.Nullable;
 
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
+import com.swiftlicious.hellblock.handlers.VersionHelper;
 import com.swiftlicious.hellblock.player.Context;
 import com.swiftlicious.hellblock.player.ContextKeys;
 import com.swiftlicious.hellblock.player.HellblockData;
@@ -75,7 +76,7 @@ public class ResetConfirmGUI {
 
 	public void show() {
 		context.holder().openInventory(inventory);
-		manager.instance.getVersionManager().getNMSManager().updateInventoryTitle(context.holder(),
+		VersionHelper.getNMSManager().updateInventoryTitle(context.holder(),
 				AdventureHelper.componentToJson(AdventureHelper.miniMessage(manager.title.render(context))));
 	}
 

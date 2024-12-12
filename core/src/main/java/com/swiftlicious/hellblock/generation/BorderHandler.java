@@ -1,6 +1,7 @@
 package com.swiftlicious.hellblock.generation;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.handlers.VersionHelper;
 import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.protection.HellblockFlag;
 import com.swiftlicious.hellblock.protection.HellblockFlag.AccessType;
@@ -35,7 +36,7 @@ public class BorderHandler implements Runnable {
 		instance = plugin;
 		this.playerUUID = playerUUID;
 		this.cancellableTask = plugin.getScheduler().sync().runRepeating(this, 0, 20, null);
-		this.dustParticle = plugin.getVersionManager().isVersionNewerThan1_20_5() ? Particle.valueOf("DUST")
+		this.dustParticle = VersionHelper.isVersionNewerThan1_20_5() ? Particle.valueOf("DUST")
 				: Particle.valueOf("REDSTONE");
 	}
 

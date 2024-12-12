@@ -34,6 +34,8 @@ import org.bukkit.event.entity.EntityDropItemEvent;
 import org.bukkit.event.entity.EntityPortalEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.AsyncPlayerChatEvent;
+import org.bukkit.event.player.PlayerBedEnterEvent;
+import org.bukkit.event.player.PlayerBedEnterEvent.BedEnterResult;
 import org.bukkit.event.player.PlayerChangedWorldEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
@@ -120,18 +122,20 @@ public class PlayerListener implements Listener, Reloadable {
 	}
 
 	@EventHandler
-	public void onBedClick(PlayerInteractEvent event) {
+	public void onBedClick(PlayerBedEnterEvent event) {
 		if (!instance.getConfigManager().disableBedExplosions())
 			return;
 		final Player player = event.getPlayer();
 		if (!instance.getHellblockHandler().isInCorrectWorld(player))
 			return;
 
-		Block bed = event.getClickedBlock();
-		if (bed != null && Tag.BEDS.isTagged(bed.getType())) {
-			if (bed.getWorld().getEnvironment() == Environment.NETHER) {
-				event.setCancelled(true);
-				event.setUseInteractedBlock(Result.DENY);
+		Block bed = event.getBed();
+		if (Tag.BEDS.isTagged(bed.getType())) {
+			if (event.getBedEnterResult() == BedEnterResult.NOT_POSSIBLE_HERE) {
+				if (!bed.getWorld().isBedWorks() && bed.getWorld().getEnvironment() == Environment.NETHER) {
+					event.setCancelled(true);
+					event.setUseBed(Result.DENY);
+				}
 			}
 		}
 	}
@@ -599,11 +603,11 @@ public class PlayerListener implements Listener, Reloadable {
 		final Player player = event.getPlayer();
 		if (!instance.getHellblockHandler().isInCorrectWorld(player))
 			return;
-        if (event.getTo().getBlockX() == event.getFrom().getBlockX() &&
-                event.getTo().getBlockY() == event.getFrom().getBlockY() &&
-                event.getTo().getBlockZ() == event.getFrom().getBlockZ()) {
-            return; // user didnt actually move a full block
-        }
+		if (event.getTo().getBlockX() == event.getFrom().getBlockX()
+				&& event.getTo().getBlockY() == event.getFrom().getBlockY()
+				&& event.getTo().getBlockZ() == event.getFrom().getBlockZ()) {
+			return; // user didnt actually move a full block
+		}
 		if (playerInPortal(player))
 			return;
 		final UUID id = player.getUniqueId();
@@ -657,11 +661,11 @@ public class PlayerListener implements Listener, Reloadable {
 		final Player player = event.getPlayer();
 		if (!instance.getHellblockHandler().isInCorrectWorld(player))
 			return;
-        if (event.getTo().getBlockX() == event.getFrom().getBlockX() &&
-                event.getTo().getBlockY() == event.getFrom().getBlockY() &&
-                event.getTo().getBlockZ() == event.getFrom().getBlockZ()) {
-            return; // user didnt actually move a full block
-        }
+		if (event.getTo().getBlockX() == event.getFrom().getBlockX()
+				&& event.getTo().getBlockY() == event.getFrom().getBlockY()
+				&& event.getTo().getBlockZ() == event.getFrom().getBlockZ()) {
+			return; // user didnt actually move a full block
+		}
 		final UUID id = player.getUniqueId();
 		if (player.getLocation().getY() <= 0) {
 			Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(id);

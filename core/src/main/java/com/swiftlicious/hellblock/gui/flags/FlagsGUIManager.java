@@ -28,7 +28,7 @@ import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
 import com.swiftlicious.hellblock.config.parser.SingleItemParser;
 import com.swiftlicious.hellblock.creation.item.CustomItem;
-import com.swiftlicious.hellblock.handlers.ActionManagerInterface;
+import com.swiftlicious.hellblock.handlers.ActionManager;
 import com.swiftlicious.hellblock.player.Context;
 import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.protection.HellblockFlag;
@@ -92,7 +92,7 @@ public class FlagsGUIManager implements FlagsGUIManagerInterface, Listener {
 
 			backIcon = new SingleItemParser("back", backSection, instance.getConfigManager().getItemFormatFunctions())
 					.getItem();
-			backActions = instance.getActionManager().parseActions(backSection.getSection("action"));
+			backActions = instance.getActionManager(Player.class).parseActions(backSection.getSection("action"));
 		}
 
 		Section flagsSection = config.getSection("flag-icons");
@@ -101,12 +101,11 @@ public class FlagsGUIManager implements FlagsGUIManagerInterface, Listener {
 				if (entry.getValue() instanceof Section innerSection) {
 					char symbol = Objects.requireNonNull(innerSection.getString("symbol")).charAt(0);
 					FlagType flag = FlagType.valueOf(Objects.requireNonNull(innerSection.getString("flag-type")));
-					flagIcons.add(Tuple.of(symbol, innerSection,
-							Tuple.of(
-									new SingleItemParser("flag", innerSection,
-											instance.getConfigManager().getItemFormatFunctions()).getItem(),
-									flag,
-									instance.getActionManager().parseActions(innerSection.getSection("action")))));
+					flagIcons.add(Tuple.of(symbol, innerSection, Tuple.of(
+							new SingleItemParser("flag", innerSection,
+									instance.getConfigManager().getItemFormatFunctions()).getItem(),
+							flag,
+							instance.getActionManager(Player.class).parseActions(innerSection.getSection("action")))));
 				}
 
 			}
@@ -118,10 +117,10 @@ public class FlagsGUIManager implements FlagsGUIManagerInterface, Listener {
 			for (Map.Entry<String, Object> entry : decorativeSection.getStringRouteMappedValues(false).entrySet()) {
 				if (entry.getValue() instanceof Section innerSection) {
 					char symbol = Objects.requireNonNull(innerSection.getString("symbol")).charAt(0);
-					decorativeIcons.put(symbol,
-							Pair.of(new SingleItemParser("gui", innerSection,
+					decorativeIcons.put(symbol, Pair.of(
+							new SingleItemParser("gui", innerSection,
 									instance.getConfigManager().getItemFormatFunctions()).getItem(),
-									instance.getActionManager().parseActions(innerSection.getSection("action"))));
+							instance.getActionManager(Player.class).parseActions(innerSection.getSection("action"))));
 				}
 			}
 		}
@@ -247,7 +246,7 @@ public class FlagsGUIManager implements FlagsGUIManagerInterface, Listener {
 
 			Pair<CustomItem, Action<Player>[]> decorativeIcon = this.decorativeIcons.get(element.getSymbol());
 			if (decorativeIcon != null) {
-				ActionManagerInterface.trigger(gui.context, decorativeIcon.right());
+				ActionManager.trigger(gui.context, decorativeIcon.right());
 				return;
 			}
 
@@ -255,7 +254,7 @@ public class FlagsGUIManager implements FlagsGUIManagerInterface, Listener {
 				event.setCancelled(true);
 				instance.getHellblockGUIManager().openHellblockGUI(gui.context.holder(),
 						gui.context.holder().getUniqueId().equals(gui.hellblockData.getOwnerUUID()));
-				ActionManagerInterface.trigger(gui.context, backActions);
+				ActionManager.trigger(gui.context, backActions);
 				return;
 			}
 
@@ -287,7 +286,7 @@ public class FlagsGUIManager implements FlagsGUIManagerInterface, Listener {
 									(gui.hellblockData.getProtectionValue(flagType) == AccessType.ALLOW
 											? AccessType.DENY
 											: AccessType.ALLOW)));
-					ActionManagerInterface.trigger(gui.context, flag.right().right());
+					ActionManager.trigger(gui.context, flag.right().right());
 					break;
 				}
 			}

@@ -30,8 +30,11 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.Recipe;
 import org.bukkit.inventory.RecipeChoice;
 import org.bukkit.inventory.ShapedRecipe;
+import org.bukkit.inventory.meta.PotionMeta;
 import org.bukkit.inventory.recipe.CraftingBookCategory;
+import org.bukkit.potion.PotionType;
 import org.bukkit.util.BlockIterator;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import com.saicone.rtag.RtagItem;
@@ -41,6 +44,7 @@ import com.swiftlicious.hellblock.challenges.HellblockChallenge.ActionType;
 import com.swiftlicious.hellblock.config.parser.SingleItemParser;
 import com.swiftlicious.hellblock.creation.item.CustomItem;
 import com.swiftlicious.hellblock.creation.item.Item;
+import com.swiftlicious.hellblock.handlers.VersionHelper;
 import com.swiftlicious.hellblock.nms.inventory.HandSlot;
 import com.swiftlicious.hellblock.player.Context;
 import com.swiftlicious.hellblock.player.UserData;
@@ -75,6 +79,14 @@ public class BrewingHandler implements Listener, Reloadable {
 
 	public @Nullable Item<ItemStack> getNetherPotion() {
 		return this.netherPotion;
+	}
+
+	public @NotNull ItemStack getWaterBottle() {
+		ItemStack bottle = new ItemStack(Material.POTION);
+		PotionMeta potionMeta = (PotionMeta) bottle.getItemMeta();
+		potionMeta.setBasePotionType(PotionType.WATER);
+		bottle.setItemMeta(potionMeta);
+		return bottle;
 	}
 
 	public void addPotions() {
@@ -116,7 +128,7 @@ public class BrewingHandler implements Listener, Reloadable {
 
 				this.netherPotion = instance.getItemManager().wrap(data);
 
-				ShapedRecipe recipe = new ShapedRecipe(key, data);
+				ShapedRecipe recipe = new ShapedRecipe(key, getWaterBottle());
 				recipe.setCategory(CraftingBookCategory.MISC);
 				String[] shape = inner.getStringList("crafting.recipe").toArray(new String[0]);
 				if (shape.length != 3) {
@@ -146,9 +158,11 @@ public class BrewingHandler implements Listener, Reloadable {
 		if (!instance.getHellblockHandler().isInCorrectWorld(player))
 			return;
 
-		if (!(event.getAction() == Action.RIGHT_CLICK_BLOCK || event.getAction() == Action.RIGHT_CLICK_AIR)) {
+		if (!(event.getAction() == Action.RIGHT_CLICK_BLOCK || event.getAction() == Action.RIGHT_CLICK_AIR))
 			return;
-		}
+
+		if (getNetherPotion().getItem() == null)
+			return;
 
 		if (event.getItem() != null && event.getItem().getType() == Material.GLASS_BOTTLE) {
 			BlockIterator iter = new BlockIterator(player, 5);
@@ -169,7 +183,7 @@ public class BrewingHandler implements Listener, Reloadable {
 				} else {
 					PlayerUtils.dropItem(player, getNetherPotion().getItem(), false, true, false);
 				}
-				instance.getVersionManager().getNMSManager().swingHand(player,
+				VersionHelper.getNMSManager().swingHand(player,
 						event.getHand() == EquipmentSlot.HAND ? HandSlot.MAIN : HandSlot.OFF);
 				instance.getSenderFactory().getAudience(player)
 						.playSound(Sound.sound(net.kyori.adventure.key.Key.key("minecraft:item.bottle.fill"),
@@ -204,9 +218,11 @@ public class BrewingHandler implements Listener, Reloadable {
 		if (!instance.getHellblockHandler().isInCorrectWorld(player))
 			return;
 
-		if (event.getAction() != Action.RIGHT_CLICK_BLOCK) {
+		if (event.getAction() != Action.RIGHT_CLICK_BLOCK)
 			return;
-		}
+
+		if (getNetherPotion().getItem() == null)
+			return;
 
 		if (event.getItem() != null && event.getItem().getType() == Material.GLASS_BOTTLE
 				&& (event.getItem().getAmount() >= 4
@@ -229,7 +245,7 @@ public class BrewingHandler implements Listener, Reloadable {
 					potion.setAmount(4);
 					PlayerUtils.dropItem(player, potion, false, true, false);
 				}
-				instance.getVersionManager().getNMSManager().swingHand(player,
+				VersionHelper.getNMSManager().swingHand(player,
 						event.getHand() == EquipmentSlot.HAND ? HandSlot.MAIN : HandSlot.OFF);
 				instance.getSenderFactory().getAudience(player)
 						.playSound(Sound.sound(net.kyori.adventure.key.Key.key("minecraft:item.bottle.fill"),

@@ -44,6 +44,7 @@ import com.swiftlicious.hellblock.creation.item.damage.CustomDurabilityItem;
 import com.swiftlicious.hellblock.creation.item.damage.DurabilityItem;
 import com.swiftlicious.hellblock.creation.item.damage.VanillaDurabilityItem;
 import com.swiftlicious.hellblock.creation.item.factory.BukkitItemFactory;
+import com.swiftlicious.hellblock.handlers.VersionHelper;
 import com.swiftlicious.hellblock.player.Context;
 import com.swiftlicious.hellblock.player.ContextKeys;
 import com.swiftlicious.hellblock.utils.EventUtils;
@@ -60,7 +61,7 @@ public class ItemManager implements ItemManagerInterface, Listener {
 	private final Map<String, ItemProvider> itemProviders = new HashMap<>();
 	private final Map<String, CustomItem> items = new HashMap<>();
 	private final BukkitItemFactory factory;
-	private ItemProvider[] itemDetectArray;
+	private ItemProvider[] itemDetectArray = new ItemProvider[0];
 
 	public ItemManager(HellblockPlugin plugin) {
 		this.instance = plugin;
@@ -129,7 +130,10 @@ public class ItemManager implements ItemManagerInterface, Listener {
 
 	@NotNull
 	@Override
-	public ItemStack build(@NotNull Context<Player> context, @NotNull CustomItemInterface customItem) {
+	public ItemStack build(@NotNull Context<Player> context, @NotNull CustomItem customItem) {
+		if (context.arg(ContextKeys.ID) == null) {
+			context.arg(ContextKeys.ID, customItem.id());
+		}
 		ItemStack itemStack = getOriginalStack(context.holder(), customItem.material());
 		if (itemStack.getType() == Material.AIR)
 			return itemStack;
@@ -165,8 +169,25 @@ public class ItemManager implements ItemManagerInterface, Listener {
 		return "AIR";
 	}
 
+	@NotNull
+	@Override
+	public String getIDFromLocation(@NotNull Location location) {
+		Block block = location.getBlock();
+		if (block.getType() == Material.AIR)
+			return "AIR";
+		for (ItemProvider library : itemDetectArray) {
+			String id = library.itemID(new ItemStack(block.getType()));
+			if (id != null)
+				return id;
+		}
+		// should not reach this because vanilla library would always work
+		return "AIR";
+	}
+
 	@Override
 	public String getCustomItemID(@NotNull ItemStack itemStack) {
+		if (itemStack.getType() == Material.AIR)
+			return null;
 		return (String) factory.wrap(itemStack).getTag("HellblockItem", "id").orElse(null);
 	}
 
@@ -176,8 +197,8 @@ public class ItemManager implements ItemManagerInterface, Listener {
 		String id = requireNonNull(context.arg(ContextKeys.ID));
 		ItemStack itemStack;
 		if (id.equals("vanilla")) {
-			itemStack = instance.getVersionManager().getNMSManager().getFishingLoot(context.holder(), hook, rod)
-					.stream().findAny().orElseThrow(() -> new RuntimeException(
+			itemStack = VersionHelper.getNMSManager().getFishingLoot(context.holder(), hook, rod).stream().findAny()
+					.orElseThrow(() -> new RuntimeException(
 							"new EntityItem would throw if for whatever reason (mostly shitty datapacks) the fishing loot turns out to be empty"));
 		} else {
 			itemStack = requireNonNull(buildInternal(context, id));
@@ -263,6 +284,10 @@ public class ItemManager implements ItemManagerInterface, Listener {
 		return success;
 	}
 
+	public ItemProvider getItemProvider(String id) {
+		return itemProviders.get(id);
+	}
+
 	@Override
 	public boolean hasCustomMaxDamage(ItemStack itemStack) {
 		if (itemStack == null || itemStack.getType() == Material.AIR || itemStack.getAmount() == 0)
@@ -288,6 +313,8 @@ public class ItemManager implements ItemManagerInterface, Listener {
 		if (itemStack == null || itemStack.getType() == Material.AIR || itemStack.getAmount() == 0)
 			return;
 		Item<ItemStack> wrapped = factory.wrap(itemStack);
+		if (wrapped.unbreakable())
+			return;
 		DurabilityItem durabilityItem;
 		if (wrapped.hasTag("HellblockItem", "max_dur")) {
 			durabilityItem = new CustomDurabilityItem(wrapped);

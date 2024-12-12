@@ -10,11 +10,11 @@ public class WorldSetting implements Cloneable {
 	private final int minTickUnit;
 	private final int tickCropInterval;
 	private final boolean offlineTick;
-	private final int cropPerChunk;
 	private final int randomTickSpeed;
 	private final int maxOfflineTime;
 	private final int maxLoadingTime;
 	private final int tickCropMode;
+	private final int cropPerChunk;
 
 	/**
 	 * Private constructor to initialize a WorldSetting instance with the provided
@@ -24,10 +24,10 @@ public class WorldSetting implements Cloneable {
 	 * @param minTickUnit      The minimum unit of tick.
 	 * @param tickCropMode     The tick mode of crop
 	 * @param tickCropInterval The interval for ticking crops.
+	 * @param cropPerChunk     The maximum number of crops per chunk.
 	 * @param offlineTick      Whether offline ticking is enabled.
 	 * @param maxOfflineTime   The maximum offline time allowed.
 	 * @param maxLoadingTime   The maximum time allowed to load.
-	 * @param cropPerChunk     The maximum number of crops per chunk.
 	 * @param randomTickSpeed  The random tick speed.
 	 */
 	private WorldSetting(boolean enableScheduler, int minTickUnit, int tickCropMode, int tickCropInterval,
@@ -38,8 +38,8 @@ public class WorldSetting implements Cloneable {
 		this.offlineTick = offlineTick;
 		this.maxOfflineTime = maxOfflineTime;
 		this.maxLoadingTime = maxLoadingTime;
-		this.cropPerChunk = cropPerChunk;
 		this.randomTickSpeed = randomTickSpeed;
+		this.cropPerChunk = cropPerChunk;
 		this.tickCropMode = tickCropMode;
 	}
 
@@ -50,15 +50,15 @@ public class WorldSetting implements Cloneable {
 	 * @param minTickUnit      The minimum unit of tick.
 	 * @param tickCropMode     The tick mode of crop
 	 * @param tickCropInterval The interval for ticking crops.
-	 * @param offlineGrow      Whether offline ticking is enabled.
-	 * @param maxOfflineTime   The maximum offline time allowed.
 	 * @param cropPerChunk     The maximum number of crops per chunk.
+	 * @param offlineTick      Whether offline ticking is enabled.
+	 * @param maxOfflineTime   The maximum offline time allowed.
 	 * @param randomTickSpeed  The random tick speed.
 	 * @return A new WorldSetting instance.
 	 */
 	public static WorldSetting of(boolean enableScheduler, int minTickUnit, int tickCropMode, int tickCropInterval,
-			boolean offlineGrow, int maxOfflineTime, int maxLoadingTime, int cropPerChunk, int randomTickSpeed) {
-		return new WorldSetting(enableScheduler, minTickUnit, tickCropMode, tickCropInterval, offlineGrow,
+			boolean offlineTick, int maxOfflineTime, int maxLoadingTime, int cropPerChunk, int randomTickSpeed) {
+		return new WorldSetting(enableScheduler, minTickUnit, tickCropMode, tickCropInterval, offlineTick,
 				maxOfflineTime, maxLoadingTime, cropPerChunk, randomTickSpeed);
 	}
 

@@ -27,11 +27,11 @@ general:
     # Increase this value to allow more placeholders like {4_player} and {5_level}
     placeholder-limit: 3
   worlds:
-	# Whether or not to use SlimeWorldManager to control per player worlds used for each hellblock.
+    # Whether or not to use SlimeWorldManager to control per player worlds used for each hellblock.
     # If  set to true the follow two fields are ignored and not used.
-	per-player-worlds: false
-	# The name of the world if using bukkit world (opposed to having SlimeWorldManager installed)
-	world: 'hellworld'
+    per-player-worlds: false
+    # The name of the world if using bukkit world (opposed to having SlimeWorldManager installed)
+    world: 'hellworld'
     # Some servers use separate directories for player worlds, which may not be in the server's root directory.
     # This option allows you to specify a custom path to these world folders. This is only applicable for Bukkit worlds.
     absolute-world-folder-path: ''
@@ -80,11 +80,13 @@ general:
           # Run RANDOM_TICK and SCHEDULED_TICK at the same time
           mode: RANDOM_TICK
           # Tick interval determines how many times a block is ticked before its logic is executed
-          tick-interval: 1
+          tick-interval: 
           # Limit the number of crops per chunk (-1 means no limit)
           max-per-chunk: -1
       # Override default settings for specific worlds here
       _WORLDS_:
+        world:
+          enable: false
         world_nether:
           enable: false
         world_the_end:
@@ -1219,17 +1221,17 @@ piglin-bartering:
         name: '<black>Wither Rose'
 
 potions:
-  nether-bottle:
+  nether-potion:
     enable: true
     material: POTION
 	glowing: true
     crafting:
       materials:
         GLOWSTONE_DUST: 'G'
-        WATER_BOTTLE: 'B'
+        NETHER_POTION: 'P'
       recipe: 
         - 'GGG'
-        - 'GBG'
+        - 'GPG'
         - 'GGG'
     components:
       minecraft:potion_contents:

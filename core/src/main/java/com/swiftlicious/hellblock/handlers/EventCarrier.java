@@ -50,7 +50,7 @@ public class EventCarrier implements EventCarrierInterface {
 	@Override
 	public void trigger(Context<Player> context, ActionTrigger trigger) {
 		Optional.ofNullable(actionMap.get(trigger)).ifPresent(actions -> {
-			ActionManagerInterface.trigger(context, actions);
+			ActionManager.trigger(context, actions);
 		});
 	}
 
@@ -62,7 +62,7 @@ public class EventCarrier implements EventCarrierInterface {
 					continue;
 				if (entry.getKey() > afterTimes)
 					return;
-				ActionManagerInterface.trigger(context, entry.getValue());
+				ActionManager.trigger(context, entry.getValue());
 			}
 		});
 	}

@@ -39,7 +39,7 @@ import java.util.concurrent.ConcurrentMap;
 
 public class WorldManager implements WorldManagerInterface, Listener {
 
-	private final HellblockPlugin instance;
+	protected final HellblockPlugin instance;
 	private final TreeSet<WorldAdapter<?>> adapters = new TreeSet<>();
 	private final ConcurrentMap<String, HellblockWorld<?>> worlds = new ConcurrentHashMap<>();
 	private final Map<String, WorldSetting> worldSettings = new HashMap<>();
@@ -107,7 +107,7 @@ public class WorldManager implements WorldManagerInterface, Listener {
 
 		Section section = config.getSection("general.worlds");
 		if (section == null) {
-			instance.getPluginLogger().warn("worlds section should not be null");
+			instance.getPluginLogger().warn("general.worlds section should not be null");
 			return;
 		}
 
@@ -132,13 +132,13 @@ public class WorldManager implements WorldManagerInterface, Listener {
 
 		Section settingSection = section.getSection("settings");
 		if (settingSection == null) {
-			instance.getPluginLogger().warn("worlds.settings section should not be null");
+			instance.getPluginLogger().warn("general.worlds.settings section should not be null");
 			return;
 		}
 
 		Section defaultSection = settingSection.getSection("_DEFAULT_");
 		if (defaultSection == null) {
-			instance.getPluginLogger().warn("worlds.settings._DEFAULT_ section should not be null");
+			instance.getPluginLogger().warn("general.worlds.settings._DEFAULT_ section should not be null");
 			return;
 		}
 

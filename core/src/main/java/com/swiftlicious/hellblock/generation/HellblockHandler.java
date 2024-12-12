@@ -512,7 +512,7 @@ public class HellblockHandler {
 		if (!instance.getConfigManager().perPlayerWorlds())
 			return player.getWorld().getName().equalsIgnoreCase(instance.getConfigManager().worldName());
 
-		return player.getWorld().getName().equalsIgnoreCase(player.getUniqueId().toString());
+		return player.getWorld().getName().startsWith("hellblock_world_");
 	}
 
 	public boolean isInCorrectWorld(@NotNull World world) {

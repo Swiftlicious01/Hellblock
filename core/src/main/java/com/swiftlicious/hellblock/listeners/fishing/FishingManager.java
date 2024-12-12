@@ -30,7 +30,7 @@ import org.bukkit.persistence.PersistentDataType;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.events.fishing.FishingHookStateEvent;
 import com.swiftlicious.hellblock.events.fishing.RodCastEvent;
-import com.swiftlicious.hellblock.handlers.RequirementManagerInterface;
+import com.swiftlicious.hellblock.handlers.RequirementManager;
 import com.swiftlicious.hellblock.mechanics.fishing.CustomFishingHook;
 import com.swiftlicious.hellblock.mechanics.fishing.FishingGears;
 import com.swiftlicious.hellblock.mechanics.fishing.hook.LavaFishingMechanic;
@@ -234,7 +234,7 @@ public class FishingManager implements Listener, FishingManagerInterface {
 			return;
 		Context<Player> context = Context.player(player);
 		FishingGears gears = new FishingGears(context);
-		if (!RequirementManagerInterface.isSatisfied(context, instance.getConfigManager().fishingRequirements())) {
+		if (!RequirementManager.isSatisfied(context, instance.getConfigManager().fishingRequirements())) {
 			this.destroyHook(player.getUniqueId());
 			return;
 		}

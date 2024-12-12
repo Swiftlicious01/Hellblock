@@ -2,12 +2,12 @@ package com.swiftlicious.hellblock.utils;
 
 import org.bukkit.Particle;
 
-import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.handlers.VersionHelper;
 
 public class ParticleUtils {
 
 	public static Particle getParticle(String particle) {
-		if (!HellblockPlugin.getInstance().getVersionManager().isVersionNewerThan1_20_5())
+		if (!VersionHelper.isVersionNewerThan1_20_5())
 			return Particle.valueOf(particle);
 		return switch (particle) {
 		case "REDSTONE" -> Particle.valueOf("DUST");

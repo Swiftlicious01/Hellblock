@@ -1,0 +1,24 @@
+plugins {
+    id 'io.papermc.paperweight.userdev' version '1.7.5'
+}
+
+dependencies {
+    paperweightDevelopmentBundle 'io.papermc.paper:dev-bundle:1.21.4-R0.1-SNAPSHOT'
+    compileOnly(project(":api"))
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+compileJava {
+    options.encoding = 'UTF-8'
+    options.release.set(21)
+    dependsOn(tasks.clean)
+}
+
+paperweight.reobfArtifactConfiguration = io.papermc.paperweight.userdev.ReobfArtifactConfiguration.getREOBF_PRODUCTION()

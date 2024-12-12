@@ -4,8 +4,10 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Tag;
@@ -18,20 +20,27 @@ import org.jetbrains.annotations.Nullable;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.api.Reloadable;
 import com.swiftlicious.hellblock.utils.RandomUtils;
+import com.swiftlicious.hellblock.world.HellblockWorld;
 
 public class RainHandler implements Reloadable {
 
-	private LavaRainTask lavaRainTask;
+	private List<LavaRainTask> lavaRainingWorlds;
 
 	protected final HellblockPlugin instance;
 
 	public RainHandler(HellblockPlugin plugin) {
 		instance = plugin;
+		this.lavaRainingWorlds = new ArrayList<>();
 	}
 
 	@Override
 	public void load() {
-		startLavaRainProcess();
+		for (World world : Bukkit.getWorlds()) {
+			Optional<HellblockWorld<?>> optional = instance.getWorldManager().getWorld(world);
+			if (optional.isPresent()) {
+				startLavaRainProcess(optional.get());
+			}
+		}
 	}
 
 	@Override
@@ -41,27 +50,32 @@ public class RainHandler implements Reloadable {
 
 	@Override
 	public void disable() {
-		stopLavaRainProcess();
+		unload();
 	}
 
-	private void startLavaRainProcess() {
+	public void startLavaRainProcess(HellblockWorld<?> world) {
 		if (!instance.getConfigManager().lavaRainEnabled())
 			return;
 		instance.getScheduler().asyncLater(
-				() -> this.lavaRainTask = new LavaRainTask(instance, true, false,
-						RandomUtils.generateRandomInt(150, 250)),
+				() -> getLavaRainingWorlds()
+						.add(new LavaRainTask(instance, world, true, false, RandomUtils.generateRandomInt(150, 250))),
 				RandomUtils.generateRandomInt(10, 15), TimeUnit.MINUTES);
 	}
 
-	private void stopLavaRainProcess() {
-		if (this.lavaRainTask != null) {
-			this.lavaRainTask.cancelAnimation();
-			this.lavaRainTask = null;
+	public void stopLavaRainProcess(String world) {
+		Optional<LavaRainTask> isRaining = getLavaRainingWorlds().stream()
+				.filter(task -> task.getWorld().worldName().equalsIgnoreCase(world)).findAny();
+		if (isRaining.isPresent() && isRaining.get().isLavaRaining()) {
+			isRaining.get().cancelAnimation();
 		}
 	}
 
-	public @Nullable LavaRainTask getLavaRainTask() {
-		return this.lavaRainTask;
+	public void stopLavaRainProcess() {
+		getLavaRainingWorlds().stream().filter(Objects::nonNull).forEach(LavaRainTask::cancelAnimation);
+	}
+
+	public @Nullable List<LavaRainTask> getLavaRainingWorlds() {
+		return this.lavaRainingWorlds;
 	}
 
 	public boolean canHurtLivingCreatures() {

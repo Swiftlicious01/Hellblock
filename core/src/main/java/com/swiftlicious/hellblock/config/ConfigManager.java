@@ -28,9 +28,6 @@ import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventPriority;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.ItemMeta;
-import org.bukkit.inventory.meta.PotionMeta;
-import org.bukkit.potion.PotionType;
 import org.yaml.snakeyaml.constructor.ConstructorException;
 
 import com.saicone.rtag.RtagItem;
@@ -52,11 +49,12 @@ import com.swiftlicious.hellblock.database.dependency.HellblockProperties;
 import com.swiftlicious.hellblock.effects.Effect;
 import com.swiftlicious.hellblock.effects.EffectProperties;
 import com.swiftlicious.hellblock.generation.IslandOptions;
-import com.swiftlicious.hellblock.handlers.ActionManagerInterface;
+import com.swiftlicious.hellblock.handlers.ActionManager;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.handlers.EventManagerInterface;
 import com.swiftlicious.hellblock.handlers.ExpressionHelper;
-import com.swiftlicious.hellblock.handlers.RequirementManagerInterface;
+import com.swiftlicious.hellblock.handlers.RequirementManager;
+import com.swiftlicious.hellblock.handlers.VersionHelper;
 import com.swiftlicious.hellblock.loot.LootInterface;
 import com.swiftlicious.hellblock.loot.StatisticsKeys;
 import com.swiftlicious.hellblock.mechanics.MechanicType;
@@ -125,6 +123,7 @@ public class ConfigManager extends ConfigHandler {
 						}
 					}).build(),
 					UpdaterSettings.builder().setVersioning(new BasicVersioning("config-version"))
+							.addIgnoredRoute(configVersion, "worlds.settings._WORLDS_", '.')
 							.addIgnoredRoute(configVersion, "lava-fishing-options.fishing-requirements", '.')
 							.addIgnoredRoute(configVersion, "lava-fishing-options.auto-fishing-requirements", '.')
 							.addIgnoredRoute(configVersion, "lava-fishing-options.global-events", '.')
@@ -135,7 +134,7 @@ public class ConfigManager extends ConfigHandler {
 							.addIgnoredRoute(configVersion, "lava-fishing-options.market.decorative-icons", '.')
 							.addIgnoredRoute(configVersion, "other-settings.placeholder-register", '.')
 							.addIgnoredRoute(configVersion, "level-system.blocks", '.')
-							.addIgnoredRoute(configVersion, "piglin-bartering.materials", '.')
+							.addIgnoredRoute(configVersion, "piglin-bartering.items", '.')
 							.addIgnoredRoute(configVersion, "netherrack-generator-options.generation.blocks", '.')
 							.addIgnoredRoute(configVersion, "hellblock.island-options", '.')
 							.addIgnoredRoute(configVersion, "hellblock.starter-chest.items", '.').build());
@@ -165,6 +164,10 @@ public class ConfigManager extends ConfigHandler {
 	private void loadSettings() {
 		YamlDocument config = getMainConfig();
 
+		instance.getTranslationManager()
+				.forceLocale(instance.getTranslationManager().parseLocale(config.getString("force-locale", "")));
+		AdventureHelper.legacySupport = config.getBoolean("other-settings.legacy-color-code-support", true);
+
 		metrics = config.getBoolean("metrics", true);
 		checkUpdate = config.getBoolean("update-checker", true);
 		debug = config.getBoolean("debug", false);
@@ -176,14 +179,15 @@ public class ConfigManager extends ConfigHandler {
 			instance.getPluginLogger().warn(
 					"The defined general.spawn-command field in the config.yml was not a valid command. Defaulting to /spawn.");
 		}
-		absoluteWorldPath = config.getString("general.worlds.absolute-world-folder-path");
+		absoluteWorldPath = config.getString("general.worlds.absolute-world-folder-path", "");
 		asyncWorldSaving = config.getBoolean("other-settings.async-world-saving", true);
 		perPlayerWorlds = config.getBoolean("general.worlds.per-player-worlds", false);
 
 		transferIslands = config.getBoolean("hellblock.can-transfer-islands", true);
 		linkHellblocks = config.getBoolean("hellblock.can-link-hellblocks", true);
 		schematicPaster = config.getString("hellblock.schematic-paster", "worldedit");
-		config.getStringList("hellblock.island-options").forEach(s -> islandOptions.add(IslandOptions.valueOf(s)));
+		config.getStringList("hellblock.island-options")
+				.forEach(option -> islandOptions.add(IslandOptions.valueOf(option)));
 		height = config.getInt("hellblock.height", 150);
 		partySize = config.getInt("hellblock.max-party-size", 20);
 		distance = config.getInt("hellblock.distance", 110);
@@ -299,7 +303,6 @@ public class ConfigManager extends ConfigHandler {
 		serverGroup = config.getString("general.redis-synchronization.server-group", "default");
 		redisRanking = config.getBoolean("general.redis-synchronization.redis-ranking", false);
 
-		AdventureHelper.legacySupport = config.getBoolean("other-settings.legacy-color-code-support", true);
 		dataSaveInterval = config.getInt("other-settings.data-saving-interval", 600);
 		logDataSaving = config.getBoolean("other-settings.log-data-saving", true);
 		lockData = config.getBoolean("other-settings.lock-data", true);
@@ -353,12 +356,12 @@ public class ConfigManager extends ConfigHandler {
 
 		antiAutoFishingMod = config.getBoolean("other-settings.anti-auto-fishing-mod", false);
 
-		fishingRequirements = instance.getRequirementManager()
+		fishingRequirements = instance.getRequirementManager(Player.class)
 				.parseRequirements(config.getSection("lava-fishing-options.fishing-requirements"), true);
-		autoFishingRequirements = instance.getRequirementManager()
+		autoFishingRequirements = instance.getRequirementManager(Player.class)
 				.parseRequirements(config.getSection("lava-fishing-options.auto-fishing-requirements"), true);
 
-		baitAnimation = config.getBoolean("lava-fishing-options.bait-animation", true);
+		baitAnimation = config.getBoolean("lava-fishing-options.show-bait-animation", true);
 
 		multipleLootSpawnDelay = config.getInt("lava-fishing-options.multiple-loot-spawn-delay", 4);
 
@@ -389,16 +392,13 @@ public class ConfigManager extends ConfigHandler {
 					for (Map.Entry<String, Object> innerEntry : inner.getStringRouteMappedValues(false).entrySet()) {
 						if (innerEntry.getValue() instanceof Section actionSection) {
 							actionMap.put(ActionTrigger.valueOf(innerEntry.getKey().toUpperCase(Locale.ENGLISH)),
-									instance.getActionManager().parseActions(actionSection));
+									instance.getActionManager(Player.class).parseActions(actionSection));
 						}
 					}
 					EventManagerInterface.GLOBAL_ACTIONS.put(type, actionMap);
 				}
 			}
 		}
-
-		instance.getTranslationManager()
-				.forceLocale(instance.getTranslationManager().parseLocale(config.getString("force-locale", "")));
 	}
 
 	@Override
@@ -450,17 +450,15 @@ public class ConfigManager extends ConfigHandler {
 	public Map<ItemStack, Character> getCraftingMaterials(Section section) {
 		Map<ItemStack, Character> map = new HashMap<>();
 		for (Map.Entry<String, Object> entry : section.getStringRouteMappedValues(false).entrySet()) {
-			Character symbol = (Character) entry.getValue();
-			if (entry.getKey().equals("WATER_BOTTLE")) {
-				ItemStack bottle = new ItemStack(Material.POTION);
-				ItemMeta potionMeta = bottle.getItemMeta();
-				PotionMeta pmeta = (PotionMeta) potionMeta;
-				pmeta.setBasePotionType(PotionType.WATER);
-				bottle.setItemMeta(pmeta);
-				map.put(bottle, symbol);
+			if (!(entry.getValue() instanceof Character))
+				continue;
+			char symbol = (char) entry.getValue();
+			if (entry.getKey().equalsIgnoreCase("NETHER_POTION")) {
+				map.put(instance.getNetherBrewingHandler().getNetherPotion().load(), symbol);
 			} else {
-				if (Material.getMaterial(entry.getKey()) != null) {
-					map.put(new ItemStack(Material.getMaterial(entry.getKey())), symbol);
+				Material material = Material.getMaterial(entry.getKey().toUpperCase());
+				if (material != null) {
+					map.put(new ItemStack(material), symbol);
 				}
 			}
 		}
@@ -729,7 +727,7 @@ public class ConfigManager extends ConfigHandler {
 				}
 			};
 		}, 10_050, "nbt");
-		if (instance.getVersionManager().isVersionNewerThan1_20_5()) {
+		if (VersionHelper.isVersionNewerThan1_20_5()) {
 			this.registerItemParser(arg -> {
 				Section section = (Section) arg;
 				List<ItemEditor> editors = new ArrayList<>();
@@ -746,8 +744,8 @@ public class ConfigManager extends ConfigHandler {
 	private void registerBuiltInEffectModifierParser() {
 		this.registerEffectModifierParser(object -> {
 			Section section = (Section) object;
-			return builder -> builder
-					.requirements(List.of(instance.getRequirementManager().parseRequirements(section, true)));
+			return builder -> builder.requirements(
+					List.of(instance.getRequirementManager(Player.class).parseRequirements(section, true)));
 		}, "requirements");
 		this.registerEffectModifierParser(object -> {
 			Section section = (Section) object;
@@ -767,7 +765,7 @@ public class ConfigManager extends ConfigHandler {
 		if (!section.contains("type")) {
 			throw new RuntimeException(section.getRouteAsString());
 		}
-		Action<Player>[] actions = instance.getActionManager().parseActions(section.getSection("actions"));
+		Action<Player>[] actions = instance.getActionManager(Player.class).parseActions(section.getSection("actions"));
 		String type = section.getString("type");
 		if (type == null) {
 			throw new RuntimeException(section.getRouteAsString());
@@ -777,7 +775,7 @@ public class ConfigManager extends ConfigHandler {
 			return (((effect, context, phase) -> {
 				if (phase == 0) {
 					effect.properties().put(EffectProperties.LAVA_FISHING, true);
-					ActionManagerInterface.trigger(context, actions);
+					ActionManager.trigger(context, actions);
 				}
 			}));
 		}
@@ -786,7 +784,7 @@ public class ConfigManager extends ConfigHandler {
 			return (((effect, context, phase) -> {
 				if (phase == 1) {
 					effect.weightOperations(op);
-					ActionManagerInterface.trigger(context, actions);
+					ActionManager.trigger(context, actions);
 				}
 			}));
 		}
@@ -795,7 +793,7 @@ public class ConfigManager extends ConfigHandler {
 			return (((effect, context, phase) -> {
 				if (phase == 1) {
 					effect.weightOperationsIgnored(op);
-					ActionManagerInterface.trigger(context, actions);
+					ActionManager.trigger(context, actions);
 				}
 			}));
 		}
@@ -804,7 +802,7 @@ public class ConfigManager extends ConfigHandler {
 			return (((effect, context, phase) -> {
 				if (phase == 1) {
 					effect.weightOperations(op);
-					ActionManagerInterface.trigger(context, actions);
+					ActionManager.trigger(context, actions);
 				}
 			}));
 		}
@@ -813,7 +811,7 @@ public class ConfigManager extends ConfigHandler {
 			return (((effect, context, phase) -> {
 				if (phase == 1) {
 					effect.weightOperationsIgnored(op);
-					ActionManagerInterface.trigger(context, actions);
+					ActionManager.trigger(context, actions);
 				}
 			}));
 		}
@@ -822,7 +820,7 @@ public class ConfigManager extends ConfigHandler {
 			return (((effect, context, phase) -> {
 				if (phase == 2) {
 					effect.waitTimeAdder(effect.waitTimeAdder() + value.evaluate(context));
-					ActionManagerInterface.trigger(context, actions);
+					ActionManager.trigger(context, actions);
 				}
 			}));
 		}
@@ -831,7 +829,7 @@ public class ConfigManager extends ConfigHandler {
 			return (((effect, context, phase) -> {
 				if (phase == 2) {
 					effect.waitTimeMultiplier(effect.waitTimeMultiplier() - 1 + value.evaluate(context));
-					ActionManagerInterface.trigger(context, actions);
+					ActionManager.trigger(context, actions);
 				}
 			}));
 		}
@@ -840,7 +838,7 @@ public class ConfigManager extends ConfigHandler {
 			return (((effect, context, phase) -> {
 				if (phase == 2) {
 					effect.sizeAdder(effect.sizeAdder() + value.evaluate(context));
-					ActionManagerInterface.trigger(context, actions);
+					ActionManager.trigger(context, actions);
 				}
 			}));
 		}
@@ -849,7 +847,7 @@ public class ConfigManager extends ConfigHandler {
 			return (((effect, context, phase) -> {
 				if (phase == 2) {
 					effect.sizeMultiplier(effect.sizeMultiplier() - 1 + value.evaluate(context));
-					ActionManagerInterface.trigger(context, actions);
+					ActionManager.trigger(context, actions);
 				}
 			}));
 		}
@@ -858,12 +856,12 @@ public class ConfigManager extends ConfigHandler {
 			return (((effect, context, phase) -> {
 				if (phase == 2) {
 					effect.multipleLootChance(effect.multipleLootChance() + value.evaluate(context));
-					ActionManagerInterface.trigger(context, actions);
+					ActionManager.trigger(context, actions);
 				}
 			}));
 		}
 		case "conditional" -> {
-			Requirement<Player>[] requirements = instance.getRequirementManager()
+			Requirement<Player>[] requirements = instance.getRequirementManager(Player.class)
 					.parseRequirements(section.getSection("conditions"), true);
 			Section effectSection = section.getSection("effects");
 			List<TriConsumer<Effect, Context<Player>, Integer>> effects = new ArrayList<>();
@@ -872,7 +870,7 @@ public class ConfigManager extends ConfigHandler {
 					if (entry.getValue() instanceof Section inner)
 						effects.add(parseEffect(inner));
 			return (((effect, context, phase) -> {
-				if (!RequirementManagerInterface.isSatisfied(context, requirements))
+				if (!RequirementManager.isSatisfied(context, requirements))
 					return;
 				for (TriConsumer<Effect, Context<Player>, Integer> consumer : effects) {
 					consumer.accept(effect, context, phase);
@@ -1030,72 +1028,72 @@ public class ConfigManager extends ConfigHandler {
 		}, "disable-global-event");
 		this.registerEventParser(object -> {
 			Section section = (Section) object;
-			Action<Player>[] actions = instance.getActionManager().parseActions(section);
+			Action<Player>[] actions = instance.getActionManager(Player.class).parseActions(section);
 			return builder -> builder.action(ActionTrigger.LURE, actions);
 		}, "events", "lure");
 		this.registerEventParser(object -> {
 			Section section = (Section) object;
-			Action<Player>[] actions = instance.getActionManager().parseActions(section);
+			Action<Player>[] actions = instance.getActionManager(Player.class).parseActions(section);
 			return builder -> builder.action(ActionTrigger.ESCAPE, actions);
 		}, "events", "escape");
 		this.registerEventParser(object -> {
 			Section section = (Section) object;
-			Action<Player>[] actions = instance.getActionManager().parseActions(section);
+			Action<Player>[] actions = instance.getActionManager(Player.class).parseActions(section);
 			return builder -> builder.action(ActionTrigger.SUCCESS, actions);
 		}, "events", "success");
 		this.registerEventParser(object -> {
 			Section section = (Section) object;
-			Action<Player>[] actions = instance.getActionManager().parseActions(section);
+			Action<Player>[] actions = instance.getActionManager(Player.class).parseActions(section);
 			return builder -> builder.action(ActionTrigger.ACTIVATE, actions);
 		}, "events", "activate");
 		this.registerEventParser(object -> {
 			Section section = (Section) object;
-			Action<Player>[] actions = instance.getActionManager().parseActions(section);
+			Action<Player>[] actions = instance.getActionManager(Player.class).parseActions(section);
 			return builder -> builder.action(ActionTrigger.FAILURE, actions);
 		}, "events", "failure");
 		this.registerEventParser(object -> {
 			Section section = (Section) object;
-			Action<Player>[] actions = instance.getActionManager().parseActions(section);
+			Action<Player>[] actions = instance.getActionManager(Player.class).parseActions(section);
 			return builder -> builder.action(ActionTrigger.HOOK, actions);
 		}, "events", "hook");
 		this.registerEventParser(object -> {
 			Section section = (Section) object;
-			Action<Player>[] actions = instance.getActionManager().parseActions(section);
+			Action<Player>[] actions = instance.getActionManager(Player.class).parseActions(section);
 			return builder -> builder.action(ActionTrigger.CONSUME, actions);
 		}, "events", "consume");
 		this.registerEventParser(object -> {
 			Section section = (Section) object;
-			Action<Player>[] actions = instance.getActionManager().parseActions(section);
+			Action<Player>[] actions = instance.getActionManager(Player.class).parseActions(section);
 			return builder -> builder.action(ActionTrigger.CAST, actions);
 		}, "events", "cast");
 		this.registerEventParser(object -> {
 			Section section = (Section) object;
-			Action<Player>[] actions = instance.getActionManager().parseActions(section);
+			Action<Player>[] actions = instance.getActionManager(Player.class).parseActions(section);
 			return builder -> builder.action(ActionTrigger.BITE, actions);
 		}, "events", "bite");
 		this.registerEventParser(object -> {
 			Section section = (Section) object;
-			Action<Player>[] actions = instance.getActionManager().parseActions(section);
+			Action<Player>[] actions = instance.getActionManager(Player.class).parseActions(section);
 			return builder -> builder.action(ActionTrigger.LAND, actions);
 		}, "events", "land");
 		this.registerEventParser(object -> {
 			Section section = (Section) object;
-			Action<Player>[] actions = instance.getActionManager().parseActions(section);
+			Action<Player>[] actions = instance.getActionManager(Player.class).parseActions(section);
 			return builder -> builder.action(ActionTrigger.TIMER, actions);
 		}, "events", "timer");
 		this.registerEventParser(object -> {
 			Section section = (Section) object;
-			Action<Player>[] actions = instance.getActionManager().parseActions(section);
+			Action<Player>[] actions = instance.getActionManager(Player.class).parseActions(section);
 			return builder -> builder.action(ActionTrigger.INTERACT, actions);
 		}, "events", "interact");
 		this.registerEventParser(object -> {
 			Section section = (Section) object;
-			Action<Player>[] actions = instance.getActionManager().parseActions(section);
+			Action<Player>[] actions = instance.getActionManager(Player.class).parseActions(section);
 			return builder -> builder.action(ActionTrigger.REEL, actions);
 		}, "events", "reel");
 		this.registerEventParser(object -> {
 			Section section = (Section) object;
-			Action<Player>[] actions = instance.getActionManager().parseActions(section);
+			Action<Player>[] actions = instance.getActionManager(Player.class).parseActions(section);
 			return builder -> builder.action(ActionTrigger.NEW_SIZE_RECORD, actions);
 		}, "events", "new_size_record");
 	}

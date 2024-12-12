@@ -41,13 +41,14 @@ import com.flowpowered.nbt.stream.NBTOutputStream;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.generation.VoidGenerator;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
+import com.swiftlicious.hellblock.handlers.VersionHelper;
 import com.swiftlicious.hellblock.utils.StringUtils;
 import com.swiftlicious.hellblock.utils.TagUtils;
 import com.swiftlicious.hellblock.utils.extras.Key;
-import com.swiftlicious.hellblock.utils.registry.InternalRegistries;
 import com.swiftlicious.hellblock.world.BlockPos;
 import com.swiftlicious.hellblock.world.ChunkPos;
 import com.swiftlicious.hellblock.world.DelayedTickTask;
+import com.swiftlicious.hellblock.world.HellblockBlock;
 import com.swiftlicious.hellblock.world.HellblockBlockState;
 import com.swiftlicious.hellblock.world.HellblockBlockStateInterface;
 import com.swiftlicious.hellblock.world.HellblockChunk;
@@ -60,7 +61,6 @@ import com.swiftlicious.hellblock.world.RegionPos;
 import com.swiftlicious.hellblock.world.SerializableChunk;
 import com.swiftlicious.hellblock.world.SerializableSection;
 import com.swiftlicious.hellblock.world.WorldExtraData;
-import com.swiftlicious.hellblock.world.block.HellblockBlock;
 
 public class BukkitWorldAdapter extends AbstractWorldAdapter<World> {
 
@@ -110,16 +110,17 @@ public class BukkitWorldAdapter extends AbstractWorldAdapter<World> {
 			HellblockPlugin.getInstance().debug(String.format("Created a new Hellblock World: %s", world));
 		}
 		HellblockWorld<World> adaptedWorld = adapt(hellblockWorld);
+		HellblockPlugin.getInstance().getLavaRainHandler().startLavaRainProcess(adaptedWorld);
 		return adaptedWorld;
 	}
-	
+
 	@Override
 	public void deleteWorld(String world) {
 	}
 
 	@Override
 	public WorldExtraData loadExtraData(World world) {
-		if (HellblockPlugin.getInstance().getVersionManager().isVersionNewerThan1_18()) {
+		if (VersionHelper.isVersionNewerThan1_18()) {
 			// init world basic info
 			String json = world.getPersistentDataContainer().get(WORLD_DATA, PersistentDataType.STRING);
 			WorldExtraData data = (json == null || json.equals("null")) ? WorldExtraData.empty()
@@ -147,7 +148,7 @@ public class BukkitWorldAdapter extends AbstractWorldAdapter<World> {
 
 	@Override
 	public void saveExtraData(HellblockWorld<World> world) {
-		if (HellblockPlugin.getInstance().getVersionManager().isVersionNewerThan1_18()) {
+		if (VersionHelper.isVersionNewerThan1_18()) {
 			world.world().getPersistentDataContainer().set(WORLD_DATA, PersistentDataType.STRING,
 					AdventureHelper.getGson().serializer().toJson(world.extraData()));
 		} else {
@@ -465,11 +466,10 @@ public class BukkitWorldAdapter extends AbstractWorldAdapter<World> {
 				CompoundMap block = tag.getValue();
 				Key key = keyFunction.apply((String) block.get("type").getValue());
 				CompoundMap data = (CompoundMap) block.get("data").getValue();
-				HellblockBlock customBlock = InternalRegistries.BLOCK.get(key);
+				HellblockBlock customBlock = new HellblockBlock(key);
 				if (customBlock == null) {
-					HellblockPlugin.getInstance().getInstance().getPluginLogger()
-							.warn("[" + world.worldName() + "] Unrecognized custom block " + key
-									+ " has been removed from chunk " + ChunkPos.of(x, z));
+					HellblockPlugin.getInstance().getInstance().getPluginLogger().warn("[" + world.worldName()
+							+ "] Unrecognized block " + key + " has been removed from chunk " + ChunkPos.of(x, z));
 					continue;
 				}
 				for (int pos : (int[]) block.get("pos").getValue()) {

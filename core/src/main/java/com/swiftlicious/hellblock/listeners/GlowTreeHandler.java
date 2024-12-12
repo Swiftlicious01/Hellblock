@@ -32,6 +32,7 @@ import org.jetbrains.annotations.NotNull;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.challenges.HellblockChallenge.ActionType;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
+import com.swiftlicious.hellblock.handlers.VersionHelper;
 import com.swiftlicious.hellblock.nms.inventory.HandSlot;
 import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.utils.RandomUtils;
@@ -178,7 +179,7 @@ public class GlowTreeHandler implements Listener {
 					&& block.getRelative(BlockFace.UP).getType().isAir()) {
 				if (inHand.getType() == Material.GLOWSTONE_DUST) {
 					event.setUseItemInHand(Result.ALLOW);
-					instance.getVersionManager().getNMSManager().swingHand(player,
+					VersionHelper.getNMSManager().swingHand(player,
 							event.getHand() == EquipmentSlot.HAND ? HandSlot.MAIN : HandSlot.OFF);
 					block.getWorld().playEffect(block.getLocation(), Effect.SMOKE, event.getBlockFace());
 					if (player.getGameMode() != GameMode.CREATIVE)
@@ -198,7 +199,7 @@ public class GlowTreeHandler implements Listener {
 					&& Tag.SAPLINGS.isTagged(block.getType())) {
 				if (inHand.getType() == Material.FLINT) {
 					event.setUseItemInHand(Result.ALLOW);
-					instance.getVersionManager().getNMSManager().swingHand(player,
+					VersionHelper.getNMSManager().swingHand(player,
 							event.getHand() == EquipmentSlot.HAND ? HandSlot.MAIN : HandSlot.OFF);
 					if (player.getGameMode() != GameMode.CREATIVE)
 						inHand.setAmount(inHand.getAmount() > 1 ? inHand.getAmount() - 1 : 0);

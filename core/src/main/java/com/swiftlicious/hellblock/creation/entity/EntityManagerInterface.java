@@ -10,7 +10,7 @@ import com.swiftlicious.hellblock.api.Reloadable;
 import com.swiftlicious.hellblock.player.Context;
 
 /**
- * EntityManager interface for managing custom entities in the fishing plugin.
+ * EntityManager interface for managing custom entities in the plugin.
  */
 public interface EntityManagerInterface extends Reloadable {
 

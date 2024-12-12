@@ -261,6 +261,7 @@ public interface MessageConstants {
 	TranslatableComponent.Builder FORMAT_DAY = Component.translatable().key("format.day");
 
 	TranslatableComponent.Builder COMMAND_RELOAD_SUCCESS = Component.translatable().key("command.reload.success");
+	TranslatableComponent.Builder COMMAND_RELOADING = Component.translatable().key("command.reloading");
 	TranslatableComponent.Builder COMMAND_ITEM_FAILURE_NOT_EXIST = Component.translatable()
 			.key("command.item.failure.not_exist");
 	TranslatableComponent.Builder COMMAND_ITEM_GIVE_SUCCESS = Component.translatable().key("command.item.give.success");
@@ -321,4 +322,8 @@ public interface MessageConstants {
 			.key("command.debug.loot.failure.no_loot");
 	TranslatableComponent.Builder COMMAND_DEBUG_NBT_NO_ITEM_IN_HAND = Component.translatable()
 			.key("command.debug.nbt.no.item.in.hand");
+	TranslatableComponent.Builder COMMAND_DEBUG_WORLDS_FAILURE = Component.translatable()
+			.key("command.debug.worlds.failure");
+	TranslatableComponent.Builder COMMAND_DEBUG_WORLDS_SUCCESS = Component.translatable()
+			.key("command.debug.worlds.success");
 }

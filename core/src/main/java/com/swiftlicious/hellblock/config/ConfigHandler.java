@@ -160,7 +160,7 @@ public abstract class ConfigHandler implements ConfigLoader, Reloadable {
 	public boolean debug() {
 		return debug;
 	}
-	
+
 	public boolean perPlayerWorlds() {
 		return perPlayerWorlds;
 	}

@@ -5,8 +5,6 @@ import org.jetbrains.annotations.NotNull;
 import com.flowpowered.nbt.CompoundMap;
 import com.flowpowered.nbt.CompoundTag;
 import com.swiftlicious.hellblock.utils.TagUtils;
-import com.swiftlicious.hellblock.world.block.DataBlock;
-import com.swiftlicious.hellblock.world.block.HellblockBlock;
 
 import org.jetbrains.annotations.ApiStatus;
 

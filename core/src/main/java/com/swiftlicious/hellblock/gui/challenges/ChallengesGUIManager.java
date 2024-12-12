@@ -27,7 +27,7 @@ import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.challenges.ChallengeType;
 import com.swiftlicious.hellblock.config.parser.SingleItemParser;
 import com.swiftlicious.hellblock.creation.item.CustomItem;
-import com.swiftlicious.hellblock.handlers.ActionManagerInterface;
+import com.swiftlicious.hellblock.handlers.ActionManager;
 import com.swiftlicious.hellblock.player.ChallengeData;
 import com.swiftlicious.hellblock.player.Context;
 import com.swiftlicious.hellblock.player.HellblockData;
@@ -88,7 +88,7 @@ public class ChallengesGUIManager implements ChallengesGUIManagerInterface, List
 
 			backIcon = new SingleItemParser("back", backSection, instance.getConfigManager().getItemFormatFunctions())
 					.getItem();
-			backActions = instance.getActionManager().parseActions(backSection.getSection("action"));
+			backActions = instance.getActionManager(Player.class).parseActions(backSection.getSection("action"));
 		}
 
 		Section challengesSection = config.getSection("challenges-icons");
@@ -99,11 +99,12 @@ public class ChallengesGUIManager implements ChallengesGUIManagerInterface, List
 					ChallengeType challenge = instance.getChallengeManager()
 							.getById(Objects.requireNonNull(innerSection.getString("challenge-type")));
 					if (challenge != null) {
-						challengeIcons.add(Tuple.of(symbol, innerSection, Tuple.of(
-								new SingleItemParser("challenge", innerSection,
-										instance.getConfigManager().getItemFormatFunctions()).getItem(),
-								challenge,
-								instance.getActionManager().parseActions(innerSection.getSection("action")))));
+						challengeIcons.add(Tuple.of(symbol, innerSection,
+								Tuple.of(
+										new SingleItemParser("challenge", innerSection,
+												instance.getConfigManager().getItemFormatFunctions()).getItem(),
+										challenge, instance.getActionManager(Player.class)
+												.parseActions(innerSection.getSection("action")))));
 					}
 				}
 
@@ -116,10 +117,10 @@ public class ChallengesGUIManager implements ChallengesGUIManagerInterface, List
 			for (Map.Entry<String, Object> entry : decorativeSection.getStringRouteMappedValues(false).entrySet()) {
 				if (entry.getValue() instanceof Section innerSection) {
 					char symbol = Objects.requireNonNull(innerSection.getString("symbol")).charAt(0);
-					decorativeIcons.put(symbol,
-							Pair.of(new SingleItemParser("gui", innerSection,
+					decorativeIcons.put(symbol, Pair.of(
+							new SingleItemParser("gui", innerSection,
 									instance.getConfigManager().getItemFormatFunctions()).getItem(),
-									instance.getActionManager().parseActions(innerSection.getSection("action"))));
+							instance.getActionManager(Player.class).parseActions(innerSection.getSection("action"))));
 				}
 			}
 		}
@@ -247,7 +248,7 @@ public class ChallengesGUIManager implements ChallengesGUIManagerInterface, List
 
 			Pair<CustomItem, Action<Player>[]> decorativeIcon = this.decorativeIcons.get(element.getSymbol());
 			if (decorativeIcon != null) {
-				ActionManagerInterface.trigger(gui.context, decorativeIcon.right());
+				ActionManager.trigger(gui.context, decorativeIcon.right());
 				return;
 			}
 
@@ -255,7 +256,7 @@ public class ChallengesGUIManager implements ChallengesGUIManagerInterface, List
 				event.setCancelled(true);
 				instance.getHellblockGUIManager().openHellblockGUI(gui.context.holder(),
 						gui.context.holder().getUniqueId().equals(hellblockData.getOwnerUUID()));
-				ActionManagerInterface.trigger(gui.context, backActions);
+				ActionManager.trigger(gui.context, backActions);
 				return;
 			}
 
@@ -269,7 +270,7 @@ public class ChallengesGUIManager implements ChallengesGUIManagerInterface, List
 							&& !challengeData.isChallengeRewardClaimed(challengeType)) {
 						instance.getChallengeManager().performChallengeRewardActions(gui.context.holder(),
 								challengeType);
-						ActionManagerInterface.trigger(gui.context, challenge.right().right());
+						ActionManager.trigger(gui.context, challenge.right().right());
 						break;
 					}
 				}

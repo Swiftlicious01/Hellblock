@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 
 import org.bukkit.Bukkit;
@@ -16,16 +17,16 @@ import org.jetbrains.annotations.Nullable;
 import org.jetbrains.annotations.ApiStatus;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.handlers.VersionHelper;
 import com.swiftlicious.hellblock.scheduler.SchedulerAdapter;
 import com.swiftlicious.hellblock.scheduler.SchedulerTask;
 import com.swiftlicious.hellblock.world.adapter.WorldAdapter;
-import com.swiftlicious.hellblock.world.block.HellblockBlock;
 
 public class HellblockWorld<W> implements HellblockWorldInterface<W> {
 
-	private final ConcurrentHashMap<ChunkPos, HellblockChunk> loadedChunks = new ConcurrentHashMap<>(512);
-	private final ConcurrentHashMap<ChunkPos, HellblockChunk> lazyChunks = new ConcurrentHashMap<>(128);
-	private final ConcurrentHashMap<RegionPos, HellblockRegion> loadedRegions = new ConcurrentHashMap<>(128);
+	private final ConcurrentMap<ChunkPos, HellblockChunk> loadedChunks = new ConcurrentHashMap<>(512);
+	private final ConcurrentMap<ChunkPos, HellblockChunk> lazyChunks = new ConcurrentHashMap<>(128);
+	private final ConcurrentMap<RegionPos, HellblockRegion> loadedRegions = new ConcurrentHashMap<>(128);
 	private final WeakReference<W> world;
 	private final WeakReference<World> bukkitWorld;
 	private final String worldName;
@@ -227,7 +228,7 @@ public class HellblockWorld<W> implements HellblockWorldInterface<W> {
 	}
 
 	private void tickChunks() {
-		if (HellblockPlugin.getInstance().getVersionManager().isFolia()) {
+		if (VersionHelper.isFolia()) {
 			SchedulerAdapter<Location, World> scheduler = HellblockPlugin.getInstance().getScheduler();
 			for (HellblockChunk chunk : loadedChunks.values()) {
 				scheduler.sync().run(chunk::timer, bukkitWorld(), chunk.chunkPos().x(), chunk.chunkPos().z());

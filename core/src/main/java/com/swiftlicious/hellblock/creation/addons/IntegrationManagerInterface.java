@@ -70,6 +70,15 @@ public interface IntegrationManagerInterface extends Reloadable {
 	boolean unregisterEntityProvider(@NotNull String id);
 
 	/**
+	 * Retrieves a registered EntityProvider by its ID.
+	 *
+	 * @param id the ID of the EntityProvider to retrieve
+	 * @return the EntityProvider if found, or null if not found
+	 */
+	@Nullable
+	EntityProvider getEntityProvider(String id);
+
+	/**
 	 * Retrieves a registered LevelerProvider by its ID.
 	 *
 	 * @param id the ID of the LevelerProvider to retrieve
@@ -113,6 +122,15 @@ public interface IntegrationManagerInterface extends Reloadable {
 	boolean unregisterItemProvider(@NotNull String id);
 
 	/**
+	 * Retrieves a registered ItemProvider by its ID.
+	 *
+	 * @param id the ID of the ItemProvider to retrieve
+	 * @return the ItemProvider if found, or null if not found
+	 */
+	@Nullable
+	ItemProvider getItemProvider(String id);
+
+	/**
 	 * Registers a BlockProvider.
 	 *
 	 * @param block the BlockProvider to register
@@ -127,4 +145,13 @@ public interface IntegrationManagerInterface extends Reloadable {
 	 * @return true if unregistration is successful, false otherwise.
 	 */
 	boolean unregisterBlockProvider(@NotNull String id);
+
+	/**
+	 * Retrieves a registered BlockProvider by its ID.
+	 *
+	 * @param id the ID of the BlockProvider to retrieve
+	 * @return the BlockProvider if found, or null if not found
+	 */
+	@Nullable
+	BlockProvider getBlockProvider(String id);
 }

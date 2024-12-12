@@ -35,7 +35,7 @@ import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.config.parser.SingleItemParser;
 import com.swiftlicious.hellblock.creation.item.Item;
 import com.swiftlicious.hellblock.creation.item.CustomItem;
-import com.swiftlicious.hellblock.handlers.ActionManagerInterface;
+import com.swiftlicious.hellblock.handlers.ActionManager;
 import com.swiftlicious.hellblock.player.Context;
 import com.swiftlicious.hellblock.player.ContextKeys;
 import com.swiftlicious.hellblock.player.EarningData;
@@ -145,11 +145,11 @@ public class MarketManager implements MarketManagerInterface, Listener {
 			this.sellAllIconLimitItem = new SingleItemParser("limit", sellAllSection.getSection("limit-icon"),
 					instance.getConfigManager().getItemFormatFunctions()).getItem();
 
-			this.sellAllAllowActions = instance.getActionManager()
+			this.sellAllAllowActions = instance.getActionManager(Player.class)
 					.parseActions(sellAllSection.getSection("allow-icon.action"));
-			this.sellAllDenyActions = instance.getActionManager()
+			this.sellAllDenyActions = instance.getActionManager(Player.class)
 					.parseActions(sellAllSection.getSection("deny-icon.action"));
-			this.sellAllLimitActions = instance.getActionManager()
+			this.sellAllLimitActions = instance.getActionManager(Player.class)
 					.parseActions(sellAllSection.getSection("limit-icon.action"));
 		}
 
@@ -164,10 +164,11 @@ public class MarketManager implements MarketManagerInterface, Listener {
 			this.sellIconLimitItem = new SingleItemParser("limit", sellSection.getSection("limit-icon"),
 					instance.getConfigManager().getItemFormatFunctions()).getItem();
 
-			this.sellAllowActions = instance.getActionManager()
+			this.sellAllowActions = instance.getActionManager(Player.class)
 					.parseActions(sellSection.getSection("allow-icon.action"));
-			this.sellDenyActions = instance.getActionManager().parseActions(sellSection.getSection("deny-icon.action"));
-			this.sellLimitActions = instance.getActionManager()
+			this.sellDenyActions = instance.getActionManager(Player.class)
+					.parseActions(sellSection.getSection("deny-icon.action"));
+			this.sellLimitActions = instance.getActionManager(Player.class)
 					.parseActions(sellSection.getSection("limit-icon.action"));
 		}
 
@@ -190,10 +191,10 @@ public class MarketManager implements MarketManagerInterface, Listener {
 			for (Map.Entry<String, Object> entry : decorativeSection.getStringRouteMappedValues(false).entrySet()) {
 				if (entry.getValue() instanceof Section innerSection) {
 					char symbol = Objects.requireNonNull(innerSection.getString("symbol")).charAt(0);
-					decorativeIcons.put(symbol,
-							Pair.of(new SingleItemParser("gui", innerSection,
+					decorativeIcons.put(symbol, Pair.of(
+							new SingleItemParser("gui", innerSection,
 									instance.getConfigManager().getItemFormatFunctions()).getItem(),
-									instance.getActionManager().parseActions(innerSection.getSection("action"))));
+							instance.getActionManager(Player.class).parseActions(innerSection.getSection("action"))));
 				}
 			}
 		}
@@ -342,7 +343,7 @@ public class MarketManager implements MarketManagerInterface, Listener {
 
 			Pair<CustomItem, Action<Player>[]> decorativeIcon = this.decorativeIcons.get(element.getSymbol());
 			if (decorativeIcon != null) {
-				ActionManagerInterface.trigger(gui.context, decorativeIcon.right());
+				ActionManager.trigger(gui.context, decorativeIcon.right());
 				return;
 			}
 
@@ -360,7 +361,7 @@ public class MarketManager implements MarketManagerInterface, Listener {
 				if (totalWorth > 0) {
 					if (earningLimit != -1 && (earningLimit - earningData.getEarnings()) < totalWorth) {
 						// Can't earn more money
-						ActionManagerInterface.trigger(gui.context, sellLimitActions);
+						ActionManager.trigger(gui.context, sellLimitActions);
 					} else {
 						// Clear items and update earnings
 						clearWorthyItems(gui.context, gui.getItemsInGUI());
@@ -368,11 +369,11 @@ public class MarketManager implements MarketManagerInterface, Listener {
 						gui.context.arg(ContextKeys.REST, money(earningLimit - earningData.getEarnings()));
 						gui.context.arg(ContextKeys.REST_FORMATTED,
 								String.format("%.2f", (earningLimit - earningData.getEarnings())));
-						ActionManagerInterface.trigger(gui.context, sellAllowActions);
+						ActionManager.trigger(gui.context, sellAllowActions);
 					}
 				} else {
 					// Nothing to sell
-					ActionManagerInterface.trigger(gui.context, sellDenyActions);
+					ActionManager.trigger(gui.context, sellDenyActions);
 				}
 			} else if (element.getSymbol() == sellAllSlot) {
 				List<ItemStack> itemStacksToSell = storageContentsToList(
@@ -389,7 +390,7 @@ public class MarketManager implements MarketManagerInterface, Listener {
 				if (totalWorth > 0) {
 					if (earningLimit != -1 && (earningLimit - earningData.getEarnings()) < totalWorth) {
 						// Can't earn more money
-						ActionManagerInterface.trigger(gui.context, sellAllLimitActions);
+						ActionManager.trigger(gui.context, sellAllLimitActions);
 					} else {
 						// Clear items and update earnings
 						clearWorthyItems(gui.context, itemStacksToSell);
@@ -397,11 +398,11 @@ public class MarketManager implements MarketManagerInterface, Listener {
 						gui.context.arg(ContextKeys.REST, money(earningLimit - earningData.getEarnings()));
 						gui.context.arg(ContextKeys.REST_FORMATTED,
 								String.format("%.2f", (earningLimit - earningData.getEarnings())));
-						ActionManagerInterface.trigger(gui.context, sellAllAllowActions);
+						ActionManager.trigger(gui.context, sellAllAllowActions);
 					}
 				} else {
 					// Nothing to sell
-					ActionManagerInterface.trigger(gui.context, sellAllDenyActions);
+					ActionManager.trigger(gui.context, sellAllDenyActions);
 				}
 			}
 		} else {

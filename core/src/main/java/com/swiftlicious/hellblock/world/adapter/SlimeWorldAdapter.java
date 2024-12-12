@@ -33,16 +33,17 @@ import com.infernalsuite.aswm.api.world.properties.SlimeProperties;
 import com.infernalsuite.aswm.api.world.properties.SlimePropertyMap;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
+import com.swiftlicious.hellblock.handlers.VersionHelper;
 import com.swiftlicious.hellblock.protection.HellblockFlag;
 import com.swiftlicious.hellblock.utils.StringUtils;
 import com.swiftlicious.hellblock.utils.TagUtils;
 import com.swiftlicious.hellblock.utils.extras.Key;
 import com.swiftlicious.hellblock.utils.extras.Either;
 import com.swiftlicious.hellblock.utils.extras.QuadFunction;
-import com.swiftlicious.hellblock.utils.registry.InternalRegistries;
 import com.swiftlicious.hellblock.world.BlockPos;
 import com.swiftlicious.hellblock.world.ChunkPos;
 import com.swiftlicious.hellblock.world.DelayedTickTask;
+import com.swiftlicious.hellblock.world.HellblockBlock;
 import com.swiftlicious.hellblock.world.HellblockBlockState;
 import com.swiftlicious.hellblock.world.HellblockBlockStateInterface;
 import com.swiftlicious.hellblock.world.HellblockChunk;
@@ -55,7 +56,6 @@ import com.swiftlicious.hellblock.world.RegionPos;
 import com.swiftlicious.hellblock.world.SerializableChunk;
 import com.swiftlicious.hellblock.world.SerializableSection;
 import com.swiftlicious.hellblock.world.WorldExtraData;
-import com.swiftlicious.hellblock.world.block.HellblockBlock;
 
 public class SlimeWorldAdapter extends AbstractWorldAdapter<SlimeWorld> implements Listener {
 
@@ -123,7 +123,7 @@ public class SlimeWorldAdapter extends AbstractWorldAdapter<SlimeWorld> implemen
 						throw new RuntimeException(e);
 					}
 				};
-			} else if (version == 2 && HellblockPlugin.getInstance().getVersionManager().isPaper()) {
+			} else if (version == 2 && VersionHelper.isPaper()) {
 				Class<?> apiClass = Class.forName("com.infernalsuite.aswm.api.AdvancedSlimePaperAPI");
 				Object apiInstance = apiClass.getMethod("instance").invoke(null);
 				Method getWorldMethod = apiClass.getMethod("getLoadedWorld", String.class);
@@ -246,16 +246,15 @@ public class SlimeWorldAdapter extends AbstractWorldAdapter<SlimeWorld> implemen
 			HellblockPlugin.getInstance().debug(String.format("Created a new Hellblock World: %s", world));
 		}
 		HellblockWorld<SlimeWorld> adaptedWorld = adapt(hellblockWorld);
+		HellblockPlugin.getInstance().getLavaRainHandler().startLavaRainProcess(adaptedWorld);
 		return adaptedWorld;
 	}
 
 	@Override
 	public void deleteWorld(String world) {
+		HellblockPlugin.getInstance().getLavaRainHandler().stopLavaRainProcess(world);
 		deleteSlimeWorldFunction.apply(world);
 	}
-
-	// TODO: delete world method and change hellblock naming to "HellblockID1" for
-	// id of 1 for example
 
 	@Override
 	public WorldExtraData loadExtraData(SlimeWorld world) {
@@ -387,11 +386,10 @@ public class SlimeWorldAdapter extends AbstractWorldAdapter<SlimeWorld> implemen
 					CompoundMap block = blockTag.getValue();
 					CompoundMap data = (CompoundMap) block.get("data").getValue();
 					Key key = keyFunction.apply((String) block.get("type").getValue());
-					HellblockBlock customBlock = InternalRegistries.BLOCK.get(key);
+					HellblockBlock customBlock = new HellblockBlock(key);
 					if (customBlock == null) {
-						HellblockPlugin.getInstance().getInstance().getPluginLogger()
-								.warn("[" + world.worldName() + "] Unrecognized custom block " + key
-										+ " has been removed from chunk " + ChunkPos.of(x, z));
+						HellblockPlugin.getInstance().getInstance().getPluginLogger().warn("[" + world.worldName()
+								+ "] Unrecognized block " + key + " has been removed from chunk " + ChunkPos.of(x, z));
 						continue;
 					}
 					for (int pos : (int[]) block.get("pos").getValue()) {

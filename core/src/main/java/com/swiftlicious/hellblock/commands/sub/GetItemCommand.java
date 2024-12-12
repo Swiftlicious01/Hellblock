@@ -73,6 +73,7 @@ public class GetItemCommand extends BukkitCommandFeature<CommandSender> {
 								Component.text(id));
 					} catch (Exception e) {
 						handleFeedback(context, MessageConstants.COMMAND_ITEM_FAILURE_NOT_EXIST, Component.text(id));
+						HellblockPlugin.getInstance().getPluginLogger().warn("Failed to get item:" + id, e);
 					}
 				});
 	}

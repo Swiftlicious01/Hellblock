@@ -420,10 +420,7 @@ public class StorageManager implements StorageManagerInterface, Listener {
 		bukkitUser.showBorder();
 		bukkitUser.startSpawningAnimals();
 		bukkitUser.startSpawningFortressMobs();
-		instance.getNetherFarmingHandler().trackNetherFarms(bukkitUser);
-
-		if (!instance.getHellblockHandler().isInCorrectWorld(player))
-			return;
+		instance.getFarmingManager().updateCrops(player.getWorld(), player);
 
 		if (player.getLocation() != null) {
 			LocationUtils.isSafeLocationAsync(player.getLocation()).thenAccept((playerResult) -> {

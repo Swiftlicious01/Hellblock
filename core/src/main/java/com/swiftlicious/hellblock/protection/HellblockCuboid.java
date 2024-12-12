@@ -20,8 +20,6 @@ public class HellblockCuboid implements Iterable<Block>, Cloneable, Configuratio
 	/**
 	 * This class is a region/cuboid from one location to another. It can be used
 	 * for blocks protection and things like WorldEdit.
-	 * 
-	 * @author desht (Original code), KingFaris10 (Editor of code)
 	 */
 	protected final String identifier;
 	protected final String worldName;

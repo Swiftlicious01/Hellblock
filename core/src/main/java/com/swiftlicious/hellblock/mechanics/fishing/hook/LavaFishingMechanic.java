@@ -20,6 +20,7 @@ import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.effects.Effect;
 import com.swiftlicious.hellblock.effects.EffectProperties;
 import com.swiftlicious.hellblock.events.fishing.FishingHookStateEvent;
+import com.swiftlicious.hellblock.handlers.VersionHelper;
 import com.swiftlicious.hellblock.nms.fluid.FluidData;
 import com.swiftlicious.hellblock.player.Context;
 import com.swiftlicious.hellblock.player.ContextKeys;
@@ -60,7 +61,7 @@ public class LavaFishingMechanic implements HookMechanic {
 		}
 		float lavaHeight = 0F;
 		Location location = this.hook.getLocation();
-		FluidData fluidData = HellblockPlugin.getInstance().getVersionManager().getNMSManager().getFluidData(location);
+		FluidData fluidData = VersionHelper.getNMSManager().getFluidData(location);
 		if (fluidData.getFluidType() == Fluid.LAVA || fluidData.getFluidType() == Fluid.FLOWING_LAVA) {
 			lavaHeight = (float) (fluidData.getLevel() * 0.125);
 		}
@@ -90,8 +91,7 @@ public class LavaFishingMechanic implements HookMechanic {
 			if (location.getWorld() == null)
 				return;
 			float lavaHeight = 0F;
-			FluidData fluidData = HellblockPlugin.getInstance().getVersionManager().getNMSManager()
-					.getFluidData(location);
+			FluidData fluidData = VersionHelper.getNMSManager().getFluidData(location);
 			if (fluidData.getFluidType() == Fluid.LAVA || fluidData.getFluidType() == Fluid.FLOWING_LAVA) {
 				lavaHeight = (float) (fluidData.getLevel() * 0.125);
 			}

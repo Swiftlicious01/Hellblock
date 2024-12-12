@@ -11,8 +11,8 @@ public enum HellBiome {
 	BASALT_DELTAS("Basalt Deltas", Biome.BASALT_DELTAS),
 	NETHER_FORTRESS("Nether Fortress", RandomUtils.generateRandomBiome());
 
-	private final String name;
-	private final Biome converted;
+	protected final String name;
+	protected final Biome converted;
 
 	private HellBiome(String name, Biome converted) {
 		this.name = name;

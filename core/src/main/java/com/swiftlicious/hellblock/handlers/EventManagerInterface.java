@@ -117,7 +117,7 @@ public interface EventManagerInterface extends Reloadable {
 	static void triggerGlobalActions(Context<Player> context, MechanicType type, ActionTrigger trigger) {
 		Optional.ofNullable(GLOBAL_ACTIONS.get(type))
 				.flatMap(actionTriggerMap -> Optional.ofNullable(actionTriggerMap.get(trigger)))
-				.ifPresent(action -> ActionManagerInterface.trigger(context, action));
+				.ifPresent(action -> ActionManager.trigger(context, action));
 	}
 
 	/**
@@ -140,7 +140,7 @@ public interface EventManagerInterface extends Reloadable {
 							continue;
 						if (entry.getKey() > afterTimes)
 							return;
-						ActionManagerInterface.trigger(context, entry.getValue());
+						ActionManager.trigger(context, entry.getValue());
 					}
 				});
 	}

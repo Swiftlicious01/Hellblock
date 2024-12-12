@@ -56,7 +56,7 @@ public interface CustomItemInterface {
 	 * @return the built {@link ItemStack}.
 	 */
 	default ItemStack build(Context<Player> context) {
-		return HellblockPlugin.getInstance().getItemManager().build(context, this);
+		return HellblockPlugin.getInstance().getItemManager().build(context, (CustomItem) this);
 	}
 
 	/**

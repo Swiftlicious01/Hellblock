@@ -9,7 +9,6 @@ import org.bukkit.World;
 import org.jetbrains.annotations.NotNull;
 
 import com.swiftlicious.hellblock.world.adapter.WorldAdapter;
-import com.swiftlicious.hellblock.world.block.HellblockBlock;
 
 /**
  * Interface representing a custom world in the Hellblock plugin

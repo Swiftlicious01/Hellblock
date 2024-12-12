@@ -9,6 +9,7 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Particle;
 import org.bukkit.World;
+import org.bukkit.World.Environment;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Entity;
@@ -28,6 +29,7 @@ import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.scheduler.SchedulerTask;
 import com.swiftlicious.hellblock.utils.LocationUtils;
 import com.swiftlicious.hellblock.utils.RandomUtils;
+import com.swiftlicious.hellblock.world.HellblockWorld;
 
 import net.kyori.adventure.sound.Sound;
 
@@ -39,6 +41,7 @@ public class LavaRainTask implements Runnable {
 
 	protected final HellblockPlugin instance;
 
+	private final HellblockWorld<?> world;
 	private final SchedulerTask cancellableTask;
 	private boolean isRaining;
 	private long howLongRainLasts;
@@ -53,12 +56,15 @@ public class LavaRainTask implements Runnable {
 	 * Constructs a new LavaRainTask.
 	 *
 	 * @param plugin            The Plugin instance.
+	 * @param world             The world it is currently raining in.
 	 * @param isRaining         Whether it is currently raining.
 	 * @param hasRainedRecently Whether it has rained recently.
 	 * @param howLongItRained   How long it will rain for.
 	 */
-	public LavaRainTask(HellblockPlugin plugin, boolean isRaining, boolean hasRainedRecently, long howLongRainLasts) {
+	public LavaRainTask(HellblockPlugin plugin, HellblockWorld<?> world, boolean isRaining, boolean hasRainedRecently,
+			long howLongRainLasts) {
 		instance = plugin;
+		this.world = world;
 		this.isRaining = isRaining;
 		this.hasRainedRecently = hasRainedRecently;
 		this.howLongRainLasts = howLongRainLasts;
@@ -72,7 +78,9 @@ public class LavaRainTask implements Runnable {
 			return;
 
 		Iterator<Player> players = instance.getStorageManager().getOnlineUsers().stream()
-				.filter(user -> user != null && user.isOnline()).map(UserData::getPlayer).iterator();
+				.filter(user -> user != null && user.isOnline()
+						&& user.getPlayer().getWorld().getName().equalsIgnoreCase(this.world.worldName()))
+				.map(UserData::getPlayer).iterator();
 
 		while (true) {
 
@@ -106,7 +114,9 @@ public class LavaRainTask implements Runnable {
 				Location location = player.getLocation();
 				if (location == null)
 					return;
-				World world = player.getWorld();
+				World world = this.world.bukkitWorld();
+				if (world.getEnvironment() != Environment.NETHER)
+					return;
 				Location add = location.clone().add((double) instance.getConfigManager().radius(), 20.0D,
 						(double) instance.getConfigManager().radius());
 				Location sub = location.clone().subtract((double) instance.getConfigManager().radius(), 0.0D,
@@ -236,6 +246,10 @@ public class LavaRainTask implements Runnable {
 				}
 			}
 		}
+	}
+
+	public HellblockWorld<?> getWorld() {
+		return this.world;
 	}
 
 	public boolean isLavaRaining() {

@@ -19,6 +19,7 @@ import org.jetbrains.annotations.NotNull;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.generation.HellBiome;
+import com.swiftlicious.hellblock.listeners.rain.LavaRainTask;
 import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.protection.HellblockFlag;
 import com.swiftlicious.hellblock.protection.HellblockFlag.AccessType;
@@ -54,9 +55,6 @@ public class FortressHandler implements Runnable {
 			return;
 		if (player.getLocation() == null)
 			return;
-		if (instance.getLavaRainHandler().getLavaRainTask() != null
-				&& instance.getLavaRainHandler().getLavaRainTask().isLavaRaining())
-			return;
 
 		instance.getCoopManager().getHellblockOwnerOfVisitingIsland(player).thenAccept(ownerUUID -> {
 			if (ownerUUID == null)
@@ -72,6 +70,11 @@ public class FortressHandler implements Runnable {
 							throw new NullPointerException(
 									"World returned null, please try to regenerate the world before reporting this issue.");
 						World bukkitWorld = world.get().bukkitWorld();
+						Optional<LavaRainTask> lavaRain = instance.getLavaRainHandler().getLavaRainingWorlds().stream()
+								.filter(task -> bukkitWorld.getName().equalsIgnoreCase(task.getWorld().worldName()))
+								.findAny();
+						if (lavaRain.isPresent() && lavaRain.get().isLavaRaining())
+							return;
 						if (offlineUser.getHellblockData().isAbandoned())
 							return;
 						if (offlineUser.getHellblockData()
@@ -95,7 +98,8 @@ public class FortressHandler implements Runnable {
 											block = chunk.getBlock(RandomUtils.generateRandomInt(16),
 													RandomUtils.generateRandomInt(bukkitWorld.getMaxHeight() - 1),
 													RandomUtils.generateRandomInt(16));
-										} while (!spawnCache.contains(block.getLocation()));
+										} while (block.getType().isSolid()
+												&& !spawnCache.contains(block.getLocation()));
 
 										Location spawn = block.getLocation().add(0.5, 1, 0.5);
 										if ((spawn.getBlock().isEmpty() || spawn.getBlock().isPassable())

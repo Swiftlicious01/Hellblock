@@ -10,3 +10,14 @@ subprojects {
         maven { url = 'https://papermc.io/repo/repository/maven-public/' }
     }
 }
+
+processResources {
+	filteringCharset = 'UTF-8'
+   	def map = ['project_version': (rootProject.properties['project_version']), 'config_version': (rootProject.properties['config_version'])]
+    filesMatching(['hellblock.properties']) {
+       	expand(rootProject.properties)
+    }
+    filesMatching(['plugin.yml', 'config.yml', 'commands.yml']) {
+       	expand(map)
+    }
+}

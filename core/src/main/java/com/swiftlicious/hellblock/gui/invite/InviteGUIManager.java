@@ -28,7 +28,7 @@ import com.swiftlicious.hellblock.config.locale.MessageConstants;
 import com.swiftlicious.hellblock.config.parser.SingleItemParser;
 import com.swiftlicious.hellblock.creation.item.CustomItem;
 import com.swiftlicious.hellblock.creation.item.Item;
-import com.swiftlicious.hellblock.handlers.ActionManagerInterface;
+import com.swiftlicious.hellblock.handlers.ActionManager;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.player.Context;
 import com.swiftlicious.hellblock.player.UserData;
@@ -101,7 +101,7 @@ public class InviteGUIManager implements InviteGUIManagerInterface, Listener {
 
 			backIcon = new SingleItemParser("back", backSection, instance.getConfigManager().getItemFormatFunctions())
 					.getItem();
-			backActions = instance.getActionManager().parseActions(backSection.getSection("action"));
+			backActions = instance.getActionManager(Player.class).parseActions(backSection.getSection("action"));
 		}
 
 		Section leftSection = config.getSection("scroll-left-icon");
@@ -110,7 +110,7 @@ public class InviteGUIManager implements InviteGUIManagerInterface, Listener {
 
 			leftIcon = new SingleItemParser("left", leftSection, instance.getConfigManager().getItemFormatFunctions())
 					.getItem();
-			leftActions = instance.getActionManager().parseActions(leftSection.getSection("action"));
+			leftActions = instance.getActionManager(Player.class).parseActions(leftSection.getSection("action"));
 		}
 
 		Section rightSection = config.getSection("scroll-right-icon");
@@ -119,7 +119,7 @@ public class InviteGUIManager implements InviteGUIManagerInterface, Listener {
 
 			rightIcon = new SingleItemParser("right", rightSection,
 					instance.getConfigManager().getItemFormatFunctions()).getItem();
-			rightActions = instance.getActionManager().parseActions(rightSection.getSection("action"));
+			rightActions = instance.getActionManager(Player.class).parseActions(rightSection.getSection("action"));
 		}
 
 		Section playerFoundSection = config.getSection("player-found-icon");
@@ -127,14 +127,15 @@ public class InviteGUIManager implements InviteGUIManagerInterface, Listener {
 			playerFoundName = playerFoundSection.getString("display.name");
 			playerFoundIcon = new SingleItemParser("found", playerFoundSection,
 					instance.getConfigManager().getItemFormatFunctions()).getItem();
-			playerFoundActions = instance.getActionManager().parseActions(playerFoundSection.getSection("action"));
+			playerFoundActions = instance.getActionManager(Player.class)
+					.parseActions(playerFoundSection.getSection("action"));
 		}
 
 		Section playerNotFoundSection = config.getSection("player-not-found-icon");
 		if (playerNotFoundSection != null) {
 			playerNotFoundIcon = new SingleItemParser("not_found", playerNotFoundSection,
 					instance.getConfigManager().getItemFormatFunctions()).getItem();
-			playerNotFoundActions = instance.getActionManager()
+			playerNotFoundActions = instance.getActionManager(Player.class)
 					.parseActions(playerNotFoundSection.getSection("action"));
 		}
 
@@ -145,7 +146,7 @@ public class InviteGUIManager implements InviteGUIManagerInterface, Listener {
 
 			playerIcon = new SingleItemParser("player", playerSection,
 					instance.getConfigManager().getItemFormatFunctions()).getItem();
-			playerActions = instance.getActionManager().parseActions(playerSection.getSection("action"));
+			playerActions = instance.getActionManager(Player.class).parseActions(playerSection.getSection("action"));
 		}
 
 		Section searchSection = config.getSection("search-icon");
@@ -160,10 +161,10 @@ public class InviteGUIManager implements InviteGUIManagerInterface, Listener {
 			for (Map.Entry<String, Object> entry : decorativeSection.getStringRouteMappedValues(false).entrySet()) {
 				if (entry.getValue() instanceof Section innerSection) {
 					char symbol = Objects.requireNonNull(innerSection.getString("symbol")).charAt(0);
-					decorativeIcons.put(symbol,
-							Pair.of(new SingleItemParser("gui", innerSection,
+					decorativeIcons.put(symbol, Pair.of(
+							new SingleItemParser("gui", innerSection,
 									instance.getConfigManager().getItemFormatFunctions()).getItem(),
-									instance.getActionManager().parseActions(innerSection.getSection("action"))));
+							instance.getActionManager(Player.class).parseActions(innerSection.getSection("action"))));
 				}
 			}
 		}
@@ -299,7 +300,7 @@ public class InviteGUIManager implements InviteGUIManagerInterface, Listener {
 
 			Pair<CustomItem, Action<Player>[]> decorativeIcon = this.decorativeIcons.get(element.getSymbol());
 			if (decorativeIcon != null) {
-				ActionManagerInterface.trigger(gui.context, decorativeIcon.right());
+				ActionManager.trigger(gui.context, decorativeIcon.right());
 				return;
 			}
 
@@ -307,20 +308,20 @@ public class InviteGUIManager implements InviteGUIManagerInterface, Listener {
 				event.setCancelled(true);
 				instance.getPartyGUIManager().openPartyGUI(gui.context.holder(),
 						gui.context.holder().getUniqueId().equals(gui.hellblockData.getOwnerUUID()));
-				ActionManagerInterface.trigger(gui.context, backActions);
+				ActionManager.trigger(gui.context, backActions);
 				return;
 			}
 
 			if (element.getSymbol() == leftSlot) {
 				event.setCancelled(true);
 				gui.refreshPlayerHeads(true);
-				ActionManagerInterface.trigger(gui.context, leftActions);
+				ActionManager.trigger(gui.context, leftActions);
 			}
 
 			if (element.getSymbol() == rightSlot) {
 				event.setCancelled(true);
 				gui.refreshPlayerHeads(false);
-				ActionManagerInterface.trigger(gui.context, rightActions);
+				ActionManager.trigger(gui.context, rightActions);
 			}
 
 			Audience audience = instance.getSenderFactory().getAudience(gui.context.holder());
@@ -351,7 +352,7 @@ public class InviteGUIManager implements InviteGUIManagerInterface, Listener {
 				String username = AdventureHelper.miniMessageToJson(playerName.replace("{player}", name));
 				playerItem.displayName(username);
 				gui.inventory.setItem(2, playerItem.load());
-				ActionManagerInterface.trigger(gui.context, playerActions);
+				ActionManager.trigger(gui.context, playerActions);
 			}
 
 		} else {
@@ -373,7 +374,7 @@ public class InviteGUIManager implements InviteGUIManagerInterface, Listener {
 
 			Pair<CustomItem, Action<Player>[]> decorativeIcon = this.decorativeIcons.get(element.getSymbol());
 			if (decorativeIcon != null) {
-				ActionManagerInterface.trigger(gui.context, decorativeIcon.right());
+				ActionManager.trigger(gui.context, decorativeIcon.right());
 				return;
 			}
 
@@ -404,7 +405,7 @@ public class InviteGUIManager implements InviteGUIManagerInterface, Listener {
 							.map(user -> user.getName()).collect(Collectors.toList()).contains(gui.searchedName)) {
 						if (Bukkit.getPlayer(gui.searchedName) == null
 								|| !Bukkit.getPlayer(gui.searchedName).isOnline()) {
-							ActionManagerInterface.trigger(gui.context, playerNotFoundActions);
+							ActionManager.trigger(gui.context, playerNotFoundActions);
 							return;
 						}
 
@@ -413,16 +414,16 @@ public class InviteGUIManager implements InviteGUIManagerInterface, Listener {
 						if (invitingPlayer.isEmpty())
 							return;
 						instance.getCoopManager().sendInvite(userData.get(), invitingPlayer.get());
-						ActionManagerInterface.trigger(gui.context, playerFoundActions);
+						ActionManager.trigger(gui.context, playerFoundActions);
 						instance.getPartyGUIManager().openPartyGUI(gui.context.holder(),
 								gui.hellblockData.getOwnerUUID().equals(gui.context.holder().getUniqueId()));
 						return;
 					} else {
-						ActionManagerInterface.trigger(gui.context, playerNotFoundActions);
+						ActionManager.trigger(gui.context, playerNotFoundActions);
 						return;
 					}
 				} else {
-					ActionManagerInterface.trigger(gui.context, playerNotFoundActions);
+					ActionManager.trigger(gui.context, playerNotFoundActions);
 					return;
 				}
 			}

@@ -31,7 +31,8 @@ import com.swiftlicious.hellblock.events.fishing.FishingEffectApplyEvent;
 import com.swiftlicious.hellblock.events.fishing.FishingLootSpawnEvent;
 import com.swiftlicious.hellblock.events.fishing.FishingResultEvent;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
-import com.swiftlicious.hellblock.handlers.RequirementManagerInterface;
+import com.swiftlicious.hellblock.handlers.RequirementManager;
+import com.swiftlicious.hellblock.handlers.VersionHelper;
 import com.swiftlicious.hellblock.listeners.fishing.BaitAnimationTask;
 import com.swiftlicious.hellblock.loot.LootInterface;
 import com.swiftlicious.hellblock.loot.LootType;
@@ -190,11 +191,11 @@ public class CustomFishingHook {
 										entry.getValue().render(context));
 							}
 
-							plugin.debug("Next loot: " + loot.id());
+							plugin.debug("Next Loot: " + loot.id());
 							plugin.debug(context);
 							// get its basic properties
 							Effect baseEffect = loot.baseEffect().toEffect(context);
-							plugin.debug(baseEffect);
+							plugin.debug("Loot Base Effect:" + baseEffect);
 							tempEffect.combine(baseEffect);
 							// apply the gears' effects
 							for (EffectModifier modifier : gears.effectModifiers()) {
@@ -208,6 +209,7 @@ public class CustomFishingHook {
 									FishingEffectApplyEvent.Stage.FISHING));
 
 							// start the mechanic
+							plugin.debug("Final Effect:" + tempEffect);
 							mechanic.start(tempEffect);
 
 							this.tempFinalEffect = tempEffect;
@@ -320,8 +322,8 @@ public class CustomFishingHook {
 				ItemStack item = player.getInventory()
 						.getItem(gears.getRodSlot() == HandSlot.MAIN ? EquipmentSlot.HAND : EquipmentSlot.OFF_HAND);
 				if (item.getType() == Material.FISHING_ROD) {
-					instance.getVersionManager().getNMSManager().useItem(player, gears.getRodSlot(), item);
-					instance.getVersionManager().getNMSManager().swingHand(context.holder(), gears.getRodSlot());
+					VersionHelper.getNMSManager().useItem(player, gears.getRodSlot(), item);
+					VersionHelper.getNMSManager().swingHand(context.holder(), gears.getRodSlot());
 				}
 			}
 		}, 20, player.getLocation());
@@ -356,9 +358,9 @@ public class CustomFishingHook {
 			return;
 		instance.getEventManager().trigger(context, nextLoot.id(), MechanicType.LOOT, ActionTrigger.BITE);
 		gears.trigger(ActionTrigger.BITE, context);
-		if (RequirementManagerInterface.isSatisfied(context, instance.getConfigManager().autoFishingRequirements())) {
+		if (RequirementManager.isSatisfied(context, instance.getConfigManager().autoFishingRequirements())) {
 			handleSuccessfulFishing();
-			instance.getVersionManager().getNMSManager().swingHand(context.holder(), gears.getRodSlot());
+			VersionHelper.getNMSManager().swingHand(context.holder(), gears.getRodSlot());
 			destroy();
 			scheduleNextFishing();
 			return;
@@ -464,8 +466,7 @@ public class CustomFishingHook {
 							if (Objects.equals(context.arg(ContextKeys.NICK), "UNDEFINED")) {
 								Optional<String> displayName = instance.getItemManager().wrap(stack).displayName();
 								if (displayName.isPresent()) {
-									context.arg(ContextKeys.NICK,
-											AdventureHelper.jsonToMiniMessage(displayName.get()));
+									context.arg(ContextKeys.NICK, AdventureHelper.jsonToMiniMessage(displayName.get()));
 								} else {
 									context.arg(ContextKeys.NICK, "<lang:" + stack.getType().getTranslationKey() + ">");
 								}
@@ -480,8 +481,7 @@ public class CustomFishingHook {
 							ItemStack stack = item.getItemStack();
 							Optional<String> displayName = instance.getItemManager().wrap(stack).displayName();
 							if (displayName.isPresent()) {
-								context.arg(ContextKeys.NICK,
-										AdventureHelper.jsonToMiniMessage(displayName.get()));
+								context.arg(ContextKeys.NICK, AdventureHelper.jsonToMiniMessage(displayName.get()));
 							} else {
 								context.arg(ContextKeys.NICK, "<lang:" + stack.getType().getTranslationKey() + ">");
 							}

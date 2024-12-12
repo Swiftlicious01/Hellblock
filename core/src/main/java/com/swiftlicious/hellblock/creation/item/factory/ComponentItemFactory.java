@@ -4,16 +4,42 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.BiConsumer;
+import java.util.function.Function;
 
 import com.saicone.rtag.RtagItem;
 import com.saicone.rtag.data.ComponentType;
 import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.handlers.VersionHelper;
 import com.swiftlicious.hellblock.utils.extras.Key;
 
 public class ComponentItemFactory extends BukkitItemFactory {
 
+	private final BiConsumer<RtagItem, Integer> customModelDataSetter;
+	private final Function<RtagItem, Optional<Integer>> customModelDataGetter;
+
 	public ComponentItemFactory(HellblockPlugin plugin) {
 		super(plugin);
+		this.customModelDataSetter = VersionHelper.isVersionNewerThan1_21_4()
+				? ((item, data) -> item.setComponent(ComponentKeys.CUSTOM_MODEL_DATA,
+						Map.of("floats", List.of(data.floatValue()))))
+				: ((item, data) -> item.setComponent(ComponentKeys.CUSTOM_MODEL_DATA, data));
+		this.customModelDataGetter = VersionHelper.isVersionNewerThan1_21_4() ? (item) -> {
+			Optional<Object> optional = ComponentType.encodeJava(ComponentKeys.CUSTOM_MODEL_DATA,
+					item.getComponent(ComponentKeys.CUSTOM_MODEL_DATA));
+			if (optional.isEmpty())
+				return Optional.empty();
+			@SuppressWarnings("unchecked")
+			Map<String, Object> data = (Map<String, Object>) optional.get();
+			@SuppressWarnings("unchecked")
+			List<Float> floats = (List<Float>) data.get("floats");
+			if (floats == null || floats.isEmpty())
+				return Optional.empty();
+			return Optional.of((int) Math.floor(floats.get(0)));
+		}
+				: (item) -> Optional.ofNullable((Integer) ComponentType
+						.encodeJava(ComponentKeys.CUSTOM_MODEL_DATA, item.getComponent(ComponentKeys.CUSTOM_MODEL_DATA))
+						.orElse(null));
 	}
 
 	@Override
@@ -21,7 +47,7 @@ public class ComponentItemFactory extends BukkitItemFactory {
 		if (data == null) {
 			item.removeComponent(ComponentKeys.CUSTOM_MODEL_DATA);
 		} else {
-			item.setComponent(ComponentKeys.CUSTOM_MODEL_DATA, data);
+			this.customModelDataSetter.accept(item, data);
 		}
 	}
 
@@ -29,9 +55,7 @@ public class ComponentItemFactory extends BukkitItemFactory {
 	protected Optional<Integer> customModelData(RtagItem item) {
 		if (!item.hasComponent(ComponentKeys.CUSTOM_MODEL_DATA))
 			return Optional.empty();
-		return Optional.ofNullable((Integer) ComponentType
-				.encodeJava(ComponentKeys.CUSTOM_MODEL_DATA, item.getComponent(ComponentKeys.CUSTOM_MODEL_DATA))
-				.orElse(null));
+		return this.customModelDataGetter.apply(item);
 	}
 
 	@Override
@@ -149,8 +173,7 @@ public class ComponentItemFactory extends BukkitItemFactory {
 	@Override
 	protected void addEnchantment(RtagItem item, Key enchantment, int level) {
 		Object enchant = item.getComponent(ComponentKeys.ENCHANTMENTS);
-		Map<String, Integer> map = HellblockPlugin.getInstance().getVersionManager().getNMSManager()
-				.itemEnchantmentsToMap(enchant);
+		Map<String, Integer> map = VersionHelper.getNMSManager().itemEnchantmentsToMap(enchant);
 		map.put(enchantment.toString(), level);
 		item.setComponent(ComponentKeys.ENCHANTMENTS, map);
 	}
@@ -158,8 +181,7 @@ public class ComponentItemFactory extends BukkitItemFactory {
 	@Override
 	protected void addStoredEnchantment(RtagItem item, Key enchantment, int level) {
 		Object enchant = item.getComponent(ComponentKeys.STORED_ENCHANTMENTS);
-		Map<String, Integer> map = HellblockPlugin.getInstance().getVersionManager().getNMSManager()
-				.itemEnchantmentsToMap(enchant);
+		Map<String, Integer> map = VersionHelper.getNMSManager().itemEnchantmentsToMap(enchant);
 		map.put(enchantment.toString(), level);
 		item.setComponent(ComponentKeys.STORED_ENCHANTMENTS, map);
 	}
