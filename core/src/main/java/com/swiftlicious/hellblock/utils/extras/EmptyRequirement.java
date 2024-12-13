@@ -1,6 +1,6 @@
 package com.swiftlicious.hellblock.utils.extras;
 
-import com.swiftlicious.hellblock.player.Context;
+import com.swiftlicious.hellblock.context.Context;
 
 /**
  * Represents an empty requirement that always returns true when checking

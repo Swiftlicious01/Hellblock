@@ -39,14 +39,14 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.context.Context;
+import com.swiftlicious.hellblock.context.ContextKeys;
 import com.swiftlicious.hellblock.creation.addons.ExternalProvider;
 import com.swiftlicious.hellblock.creation.item.damage.CustomDurabilityItem;
 import com.swiftlicious.hellblock.creation.item.damage.DurabilityItem;
 import com.swiftlicious.hellblock.creation.item.damage.VanillaDurabilityItem;
 import com.swiftlicious.hellblock.creation.item.factory.BukkitItemFactory;
 import com.swiftlicious.hellblock.handlers.VersionHelper;
-import com.swiftlicious.hellblock.player.Context;
-import com.swiftlicious.hellblock.player.ContextKeys;
 import com.swiftlicious.hellblock.utils.EventUtils;
 import com.swiftlicious.hellblock.utils.ItemStackUtils;
 import com.swiftlicious.hellblock.utils.LocationUtils;

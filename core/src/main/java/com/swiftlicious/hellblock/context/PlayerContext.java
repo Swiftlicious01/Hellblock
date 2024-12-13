@@ -1,4 +1,4 @@
-package com.swiftlicious.hellblock.player;
+package com.swiftlicious.hellblock.context;
 
 import org.bukkit.Location;
 import org.bukkit.entity.Player;

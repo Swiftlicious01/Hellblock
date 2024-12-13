@@ -49,7 +49,7 @@ public class ProtectionManager implements ProtectionManagerInterface, Reloadable
 
 	private void loadHellblockCuboids() {
 		// If using worldguard ignore this method.
-		if (islandProtection instanceof ProtectionAsync) {
+		if (islandProtection instanceof DefaultProtection) {
 			for (UUID playerData : instance.getStorageManager().getDataSource().getUniqueUsers()) {
 				instance.getStorageManager().getOfflineUserData(playerData, instance.getConfigManager().lockData())
 						.thenAccept((result) -> {
@@ -96,7 +96,7 @@ public class ProtectionManager implements ProtectionManagerInterface, Reloadable
 		}
 
 		if (islandProtection == null) {
-			islandProtection = new ProtectionAsync();
+			islandProtection = new DefaultProtection();
 			ProtectionEvents events = new ProtectionEvents(instance);
 			events.reload();
 		}

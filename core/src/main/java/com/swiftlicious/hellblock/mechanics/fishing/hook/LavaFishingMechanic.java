@@ -17,13 +17,13 @@ import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.util.Vector;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.context.Context;
+import com.swiftlicious.hellblock.context.ContextKeys;
 import com.swiftlicious.hellblock.effects.Effect;
 import com.swiftlicious.hellblock.effects.EffectProperties;
 import com.swiftlicious.hellblock.events.fishing.FishingHookStateEvent;
 import com.swiftlicious.hellblock.handlers.VersionHelper;
 import com.swiftlicious.hellblock.nms.fluid.FluidData;
-import com.swiftlicious.hellblock.player.Context;
-import com.swiftlicious.hellblock.player.ContextKeys;
 import com.swiftlicious.hellblock.scheduler.SchedulerTask;
 import com.swiftlicious.hellblock.utils.EventUtils;
 import com.swiftlicious.hellblock.utils.RandomUtils;

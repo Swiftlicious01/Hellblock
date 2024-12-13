@@ -5,7 +5,7 @@ import java.util.Map;
 import org.bukkit.OfflinePlayer;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
-import com.swiftlicious.hellblock.player.Context;
+import com.swiftlicious.hellblock.context.Context;
 
 public class PlaceholderTextValue<T> implements TextValue<T> {
 

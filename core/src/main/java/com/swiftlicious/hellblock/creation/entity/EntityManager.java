@@ -13,8 +13,8 @@ import org.bukkit.util.Vector;
 import org.jetbrains.annotations.NotNull;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
-import com.swiftlicious.hellblock.player.Context;
-import com.swiftlicious.hellblock.player.ContextKeys;
+import com.swiftlicious.hellblock.context.Context;
+import com.swiftlicious.hellblock.context.ContextKeys;
 
 import static java.util.Objects.requireNonNull;
 

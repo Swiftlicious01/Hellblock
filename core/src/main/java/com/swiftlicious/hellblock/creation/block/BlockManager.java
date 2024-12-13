@@ -39,9 +39,9 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.context.Context;
+import com.swiftlicious.hellblock.context.ContextKeys;
 import com.swiftlicious.hellblock.creation.addons.ExternalProvider;
-import com.swiftlicious.hellblock.player.Context;
-import com.swiftlicious.hellblock.player.ContextKeys;
 import com.swiftlicious.hellblock.utils.RandomUtils;
 import com.swiftlicious.hellblock.utils.extras.MathValue;
 import com.swiftlicious.hellblock.utils.extras.Tuple;

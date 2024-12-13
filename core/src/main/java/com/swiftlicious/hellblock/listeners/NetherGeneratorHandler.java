@@ -34,6 +34,7 @@ import org.jetbrains.annotations.Nullable;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.challenges.HellblockChallenge.ActionType;
+import com.swiftlicious.hellblock.context.Context;
 import com.swiftlicious.hellblock.events.generator.GeneratorGenerateEvent;
 import com.swiftlicious.hellblock.events.generator.PlayerBreakGeneratedBlock;
 import com.swiftlicious.hellblock.handlers.VersionHelper;
@@ -45,7 +46,6 @@ import com.swiftlicious.hellblock.listeners.generator.GeneratorModeManager;
 import com.swiftlicious.hellblock.listeners.rain.LavaRainTask;
 import com.swiftlicious.hellblock.nms.fluid.FallingFluidData;
 import com.swiftlicious.hellblock.nms.fluid.FluidData;
-import com.swiftlicious.hellblock.player.Context;
 import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.utils.StringUtils;
 import com.swiftlicious.hellblock.utils.extras.MathValue;

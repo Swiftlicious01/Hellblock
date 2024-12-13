@@ -9,6 +9,7 @@ import com.swiftlicious.hellblock.config.parser.function.ConfigParserFunction;
 import com.swiftlicious.hellblock.config.parser.function.EventParserFunction;
 import com.swiftlicious.hellblock.config.parser.function.ItemParserFunction;
 import com.swiftlicious.hellblock.config.parser.function.LootParserFunction;
+import com.swiftlicious.hellblock.context.Context;
 import com.swiftlicious.hellblock.creation.item.Item;
 import com.swiftlicious.hellblock.creation.item.CustomItem;
 import com.swiftlicious.hellblock.creation.item.CustomItemInterface;
@@ -20,7 +21,6 @@ import com.swiftlicious.hellblock.loot.LootBaseEffect;
 import com.swiftlicious.hellblock.loot.LootBaseEffectInterface;
 import com.swiftlicious.hellblock.loot.LootType;
 import com.swiftlicious.hellblock.mechanics.MechanicType;
-import com.swiftlicious.hellblock.player.Context;
 import com.swiftlicious.hellblock.utils.extras.MathValue;
 import com.swiftlicious.hellblock.utils.extras.PriorityFunction;
 

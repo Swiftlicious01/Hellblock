@@ -16,8 +16,8 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.context.ContextKeys;
 import com.swiftlicious.hellblock.listeners.rain.LavaRainTask;
-import com.swiftlicious.hellblock.player.ContextKeys;
 import com.swiftlicious.hellblock.utils.ClassUtils;
 import com.swiftlicious.hellblock.utils.ListUtils;
 

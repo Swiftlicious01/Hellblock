@@ -20,7 +20,7 @@ import com.swiftlicious.hellblock.player.UserData;
 
 import net.kyori.adventure.text.Component;
 
-public class ProtectionAsync implements IslandProtection {
+public class DefaultProtection implements IslandProtection {
 
 	@Override
 	public CompletableFuture<Void> protectHellblock(@NotNull World world, @NotNull UserData owner) {
@@ -124,15 +124,15 @@ public class ProtectionAsync implements IslandProtection {
 							: HellblockFlag.AccessType.DENY);
 			if (HellblockPlugin.getInstance().getConfigManager().entryMessageEnabled()) {
 				if (!onlineUser.get().getHellblockData().isAbandoned()) {
-					greetFlag.getFlag().setData(
-							new String[] { HellblockPlugin.getInstance().getTranslationManager().miniMessageTranslation(
+					greetFlag.getFlag()
+							.setData(HellblockPlugin.getInstance().getTranslationManager().miniMessageTranslation(
 									AdventureHelper.legacyToMiniMessage(MessageConstants.HELLBLOCK_ENTRY_MESSAGE
-											.arguments(Component.text(name)).build().key())) });
+											.arguments(Component.text(name)).build().key())));
 				} else {
 					greetFlag.getFlag()
-							.setData(new String[] { HellblockPlugin.getInstance().getTranslationManager()
+							.setData(HellblockPlugin.getInstance().getTranslationManager()
 									.miniMessageTranslation(AdventureHelper.legacyToMiniMessage(
-											MessageConstants.HELLBLOCK_ABANDONED_ENTRY_MESSAGE.build().key())) });
+											MessageConstants.HELLBLOCK_ABANDONED_ENTRY_MESSAGE.build().key())));
 				}
 			} else {
 				greetFlag.getFlag().setData(null);
@@ -144,15 +144,14 @@ public class ProtectionAsync implements IslandProtection {
 			if (HellblockPlugin.getInstance().getConfigManager().farewellMessageEnabled()) {
 				if (!onlineUser.get().getHellblockData().isAbandoned()) {
 					farewellFlag.getFlag()
-							.setData(new String[] { HellblockPlugin.getInstance().getTranslationManager()
-									.miniMessageTranslation(AdventureHelper
-											.legacyToMiniMessage(MessageConstants.HELLBLOCK_FAREWELL_MESSAGE
-													.arguments(Component.text(name)).build().key())) });
+							.setData(HellblockPlugin.getInstance().getTranslationManager().miniMessageTranslation(
+									AdventureHelper.legacyToMiniMessage(MessageConstants.HELLBLOCK_FAREWELL_MESSAGE
+											.arguments(Component.text(name)).build().key())));
 				} else {
 					farewellFlag.getFlag()
-							.setData(new String[] { HellblockPlugin.getInstance().getTranslationManager()
+							.setData(HellblockPlugin.getInstance().getTranslationManager()
 									.miniMessageTranslation(AdventureHelper.legacyToMiniMessage(
-											MessageConstants.HELLBLOCK_ABANDONED_FAREWELL_MESSAGE.build().key())) });
+											MessageConstants.HELLBLOCK_ABANDONED_FAREWELL_MESSAGE.build().key())));
 				}
 			} else {
 				farewellFlag.getFlag().setData(null);
@@ -181,15 +180,14 @@ public class ProtectionAsync implements IslandProtection {
 						if (HellblockPlugin.getInstance().getConfigManager().entryMessageEnabled()) {
 							if (!offlineUser.getHellblockData().isAbandoned()) {
 								greetFlag.getFlag()
-										.setData(new String[] { HellblockPlugin.getInstance().getTranslationManager()
+										.setData(HellblockPlugin.getInstance().getTranslationManager()
 												.miniMessageTranslation(AdventureHelper
 														.legacyToMiniMessage(MessageConstants.HELLBLOCK_ENTRY_MESSAGE
-																.arguments(Component.text(name)).build().key())) });
+																.arguments(Component.text(name)).build().key())));
 							} else {
-								greetFlag.getFlag().setData(new String[] { HellblockPlugin.getInstance()
-										.getTranslationManager()
+								greetFlag.getFlag().setData(HellblockPlugin.getInstance().getTranslationManager()
 										.miniMessageTranslation(AdventureHelper.legacyToMiniMessage(
-												MessageConstants.HELLBLOCK_ABANDONED_ENTRY_MESSAGE.build().key())) });
+												MessageConstants.HELLBLOCK_ABANDONED_ENTRY_MESSAGE.build().key())));
 							}
 						} else {
 							greetFlag.getFlag().setData(null);
@@ -201,16 +199,14 @@ public class ProtectionAsync implements IslandProtection {
 						if (HellblockPlugin.getInstance().getConfigManager().farewellMessageEnabled()) {
 							if (!offlineUser.getHellblockData().isAbandoned()) {
 								farewellFlag.getFlag()
-										.setData(new String[] { HellblockPlugin.getInstance().getTranslationManager()
+										.setData(HellblockPlugin.getInstance().getTranslationManager()
 												.miniMessageTranslation(AdventureHelper
 														.legacyToMiniMessage(MessageConstants.HELLBLOCK_FAREWELL_MESSAGE
-																.arguments(Component.text(name)).build().key())) });
+																.arguments(Component.text(name)).build().key())));
 							} else {
-								farewellFlag.getFlag()
-										.setData(new String[] { HellblockPlugin.getInstance().getTranslationManager()
-												.miniMessageTranslation(AdventureHelper.legacyToMiniMessage(
-														MessageConstants.HELLBLOCK_ABANDONED_FAREWELL_MESSAGE.build()
-																.key())) });
+								farewellFlag.getFlag().setData(HellblockPlugin.getInstance().getTranslationManager()
+										.miniMessageTranslation(AdventureHelper.legacyToMiniMessage(
+												MessageConstants.HELLBLOCK_ABANDONED_FAREWELL_MESSAGE.build().key())));
 							}
 						} else {
 							farewellFlag.getFlag().setData(null);

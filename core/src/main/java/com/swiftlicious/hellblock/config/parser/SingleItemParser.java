@@ -6,10 +6,10 @@ import org.bukkit.inventory.ItemStack;
 import com.swiftlicious.hellblock.config.node.Node;
 import com.swiftlicious.hellblock.config.parser.function.ConfigParserFunction;
 import com.swiftlicious.hellblock.config.parser.function.ItemParserFunction;
+import com.swiftlicious.hellblock.context.Context;
 import com.swiftlicious.hellblock.creation.item.Item;
 import com.swiftlicious.hellblock.creation.item.CustomItem;
 import com.swiftlicious.hellblock.creation.item.CustomItemInterface;
-import com.swiftlicious.hellblock.player.Context;
 import com.swiftlicious.hellblock.utils.extras.MathValue;
 import com.swiftlicious.hellblock.utils.extras.PriorityFunction;
 

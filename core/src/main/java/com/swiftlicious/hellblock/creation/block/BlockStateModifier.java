@@ -3,7 +3,7 @@ package com.swiftlicious.hellblock.creation.block;
 import org.bukkit.block.BlockState;
 import org.bukkit.entity.Player;
 
-import com.swiftlicious.hellblock.player.Context;
+import com.swiftlicious.hellblock.context.Context;
 
 /**
  * Functional interface for modifying a {@link BlockState} based on a given

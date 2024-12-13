@@ -1,8 +1,8 @@
 package com.swiftlicious.hellblock.handlers.builtin;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.context.Context;
 import com.swiftlicious.hellblock.handlers.AbstractActionManager;
-import com.swiftlicious.hellblock.player.Context;
 import com.swiftlicious.hellblock.utils.extras.Action;
 import com.swiftlicious.hellblock.utils.extras.MathValue;
 import com.swiftlicious.hellblock.utils.extras.Requirement;

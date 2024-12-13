@@ -1,6 +1,6 @@
 package com.swiftlicious.hellblock.utils.extras;
 
-import com.swiftlicious.hellblock.player.Context;
+import com.swiftlicious.hellblock.context.Context;
 
 /**
  * The MathValue interface represents a mathematical value that can be evaluated

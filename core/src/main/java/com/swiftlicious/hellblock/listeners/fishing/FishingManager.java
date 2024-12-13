@@ -28,13 +28,13 @@ import org.bukkit.event.player.PlayerSwapHandItemsEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.persistence.PersistentDataType;
 import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.context.Context;
 import com.swiftlicious.hellblock.events.fishing.FishingHookStateEvent;
 import com.swiftlicious.hellblock.events.fishing.RodCastEvent;
 import com.swiftlicious.hellblock.handlers.RequirementManager;
 import com.swiftlicious.hellblock.mechanics.fishing.CustomFishingHook;
 import com.swiftlicious.hellblock.mechanics.fishing.FishingGears;
 import com.swiftlicious.hellblock.mechanics.fishing.hook.LavaFishingMechanic;
-import com.swiftlicious.hellblock.player.Context;
 import com.swiftlicious.hellblock.utils.EventUtils;
 
 public class FishingManager implements Listener, FishingManagerInterface {

@@ -4,7 +4,7 @@ import java.util.regex.Pattern;
 
 import org.bukkit.OfflinePlayer;
 
-import com.swiftlicious.hellblock.player.Context;
+import com.swiftlicious.hellblock.context.Context;
 import com.swiftlicious.hellblock.utils.PlaceholderAPIUtils;
 
 /**

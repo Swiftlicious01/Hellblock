@@ -21,8 +21,8 @@ import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.commands.BukkitCommandFeature;
 import com.swiftlicious.hellblock.commands.HellblockCommandManager;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
-import com.swiftlicious.hellblock.player.Context;
-import com.swiftlicious.hellblock.player.ContextKeys;
+import com.swiftlicious.hellblock.context.Context;
+import com.swiftlicious.hellblock.context.ContextKeys;
 import com.swiftlicious.hellblock.utils.PlayerUtils;
 
 import net.kyori.adventure.text.Component;

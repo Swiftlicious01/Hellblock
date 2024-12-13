@@ -8,8 +8,15 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerTeleportEvent;
 import org.bukkit.event.player.PlayerTeleportEvent.TeleportCause;
+import org.bukkit.util.BoundingBox;
+
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.api.Reloadable;
+import com.swiftlicious.hellblock.player.UserData;
+import com.swiftlicious.hellblock.protection.HellblockFlag.FlagType;
+
+import net.kyori.adventure.audience.Audience;
+import net.kyori.adventure.text.Component;
 
 //TODO: put event handlers for each flag type 
 public class ProtectionEvents implements Listener, Reloadable {
@@ -42,6 +49,35 @@ public class ProtectionEvents implements Listener, Reloadable {
 				&& event.getTo().getBlockZ() == event.getFrom().getBlockZ()) {
 			return; // user didnt actually move a full block
 		}
+
+		instance.getCoopManager().getHellblockOwnerOfVisitingIsland(player).thenAccept(ownerUUID -> {
+			if (ownerUUID == null)
+				return;
+			Audience audience = instance.getSenderFactory().getAudience(player);
+			instance.getStorageManager().getOfflineUserData(ownerUUID, instance.getConfigManager().lockData())
+					.thenAccept((result) -> {
+						if (result.isEmpty())
+							return;
+						UserData offlineUser = result.get();
+						BoundingBox hellblockBounds = offlineUser.getHellblockData().getBoundingBox();
+						if (hellblockBounds != null) {
+							BoundingBox playerBounds = player.getBoundingBox();
+							if (hellblockBounds.contains(playerBounds)) {
+								String greetFlag = offlineUser.getHellblockData()
+										.getProtectionData(FlagType.GREET_MESSAGE);
+								if (greetFlag != null) {
+									audience.sendMessage(Component.text(greetFlag));
+								}
+							} else {
+								String farewellFlag = offlineUser.getHellblockData()
+										.getProtectionData(FlagType.FAREWELL_MESSAGE);
+								if (farewellFlag != null) {
+									audience.sendMessage(Component.text(farewellFlag));
+								}
+							}
+						}
+					});
+		});
 	}
 
 	@EventHandler
@@ -53,6 +89,35 @@ public class ProtectionEvents implements Listener, Reloadable {
 				return;
 			if (player.getLocation() == null)
 				return;
+
+			instance.getCoopManager().getHellblockOwnerOfVisitingIsland(player).thenAccept(ownerUUID -> {
+				if (ownerUUID == null)
+					return;
+				Audience audience = instance.getSenderFactory().getAudience(player);
+				instance.getStorageManager().getOfflineUserData(ownerUUID, instance.getConfigManager().lockData())
+						.thenAccept((result) -> {
+							if (result.isEmpty())
+								return;
+							UserData offlineUser = result.get();
+							BoundingBox hellblockBounds = offlineUser.getHellblockData().getBoundingBox();
+							if (hellblockBounds != null) {
+								BoundingBox playerBounds = player.getBoundingBox();
+								if (hellblockBounds.contains(playerBounds)) {
+									String greetFlag = offlineUser.getHellblockData()
+											.getProtectionData(FlagType.GREET_MESSAGE);
+									if (greetFlag != null) {
+										audience.sendMessage(Component.text(greetFlag));
+									}
+								} else {
+									String farewellFlag = offlineUser.getHellblockData()
+											.getProtectionData(FlagType.FAREWELL_MESSAGE);
+									if (farewellFlag != null) {
+										audience.sendMessage(Component.text(farewellFlag));
+									}
+								}
+							}
+						});
+			});
 		}
 	}
 }

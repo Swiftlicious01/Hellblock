@@ -7,7 +7,7 @@ import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 
 import com.swiftlicious.hellblock.api.Reloadable;
-import com.swiftlicious.hellblock.player.Context;
+import com.swiftlicious.hellblock.context.Context;
 
 /**
  * EntityManager interface for managing custom entities in the plugin.

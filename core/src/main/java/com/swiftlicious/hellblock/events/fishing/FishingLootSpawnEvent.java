@@ -8,8 +8,8 @@ import org.bukkit.event.player.PlayerEvent;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import com.swiftlicious.hellblock.context.Context;
 import com.swiftlicious.hellblock.loot.LootInterface;
-import com.swiftlicious.hellblock.player.Context;
 
 /**
  * This class represents an event that is triggered when fishing loot is

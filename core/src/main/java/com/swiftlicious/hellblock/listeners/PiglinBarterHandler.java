@@ -21,8 +21,8 @@ import org.bukkit.inventory.ItemStack;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.challenges.HellblockChallenge.ActionType;
+import com.swiftlicious.hellblock.context.Context;
 import com.swiftlicious.hellblock.creation.item.Item;
-import com.swiftlicious.hellblock.player.Context;
 import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.utils.RandomUtils;
 

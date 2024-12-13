@@ -4,10 +4,10 @@ import java.util.List;
 
 import org.bukkit.entity.Player;
 
+import com.swiftlicious.hellblock.context.Context;
 import com.swiftlicious.hellblock.effects.EffectModifier.Builder;
 import com.swiftlicious.hellblock.events.fishing.FishingEffectApplyEvent;
 import com.swiftlicious.hellblock.mechanics.MechanicType;
-import com.swiftlicious.hellblock.player.Context;
 import com.swiftlicious.hellblock.utils.extras.Requirement;
 import com.swiftlicious.hellblock.utils.extras.TriConsumer;
 

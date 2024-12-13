@@ -3,7 +3,7 @@ package com.swiftlicious.hellblock.creation.block;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.entity.Player;
 
-import com.swiftlicious.hellblock.player.Context;
+import com.swiftlicious.hellblock.context.Context;
 
 /**
  * The BlockDataModifier interface that provides the logic for applying

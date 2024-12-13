@@ -2,7 +2,7 @@ package com.swiftlicious.hellblock.effects;
 
 import org.bukkit.entity.Player;
 
-import com.swiftlicious.hellblock.player.Context;
+import com.swiftlicious.hellblock.context.Context;
 import com.swiftlicious.hellblock.utils.extras.Pair;
 
 import java.util.ArrayList;

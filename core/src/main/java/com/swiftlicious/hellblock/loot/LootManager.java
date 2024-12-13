@@ -15,9 +15,9 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.context.Context;
 import com.swiftlicious.hellblock.effects.Effect;
 import com.swiftlicious.hellblock.handlers.RequirementManager;
-import com.swiftlicious.hellblock.player.Context;
 import com.swiftlicious.hellblock.utils.WeightUtils;
 import com.swiftlicious.hellblock.utils.extras.ConditionalElement;
 import com.swiftlicious.hellblock.utils.extras.Pair;

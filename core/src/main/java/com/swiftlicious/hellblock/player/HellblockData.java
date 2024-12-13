@@ -280,6 +280,21 @@ public class HellblockData {
 		return returnValue;
 	}
 
+	public @Nullable String getProtectionData(@NotNull FlagType flag) {
+		if (!(flag == FlagType.GREET_MESSAGE || flag == FlagType.FAREWELL_MESSAGE))
+			return null;
+		String data = flag.getData() != null ? flag.getData() : null;
+		if (!this.flags.isEmpty()) {
+			for (Map.Entry<FlagType, AccessType> flags : this.flags.entrySet()) {
+				if (flags.getKey().getName().equalsIgnoreCase(flag.getName())) {
+					data = flags.getKey().getData();
+					break;
+				}
+			}
+		}
+		return data;
+	}
+
 	public void setDefaultHellblockData(boolean hasHellblock, @Nullable Location hellblockLocation, int hellblockID) {
 		this.hasHellblock = hasHellblock;
 		this.location = hellblockLocation;

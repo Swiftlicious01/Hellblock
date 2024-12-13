@@ -5,9 +5,9 @@ import java.util.TreeMap;
 
 import org.bukkit.entity.Player;
 
+import com.swiftlicious.hellblock.context.Context;
 import com.swiftlicious.hellblock.handlers.EventCarrier.Builder;
 import com.swiftlicious.hellblock.mechanics.MechanicType;
-import com.swiftlicious.hellblock.player.Context;
 import com.swiftlicious.hellblock.utils.extras.Action;
 import com.swiftlicious.hellblock.utils.extras.ActionTrigger;
 

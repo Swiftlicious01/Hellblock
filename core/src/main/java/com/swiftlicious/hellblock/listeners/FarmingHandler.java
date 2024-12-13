@@ -64,10 +64,10 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.api.Reloadable;
 import com.swiftlicious.hellblock.challenges.HellblockChallenge.ActionType;
+import com.swiftlicious.hellblock.context.Context;
 import com.swiftlicious.hellblock.handlers.VersionHelper;
 import com.swiftlicious.hellblock.listeners.rain.LavaRainTask;
 import com.swiftlicious.hellblock.nms.inventory.HandSlot;
-import com.swiftlicious.hellblock.player.Context;
 import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.utils.RandomUtils;
 import net.kyori.adventure.audience.Audience;
@@ -149,7 +149,6 @@ public class FarmingHandler implements Listener, Reloadable {
 											&& !this.moistureCache.containsKey(cache)) {
 										farm.setMoisture(farm.getMaximumMoisture());
 										updatingBlock.setBlockData(farm);
-										updatingBlock.getState().update();
 										this.moistureCache.put(cache, farm.getMoisture());
 										Optional<UserData> optionalData = instance.getStorageManager()
 												.getOnlineUser(player.getUniqueId());

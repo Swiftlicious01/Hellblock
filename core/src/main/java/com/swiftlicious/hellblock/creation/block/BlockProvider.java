@@ -6,8 +6,8 @@ import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import com.swiftlicious.hellblock.context.Context;
 import com.swiftlicious.hellblock.creation.addons.ExternalProvider;
-import com.swiftlicious.hellblock.player.Context;
 
 import java.util.List;
 

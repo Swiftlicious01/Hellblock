@@ -36,13 +36,16 @@ public class HellblockFlag {
 
 		private String name;
 		private boolean defaultValue;
-		private String[] data;
+		private String data;
 
-		FlagType(String name, boolean defaultValue, String... data) {
+		FlagType(String name, boolean defaultValue, String data) {
 			this.name = name;
 			this.defaultValue = defaultValue;
-			if (data.length > 0)
-				this.data = data;
+			this.data = data;
+		}
+
+		FlagType(String name, boolean defaultValue) {
+			this(name, defaultValue, null);
 		}
 
 		public String getName() {
@@ -53,11 +56,11 @@ public class HellblockFlag {
 			return this.defaultValue;
 		}
 
-		public String[] getData() {
+		public String getData() {
 			return this.data;
 		}
 
-		public void setData(String[] data) {
+		public void setData(String data) {
 			this.data = data;
 		}
 	}

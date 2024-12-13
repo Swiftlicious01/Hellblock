@@ -60,29 +60,29 @@ public class WitherHandler implements Listener {
 		witherTag.setAttributeBase("generic.max_health", witherStats.getHealth());
 		witherTag.setAttributeBase("generic.attack_damage", witherStats.getStrength());
 		witherTag.setAttributeBase("generic.armor", witherStats.getStrength());
-		witherTag.update();
-		witherTag.load();
+		wither = (Wither) witherTag.load();
 		wither.getPersistentDataContainer().set(new NamespacedKey(instance, "hellblock-wither"),
 				PersistentDataType.STRING, "customwither");
 		wither.setHealth(witherStats.getHealth());
 		wither.setAware(true);
 		int lowHealth = RandomUtils.generateRandomInt(15, 75);
+		final Wither customWither = wither;
 		instance.getScheduler().sync().runRepeating(() -> {
-			if (wither.isDead() || !wither.isValid()) {
+			if (customWither.isDead() || !customWither.isValid())
 				return;
-			}
-			if (wither.getHealth() < lowHealth) {
-				wither.setInvulnerabilityTicks(RandomUtils.generateRandomInt(100, 300));
-			}
+
+			if (customWither.getHealth() < lowHealth)
+				customWither.setInvulnerabilityTicks(RandomUtils.generateRandomInt(100, 300));
+
 			Player closestPlayer = instance.getNetherrackGeneratorHandler().getClosestPlayer(event.getLocation(),
 					event.getLocation().getWorld().getNearbyEntities(event.getLocation(), 15.0D, 5.0D, 15.0D).stream()
 							.filter(e -> e.getType() == EntityType.PLAYER).toList());
-			if (closestPlayer != null) {
-				wither.setTarget(closestPlayer);
-			}
+			if (closestPlayer != null)
+				customWither.setTarget(closestPlayer);
+
 		}, 15 * 20, 30 * 20, event.getLocation());
 
-		getWitherHandler().addWither(wither, witherStats);
+		getWitherHandler().addWither(customWither, witherStats);
 	}
 
 	@EventHandler
@@ -212,7 +212,7 @@ public class WitherHandler implements Listener {
 		return instance.getConfigManager().randomMaxStrength();
 	}
 
-	public class CustomWither {
+	private class CustomWither {
 
 		private final Map<Entity, WitherStats> witherStats = new HashMap<>();
 
@@ -230,7 +230,7 @@ public class WitherHandler implements Listener {
 		}
 	}
 
-	public class WitherStats {
+	private class WitherStats {
 
 		private int health;
 		private double strength;
@@ -244,16 +244,8 @@ public class WitherHandler implements Listener {
 			return health;
 		}
 
-		public void setHealth(int health) {
-			this.health = health;
-		}
-
 		public double getStrength() {
 			return strength;
-		}
-
-		public void setStrength(double strength) {
-			this.strength = strength;
 		}
 	}
 }

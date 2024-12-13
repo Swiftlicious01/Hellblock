@@ -2,7 +2,8 @@ package com.swiftlicious.hellblock.creation.block;
 
 import org.bukkit.block.data.BlockData;
 import org.bukkit.entity.Player;
-import com.swiftlicious.hellblock.player.Context;
+
+import com.swiftlicious.hellblock.context.Context;
 
 /**
  * A no-operation implementation of the {@link BlockDataModifier} interface.

@@ -3,7 +3,7 @@ package com.swiftlicious.hellblock.creation.item;
 import org.bukkit.entity.Player;
 
 import com.saicone.rtag.RtagItem;
-import com.swiftlicious.hellblock.player.Context;
+import com.swiftlicious.hellblock.context.Context;
 
 import org.jetbrains.annotations.ApiStatus;
 

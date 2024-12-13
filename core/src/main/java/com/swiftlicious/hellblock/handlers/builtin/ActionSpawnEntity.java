@@ -6,9 +6,9 @@ import java.util.Map;
 import org.bukkit.Location;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.context.Context;
+import com.swiftlicious.hellblock.context.ContextKeys;
 import com.swiftlicious.hellblock.creation.entity.EntityProvider;
-import com.swiftlicious.hellblock.player.Context;
-import com.swiftlicious.hellblock.player.ContextKeys;
 import com.swiftlicious.hellblock.utils.extras.MathValue;
 
 import dev.dejvokep.boostedyaml.block.implementation.Section;

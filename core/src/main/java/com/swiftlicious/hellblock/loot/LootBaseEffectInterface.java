@@ -2,9 +2,9 @@ package com.swiftlicious.hellblock.loot;
 
 import org.bukkit.entity.Player;
 
+import com.swiftlicious.hellblock.context.Context;
 import com.swiftlicious.hellblock.effects.Effect;
 import com.swiftlicious.hellblock.loot.LootBaseEffect.Builder;
-import com.swiftlicious.hellblock.player.Context;
 import com.swiftlicious.hellblock.utils.extras.MathValue;
 
 /**

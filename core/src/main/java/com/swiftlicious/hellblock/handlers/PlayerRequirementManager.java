@@ -13,11 +13,11 @@ import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.context.ContextKeys;
 import com.swiftlicious.hellblock.creation.addons.VaultHook;
 import com.swiftlicious.hellblock.creation.addons.level.LevelerProvider;
 import com.swiftlicious.hellblock.effects.EffectProperties;
 import com.swiftlicious.hellblock.loot.LootInterface;
-import com.swiftlicious.hellblock.player.ContextKeys;
 import com.swiftlicious.hellblock.utils.ListUtils;
 import com.swiftlicious.hellblock.utils.extras.MathValue;
 import com.swiftlicious.hellblock.utils.extras.Requirement;

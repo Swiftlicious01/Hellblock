@@ -1,6 +1,6 @@
 package com.swiftlicious.hellblock.utils.extras;
 
-import com.swiftlicious.hellblock.player.Context;
+import com.swiftlicious.hellblock.context.Context;
 
 /**
  * Interface representing a requirement that must be met. This can be used to

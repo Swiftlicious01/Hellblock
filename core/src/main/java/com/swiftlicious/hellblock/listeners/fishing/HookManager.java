@@ -24,6 +24,8 @@ import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.NotNull;
 import com.saicone.rtag.item.ItemTagStream;
 import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.context.Context;
+import com.swiftlicious.hellblock.context.ContextKeys;
 import com.swiftlicious.hellblock.creation.item.Item;
 import com.swiftlicious.hellblock.creation.item.damage.CustomDurabilityItem;
 import com.swiftlicious.hellblock.creation.item.damage.DurabilityItem;
@@ -33,8 +35,6 @@ import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.handlers.RequirementManager;
 import com.swiftlicious.hellblock.mechanics.MechanicType;
 import com.swiftlicious.hellblock.mechanics.hook.HookConfig;
-import com.swiftlicious.hellblock.player.Context;
-import com.swiftlicious.hellblock.player.ContextKeys;
 import com.swiftlicious.hellblock.utils.PlayerUtils;
 
 import net.jpountz.lz4.LZ4Compressor;

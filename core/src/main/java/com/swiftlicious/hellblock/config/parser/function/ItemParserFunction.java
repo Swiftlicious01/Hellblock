@@ -7,8 +7,8 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
 import com.swiftlicious.hellblock.config.parser.ParserType;
+import com.swiftlicious.hellblock.context.Context;
 import com.swiftlicious.hellblock.creation.item.Item;
-import com.swiftlicious.hellblock.player.Context;
 
 public class ItemParserFunction implements ConfigParserFunction {
 

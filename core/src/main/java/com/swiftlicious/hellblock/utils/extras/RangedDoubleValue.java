@@ -1,6 +1,6 @@
 package com.swiftlicious.hellblock.utils.extras;
 
-import com.swiftlicious.hellblock.player.Context;
+import com.swiftlicious.hellblock.context.Context;
 import com.swiftlicious.hellblock.utils.RandomUtils;
 
 public class RangedDoubleValue<T> implements MathValue<T> {

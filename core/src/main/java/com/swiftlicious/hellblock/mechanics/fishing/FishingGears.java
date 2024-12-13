@@ -16,6 +16,8 @@ import org.bukkit.inventory.PlayerInventory;
 import org.jetbrains.annotations.NotNull;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.context.Context;
+import com.swiftlicious.hellblock.context.ContextKeys;
 import com.swiftlicious.hellblock.creation.item.Item;
 import com.swiftlicious.hellblock.effects.EffectModifier;
 import com.swiftlicious.hellblock.effects.EffectModifierInterface;
@@ -24,8 +26,6 @@ import com.swiftlicious.hellblock.handlers.RequirementManager;
 import com.swiftlicious.hellblock.mechanics.MechanicType;
 import com.swiftlicious.hellblock.mechanics.hook.HookConfig;
 import com.swiftlicious.hellblock.nms.inventory.HandSlot;
-import com.swiftlicious.hellblock.player.Context;
-import com.swiftlicious.hellblock.player.ContextKeys;
 import com.swiftlicious.hellblock.utils.extras.ActionTrigger;
 import com.swiftlicious.hellblock.utils.extras.Pair;
 import com.swiftlicious.hellblock.utils.extras.TriConsumer;

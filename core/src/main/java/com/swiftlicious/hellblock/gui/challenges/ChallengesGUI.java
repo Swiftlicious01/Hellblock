@@ -14,12 +14,12 @@ import org.jetbrains.annotations.Nullable;
 
 import com.swiftlicious.hellblock.challenges.ChallengeType;
 import com.swiftlicious.hellblock.challenges.ProgressBar;
+import com.swiftlicious.hellblock.context.Context;
 import com.swiftlicious.hellblock.creation.item.CustomItem;
 import com.swiftlicious.hellblock.creation.item.Item;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.handlers.VersionHelper;
 import com.swiftlicious.hellblock.player.ChallengeData;
-import com.swiftlicious.hellblock.player.Context;
 import com.swiftlicious.hellblock.player.HellblockData;
 import com.swiftlicious.hellblock.utils.extras.Action;
 import com.swiftlicious.hellblock.utils.extras.Tuple;

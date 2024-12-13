@@ -1,7 +1,7 @@
 package com.swiftlicious.hellblock.utils.extras;
 
+import com.swiftlicious.hellblock.context.Context;
 import com.swiftlicious.hellblock.handlers.ExpressionHelper;
-import com.swiftlicious.hellblock.player.Context;
 
 public class ExpressionMathValue<T> implements MathValue<T> {
 

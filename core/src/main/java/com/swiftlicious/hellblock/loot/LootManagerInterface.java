@@ -10,8 +10,8 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import com.swiftlicious.hellblock.api.Reloadable;
+import com.swiftlicious.hellblock.context.Context;
 import com.swiftlicious.hellblock.effects.Effect;
-import com.swiftlicious.hellblock.player.Context;
 
 /**
  * Interface for managing loot

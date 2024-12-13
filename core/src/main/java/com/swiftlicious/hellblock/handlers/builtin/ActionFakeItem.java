@@ -9,12 +9,12 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.EquipmentSlot;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.context.Context;
+import com.swiftlicious.hellblock.context.ContextKeys;
 import com.swiftlicious.hellblock.handlers.VersionHelper;
 import com.swiftlicious.hellblock.nms.entity.FakeEntity;
 import com.swiftlicious.hellblock.nms.entity.armorstand.FakeArmorStand;
 import com.swiftlicious.hellblock.nms.entity.display.FakeItemDisplay;
-import com.swiftlicious.hellblock.player.Context;
-import com.swiftlicious.hellblock.player.ContextKeys;
 import com.swiftlicious.hellblock.utils.LocationUtils;
 import com.swiftlicious.hellblock.utils.extras.MathValue;
 
