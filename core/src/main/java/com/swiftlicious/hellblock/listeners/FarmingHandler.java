@@ -189,6 +189,7 @@ public class FarmingHandler implements Listener, Reloadable {
 					} else {
 						instance.getScheduler().sync().runLater(() -> {
 							farm.setMoisture(farm.getMoisture() > 0 ? farm.getMoisture() - 1 : 0);
+							updatingBlock.setBlockData(farm);
 							if (farm.getMoisture() == 0) {
 								if (!this.revertCache.containsKey(cache)) {
 									this.revertCache.put(cache, RandomUtils.generateRandomInt(15, 20));
