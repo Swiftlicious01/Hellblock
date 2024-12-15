@@ -63,7 +63,7 @@ public class HologramManager implements Listener, Reloadable {
 				entry.getValue().removeAll(player);
 			}
 		}
-		if (cacheCheckTask.isCancelled())
+		if (!cacheCheckTask.isCancelled())
 			cacheCheckTask.cancel();
 		this.hologramMap.clear();
 	}

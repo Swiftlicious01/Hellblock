@@ -109,23 +109,28 @@ public class ProtectionManager implements ProtectionManagerInterface, Reloadable
 	@Override
 	public void changeProtectionFlag(@NotNull World world, @NotNull UUID id, @NotNull HellblockFlag flag) {
 		Optional<UserData> user = instance.getStorageManager().getOnlineUser(id);
+
 		if (user.isEmpty() || !user.get().isOnline()) {
 			return;
 		}
+
 		Audience audience = instance.getSenderFactory().getAudience(user.get().getPlayer());
+
 		if (user.get().getHellblockData().isAbandoned()) {
 			audience.sendMessage(
 					instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_IS_ABANDONED.build()));
 			return;
 		}
+
 		if (!user.get().getHellblockData().hasHellblock()) {
 			audience.sendMessage(
 					instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_NOT_FOUND.build()));
 			return;
 		}
-		if (user.get().getHellblockData().getOwnerUUID() == null) {
+
+		if (user.get().getHellblockData().getOwnerUUID() == null)
 			throw new NullPointerException("Owner reference returned null, please report this to the developer.");
-		}
+
 		if (user.get().getHellblockData().getOwnerUUID() != null
 				&& !user.get().getHellblockData().getOwnerUUID().equals(id)) {
 			audience.sendMessage(
@@ -140,23 +145,28 @@ public class ProtectionManager implements ProtectionManagerInterface, Reloadable
 	@Override
 	public void changeLockStatus(@NotNull World world, @NotNull UUID id) {
 		Optional<UserData> user = instance.getStorageManager().getOnlineUser(id);
+
 		if (user.isEmpty() || !user.get().isOnline()) {
 			return;
 		}
+
 		Audience audience = instance.getSenderFactory().getAudience(user.get().getPlayer());
+
 		if (user.get().getHellblockData().isAbandoned()) {
 			audience.sendMessage(
 					instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_IS_ABANDONED.build()));
 			return;
 		}
+
 		if (!user.get().getHellblockData().hasHellblock()) {
 			audience.sendMessage(
 					instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_NOT_FOUND.build()));
 			return;
 		}
-		if (user.get().getHellblockData().getOwnerUUID() == null) {
+
+		if (user.get().getHellblockData().getOwnerUUID() == null)
 			throw new NullPointerException("Owner reference returned null, please report this to the developer.");
-		}
+
 		if (user.get().getHellblockData().getOwnerUUID() != null
 				&& !user.get().getHellblockData().getOwnerUUID().equals(id)) {
 			audience.sendMessage(

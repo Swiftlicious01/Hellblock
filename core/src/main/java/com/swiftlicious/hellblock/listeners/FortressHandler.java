@@ -120,7 +120,7 @@ public class FortressHandler implements Runnable {
 	}
 
 	public void stopFortressSpawning() {
-		if (this.cancellableTask.isCancelled())
+		if (!this.cancellableTask.isCancelled())
 			this.cancellableTask.cancel();
 	}
 }

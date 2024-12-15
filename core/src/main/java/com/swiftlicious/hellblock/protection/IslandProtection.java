@@ -15,19 +15,24 @@ public interface IslandProtection {
 
 	CompletableFuture<Void> unprotectHellblock(@NotNull World world, @NotNull UUID id);
 
-	CompletableFuture<Void> reprotectHellblock(@NotNull World world, @NotNull UserData owner, @NotNull UserData transferee);
-
-	void lockHellblock(@NotNull World world, @NotNull UserData owner);
+	CompletableFuture<Void> reprotectHellblock(@NotNull World world, @NotNull UserData owner,
+			@NotNull UserData transferee);
 
 	void updateHellblockMessages(@NotNull World world, @NotNull UUID id);
 
 	void abandonIsland(@NotNull World world, @NotNull UUID id);
 
-	void changeHellblockFlag(@NotNull World world, @NotNull UserData owner, @NotNull HellblockFlag flag);
+	default void lockHellblock(@NotNull World world, @NotNull UserData owner) {
+	}
 
-	CompletableFuture<Set<UUID>> getMembersOfHellblockBounds(@NotNull World world, @NotNull UUID ownerID, @NotNull UUID id);
+	default void changeHellblockFlag(@NotNull World world, @NotNull UserData owner, @NotNull HellblockFlag flag) {
+	}
 
-	void addMemberToHellblockBounds(@NotNull World world, @NotNull UUID ownerID, @NotNull UUID id);
+	CompletableFuture<Set<UUID>> getMembersOfHellblockBounds(@NotNull World world, @NotNull UUID ownerID);
 
-	void removeMemberFromHellblockBounds(@NotNull World world, @NotNull UUID ownerID, @NotNull UUID id);
+	default void addMemberToHellblockBounds(@NotNull World world, @NotNull UUID ownerID, @NotNull UUID id) {
+	}
+
+	default void removeMemberFromHellblockBounds(@NotNull World world, @NotNull UUID ownerID, @NotNull UUID id) {
+	}
 }

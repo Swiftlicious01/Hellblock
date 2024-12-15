@@ -164,7 +164,8 @@ public class BrewingHandler implements Listener, Reloadable {
 		if (getNetherPotion().getItem() == null)
 			return;
 
-		if (event.getItem() != null && event.getItem().getType() == Material.GLASS_BOTTLE) {
+		ItemStack bottle = event.getItem();
+		if (bottle != null && bottle.getType() == Material.GLASS_BOTTLE) {
 			BlockIterator iter = new BlockIterator(player, 5);
 			Block lastBlock = iter.next();
 			while (iter.hasNext()) {
@@ -177,7 +178,7 @@ public class BrewingHandler implements Listener, Reloadable {
 			if (lastBlock.getType() == Material.LAVA) {
 				event.setUseItemInHand(Result.ALLOW);
 				if (player.getGameMode() != GameMode.CREATIVE)
-					event.getItem().setAmount(event.getItem().getAmount() > 0 ? event.getItem().getAmount() - 1 : 0);
+					bottle.setAmount(bottle.getAmount() > 0 ? bottle.getAmount() - 1 : 0);
 				if (player.getInventory().firstEmpty() != -1) {
 					PlayerUtils.giveItem(player, getNetherPotion().getItem(), 1);
 				} else {
@@ -224,16 +225,15 @@ public class BrewingHandler implements Listener, Reloadable {
 		if (getNetherPotion().getItem() == null)
 			return;
 
-		if (event.getItem() != null && event.getItem().getType() == Material.GLASS_BOTTLE
-				&& (event.getItem().getAmount() >= 4
-						|| player.getInventory().containsAtLeast(new ItemStack(Material.GLASS_BOTTLE), 4))) {
+		ItemStack bottle = event.getItem();
+		if (bottle != null && bottle.getType() == Material.GLASS_BOTTLE && (bottle.getAmount() >= 4
+				|| player.getInventory().containsAtLeast(new ItemStack(Material.GLASS_BOTTLE), 4))) {
 			Block clicked = event.getClickedBlock();
 			if (clicked != null && clicked.getType() == Material.LAVA_CAULDRON) {
 				event.setUseItemInHand(Result.ALLOW);
 				if (player.getGameMode() != GameMode.CREATIVE) {
-					if (event.getItem().getAmount() >= 4) {
-						event.getItem()
-								.setAmount(event.getItem().getAmount() >= 4 ? event.getItem().getAmount() - 4 : 0);
+					if (bottle.getAmount() >= 4) {
+						bottle.setAmount(bottle.getAmount() >= 4 ? bottle.getAmount() - 4 : 0);
 					} else {
 						PlayerUtils.removeItems(player.getInventory(), Material.GLASS_BOTTLE, 4);
 					}

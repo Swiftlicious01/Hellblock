@@ -39,443 +39,467 @@ public class CoopManager {
 	public void sendInvite(@NotNull UserData onlineUser, @NotNull UserData playerToInvite) {
 		Player owner = onlineUser.getPlayer();
 		Player player = playerToInvite.getPlayer();
-		if (owner != null) {
-			Audience ownerAudience = instance.getSenderFactory().getAudience(owner);
-			if (player != null) {
-				Audience audience = instance.getSenderFactory().getAudience(player);
-				if (onlineUser.getHellblockData().isAbandoned()) {
-					ownerAudience.sendMessage(instance.getTranslationManager()
-							.render(MessageConstants.MSG_HELLBLOCK_IS_ABANDONED.build()));
-					return;
-				}
-				if (playerToInvite.getHellblockData().hasHellblock()) {
-					ownerAudience.sendMessage(instance.getTranslationManager()
-							.render(MessageConstants.MSG_HELLBLOCK_COOP_ALREADY_HAS_HELLBLOCK.build()));
-					return;
-				}
-				if (owner.getUniqueId().equals(player.getUniqueId())) {
-					ownerAudience.sendMessage(instance.getTranslationManager()
-							.render(MessageConstants.MSG_HELLBLOCK_COOP_NO_INVITE_SELF.build()));
-					return;
-				}
-				if (onlineUser.getHellblockData().getParty().contains(player.getUniqueId())) {
-					ownerAudience.sendMessage(
-							instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_COOP_ALREADY_IN_PARTY
-									.arguments(Component.text(player.getName())).build()));
-					return;
-				}
-				if (onlineUser.getHellblockData().getBanned().contains(player.getUniqueId())) {
-					ownerAudience.sendMessage(instance.getTranslationManager()
-							.render(MessageConstants.MSG_HELLBLOCK_COOP_BANNED_FROM_INVITE.build()));
-					return;
-				}
-				if (playerToInvite.getHellblockData().hasInvite(owner.getUniqueId())) {
-					ownerAudience.sendMessage(instance.getTranslationManager()
-							.render(MessageConstants.MSG_HELLBLOCK_COOP_INVITE_EXISTS.build()));
-					return;
-				}
 
-				playerToInvite.getHellblockData().sendInvitation(owner.getUniqueId());
-				ownerAudience.sendMessage(
-						instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_COOP_INVITE_SENT
-								.arguments(Component.text(player.getName())).build()));
-				audience.sendMessage(
-						instance.getTranslationManager()
-								.render(MessageConstants.MSG_HELLBLOCK_COOP_INVITE_RECEIVED
-										.arguments(Component.text(owner.getName()),
-												Component.text(instance.getFormattedCooldown(playerToInvite
-														.getHellblockData().getInvitations().get(owner.getUniqueId()))))
-										.build()));
-			} else {
-				ownerAudience.sendMessage(
-						instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_PLAYER_OFFLINE.build()));
-				return;
-			}
-		} else {
+		if (owner == null)
 			throw new NullPointerException("Player returned null, please report this to the developer.");
+
+		Audience ownerAudience = instance.getSenderFactory().getAudience(owner);
+
+		if (player == null) {
+			ownerAudience.sendMessage(
+					instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_PLAYER_OFFLINE.build()));
+			return;
 		}
+		
+		Audience audience = instance.getSenderFactory().getAudience(player);
+		
+		if (onlineUser.getHellblockData().isAbandoned()) {
+			ownerAudience.sendMessage(
+					instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_IS_ABANDONED.build()));
+			return;
+		}
+		
+		if (playerToInvite.getHellblockData().hasHellblock()) {
+			ownerAudience.sendMessage(instance.getTranslationManager()
+					.render(MessageConstants.MSG_HELLBLOCK_COOP_ALREADY_HAS_HELLBLOCK.build()));
+			return;
+		}
+		
+		if (owner.getUniqueId().equals(player.getUniqueId())) {
+			ownerAudience.sendMessage(instance.getTranslationManager()
+					.render(MessageConstants.MSG_HELLBLOCK_COOP_NO_INVITE_SELF.build()));
+			return;
+		}
+		
+		if (onlineUser.getHellblockData().getParty().contains(player.getUniqueId())) {
+			ownerAudience.sendMessage(
+					instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_COOP_ALREADY_IN_PARTY
+							.arguments(Component.text(player.getName())).build()));
+			return;
+		}
+		
+		if (onlineUser.getHellblockData().getBanned().contains(player.getUniqueId())) {
+			ownerAudience.sendMessage(instance.getTranslationManager()
+					.render(MessageConstants.MSG_HELLBLOCK_COOP_BANNED_FROM_INVITE.build()));
+			return;
+		}
+		
+		if (playerToInvite.getHellblockData().hasInvite(owner.getUniqueId())) {
+			ownerAudience.sendMessage(
+					instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_COOP_INVITE_EXISTS.build()));
+			return;
+		}
+
+		playerToInvite.getHellblockData().sendInvitation(owner.getUniqueId());
+		ownerAudience.sendMessage(instance.getTranslationManager().render(
+				MessageConstants.MSG_HELLBLOCK_COOP_INVITE_SENT.arguments(Component.text(player.getName())).build()));
+		audience.sendMessage(instance.getTranslationManager()
+				.render(MessageConstants.MSG_HELLBLOCK_COOP_INVITE_RECEIVED
+						.arguments(Component.text(owner.getName()),
+								Component.text(instance.getFormattedCooldown(
+										playerToInvite.getHellblockData().getInvitations().get(owner.getUniqueId()))))
+						.build()));
 	}
 
 	public void rejectInvite(@NotNull UUID ownerID, @NotNull UserData rejectingPlayer) {
 		Player player = rejectingPlayer.getPlayer();
-		if (player != null) {
-			Audience audience = instance.getSenderFactory().getAudience(player);
-			if (rejectingPlayer.getHellblockData().hasHellblock()) {
-				audience.sendMessage(instance.getTranslationManager()
-						.render(MessageConstants.MSG_HELLBLOCK_COOP_HELLBLOCK_EXISTS.build()));
-				return;
-			}
-			if (!rejectingPlayer.getHellblockData().hasInvite(ownerID)) {
-				audience.sendMessage(instance.getTranslationManager()
-						.render(MessageConstants.MSG_HELLBLOCK_COOP_NO_INVITE_FOUND.build()));
-				return;
-			}
 
-			rejectingPlayer.getHellblockData().removeInvitation(ownerID);
-			if (Bukkit.getPlayer(ownerID) != null) {
-				Audience ownerAudience = instance.getSenderFactory().getAudience(Bukkit.getPlayer(ownerID));
-				ownerAudience.sendMessage(
-						instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_COOP_REJECTED_TO_OWNER
-								.arguments(Component.text(player.getName())).build()));
-			}
-			OfflinePlayer owner;
-			if (Bukkit.getPlayer(ownerID) != null) {
-				owner = Bukkit.getPlayer(ownerID);
-			} else {
-				owner = Bukkit.getOfflinePlayer(ownerID);
-			}
-			String username = owner.hasPlayedBefore() && owner.getName() != null ? owner.getName() : "???";
-			audience.sendMessage(instance.getTranslationManager().render(
-					MessageConstants.MSG_HELLBLOCK_COOP_INVITE_REJECTED.arguments(Component.text(username)).build()));
-		} else {
+		if (player == null)
 			throw new NullPointerException("Player returned null, please report this to the developer.");
+
+		Audience audience = instance.getSenderFactory().getAudience(player);
+
+		if (rejectingPlayer.getHellblockData().hasHellblock()) {
+			audience.sendMessage(instance.getTranslationManager()
+					.render(MessageConstants.MSG_HELLBLOCK_COOP_HELLBLOCK_EXISTS.build()));
+			return;
 		}
+
+		if (!rejectingPlayer.getHellblockData().hasInvite(ownerID)) {
+			audience.sendMessage(instance.getTranslationManager()
+					.render(MessageConstants.MSG_HELLBLOCK_COOP_NO_INVITE_FOUND.build()));
+			return;
+		}
+
+		rejectingPlayer.getHellblockData().removeInvitation(ownerID);
+		if (Bukkit.getPlayer(ownerID) != null) {
+			Audience ownerAudience = instance.getSenderFactory().getAudience(Bukkit.getPlayer(ownerID));
+			ownerAudience.sendMessage(
+					instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_COOP_REJECTED_TO_OWNER
+							.arguments(Component.text(player.getName())).build()));
+		}
+
+		OfflinePlayer owner;
+		if (Bukkit.getPlayer(ownerID) != null) {
+			owner = Bukkit.getPlayer(ownerID);
+		} else {
+			owner = Bukkit.getOfflinePlayer(ownerID);
+		}
+
+		String username = owner.hasPlayedBefore() && owner.getName() != null ? owner.getName() : "???";
+		audience.sendMessage(instance.getTranslationManager().render(
+				MessageConstants.MSG_HELLBLOCK_COOP_INVITE_REJECTED.arguments(Component.text(username)).build()));
 	}
 
 	public void listInvitations(@NotNull UserData onlineUser) {
 		Player player = onlineUser.getPlayer();
-		if (player != null) {
-			Audience audience = instance.getSenderFactory().getAudience(player);
-			if (onlineUser.getHellblockData().hasHellblock()) {
-				audience.sendMessage(instance.getTranslationManager()
-						.render(MessageConstants.MSG_HELLBLOCK_COOP_HELLBLOCK_EXISTS.build()));
-				return;
-			}
-			if (onlineUser.getHellblockData().getInvitations() != null
-					&& onlineUser.getHellblockData().getInvitations().isEmpty()) {
-				audience.sendMessage(instance.getTranslationManager()
-						.render(MessageConstants.MSG_HELLBLOCK_COOP_NO_INVITES.build()));
-				return;
-			}
 
-			for (Map.Entry<UUID, Long> invites : onlineUser.getHellblockData().getInvitations().entrySet()) {
-				UUID invitee = invites.getKey();
-				OfflinePlayer owner;
-				if (Bukkit.getPlayer(invitee) != null) {
-					owner = Bukkit.getPlayer(invitee);
-				} else {
-					owner = Bukkit.getOfflinePlayer(invitee);
-				}
-				String username = owner.hasPlayedBefore() && owner.getName() != null ? owner.getName() : "???";
-				long expirationLeft = invites.getValue().longValue();
-				audience.sendMessage(
-						instance.getTranslationManager()
-								.render(MessageConstants.MSG_HELLBLOCK_COOP_INVITATION_LIST
-										.arguments(Component.text(username),
-												Component.text(instance.getFormattedCooldown(expirationLeft)))
-										.build()));
-			}
-
-		} else {
+		if (player == null)
 			throw new NullPointerException("Player returned null, please report this to the developer.");
+
+		Audience audience = instance.getSenderFactory().getAudience(player);
+
+		if (onlineUser.getHellblockData().hasHellblock()) {
+			audience.sendMessage(instance.getTranslationManager()
+					.render(MessageConstants.MSG_HELLBLOCK_COOP_HELLBLOCK_EXISTS.build()));
+			return;
+		}
+
+		if (onlineUser.getHellblockData().getInvitations() != null
+				&& onlineUser.getHellblockData().getInvitations().isEmpty()) {
+			audience.sendMessage(
+					instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_COOP_NO_INVITES.build()));
+			return;
+		}
+
+		for (Map.Entry<UUID, Long> invites : onlineUser.getHellblockData().getInvitations().entrySet()) {
+			UUID invitee = invites.getKey();
+			OfflinePlayer owner;
+			if (Bukkit.getPlayer(invitee) != null) {
+				owner = Bukkit.getPlayer(invitee);
+			} else {
+				owner = Bukkit.getOfflinePlayer(invitee);
+			}
+			String username = owner.hasPlayedBefore() && owner.getName() != null ? owner.getName() : "???";
+			long expirationLeft = invites.getValue().longValue();
+			audience.sendMessage(instance.getTranslationManager()
+					.render(MessageConstants.MSG_HELLBLOCK_COOP_INVITATION_LIST.arguments(Component.text(username),
+							Component.text(instance.getFormattedCooldown(expirationLeft))).build()));
 		}
 	}
 
 	public void addMemberToHellblock(@NotNull UUID ownerID, @NotNull UserData playerToAdd) {
 		Player player = playerToAdd.getPlayer();
-		if (player != null) {
-			Audience audience = instance.getSenderFactory().getAudience(player);
-			if (playerToAdd.getHellblockData().hasHellblock()) {
-				audience.sendMessage(instance.getTranslationManager()
-						.render(MessageConstants.MSG_HELLBLOCK_COOP_HELLBLOCK_EXISTS.build()));
-				return;
-			}
-			if (!playerToAdd.getHellblockData().hasInvite(ownerID)) {
-				audience.sendMessage(instance.getTranslationManager()
-						.render(MessageConstants.MSG_HELLBLOCK_COOP_NO_INVITE_FOUND.build()));
-				return;
-			}
-			instance.getStorageManager().getOfflineUserData(ownerID, instance.getConfigManager().lockData())
-					.thenAccept((result) -> {
-						if (result.isEmpty())
-							return;
-						UserData offlineUser = result.get();
-						if (offlineUser.getHellblockData().isAbandoned()) {
-							audience.sendMessage(instance.getTranslationManager()
-									.render(MessageConstants.MSG_HELLBLOCK_COOP_INVITE_ABANDONED.build()));
-							return;
-						}
 
-						Set<UUID> party = offlineUser.getHellblockData().getParty();
-						if (party.size() >= getMaxPartySize(offlineUser)) {
-							audience.sendMessage(instance.getTranslationManager()
-									.render(MessageConstants.MSG_HELLBLOCK_COOP_PARTY_FULL.build()));
-							return;
-						}
-						if (party.contains(player.getUniqueId())) {
-							audience.sendMessage(instance.getTranslationManager()
-									.render(MessageConstants.MSG_HELLBLOCK_COOP_ALREADY_JOINED_PARTY.build()));
-							return;
-						}
-
-						Optional<HellblockWorld<?>> world = instance.getWorldManager().getWorld(instance
-								.getWorldManager().getHellblockWorldFormat(offlineUser.getHellblockData().getID()));
-						if (world.isEmpty() || world.get() == null)
-							throw new NullPointerException(
-									"World returned null, please try to regenerate the world before reporting this issue.");
-						World bukkitWorld = world.get().bukkitWorld();
-
-						instance.getProtectionManager().getIslandProtection().addMemberToHellblockBounds(bukkitWorld,
-								offlineUser.getUUID(), player.getUniqueId());
-
-						playerToAdd.getHellblockData().clearInvitations();
-						playerToAdd.getHellblockData().setHasHellblock(true);
-						playerToAdd.getHellblockData().setOwnerUUID(ownerID);
-						offlineUser.getHellblockData().addToParty(player.getUniqueId());
-						if (playerToAdd.getHellblockData().getTrusted().contains(ownerID)) {
-							playerToAdd.getHellblockData().removeTrustPermission(ownerID);
-						}
-						makeHomeLocationSafe(offlineUser, playerToAdd);
-						if (offlineUser.isOnline()) {
-							Audience ownerAudience = instance.getSenderFactory()
-									.getAudience(Bukkit.getPlayer(offlineUser.getUUID()));
-							ownerAudience.sendMessage(instance.getTranslationManager()
-									.render(MessageConstants.MSG_HELLBLOCK_COOP_ADDED_TO_PARTY
-											.arguments(Component.text(player.getName())).build()));
-						}
-						audience.sendMessage(
-								instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_COOP_JOINED_PARTY
-										.arguments(Component.text(offlineUser.getName())).build()));
-					});
-		} else {
+		if (player == null)
 			throw new NullPointerException("Player returned null, please report this to the developer.");
+
+		Audience audience = instance.getSenderFactory().getAudience(player);
+
+		if (playerToAdd.getHellblockData().hasHellblock()) {
+			audience.sendMessage(instance.getTranslationManager()
+					.render(MessageConstants.MSG_HELLBLOCK_COOP_HELLBLOCK_EXISTS.build()));
+			return;
 		}
+
+		if (!playerToAdd.getHellblockData().hasInvite(ownerID)) {
+			audience.sendMessage(instance.getTranslationManager()
+					.render(MessageConstants.MSG_HELLBLOCK_COOP_NO_INVITE_FOUND.build()));
+			return;
+		}
+
+		instance.getStorageManager().getOfflineUserData(ownerID, instance.getConfigManager().lockData())
+				.thenAccept((result) -> {
+					if (result.isEmpty())
+						return;
+
+					UserData offlineUser = result.get();
+
+					if (offlineUser.getHellblockData().isAbandoned()) {
+						audience.sendMessage(instance.getTranslationManager()
+								.render(MessageConstants.MSG_HELLBLOCK_COOP_INVITE_ABANDONED.build()));
+						return;
+					}
+
+					Set<UUID> party = offlineUser.getHellblockData().getParty();
+					if (party.size() >= getMaxPartySize(offlineUser)) {
+						audience.sendMessage(instance.getTranslationManager()
+								.render(MessageConstants.MSG_HELLBLOCK_COOP_PARTY_FULL.build()));
+						return;
+					}
+
+					if (party.contains(player.getUniqueId())) {
+						audience.sendMessage(instance.getTranslationManager()
+								.render(MessageConstants.MSG_HELLBLOCK_COOP_ALREADY_JOINED_PARTY.build()));
+						return;
+					}
+
+					Optional<HellblockWorld<?>> world = instance.getWorldManager().getWorld(
+							instance.getWorldManager().getHellblockWorldFormat(offlineUser.getHellblockData().getID()));
+					if (world.isEmpty() || world.get() == null)
+						throw new NullPointerException(
+								"World returned null, please try to regenerate the world before reporting this issue.");
+					World bukkitWorld = world.get().bukkitWorld();
+
+					instance.getProtectionManager().getIslandProtection().addMemberToHellblockBounds(bukkitWorld,
+							offlineUser.getUUID(), player.getUniqueId());
+
+					playerToAdd.getHellblockData().clearInvitations();
+					playerToAdd.getHellblockData().setHasHellblock(true);
+					playerToAdd.getHellblockData().setOwnerUUID(ownerID);
+					offlineUser.getHellblockData().addToParty(player.getUniqueId());
+					if (playerToAdd.getHellblockData().getTrusted().contains(ownerID)) {
+						playerToAdd.getHellblockData().removeTrustPermission(ownerID);
+					}
+					makeHomeLocationSafe(offlineUser, playerToAdd);
+					if (offlineUser.isOnline()) {
+						Audience ownerAudience = instance.getSenderFactory()
+								.getAudience(Bukkit.getPlayer(offlineUser.getUUID()));
+						ownerAudience.sendMessage(instance.getTranslationManager()
+								.render(MessageConstants.MSG_HELLBLOCK_COOP_ADDED_TO_PARTY
+										.arguments(Component.text(player.getName())).build()));
+					}
+					audience.sendMessage(
+							instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_COOP_JOINED_PARTY
+									.arguments(Component.text(offlineUser.getName())).build()));
+				});
 	}
 
 	public void removeMemberFromHellblock(@NotNull UserData onlineUser, @NotNull String input, @NotNull UUID id) {
 		Player owner = onlineUser.getPlayer();
-		if (owner != null) {
-			Audience ownerAudience = instance.getSenderFactory().getAudience(owner);
-			if (!onlineUser.getHellblockData().hasHellblock()) {
-				ownerAudience.sendMessage(
-						instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_NOT_FOUND.build()));
-				return;
-			}
-			instance.getStorageManager().getOfflineUserData(id, instance.getConfigManager().lockData())
-					.thenAccept((result) -> {
-						if (result.isEmpty())
-							return;
-						UserData offlineUser = result.get();
-						if (offlineUser.getHellblockData().getOwnerUUID() == null) {
-							throw new NullPointerException(
-									"Owner reference returned null, please report this to the developer.");
-						}
 
-						if (owner.getUniqueId().equals(offlineUser.getHellblockData().getOwnerUUID())) {
-							ownerAudience.sendMessage(instance.getTranslationManager()
-									.render(MessageConstants.MSG_HELLBLOCK_COOP_NO_KICK_SELF.build()));
-							return;
-						}
-						if (!offlineUser.getHellblockData().hasHellblock()) {
-							ownerAudience.sendMessage(instance.getTranslationManager()
-									.render(MessageConstants.MSG_HELLBLOCK_COOP_NOT_PART_OF_PARTY
-											.arguments(Component.text(input)).build()));
-							return;
-						}
-
-						Set<UUID> party = onlineUser.getHellblockData().getParty();
-						if (!party.contains(id)) {
-							ownerAudience.sendMessage(instance.getTranslationManager()
-									.render(MessageConstants.MSG_HELLBLOCK_COOP_NOT_PART_OF_PARTY
-											.arguments(Component.text(input)).build()));
-							return;
-						}
-
-						Optional<HellblockWorld<?>> world = instance.getWorldManager().getWorld(instance
-								.getWorldManager().getHellblockWorldFormat(offlineUser.getHellblockData().getID()));
-						if (world.isEmpty() || world.get() == null)
-							throw new NullPointerException(
-									"World returned null, please try to regenerate the world before reporting this issue.");
-						World bukkitWorld = world.get().bukkitWorld();
-
-						instance.getProtectionManager().getIslandProtection()
-								.removeMemberFromHellblockBounds(bukkitWorld, owner.getUniqueId(), id);
-
-						offlineUser.getHellblockData().setHasHellblock(false);
-						offlineUser.getHellblockData().setOwnerUUID(null);
-						onlineUser.getHellblockData().kickFromParty(id);
-						ownerAudience.sendMessage(
-								instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_COOP_PARTY_KICKED
-										.arguments(Component.text(input)).build()));
-						if (offlineUser.isOnline()) {
-							instance.getHellblockHandler().teleportToSpawn(Bukkit.getPlayer(offlineUser.getUUID()),
-									true);
-							Audience audience = instance.getSenderFactory()
-									.getAudience(Bukkit.getPlayer(offlineUser.getUUID()));
-							audience.sendMessage(instance.getTranslationManager()
-									.render(MessageConstants.MSG_HELLBLOCK_COOP_REMOVED_FROM_PARTY
-											.arguments(Component.text(owner.getName())).build()));
-						}
-					});
-		} else {
+		if (owner == null)
 			throw new NullPointerException("Player returned null, please report this to the developer.");
+
+		Audience ownerAudience = instance.getSenderFactory().getAudience(owner);
+
+		if (!onlineUser.getHellblockData().hasHellblock()) {
+			ownerAudience.sendMessage(
+					instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_NOT_FOUND.build()));
+			return;
 		}
+
+		instance.getStorageManager().getOfflineUserData(id, instance.getConfigManager().lockData())
+				.thenAccept((result) -> {
+					if (result.isEmpty())
+						return;
+
+					UserData offlineUser = result.get();
+
+					if (offlineUser.getHellblockData().getOwnerUUID() == null)
+						throw new NullPointerException(
+								"Owner reference returned null, please report this to the developer.");
+
+					if (owner.getUniqueId().equals(offlineUser.getHellblockData().getOwnerUUID())) {
+						ownerAudience.sendMessage(instance.getTranslationManager()
+								.render(MessageConstants.MSG_HELLBLOCK_COOP_NO_KICK_SELF.build()));
+						return;
+					}
+
+					if (!offlineUser.getHellblockData().hasHellblock()) {
+						ownerAudience.sendMessage(instance.getTranslationManager()
+								.render(MessageConstants.MSG_HELLBLOCK_COOP_NOT_PART_OF_PARTY
+										.arguments(Component.text(input)).build()));
+						return;
+					}
+
+					Set<UUID> party = onlineUser.getHellblockData().getParty();
+					if (!party.contains(id)) {
+						ownerAudience.sendMessage(instance.getTranslationManager()
+								.render(MessageConstants.MSG_HELLBLOCK_COOP_NOT_PART_OF_PARTY
+										.arguments(Component.text(input)).build()));
+						return;
+					}
+
+					Optional<HellblockWorld<?>> world = instance.getWorldManager().getWorld(
+							instance.getWorldManager().getHellblockWorldFormat(offlineUser.getHellblockData().getID()));
+					if (world.isEmpty() || world.get() == null)
+						throw new NullPointerException(
+								"World returned null, please try to regenerate the world before reporting this issue.");
+					World bukkitWorld = world.get().bukkitWorld();
+
+					instance.getProtectionManager().getIslandProtection().removeMemberFromHellblockBounds(bukkitWorld,
+							owner.getUniqueId(), id);
+
+					offlineUser.getHellblockData().setHasHellblock(false);
+					offlineUser.getHellblockData().setOwnerUUID(null);
+					onlineUser.getHellblockData().kickFromParty(id);
+					ownerAudience.sendMessage(instance.getTranslationManager().render(
+							MessageConstants.MSG_HELLBLOCK_COOP_PARTY_KICKED.arguments(Component.text(input)).build()));
+					if (offlineUser.isOnline()) {
+						instance.getHellblockHandler().teleportToSpawn(Bukkit.getPlayer(offlineUser.getUUID()), true);
+						Audience audience = instance.getSenderFactory()
+								.getAudience(Bukkit.getPlayer(offlineUser.getUUID()));
+						audience.sendMessage(instance.getTranslationManager()
+								.render(MessageConstants.MSG_HELLBLOCK_COOP_REMOVED_FROM_PARTY
+										.arguments(Component.text(owner.getName())).build()));
+					}
+				});
 	}
 
 	public void leaveHellblockParty(@NotNull UserData leavingPlayer) {
 		Player player = leavingPlayer.getPlayer();
-		if (player != null) {
-			Audience audience = instance.getSenderFactory().getAudience(player);
-			if (!leavingPlayer.getHellblockData().hasHellblock()) {
-				audience.sendMessage(
-						instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_NOT_FOUND.build()));
-				return;
-			}
-			if (leavingPlayer.getHellblockData().getOwnerUUID() == null) {
-				throw new NullPointerException("Owner reference returned null, please report this to the developer.");
-			}
-			if (leavingPlayer.getHellblockData().getOwnerUUID() != null
-					&& leavingPlayer.getHellblockData().getOwnerUUID().equals(player.getUniqueId())) {
-				audience.sendMessage(instance.getTranslationManager()
-						.render(MessageConstants.MSG_HELLBLOCK_COOP_OWNER_NO_LEAVE.build()));
-				return;
-			}
-			instance.getStorageManager().getOfflineUserData(leavingPlayer.getHellblockData().getOwnerUUID(),
-					instance.getConfigManager().lockData()).thenAccept((result) -> {
-						if (result.isEmpty())
-							return;
-						UserData offlineUser = result.get();
-						Set<UUID> party = offlineUser.getHellblockData().getParty();
 
-						party = offlineUser.getHellblockData().getParty();
-						if (!party.contains(player.getUniqueId())) {
-							audience.sendMessage(instance.getTranslationManager()
-									.render(MessageConstants.MSG_HELLBLOCK_COOP_NOT_IN_PARTY.build()));
-							return;
-						}
-
-						Optional<HellblockWorld<?>> world = instance.getWorldManager().getWorld(instance
-								.getWorldManager().getHellblockWorldFormat(offlineUser.getHellblockData().getID()));
-						if (world.isEmpty() || world.get() == null)
-							throw new NullPointerException(
-									"World returned null, please try to regenerate the world before reporting this issue.");
-						World bukkitWorld = world.get().bukkitWorld();
-
-						instance.getProtectionManager().getIslandProtection().removeMemberFromHellblockBounds(
-								bukkitWorld, offlineUser.getUUID(), leavingPlayer.getUUID());
-
-						leavingPlayer.getHellblockData().setHasHellblock(false);
-						leavingPlayer.getHellblockData().setOwnerUUID(null);
-						offlineUser.getHellblockData().kickFromParty(player.getUniqueId());
-						instance.getHellblockHandler().teleportToSpawn(player, true);
-						audience.sendMessage(
-								instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_COOP_PARTY_LEFT
-										.arguments(Component.text(offlineUser.getName())).build()));
-						if (offlineUser.isOnline()) {
-							Audience ownerAudience = instance.getSenderFactory()
-									.getAudience(Bukkit.getPlayer(offlineUser.getUUID()));
-							ownerAudience.sendMessage(instance.getTranslationManager()
-									.render(MessageConstants.MSG_HELLBLOCK_COOP_LEFT_PARTY
-											.arguments(Component.text(player.getName())).build()));
-						}
-					});
-		} else {
+		if (player == null)
 			throw new NullPointerException("Player returned null, please report this to the developer.");
+
+		Audience audience = instance.getSenderFactory().getAudience(player);
+
+		if (!leavingPlayer.getHellblockData().hasHellblock()) {
+			audience.sendMessage(
+					instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_NOT_FOUND.build()));
+			return;
 		}
+
+		if (leavingPlayer.getHellblockData().getOwnerUUID() == null)
+			throw new NullPointerException("Owner reference returned null, please report this to the developer.");
+
+		if (leavingPlayer.getHellblockData().getOwnerUUID() != null
+				&& leavingPlayer.getHellblockData().getOwnerUUID().equals(player.getUniqueId())) {
+			audience.sendMessage(instance.getTranslationManager()
+					.render(MessageConstants.MSG_HELLBLOCK_COOP_OWNER_NO_LEAVE.build()));
+			return;
+		}
+
+		instance.getStorageManager().getOfflineUserData(leavingPlayer.getHellblockData().getOwnerUUID(),
+				instance.getConfigManager().lockData()).thenAccept((result) -> {
+					if (result.isEmpty())
+						return;
+
+					UserData offlineUser = result.get();
+
+					Set<UUID> party = offlineUser.getHellblockData().getParty();
+					if (!party.contains(player.getUniqueId())) {
+						audience.sendMessage(instance.getTranslationManager()
+								.render(MessageConstants.MSG_HELLBLOCK_COOP_NOT_IN_PARTY.build()));
+						return;
+					}
+
+					Optional<HellblockWorld<?>> world = instance.getWorldManager().getWorld(
+							instance.getWorldManager().getHellblockWorldFormat(offlineUser.getHellblockData().getID()));
+					if (world.isEmpty() || world.get() == null)
+						throw new NullPointerException(
+								"World returned null, please try to regenerate the world before reporting this issue.");
+					World bukkitWorld = world.get().bukkitWorld();
+
+					instance.getProtectionManager().getIslandProtection().removeMemberFromHellblockBounds(bukkitWorld,
+							offlineUser.getUUID(), leavingPlayer.getUUID());
+
+					leavingPlayer.getHellblockData().setHasHellblock(false);
+					leavingPlayer.getHellblockData().setOwnerUUID(null);
+					offlineUser.getHellblockData().kickFromParty(player.getUniqueId());
+					instance.getHellblockHandler().teleportToSpawn(player, true);
+					audience.sendMessage(
+							instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_COOP_PARTY_LEFT
+									.arguments(Component.text(offlineUser.getName())).build()));
+					if (offlineUser.isOnline()) {
+						Audience ownerAudience = instance.getSenderFactory()
+								.getAudience(Bukkit.getPlayer(offlineUser.getUUID()));
+						ownerAudience.sendMessage(
+								instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_COOP_LEFT_PARTY
+										.arguments(Component.text(player.getName())).build()));
+					}
+				});
 	}
 
 	public void transferOwnershipOfHellblock(@NotNull UserData onlineUser, @NotNull UserData playerToTransfer) {
 		Player owner = onlineUser.getPlayer();
 		Player player = playerToTransfer.getPlayer();
-		if (owner != null) {
-			Audience ownerAudience = instance.getSenderFactory().getAudience(owner);
-			if (player != null) {
-				Audience audience = instance.getSenderFactory().getAudience(player);
-				if (!instance.getConfigManager().transferIslands()) {
-					ownerAudience.sendMessage(instance.getTranslationManager()
-							.render(MessageConstants.MSG_HELLBLOCK_COOP_TRANSFER_OWNERSHIP_DISABLED.build()));
-					return;
-				}
-				if (!onlineUser.getHellblockData().hasHellblock()) {
-					ownerAudience.sendMessage(
-							instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_NOT_FOUND.build()));
-					return;
-				}
-				if (onlineUser.getHellblockData().isAbandoned()) {
-					ownerAudience.sendMessage(instance.getTranslationManager()
-							.render(MessageConstants.MSG_HELLBLOCK_IS_ABANDONED.build()));
-					return;
-				}
-				if (onlineUser.getHellblockData().getOwnerUUID() == null) {
-					throw new NullPointerException(
-							"Owner reference returned null, please report this to the developer.");
-				}
-				if (!onlineUser.getHellblockData().getOwnerUUID().equals(owner.getUniqueId())) {
-					ownerAudience.sendMessage(instance.getTranslationManager()
-							.render(MessageConstants.MSG_NOT_OWNER_OF_HELLBLOCK.build()));
-					return;
-				}
-				if (owner.getUniqueId().equals(player.getUniqueId())) {
-					ownerAudience.sendMessage(instance.getTranslationManager()
-							.render(MessageConstants.MSG_HELLBLOCK_COOP_NO_TRANSFER_SELF.build()));
-					return;
-				}
-				if (!playerToTransfer.getHellblockData().hasHellblock()) {
-					ownerAudience.sendMessage(instance.getTranslationManager()
-							.render(MessageConstants.MSG_HELLBLOCK_COOP_NOT_PART_OF_PARTY
-									.arguments(Component.text(player.getName())).build()));
-					return;
-				}
 
-				Set<UUID> party = onlineUser.getHellblockData().getParty();
-				if (!party.contains(player.getUniqueId())) {
-					ownerAudience.sendMessage(instance.getTranslationManager()
-							.render(MessageConstants.MSG_HELLBLOCK_COOP_NOT_PART_OF_PARTY
-									.arguments(Component.text(player.getName())).build()));
-					return;
-				}
-				if (onlineUser.getHellblockData().getOwnerUUID().equals(player.getUniqueId())) {
-					ownerAudience.sendMessage(instance.getTranslationManager()
-							.render(MessageConstants.MSG_HELLBLOCK_COOP_ALREADY_OWNER_OF_ISLAND
-									.arguments(Component.text(player.getName())).build()));
-					return;
-				}
-
-				playerToTransfer.getHellblockData().transferHellblockData(onlineUser);
-				playerToTransfer.getHellblockData().setTransferCooldown(86400L);
-				playerToTransfer.getHellblockData().setOwnerUUID(player.getUniqueId());
-				playerToTransfer.getHellblockData().kickFromParty(player.getUniqueId());
-				for (UUID partyData : playerToTransfer.getHellblockData().getParty()) {
-					instance.getStorageManager().getOfflineUserData(partyData, instance.getConfigManager().lockData())
-							.thenAccept((result) -> {
-								if (result.isEmpty())
-									return;
-								UserData offlineParty = result.get();
-								offlineParty.getHellblockData().setOwnerUUID(player.getUniqueId());
-							});
-				}
-				playerToTransfer.getHellblockData().addToParty(owner.getUniqueId());
-				onlineUser.getHellblockData().resetHellblockData();
-				onlineUser.getHellblockData().setHasHellblock(true);
-				onlineUser.getHellblockData().setID(0);
-				onlineUser.getHellblockData().setTrusted(new HashSet<>());
-				onlineUser.getHellblockData().setResetCooldown(0L);
-				onlineUser.getHellblockData().setOwnerUUID(player.getUniqueId());
-
-				Optional<HellblockWorld<?>> world = instance.getWorldManager().getWorld(instance.getWorldManager()
-						.getHellblockWorldFormat(playerToTransfer.getHellblockData().getID()));
-				if (world.isEmpty() || world.get() == null)
-					throw new NullPointerException(
-							"World returned null, please try to regenerate the world before reporting this issue.");
-				World bukkitWorld = world.get().bukkitWorld();
-
-				instance.getProtectionManager().getIslandProtection().reprotectHellblock(bukkitWorld, onlineUser,
-						playerToTransfer);
-
-				ownerAudience.sendMessage(
-						instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_COOP_NEW_OWNER_SET
-								.arguments(Component.text(player.getName())).build()));
-				audience.sendMessage(instance.getTranslationManager()
-						.render(MessageConstants.MSG_HELLBLOCK_COOP_OWNER_TRANSFER_SUCCESS
-								.arguments(Component.text(owner.getName())).build()));
-			} else {
-				ownerAudience.sendMessage(
-						instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_PLAYER_OFFLINE.build()));
-				return;
-			}
-		} else {
+		if (owner == null)
 			throw new NullPointerException("Player returned null, please report this to the developer.");
+
+		Audience ownerAudience = instance.getSenderFactory().getAudience(owner);
+
+		if (player == null) {
+			ownerAudience.sendMessage(
+					instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_PLAYER_OFFLINE.build()));
+			return;
 		}
+
+		Audience audience = instance.getSenderFactory().getAudience(player);
+
+		if (!instance.getConfigManager().transferIslands()) {
+			ownerAudience.sendMessage(instance.getTranslationManager()
+					.render(MessageConstants.MSG_HELLBLOCK_COOP_TRANSFER_OWNERSHIP_DISABLED.build()));
+			return;
+		}
+
+		if (!onlineUser.getHellblockData().hasHellblock()) {
+			ownerAudience.sendMessage(
+					instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_NOT_FOUND.build()));
+			return;
+		}
+
+		if (onlineUser.getHellblockData().isAbandoned()) {
+			ownerAudience.sendMessage(
+					instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_IS_ABANDONED.build()));
+			return;
+		}
+
+		if (onlineUser.getHellblockData().getOwnerUUID() == null)
+			throw new NullPointerException("Owner reference returned null, please report this to the developer.");
+
+		if (!onlineUser.getHellblockData().getOwnerUUID().equals(owner.getUniqueId())) {
+			ownerAudience.sendMessage(
+					instance.getTranslationManager().render(MessageConstants.MSG_NOT_OWNER_OF_HELLBLOCK.build()));
+			return;
+		}
+
+		if (owner.getUniqueId().equals(player.getUniqueId())) {
+			ownerAudience.sendMessage(instance.getTranslationManager()
+					.render(MessageConstants.MSG_HELLBLOCK_COOP_NO_TRANSFER_SELF.build()));
+			return;
+		}
+
+		if (!playerToTransfer.getHellblockData().hasHellblock()) {
+			ownerAudience.sendMessage(
+					instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_COOP_NOT_PART_OF_PARTY
+							.arguments(Component.text(player.getName())).build()));
+			return;
+		}
+
+		Set<UUID> party = onlineUser.getHellblockData().getParty();
+		if (!party.contains(player.getUniqueId())) {
+			ownerAudience.sendMessage(
+					instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_COOP_NOT_PART_OF_PARTY
+							.arguments(Component.text(player.getName())).build()));
+			return;
+		}
+
+		if (onlineUser.getHellblockData().getOwnerUUID().equals(player.getUniqueId())) {
+			ownerAudience.sendMessage(
+					instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_COOP_ALREADY_OWNER_OF_ISLAND
+							.arguments(Component.text(player.getName())).build()));
+			return;
+		}
+
+		playerToTransfer.getHellblockData().transferHellblockData(onlineUser);
+		playerToTransfer.getHellblockData().setTransferCooldown(86400L);
+		playerToTransfer.getHellblockData().setOwnerUUID(player.getUniqueId());
+		playerToTransfer.getHellblockData().kickFromParty(player.getUniqueId());
+		for (UUID partyData : playerToTransfer.getHellblockData().getParty()) {
+			instance.getStorageManager().getOfflineUserData(partyData, instance.getConfigManager().lockData())
+					.thenAccept((result) -> {
+						if (result.isEmpty())
+							return;
+						UserData offlineParty = result.get();
+						offlineParty.getHellblockData().setOwnerUUID(player.getUniqueId());
+					});
+		}
+		playerToTransfer.getHellblockData().addToParty(owner.getUniqueId());
+		onlineUser.getHellblockData().resetHellblockData();
+		onlineUser.getHellblockData().setHasHellblock(true);
+		onlineUser.getHellblockData().setID(0);
+		onlineUser.getHellblockData().setTrusted(new HashSet<>());
+		onlineUser.getHellblockData().setResetCooldown(0L);
+		onlineUser.getHellblockData().setOwnerUUID(player.getUniqueId());
+
+		Optional<HellblockWorld<?>> world = instance.getWorldManager().getWorld(
+				instance.getWorldManager().getHellblockWorldFormat(playerToTransfer.getHellblockData().getID()));
+		if (world.isEmpty() || world.get() == null)
+			throw new NullPointerException(
+					"World returned null, please try to regenerate the world before reporting this issue.");
+		World bukkitWorld = world.get().bukkitWorld();
+
+		instance.getProtectionManager().getIslandProtection().reprotectHellblock(bukkitWorld, onlineUser,
+				playerToTransfer);
+
+		ownerAudience.sendMessage(instance.getTranslationManager().render(
+				MessageConstants.MSG_HELLBLOCK_COOP_NEW_OWNER_SET.arguments(Component.text(player.getName())).build()));
+		audience.sendMessage(
+				instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_COOP_OWNER_TRANSFER_SUCCESS
+						.arguments(Component.text(owner.getName())).build()));
 	}
 
 	public CompletableFuture<Set<UUID>> getVisitors(@NotNull UUID id) {
@@ -493,9 +517,8 @@ public class CoopManager {
 						if (!user.isOnline() || user.getPlayer() == null)
 							continue;
 						Player player = user.getPlayer();
-						if (bounds.contains(player.getBoundingBox())) {
+						if (bounds.contains(player.getBoundingBox()))
 							visitors.add(player.getUniqueId());
-						}
 					}
 					future.complete(visitors);
 				});
@@ -516,9 +539,8 @@ public class CoopManager {
 						if (bounds != null) {
 							if (bounds.contains(player.getBoundingBox())) {
 								UUID ownerUUID = offlineUser.getHellblockData().getOwnerUUID();
-								if (ownerUUID != null) {
+								if (ownerUUID != null)
 									future.complete(ownerUUID);
-								}
 							}
 						}
 					});
@@ -614,7 +636,7 @@ public class CoopManager {
 		World bukkitWorld = world.get().bukkitWorld();
 
 		instance.getProtectionManager().getIslandProtection()
-				.getMembersOfHellblockBounds(bukkitWorld, onlineUser.getUUID(), id).thenAccept(trusted -> {
+				.getMembersOfHellblockBounds(bukkitWorld, onlineUser.getUUID()).thenAccept(trusted -> {
 					if (trusted.contains(id)) {
 						Audience audience = instance.getSenderFactory().getAudience(onlineUser.getPlayer());
 						audience.sendMessage(instance.getTranslationManager()
@@ -642,7 +664,7 @@ public class CoopManager {
 		World bukkitWorld = world.get().bukkitWorld();
 
 		instance.getProtectionManager().getIslandProtection()
-				.getMembersOfHellblockBounds(bukkitWorld, onlineUser.getUUID(), id).thenAccept(trusted -> {
+				.getMembersOfHellblockBounds(bukkitWorld, onlineUser.getUUID()).thenAccept(trusted -> {
 					if (!trusted.contains(id)) {
 						Audience audience = instance.getSenderFactory().getAudience(onlineUser.getPlayer());
 						audience.sendMessage(
@@ -675,9 +697,9 @@ public class CoopManager {
 
 	public CompletableFuture<Void> makeHomeLocationSafe(@NotNull UserData offlineUser, @NotNull UserData onlineUser) {
 		return CompletableFuture.runAsync(() -> {
-			if (!onlineUser.isOnline()) {
+			if (!onlineUser.isOnline())
 				throw new NullPointerException("Player object returned null, please report this to the developer.");
-			}
+
 			LocationUtils.isSafeLocationAsync(offlineUser.getHellblockData().getHomeLocation()).thenAccept((safe) -> {
 				if (!safe.booleanValue()) {
 					Audience audience = instance.getSenderFactory().getAudience(onlineUser.getPlayer());
@@ -703,17 +725,16 @@ public class CoopManager {
 						&& !offlineUser.getHellblockData().getOwnerUUID().equals(offlineUser.getUUID())))
 			return -1;
 
-		if (offlineUser.getPlayer().isOp() || offlineUser.getPlayer().hasPermission("hellcoop.size.*")) {
+		if (offlineUser.getPlayer().isOp() || offlineUser.getPlayer().hasPermission("hellcoop.size.*"))
 			return instance.getConfigManager().partySize();
-		}
 
 		AtomicInteger maxParty = new AtomicInteger(1);
 		for (int i = 1; i <= instance.getConfigManager().partySize(); i++) {
-			if (offlineUser.getPlayer().hasPermission("hellcoop.size." + i)) {
+			if (offlineUser.getPlayer().hasPermission("hellcoop.size." + i))
 				maxParty.incrementAndGet();
-			} else {
+			else
 				break;
-			}
+
 		}
 		return maxParty.get();
 	}

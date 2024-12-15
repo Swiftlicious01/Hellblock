@@ -21,7 +21,6 @@ import org.jetbrains.annotations.Nullable;
 import com.google.gson.annotations.Expose;
 import com.google.gson.annotations.SerializedName;
 import com.swiftlicious.hellblock.HellblockPlugin;
-import com.swiftlicious.hellblock.coop.HellblockParty;
 import com.swiftlicious.hellblock.generation.HellBiome;
 import com.swiftlicious.hellblock.generation.IslandOptions;
 import com.swiftlicious.hellblock.protection.HellblockFlag;
@@ -227,8 +226,15 @@ public class HellblockData {
 		return this.banned;
 	}
 
-	public @Nullable HellblockParty getEntireParty() {
-		return new HellblockParty(this);
+	public @NotNull Set<UUID> getIslandMembers() {
+		Set<UUID> members = new HashSet<>();
+		if (this.ownerUUID != null)
+			members.add(this.ownerUUID);
+		if (this.party != null && !this.party.isEmpty())
+			members.addAll(this.party);
+		if (this.trusted != null && !this.trusted.isEmpty())
+			members.addAll(this.trusted);
+		return members;
 	}
 
 	public @Nullable Map<UUID, Long> getInvitations() {

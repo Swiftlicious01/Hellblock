@@ -216,42 +216,38 @@ public class DefaultProtection implements IslandProtection {
 	}
 
 	@Override
-	public void lockHellblock(@NotNull World world, @NotNull UserData owner) {
-		// TODO: Auto-generated method stub
-	}
-
-	@Override
 	public void abandonIsland(@NotNull World world, @NotNull UUID id) {
-		// TODO: Auto-generated method stub
+		HellblockPlugin.getInstance().getStorageManager()
+				.getOfflineUserData(id, HellblockPlugin.getInstance().getConfigManager().lockData())
+				.thenAccept((result) -> {
+					if (result.isEmpty())
+						return;
+					UserData offlineUser = result.get();
+					if (offlineUser.getHellblockData().isAbandoned()) {
+						offlineUser.getHellblockData().setProtectionValue(
+								new HellblockFlag(HellblockFlag.FlagType.PVP, HellblockFlag.AccessType.DENY));
+						offlineUser.getHellblockData().setProtectionValue(
+								new HellblockFlag(HellblockFlag.FlagType.BUILD, HellblockFlag.AccessType.DENY));
+						offlineUser.getHellblockData().setProtectionValue(
+								new HellblockFlag(HellblockFlag.FlagType.ENTRY, HellblockFlag.AccessType.DENY));
+						offlineUser.getHellblockData().setProtectionValue(
+								new HellblockFlag(HellblockFlag.FlagType.MOB_SPAWNING, HellblockFlag.AccessType.DENY));
+					}
+				});
 	}
 
 	@Override
-	public void changeHellblockFlag(@NotNull World world, @NotNull UserData owner, @NotNull HellblockFlag flag) {
-		// TODO: Auto-generated method stub
-	}
-
-	@Override
-	public CompletableFuture<Set<UUID>> getMembersOfHellblockBounds(@NotNull World world, @NotNull UUID ownerID,
-			@NotNull UUID id) {
+	public CompletableFuture<Set<UUID>> getMembersOfHellblockBounds(@NotNull World world, @NotNull UUID ownerID) {
 		CompletableFuture<Set<UUID>> members = new CompletableFuture<>();
+		HellblockPlugin.getInstance().getStorageManager()
+				.getOfflineUserData(ownerID, HellblockPlugin.getInstance().getConfigManager().lockData())
+				.thenAccept((result) -> {
+					if (result.isEmpty())
+						return;
+					UserData offlineUser = result.get();
+					members.complete(offlineUser.getHellblockData().getIslandMembers());
+				});
 		return members;
-	}
-
-	@Override
-	public void addMemberToHellblockBounds(@NotNull World world, @NotNull UUID ownerID, @NotNull UUID id) {
-		// TODO: Auto-generated method stub
-	}
-
-	@Override
-	public void removeMemberFromHellblockBounds(@NotNull World world, @NotNull UUID ownerID, @NotNull UUID id) {
-		// TODO: Auto-generated method stub
-	}
-
-	private @Nullable HellblockCuboid getHellblock(@NotNull UUID playerUUID) {
-		if (!HellblockPlugin.getInstance().getProtectionManager().getCachedHellblocks().containsKey(playerUUID))
-			return null;
-
-		return HellblockPlugin.getInstance().getProtectionManager().getCachedHellblocks().get(playerUUID);
 	}
 
 	private @NotNull Vector getProtectionVectorLeft(@NotNull World world, @NotNull Location loc) {
@@ -266,5 +262,12 @@ public class DefaultProtection implements IslandProtection {
 				loc.getX() - (double) (HellblockPlugin.getInstance().getConfigManager().protectionRange() / 2),
 				world.getMinHeight(),
 				loc.getZ() - (double) (HellblockPlugin.getInstance().getConfigManager().protectionRange() / 2));
+	}
+
+	private @Nullable HellblockCuboid getHellblock(@NotNull UUID playerUUID) {
+		if (!HellblockPlugin.getInstance().getProtectionManager().getCachedHellblocks().containsKey(playerUUID))
+			return null;
+
+		return HellblockPlugin.getInstance().getProtectionManager().getCachedHellblocks().get(playerUUID);
 	}
 }

@@ -201,7 +201,7 @@ public class LavaFishingMechanic implements HookMechanic {
 		if (this.tempEntity != null && this.tempEntity.isValid()) {
 			this.tempEntity.remove();
 		}
-		if (this.task.isCancelled()) {
+		if (!this.task.isCancelled()) {
 			this.task.cancel();
 		}
 		freeze = false;

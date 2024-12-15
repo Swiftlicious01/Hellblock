@@ -91,7 +91,7 @@ public class BorderHandler implements Runnable {
 	}
 
 	public void cancelBorderShowcase() {
-		if (this.cancellableTask.isCancelled())
+		if (!this.cancellableTask.isCancelled())
 			this.cancellableTask.cancel();
 	}
 

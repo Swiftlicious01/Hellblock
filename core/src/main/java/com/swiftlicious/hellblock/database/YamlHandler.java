@@ -343,8 +343,8 @@ public class YamlHandler extends AbstractStorage {
 	}
 
 	private StatisticData getStatistics(Section section) {
-		HashMap<String, Integer> amountMap = new HashMap<>();
-		HashMap<String, Float> sizeMap = new HashMap<>();
+		Map<String, Integer> amountMap = new HashMap<>();
+		Map<String, Float> sizeMap = new HashMap<>();
 		if (section == null) {
 			return new StatisticData(amountMap, sizeMap);
 		}

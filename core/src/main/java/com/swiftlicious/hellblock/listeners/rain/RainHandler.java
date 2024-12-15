@@ -126,13 +126,13 @@ public class RainHandler implements Reloadable {
 	}
 
 	public class LavaRainLocation {
+		private World world;
 		private final int x1;
 		private final int x2;
 		private final int y1;
 		private final int y2;
 		private final int z1;
 		private final int z2;
-		private World world;
 
 		public LavaRainLocation(@NotNull Location min, @NotNull Location max) {
 			this.x1 = Math.min(min.getBlockX(), max.getBlockX());

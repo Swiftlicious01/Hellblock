@@ -149,14 +149,14 @@ public class LevelHandler implements Listener {
 						if (result.isEmpty())
 							return;
 						UserData offlineUser = result.get();
-						if (!offlineUser.getHellblockData().getEntireParty().getIslandMembers().contains(id))
+						if (!offlineUser.getHellblockData().getIslandMembers().contains(id))
 							return;
 
 						Material material = block.getType();
 						EntityType entity = null;
 						if (material == Material.SPAWNER) {
 							CreatureSpawner spawner = (CreatureSpawner) block.getState();
-							entity = spawner.getSpawnedType();
+							entity = spawner.getSpawnedType() != null ? spawner.getSpawnedType() : null;
 						}
 						int x = block.getLocation().getBlockX();
 						int y = block.getLocation().getBlockY();
@@ -191,14 +191,14 @@ public class LevelHandler implements Listener {
 						if (result.isEmpty())
 							return;
 						UserData offlineUser = result.get();
-						if (!offlineUser.getHellblockData().getEntireParty().getIslandMembers().contains(id))
+						if (!offlineUser.getHellblockData().getIslandMembers().contains(id))
 							return;
 
 						Material material = block.getType();
 						EntityType entity = null;
 						if (material == Material.SPAWNER) {
 							CreatureSpawner spawner = (CreatureSpawner) block.getState();
-							entity = spawner.getSpawnedType();
+							entity = spawner.getSpawnedType() != null ? spawner.getSpawnedType() : null;
 						}
 						int x = block.getLocation().getBlockX();
 						int y = block.getLocation().getBlockY();
@@ -227,55 +227,60 @@ public class LevelHandler implements Listener {
 
 	@EventHandler
 	public void onLevelExplode(BlockExplodeEvent event) {
-		final Block block = event.getBlock();
-		if (!instance.getHellblockHandler().isInCorrectWorld(block.getWorld()))
-			return;
+		final List<Block> blocks = event.blockList();
+		for (Block block : blocks) {
+			if (!instance.getHellblockHandler().isInCorrectWorld(block.getWorld()))
+				continue;
 
-		Collection<Entity> playersNearby = block.getWorld().getNearbyEntities(block.getLocation(), 25, 25, 25).stream()
-				.filter(e -> e.getType() == EntityType.PLAYER).toList();
-		Player player = instance.getNetherrackGeneratorHandler().getClosestPlayer(block.getLocation(), playersNearby);
-		if (player != null) {
-			final UUID id = player.getUniqueId();
-			instance.getCoopManager().getHellblockOwnerOfVisitingIsland(player).thenAccept(ownerUUID -> {
-				if (ownerUUID == null)
-					return;
-				instance.getStorageManager().getOfflineUserData(ownerUUID, instance.getConfigManager().lockData())
-						.thenAccept((result) -> {
-							if (result.isEmpty())
-								return;
-							UserData offlineUser = result.get();
-							if (!offlineUser.getHellblockData().getEntireParty().getIslandMembers().contains(id))
-								return;
+			Collection<Entity> playersNearby = block.getWorld().getNearbyEntities(block.getLocation(), 25, 25, 25)
+					.stream().filter(e -> e.getType() == EntityType.PLAYER).toList();
+			Player player = instance.getNetherrackGeneratorHandler().getClosestPlayer(block.getLocation(),
+					playersNearby);
+			if (player != null) {
+				final UUID id = player.getUniqueId();
+				instance.getCoopManager().getHellblockOwnerOfVisitingIsland(player).thenAccept(ownerUUID -> {
+					if (ownerUUID == null)
+						return;
+					instance.getStorageManager().getOfflineUserData(ownerUUID, instance.getConfigManager().lockData())
+							.thenAccept((result) -> {
+								if (result.isEmpty())
+									return;
+								UserData offlineUser = result.get();
+								if (!offlineUser.getHellblockData().getIslandMembers().contains(id))
+									return;
 
-							Material material = block.getType();
-							EntityType entity = null;
-							if (material == Material.SPAWNER) {
-								CreatureSpawner spawner = (CreatureSpawner) block.getState();
-								entity = spawner.getSpawnedType();
-							}
-							int x = block.getLocation().getBlockX();
-							int y = block.getLocation().getBlockY();
-							int z = block.getLocation().getBlockZ();
-							if (getLevelBlockList().contains(Pair.of(material, entity))) {
-								if (!this.placedByPlayerCache.containsKey(id))
-									return;
-								LevelBlockCache levelBlockUpdate = this.placedByPlayerCache
-										.get(id).stream().filter(cache -> cache.getMaterial() == material
-												&& cache.getX() == x && cache.getY() == y && cache.getZ() == z)
-										.findFirst().orElse(null);
-								if (levelBlockUpdate == null)
-									return;
-								levelBlockUpdate.setIfPlacedByPlayer((this.placedByPlayerCache.containsKey(id)
-										&& this.placedByPlayerCache.get(id) != null
-										&& this.placedByPlayerCache.get(id).contains(levelBlockUpdate)));
-								updateLevelFromBlockChange(id, offlineUser.getHellblockData(), levelBlockUpdate, false);
-								if (this.placedByPlayerCache.containsKey(id) && this.placedByPlayerCache.get(id) != null
-										&& this.placedByPlayerCache.get(id).contains(levelBlockUpdate)) {
-									this.placedByPlayerCache.get(id).remove(levelBlockUpdate);
+								Material material = block.getType();
+								EntityType entity = null;
+								if (material == Material.SPAWNER) {
+									CreatureSpawner spawner = (CreatureSpawner) block.getState();
+									entity = spawner.getSpawnedType() != null ? spawner.getSpawnedType() : null;
 								}
-							}
-						});
-			});
+								int x = block.getLocation().getBlockX();
+								int y = block.getLocation().getBlockY();
+								int z = block.getLocation().getBlockZ();
+								if (getLevelBlockList().contains(Pair.of(material, entity))) {
+									if (!this.placedByPlayerCache.containsKey(id))
+										return;
+									LevelBlockCache levelBlockUpdate = this.placedByPlayerCache
+											.get(id).stream().filter(cache -> cache.getMaterial() == material
+													&& cache.getX() == x && cache.getY() == y && cache.getZ() == z)
+											.findFirst().orElse(null);
+									if (levelBlockUpdate == null)
+										return;
+									levelBlockUpdate.setIfPlacedByPlayer((this.placedByPlayerCache.containsKey(id)
+											&& this.placedByPlayerCache.get(id) != null
+											&& this.placedByPlayerCache.get(id).contains(levelBlockUpdate)));
+									updateLevelFromBlockChange(id, offlineUser.getHellblockData(), levelBlockUpdate,
+											false);
+									if (this.placedByPlayerCache.containsKey(id)
+											&& this.placedByPlayerCache.get(id) != null
+											&& this.placedByPlayerCache.get(id).contains(levelBlockUpdate)) {
+										this.placedByPlayerCache.get(id).remove(levelBlockUpdate);
+									}
+								}
+							});
+				});
+			}
 		}
 	}
 
@@ -298,14 +303,14 @@ public class LevelHandler implements Listener {
 							if (result.isEmpty())
 								return;
 							UserData offlineUser = result.get();
-							if (!offlineUser.getHellblockData().getEntireParty().getIslandMembers().contains(id))
+							if (!offlineUser.getHellblockData().getIslandMembers().contains(id))
 								return;
 
 							Material material = block.getType();
 							EntityType entity = null;
 							if (material == Material.SPAWNER) {
 								CreatureSpawner spawner = (CreatureSpawner) block.getState();
-								entity = spawner.getSpawnedType();
+								entity = spawner.getSpawnedType() != null ? spawner.getSpawnedType() : null;
 							}
 							int x = block.getLocation().getBlockX();
 							int y = block.getLocation().getBlockY();

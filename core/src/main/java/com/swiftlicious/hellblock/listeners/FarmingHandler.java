@@ -415,26 +415,28 @@ public class FarmingHandler implements Listener, Reloadable {
 
 	@EventHandler
 	public void onBlockExplode(BlockExplodeEvent event) {
-		final Block block = event.getBlock();
-		if (!instance.getHellblockHandler().isInCorrectWorld(block.getWorld()))
-			return;
+		final List<Block> blocks = event.blockList();
+		for (Block block : blocks) {
+			if (!instance.getHellblockHandler().isInCorrectWorld(block.getWorld()))
+				continue;
 
-		if (block.getBlockData() instanceof Farmland) {
-			Collection<Entity> playersNearby = block.getWorld().getNearbyEntities(block.getLocation(), 25, 25, 25)
-					.stream().filter(e -> e.getType() == EntityType.PLAYER).toList();
-			Player player = instance.getNetherrackGeneratorHandler().getClosestPlayer(block.getLocation(),
-					playersNearby);
-			if (player != null) {
-				updateCrops(block.getWorld(), player);
-			}
-			if (this.blockCache.containsKey(block.getLocation())) {
-				this.blockCache.remove(block.getLocation());
-			}
-			if (this.revertCache.containsKey(block.getLocation())) {
-				this.revertCache.remove(block.getLocation());
-			}
-			if (this.moistureCache.containsKey(block.getLocation())) {
-				this.moistureCache.remove(block.getLocation());
+			if (block.getBlockData() instanceof Farmland) {
+				Collection<Entity> playersNearby = block.getWorld().getNearbyEntities(block.getLocation(), 25, 25, 25)
+						.stream().filter(e -> e.getType() == EntityType.PLAYER).toList();
+				Player player = instance.getNetherrackGeneratorHandler().getClosestPlayer(block.getLocation(),
+						playersNearby);
+				if (player != null) {
+					updateCrops(block.getWorld(), player);
+				}
+				if (this.blockCache.containsKey(block.getLocation())) {
+					this.blockCache.remove(block.getLocation());
+				}
+				if (this.revertCache.containsKey(block.getLocation())) {
+					this.revertCache.remove(block.getLocation());
+				}
+				if (this.moistureCache.containsKey(block.getLocation())) {
+					this.moistureCache.remove(block.getLocation());
+				}
 			}
 		}
 	}

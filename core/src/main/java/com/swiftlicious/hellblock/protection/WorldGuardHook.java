@@ -302,9 +302,8 @@ public class WorldGuardHook implements IslandProtection {
 	@Override
 	public void lockHellblock(@NotNull World world, @NotNull UserData owner) {
 		ProtectedRegion region = getRegion(world, owner.getUUID(), owner.getHellblockData().getID());
-		if (region == null) {
+		if (region == null)
 			throw new NullPointerException("Region returned null.");
-		}
 		region.setFlag(convertToWorldGuardFlag(HellblockFlag.FlagType.ENTRY),
 				(!owner.getHellblockData().isLocked() ? null : StateFlag.State.DENY));
 	}
@@ -336,17 +335,15 @@ public class WorldGuardHook implements IslandProtection {
 	@Override
 	public void changeHellblockFlag(@NotNull World world, @NotNull UserData owner, @NotNull HellblockFlag flag) {
 		ProtectedRegion region = getRegion(world, owner.getUUID(), owner.getHellblockData().getID());
-		if (region == null) {
+		if (region == null)
 			throw new NullPointerException("Region returned null.");
-		}
 		if (convertToWorldGuardFlag(flag.getFlag()) != null)
 			region.setFlag(convertToWorldGuardFlag(flag.getFlag()),
 					(flag.getStatus() == AccessType.ALLOW ? null : StateFlag.State.DENY));
 	}
 
 	@Override
-	public CompletableFuture<Set<UUID>> getMembersOfHellblockBounds(@NotNull World world, @NotNull UUID ownerID,
-			@NotNull UUID id) {
+	public CompletableFuture<Set<UUID>> getMembersOfHellblockBounds(@NotNull World world, @NotNull UUID ownerID) {
 		CompletableFuture<Set<UUID>> members = new CompletableFuture<>();
 		HellblockPlugin.getInstance().getStorageManager()
 				.getOfflineUserData(ownerID, HellblockPlugin.getInstance().getConfigManager().lockData())
@@ -357,7 +354,7 @@ public class WorldGuardHook implements IslandProtection {
 					ProtectedRegion region = getRegion(world, ownerID, offlineUser.getHellblockData().getID());
 					if (region == null)
 						throw new NullPointerException(
-								String.format("Could not get the WorldGuard region for the player: %s", id));
+								String.format("Could not get the WorldGuard region for the player: %s", ownerID));
 					members.complete(region.getMembers().getUniqueIds());
 				});
 		return members;

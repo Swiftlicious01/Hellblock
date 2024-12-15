@@ -119,7 +119,7 @@ public class AnimalHandler implements Runnable {
 	}
 
 	public void stopAnimalSpawning() {
-		if (this.cancellableTask.isCancelled())
+		if (!this.cancellableTask.isCancelled())
 			this.cancellableTask.cancel();
 	}
 }

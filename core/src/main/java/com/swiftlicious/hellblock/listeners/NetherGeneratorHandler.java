@@ -313,17 +313,19 @@ public class NetherGeneratorHandler implements Listener {
 
 	@EventHandler
 	public void onBlockExplode(BlockExplodeEvent event) {
-		if (!instance.getHellblockHandler().isInCorrectWorld(event.getBlock().getWorld()))
-			return;
 		if (!instance.getConfigManager().pistonAutomation())
 			return;
-		if (event.getBlock().getType() != Material.PISTON)
-			return;
+		for (Block block : event.blockList()) {
+			if (!instance.getHellblockHandler().isInCorrectWorld(block.getWorld()))
+				continue;
+			if (block.getType() != Material.PISTON)
+				continue;
 
-		Location location = event.getBlock().getLocation();
-		if (genManager.getKnownGenPistons().containsKey(location)) {
-			genManager.getKnownGenPistons().remove(location);
-			return;
+			Location location = block.getLocation();
+			if (genManager.getKnownGenPistons().containsKey(location)) {
+				genManager.getKnownGenPistons().remove(location);
+				return;
+			}
 		}
 	}
 

@@ -35,74 +35,77 @@ public class BiomeHandler {
 	}
 
 	public void changeHellblockBiome(@NotNull UserData user, @NotNull HellBiome biome, boolean performedByGUI) {
+		if (!user.isOnline())
+			throw new NullPointerException("Player object returned null, please report this to the developer.");
+
 		Player player = user.getPlayer();
-		if (player != null) {
-			Audience audience = instance.getSenderFactory().getAudience(player);
-			if (!user.getHellblockData().hasHellblock()) {
-				audience.sendMessage(
-						instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_NOT_FOUND.build()));
-				return;
-			}
-			if (user.getHellblockData().isAbandoned()) {
-				audience.sendMessage(
-						instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_IS_ABANDONED.build()));
-				return;
-			}
-			if (user.getHellblockData().getOwnerUUID() == null) {
-				throw new NullPointerException("Owner reference returned null, please report this to the developer.");
-			}
-			if (user.getHellblockData().getOwnerUUID() != null
-					&& !user.getHellblockData().getOwnerUUID().equals(player.getUniqueId())) {
-				audience.sendMessage(
-						instance.getTranslationManager().render(MessageConstants.MSG_NOT_OWNER_OF_HELLBLOCK.build()));
-				return;
-			}
-			if (user.getHellblockData().getBiomeCooldown() > 0) {
-				audience.sendMessage(instance.getTranslationManager()
-						.render(MessageConstants.MSG_HELLBLOCK_BIOME_ON_COOLDOWN
-								.arguments(AdventureHelper.miniMessage(
-										instance.getFormattedCooldown(user.getHellblockData().getBiomeCooldown())))
-								.build()));
-				return;
-			}
+		Audience audience = instance.getSenderFactory().getAudience(player);
 
-			if (player.getLocation() != null
-					&& !user.getHellblockData().getBoundingBox().contains(player.getLocation().getBlockX(),
-							player.getLocation().getBlockY(), player.getLocation().getBlockZ())) {
-				audience.sendMessage(instance.getTranslationManager()
-						.render(MessageConstants.MSG_HELLBLOCK_MUST_BE_ON_ISLAND.build()));
-				return;
-			}
-
-			if (user.getHellblockData().getHomeLocation().getBlock().getBiome().getKey().getKey()
-					.equalsIgnoreCase(biome.toString().toLowerCase())) {
-				audience.sendMessage(
-						instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_BIOME_SAME_BIOME
-								.arguments(AdventureHelper.miniMessage(biome.getName())).build()));
-				return;
-			}
-
-			if (!performedByGUI && instance.getBiomeGUIManager().getBiomeRequirements(biome) != null) {
-				if (!RequirementManager.isSatisfied(Context.player(player),
-						instance.getBiomeGUIManager().getBiomeRequirements(biome))) {
-					return;
-				}
-			}
-
-			Optional<HellblockWorld<?>> world = instance.getWorldManager()
-					.getWorld(instance.getWorldManager().getHellblockWorldFormat(user.getHellblockData().getID()));
-			if (world.isEmpty() || world.get() == null)
-				throw new NullPointerException(
-						"World returned null, please try to regenerate the world before reporting this issue.");
-			World bukkitWorld = world.get().bukkitWorld();
-
-			setHellblockBiome(bukkitWorld, user.getHellblockData().getBoundingBox(), biome.getConvertedBiome());
-
-			user.getHellblockData().setBiome(biome);
-			user.getHellblockData().setBiomeCooldown(86400L);
-			audience.sendMessage(instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_BIOME_CHANGED
-					.arguments(AdventureHelper.miniMessage(biome.getName())).build()));
+		if (!user.getHellblockData().hasHellblock()) {
+			audience.sendMessage(
+					instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_NOT_FOUND.build()));
+			return;
 		}
+
+		if (user.getHellblockData().isAbandoned()) {
+			audience.sendMessage(
+					instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_IS_ABANDONED.build()));
+			return;
+		}
+
+		if (user.getHellblockData().getOwnerUUID() == null)
+			throw new NullPointerException("Owner reference returned null, please report this to the developer.");
+
+		if (user.getHellblockData().getOwnerUUID() != null
+				&& !user.getHellblockData().getOwnerUUID().equals(player.getUniqueId())) {
+			audience.sendMessage(
+					instance.getTranslationManager().render(MessageConstants.MSG_NOT_OWNER_OF_HELLBLOCK.build()));
+			return;
+		}
+		if (user.getHellblockData().getBiomeCooldown() > 0) {
+			audience.sendMessage(instance.getTranslationManager()
+					.render(MessageConstants.MSG_HELLBLOCK_BIOME_ON_COOLDOWN
+							.arguments(AdventureHelper.miniMessage(
+									instance.getFormattedCooldown(user.getHellblockData().getBiomeCooldown())))
+							.build()));
+			return;
+		}
+
+		if (player.getLocation() != null
+				&& !user.getHellblockData().getBoundingBox().contains(player.getLocation().getBlockX(),
+						player.getLocation().getBlockY(), player.getLocation().getBlockZ())) {
+			audience.sendMessage(
+					instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_MUST_BE_ON_ISLAND.build()));
+			return;
+		}
+
+		if (user.getHellblockData().getHomeLocation().getBlock().getBiome().getKey().getKey()
+				.equalsIgnoreCase(biome.toString().toLowerCase())) {
+			audience.sendMessage(instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_BIOME_SAME_BIOME
+					.arguments(AdventureHelper.miniMessage(biome.getName())).build()));
+			return;
+		}
+
+		if (!performedByGUI && instance.getBiomeGUIManager().getBiomeRequirements(biome) != null) {
+			if (!RequirementManager.isSatisfied(Context.player(player),
+					instance.getBiomeGUIManager().getBiomeRequirements(biome))) {
+				return;
+			}
+		}
+
+		Optional<HellblockWorld<?>> world = instance.getWorldManager()
+				.getWorld(instance.getWorldManager().getHellblockWorldFormat(user.getHellblockData().getID()));
+		if (world.isEmpty() || world.get() == null)
+			throw new NullPointerException(
+					"World returned null, please try to regenerate the world before reporting this issue.");
+		World bukkitWorld = world.get().bukkitWorld();
+
+		setHellblockBiome(bukkitWorld, user.getHellblockData().getBoundingBox(), biome.getConvertedBiome());
+
+		user.getHellblockData().setBiome(biome);
+		user.getHellblockData().setBiomeCooldown(86400L);
+		audience.sendMessage(instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_BIOME_CHANGED
+				.arguments(AdventureHelper.miniMessage(biome.getName())).build()));
 	}
 
 	public void setHellblockBiome(@NotNull World world, @NotNull BoundingBox bounds, @NotNull Biome biome) {

@@ -280,7 +280,7 @@ public class LavaRainTask implements Runnable {
 	 * Cancels the rain animation and cleans up resources.
 	 */
 	public void cancelAnimation() {
-		if (this.cancellableTask.isCancelled())
+		if (!this.cancellableTask.isCancelled())
 			this.cancellableTask.cancel();
 		this.isRaining = false;
 		this.howLongRainLasts = 0L;
