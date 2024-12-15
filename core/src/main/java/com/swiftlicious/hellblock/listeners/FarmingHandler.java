@@ -34,6 +34,7 @@ import org.bukkit.entity.FallingBlock;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
 import org.bukkit.event.Event.Result;
 import org.bukkit.event.block.BlockBreakEvent;
@@ -103,6 +104,7 @@ public class FarmingHandler implements Listener, Reloadable {
 
 	@Override
 	public void unload() {
+		HandlerList.unregisterAll(this);
 		blockCache.clear();
 		moistureCache.clear();
 		revertCache.clear();

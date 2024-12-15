@@ -10,7 +10,6 @@ repositories {
     maven { url = 'https://libraries.minecraft.net' } // authlib
     maven { url = 'https://repo.papermc.io/repository/maven-public/' } // folia
     maven { url = 'https://mvn.lumine.io/repository/maven-public/' } // mythicmobs
-    maven { url = 'https://repo.onarandombox.com/content/groups/public/' } // multiverse-core
     maven { url = 'https://hub.spigotmc.org/nexus/content/repositories/snapshots/' } // spigot
     maven { url = 'https://repo.glaremasters.me/repository/concuncan/' } // slimeworldmanager
     maven { url = 'https://repo.infernalsuite.com/repository/maven-snapshots/' } // advancedslimepaper

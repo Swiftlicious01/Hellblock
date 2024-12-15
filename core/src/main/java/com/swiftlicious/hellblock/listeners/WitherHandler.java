@@ -178,38 +178,17 @@ public class WitherHandler implements Listener {
 
 	private @NotNull WitherStats getWitherStats() {
 		if (!instance.getConfigManager().randomStats())
-			return new WitherStats(getWitherHealth(), getWitherStrength());
+			return new WitherStats(instance.getConfigManager().defaultHealth(),
+					instance.getConfigManager().defaultStrength());
 		else {
-			int randomHealth = RandomUtils.generateRandomInt(getWitherHealthRangeMin(), getWitherHealthRangeMax());
-			double randomStrength = getWitherStrengthRangeMin()
-					+ (getWitherStrengthRangeMax() - getWitherStrengthRangeMin()) * RandomUtils.generateRandomDouble();
+			int randomHealth = RandomUtils.generateRandomInt(instance.getConfigManager().randomMinHealth(),
+					instance.getConfigManager().randomMaxHealth());
+			double randomStrength = instance.getConfigManager().randomMinStrength()
+					+ (instance.getConfigManager().randomMaxStrength()
+							- instance.getConfigManager().randomMinStrength()) * RandomUtils.generateRandomDouble();
 
 			return new WitherStats(randomHealth, randomStrength);
 		}
-	}
-
-	public double getWitherStrength() {
-		return instance.getConfigManager().defaultStrength();
-	}
-
-	public int getWitherHealth() {
-		return instance.getConfigManager().defaultHealth();
-	}
-
-	public int getWitherHealthRangeMin() {
-		return instance.getConfigManager().randomMinHealth();
-	}
-
-	public int getWitherHealthRangeMax() {
-		return instance.getConfigManager().randomMaxHealth();
-	}
-
-	public double getWitherStrengthRangeMin() {
-		return instance.getConfigManager().randomMinStrength();
-	}
-
-	public double getWitherStrengthRangeMax() {
-		return instance.getConfigManager().randomMaxStrength();
 	}
 
 	private class CustomWither {

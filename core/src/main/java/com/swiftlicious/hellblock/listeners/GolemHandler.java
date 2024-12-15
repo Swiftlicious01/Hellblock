@@ -42,7 +42,7 @@ public class GolemHandler implements Listener {
 		Bukkit.getPluginManager().registerEvents(this, instance);
 	}
 
-	public List<Block> checkHellGolemBuild(@NotNull Location location) {
+	private List<Block> checkHellGolemBuild(@NotNull Location location) {
 		if (location.getWorld() == null)
 			return new ArrayList<>();
 		if (!instance.getHellblockHandler().isInCorrectWorld(location.getWorld()))
@@ -110,7 +110,7 @@ public class GolemHandler implements Listener {
 		return blocks;
 	}
 
-	public void spawnHellGolem(@NotNull Player player, @NotNull UUID id, @NotNull Location location) {
+	private void spawnHellGolem(@NotNull Player player, @NotNull UUID id, @NotNull Location location) {
 		if (location.getWorld() == null)
 			return;
 		if (!instance.getHellblockHandler().isInCorrectWorld(location.getWorld()))
@@ -138,17 +138,17 @@ public class GolemHandler implements Listener {
 						if (onlineUser.isEmpty() || onlineUser.get().getPlayer() == null
 								|| !onlineUser.get().getHellblockData().hasHellblock())
 							return;
-						if (!onlineUser.get().getChallengeData().isChallengeActive(instance.getChallengeManager().getByActionType(ActionType.SPAWN))
-								&& !onlineUser.get().getChallengeData()
-										.isChallengeCompleted(instance.getChallengeManager().getByActionType(ActionType.SPAWN))) {
+						if (!onlineUser.get().getChallengeData()
+								.isChallengeActive(instance.getChallengeManager().getByActionType(ActionType.SPAWN))
+								&& !onlineUser.get().getChallengeData().isChallengeCompleted(
+										instance.getChallengeManager().getByActionType(ActionType.SPAWN))) {
 							onlineUser.get().getChallengeData().beginChallengeProgression(onlineUser.get().getPlayer(),
 									instance.getChallengeManager().getByActionType(ActionType.SPAWN));
 						} else {
 							onlineUser.get().getChallengeData().updateChallengeProgression(onlineUser.get().getPlayer(),
 									instance.getChallengeManager().getByActionType(ActionType.SPAWN), 1);
-							if (onlineUser.get().getChallengeData()
-									.isChallengeCompleted(
-											instance.getChallengeManager().getByActionType(ActionType.SPAWN))) {
+							if (onlineUser.get().getChallengeData().isChallengeCompleted(
+									instance.getChallengeManager().getByActionType(ActionType.SPAWN))) {
 								onlineUser.get().getChallengeData().completeChallenge(onlineUser.get().getPlayer(),
 										instance.getChallengeManager().getByActionType(ActionType.SPAWN));
 							}
@@ -174,9 +174,12 @@ public class GolemHandler implements Listener {
 	@EventHandler
 	public void onPistonPushCreationOfHellGolem(BlockPistonExtendEvent event) {
 		final List<Block> blocks = event.getBlocks();
+		if (blocks.isEmpty())
+			return;
+
 		for (final Block block : blocks) {
 			if (!instance.getHellblockHandler().isInCorrectWorld(block.getWorld()))
-				return;
+				continue;
 
 			Collection<Entity> playersNearby = block.getWorld().getNearbyEntities(block.getLocation(), 25, 25, 25)
 					.stream().filter(e -> e.getType() == EntityType.PLAYER).toList();

@@ -358,8 +358,7 @@ public class IslandGenerator {
 			TextValue<Player> customChestName = TextValue.auto("<!i><black>" + chestName);
 			chestTag.setCustomName(
 					AdventureHelper.componentToJson(AdventureHelper.miniMessage(customChestName.render(context))));
-			chestTag.update();
-			chestTag.load();
+			chest = (Chest) chestTag.load().getState();
 		}
 		Inventory inventory = chest.getInventory();
 		inventory.clear();
@@ -368,9 +367,9 @@ public class IslandGenerator {
 		for (Pair<Integer, CustomItem> entry : instance.getConfigManager().chestItems().values()) {
 			ItemStack data = setChestData(entry.right().build(context), true);
 			int slot = entry.left();
-			if (slot >= 0 && slot <= 26) {
+			if (slot >= 0 && slot <= 26)
 				inventory.setItem(slot, data);
-			} else {
+			else {
 				if (inventory.firstEmpty() != -1)
 					inventory.addItem(data);
 				else

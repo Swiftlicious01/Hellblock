@@ -103,11 +103,11 @@ hellblock:
   max-party-size: 20
   # Can be internalAsync (for us to handle it), fawe or worldedit  
   schematic-paster: worldedit
-  # You must add all schematic types (without the .schem or .schematic file type at the end) you want as an option here to be available.
+  # You must add schematic as an option if you want all of the schematics in your "schematics" folder to appear as a choice to choose from.
   island-options:
     - 'default'
     - 'classic'
-    - 'example'
+    - 'schematic'
   # The starting height for each hellblock. This will be the height a spawn point is set per hellblock when creating a island.
   height: 150
   # The distance between each hellblock. This is only accounted for when all hellblocks are stored in one world. Otherwise this is ignored.

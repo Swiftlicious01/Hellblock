@@ -235,7 +235,7 @@ public class ConfigManager extends ConfigHandler {
 				} else {
 					material = Material.getMaterial(entry.getKey().toUpperCase());
 				}
-				if (material != null && level > 0.0F)
+				if (material != null && material.isBlock() && level > 0.0F)
 					levelSystem.putIfAbsent(i++, Tuple.of(material, entity, level));
 			}
 		}
@@ -295,7 +295,11 @@ public class ConfigManager extends ConfigHandler {
 
 		lavaFishingEnabled = config.getBoolean("lava-fishing-options.enable", true);
 		lavaMinTime = config.getInt("lava-fishing-options.lava-fishing.min-wait-time", 100);
+		if (lavaMinTime < 0)
+			lavaMinTime = 0;
 		lavaMaxTime = config.getInt("lava-fishing-options.lava-fishing.max-wait-time", 600);
+		if (lavaMaxTime < 0)
+			lavaMaxTime = 0;
 
 		restrictedSizeRange = config.getBoolean("lava-fishing-options.size.restricted-size-range", true);
 

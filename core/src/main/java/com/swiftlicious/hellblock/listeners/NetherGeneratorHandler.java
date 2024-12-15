@@ -6,7 +6,6 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -147,48 +146,44 @@ public class NetherGeneratorHandler implements Listener {
 					float soundVolume = 2F;
 					float pitch = 1F;
 					Material result = null;
-					Player breaker = Bukkit.getPlayer(uuid);
-					if (breaker != null) {
-						Context<Player> context = Context.player(breaker);
-						if (getRandomResult(context) != null) {
-							result = getRandomResult(context);
-						} else if (mode.hasFallBackMaterial()) {
-							result = mode.getFallbackMaterial();
-						} else {
-							mode.setFallbackMaterial(getResults(context).keySet().iterator().next());
-						}
+					Context<Player> context = Context.player(Bukkit.getPlayer(uuid));
 
-						GeneratorGenerateEvent genEvent = new GeneratorGenerateEvent(mode,
-								result != null ? result : getResults(context).keySet().iterator().next(), uuid,
-								toBlock.getLocation());
-						Bukkit.getPluginManager().callEvent(genEvent);
-						if (genEvent.isCancelled())
-							return;
-						event.setCancelled(true);
-						if (genEvent.getResult() == null) {
-							instance.getPluginLogger()
-									.severe(String.format("Unknown material: %s.", result.toString()));
-							return;
-						}
-						genEvent.getGenerationLocation().getBlock().setType(genEvent.getResult());
+					if (getRandomResult(context) != null) {
+						result = getRandomResult(context);
+					} else if (mode.hasFallBackMaterial()) {
+						result = mode.getFallbackMaterial();
+					} else {
+						result = getResults(context).keySet().iterator().next();
+					}
 
-						if (mode.hasGenSound()) {
-							for (Entity entity : l.getWorld()
-									.getNearbyEntities(l, instance.getConfigManager().searchRadius(),
-											instance.getConfigManager().searchRadius(),
-											instance.getConfigManager().searchRadius())
-									.stream().filter(e -> e.getType() == EntityType.PLAYER).toList()) {
-								if (entity instanceof Player player) {
-									Audience audience = instance.getSenderFactory().getAudience(player);
-									audience.playSound(Sound.sound(Key.key(mode.getGenSound()), Source.AMBIENT,
-											soundVolume, pitch));
-								}
+					GeneratorGenerateEvent genEvent = new GeneratorGenerateEvent(mode, result, uuid,
+							toBlock.getLocation());
+					Bukkit.getPluginManager().callEvent(genEvent);
+					if (genEvent.isCancelled())
+						return;
+					event.setCancelled(true);
+					if (genEvent.getResult() == null) {
+						instance.getPluginLogger().severe(String.format("Unknown material: %s.", result.toString()));
+						return;
+					}
+					genEvent.getGenerationLocation().getBlock().setType(genEvent.getResult());
+
+					if (mode.hasGenSound()) {
+						for (Entity entity : l.getWorld()
+								.getNearbyEntities(l, instance.getConfigManager().searchRadius(),
+										instance.getConfigManager().searchRadius(),
+										instance.getConfigManager().searchRadius())
+								.stream().filter(e -> e.getType() == EntityType.PLAYER).toList()) {
+							if (entity instanceof Player player) {
+								Audience audience = instance.getSenderFactory().getAudience(player);
+								audience.playSound(
+										Sound.sound(Key.key(mode.getGenSound()), Source.AMBIENT, soundVolume, pitch));
 							}
 						}
-
-						if (mode.hasParticleEffect())
-							mode.displayGenerationParticles(l);
 					}
+
+					if (mode.hasParticleEffect())
+						mode.displayGenerationParticles(l);
 				} else {
 					genManager.addKnownGenLocation(l);
 					return;
@@ -230,9 +225,9 @@ public class NetherGeneratorHandler implements Listener {
 
 	@EventHandler
 	public void onPistonPush(BlockPistonExtendEvent event) {
-		if (!instance.getHellblockHandler().isInCorrectWorld(event.getBlock().getWorld()))
-			return;
 		if (!instance.getConfigManager().pistonAutomation())
+			return;
+		if (!instance.getHellblockHandler().isInCorrectWorld(event.getBlock().getWorld()))
 			return;
 		if (!genManager.getKnownGenPistons().containsKey(event.getBlock().getLocation()))
 			return;
@@ -377,7 +372,8 @@ public class NetherGeneratorHandler implements Listener {
 
 	public @NotNull Map<Material, Double> getResults(@NotNull Context<Player> context) {
 		Map<Material, Double> results = new HashMap<>();
-		for (Entry<Material, MathValue<Player>> result : instance.getConfigManager().generationResults().entrySet()) {
+		for (Map.Entry<Material, MathValue<Player>> result : instance.getConfigManager().generationResults()
+				.entrySet()) {
 			Material type = result.getKey();
 			if (type == null || type == Material.AIR)
 				continue;

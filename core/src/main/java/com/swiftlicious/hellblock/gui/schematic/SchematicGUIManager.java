@@ -23,7 +23,6 @@ import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 
-import com.google.common.io.Files;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
 import com.swiftlicious.hellblock.config.parser.SingleItemParser;
@@ -303,17 +302,7 @@ public class SchematicGUIManager implements SchematicGUIManagerInterface, Listen
 	}
 
 	public boolean checkForSchematics() {
-		boolean schematicsAvailable = false;
-		for (IslandOptions list : instance.getConfigManager().islandOptions()) {
-			if (list.equals(IslandOptions.CLASSIC) || list.equals(IslandOptions.DEFAULT))
-				continue;
-			if (!instance.getSchematicManager().schematicFiles.keySet()
-					.contains(Files.getNameWithoutExtension(list.toString())))
-				continue;
-
-			schematicsAvailable = true;
-			break;
-		}
-		return schematicsAvailable;
+		return instance.getConfigManager().islandOptions().contains(IslandOptions.SCHEMATIC)
+				&& !instance.getSchematicManager().schematicFiles.keySet().isEmpty();
 	}
 }
