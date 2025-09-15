@@ -196,6 +196,12 @@ public class NMSUtils1_17_R1 implements NMSHandler {
 	}
 
 	@Override
+	public UUID getFishingHookOwner(FishHook hook) {
+		FishingHook fishingHook = ((CraftFishHook) hook).getHandle();
+		return fishingHook.ownerUUID;
+	}
+
+	@Override
 	public List<ItemStack> getFishingLoot(Player player, FishHook hook, ItemStack rod) {
 		Location location = hook.getLocation();
 		ServerLevel level = ((CraftWorld) location.getWorld()).getHandle();
@@ -311,7 +317,7 @@ public class NMSUtils1_17_R1 implements NMSHandler {
 			serverPlayer.connection.send(packet);
 		}
 	}
-
+	
 	@Override
 	public FakeArmorStand createFakeArmorStand(Location location) {
 		return new ArmorStandInstance(location);

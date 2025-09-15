@@ -214,15 +214,15 @@ public class HellblockData {
 		return this.home;
 	}
 
-	public @Nullable Set<UUID> getParty() {
+	public @NotNull Set<UUID> getParty() {
 		return this.party;
 	}
 
-	public @Nullable Set<UUID> getTrusted() {
+	public @NotNull Set<UUID> getTrusted() {
 		return this.trusted;
 	}
 
-	public @Nullable Set<UUID> getBanned() {
+	public @NotNull Set<UUID> getBanned() {
 		return this.banned;
 	}
 
@@ -237,7 +237,7 @@ public class HellblockData {
 		return members;
 	}
 
-	public @Nullable Map<UUID, Long> getInvitations() {
+	public @NotNull Map<UUID, Long> getInvitations() {
 		return this.invitations;
 	}
 
@@ -269,7 +269,7 @@ public class HellblockData {
 		return expired;
 	}
 
-	public @Nullable Map<FlagType, AccessType> getProtectionFlags() {
+	public @NotNull Map<FlagType, AccessType> getProtectionFlags() {
 		return this.flags;
 	}
 

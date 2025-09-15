@@ -2,6 +2,7 @@ package com.swiftlicious.hellblock.nms;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import org.bukkit.Location;
 import org.bukkit.entity.FishHook;
@@ -81,6 +82,14 @@ public interface NMSHandler {
 	 * @return whether or not the hook is bit.
 	 */
 	abstract boolean isFishingHookBit(FishHook hook);
+	
+	/**
+	 * Gets the UUID of the owner of the given fish hook.
+	 * 
+	 * @param hook the hook to check for the owner of.
+	 * @return the uuid of the fish hook's holder.F
+	 */
+	abstract UUID getFishingHookOwner(FishHook hook);
 
 	/**
 	 * Sets the vanilla fishing wait time.
@@ -171,7 +180,7 @@ public interface NMSHandler {
 	 * @return the id of the itemstack.
 	 */
 	abstract int dropFakeItem(Player player, ItemStack itemStack, Location location);
-
+	
 	/**
 	 * Creates a fake armor stand.
 	 * 

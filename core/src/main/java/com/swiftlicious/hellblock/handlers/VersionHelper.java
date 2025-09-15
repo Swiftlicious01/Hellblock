@@ -67,9 +67,9 @@ public class VersionHelper {
 		String[] split = serverVersion.split("\\.");
 		version = Float.parseFloat(split[1] + "." + (split.length == 3 ? split[2] : "0"));
 
-		supportedVersions = List.of("1.17", "1.17.1", "1.18", "1.18.1", "1.18.2", "1.19", "1.19.1", "1.19.2", "1.19.3",
+		supportedVersions = List.of("1.17.1", "1.18", "1.18.1", "1.18.2", "1.19", "1.19.1", "1.19.2", "1.19.3",
 				"1.19.4", "1.20", "1.20.1", "1.20.2", "1.20.3", "1.20.4", "1.20.5", "1.20.6", "1.21", "1.21.1",
-				"1.21.2", "1.21.3", "1.21.4");
+				"1.21.2", "1.21.3", "1.21.4", "1.21.5", "1.21.6", "1.21.7", "1.21.8");
 
 		// Check if the server is Spigot or Paper
 		try {
@@ -102,6 +102,8 @@ public class VersionHelper {
 		String bukkitVersion = getServerVersion();
 		String packageName;
 		switch (bukkitVersion) {
+		case "1.21.6", "1.21.7", "1.21.8" -> packageName = "1_21_R5";
+		case "1.21.5" -> packageName = "1_21_R4";
 		case "1.21.4" -> packageName = "1_21_R3";
 		case "1.21.2", "1.21.3" -> packageName = "1_21_R2";
 		case "1.21", "1.21.1" -> packageName = "1_21_R1";
@@ -242,6 +244,22 @@ public class VersionHelper {
 
 	public static boolean isVersionNewerThan1_21_4() {
 		return version >= 21.39;
+	}
+
+	public static boolean isVersionNewerThan1_21_5() {
+		return version >= 21.49;
+	}
+
+	public static boolean isVersionNewerThan1_21_6() {
+		return version >= 21.59;
+	}
+
+	public static boolean isVersionNewerThan1_21_7() {
+		return version >= 21.69;
+	}
+
+	public static boolean isVersionNewerThan1_21_8() {
+		return version >= 21.79;
 	}
 
 	// Method to compare two version strings

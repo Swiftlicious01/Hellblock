@@ -37,6 +37,7 @@ import com.swiftlicious.hellblock.nms.entity.display.FakeTextDisplay;
 import com.swiftlicious.hellblock.nms.entity.firework.FakeFirework;
 import com.swiftlicious.hellblock.nms.fluid.FluidData;
 import com.swiftlicious.hellblock.nms.inventory.HandSlot;
+import com.swiftlicious.hellblock.nms.util.ReflectionUtils;
 import com.swiftlicious.hellblock.nms.util.SelfIncreaseEntityID;
 
 import io.netty.buffer.Unpooled;
@@ -104,8 +105,7 @@ public class NMSUtils1_21_R1 implements NMSHandler {
 	@SuppressWarnings("unchecked")
 	public NMSUtils1_21_R1() {
 		try {
-			Field dataBitingField = FishingHook.class.getDeclaredField("DATA_BITING");
-			dataBitingField.setAccessible(true);
+			Field dataBitingField = ReflectionUtils.getDeclaredField(FishingHook.class, EntityDataAccessor.class, 1);
 			dataBiting = (EntityDataAccessor<Boolean>) dataBitingField.get(null);
 		} catch (ReflectiveOperationException e) {
 			throw new RuntimeException("Failed to get hook biting state", e);
@@ -195,6 +195,12 @@ public class NMSUtils1_21_R1 implements NMSHandler {
 	public boolean isFishingHookBit(FishHook hook) {
 		FishingHook fishingHook = ((CraftFishHook) hook).getHandle();
 		return fishingHook.getEntityData().get(dataBiting);
+	}
+
+	@Override
+	public UUID getFishingHookOwner(FishHook hook) {
+		FishingHook fishingHook = ((CraftFishHook) hook).getHandle();
+		return fishingHook.ownerUUID;
 	}
 
 	@Override

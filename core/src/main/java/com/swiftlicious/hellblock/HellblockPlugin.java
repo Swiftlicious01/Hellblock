@@ -188,10 +188,10 @@ public class HellblockPlugin extends JavaPlugin {
 	public void onEnable() {
 		double startTime = System.currentTimeMillis();
 
-		// TODO: test support from 1.17 to 1.21
+		// TODO: test support from 1.17.1 to 1.21.8+
 		if (!VersionHelper.getSupportedVersions().contains(VersionHelper.getServerVersion())) {
 			getPluginLogger().severe(
-					"Hellblock only supports legacy versions down to 1.17. Please update your server to be able to properly use this plugin.");
+					"Hellblock only supports legacy versions down to 1.17.1. Please update your server to be able to properly use this plugin.");
 			getPluginLogger().severe("Disabling plugin...");
 			Bukkit.getPluginManager().disablePlugin(this);
 			return;
