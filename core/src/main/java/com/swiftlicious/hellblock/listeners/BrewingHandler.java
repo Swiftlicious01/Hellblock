@@ -45,6 +45,7 @@ import com.swiftlicious.hellblock.config.parser.SingleItemParser;
 import com.swiftlicious.hellblock.context.Context;
 import com.swiftlicious.hellblock.creation.item.CustomItem;
 import com.swiftlicious.hellblock.creation.item.Item;
+import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.handlers.VersionHelper;
 import com.swiftlicious.hellblock.nms.inventory.HandSlot;
 import com.swiftlicious.hellblock.player.UserData;
@@ -186,8 +187,8 @@ public class BrewingHandler implements Listener, Reloadable {
 				}
 				VersionHelper.getNMSManager().swingHand(player,
 						event.getHand() == EquipmentSlot.HAND ? HandSlot.MAIN : HandSlot.OFF);
-				instance.getSenderFactory().getAudience(player)
-						.playSound(Sound.sound(net.kyori.adventure.key.Key.key("minecraft:item.bottle.fill"),
+				AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
+						Sound.sound(net.kyori.adventure.key.Key.key("minecraft:item.bottle.fill"),
 								net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
 				player.updateInventory();
 				Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
@@ -247,8 +248,8 @@ public class BrewingHandler implements Listener, Reloadable {
 				}
 				VersionHelper.getNMSManager().swingHand(player,
 						event.getHand() == EquipmentSlot.HAND ? HandSlot.MAIN : HandSlot.OFF);
-				instance.getSenderFactory().getAudience(player)
-						.playSound(Sound.sound(net.kyori.adventure.key.Key.key("minecraft:item.bottle.fill"),
+				AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
+						Sound.sound(net.kyori.adventure.key.Key.key("minecraft:item.bottle.fill"),
 								net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
 				player.updateInventory();
 				clicked.setType(Material.CAULDRON);

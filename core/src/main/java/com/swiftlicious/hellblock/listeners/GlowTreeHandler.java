@@ -32,12 +32,13 @@ import org.jetbrains.annotations.NotNull;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.challenges.HellblockChallenge.ActionType;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
+import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.handlers.VersionHelper;
 import com.swiftlicious.hellblock.nms.inventory.HandSlot;
 import com.swiftlicious.hellblock.player.UserData;
+import com.swiftlicious.hellblock.sender.Sender;
 import com.swiftlicious.hellblock.utils.RandomUtils;
 
-import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.key.Key;
 import net.kyori.adventure.sound.Sound;
 import net.kyori.adventure.sound.Sound.Source;
@@ -186,15 +187,16 @@ public class GlowTreeHandler implements Listener {
 						inHand.setAmount(inHand.getAmount() > 1 ? inHand.getAmount() - 1 : 0);
 					if (randomChance == RandomUtils.generateRandomInt(2, 3)) {
 						block.getRelative(BlockFace.UP).setType(RandomUtils.pickRandomSapling());
-						Audience audience = instance.getSenderFactory().getAudience(player);
+						Sender audience = instance.getSenderFactory().wrap(player);
 						audience.sendMessage(instance.getTranslationManager()
 								.render(MessageConstants.MSG_HELLBLOCK_GROWING_GLOWSTONE_TREE.build()));
-						audience.playSound(
+						AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
 								Sound.sound(Key.key("minecraft:block.grass.place"), Source.PLAYER, 1.0F, 1.0F));
 					}
 				}
 			}
 
+			// bonemeal a sapling on soul sand to grow a glowstone tree
 			if (block.getRelative(BlockFace.DOWN).getType() == Material.SOUL_SAND
 					&& Tag.SAPLINGS.isTagged(block.getType())) {
 				if (inHand.getType() == Material.FLINT) {

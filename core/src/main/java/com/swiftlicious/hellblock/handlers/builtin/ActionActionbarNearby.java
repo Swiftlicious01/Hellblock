@@ -8,11 +8,11 @@ import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.context.Context;
 import com.swiftlicious.hellblock.context.ContextKeys;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
+import com.swiftlicious.hellblock.handlers.VersionHelper;
 import com.swiftlicious.hellblock.utils.LocationUtils;
 import com.swiftlicious.hellblock.utils.extras.MathValue;
 
 import dev.dejvokep.boostedyaml.block.implementation.Section;
-import net.kyori.adventure.audience.Audience;
 
 import static java.util.Objects.requireNonNull;
 
@@ -41,8 +41,8 @@ public class ActionActionbarNearby<T> extends AbstractBuiltInAction<T> {
 			if (LocationUtils.getDistance(player.getLocation(), location) <= realRange) {
 				context.arg(ContextKeys.TEMP_NEAR_PLAYER, player.getName());
 				String replaced = plugin.getPlaceholderManager().parse(owner, actionbar, context.placeholderMap());
-				Audience audience = plugin.getSenderFactory().getAudience(player);
-				audience.sendActionBar(AdventureHelper.miniMessage(replaced));
+				VersionHelper.getNMSManager().sendActionBar(player,
+						AdventureHelper.componentToJson(AdventureHelper.miniMessage(replaced)));
 			}
 		}
 	}

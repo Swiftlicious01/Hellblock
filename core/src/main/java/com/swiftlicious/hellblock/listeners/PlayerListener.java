@@ -59,9 +59,9 @@ import com.swiftlicious.hellblock.nms.entity.firework.FakeFirework;
 import com.swiftlicious.hellblock.player.UUIDFetcher;
 import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.scheduler.SchedulerTask;
+import com.swiftlicious.hellblock.sender.Sender;
 import com.swiftlicious.hellblock.utils.ChunkUtils;
 import com.swiftlicious.hellblock.utils.LocationUtils;
-import net.kyori.adventure.audience.Audience;
 
 public class PlayerListener implements Listener, Reloadable {
 
@@ -182,7 +182,7 @@ public class PlayerListener implements Listener, Reloadable {
 		instance.getCoopManager().getHellblockOwnerOfVisitingIsland(player).thenAccept(ownerUUID -> {
 			if (ownerUUID == null)
 				return;
-			Audience audience = instance.getSenderFactory().getAudience(player);
+			Sender audience = instance.getSenderFactory().wrap(player);
 			instance.getStorageManager().getOfflineUserData(ownerUUID, instance.getConfigManager().lockData())
 					.thenAccept((result) -> {
 						if (result.isEmpty())
@@ -251,7 +251,7 @@ public class PlayerListener implements Listener, Reloadable {
 			instance.getCoopManager().getHellblockOwnerOfVisitingIsland(player).thenAccept(ownerUUID -> {
 				if (ownerUUID == null)
 					return;
-				Audience audience = instance.getSenderFactory().getAudience(player);
+				Sender audience = instance.getSenderFactory().wrap(player);
 				instance.getStorageManager().getOfflineUserData(ownerUUID, instance.getConfigManager().lockData())
 						.thenAccept((result) -> {
 							if (result.isEmpty())
@@ -319,7 +319,7 @@ public class PlayerListener implements Listener, Reloadable {
 			Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
 			if (onlineUser.isEmpty())
 				return;
-			Audience audience = instance.getSenderFactory().getAudience(player);
+			Sender audience = instance.getSenderFactory().wrap(player);
 			SchedulerTask portalTask = instance.getScheduler().sync().runLater(() -> {
 				if (onlineUser.get().getHellblockData().hasHellblock()) {
 					if (instance.getConfigManager().linkHellblocks()
@@ -413,7 +413,7 @@ public class PlayerListener implements Listener, Reloadable {
 				return;
 			if (onlineUser.get().getHellblockData().hasHellblock()) {
 				if (!this.linkPortalCatcher.contains(id)) {
-					Audience audience = instance.getSenderFactory().getAudience(player);
+					Sender audience = instance.getSenderFactory().wrap(player);
 					String owner = onlineUser.get().getHellblockData().getLinkedUUID() != null
 							? (Bukkit.getPlayer(onlineUser.get().getHellblockData().getLinkedUUID()) != null
 									? Bukkit.getPlayer(onlineUser.get().getHellblockData().getLinkedUUID()).getName()
@@ -427,7 +427,8 @@ public class PlayerListener implements Listener, Reloadable {
 											.miniMessageTranslation(MessageConstants.FORMAT_NONE.build().key())))
 									.build()));
 					if (instance.getConfigManager().linkingHellblockSound() != null)
-						audience.playSound(instance.getConfigManager().linkingHellblockSound());
+						AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
+								instance.getConfigManager().linkingHellblockSound());
 					this.linkPortalCatcher.add(id);
 				}
 			}
@@ -451,7 +452,7 @@ public class PlayerListener implements Listener, Reloadable {
 				return;
 			if (onlineUser.get().getHellblockData().hasHellblock()) {
 				if (!this.linkPortalCatcher.contains(id)) {
-					Audience audience = instance.getSenderFactory().getAudience(player);
+					Sender audience = instance.getSenderFactory().wrap(player);
 					String owner = onlineUser.get().getHellblockData().getLinkedUUID() != null
 							? (Bukkit.getPlayer(onlineUser.get().getHellblockData().getLinkedUUID()) != null
 									? Bukkit.getPlayer(onlineUser.get().getHellblockData().getLinkedUUID()).getName()
@@ -465,7 +466,8 @@ public class PlayerListener implements Listener, Reloadable {
 											.miniMessageTranslation(MessageConstants.FORMAT_NONE.build().key())))
 									.build()));
 					if (instance.getConfigManager().linkingHellblockSound() != null)
-						audience.playSound(instance.getConfigManager().linkingHellblockSound());
+						AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
+								instance.getConfigManager().linkingHellblockSound());
 					this.linkPortalCatcher.add(id);
 				}
 			}
@@ -485,7 +487,7 @@ public class PlayerListener implements Listener, Reloadable {
 				return;
 			event.setCancelled(true);
 			String username = event.getMessage();
-			Audience audience = instance.getSenderFactory().getAudience(player);
+			Sender audience = instance.getSenderFactory().wrap(player);
 			if (username.equalsIgnoreCase("none") || username.equalsIgnoreCase(player.getName())) {
 				audience.sendMessage(
 						instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_LINK_OWN.build()));

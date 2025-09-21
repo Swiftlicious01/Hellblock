@@ -21,8 +21,7 @@ import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.api.Reloadable;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
 import com.swiftlicious.hellblock.player.UserData;
-
-import net.kyori.adventure.audience.Audience;
+import com.swiftlicious.hellblock.sender.Sender;
 
 public class ProtectionManager implements ProtectionManagerInterface, Reloadable {
 
@@ -114,7 +113,7 @@ public class ProtectionManager implements ProtectionManagerInterface, Reloadable
 			return;
 		}
 
-		Audience audience = instance.getSenderFactory().getAudience(user.get().getPlayer());
+		Sender audience = instance.getSenderFactory().wrap(user.get().getPlayer());
 
 		if (user.get().getHellblockData().isAbandoned()) {
 			audience.sendMessage(
@@ -150,7 +149,7 @@ public class ProtectionManager implements ProtectionManagerInterface, Reloadable
 			return;
 		}
 
-		Audience audience = instance.getSenderFactory().getAudience(user.get().getPlayer());
+		Sender audience = instance.getSenderFactory().wrap(user.get().getPlayer());
 
 		if (user.get().getHellblockData().isAbandoned()) {
 			audience.sendMessage(

@@ -31,12 +31,12 @@ import com.swiftlicious.hellblock.creation.item.CustomItem;
 import com.swiftlicious.hellblock.handlers.ActionManager;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.player.UserData;
+import com.swiftlicious.hellblock.sender.Sender;
 import com.swiftlicious.hellblock.utils.extras.Action;
 import com.swiftlicious.hellblock.utils.extras.Pair;
 import com.swiftlicious.hellblock.utils.extras.TextValue;
 
 import dev.dejvokep.boostedyaml.block.implementation.Section;
-import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.sound.Sound;
 
 public class ResetConfirmGUIManager implements ResetConfirmGUIManagerInterface, Listener {
@@ -127,7 +127,7 @@ public class ResetConfirmGUIManager implements ResetConfirmGUIManagerInterface, 
 			return false;
 		}
 		if (optionalUserData.get().getHellblockData().getResetCooldown() > 0) {
-			Audience audience = instance.getSenderFactory().getAudience(player);
+			Sender audience = instance.getSenderFactory().wrap(player);
 			audience.sendMessage(instance.getTranslationManager().render(
 					MessageConstants.MSG_HELLBLOCK_RESET_ON_COOLDOWN.arguments(AdventureHelper.miniMessage(instance
 							.getFormattedCooldown(optionalUserData.get().getHellblockData().getResetCooldown())))
@@ -247,13 +247,14 @@ public class ResetConfirmGUIManager implements ResetConfirmGUIManagerInterface, 
 				gui.context.arg(ContextKeys.RESET_COOLDOWN, gui.hellblockData.getResetCooldown()).arg(
 						ContextKeys.RESET_COOLDOWN_FORMATTED,
 						instance.getFormattedCooldown(gui.hellblockData.getResetCooldown()));
-				Audience audience = instance.getSenderFactory().getAudience(gui.context.holder());
+				Sender audience = instance.getSenderFactory().wrap(gui.context.holder());
 				audience.sendMessage(instance.getTranslationManager()
 						.render(MessageConstants.MSG_HELLBLOCK_RESET_ON_COOLDOWN.arguments(AdventureHelper
 								.miniMessage(instance.getFormattedCooldown(gui.hellblockData.getResetCooldown())))
 								.build()));
-				audience.playSound(Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
-						net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
+				AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
+						Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
+								net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
 				return;
 			}
 

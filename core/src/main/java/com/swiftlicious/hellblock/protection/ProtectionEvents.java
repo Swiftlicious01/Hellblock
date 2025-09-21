@@ -14,8 +14,8 @@ import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.api.Reloadable;
 import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.protection.HellblockFlag.FlagType;
+import com.swiftlicious.hellblock.sender.Sender;
 
-import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.text.Component;
 
 //TODO: put event handlers for each flag type 
@@ -53,7 +53,7 @@ public class ProtectionEvents implements Listener, Reloadable {
 		instance.getCoopManager().getHellblockOwnerOfVisitingIsland(player).thenAccept(ownerUUID -> {
 			if (ownerUUID == null)
 				return;
-			Audience audience = instance.getSenderFactory().getAudience(player);
+			Sender audience = instance.getSenderFactory().wrap(player);
 			instance.getStorageManager().getOfflineUserData(ownerUUID, instance.getConfigManager().lockData())
 					.thenAccept((result) -> {
 						if (result.isEmpty())
@@ -93,7 +93,7 @@ public class ProtectionEvents implements Listener, Reloadable {
 			instance.getCoopManager().getHellblockOwnerOfVisitingIsland(player).thenAccept(ownerUUID -> {
 				if (ownerUUID == null)
 					return;
-				Audience audience = instance.getSenderFactory().getAudience(player);
+				Sender audience = instance.getSenderFactory().wrap(player);
 				instance.getStorageManager().getOfflineUserData(ownerUUID, instance.getConfigManager().lockData())
 						.thenAccept((result) -> {
 							if (result.isEmpty())

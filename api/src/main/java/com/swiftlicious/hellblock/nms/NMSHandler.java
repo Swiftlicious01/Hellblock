@@ -9,9 +9,11 @@ import org.bukkit.entity.FishHook;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.util.BoundingBox;
 import org.bukkit.util.Vector;
 import org.jetbrains.annotations.Nullable;
 
+import com.swiftlicious.hellblock.nms.border.BorderColor;
 import com.swiftlicious.hellblock.nms.entity.armorstand.FakeArmorStand;
 import com.swiftlicious.hellblock.nms.entity.display.FakeItemDisplay;
 import com.swiftlicious.hellblock.nms.entity.display.FakeTextDisplay;
@@ -20,6 +22,35 @@ import com.swiftlicious.hellblock.nms.fluid.FluidData;
 import com.swiftlicious.hellblock.nms.inventory.HandSlot;
 
 public interface NMSHandler {
+
+	/**
+	 * Sends a JSON message to the player.
+	 * 
+	 * @param player      the player to send the message to.
+	 * @param messageJson the JSON message to send.
+	 */
+	abstract void sendMessage(Player player, String messageJson);
+
+	/**
+	 * Sends a JSON action bar message to the player.
+	 * 
+	 * @param player the player to send the action bar to.
+	 * @param json   the JSON action bar message to send.
+	 */
+	abstract void sendActionBar(Player player, String json);
+
+	/**
+	 * Sends a JSON title and subtitle to the player.
+	 * 
+	 * @param player       the player to send the title to.
+	 * @param titleJson    the JSON title to send.
+	 * @param subTitleJson the JSON subtitle to send.
+	 * @param fadeInTicks  the amount of ticks it takes for the title to fade in.
+	 * @param stayTicks    the amount of ticks the title stays on screen.
+	 * @param fadeOutTicks the amount of ticks it takes for the title to fade out.
+	 */
+	abstract void sendTitle(Player player, String titleJson, String subTitleJson, int fadeInTicks, int stayTicks,
+			int fadeOutTicks);
 
 	/**
 	 * Sends a toast (tutorial / advancement tab in the top right corner of the
@@ -31,6 +62,15 @@ public interface NMSHandler {
 	 * @param advancementType the advancement type of the toast.
 	 */
 	abstract void sendToast(Player player, ItemStack icon, String titleJson, String advancementType);
+
+	/**
+	 * Sets the world border for the defined player.
+	 * 
+	 * @param player      the player to set the world border for.
+	 * @param bounds      the center location of the world border.
+	 * @param borderColor the color of the border.
+	 */
+	abstract void sendWorldBorder(Player player, BoundingBox bounds, BorderColor borderColor);
 
 	/**
 	 * Retrieve the fluid data from the defined location.

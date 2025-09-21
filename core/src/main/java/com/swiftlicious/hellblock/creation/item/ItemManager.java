@@ -46,6 +46,7 @@ import com.swiftlicious.hellblock.creation.item.damage.CustomDurabilityItem;
 import com.swiftlicious.hellblock.creation.item.damage.DurabilityItem;
 import com.swiftlicious.hellblock.creation.item.damage.VanillaDurabilityItem;
 import com.swiftlicious.hellblock.creation.item.factory.BukkitItemFactory;
+import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.handlers.VersionHelper;
 import com.swiftlicious.hellblock.utils.EventUtils;
 import com.swiftlicious.hellblock.utils.ItemStackUtils;
@@ -356,7 +357,7 @@ public class ItemManager implements ItemManagerInterface, Listener {
 		DurabilityItem durabilityItem = wrapDurabilityItem(wrapped);
 		int damage = durabilityItem.damage();
 		if (damage + amount >= durabilityItem.maxDamage()) {
-			instance.getSenderFactory().getAudience(player).playSound(Sound
+			AdventureHelper.playSound(instance.getSenderFactory().getAudience(player), Sound
 					.sound(net.kyori.adventure.key.Key.key("minecraft:entity.item.break"), Sound.Source.PLAYER, 1, 1));
 			itemStack.setAmount(0);
 			return;
@@ -376,7 +377,7 @@ public class ItemManager implements ItemManagerInterface, Listener {
 		DurabilityItem wrappedDurability = wrapDurabilityItem(wrapped);
 		if (damage >= wrappedDurability.maxDamage()) {
 			if (player != null)
-				instance.getSenderFactory().getAudience(player).playSound(Sound.sound(
+				AdventureHelper.playSound(instance.getSenderFactory().getAudience(player), Sound.sound(
 						net.kyori.adventure.key.Key.key("minecraft:entity.item.break"), Sound.Source.PLAYER, 1, 1));
 			itemStack.setAmount(0);
 			return;

@@ -34,6 +34,7 @@ import com.swiftlicious.hellblock.handlers.ActionManager;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.handlers.RequirementManager;
 import com.swiftlicious.hellblock.player.UserData;
+import com.swiftlicious.hellblock.sender.Sender;
 import com.swiftlicious.hellblock.utils.extras.Action;
 import com.swiftlicious.hellblock.utils.extras.Pair;
 import com.swiftlicious.hellblock.utils.extras.Requirement;
@@ -41,7 +42,6 @@ import com.swiftlicious.hellblock.utils.extras.TextValue;
 import com.swiftlicious.hellblock.utils.extras.Tuple;
 
 import dev.dejvokep.boostedyaml.block.implementation.Section;
-import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.sound.Sound;
 
 public class SchematicGUIManager implements SchematicGUIManagerInterface, Listener {
@@ -141,7 +141,7 @@ public class SchematicGUIManager implements SchematicGUIManagerInterface, Listen
 			return false;
 		}
 		if (isReset && optionalUserData.get().getHellblockData().getResetCooldown() > 0) {
-			Audience audience = instance.getSenderFactory().getAudience(player);
+			Sender audience = instance.getSenderFactory().wrap(player);
 			audience.sendMessage(instance.getTranslationManager().render(
 					MessageConstants.MSG_HELLBLOCK_RESET_ON_COOLDOWN.arguments(AdventureHelper.miniMessage(instance
 							.getFormattedCooldown(optionalUserData.get().getHellblockData().getResetCooldown())))
@@ -263,7 +263,7 @@ public class SchematicGUIManager implements SchematicGUIManagerInterface, Listen
 				return;
 			}
 
-			Audience audience = instance.getSenderFactory().getAudience(gui.context.holder());
+			Sender audience = instance.getSenderFactory().wrap(gui.context.holder());
 
 			if (gui.isReset && gui.hellblockData.getResetCooldown() > 0) {
 				gui.context.arg(ContextKeys.RESET_COOLDOWN, gui.hellblockData.getResetCooldown()).arg(
@@ -273,8 +273,9 @@ public class SchematicGUIManager implements SchematicGUIManagerInterface, Listen
 						.render(MessageConstants.MSG_HELLBLOCK_RESET_ON_COOLDOWN.arguments(AdventureHelper
 								.miniMessage(instance.getFormattedCooldown(gui.hellblockData.getResetCooldown())))
 								.build()));
-				audience.playSound(Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
-						net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
+				AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
+						Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
+								net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
 				return;
 			}
 
@@ -290,8 +291,9 @@ public class SchematicGUIManager implements SchematicGUIManagerInterface, Listen
 					} else {
 						audience.sendMessage(instance.getTranslationManager()
 								.render(MessageConstants.MSG_HELLBLOCK_NO_SCHEMATIC_PERMISSION.build()));
-						audience.playSound(Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
-								net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
+						AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
+								Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
+										net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
 					}
 					break;
 				}

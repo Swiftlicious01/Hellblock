@@ -114,6 +114,7 @@ public abstract class ConfigHandler implements ConfigLoader, Reloadable {
 	protected boolean farewellMessageEnabled;
 	protected boolean disableBedExplosions;
 	protected boolean growNaturalTrees;
+	protected boolean useParticleBorder;
 	protected boolean voidTeleport;
 	protected boolean asyncWorldSaving;
 	protected String schematicPaster;
@@ -202,6 +203,10 @@ public abstract class ConfigHandler implements ConfigLoader, Reloadable {
 
 	public boolean growNaturalTrees() {
 		return growNaturalTrees;
+	}
+	
+	public boolean useParticleBorder() {
+		return useParticleBorder;
 	}
 
 	public boolean voidTeleport() {

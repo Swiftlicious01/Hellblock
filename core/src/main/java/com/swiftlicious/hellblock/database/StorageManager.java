@@ -35,7 +35,6 @@ import com.google.gson.JsonSyntaxException;
 import com.google.gson.reflect.TypeToken;
 
 import dev.dejvokep.boostedyaml.YamlDocument;
-import net.kyori.adventure.audience.Audience;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.challenges.ChallengeResult;
@@ -48,6 +47,7 @@ import com.swiftlicious.hellblock.player.UserDataInterface;
 import com.swiftlicious.hellblock.protection.HellblockFlag.AccessType;
 import com.swiftlicious.hellblock.protection.HellblockFlag.FlagType;
 import com.swiftlicious.hellblock.scheduler.SchedulerTask;
+import com.swiftlicious.hellblock.sender.Sender;
 import com.swiftlicious.hellblock.utils.LocationUtils;
 import com.swiftlicious.hellblock.utils.adapters.HellblockTypeAdapterFactory;
 import com.swiftlicious.hellblock.utils.adapters.ListSerializer;
@@ -249,7 +249,7 @@ public class StorageManager implements StorageManagerInterface, Listener {
 		UUID uuid = player.getUniqueId();
 		locked.add(uuid);
 		if (player.hasPermission("hellblock.updates") && instance.isUpdateAvailable()) {
-			instance.getSenderFactory().getAudience(player).sendMessage(AdventureHelper.miniMessage(
+			instance.getSenderFactory().wrap(player).sendMessage(AdventureHelper.miniMessage(
 					"<red>There is a new update available!: <dark_red><u>https://github.com/Swiftlicious01/Hellblock<!u>"));
 		}
 		if (!hasRedis) {
@@ -406,7 +406,7 @@ public class StorageManager implements StorageManagerInterface, Listener {
 		// updates the player's name if changed
 		var bukkitUser = UserDataInterface.builder().setData(playerData).setName(player.getName()).build();
 		onlineUserMap.put(player.getUniqueId(), bukkitUser);
-		Audience audience = instance.getSenderFactory().getAudience(player);
+		Sender audience = instance.getSenderFactory().wrap(player);
 		if (bukkitUser.getHellblockData().isAbandoned()) {
 			audience.sendMessage(instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_LOGIN_ABANDONED
 					.arguments(

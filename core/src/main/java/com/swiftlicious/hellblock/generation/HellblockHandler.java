@@ -31,15 +31,16 @@ import com.google.common.io.Files;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
+import com.swiftlicious.hellblock.handlers.VersionHelper;
 import com.swiftlicious.hellblock.player.HellblockData;
 import com.swiftlicious.hellblock.player.PlayerData;
 import com.swiftlicious.hellblock.player.UserData;
+import com.swiftlicious.hellblock.sender.Sender;
 import com.swiftlicious.hellblock.utils.ChunkUtils;
 import com.swiftlicious.hellblock.utils.LocationUtils;
 import com.swiftlicious.hellblock.world.HellblockWorld;
 
 import dev.dejvokep.boostedyaml.YamlDocument;
-import net.kyori.adventure.audience.Audience;
 
 public class HellblockHandler {
 
@@ -55,7 +56,7 @@ public class HellblockHandler {
 			@Nullable String schematic, boolean isReset) {
 		return CompletableFuture.runAsync(() -> {
 			Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
-			Audience audience = instance.getSenderFactory().getAudience(player);
+			Sender audience = instance.getSenderFactory().wrap(player);
 			if (onlineUser.isEmpty()) {
 				audience.sendMessage(instance.getTranslationManager()
 						.render(MessageConstants.COMMAND_DATA_FAILURE_NOT_LOADED.build()));
@@ -132,15 +133,17 @@ public class HellblockHandler {
 														if (instance.getConfigManager().creationTitleScreen() != null
 																&& instance.getConfigManager().creationTitleScreen()
 																		.enabled())
-															AdventureHelper.sendTitle(audience,
-																	AdventureHelper.miniMessage(instance
-																			.getConfigManager().creationTitleScreen()
-																			.title()
-																			.replace("{player}", player.getName())),
-																	AdventureHelper.miniMessage(instance
-																			.getConfigManager().creationTitleScreen()
-																			.subtitle()
-																			.replace("{player}", player.getName())),
+															VersionHelper.getNMSManager().sendTitle(player,
+																	AdventureHelper.componentToJson(AdventureHelper
+																			.miniMessage(instance.getConfigManager()
+																					.creationTitleScreen().title()
+																					.replace("{player}",
+																							player.getName()))),
+																	AdventureHelper.componentToJson(AdventureHelper
+																			.miniMessage(instance.getConfigManager()
+																					.creationTitleScreen().subtitle()
+																					.replace("{player}",
+																							player.getName()))),
 																	instance.getConfigManager().creationTitleScreen()
 																			.fadeIn(),
 																	instance.getConfigManager().creationTitleScreen()
@@ -149,8 +152,10 @@ public class HellblockHandler {
 																			.fadeOut());
 														if (instance.getConfigManager()
 																.creatingHellblockSound() != null)
-															audience.playSound(instance.getConfigManager()
-																	.creatingHellblockSound());
+															AdventureHelper.playSound(
+																	instance.getSenderFactory().getAudience(player),
+																	instance.getConfigManager()
+																			.creatingHellblockSound());
 														hellblockData.setCreation(System.currentTimeMillis());
 														instance.getBiomeHandler().setHellblockBiome(
 																world.bukkitWorld(), hellblockData.getBoundingBox(),
@@ -194,7 +199,7 @@ public class HellblockHandler {
 						Map<Block, Material> blockChanges = new LinkedHashMap<>();
 
 						if (!forceReset && Bukkit.getPlayer(id) != null) {
-							Audience audience = instance.getSenderFactory().getAudience(Bukkit.getPlayer(id));
+							Sender audience = instance.getSenderFactory().wrap(Bukkit.getPlayer(id));
 							audience.sendMessage(instance.getTranslationManager()
 									.render(MessageConstants.MSG_HELLBLOCK_RESET_PROCESS.build()));
 						}
@@ -231,8 +236,8 @@ public class HellblockHandler {
 																	member.getEnderChest().clear();
 																}
 																teleportToSpawn(member, true);
-																Audience audience = instance.getSenderFactory()
-																		.getAudience(member);
+																Sender audience = instance.getSenderFactory()
+																		.wrap(member);
 																if (!forceReset) {
 																	if (offlineUser.isOnline()) {
 																		Player player = Bukkit.getPlayer(id);
@@ -320,8 +325,8 @@ public class HellblockHandler {
 														if (offlineUser.isOnline()) {
 															Player player = Bukkit.getPlayer(offlineUser.getUUID());
 															if (!forceReset) {
-																Audience audience = instance.getSenderFactory()
-																		.getAudience(player);
+																Sender audience = instance.getSenderFactory()
+																		.wrap(player);
 																audience.sendMessage(instance.getTranslationManager()
 																		.render(MessageConstants.MSG_HELLBLOCK_RESET_NEW_OPTION
 																				.build()));
@@ -530,7 +535,7 @@ public class HellblockHandler {
 	public void teleportToSpawn(@NotNull Player player, boolean forced) {
 		player.performCommand(instance.getConfigManager().spawnCommand());
 		if (!forced)
-			instance.getSenderFactory().getAudience(player).sendMessage(
+			instance.getSenderFactory().wrap(player).sendMessage(
 					instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_UNSAFE_CONDITIONS.build()));
 	}
 }

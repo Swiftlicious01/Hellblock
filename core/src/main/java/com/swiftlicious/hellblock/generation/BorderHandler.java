@@ -2,6 +2,7 @@ package com.swiftlicious.hellblock.generation;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.handlers.VersionHelper;
+import com.swiftlicious.hellblock.nms.border.BorderColor;
 import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.protection.HellblockFlag;
 import com.swiftlicious.hellblock.protection.HellblockFlag.AccessType;
@@ -69,7 +70,7 @@ public class BorderHandler implements Runnable {
 							return;
 						if (bounds.contains(player.getBoundingBox()) && (ownerUUID.equals(player.getUniqueId())
 								|| offlineUser.getHellblockData().getParty().contains(player.getUniqueId()))) {
-							spawnBorderParticles(player, bounds, new BlueBorder());
+							setWorldBorder(player, bounds, BorderColor.BLUE);
 						} else {
 							AccessType flag = offlineUser.getHellblockData()
 									.getProtectionValue(HellblockFlag.FlagType.ENTRY);
@@ -80,9 +81,9 @@ public class BorderHandler implements Runnable {
 							CompletableFuture<Void> results = CompletableFuture.allOf(banStatus, visitStatus);
 							results.thenRun(() -> {
 								if (flag == AccessType.ALLOW && !banStatus.join() && visitStatus.join()) {
-									spawnBorderParticles(player, bounds, new GreenBorder());
+									setWorldBorder(player, bounds, BorderColor.GREEN);
 								} else {
-									spawnBorderParticles(player, bounds, new RedBorder());
+									setWorldBorder(player, bounds, BorderColor.RED);
 								}
 							});
 						}
@@ -93,6 +94,15 @@ public class BorderHandler implements Runnable {
 	public void cancelBorderShowcase() {
 		if (!this.cancellableTask.isCancelled())
 			this.cancellableTask.cancel();
+	}
+
+	public void setWorldBorder(Player player, BoundingBox bounds, BorderColor borderColor) {
+		if (HellblockPlugin.getInstance().getConfigManager().useParticleBorder()) {
+			spawnBorderParticles(player, bounds, borderColor == BorderColor.GREEN ? new GreenBorder()
+					: borderColor == BorderColor.RED ? new RedBorder() : new BlueBorder());
+		} else {
+			VersionHelper.getNMSManager().sendWorldBorder(player, bounds, borderColor);
+		}
 	}
 
 	public void spawnBorderParticles(Player player, BoundingBox bounds, PlayerBorder playerBorder, int seconds) {

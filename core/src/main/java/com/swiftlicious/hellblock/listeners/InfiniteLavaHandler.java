@@ -19,6 +19,7 @@ import org.jetbrains.annotations.NotNull;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.challenges.HellblockChallenge.ActionType;
+import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.handlers.VersionHelper;
 import com.swiftlicious.hellblock.nms.fluid.FallingFluidData;
 import com.swiftlicious.hellblock.nms.fluid.FluidData;
@@ -68,8 +69,8 @@ public class InfiniteLavaHandler implements Listener {
 				}
 				VersionHelper.getNMSManager().swingHand(player,
 						event.getHand() == EquipmentSlot.HAND ? HandSlot.MAIN : HandSlot.OFF);
-				instance.getSenderFactory().getAudience(player)
-						.playSound(Sound.sound(net.kyori.adventure.key.Key.key("minecraft:item.bucket.fill_lava"),
+				AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
+						Sound.sound(net.kyori.adventure.key.Key.key("minecraft:item.bucket.fill_lava"),
 								net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
 				player.updateInventory();
 				Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());

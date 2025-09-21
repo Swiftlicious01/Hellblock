@@ -8,6 +8,8 @@ import org.bukkit.command.RemoteConsoleCommandSender;
 import org.bukkit.entity.Player;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.handlers.AdventureHelper;
+import com.swiftlicious.hellblock.handlers.VersionHelper;
 import com.swiftlicious.hellblock.utils.extras.Tristate;
 
 import net.kyori.adventure.audience.Audience;
@@ -47,8 +49,9 @@ public class BukkitSenderFactory extends SenderFactory<HellblockPlugin, CommandS
 	protected void sendMessage(CommandSender sender, Component message) {
 		// we can safely send async for players and the console - otherwise, send it
 		// sync
-		if (sender instanceof Player || sender instanceof ConsoleCommandSender
-				|| sender instanceof RemoteConsoleCommandSender) {
+		if (sender instanceof Player player) {
+			VersionHelper.getNMSManager().sendMessage(player, AdventureHelper.componentToJson(message));
+		} else if (sender instanceof ConsoleCommandSender || sender instanceof RemoteConsoleCommandSender) {
 			getAudience(sender).sendMessage(message);
 		} else {
 			getPlugin().getScheduler().executeSync(() -> getAudience(sender).sendMessage(message));

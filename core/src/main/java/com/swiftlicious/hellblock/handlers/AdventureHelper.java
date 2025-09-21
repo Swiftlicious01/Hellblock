@@ -1,6 +1,5 @@
 package com.swiftlicious.hellblock.handlers;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -8,6 +7,7 @@ import java.util.concurrent.TimeUnit;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.swiftlicious.hellblock.api.DefaultFontInfo;
+import com.swiftlicious.hellblock.sender.Sender;
 
 import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.key.Key;
@@ -18,7 +18,6 @@ import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
 import net.kyori.adventure.text.serializer.json.JSONOptions;
 import net.kyori.adventure.text.serializer.json.legacyimpl.NBTLegacyHoverEventSerializer;
-import net.kyori.adventure.title.Title;
 
 /**
  * Helper class for handling Adventure components and related functionalities.
@@ -110,48 +109,12 @@ public class AdventureHelper {
 	}
 
 	/**
-	 * Sends a title to an audience.
-	 *
-	 * @param audience the audience to send the title to
-	 * @param title    the title component
-	 * @param subtitle the subtitle component
-	 * @param fadeIn   the fade-in duration in ticks
-	 * @param stay     the stay duration in ticks
-	 * @param fadeOut  the fade-out duration in ticks
-	 */
-	public static void sendTitle(Audience audience, Component title, Component subtitle, int fadeIn, int stay,
-			int fadeOut) {
-		audience.showTitle(Title.title(title, subtitle, Title.Times.times(Duration.ofMillis(fadeIn * 50L),
-				Duration.ofMillis(stay * 50L), Duration.ofMillis(fadeOut * 50L))));
-	}
-
-	/**
-	 * Sends an action bar message to an audience.
-	 *
-	 * @param audience  the audience to send the action bar message to
-	 * @param actionBar the action bar component
-	 */
-	public static void sendActionBar(Audience audience, Component actionBar) {
-		audience.sendActionBar(actionBar);
-	}
-
-	/**
-	 * Sends a message to an audience.
-	 *
-	 * @param audience the audience to send the message to
-	 * @param message  the message component
-	 */
-	public static void sendMessage(Audience audience, Component message) {
-		audience.sendMessage(message);
-	}
-
-	/**
 	 * Sends a centered message to an audience.
 	 *
-	 * @param audience the audience to send the message to
+	 * @param audience the player to send the message to
 	 * @param message  the message component
 	 */
-	public static void sendCenteredMessage(Audience audience, Component message) {
+	public static void sendCenteredMessage(Sender audience, Component message) {
 		if (message.children().contains(Component.newline())) {
 			Style parentStyle = message.style();
 			List<Component> children = new ArrayList<>(message.children());
@@ -209,6 +172,19 @@ public class AdventureHelper {
 	 */
 	public static void playSound(Audience audience, Sound sound) {
 		audience.playSound(sound);
+	}
+
+	/**
+	 * Plays a sound for an audience at specific coordinates.
+	 *
+	 * @param audience the audience to play the sound for
+	 * @param sound    the sound to play
+	 * @param x        the x-coordinate
+	 * @param y        the y-coordinate
+	 * @param z        the z-coordinate
+	 */
+	public static void playSound(Audience audience, Sound sound, double x, double y, double z) {
+		audience.playSound(sound, x, y, z);
 	}
 
 	/**

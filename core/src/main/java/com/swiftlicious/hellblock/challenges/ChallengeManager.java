@@ -22,12 +22,11 @@ import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.handlers.VersionHelper;
 import com.swiftlicious.hellblock.nms.entity.firework.FakeFirework;
 import com.swiftlicious.hellblock.player.UserData;
+import com.swiftlicious.hellblock.sender.Sender;
 import com.swiftlicious.hellblock.utils.extras.Action;
 
 import dev.dejvokep.boostedyaml.YamlDocument;
 import dev.dejvokep.boostedyaml.block.implementation.Section;
-
-import net.kyori.adventure.audience.Audience;
 
 public class ChallengeManager implements Reloadable {
 
@@ -87,11 +86,11 @@ public class ChallengeManager implements Reloadable {
 	}
 
 	public void performChallengeCompletionActions(@NotNull Player player, @NotNull ChallengeType challenge) {
-		Audience audience = instance.getSenderFactory().getAudience(player);
+		Sender audience = instance.getSenderFactory().wrap(player);
 		AdventureHelper.sendCenteredMessage(audience,
 				instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_CHALLENGE_COMPLETED.build()));
 		if (instance.getConfigManager().challengeCompleteSound() != null)
-			audience.playSound(instance.getConfigManager().challengeCompleteSound());
+			AdventureHelper.playSound(instance.getSenderFactory().getAudience(player), instance.getConfigManager().challengeCompleteSound());
 		if (player.getLocation() == null)
 			return;
 		FakeFirework firework = VersionHelper.getNMSManager().createFakeFirework(player.getLocation());

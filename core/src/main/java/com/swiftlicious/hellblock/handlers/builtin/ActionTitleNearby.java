@@ -9,12 +9,12 @@ import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.context.Context;
 import com.swiftlicious.hellblock.context.ContextKeys;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
+import com.swiftlicious.hellblock.handlers.VersionHelper;
 import com.swiftlicious.hellblock.utils.LocationUtils;
 import com.swiftlicious.hellblock.utils.extras.MathValue;
 import com.swiftlicious.hellblock.utils.extras.TextValue;
 
 import dev.dejvokep.boostedyaml.block.implementation.Section;
-import net.kyori.adventure.audience.Audience;
 
 public class ActionTitleNearby<T> extends AbstractBuiltInAction<T> {
 
@@ -43,9 +43,10 @@ public class ActionTitleNearby<T> extends AbstractBuiltInAction<T> {
 		for (Player player : location.getWorld().getPlayers()) {
 			if (LocationUtils.getDistance(player.getLocation(), location) <= range) {
 				context.arg(ContextKeys.TEMP_NEAR_PLAYER, player.getName());
-				Audience audience = plugin.getSenderFactory().getAudience(player);
-				AdventureHelper.sendTitle(audience, AdventureHelper.miniMessage(title.render(context)),
-						AdventureHelper.miniMessage(subtitle.render(context)), fadeIn, stay, fadeOut);
+				VersionHelper.getNMSManager().sendTitle(player,
+						AdventureHelper.componentToJson(AdventureHelper.miniMessage(title.render(context))),
+						AdventureHelper.componentToJson(AdventureHelper.miniMessage(subtitle.render(context))), fadeIn,
+						stay, fadeOut);
 			}
 		}
 	}

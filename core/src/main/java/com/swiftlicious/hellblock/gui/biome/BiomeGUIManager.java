@@ -36,6 +36,7 @@ import com.swiftlicious.hellblock.handlers.ActionManager;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.handlers.RequirementManager;
 import com.swiftlicious.hellblock.player.UserData;
+import com.swiftlicious.hellblock.sender.Sender;
 import com.swiftlicious.hellblock.utils.extras.Action;
 import com.swiftlicious.hellblock.utils.extras.Pair;
 import com.swiftlicious.hellblock.utils.extras.Requirement;
@@ -43,7 +44,6 @@ import com.swiftlicious.hellblock.utils.extras.TextValue;
 import com.swiftlicious.hellblock.utils.extras.Tuple;
 
 import dev.dejvokep.boostedyaml.block.implementation.Section;
-import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.sound.Sound;
 
 public class BiomeGUIManager implements BiomeGUIManagerInterface, Listener {
@@ -144,7 +144,7 @@ public class BiomeGUIManager implements BiomeGUIManagerInterface, Listener {
 			return false;
 		}
 		if (optionalUserData.get().getHellblockData().getBiomeCooldown() > 0) {
-			Audience audience = instance.getSenderFactory().getAudience(player);
+			Sender audience = instance.getSenderFactory().wrap(player);
 			audience.sendMessage(instance.getTranslationManager().render(
 					MessageConstants.MSG_HELLBLOCK_BIOME_ON_COOLDOWN.arguments(AdventureHelper.miniMessage(instance
 							.getFormattedCooldown(optionalUserData.get().getHellblockData().getBiomeCooldown())))
@@ -272,21 +272,23 @@ public class BiomeGUIManager implements BiomeGUIManagerInterface, Listener {
 				return;
 			}
 
-			Audience audience = instance.getSenderFactory().getAudience(gui.context.holder());
+			Sender audience = instance.getSenderFactory().wrap(gui.context.holder());
 
 			if (!gui.hellblockData.getOwnerUUID().equals(gui.context.holder().getUniqueId())) {
 				audience.sendMessage(
 						instance.getTranslationManager().render(MessageConstants.MSG_NOT_OWNER_OF_HELLBLOCK.build()));
-				audience.playSound(Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
-						net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
+				AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
+						Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
+								net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
 				return;
 			}
 
 			if (gui.hellblockData.isAbandoned()) {
 				audience.sendMessage(
 						instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_IS_ABANDONED.build()));
-				audience.playSound(Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
-						net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
+				AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
+						Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
+								net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
 				return;
 			}
 
@@ -298,8 +300,9 @@ public class BiomeGUIManager implements BiomeGUIManagerInterface, Listener {
 						.render(MessageConstants.MSG_HELLBLOCK_BIOME_ON_COOLDOWN.arguments(AdventureHelper
 								.miniMessage(instance.getFormattedCooldown(gui.hellblockData.getBiomeCooldown())))
 								.build()));
-				audience.playSound(Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
-						net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
+				AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
+						Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
+								net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
 				return;
 			}
 
@@ -313,8 +316,9 @@ public class BiomeGUIManager implements BiomeGUIManagerInterface, Listener {
 						audience.sendMessage(
 								instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_BIOME_SAME_BIOME
 										.arguments(AdventureHelper.miniMessage(biome.getName())).build()));
-						audience.playSound(Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
-								net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
+						AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
+								Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
+										net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
 						return;
 					}
 					if (RequirementManager.isSatisfied(gui.context, entry.getValue().right().right())) {

@@ -28,10 +28,12 @@ import org.bukkit.entity.FishHook;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.util.BoundingBox;
 import org.bukkit.util.Vector;
 import org.jetbrains.annotations.Nullable;
 
 import com.swiftlicious.hellblock.nms.NMSHandler;
+import com.swiftlicious.hellblock.nms.border.BorderColor;
 import com.swiftlicious.hellblock.nms.entity.armorstand.FakeArmorStand;
 import com.swiftlicious.hellblock.nms.entity.display.FakeItemDisplay;
 import com.swiftlicious.hellblock.nms.entity.display.FakeTextDisplay;
@@ -58,16 +60,7 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.Packet;
-import net.minecraft.network.protocol.game.ClientGamePacketListener;
-import net.minecraft.network.protocol.game.ClientboundAddEntityPacket;
-import net.minecraft.network.protocol.game.ClientboundAnimatePacket;
-import net.minecraft.network.protocol.game.ClientboundBundlePacket;
-import net.minecraft.network.protocol.game.ClientboundRemoveEntitiesPacket;
-import net.minecraft.network.protocol.game.ClientboundSetEntityDataPacket;
-import net.minecraft.network.protocol.game.ClientboundSetEntityMotionPacket;
-import net.minecraft.network.protocol.game.ClientboundTeleportEntityPacket;
-import net.minecraft.network.protocol.game.ClientboundUpdateAdvancementsPacket;
-import net.minecraft.network.protocol.game.ClientboundOpenScreenPacket;
+import net.minecraft.network.protocol.game.*;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
@@ -85,6 +78,7 @@ import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.item.enchantment.ItemEnchantments;
 import net.minecraft.world.level.biome.Biome;
+import net.minecraft.world.level.border.WorldBorder;
 import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.level.material.LavaFluid;
 import net.minecraft.world.level.material.WaterFluid;
@@ -114,6 +108,47 @@ public class NMSUtils1_20_R4 implements NMSHandler {
 		FluidDataInstance.register(WaterFluid.Source.class, FallingFluidDataInstance::new);
 		FluidDataInstance.register(LavaFluid.Flowing.class, FlowingFluidDataInstance::new);
 		FluidDataInstance.register(WaterFluid.Flowing.class, FlowingFluidDataInstance::new);
+	}
+
+	@Override
+	public void sendMessage(Player player, String messageJson) {
+		ClientboundSystemChatPacket systemChatPacket = new ClientboundSystemChatPacket(
+				CraftChatMessage.fromJSON(messageJson), false);
+		((CraftPlayer) player).getHandle().connection.send(systemChatPacket);
+	}
+
+	private void sendPacketImmediately(ServerPlayer serverPlayer, Packet<ClientGamePacketListener> packet) {
+		serverPlayer.connection.connection.channel.writeAndFlush(packet);
+	}
+
+	@Override
+	public void sendActionBar(Player player, String json) {
+		CraftPlayer craftPlayer = (CraftPlayer) player;
+		ServerPlayer serverPlayer = craftPlayer.getHandle();
+		ClientboundSetActionBarTextPacket packet = new ClientboundSetActionBarTextPacket(
+				Objects.requireNonNull(CraftChatMessage.fromJSON(json)));
+		serverPlayer.connection.send(packet);
+	}
+
+	@Override
+	public void sendTitle(Player player, @Nullable String titleJson, @Nullable String subTitleJson, int fadeInTicks,
+			int stayTicks, int fadeOutTicks) {
+		CraftPlayer craftPlayer = (CraftPlayer) player;
+		ServerPlayer serverPlayer = craftPlayer.getHandle();
+		ArrayList<Packet<? super ClientGamePacketListener>> packetListeners = new ArrayList<>();
+		packetListeners.add(new ClientboundSetTitlesAnimationPacket(fadeInTicks, stayTicks, fadeOutTicks));
+		if (titleJson != null) {
+			packetListeners.add(
+					new ClientboundSetTitleTextPacket(Objects.requireNonNull(CraftChatMessage.fromJSON(titleJson))));
+		} else {
+			packetListeners.add(new ClientboundSetTitleTextPacket(Objects.requireNonNull(Component.empty())));
+		}
+		if (subTitleJson != null) {
+			packetListeners.add(new ClientboundSetSubtitleTextPacket(
+					Objects.requireNonNull(CraftChatMessage.fromJSON(subTitleJson))));
+		}
+		ClientboundBundlePacket bundlePacket = new ClientboundBundlePacket(packetListeners);
+		sendPacketImmediately(serverPlayer, bundlePacket);
 	}
 
 	@Override
@@ -147,6 +182,46 @@ public class NMSUtils1_20_R4 implements NMSHandler {
 		packetListeners.add(packet2);
 		ClientboundBundlePacket bundlePacket = new ClientboundBundlePacket(packetListeners);
 		serverPlayer.connection.send(bundlePacket);
+	}
+
+	@Override
+	public void sendWorldBorder(Player player, BoundingBox box, BorderColor borderColor) {
+		org.bukkit.World world = player.getWorld();
+		ServerLevel serverLevel = ((CraftWorld) world).getHandle();
+		Location center = box.getCenter().toLocation(world);
+
+		double minX = box.getMinX();
+		double minZ = box.getMinZ();
+
+		double maxX = box.getMaxX();
+		double maxZ = box.getMaxZ();
+
+		double width = maxX - minX; // Dimension along the X-axis
+		double length = maxZ - minZ; // Dimension along the Z-axis
+
+		double size = Math.max(width, length) / 2.0D;
+
+		WorldBorder worldBorder = new WorldBorder();
+		worldBorder.world = serverLevel;
+		worldBorder.setWarningBlocks(0);
+		worldBorder.setCenter(center.getX() * 8.0D, center.getZ() * 8.0D);
+
+		switch (borderColor) {
+		case BLUE -> {
+			worldBorder.setSize((size * 2) + 1D);
+		}
+		case GREEN -> {
+			worldBorder.setSize((size * 2) + 1.001D);
+			worldBorder.lerpSizeBetween(worldBorder.getSize() - 0.001D, worldBorder.getSize(), Long.MAX_VALUE);
+		}
+		case RED -> {
+			worldBorder.setSize((size * 2) + 1D);
+			worldBorder.lerpSizeBetween(worldBorder.getSize(), worldBorder.getSize() - 0.001D, Long.MAX_VALUE);
+		}
+		}
+
+        ClientboundInitializeBorderPacket initializeBorderPacket = new ClientboundInitializeBorderPacket(worldBorder);
+        ((CraftPlayer) player).getHandle().connection.send(initializeBorderPacket);
 	}
 
 	@Override

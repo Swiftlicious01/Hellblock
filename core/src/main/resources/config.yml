@@ -132,6 +132,8 @@ hellblock:
   # If set to true when a sapling is placed on dirt, grass, etc like normal a normal tree will spawn.
   # Otherwise if false it will replace any tree that is grown with a glowstone tree.
   grow-natural-trees: false
+  # Use particle effect borders in place of the actual world border for each hellblock limit.
+  use-particle-border: false
   # If set to true it will teleport players who fall in the void to their hellblock or to spawn if no hellblock is found.
   void-teleport: true
   creation-title-screen:

@@ -10,10 +10,9 @@ import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.context.Context;
 import com.swiftlicious.hellblock.context.ContextKeys;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
+import com.swiftlicious.hellblock.sender.Sender;
 import com.swiftlicious.hellblock.utils.ListUtils;
 import com.swiftlicious.hellblock.utils.extras.MathValue;
-
-import net.kyori.adventure.audience.Audience;
 
 public class ActionBroadcast<T> extends AbstractBuiltInAction<T> {
 
@@ -34,7 +33,7 @@ public class ActionBroadcast<T> extends AbstractBuiltInAction<T> {
 		}
 		List<String> replaced = plugin.getPlaceholderManager().parse(offlinePlayer, messages, context.placeholderMap());
 		for (Player player : Bukkit.getOnlinePlayers()) {
-			Audience audience = plugin.getSenderFactory().getAudience(player);
+            Sender audience = plugin.getSenderFactory().wrap(player);
 			for (String text : replaced) {
 				audience.sendMessage(AdventureHelper.miniMessage(text));
 			}

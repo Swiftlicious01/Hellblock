@@ -28,14 +28,15 @@ import com.swiftlicious.hellblock.context.Context;
 import com.swiftlicious.hellblock.context.ContextKeys;
 import com.swiftlicious.hellblock.creation.item.CustomItem;
 import com.swiftlicious.hellblock.handlers.ActionManager;
+import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.player.HellblockData;
 import com.swiftlicious.hellblock.player.UserData;
+import com.swiftlicious.hellblock.sender.Sender;
 import com.swiftlicious.hellblock.utils.extras.Action;
 import com.swiftlicious.hellblock.utils.extras.Pair;
 import com.swiftlicious.hellblock.utils.extras.TextValue;
 
 import dev.dejvokep.boostedyaml.block.implementation.Section;
-import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.sound.Sound;
 
 public class HellblockGUIManager implements HellblockGUIManagerInterface, Listener {
@@ -372,7 +373,7 @@ public class HellblockGUIManager implements HellblockGUIManagerInterface, Listen
 				return;
 			}
 
-			Audience audience = instance.getSenderFactory().getAudience(gui.context.holder());
+			Sender audience = instance.getSenderFactory().wrap(gui.context.holder());
 
 			if (element.getSymbol() == levelSlot) {
 				event.setCancelled(true);
@@ -387,7 +388,7 @@ public class HellblockGUIManager implements HellblockGUIManagerInterface, Listen
 							if (ownerData.getHellblockData().isAbandoned()) {
 								audience.sendMessage(instance.getTranslationManager()
 										.render(MessageConstants.MSG_HELLBLOCK_IS_ABANDONED.build()));
-								audience.playSound(
+								AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
 										Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
 												net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
 								return;
@@ -431,7 +432,7 @@ public class HellblockGUIManager implements HellblockGUIManagerInterface, Listen
 							if (ownerData.getHellblockData().isAbandoned()) {
 								audience.sendMessage(instance.getTranslationManager()
 										.render(MessageConstants.MSG_HELLBLOCK_IS_ABANDONED.build()));
-								audience.playSound(
+								AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
 										Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
 												net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
 								return;
@@ -445,7 +446,7 @@ public class HellblockGUIManager implements HellblockGUIManagerInterface, Listen
 							} else {
 								audience.sendMessage(instance.getTranslationManager()
 										.render(MessageConstants.MSG_HELLBLOCK_ERROR_HOME_LOCATION.build()));
-								audience.playSound(
+								AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
 										Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
 												net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
 								throw new NullPointerException(
@@ -458,16 +459,18 @@ public class HellblockGUIManager implements HellblockGUIManagerInterface, Listen
 			if (!hellblockData.getOwnerUUID().equals(gui.context.holder().getUniqueId())) {
 				audience.sendMessage(
 						instance.getTranslationManager().render(MessageConstants.MSG_NOT_OWNER_OF_HELLBLOCK.build()));
-				audience.playSound(Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
-						net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
+				AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
+						Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
+								net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
 				return;
 			}
 
 			if (hellblockData.isAbandoned()) {
 				audience.sendMessage(
 						instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_IS_ABANDONED.build()));
-				audience.playSound(Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
-						net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
+				AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
+						Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
+								net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
 				return;
 			}
 

@@ -22,9 +22,8 @@ import com.swiftlicious.hellblock.context.Context;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.handlers.RequirementManager;
 import com.swiftlicious.hellblock.player.UserData;
+import com.swiftlicious.hellblock.sender.Sender;
 import com.swiftlicious.hellblock.world.HellblockWorld;
-
-import net.kyori.adventure.audience.Audience;
 
 public class BiomeHandler {
 
@@ -39,7 +38,7 @@ public class BiomeHandler {
 			throw new NullPointerException("Player object returned null, please report this to the developer.");
 
 		Player player = user.getPlayer();
-		Audience audience = instance.getSenderFactory().getAudience(player);
+		Sender audience = instance.getSenderFactory().wrap(player);
 
 		if (!user.getHellblockData().hasHellblock()) {
 			audience.sendMessage(

@@ -66,12 +66,12 @@ import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.api.Reloadable;
 import com.swiftlicious.hellblock.challenges.HellblockChallenge.ActionType;
 import com.swiftlicious.hellblock.context.Context;
+import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.handlers.VersionHelper;
 import com.swiftlicious.hellblock.listeners.rain.LavaRainTask;
 import com.swiftlicious.hellblock.nms.inventory.HandSlot;
 import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.utils.RandomUtils;
-import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.sound.Sound;
 
 public class FarmingHandler implements Listener, Reloadable {
@@ -721,7 +721,6 @@ public class FarmingHandler implements Listener, Reloadable {
 		final Material sugarCane = event.getMaterial();
 		final BlockFace face = event.getBlockFace();
 		if (block != null) {
-			Audience audience = instance.getSenderFactory().getAudience(player);
 			if (face == BlockFace.UP) {
 				if (sugarCane == Material.SUGAR_CANE) {
 					if (sugarCaneGrowBlocks.contains(block.getType()) && block.getRelative(face).isEmpty()) {
@@ -732,7 +731,7 @@ public class FarmingHandler implements Listener, Reloadable {
 										event.getItem().getAmount() > 0 ? event.getItem().getAmount() - 1 : 0);
 							VersionHelper.getNMSManager().swingHand(player,
 									event.getHand() == EquipmentSlot.HAND ? HandSlot.MAIN : HandSlot.OFF);
-							audience.playSound(
+							AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
 									Sound.sound(net.kyori.adventure.key.Key.key("minecraft:block.grass.place"),
 											net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
 							player.updateInventory();
@@ -747,7 +746,7 @@ public class FarmingHandler implements Listener, Reloadable {
 										event.getItem().getAmount() > 0 ? event.getItem().getAmount() - 1 : 0);
 							VersionHelper.getNMSManager().swingHand(player,
 									event.getHand() == EquipmentSlot.HAND ? HandSlot.MAIN : HandSlot.OFF);
-							audience.playSound(
+							AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
 									Sound.sound(net.kyori.adventure.key.Key.key("minecraft:block.grass.place"),
 											net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
 							player.updateInventory();
@@ -794,9 +793,9 @@ public class FarmingHandler implements Listener, Reloadable {
 								instance.getConfigManager().searchRadius(), instance.getConfigManager().searchRadius())
 						.stream().filter(e -> e.getType() == EntityType.PLAYER).toList()) {
 					if (entity instanceof Player player) {
-						Audience audience = instance.getSenderFactory().getAudience(player);
-						audience.playSound(Sound.sound(net.kyori.adventure.key.Key.key("minecraft:block.grass.break"),
-								net.kyori.adventure.sound.Sound.Source.AMBIENT, 1, 1));
+						AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
+								Sound.sound(net.kyori.adventure.key.Key.key("minecraft:block.grass.break"),
+										net.kyori.adventure.sound.Sound.Source.AMBIENT, 1, 1));
 					}
 				}
 				return;
@@ -824,9 +823,9 @@ public class FarmingHandler implements Listener, Reloadable {
 								instance.getConfigManager().searchRadius(), instance.getConfigManager().searchRadius())
 						.stream().filter(e -> e.getType() == EntityType.PLAYER).toList()) {
 					if (entity instanceof Player player) {
-						Audience audience = instance.getSenderFactory().getAudience(player);
-						audience.playSound(Sound.sound(net.kyori.adventure.key.Key.key("minecraft:block.grass.break"),
-								net.kyori.adventure.sound.Sound.Source.AMBIENT, 1, 1));
+						AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
+								Sound.sound(net.kyori.adventure.key.Key.key("minecraft:block.grass.break"),
+										net.kyori.adventure.sound.Sound.Source.AMBIENT, 1, 1));
 					}
 				}
 				return;
@@ -842,9 +841,9 @@ public class FarmingHandler implements Listener, Reloadable {
 								instance.getConfigManager().searchRadius(), instance.getConfigManager().searchRadius())
 						.stream().filter(e -> e.getType() == EntityType.PLAYER).toList()) {
 					if (entity instanceof Player player) {
-						Audience audience = instance.getSenderFactory().getAudience(player);
-						audience.playSound(Sound.sound(net.kyori.adventure.key.Key.key("minecraft:block.grass.place"),
-								net.kyori.adventure.sound.Sound.Source.AMBIENT, 1, 1));
+						AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
+								Sound.sound(net.kyori.adventure.key.Key.key("minecraft:block.grass.place"),
+										net.kyori.adventure.sound.Sound.Source.AMBIENT, 1, 1));
 					}
 				}
 				return;
@@ -862,8 +861,7 @@ public class FarmingHandler implements Listener, Reloadable {
 									instance.getConfigManager().searchRadius())
 							.stream().filter(e -> e.getType() == EntityType.PLAYER).toList()) {
 						if (entity instanceof Player player) {
-							Audience audience = instance.getSenderFactory().getAudience(player);
-							audience.playSound(
+							AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
 									Sound.sound(net.kyori.adventure.key.Key.key("minecraft:block.grass.break"),
 											net.kyori.adventure.sound.Sound.Source.AMBIENT, 1, 1));
 						}
@@ -965,8 +963,7 @@ public class FarmingHandler implements Listener, Reloadable {
 											instance.getConfigManager().searchRadius())
 									.stream().filter(e -> e.getType() == EntityType.PLAYER).toList()) {
 								if (entity instanceof Player player) {
-									Audience audience = instance.getSenderFactory().getAudience(player);
-									audience.playSound(
+									AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
 											Sound.sound(net.kyori.adventure.key.Key.key("minecraft:block.grass.break"),
 													net.kyori.adventure.sound.Sound.Source.AMBIENT, 1, 1));
 								}
@@ -1028,8 +1025,8 @@ public class FarmingHandler implements Listener, Reloadable {
 				block.getWorld().spawnParticle(Particle.BLOCK, block.getLocation(), 5,
 						Material.SUGAR_CANE.createBlockData());
 				block.getWorld().dropItemNaturally(block.getLocation(), new ItemStack(Material.SUGAR_CANE));
-				instance.getSenderFactory().getAudience(player)
-						.playSound(Sound.sound(net.kyori.adventure.key.Key.key("minecraft:block.grass.break"),
+				AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
+						Sound.sound(net.kyori.adventure.key.Key.key("minecraft:block.grass.break"),
 								net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
 			} else {
 				event.setCancelled(true);
@@ -1058,8 +1055,8 @@ public class FarmingHandler implements Listener, Reloadable {
 				block.getWorld().spawnParticle(Particle.BLOCK, block.getLocation(), 5,
 						Material.SUGAR_CANE.createBlockData());
 				block.getWorld().dropItemNaturally(block.getLocation(), new ItemStack(Material.SUGAR_CANE));
-				instance.getSenderFactory().getAudience(player)
-						.playSound(Sound.sound(net.kyori.adventure.key.Key.key("minecraft:block.grass.break"),
+				AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
+						Sound.sound(net.kyori.adventure.key.Key.key("minecraft:block.grass.break"),
 								net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
 			}
 		}
@@ -1123,8 +1120,7 @@ public class FarmingHandler implements Listener, Reloadable {
 									instance.getConfigManager().searchRadius())
 							.stream().filter(e -> e.getType() == EntityType.PLAYER).toList()) {
 						if (entity instanceof Player player) {
-							Audience audience = instance.getSenderFactory().getAudience(player);
-							audience.playSound(
+							AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
 									Sound.sound(net.kyori.adventure.key.Key.key("minecraft:block.grass.break"),
 											net.kyori.adventure.sound.Sound.Source.AMBIENT, 1, 1));
 						}
@@ -1164,8 +1160,7 @@ public class FarmingHandler implements Listener, Reloadable {
 									instance.getConfigManager().searchRadius())
 							.stream().filter(e -> e.getType() == EntityType.PLAYER).toList()) {
 						if (entity instanceof Player player) {
-							Audience audience = instance.getSenderFactory().getAudience(player);
-							audience.playSound(
+							AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
 									Sound.sound(net.kyori.adventure.key.Key.key("minecraft:block.grass.break"),
 											net.kyori.adventure.sound.Sound.Source.AMBIENT, 1, 1));
 						}
@@ -1199,8 +1194,8 @@ public class FarmingHandler implements Listener, Reloadable {
 			block.getWorld().dropItemNaturally(
 					block.getRelative(BlockFace.DOWN).getRelative(BlockFace.DOWN).getLocation(),
 					new ItemStack(Material.SUGAR_CANE));
-			instance.getSenderFactory().getAudience(player)
-					.playSound(Sound.sound(net.kyori.adventure.key.Key.key("minecraft:block.grass.break"),
+			AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
+					Sound.sound(net.kyori.adventure.key.Key.key("minecraft:block.grass.break"),
 							net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
 			return;
 		}
@@ -1212,8 +1207,8 @@ public class FarmingHandler implements Listener, Reloadable {
 					event.getItemInHand().setAmount(
 							event.getItemInHand().getAmount() > 0 ? event.getItemInHand().getAmount() - 1 : 0);
 				block.setType(Material.SUGAR_CANE);
-				instance.getSenderFactory().getAudience(player)
-						.playSound(Sound.sound(net.kyori.adventure.key.Key.key("minecraft:block.grass.place"),
+				AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
+						Sound.sound(net.kyori.adventure.key.Key.key("minecraft:block.grass.place"),
 								net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
 			} else {
 				event.setCancelled(true);
@@ -1231,8 +1226,8 @@ public class FarmingHandler implements Listener, Reloadable {
 						Material.SUGAR_CANE.createBlockData());
 				block.getWorld().dropItemNaturally(block.getRelative(BlockFace.DOWN).getLocation(),
 						new ItemStack(Material.SUGAR_CANE));
-				instance.getSenderFactory().getAudience(player)
-						.playSound(Sound.sound(net.kyori.adventure.key.Key.key("minecraft:block.grass.break"),
+				AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
+						Sound.sound(net.kyori.adventure.key.Key.key("minecraft:block.grass.break"),
 								net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
 			}
 		}
@@ -1289,8 +1284,8 @@ public class FarmingHandler implements Listener, Reloadable {
 								5, Material.SUGAR_CANE.createBlockData());
 						event.getBlockReplacedState().getBlock().getRelative(face).getRelative(BlockFace.UP)
 								.setType(Material.AIR);
-						instance.getSenderFactory().getAudience(player)
-								.playSound(Sound.sound(net.kyori.adventure.key.Key.key("minecraft:block.grass.break"),
+						AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
+								Sound.sound(net.kyori.adventure.key.Key.key("minecraft:block.grass.break"),
 										net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
 					}
 				}
@@ -1381,10 +1376,11 @@ public class FarmingHandler implements Listener, Reloadable {
 													instance.getConfigManager().searchRadius())
 											.stream().filter(e -> e.getType() == EntityType.PLAYER).toList()) {
 										if (entity instanceof Player player) {
-											Audience audience = instance.getSenderFactory().getAudience(player);
-											audience.playSound(Sound.sound(
-													net.kyori.adventure.key.Key.key("minecraft:block.grass.break"),
-													net.kyori.adventure.sound.Sound.Source.AMBIENT, 1, 1));
+											AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
+													Sound.sound(
+															net.kyori.adventure.key.Key
+																	.key("minecraft:block.grass.break"),
+															net.kyori.adventure.sound.Sound.Source.AMBIENT, 1, 1));
 										}
 									}
 								}
@@ -1453,8 +1449,8 @@ public class FarmingHandler implements Listener, Reloadable {
 						event.getBlockClicked().getWorld().spawnParticle(Particle.BLOCK,
 								event.getBlockClicked().getLocation(), 5, Material.SUGAR_CANE.createBlockData());
 						event.getBlockClicked().getRelative(face).getRelative(BlockFace.UP).setType(Material.AIR);
-						instance.getSenderFactory().getAudience(player)
-								.playSound(Sound.sound(net.kyori.adventure.key.Key.key("minecraft:block.grass.break"),
+						AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
+								Sound.sound(net.kyori.adventure.key.Key.key("minecraft:block.grass.break"),
 										net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
 					}
 				}
@@ -1489,8 +1485,8 @@ public class FarmingHandler implements Listener, Reloadable {
 								.setAmount(event.getItem().getAmount() > 0 ? event.getItem().getAmount() - 1 : 0);
 					VersionHelper.getNMSManager().swingHand(player,
 							event.getHand() == EquipmentSlot.HAND ? HandSlot.MAIN : HandSlot.OFF);
-					instance.getSenderFactory().getAudience(player)
-							.playSound(Sound.sound(net.kyori.adventure.key.Key.key("minecraft:block.wood.place"),
+					AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
+							Sound.sound(net.kyori.adventure.key.Key.key("minecraft:block.wood.place"),
 									net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
 					player.updateInventory();
 					block.getRelative(face).setType(Material.COCOA);
@@ -1526,8 +1522,7 @@ public class FarmingHandler implements Listener, Reloadable {
 										instance.getConfigManager().searchRadius())
 								.stream().filter(e -> e.getType() == EntityType.PLAYER).toList()) {
 							if (entity instanceof Player player) {
-								Audience audience = instance.getSenderFactory().getAudience(player);
-								audience.playSound(
+								AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
 										Sound.sound(net.kyori.adventure.key.Key.key("minecraft:block.lava.extinguish"),
 												net.kyori.adventure.sound.Sound.Source.AMBIENT, 1, 1));
 							}
@@ -1555,8 +1550,7 @@ public class FarmingHandler implements Listener, Reloadable {
 										instance.getConfigManager().searchRadius())
 								.stream().filter(e -> e.getType() == EntityType.PLAYER).toList()) {
 							if (entity instanceof Player player) {
-								Audience audience = instance.getSenderFactory().getAudience(player);
-								audience.playSound(
+								AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
 										Sound.sound(net.kyori.adventure.key.Key.key("minecraft:block.lava.extinguish"),
 												net.kyori.adventure.sound.Sound.Source.AMBIENT, 1, 1));
 							}
@@ -1584,8 +1578,7 @@ public class FarmingHandler implements Listener, Reloadable {
 								instance.getConfigManager().searchRadius()).stream()
 								.filter(e -> e.getType() == EntityType.PLAYER).toList()) {
 							if (entity instanceof Player player) {
-								Audience audience = instance.getSenderFactory().getAudience(player);
-								audience.playSound(
+								AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
 										Sound.sound(net.kyori.adventure.key.Key.key("minecraft:block.lava.extinguish"),
 												net.kyori.adventure.sound.Sound.Source.AMBIENT, 1, 1));
 							}
@@ -1605,10 +1598,11 @@ public class FarmingHandler implements Listener, Reloadable {
 												instance.getConfigManager().searchRadius())
 										.stream().filter(e -> e.getType() == EntityType.PLAYER).toList()) {
 									if (entity instanceof Player player) {
-										Audience audience = instance.getSenderFactory().getAudience(player);
-										audience.playSound(Sound.sound(
-												net.kyori.adventure.key.Key.key("minecraft:block.lava.extinguish"),
-												net.kyori.adventure.sound.Sound.Source.AMBIENT, 1, 1));
+										AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
+												Sound.sound(
+														net.kyori.adventure.key.Key
+																.key("minecraft:block.lava.extinguish"),
+														net.kyori.adventure.sound.Sound.Source.AMBIENT, 1, 1));
 									}
 								}
 								fallingBlock.setDropItem(false);

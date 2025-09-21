@@ -61,9 +61,7 @@ public abstract class AbstractCommandManager<C> implements HellblockCommandManag
 
 	@Override
 	public TriConsumer<C, String, Component> defaultFeedbackConsumer() {
-		return ((sender, node, component) -> {
-			wrapSender(sender).sendMessage(component, true);
-		});
+		return ((sender, node, component) -> wrapSender(sender).sendMessage(component, true));
 	}
 
 	protected abstract Sender wrapSender(C c);

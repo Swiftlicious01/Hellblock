@@ -449,7 +449,7 @@ public class LevelHandler implements Listener {
 			return;
 
 		if (ownerData.isAbandoned()) {
-			instance.getSenderFactory().getAudience(onlineUser.get().getPlayer()).sendMessage(
+			instance.getSenderFactory().wrap(onlineUser.get().getPlayer()).sendMessage(
 					instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_IS_ABANDONED.build()));
 			return;
 		}

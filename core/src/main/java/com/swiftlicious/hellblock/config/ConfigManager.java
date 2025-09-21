@@ -207,6 +207,7 @@ public class ConfigManager extends ConfigHandler {
 		farewellMessageEnabled = config.getBoolean("hellblock.farewell-message-enabled", true);
 		disableBedExplosions = config.getBoolean("hellblock.disable-bed-explosions", true);
 		growNaturalTrees = config.getBoolean("hellblock.grow-natural-trees", false);
+		useParticleBorder = config.getBoolean("hellblock.use-particle-border", false);
 		voidTeleport = config.getBoolean("hellblock.void-teleport", true);
 
 		chestInventoryName = config.getString("hellblock.starter-chest.inventory-name", "Chest");
@@ -235,7 +236,7 @@ public class ConfigManager extends ConfigHandler {
 				if (entry.getKey().contains(":")) {
 					String[] split = entry.getKey().split(":");
 					material = Material.getMaterial(split[0].toUpperCase());
-					if (material == Material.SPAWNER) {
+					if (material != null && material == Material.SPAWNER) {
 						entity = EntityType.valueOf(split[1].toUpperCase());
 					}
 				} else {

@@ -325,7 +325,8 @@ public class FishingGears {
 						}
 						newLore.addAll(durabilityLore);
 						wrapped.lore(newLore);
-						HellblockPlugin.getInstance().getSenderFactory().getAudience(context.holder()).playSound(
+						AdventureHelper.playSound(
+								HellblockPlugin.getInstance().getSenderFactory().getAudience(context.holder()),
 								Sound.sound(Key.key("minecraft:entity.item.break"), Sound.Source.PLAYER, 1, 1));
 					} else {
 						wrapped.setTag(hookDamage, "HellblockItem", "hook_damage");
@@ -373,7 +374,8 @@ public class FishingGears {
 						wrapped.removeTag("HellblockItem", "hook_id");
 						wrapped.removeTag("HellblockItem", "hook_stack");
 						wrapped.removeTag("HellblockItem", "hook_max_damage");
-						HellblockPlugin.getInstance().getSenderFactory().getAudience(context.holder()).playSound(
+						AdventureHelper.playSound(
+								HellblockPlugin.getInstance().getSenderFactory().getAudience(context.holder()),
 								Sound.sound(Key.key("minecraft:entity.item.break"), Sound.Source.PLAYER, 1, 1));
 					} else {
 						wrapped.setTag(hookDamage, "HellblockItem", "hook_damage");

@@ -25,6 +25,7 @@ import org.bukkit.util.Vector;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
+import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.listeners.rain.RainHandler.LavaRainLocation;
 import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.scheduler.SchedulerTask;
@@ -112,18 +113,18 @@ public class LavaRainTask implements Runnable {
 
 					player = players.next();
 				} while (!player.isOp() && !player.hasPermission("hellblock.admin"));
-				
+
 				int warnTime = RandomUtils.generateRandomInt(3, 5);
 
 				if (instance.getLavaRainHandler().willSendWarning() && !this.warnCache && !isLavaRaining()) {
-					instance.getSenderFactory().getAudience(player).sendMessage(instance.getTranslationManager()
+					instance.getSenderFactory().wrap(player).sendMessage(instance.getTranslationManager()
 							.render(MessageConstants.MSG_HELLBLOCK_LAVARAIN_WARNING.build()));
 					this.warnCache = true;
 					instance.getScheduler().asyncLater(() -> this.warnCache = false, warnTime++, TimeUnit.SECONDS);
 				}
-				
+
 				if (this.warnCache) {
-					return; 
+					return;
 				}
 
 				Location location = player.getLocation();
@@ -203,7 +204,7 @@ public class LavaRainTask implements Runnable {
 								if (particleSpawn != null) {
 									world.spawnParticle(Particle.DRIPPING_LAVA, particleSpawn.getLocation(), 1, 0.0D,
 											0.0D, 0.0D, 0.0D);
-									instance.getSenderFactory().getAudience(player).playSound(
+									AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
 											Sound.sound(
 													net.kyori.adventure.key.Key
 															.key("minecraft:block.pointed_dripstone.drip_lava"),

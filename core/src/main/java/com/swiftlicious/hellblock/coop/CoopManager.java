@@ -21,11 +21,11 @@ import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.player.UserData;
+import com.swiftlicious.hellblock.sender.Sender;
 import com.swiftlicious.hellblock.utils.ChunkUtils;
 import com.swiftlicious.hellblock.utils.LocationUtils;
 import com.swiftlicious.hellblock.world.HellblockWorld;
 
-import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.text.Component;
 
 public class CoopManager {
@@ -43,7 +43,7 @@ public class CoopManager {
 		if (owner == null)
 			throw new NullPointerException("Player returned null, please report this to the developer.");
 
-		Audience ownerAudience = instance.getSenderFactory().getAudience(owner);
+		Sender ownerAudience = instance.getSenderFactory().wrap(owner);
 
 		if (player == null) {
 			ownerAudience.sendMessage(
@@ -51,7 +51,7 @@ public class CoopManager {
 			return;
 		}
 		
-		Audience audience = instance.getSenderFactory().getAudience(player);
+		Sender audience = instance.getSenderFactory().wrap(player);
 		
 		if (onlineUser.getHellblockData().isAbandoned()) {
 			ownerAudience.sendMessage(
@@ -107,7 +107,7 @@ public class CoopManager {
 		if (player == null)
 			throw new NullPointerException("Player returned null, please report this to the developer.");
 
-		Audience audience = instance.getSenderFactory().getAudience(player);
+		Sender audience = instance.getSenderFactory().wrap(player);
 
 		if (rejectingPlayer.getHellblockData().hasHellblock()) {
 			audience.sendMessage(instance.getTranslationManager()
@@ -123,7 +123,7 @@ public class CoopManager {
 
 		rejectingPlayer.getHellblockData().removeInvitation(ownerID);
 		if (Bukkit.getPlayer(ownerID) != null) {
-			Audience ownerAudience = instance.getSenderFactory().getAudience(Bukkit.getPlayer(ownerID));
+			Sender ownerAudience = instance.getSenderFactory().wrap(Bukkit.getPlayer(ownerID));
 			ownerAudience.sendMessage(
 					instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_COOP_REJECTED_TO_OWNER
 							.arguments(Component.text(player.getName())).build()));
@@ -147,7 +147,7 @@ public class CoopManager {
 		if (player == null)
 			throw new NullPointerException("Player returned null, please report this to the developer.");
 
-		Audience audience = instance.getSenderFactory().getAudience(player);
+		Sender audience = instance.getSenderFactory().wrap(player);
 
 		if (onlineUser.getHellblockData().hasHellblock()) {
 			audience.sendMessage(instance.getTranslationManager()
@@ -184,7 +184,7 @@ public class CoopManager {
 		if (player == null)
 			throw new NullPointerException("Player returned null, please report this to the developer.");
 
-		Audience audience = instance.getSenderFactory().getAudience(player);
+		Sender audience = instance.getSenderFactory().wrap(player);
 
 		if (playerToAdd.getHellblockData().hasHellblock()) {
 			audience.sendMessage(instance.getTranslationManager()
@@ -243,8 +243,8 @@ public class CoopManager {
 					}
 					makeHomeLocationSafe(offlineUser, playerToAdd);
 					if (offlineUser.isOnline()) {
-						Audience ownerAudience = instance.getSenderFactory()
-								.getAudience(Bukkit.getPlayer(offlineUser.getUUID()));
+						Sender ownerAudience = instance.getSenderFactory()
+								.wrap(Bukkit.getPlayer(offlineUser.getUUID()));
 						ownerAudience.sendMessage(instance.getTranslationManager()
 								.render(MessageConstants.MSG_HELLBLOCK_COOP_ADDED_TO_PARTY
 										.arguments(Component.text(player.getName())).build()));
@@ -261,7 +261,7 @@ public class CoopManager {
 		if (owner == null)
 			throw new NullPointerException("Player returned null, please report this to the developer.");
 
-		Audience ownerAudience = instance.getSenderFactory().getAudience(owner);
+		Sender ownerAudience = instance.getSenderFactory().wrap(owner);
 
 		if (!onlineUser.getHellblockData().hasHellblock()) {
 			ownerAudience.sendMessage(
@@ -318,8 +318,8 @@ public class CoopManager {
 							MessageConstants.MSG_HELLBLOCK_COOP_PARTY_KICKED.arguments(Component.text(input)).build()));
 					if (offlineUser.isOnline()) {
 						instance.getHellblockHandler().teleportToSpawn(Bukkit.getPlayer(offlineUser.getUUID()), true);
-						Audience audience = instance.getSenderFactory()
-								.getAudience(Bukkit.getPlayer(offlineUser.getUUID()));
+						Sender audience = instance.getSenderFactory()
+								.wrap(Bukkit.getPlayer(offlineUser.getUUID()));
 						audience.sendMessage(instance.getTranslationManager()
 								.render(MessageConstants.MSG_HELLBLOCK_COOP_REMOVED_FROM_PARTY
 										.arguments(Component.text(owner.getName())).build()));
@@ -333,7 +333,7 @@ public class CoopManager {
 		if (player == null)
 			throw new NullPointerException("Player returned null, please report this to the developer.");
 
-		Audience audience = instance.getSenderFactory().getAudience(player);
+		Sender audience = instance.getSenderFactory().wrap(player);
 
 		if (!leavingPlayer.getHellblockData().hasHellblock()) {
 			audience.sendMessage(
@@ -383,8 +383,8 @@ public class CoopManager {
 							instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_COOP_PARTY_LEFT
 									.arguments(Component.text(offlineUser.getName())).build()));
 					if (offlineUser.isOnline()) {
-						Audience ownerAudience = instance.getSenderFactory()
-								.getAudience(Bukkit.getPlayer(offlineUser.getUUID()));
+						Sender ownerAudience = instance.getSenderFactory()
+								.wrap(Bukkit.getPlayer(offlineUser.getUUID()));
 						ownerAudience.sendMessage(
 								instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_COOP_LEFT_PARTY
 										.arguments(Component.text(player.getName())).build()));
@@ -399,7 +399,7 @@ public class CoopManager {
 		if (owner == null)
 			throw new NullPointerException("Player returned null, please report this to the developer.");
 
-		Audience ownerAudience = instance.getSenderFactory().getAudience(owner);
+		Sender ownerAudience = instance.getSenderFactory().wrap(owner);
 
 		if (player == null) {
 			ownerAudience.sendMessage(
@@ -407,7 +407,7 @@ public class CoopManager {
 			return;
 		}
 
-		Audience audience = instance.getSenderFactory().getAudience(player);
+		Sender audience = instance.getSenderFactory().wrap(player);
 
 		if (!instance.getConfigManager().transferIslands()) {
 			ownerAudience.sendMessage(instance.getTranslationManager()
@@ -607,8 +607,8 @@ public class CoopManager {
 															instance.getHellblockHandler().teleportToSpawn(
 																	onlineUser.get().getPlayer(), true);
 														}
-														Audience audience = instance.getSenderFactory()
-																.getAudience(onlineUser.get().getPlayer());
+														Sender audience = instance.getSenderFactory()
+																.wrap(onlineUser.get().getPlayer());
 														audience.sendMessage(instance.getTranslationManager().render(
 																MessageConstants.MSG_HELLBLOCK_LOCKED_ENTRY.build()));
 													}
@@ -638,7 +638,7 @@ public class CoopManager {
 		instance.getProtectionManager().getIslandProtection()
 				.getMembersOfHellblockBounds(bukkitWorld, onlineUser.getUUID()).thenAccept(trusted -> {
 					if (trusted.contains(id)) {
-						Audience audience = instance.getSenderFactory().getAudience(onlineUser.getPlayer());
+						Sender audience = instance.getSenderFactory().wrap(onlineUser.getPlayer());
 						audience.sendMessage(instance.getTranslationManager()
 								.render(MessageConstants.MSG_HELLBLOCK_COOP_ALREADY_TRUSTED
 										.arguments(AdventureHelper.miniMessage(input)).build()));
@@ -666,7 +666,7 @@ public class CoopManager {
 		instance.getProtectionManager().getIslandProtection()
 				.getMembersOfHellblockBounds(bukkitWorld, onlineUser.getUUID()).thenAccept(trusted -> {
 					if (!trusted.contains(id)) {
-						Audience audience = instance.getSenderFactory().getAudience(onlineUser.getPlayer());
+						Sender audience = instance.getSenderFactory().wrap(onlineUser.getPlayer());
 						audience.sendMessage(
 								instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_COOP_NOT_TRUSTED
 										.arguments(AdventureHelper.miniMessage(input)).build()));
@@ -702,7 +702,7 @@ public class CoopManager {
 
 			LocationUtils.isSafeLocationAsync(offlineUser.getHellblockData().getHomeLocation()).thenAccept((safe) -> {
 				if (!safe.booleanValue()) {
-					Audience audience = instance.getSenderFactory().getAudience(onlineUser.getPlayer());
+					Sender audience = instance.getSenderFactory().wrap(onlineUser.getPlayer());
 					audience.sendMessage(instance.getTranslationManager()
 							.render(MessageConstants.MSG_HELLBLOCK_RESET_HOME_TO_BEDROCK.build()));
 					instance.getHellblockHandler().locateBedrock(offlineUser.getUUID()).thenAccept((bedrock) -> {

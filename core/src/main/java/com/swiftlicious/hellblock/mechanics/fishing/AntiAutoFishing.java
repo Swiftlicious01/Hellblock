@@ -6,6 +6,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.util.Vector;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.handlers.VersionHelper;
 import com.swiftlicious.hellblock.utils.RandomUtils;
 
@@ -18,7 +19,7 @@ public class AntiAutoFishing {
 		Location loc = hook.getLocation();
 		HellblockPlugin.getInstance()
 				.debug(String.format("Trying to prevent player %s from auto fishing.", player.getName()));
-		HellblockPlugin.getInstance().getSenderFactory().getAudience(player).playSound(
+		AdventureHelper.playSound(HellblockPlugin.getInstance().getSenderFactory().getAudience(player),
 				Sound.sound(Key.key("minecraft", "entity.fishing_bobber.splash"), Sound.Source.NEUTRAL, 0f, 1f),
 				loc.getX(), loc.getY(), loc.getZ());
 		double motion = -0.4 * RandomUtils.generateRandomDouble(0.6, 1.0);

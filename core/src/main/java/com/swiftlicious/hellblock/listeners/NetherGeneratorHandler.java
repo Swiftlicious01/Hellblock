@@ -36,6 +36,7 @@ import com.swiftlicious.hellblock.challenges.HellblockChallenge.ActionType;
 import com.swiftlicious.hellblock.context.Context;
 import com.swiftlicious.hellblock.events.generator.GeneratorGenerateEvent;
 import com.swiftlicious.hellblock.events.generator.PlayerBreakGeneratedBlock;
+import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.handlers.VersionHelper;
 import com.swiftlicious.hellblock.listeners.generator.GenBlock;
 import com.swiftlicious.hellblock.listeners.generator.GenMode;
@@ -49,7 +50,6 @@ import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.utils.StringUtils;
 import com.swiftlicious.hellblock.utils.extras.MathValue;
 
-import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.key.Key;
 import net.kyori.adventure.sound.Sound;
 import net.kyori.adventure.sound.Sound.Source;
@@ -175,8 +175,7 @@ public class NetherGeneratorHandler implements Listener {
 										instance.getConfigManager().searchRadius())
 								.stream().filter(e -> e.getType() == EntityType.PLAYER).toList()) {
 							if (entity instanceof Player player) {
-								Audience audience = instance.getSenderFactory().getAudience(player);
-								audience.playSound(
+								AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
 										Sound.sound(Key.key(mode.getGenSound()), Source.AMBIENT, soundVolume, pitch));
 							}
 						}
