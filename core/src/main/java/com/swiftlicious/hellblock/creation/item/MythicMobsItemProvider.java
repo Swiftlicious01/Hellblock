@@ -4,6 +4,8 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.NotNull;
 
+import com.swiftlicious.hellblock.context.Context;
+
 import io.lumine.mythic.bukkit.MythicBukkit;
 
 public class MythicMobsItemProvider implements ItemProvider {
@@ -17,7 +19,7 @@ public class MythicMobsItemProvider implements ItemProvider {
 
 	@NotNull
 	@Override
-	public ItemStack buildItem(@NotNull Player player, @NotNull String id) {
+	public ItemStack buildItem(@NotNull Context<Player> player, @NotNull String id) {
 		if (mythicBukkit == null || mythicBukkit.isClosed()) {
 			this.mythicBukkit = MythicBukkit.inst();
 		}

@@ -15,9 +15,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.UUID;
 import java.util.function.BiConsumer;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import org.bukkit.Material;
@@ -53,12 +53,14 @@ import com.swiftlicious.hellblock.effects.EffectProperties;
 import com.swiftlicious.hellblock.generation.IslandOptions;
 import com.swiftlicious.hellblock.handlers.ActionManager;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
+import com.swiftlicious.hellblock.handlers.EventManager;
 import com.swiftlicious.hellblock.handlers.EventManagerInterface;
 import com.swiftlicious.hellblock.handlers.ExpressionHelper;
 import com.swiftlicious.hellblock.handlers.RequirementManager;
 import com.swiftlicious.hellblock.handlers.VersionHelper;
 import com.swiftlicious.hellblock.loot.LootInterface;
 import com.swiftlicious.hellblock.loot.StatisticsKeys;
+import com.swiftlicious.hellblock.loot.operation.*;
 import com.swiftlicious.hellblock.mechanics.MechanicType;
 import com.swiftlicious.hellblock.utils.ItemStackUtils;
 import com.swiftlicious.hellblock.utils.ListUtils;
@@ -95,6 +97,10 @@ public class ConfigManager extends ConfigHandler {
 	public YamlDocument getMainConfig() {
 		return mainConfig;
 	}
+
+	private Function<String, Boolean> lootValidator = (id) -> {
+		return instance.getLootManager().getLoot(id).isPresent();
+	};
 
 	public ConfigManager(HellblockPlugin plugin) {
 		super(plugin);
@@ -155,7 +161,7 @@ public class ConfigManager extends ConfigHandler {
 		if (globalEffectSection != null) {
 			for (Map.Entry<String, Object> entry : globalEffectSection.getStringRouteMappedValues(false).entrySet()) {
 				if (entry.getValue() instanceof Section innerSection) {
-					globalEffects.add(parseEffect(innerSection));
+					globalEffects.add(parseEffect(innerSection, id -> instance.getLootManager().getGroupMembers(id)));
 				}
 			}
 		}
@@ -274,6 +280,7 @@ public class ConfigManager extends ConfigHandler {
 		infiniteLavaEnabled = config.getBoolean("infinite-lava-options.enable", true);
 
 		lavaRainEnabled = config.getBoolean("lava-rain-options.enable", true);
+		warnPlayers = config.getBoolean("lava-rain-options.warn-players-beforehand", true);
 		radius = Math.abs(config.getInt("lava-rain-options.radius", 16));
 		fireChance = Math.abs(config.getInt("lava-rain-options.fire-chance", 1));
 		delay = Math.abs(config.getInt("lava-rain-options.task-delay", 3));
@@ -300,6 +307,8 @@ public class ConfigManager extends ConfigHandler {
 		lavaMaxTime = config.getInt("lava-fishing-options.lava-fishing.max-wait-time", 600);
 		if (lavaMaxTime < 0)
 			lavaMaxTime = 0;
+		finalLavaMinTime = config.getInt("lava-fishing-options.final-min-wait-time", 50);
+		finalLavaMaxTime = config.getInt("lava-fishing-options.final-max-wait-time", 1200);
 
 		restrictedSizeRange = config.getBoolean("lava-fishing-options.size.restricted-size-range", true);
 
@@ -393,13 +402,20 @@ public class ConfigManager extends ConfigHandler {
 				MechanicType type = MechanicType.index().value(entry.getKey());
 				if (entry.getValue() instanceof Section inner) {
 					Map<ActionTrigger, Action<Player>[]> actionMap = new HashMap<>();
+					Map<ActionTrigger, TreeMap<Integer, Action<Player>[]>> actionTimesMap = new HashMap<>();
 					for (Map.Entry<String, Object> innerEntry : inner.getStringRouteMappedValues(false).entrySet()) {
 						if (innerEntry.getValue() instanceof Section actionSection) {
-							actionMap.put(ActionTrigger.valueOf(innerEntry.getKey().toUpperCase(Locale.ENGLISH)),
-									instance.getActionManager(Player.class).parseActions(actionSection));
+							String trigger = innerEntry.getKey().toUpperCase(Locale.ENGLISH);
+							if (trigger.equals("SUCCESS_TIMES") || trigger.equals("SUCCESS-TIMES")) {
+								actionTimesMap.put(ActionTrigger.SUCCESS,
+										instance.getActionManager(Player.class).parseTimesActions(actionSection));
+							} else {
+								actionMap.put(ActionTrigger.valueOf(trigger),
+										instance.getActionManager(Player.class).parseActions(actionSection));
+							}
 						}
 					}
-					EventManagerInterface.GLOBAL_ACTIONS.put(type, actionMap);
+					EventManager.GLOBAL_TIMES_ACTION.put(type, actionTimesMap);
 				}
 			}
 		}
@@ -437,8 +453,13 @@ public class ConfigManager extends ConfigHandler {
 							YamlDocument document = instance.getConfigManager().loadData(subFile);
 							for (Map.Entry<String, Object> entry : document.getStringRouteMappedValues(false)
 									.entrySet()) {
-								if (entry.getValue() instanceof Section section) {
-									type.parse(entry.getKey(), section, nodes);
+								try {
+									if (entry.getValue() instanceof Section section) {
+										type.parse(entry.getKey(), section, nodes);
+									}
+								} catch (Exception e) {
+									instance.getPluginLogger().warn("Invalid config " + subFile.getPath()
+											+ " - Failed to parse section " + entry.getKey(), e);
 								}
 							}
 						} catch (ConstructorException e) {
@@ -757,7 +778,7 @@ public class ConfigManager extends ConfigHandler {
 			List<TriConsumer<Effect, Context<Player>, Integer>> property = new ArrayList<>();
 			for (Map.Entry<String, Object> entry : section.getStringRouteMappedValues(false).entrySet()) {
 				if (entry.getValue() instanceof Section innerSection) {
-					property.add(parseEffect(innerSection));
+					property.add(parseEffect(innerSection, id -> instance.getLootManager().getGroupMembers(id)));
 				}
 			}
 			return builder -> {
@@ -766,7 +787,8 @@ public class ConfigManager extends ConfigHandler {
 		}, "effects");
 	}
 
-	public TriConsumer<Effect, Context<Player>, Integer> parseEffect(Section section) {
+	public TriConsumer<Effect, Context<Player>, Integer> parseEffect(Section section,
+			Function<String, List<String>> groupProvider) {
 		if (!section.contains("type")) {
 			throw new RuntimeException(section.getRouteAsString());
 		}
@@ -785,7 +807,7 @@ public class ConfigManager extends ConfigHandler {
 			}));
 		}
 		case "weight-mod" -> {
-			var op = parseWeightOperation(section.getStringList("value"));
+			var op = parseWeightOperation(section.getStringList("value"), lootValidator, groupProvider);
 			return (((effect, context, phase) -> {
 				if (phase == 1) {
 					effect.weightOperations(op);
@@ -794,7 +816,7 @@ public class ConfigManager extends ConfigHandler {
 			}));
 		}
 		case "weight-mod-ignore-conditions" -> {
-			var op = parseWeightOperation(section.getStringList("value"));
+			var op = parseWeightOperation(section.getStringList("value"), lootValidator, groupProvider);
 			return (((effect, context, phase) -> {
 				if (phase == 1) {
 					effect.weightOperationsIgnored(op);
@@ -803,7 +825,7 @@ public class ConfigManager extends ConfigHandler {
 			}));
 		}
 		case "group-mod", "group_mod" -> {
-			var op = parseGroupWeightOperation(section.getStringList("value"));
+			var op = parseGroupWeightOperation(section.getStringList("value"), true, groupProvider);
 			return (((effect, context, phase) -> {
 				if (phase == 1) {
 					effect.weightOperations(op);
@@ -812,7 +834,7 @@ public class ConfigManager extends ConfigHandler {
 			}));
 		}
 		case "group-mod-ignore-conditions", "group_mod_ignore_conditions" -> {
-			var op = parseGroupWeightOperation(section.getStringList("value"));
+			var op = parseGroupWeightOperation(section.getStringList("value"), false, groupProvider);
 			return (((effect, context, phase) -> {
 				if (phase == 1) {
 					effect.weightOperationsIgnored(op);
@@ -873,7 +895,7 @@ public class ConfigManager extends ConfigHandler {
 			if (effectSection != null)
 				for (Map.Entry<String, Object> entry : effectSection.getStringRouteMappedValues(false).entrySet())
 					if (entry.getValue() instanceof Section inner)
-						effects.add(parseEffect(inner));
+						effects.add(parseEffect(inner, groupProvider));
 			return (((effect, context, phase) -> {
 				if (!RequirementManager.isSatisfied(context, requirements))
 					return;
@@ -889,67 +911,222 @@ public class ConfigManager extends ConfigHandler {
 		}
 	}
 
-	private BiFunction<Context<Player>, Double, Double> parseWeightOperation(String op) {
+	private WeightOperation parseSharedGroupWeight(String op, int memberCount, boolean forAvailable,
+			Function<String, List<String>> groupProvider) {
 		switch (op.charAt(0)) {
-		case '/' -> {
-			MathValue<Player> arg = MathValue.auto(op.substring(1));
-			return (context, weight) -> weight / arg.evaluate(context);
-		}
-		case '*' -> {
-			MathValue<Player> arg = MathValue.auto(op.substring(1));
-			return (context, weight) -> weight * arg.evaluate(context);
-		}
 		case '-' -> {
 			MathValue<Player> arg = MathValue.auto(op.substring(1));
-			return (context, weight) -> weight - arg.evaluate(context);
-		}
-		case '%' -> {
-			MathValue<Player> arg = MathValue.auto(op.substring(1));
-			return (context, weight) -> weight % arg.evaluate(context);
+			return new ReduceWeightOperation(arg, memberCount, forAvailable);
 		}
 		case '+' -> {
 			MathValue<Player> arg = MathValue.auto(op.substring(1));
-			return (context, weight) -> weight + arg.evaluate(context);
+			return new AddWeightOperation(arg, memberCount, forAvailable);
 		}
 		case '=' -> {
+			String expression = op.substring(1);
+			MathValue<Player> arg = MathValue.auto(expression);
+			List<String> placeholders = instance.getPlaceholderManager().resolvePlaceholders(expression);
+			List<String> otherEntries = new ArrayList<>();
+			List<Pair<String, String[]>> otherGroups = new ArrayList<>();
+			for (String placeholder : placeholders) {
+				if (placeholder.startsWith("{entry_")) {
+					otherEntries.add(placeholder.substring("{entry_".length(), placeholder.length() - 1));
+				} else if (placeholder.startsWith("{group")) {
+					// only for loots
+					String groupExpression = placeholder.substring("{group_".length(), placeholder.length() - 1);
+					List<String> members = getGroupMembers(groupExpression, groupProvider);
+					if (members.isEmpty()) {
+						instance.getPluginLogger().warn(
+								"Failed to load expression: " + expression + ". Invalid group: " + groupExpression);
+						continue;
+					}
+					otherGroups.add(Pair.of(groupExpression, members.toArray(new String[0])));
+				}
+			}
+			return new CustomWeightOperation(arg, expression.contains("{1}"), otherEntries, otherGroups, memberCount,
+					forAvailable);
+		}
+		default -> throw new IllegalArgumentException("Invalid shared weight operation: " + op);
+		}
+	}
+
+	private WeightOperation parseWeightOperation(String op, boolean forAvailable,
+			Function<String, List<String>> groupProvider) {
+		switch (op.charAt(0)) {
+		case '/' -> {
 			MathValue<Player> arg = MathValue.auto(op.substring(1));
-			return (context, weight) -> {
-				context.arg(ContextKeys.WEIGHT, weight);
-				return arg.evaluate(context);
-			};
+			return new DivideWeightOperation(arg, forAvailable);
+		}
+		case '*' -> {
+			MathValue<Player> arg = MathValue.auto(op.substring(1));
+			return new MultiplyWeightOperation(arg, forAvailable);
+		}
+		case '-' -> {
+			MathValue<Player> arg = MathValue.auto(op.substring(1));
+			return new ReduceWeightOperation(arg, 1, forAvailable);
+		}
+		case '%' -> {
+			MathValue<Player> arg = MathValue.auto(op.substring(1));
+			return new ModuloWeightOperation(arg, forAvailable);
+		}
+		case '+' -> {
+			MathValue<Player> arg = MathValue.auto(op.substring(1));
+			return new AddWeightOperation(arg, 1, forAvailable);
+		}
+		case '=' -> {
+			String expression = op.substring(1);
+			MathValue<Player> arg = MathValue.auto(expression);
+			List<String> placeholders = instance.getPlaceholderManager().resolvePlaceholders(expression);
+			List<String> otherEntries = new ArrayList<>();
+			List<Pair<String, String[]>> otherGroups = new ArrayList<>();
+			for (String placeholder : placeholders) {
+				if (placeholder.startsWith("{entry_")) {
+					otherEntries.add(placeholder.substring("{entry_".length(), placeholder.length() - 1));
+				} else if (placeholder.startsWith("{group")) {
+					// only for loots
+					String groupExpression = placeholder.substring("{group_".length(), placeholder.length() - 1);
+					List<String> members = getGroupMembers(groupExpression, groupProvider);
+					if (members.isEmpty()) {
+						instance.getPluginLogger().warn(
+								"Failed to load expression: " + expression + ". Invalid group: " + groupExpression);
+						continue;
+					}
+					otherGroups.add(Pair.of(groupExpression, members.toArray(new String[0])));
+				}
+			}
+			return new CustomWeightOperation(arg, expression.contains("{1}"), otherEntries, otherGroups, 1,
+					forAvailable);
 		}
 		default -> throw new IllegalArgumentException("Invalid weight operation: " + op);
 		}
 	}
 
-	public List<Pair<String, BiFunction<Context<Player>, Double, Double>>> parseWeightOperation(List<String> ops) {
-		List<Pair<String, BiFunction<Context<Player>, Double, Double>>> result = new ArrayList<>();
+	public List<Pair<String, WeightOperation>> parseWeightOperation(List<String> ops,
+			Function<String, Boolean> validator, Function<String, List<String>> groupProvider) {
+		List<Pair<String, WeightOperation>> result = new ArrayList<>();
 		for (String op : ops) {
-			String[] split = op.split(":", 2);
+			String[] split = op.split(":", 3);
 			if (split.length < 2) {
 				instance.getPluginLogger().warn("Illegal weight operation: " + op);
 				continue;
 			}
-			result.add(Pair.of(split[0], parseWeightOperation(split[1])));
+			if (split.length == 2) {
+				String id = split[0];
+				if (!validator.apply(id)) {
+					instance.getPluginLogger().warn("Illegal weight operation: " + op + ". Id " + id + " is not valid");
+					continue;
+				}
+				result.add(Pair.of(id, parseWeightOperation(split[1], false, groupProvider)));
+			} else {
+				String type = split[0];
+				String id = split[1];
+				switch (type) {
+				case "group_for_each" -> {
+					List<String> members = getGroupMembers(id, groupProvider);
+					if (members.isEmpty()) {
+						instance.getPluginLogger().warn("Failed to load expression: " + op + ". Invalid group: " + id);
+						continue;
+					}
+					WeightOperation operation = parseWeightOperation(split[2], false, groupProvider);
+					for (String member : members) {
+						result.add(Pair.of(member, operation));
+					}
+				}
+				case "group_available_for_each" -> {
+					List<String> members = getGroupMembers(id, groupProvider);
+					if (members.isEmpty()) {
+						instance.getPluginLogger().warn("Failed to load expression: " + op + ". Invalid group: " + id);
+						continue;
+					}
+					WeightOperation operation = parseWeightOperation(split[2], true, groupProvider);
+					for (String member : members) {
+						result.add(Pair.of(member, operation));
+					}
+				}
+				case "group_total" -> {
+					List<String> members = getGroupMembers(id, groupProvider);
+					if (members.isEmpty()) {
+						instance.getPluginLogger().warn("Failed to load expression: " + op + ". Invalid group: " + id);
+						continue;
+					}
+					WeightOperation operation = parseSharedGroupWeight(split[2], members.size(), false, groupProvider);
+					for (String member : members) {
+						result.add(Pair.of(member, operation));
+					}
+				}
+				case "group_available_total" -> {
+					List<String> members = getGroupMembers(id, groupProvider);
+					if (members.isEmpty()) {
+						instance.getPluginLogger().warn("Failed to load expression: " + op + ". Invalid group: " + id);
+						continue;
+					}
+					WeightOperation operation = parseSharedGroupWeight(split[2], members.size(), true, groupProvider);
+					for (String member : members) {
+						result.add(Pair.of(member, operation));
+					}
+				}
+				case "loot_available" -> {
+					if (!validator.apply(id)) {
+						instance.getPluginLogger()
+								.warn("Illegal weight operation: " + op + ". Id " + id + " is not valid");
+						continue;
+					}
+					result.add(Pair.of(id, parseWeightOperation(split[2], true, groupProvider)));
+				}
+				default -> {
+					if (!validator.apply(id)) {
+						instance.getPluginLogger()
+								.warn("Illegal weight operation: " + op + ". Id " + id + " is not valid");
+						continue;
+					}
+					result.add(Pair.of(id, parseWeightOperation(split[2], false, groupProvider)));
+				}
+				}
+			}
 		}
 		return result;
 	}
 
-	public List<Pair<String, BiFunction<Context<Player>, Double, Double>>> parseGroupWeightOperation(
-			List<String> gops) {
-		List<Pair<String, BiFunction<Context<Player>, Double, Double>>> result = new ArrayList<>();
+	public List<Pair<String, WeightOperation>> parseGroupWeightOperation(List<String> gops, boolean forAvailable,
+			Function<String, List<String>> groupProvider) {
+		List<Pair<String, WeightOperation>> result = new ArrayList<>();
 		for (String gop : gops) {
 			String[] split = gop.split(":", 2);
 			if (split.length < 2) {
 				instance.getPluginLogger().warn("Illegal weight operation: " + gop);
 				continue;
 			}
-			BiFunction<Context<Player>, Double, Double> operation = parseWeightOperation(split[1]);
-			for (String member : instance.getLootManager().getGroupMembers(split[0])) {
+			WeightOperation operation = parseWeightOperation(split[1], forAvailable, groupProvider);
+			String groupExpression = split[0];
+			for (String member : getGroupMembers(groupExpression, groupProvider)) {
 				result.add(Pair.of(member, operation));
 			}
 		}
 		return result;
+	}
+
+	private List<String> getGroupMembers(String groupExpression, Function<String, List<String>> groupProvider) {
+		if (groupExpression.contains("&")) {
+			String[] groups = groupExpression.split("&");
+			List<Set<String>> groupSets = new ArrayList<>();
+			for (String group : groups) {
+				groupSets.add(new HashSet<>(groupProvider.apply(group)));
+			}
+			Set<String> intersection = groupSets.get(0);
+			for (int i = 1; i < groupSets.size(); i++) {
+				intersection.retainAll(groupSets.get(i));
+			}
+			return new ArrayList<>(intersection);
+		} else if (groupExpression.contains("|")) {
+			Set<String> members = new HashSet<>();
+			String[] groups = groupExpression.split("\\|");
+			for (String group : groups) {
+				members.addAll(groupProvider.apply(group));
+			}
+			return new ArrayList<>(members);
+		} else {
+			return groupProvider.apply(groupExpression);
+		}
 	}
 
 	private void registerBuiltInHookParser() {
@@ -1101,6 +1278,23 @@ public class ConfigManager extends ConfigHandler {
 			Action<Player>[] actions = instance.getActionManager(Player.class).parseActions(section);
 			return builder -> builder.action(ActionTrigger.NEW_SIZE_RECORD, actions);
 		}, "events", "new_size_record");
+		this.registerEventParser(object -> {
+			Section section = (Section) object;
+			Action<Player>[] actions = instance.getActionManager(Player.class).parseActions(section);
+			return builder -> builder.action(ActionTrigger.NEW_SIZE_RECORD, actions);
+		}, "events", "new-size-record");
+		this.registerEventParser(object -> {
+			Section section = (Section) object;
+			TreeMap<Integer, Action<Player>[]> actions = instance.getActionManager(Player.class)
+					.parseTimesActions(section);
+			return builder -> builder.actionTimes(ActionTrigger.SUCCESS, actions);
+		}, "events", "success_times");
+		this.registerEventParser(object -> {
+			Section section = (Section) object;
+			TreeMap<Integer, Action<Player>[]> actions = instance.getActionManager(Player.class)
+					.parseTimesActions(section);
+			return builder -> builder.actionTimes(ActionTrigger.SUCCESS, actions);
+		}, "events", "success-times");
 	}
 
 	private void registerBuiltInLootParser() {
@@ -1154,12 +1348,12 @@ public class ConfigManager extends ConfigHandler {
 
 	public class TitleScreenInfo {
 
-		private boolean enabled;
-		private String title;
-		private String subtitle;
-		private int fadeIn;
-		private int stay;
-		private int fadeOut;
+		protected final boolean enabled;
+		protected final String title;
+		protected final String subtitle;
+		protected final int fadeIn;
+		protected final int stay;
+		protected final int fadeOut;
 
 		public TitleScreenInfo(boolean enabled, String title, String subtitle, int fadeIn, int stay, int fadeOut) {
 			this.enabled = enabled;

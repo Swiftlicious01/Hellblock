@@ -3,7 +3,7 @@ name: Hellblock
 version: '${project_version}'
 api-version: 1.17
 description: Skyblock in the nether!
-website: https://github.com/Swiftlicious01/Hellblock
+website: https://github.com/Swiftlicious01
 authors: [ Swiftlicious ]
 folia-supported: true
 softdepend:
@@ -14,6 +14,7 @@ softdepend:
 - Vault
 - MythicMobs
 - Jobs
+- ShopGUIPlus
 - AdvancedEnchantments
 - SlimeWorldPlugin
 - SlimeWorldManager

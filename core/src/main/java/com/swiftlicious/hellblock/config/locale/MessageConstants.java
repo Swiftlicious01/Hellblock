@@ -103,6 +103,8 @@ public interface MessageConstants {
 			.key("message.hellblock.login.abandoned");
 	TranslatableComponent.Builder MSG_HELLBLOCK_GROWING_GLOWSTONE_TREE = Component.translatable()
 			.key("message.hellblock.grow.glowstone.tree");
+	TranslatableComponent.Builder MSG_HELLBLOCK_LAVARAIN_WARNING = Component.translatable()
+			.key("message.hellblock.lavarain.warning");
 	TranslatableComponent.Builder MSG_HELLBLOCK_BANNED_ENTRY = Component.translatable()
 			.key("message.hellblock.banned.from.entry");
 	TranslatableComponent.Builder MSG_HELLBLOCK_LOCKED_ENTRY = Component.translatable()

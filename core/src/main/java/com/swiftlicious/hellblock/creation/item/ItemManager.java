@@ -69,7 +69,7 @@ public class ItemManager implements ItemManagerInterface, Listener {
 		this.registerItemProvider(new ItemProvider() {
 			@NotNull
 			@Override
-			public ItemStack buildItem(@NotNull Player player, @NotNull String id) {
+			public ItemStack buildItem(@NotNull Context<Player> player, @NotNull String id) {
 				try {
 					return new ItemStack(Material.valueOf(id.toUpperCase(Locale.ENGLISH)));
 				} catch (IllegalArgumentException e) {
@@ -134,7 +134,7 @@ public class ItemManager implements ItemManagerInterface, Listener {
 		if (context.arg(ContextKeys.ID) == null) {
 			context.arg(ContextKeys.ID, customItem.id());
 		}
-		ItemStack itemStack = getOriginalStack(context.holder(), customItem.material());
+		ItemStack itemStack = getOriginalStack(context, customItem.material());
 		if (itemStack.getType() == Material.AIR)
 			return itemStack;
 		instance.getLootManager().getLoot(customItem.id()).ifPresent(loot -> {
@@ -152,7 +152,7 @@ public class ItemManager implements ItemManagerInterface, Listener {
 
 	@Override
 	public ItemStack buildAny(@NotNull Context<Player> context, @NotNull String item) {
-		return getOriginalStack(context.holder(), item);
+		return getOriginalStack(context, item);
 	}
 
 	@NotNull
@@ -238,7 +238,7 @@ public class ItemManager implements ItemManagerInterface, Listener {
 		return itemEntity;
 	}
 
-	private ItemStack getOriginalStack(Player player, String material) {
+	private ItemStack getOriginalStack(Context<Player> player, String material) {
 		if (!material.contains(":")) {
 			try {
 				return new ItemStack(Material.valueOf(material.toUpperCase(Locale.ENGLISH)));
@@ -347,7 +347,9 @@ public class ItemManager implements ItemManagerInterface, Listener {
 			instance.debug("Another plugin modified the item from `PlayerItemDamageEvent` called by Hellblock");
 			return;
 		}
-		if (!itemStack.getItemMeta().equals(previousMeta)) {
+
+		ItemMeta itemMeta = itemStack.getItemMeta();
+		if (itemMeta == null || !itemMeta.equals(previousMeta)) {
 			return;
 		}
 

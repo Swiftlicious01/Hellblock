@@ -83,7 +83,7 @@ public class MarketGUI {
 	public void show() {
 		context.holder().openInventory(inventory);
 		VersionHelper.getNMSManager().updateInventoryTitle(context.holder(),
-				AdventureHelper.componentToJson(AdventureHelper.miniMessage(manager.title.render(context))));
+				AdventureHelper.componentToJson(AdventureHelper.miniMessage(manager.title.render(context, true))));
 	}
 
 	@Nullable
@@ -115,10 +115,19 @@ public class MarketGUI {
 					.arg(ContextKeys.SOLD_ITEM_AMOUNT, soldAmount);
 			if (totalWorth <= 0) {
 				sellElement.setItemStack(manager.sellIconDenyItem.build(context));
+				if (manager.denyTitle != null)
+					VersionHelper.getNMSManager().updateInventoryTitle(context.holder(), AdventureHelper
+							.componentToJson(AdventureHelper.miniMessage(manager.denyTitle.render(context, true))));
 			} else if (earningLimit != -1 && (earningLimit - earningData.getEarnings() < totalWorth)) {
 				sellElement.setItemStack(manager.sellIconLimitItem.build(context));
+				if (manager.limitTitle != null)
+					VersionHelper.getNMSManager().updateInventoryTitle(context.holder(), AdventureHelper
+							.componentToJson(AdventureHelper.miniMessage(manager.limitTitle.render(context, true))));
 			} else {
 				sellElement.setItemStack(manager.sellIconAllowItem.build(context));
+				if (manager.allowTitle != null)
+					VersionHelper.getNMSManager().updateInventoryTitle(context.holder(), AdventureHelper
+							.componentToJson(AdventureHelper.miniMessage(manager.allowTitle.render(context, true))));
 			}
 		}
 

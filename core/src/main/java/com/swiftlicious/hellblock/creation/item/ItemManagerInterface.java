@@ -66,8 +66,8 @@ public interface ItemManagerInterface extends Reloadable {
 	 * returned value would be capitalized for instance {@code PAPER}. If it's a
 	 * custom item, the returned value would be the ID for instance
 	 * {@code beginner_rod}. If it's an item from other plugins, the returned value
-	 * would be the id from that plugin for instance {@code itemsadder_namespace:id}
-	 * / {@code oraxen_item_id}
+	 * would be the id from that plugin for instance {@code namespace:id} /
+	 * {@code MythicSword}
 	 *
 	 * @param itemStack the {@link ItemStack} to be checked
 	 * @return the custom item ID, or null if the item stack is not a custom fishing

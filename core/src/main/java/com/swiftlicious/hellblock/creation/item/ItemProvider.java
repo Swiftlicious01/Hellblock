@@ -5,6 +5,7 @@ import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import com.swiftlicious.hellblock.context.Context;
 import com.swiftlicious.hellblock.creation.addons.ExternalProvider;
 
 /**
@@ -21,7 +22,7 @@ public interface ItemProvider extends ExternalProvider {
 	 * @return the built ItemStack.
 	 */
 	@NotNull
-	ItemStack buildItem(@NotNull Player player, @NotNull String id);
+    ItemStack buildItem(@NotNull Context<Player> player, @NotNull String id);
 
 	/**
 	 * Retrieves the item ID from a given ItemStack.

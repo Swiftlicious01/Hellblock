@@ -148,7 +148,8 @@ public class FlagsGUIManager implements FlagsGUIManagerInterface, Listener {
 		for (Map.Entry<Character, Pair<CustomItem, Action<Player>[]>> entry : decorativeIcons.entrySet()) {
 			gui.addElement(new FlagsGUIElement(entry.getKey(), entry.getValue().left().build(context)));
 		}
-		gui.build().refresh().show();
+		gui.build().show();
+		gui.refresh();
 		flagsGUICache.put(player.getUniqueId(), gui);
 		return true;
 	}

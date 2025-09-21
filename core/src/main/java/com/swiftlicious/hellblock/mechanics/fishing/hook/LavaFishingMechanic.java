@@ -222,8 +222,10 @@ public class LavaFishingMechanic implements HookMechanic {
 				.nextInt(HellblockPlugin.getInstance().getConfigManager().lavaMaxTime()
 						- HellblockPlugin.getInstance().getConfigManager().lavaMinTime() + 1)
 				+ HellblockPlugin.getInstance().getConfigManager().lavaMinTime();
-		int after = Math.max(HellblockPlugin.getInstance().getConfigManager().lavaMinTime(),
-				(int) (before * effect.waitTimeMultiplier() + effect.waitTimeAdder()));
+		int after = Math.min(
+				Math.max(HellblockPlugin.getInstance().getConfigManager().finalLavaMinTime(),
+						(int) (before * effect.waitTimeMultiplier() + effect.waitTimeAdder())),
+				HellblockPlugin.getInstance().getConfigManager().finalLavaMaxTime());
 		HellblockPlugin.getInstance().debug("Wait time: " + before + " -> " + after + " ticks");
 		this.timeUntilLured = after;
 	}

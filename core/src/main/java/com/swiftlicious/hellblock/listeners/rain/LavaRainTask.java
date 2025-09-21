@@ -24,6 +24,7 @@ import org.bukkit.util.BlockIterator;
 import org.bukkit.util.Vector;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.config.locale.MessageConstants;
 import com.swiftlicious.hellblock.listeners.rain.RainHandler.LavaRainLocation;
 import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.scheduler.SchedulerTask;
@@ -47,8 +48,9 @@ public class LavaRainTask implements Runnable {
 	private long howLongRainLasts;
 	private boolean hasRainedRecently;
 	private boolean waitCache;
+	private boolean warnCache;
 
-	private final Set<EntityType> immuneMobs = Set.of(EntityType.PLAYER, EntityType.STRIDER, EntityType.BLAZE,
+	protected final Set<EntityType> immuneMobs = Set.of(EntityType.PLAYER, EntityType.STRIDER, EntityType.BLAZE,
 			EntityType.WITHER_SKELETON, EntityType.ZOMBIFIED_PIGLIN, EntityType.ZOGLIN, EntityType.VEX,
 			EntityType.WITHER, EntityType.WARDEN);
 
@@ -110,6 +112,19 @@ public class LavaRainTask implements Runnable {
 
 					player = players.next();
 				} while (!player.isOp() && !player.hasPermission("hellblock.admin"));
+				
+				int warnTime = RandomUtils.generateRandomInt(3, 5);
+
+				if (instance.getLavaRainHandler().willSendWarning() && !this.warnCache && !isLavaRaining()) {
+					instance.getSenderFactory().getAudience(player).sendMessage(instance.getTranslationManager()
+							.render(MessageConstants.MSG_HELLBLOCK_LAVARAIN_WARNING.build()));
+					this.warnCache = true;
+					instance.getScheduler().asyncLater(() -> this.warnCache = false, warnTime++, TimeUnit.SECONDS);
+				}
+				
+				if (this.warnCache) {
+					return; 
+				}
 
 				Location location = player.getLocation();
 				if (location == null)

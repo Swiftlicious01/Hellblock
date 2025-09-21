@@ -29,9 +29,11 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.persistence.PersistentDataType;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.context.Context;
+import com.swiftlicious.hellblock.context.ContextKeys;
 import com.swiftlicious.hellblock.events.fishing.FishingHookStateEvent;
 import com.swiftlicious.hellblock.events.fishing.RodCastEvent;
 import com.swiftlicious.hellblock.handlers.RequirementManager;
+import com.swiftlicious.hellblock.handlers.VersionHelper;
 import com.swiftlicious.hellblock.mechanics.fishing.CustomFishingHook;
 import com.swiftlicious.hellblock.mechanics.fishing.FishingGears;
 import com.swiftlicious.hellblock.mechanics.fishing.hook.LavaFishingMechanic;
@@ -68,8 +70,9 @@ public class FishingManager implements Listener, FishingManagerInterface {
 
 	@Override
 	public Optional<Player> getOwner(FishHook hook) {
-		if (hook.getShooter() != null && hook.getShooter() instanceof Player player) {
-			return Optional.ofNullable(Bukkit.getPlayer(player.getUniqueId()));
+		UUID ownerUUID = VersionHelper.getNMSManager().getFishingHookOwner(hook);
+		if (ownerUUID != null) {
+			return Optional.ofNullable(Bukkit.getPlayer(ownerUUID));
 		}
 		return Optional.empty();
 	}
@@ -234,6 +237,7 @@ public class FishingManager implements Listener, FishingManagerInterface {
 			return;
 		Context<Player> context = Context.player(player);
 		FishingGears gears = new FishingGears(context);
+        context.arg(ContextKeys.HOOK_ENTITY, hook);
 		if (!RequirementManager.isSatisfied(context, instance.getConfigManager().fishingRequirements())) {
 			this.destroyHook(player.getUniqueId());
 			return;
@@ -272,6 +276,7 @@ public class FishingManager implements Listener, FishingManagerInterface {
 		}
 	}
 
+	@SuppressWarnings("incomplete-switch")
 	@EventHandler
 	public void onHookStateChange(FishingHookStateEvent event) {
 		Player player = event.getPlayer();
@@ -283,6 +288,7 @@ public class FishingManager implements Listener, FishingManagerInterface {
 			case LAND -> hook.onLand();
 			case ESCAPE -> hook.onEscape();
 			case LURE -> hook.onLure();
+			// case HOOK -> hook.onHook()
 			}
 		});
 	}

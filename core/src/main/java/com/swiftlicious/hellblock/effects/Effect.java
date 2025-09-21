@@ -1,15 +1,12 @@
 package com.swiftlicious.hellblock.effects;
 
-import org.bukkit.entity.Player;
-
-import com.swiftlicious.hellblock.context.Context;
+import com.swiftlicious.hellblock.loot.operation.WeightOperation;
 import com.swiftlicious.hellblock.utils.extras.Pair;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiFunction;
 
 public class Effect implements EffectInterface {
 
@@ -19,8 +16,8 @@ public class Effect implements EffectInterface {
 	private double sizeMultiplier = 1;
 	private double waitTimeAdder = 0;
 	private double waitTimeMultiplier = 1;
-	private final List<Pair<String, BiFunction<Context<Player>, Double, Double>>> weightOperations = new ArrayList<>();
-	private final List<Pair<String, BiFunction<Context<Player>, Double, Double>>> weightOperationsIgnored = new ArrayList<>();
+	private final List<Pair<String, WeightOperation>> weightOperations = new ArrayList<>();
+	private final List<Pair<String, WeightOperation>> weightOperationsIgnored = new ArrayList<>();
 
 	@Override
 	public Map<EffectProperties<?>, Object> properties() {
@@ -101,25 +98,24 @@ public class Effect implements EffectInterface {
 	}
 
 	@Override
-	public List<Pair<String, BiFunction<Context<Player>, Double, Double>>> weightOperations() {
+	public List<Pair<String, WeightOperation>> weightOperations() {
 		return weightOperations;
 	}
 
 	@Override
-	public Effect weightOperations(
-			List<Pair<String, BiFunction<Context<Player>, Double, Double>>> weightOperations) {
+    public Effect weightOperations(List<Pair<String, WeightOperation>> weightOperations) {
 		this.weightOperations.addAll(weightOperations);
 		return this;
 	}
 
 	@Override
-	public List<Pair<String, BiFunction<Context<Player>, Double, Double>>> weightOperationsIgnored() {
+	public List<Pair<String, WeightOperation>> weightOperationsIgnored() {
 		return weightOperationsIgnored;
 	}
 
 	@Override
 	public Effect weightOperationsIgnored(
-			List<Pair<String, BiFunction<Context<Player>, Double, Double>>> weightOperations) {
+			List<Pair<String, WeightOperation>> weightOperations) {
 		this.weightOperationsIgnored.addAll(weightOperations);
 		return this;
 	}

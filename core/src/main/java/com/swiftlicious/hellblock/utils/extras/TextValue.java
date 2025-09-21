@@ -4,6 +4,7 @@ import java.util.regex.Pattern;
 
 import org.bukkit.OfflinePlayer;
 
+import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.context.Context;
 import com.swiftlicious.hellblock.utils.PlaceholderAPIUtils;
 
@@ -35,9 +36,19 @@ public interface TextValue<T> {
 	 * @return the rendered text as a String
 	 */
 	default String render(Context<T> context, boolean parseRawPlaceholders) {
-		if (!parseRawPlaceholders || !(context.holder() instanceof OfflinePlayer player))
-			return render(context);
-		return PlaceholderAPIUtils.parse(player, render(context));
+		if (!(context.holder() instanceof OfflinePlayer player)) {
+			if (HellblockPlugin.getInstance().getPlaceholderManager().hasPapi() && parseRawPlaceholders) {
+				return PlaceholderAPIUtils.parse(null, render(context));
+			} else {
+				return render(context);
+			}
+		} else {
+			if (HellblockPlugin.getInstance().getPlaceholderManager().hasPapi() && parseRawPlaceholders) {
+				return PlaceholderAPIUtils.parse(player, render(context));
+			} else {
+				return render(context);
+			}
+		}
 	}
 
 	/**

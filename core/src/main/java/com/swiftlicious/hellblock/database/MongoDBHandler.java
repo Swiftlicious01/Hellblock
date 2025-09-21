@@ -75,7 +75,8 @@ public class MongoDBHandler extends AbstractStorage {
 			return;
 		}
 
-		if (section.contains("user")) {
+		if (section.contains("user") && !section.getString("user").isEmpty() && section.contains("password")
+				&& !section.getString("password").isEmpty()) {
 			MongoCredential credential = MongoCredential.createCredential(section.getString("user", "root"),
 					section.getString("database", "minecraft"),
 					section.getString("password", "password").toCharArray());
@@ -151,8 +152,8 @@ public class MongoDBHandler extends AbstractStorage {
 				Binary binary = (Binary) doc.get("data");
 				PlayerData data = plugin.getStorageManager().fromBytes(binary.getData());
 				data.setUUID(uuid);
-				if (doc.getInteger("lock") != 0
-						&& getCurrentSeconds() - plugin.getConfigManager().dataSaveInterval() <= doc.getInteger("lock")) {
+				if (doc.getInteger("lock") != 0 && getCurrentSeconds()
+						- plugin.getConfigManager().dataSaveInterval() <= doc.getInteger("lock")) {
 					data.setLocked(true);
 					future.complete(Optional.of(data));
 					return;

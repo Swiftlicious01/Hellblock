@@ -24,6 +24,7 @@ public class MechanicType {
 	public static final MechanicType BAIT = of("bait");
 	public static final MechanicType HOOK = of("hook");
 	public static final MechanicType ENCHANT = of("enchant");
+    public static final MechanicType EQUIPMENT = of("equipment");
 
 	private final String type;
 

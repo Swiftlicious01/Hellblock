@@ -59,12 +59,16 @@ public class EffectModifier implements EffectModifierInterface {
 
 		@Override
 		public Builder requirements(List<Requirement<Player>> requirements) {
+			if (requirements == null)
+				return this;
 			this.requirements.addAll(requirements);
 			return this;
 		}
 
 		@Override
 		public Builder modifiers(List<TriConsumer<Effect, Context<Player>, Integer>> modifiers) {
+			if (modifiers == null)
+				return this;
 			this.modifiers.addAll(modifiers);
 			return this;
 		}

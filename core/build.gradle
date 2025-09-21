@@ -6,7 +6,7 @@ apply plugin: 'com.gradleup.shadow'
 
 repositories {
     maven { url = 'https://maven.enginehub.org/repo/' } // worldedit & worldguard
-    maven { url = 'https://jitpack.io/' } // vault, jobs & rtag
+    maven { url = 'https://jitpack.io/' } // vault, jobs, shopguiplus & rtag
     maven { url = 'https://libraries.minecraft.net' } // authlib
     maven { url = 'https://repo.papermc.io/repository/maven-public/' } // folia
     maven { url = 'https://mvn.lumine.io/repository/maven-public/' } // mythicmobs
@@ -14,6 +14,7 @@ repositories {
     maven { url = 'https://repo.glaremasters.me/repository/concuncan/' } // slimeworldmanager
     maven { url = 'https://repo.infernalsuite.com/repository/maven-snapshots/' } // advancedslimepaper
     maven { url = 'https://repo.rapture.pw/repository/maven-releases/' } // flow nbt
+    maven { url = 'https://repo.opencollab.dev/main/' } // geyser
     // placeholderapi
     maven {
     	url = 'https://repo.extendedclip.com/content/repositories/placeholderapi/'
@@ -53,6 +54,7 @@ dependencies {
     implementation "net.kyori:adventure-api:${rootProject.properties["adventure_bundle_version"]}"
     implementation "net.kyori:adventure-text-minimessage:${rootProject.properties["adventure_bundle_version"]}"
     implementation "net.kyori:adventure-platform-bukkit:${rootProject.properties["adventure_platform_version"]}"
+    implementation "net.kyori:adventure-text-serializer-json-legacy-impl:${rootProject.properties["adventure_bundle_version"]}")
     implementation("net.kyori:adventure-text-serializer-gson:${rootProject.properties["adventure_bundle_version"]}") {
         exclude group: 'com.google.code.gson'
     }
@@ -82,10 +84,13 @@ dependencies {
     // mythic mobs
     compileOnly "io.lumine:Mythic-Dist:${rootProject.properties["mythic_mobs_version"]}"
     
+    // shop gui plus
+    compileOnly "com.github.brcdev-minecraft:shopgui-api:${rootProject.properties["shop_gui_version"]}"
+    
     // slime world manager support
     compileOnly "com.infernalsuite.aswm:api:${rootProject.properties["paper_version"]}-R0.1-SNAPSHOT"
     
-    implementation("com.flowpowered:flow-nbt:${rootProject.properties["flow_nbt_version"]}") // do not relocate (compatibility with AdvancedSlimePaper)
+    implementation "com.flowpowered:flow-nbt:${rootProject.properties["flow_nbt_version"]}" // do not relocate (compatibility with AdvancedSlimePaper)
 
     // worldedit & worldguard
     compileOnly("com.sk89q.worldedit:worldedit-bukkit:${rootProject.properties["worldedit_version"]}-SNAPSHOT") {
@@ -122,6 +127,11 @@ dependencies {
     
     // config
     compileOnly "dev.dejvokep:boosted-yaml:${rootProject.properties["boosted_yaml_version"]}"
+    
+    // geyser
+    compileOnly "org.geysermc.geyser:api:${rootProject.properties["geyser_version"]}-SNAPSHOT"
+    // floodgate
+    compileOnly "org.geysermc.floodgate:api:${rootProject.properties["floodgate_version"]}-SNAPSHOT"
 }
 
 compileJava {

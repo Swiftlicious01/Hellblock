@@ -88,7 +88,7 @@ public class TagMap implements TagMapInterface {
 				case INTARRAY -> {
 					String[] split = splitValue(str);
 					int[] array = Arrays.stream(split).mapToInt(Integer::parseInt).toArray();
-					outPutMap.put(pair.right(), array);
+					outPutMap.put(key, array);
 				}
 				case BYTEARRAY -> {
 					String[] split = splitValue(str);
@@ -96,7 +96,7 @@ public class TagMap implements TagMapInterface {
 					for (int i = 0; i < split.length; i++) {
 						bytes[i] = Byte.parseByte(split[i]);
 					}
-					outPutMap.put(pair.right(), bytes);
+					outPutMap.put(key, bytes);
 				}
 				case STRING -> {
 					TextValue<Player> textValue = TextValue.auto(pair.right());

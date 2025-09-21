@@ -67,7 +67,7 @@ public class VersionHelper {
 		String[] split = serverVersion.split("\\.");
 		version = Float.parseFloat(split[1] + "." + (split.length == 3 ? split[2] : "0"));
 
-		supportedVersions = List.of("1.17.1", "1.18", "1.18.1", "1.18.2", "1.19", "1.19.1", "1.19.2", "1.19.3",
+		supportedVersions = List.of("1.17", "1.17.1", "1.18", "1.18.1", "1.18.2", "1.19", "1.19.1", "1.19.2", "1.19.3",
 				"1.19.4", "1.20", "1.20.1", "1.20.2", "1.20.3", "1.20.4", "1.20.5", "1.20.6", "1.21", "1.21.1",
 				"1.21.2", "1.21.3", "1.21.4", "1.21.5", "1.21.6", "1.21.7", "1.21.8");
 
@@ -113,10 +113,10 @@ public class VersionHelper {
 		case "1.20", "1.20.1" -> packageName = "1_20_R1";
 		case "1.19.4" -> packageName = "1_19_R3";
 		case "1.19.3" -> packageName = "1_19_R2";
-		case "1.19.2", "1.19.1" -> packageName = "1_19_R1";
+		case "1.19", "1.19.1", "1.19.2" -> packageName = "1_19_R1";
 		case "1.18.2" -> packageName = "1_18_R2";
-		case "1.18.1", "1.18" -> packageName = "1_18_R1";
-		case "1.17.1" -> packageName = "1_17_R1";
+		case "1.18", "1.18.1" -> packageName = "1_18_R1";
+		case "1.17", "1.17.1" -> packageName = "1_17_R1";
 		default -> throw new UnsupportedVersionException("Unsupported server version: " + bukkitVersion);
 		}
 		try {

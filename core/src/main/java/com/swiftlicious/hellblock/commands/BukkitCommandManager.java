@@ -30,9 +30,11 @@ import com.swiftlicious.hellblock.commands.sub.CoopUntrustCommand;
 import com.swiftlicious.hellblock.commands.sub.DebugBiomeCommand;
 import com.swiftlicious.hellblock.commands.sub.DebugLootCommand;
 import com.swiftlicious.hellblock.commands.sub.DebugNBTCommand;
+import com.swiftlicious.hellblock.commands.sub.DebugSNBTCommand;
 import com.swiftlicious.hellblock.commands.sub.DebugWorldsCommand;
 import com.swiftlicious.hellblock.commands.sub.ExportDataCommand;
 import com.swiftlicious.hellblock.commands.sub.GetItemCommand;
+import com.swiftlicious.hellblock.commands.sub.GiveItemByUUIDCommand;
 import com.swiftlicious.hellblock.commands.sub.GiveItemCommand;
 import com.swiftlicious.hellblock.commands.sub.HellblockBanCommand;
 import com.swiftlicious.hellblock.commands.sub.HellblockCommand;
@@ -65,11 +67,12 @@ public class BukkitCommandManager extends AbstractCommandManager<CommandSender> 
 	private final HellblockResetCommand resetCommand;
 
 	private final List<CommandFeature<CommandSender>> FEATURES = List.of(new ReloadCommand(this),
-			new SellFishCommand(this), new GetItemCommand(this), new GiveItemCommand(this), new ImportItemCommand(this),
-			new AboutCommand(this), new OpenMarketCommand(this), new UnlockDataCommand(this),
-			new ImportDataCommand(this), new ExportDataCommand(this), new AddStatisticsCommand(this),
-			new SetStatisticsCommand(this), new ResetStatisticsCommand(this), new QueryStatisticsCommand(this),
-			new DebugLootCommand(this), new DebugNBTCommand(this), new DebugBiomeCommand(this),
+			new SellFishCommand(this), new GetItemCommand(this), new GiveItemCommand(this),
+			new GiveItemByUUIDCommand(this), new ImportItemCommand(this), new AboutCommand(this),
+			new OpenMarketCommand(this), new UnlockDataCommand(this), new ImportDataCommand(this),
+			new ExportDataCommand(this), new AddStatisticsCommand(this), new SetStatisticsCommand(this),
+			new ResetStatisticsCommand(this), new QueryStatisticsCommand(this), new DebugLootCommand(this),
+			new DebugNBTCommand(this), new DebugBiomeCommand(this), new DebugSNBTCommand(this),
 			new DebugWorldsCommand(this), new HellblockCommand(this), new AdminTeleportCommand(this),
 			new AdminHelpCommand(this), new AdminDeleteCommand(this), new AdminPurgeCommand(this),
 			new CoopLeaveCommand(this), new CoopCancelCommand(this), new CoopKickCommand(this),

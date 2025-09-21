@@ -8,9 +8,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.function.BiFunction;
 
 import org.bukkit.entity.Player;
+
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -18,6 +18,7 @@ import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.context.Context;
 import com.swiftlicious.hellblock.effects.Effect;
 import com.swiftlicious.hellblock.handlers.RequirementManager;
+import com.swiftlicious.hellblock.loot.operation.WeightOperation;
 import com.swiftlicious.hellblock.utils.WeightUtils;
 import com.swiftlicious.hellblock.utils.extras.ConditionalElement;
 import com.swiftlicious.hellblock.utils.extras.Pair;
@@ -28,9 +29,9 @@ import dev.dejvokep.boostedyaml.block.implementation.Section;
 public class LootManager implements LootManagerInterface {
 
 	protected final HellblockPlugin instance;
-	private final Map<String, LootInterface> lootMap = new HashMap<>();
+	private final Map<String, Loot> lootMap = new HashMap<>();
 	private final Map<String, List<String>> groupMembersMap = new HashMap<>();
-	private final LinkedHashMap<String, ConditionalElement<List<Pair<String, BiFunction<Context<Player>, Double, Double>>>, Player>> lootConditions = new LinkedHashMap<>();
+	private final LinkedHashMap<String, ConditionalElement<List<Pair<String, WeightOperation>>, Player>> lootConditions = new LinkedHashMap<>();
 
 	public LootManager(HellblockPlugin plugin) {
 		this.instance = plugin;
@@ -61,30 +62,31 @@ public class LootManager implements LootManagerInterface {
 		}
 	}
 
-	private ConditionalElement<List<Pair<String, BiFunction<Context<Player>, Double, Double>>>, Player> parseLootConditions(
-			Section section) {
+	private ConditionalElement<List<Pair<String, WeightOperation>>, Player> parseLootConditions(Section section) {
 		Section subSection = section.getSection("sub-groups");
 		if (subSection == null) {
 			return new ConditionalElement<>(
-					instance.getConfigManager().parseWeightOperation(section.getStringList("list")), Map.of(),
-					instance.getRequirementManager(Player.class).parseRequirements(section.getSection("conditions"),
-							false));
+					instance.getConfigManager().parseWeightOperation(section.getStringList("list"),
+							(id) -> getLoot(id).isPresent(), this::getGroupMembers),
+					Map.of(), instance.getRequirementManager(Player.class)
+							.parseRequirements(section.getSection("conditions"), false));
 		} else {
-			Map<String, ConditionalElement<List<Pair<String, BiFunction<Context<Player>, Double, Double>>>, Player>> subElements = new HashMap<>();
+			Map<String, ConditionalElement<List<Pair<String, WeightOperation>>, Player>> subElements = new HashMap<>();
 			for (Map.Entry<String, Object> entry : subSection.getStringRouteMappedValues(false).entrySet()) {
 				if (entry.getValue() instanceof Section innerSection) {
 					subElements.put(entry.getKey(), parseLootConditions(innerSection));
 				}
 			}
 			return new ConditionalElement<>(
-					instance.getConfigManager().parseWeightOperation(section.getStringList("list")), subElements,
-					instance.getRequirementManager(Player.class).parseRequirements(section.getSection("conditions"),
-							false));
+					instance.getConfigManager().parseWeightOperation(section.getStringList("list"),
+							(id) -> getLoot(id).isPresent(), this::getGroupMembers),
+					subElements, instance.getRequirementManager(Player.class)
+							.parseRequirements(section.getSection("conditions"), false));
 		}
 	}
 
 	@Override
-	public boolean registerLoot(@NotNull LootInterface loot) {
+	public boolean registerLoot(@NotNull Loot loot) {
 		if (lootMap.containsKey(loot.id()))
 			return false;
 		this.lootMap.put(loot.id(), loot);
@@ -95,7 +97,7 @@ public class LootManager implements LootManagerInterface {
 	}
 
 	@Override
-	public Collection<LootInterface> getRegisteredLoots() {
+	public Collection<Loot> getRegisteredLoots() {
 		return lootMap.values();
 	}
 
@@ -117,67 +119,66 @@ public class LootManager implements LootManagerInterface {
 
 	@NotNull
 	@Override
-	public Optional<LootInterface> getLoot(String key) {
+	public Optional<Loot> getLoot(String key) {
 		return Optional.ofNullable(lootMap.get(key));
 	}
 
 	@Override
 	public Map<String, Double> getWeightedLoots(Effect effect, Context<Player> context) {
 		Map<String, Double> lootWeightMap = new HashMap<>();
-		for (ConditionalElement<List<Pair<String, BiFunction<Context<Player>, Double, Double>>>, Player> conditionalElement : lootConditions
+		for (ConditionalElement<List<Pair<String, WeightOperation>>, Player> conditionalElement : lootConditions
 				.values()) {
 			modifyWeightMap(lootWeightMap, context, conditionalElement);
 		}
-		for (Pair<String, BiFunction<Context<Player>, Double, Double>> pair : effect.weightOperations()) {
+		for (Pair<String, WeightOperation> pair : effect.weightOperations()) {
 			Double previous = lootWeightMap.get(pair.left());
 			if (previous != null) {
-				lootWeightMap.put(pair.left(), pair.right().apply(context, previous));
+				lootWeightMap.put(pair.left(), pair.right().apply(context, previous, lootWeightMap));
 			}
 		}
-		for (Pair<String, BiFunction<Context<Player>, Double, Double>> pair : effect.weightOperationsIgnored()) {
+		for (Pair<String, WeightOperation> pair : effect.weightOperationsIgnored()) {
 			double previous = lootWeightMap.getOrDefault(pair.left(), 0d);
-			lootWeightMap.put(pair.left(), pair.right().apply(context, previous));
+			lootWeightMap.put(pair.left(), pair.right().apply(context, previous, lootWeightMap));
 		}
 		return lootWeightMap;
 	}
 
 	@Nullable
 	@Override
-	public LootInterface getNextLoot(Effect effect, Context<Player> context) {
-		Map<String, Double> lootWeightMap = new HashMap<>();
-		for (ConditionalElement<List<Pair<String, BiFunction<Context<Player>, Double, Double>>>, Player> conditionalElement : lootConditions
+	public Loot getNextLoot(Effect effect, Context<Player> context) {
+		Map<String, Double> weightMap = new HashMap<>();
+		for (ConditionalElement<List<Pair<String, WeightOperation>>, Player> conditionalElement : lootConditions
 				.values()) {
-			modifyWeightMap(lootWeightMap, context, conditionalElement);
+			modifyWeightMap(weightMap, context, conditionalElement);
 		}
-		for (Pair<String, BiFunction<Context<Player>, Double, Double>> pair : effect.weightOperations()) {
-			Double previous = lootWeightMap.get(pair.left());
+		for (Pair<String, WeightOperation> pair : effect.weightOperations()) {
+			Double previous = weightMap.get(pair.left());
 			if (previous != null) {
-				lootWeightMap.put(pair.left(), pair.right().apply(context, previous));
+				weightMap.put(pair.left(), pair.right().apply(context, previous, weightMap));
 			}
 		}
-		for (Pair<String, BiFunction<Context<Player>, Double, Double>> pair : effect.weightOperationsIgnored()) {
-			double previous = lootWeightMap.getOrDefault(pair.left(), 0d);
-			lootWeightMap.put(pair.left(), pair.right().apply(context, previous));
+		for (Pair<String, WeightOperation> pair : effect.weightOperationsIgnored()) {
+			double previous = weightMap.getOrDefault(pair.left(), 0d);
+			weightMap.put(pair.left(), pair.right().apply(context, previous, weightMap));
 		}
 
-		instance.debug(lootWeightMap);
-		String lootID = WeightUtils.getRandom(lootWeightMap);
+		instance.debug(weightMap::toString);
+		String lootID = WeightUtils.getRandom(weightMap);
 		return Optional.ofNullable(lootID)
 				.map(id -> getLoot(lootID).orElseThrow(() -> new NullPointerException("Could not find loot " + lootID)))
 				.orElse(null);
 	}
 
 	private void modifyWeightMap(Map<String, Double> weightMap, Context<Player> context,
-			ConditionalElement<List<Pair<String, BiFunction<Context<Player>, Double, Double>>>, Player> conditionalElement) {
+			ConditionalElement<List<Pair<String, WeightOperation>>, Player> conditionalElement) {
 		if (conditionalElement == null)
 			return;
 		if (RequirementManager.isSatisfied(context, conditionalElement.getRequirements())) {
-			for (Pair<String, BiFunction<Context<Player>, Double, Double>> modifierPair : conditionalElement
-					.getElement()) {
+			for (Pair<String, WeightOperation> modifierPair : conditionalElement.getElement()) {
 				double previous = weightMap.getOrDefault(modifierPair.left(), 0d);
-				weightMap.put(modifierPair.left(), modifierPair.right().apply(context, previous));
+				weightMap.put(modifierPair.left(), modifierPair.right().apply(context, previous, weightMap));
 			}
-			for (ConditionalElement<List<Pair<String, BiFunction<Context<Player>, Double, Double>>>, Player> sub : conditionalElement
+			for (ConditionalElement<List<Pair<String, WeightOperation>>, Player> sub : conditionalElement
 					.getSubElements().values()) {
 				modifyWeightMap(weightMap, context, sub);
 			}

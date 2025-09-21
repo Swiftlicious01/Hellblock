@@ -66,6 +66,7 @@ public abstract class AbstractRequirementManager<T> implements RequirementManage
 		this.registerLightRequirement();
 		this.registerTemperatureRequirement();
 		this.registerMoistureRequirement();
+		this.registerLiquidDepthRequirement();
 	}
 
 	@Override
@@ -389,6 +390,42 @@ public abstract class AbstractRequirementManager<T> implements RequirementManage
 				return false;
 			};
 		}, "weather");
+	}
+
+	protected void registerLiquidDepthRequirement() {
+		registerRequirement((args, actions, advanced) -> {
+			String depthRange = (String) args;
+			String[] split = depthRange.split("~");
+			if (split.length != 2) {
+				instance.getPluginLogger().warn("Invalid value found(" + depthRange
+						+ "). `liquid-depth` requires a range in the format 'min~max' (e.g., 1~10).");
+				return Requirement.empty();
+			}
+			int min;
+			int max;
+			try {
+				min = Integer.parseInt(split[0]);
+				max = Integer.parseInt(split[1]);
+			} catch (NumberFormatException e) {
+				instance.getPluginLogger().warn("Invalid number format for range: " + depthRange, e);
+				return Requirement.empty();
+			}
+			return context -> {
+				Location location = requireNonNull(context.arg(ContextKeys.OTHER_LOCATION));
+				Location startLocation = location.getBlock().isLiquid() ? location.clone()
+						: location.clone().subtract(0, 1, 0);
+				int depth = 0;
+				while (startLocation.getBlock().isLiquid()) {
+					startLocation.subtract(0, 1, 0);
+					depth++;
+				}
+				if (depth >= min && depth <= max)
+					return true;
+				if (advanced)
+					ActionManager.trigger(context, actions);
+				return false;
+			};
+		}, "liquid-depth");
 	}
 
 	protected void registerDateRequirement() {

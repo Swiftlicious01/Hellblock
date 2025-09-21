@@ -140,6 +140,11 @@ public class NMSUtils1_18_R2 implements NMSHandler {
 	}
 
 	@Override
+	public Object getMinecraftComponent(String json) {
+		return CraftChatMessage.fromJSON(json);
+	}
+
+	@Override
 	public FluidData getFluidData(Location location) {
 		World world = location.getWorld();
 		FluidState state = ((CraftWorld) world).getHandle()

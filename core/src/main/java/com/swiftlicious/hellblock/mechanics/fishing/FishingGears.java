@@ -11,6 +11,7 @@ import java.util.function.BiConsumer;
 import org.bukkit.GameMode;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
 import org.jetbrains.annotations.NotNull;
@@ -61,7 +62,7 @@ public class FishingGears {
 	private final Map<GearType, List<Pair<String, ItemStack>>> gears = new HashMap<>();
 	private final List<EffectModifier> modifiers = new ArrayList<>();
 	private boolean canFish = true;
-	private HandSlot rodSlot;
+	private EquipmentSlot rodSlot;
 
 	/**
 	 * Sets the fishing gears consumers.
@@ -79,6 +80,18 @@ public class FishingGears {
 	 */
 	public FishingGears(Context<Player> context) {
 		fishingGearsConsumers.accept(context, this);
+	}
+
+	public void setCanFish(boolean canFish) {
+		this.canFish = canFish;
+	}
+
+	public void setRodSlot(EquipmentSlot rodSlot) {
+		this.rodSlot = rodSlot;
+	}
+
+	public Map<GearType, List<Pair<String, ItemStack>>> gears() {
+		return gears;
 	}
 
 	/**
@@ -125,7 +138,7 @@ public class FishingGears {
 	 * @return the hand slot of the fishing rod.
 	 */
 	public HandSlot getRodSlot() {
-		return rodSlot;
+		return rodSlot == EquipmentSlot.HAND ? HandSlot.MAIN : HandSlot.OFF;
 	}
 
 	/**
@@ -156,7 +169,7 @@ public class FishingGears {
 			String rodID = HellblockPlugin.getInstance().getItemManager().getItemID(rodItem);
 			fishingGears.gears.put(GearType.ROD, List.of(Pair.of(rodID, rodItem)));
 			context.arg(ContextKeys.ROD, rodID);
-			fishingGears.rodSlot = rodOnMainHand ? HandSlot.MAIN : HandSlot.OFF;
+			fishingGears.rodSlot = rodOnMainHand ? EquipmentSlot.HAND : EquipmentSlot.OFF_HAND;
 			HellblockPlugin.getInstance().getEffectManager().getEffectModifier(rodID, MechanicType.ROD)
 					.ifPresent(fishingGears.modifiers::add);
 
@@ -189,6 +202,32 @@ public class FishingGears {
 						.ifPresent(fishingGears.modifiers::add);
 			}
 
+			ItemStack helmet = playerInventory.getHelmet();
+			ItemStack chestplate = playerInventory.getChestplate();
+			ItemStack leggings = playerInventory.getLeggings();
+			ItemStack boots = playerInventory.getBoots();
+
+			ItemStack[] armorContents = new ItemStack[] { helmet, chestplate, leggings, boots };
+			List<Pair<String, ItemStack>> gearItemsList = new ArrayList<>();
+
+			// check armor for gear pieces
+			for (ItemStack armorPiece : armorContents) {
+				if (armorPiece != null && armorPiece.getType() != Material.AIR) {
+					String gearID = HellblockPlugin.getInstance().getItemManager().getItemID(armorPiece);
+					List<MechanicType> itemTypes = MechanicType.getTypeByID(gearID);
+					if (itemTypes != null && itemTypes.contains(MechanicType.EQUIPMENT)) {
+						gearItemsList.add(Pair.of(gearID, armorPiece));
+						HellblockPlugin.getInstance().getEffectManager()
+								.getEffectModifier(gearID, MechanicType.EQUIPMENT)
+								.ifPresent(fishingGears.modifiers::add);
+					}
+				}
+			}
+			// set gear
+			if (!gearItemsList.isEmpty()) {
+				fishingGears.gears.put(GearType.EQUIPMENT, gearItemsList);
+			}
+
 			// check requirements before checking totems
 			for (EffectModifier modifier : fishingGears.modifiers) {
 				if (!RequirementManager.isSatisfied(context, modifier.requirements())) {
@@ -218,6 +257,26 @@ public class FishingGears {
 		}), ((context, itemStack) -> {
 		}), ((context, itemStack) -> {
 		}));
+
+		public static final GearType EQUIPMENT = new GearType(MechanicType.EQUIPMENT, ((context, itemStack) -> {
+		}), // castFunction
+				((context, itemStack) -> {
+				}), // reelFunction
+				((context, itemStack) -> {
+				}), // biteFunction
+				((context, itemStack) -> {
+				}), // successFunction
+				((context, itemStack) -> {
+				}), // failureFunction
+				((context, itemStack) -> {
+				}), // lureFunction
+				((context, itemStack) -> {
+				}), // escapeFunction
+				((context, itemStack) -> {
+				}), // landFunction
+				((context, itemStack) -> {
+				}) // hookFunction
+		);
 
 		public static final GearType BAIT = new GearType(MechanicType.BAIT, ((context, itemStack) -> {
 			if (context.holder().getGameMode() != GameMode.CREATIVE)

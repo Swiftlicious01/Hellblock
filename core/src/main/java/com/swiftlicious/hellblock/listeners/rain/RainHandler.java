@@ -45,7 +45,7 @@ public class RainHandler implements Reloadable {
 
 	@Override
 	public void unload() {
-		stopLavaRainProcess();
+		stopAllLavaRain();
 	}
 
 	@Override
@@ -70,16 +70,20 @@ public class RainHandler implements Reloadable {
 		}
 	}
 
-	public void stopLavaRainProcess() {
+	public void stopAllLavaRain() {
 		getLavaRainingWorlds().stream().filter(Objects::nonNull).forEach(LavaRainTask::cancelAnimation);
 	}
 
-	public @Nullable List<LavaRainTask> getLavaRainingWorlds() {
+	public @NotNull List<LavaRainTask> getLavaRainingWorlds() {
 		return this.lavaRainingWorlds;
 	}
 
 	public boolean canHurtLivingCreatures() {
 		return instance.getConfigManager().canHurtCreatures();
+	}
+	
+	public boolean willSendWarning() {
+		return instance.getConfigManager().willWarnPlayers();
 	}
 
 	public boolean willTNTExplode() {

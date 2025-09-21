@@ -32,6 +32,21 @@ public class ConfigType {
 		HellblockPlugin.getInstance().getEventManager().registerEventCarrier(config.getEventCarrier());
 	});
 
+	public static final ConfigType EQUIPMENT = of("equipment", () -> {
+		HashMap<String, Node<ConfigParserFunction>> parsers = new HashMap<>();
+		parsers.putAll(HellblockPlugin.getInstance().getConfigManager().getItemFormatFunctions());
+		parsers.putAll(HellblockPlugin.getInstance().getConfigManager().getEffectModifierFormatFunctions());
+		parsers.putAll(HellblockPlugin.getInstance().getConfigManager().getEventFormatFunctions());
+		return parsers;
+	}, (id, section, functions) -> {
+		MechanicType.register(id, MechanicType.EQUIPMENT);
+		GearConfigParser config = new GearConfigParser(id, section, functions);
+		HellblockPlugin.getInstance().getItemManager().registerItem(config.getItem());
+		HellblockPlugin.getInstance().getEffectManager().registerEffectModifier(config.getEffectModifier(),
+				MechanicType.EQUIPMENT);
+		HellblockPlugin.getInstance().getEventManager().registerEventCarrier(config.getEventCarrier());
+	});
+
 	public static final ConfigType ENTITY = of("entity", () -> {
 		Map<String, Node<ConfigParserFunction>> parsers = new HashMap<>();
 		parsers.putAll(HellblockPlugin.getInstance().getConfigManager().getLootFormatFunctions());
@@ -140,7 +155,8 @@ public class ConfigType {
 		HellblockPlugin.getInstance().getEventManager().registerEventCarrier(config.getEventCarrier());
 	});
 
-	private static final ConfigType[] values = new ConfigType[] { ITEM, ENTITY, BLOCK, HOOK, ROD, BAIT, UTIL, ENCHANT };
+	private static final ConfigType[] values = new ConfigType[] { ITEM, ENTITY, BLOCK, HOOK, ROD, BAIT, UTIL, ENCHANT,
+			EQUIPMENT };
 
 	/**
 	 * Gets an array of all configuration types.

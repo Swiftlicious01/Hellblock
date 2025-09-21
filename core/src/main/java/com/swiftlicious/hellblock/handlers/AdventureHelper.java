@@ -16,6 +16,8 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.Style;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
+import net.kyori.adventure.text.serializer.json.JSONOptions;
+import net.kyori.adventure.text.serializer.json.legacyimpl.NBTLegacyHoverEventSerializer;
 import net.kyori.adventure.title.Title;
 
 /**
@@ -35,7 +37,19 @@ public class AdventureHelper {
 	public AdventureHelper() {
 		this.miniMessage = MiniMessage.builder().build();
 		this.miniMessageStrict = MiniMessage.builder().strict(true).build();
-		this.gsonComponentSerializer = GsonComponentSerializer.builder().build();
+		GsonComponentSerializer.Builder builder = GsonComponentSerializer.builder();
+		if (!VersionHelper.isVersionNewerThan1_20_5()) {
+			builder.legacyHoverEventSerializer(NBTLegacyHoverEventSerializer.get());
+			builder.editOptions((b) -> b.value(JSONOptions.EMIT_HOVER_SHOW_ENTITY_ID_AS_INT_ARRAY, false));
+		}
+		if (!VersionHelper.isVersionNewerThan1_21_5()) {
+			builder.editOptions((b) -> {
+				b.value(JSONOptions.EMIT_CLICK_EVENT_TYPE, JSONOptions.ClickEventValueMode.CAMEL_CASE);
+				b.value(JSONOptions.EMIT_HOVER_EVENT_TYPE, JSONOptions.HoverEventValueMode.CAMEL_CASE);
+				b.value(JSONOptions.EMIT_HOVER_SHOW_ENTITY_KEY_AS_TYPE_AND_UUID_AS_ID, true);
+			});
+		}
+		this.gsonComponentSerializer = builder.build();
 	}
 
 	private static class SingletonHolder {

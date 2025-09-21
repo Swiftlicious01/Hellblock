@@ -11,7 +11,7 @@ import org.jetbrains.annotations.NotNull;
 
 import com.swiftlicious.hellblock.context.Context;
 import com.swiftlicious.hellblock.context.ContextKeys;
-import com.swiftlicious.hellblock.loot.LootInterface;
+import com.swiftlicious.hellblock.loot.Loot;
 
 /**
  * This class represents an event that is triggered when a fishing result is
@@ -22,7 +22,7 @@ public class FishingResultEvent extends PlayerEvent implements Cancellable {
 	private static final HandlerList handlerList = new HandlerList();
 	private boolean isCancelled;
 	private final Result result;
-	private final LootInterface loot;
+	private final Loot loot;
 	private final FishHook fishHook;
 	private final Context<Player> context;
 
@@ -34,7 +34,7 @@ public class FishingResultEvent extends PlayerEvent implements Cancellable {
 	 * @param fishHook The fish hook involved
 	 * @param loot     The loot involved
 	 */
-	public FishingResultEvent(@NotNull Context<Player> context, Result result, FishHook fishHook, LootInterface loot) {
+	public FishingResultEvent(@NotNull Context<Player> context, Result result, FishHook fishHook, Loot loot) {
 		super(context.holder());
 		this.context = context;
 		this.result = result;
@@ -75,7 +75,7 @@ public class FishingResultEvent extends PlayerEvent implements Cancellable {
 	 *
 	 * @return The loot
 	 */
-	public LootInterface getLoot() {
+	public Loot getLoot() {
 		return loot;
 	}
 

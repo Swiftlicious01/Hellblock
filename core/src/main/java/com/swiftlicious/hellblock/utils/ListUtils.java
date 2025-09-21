@@ -28,6 +28,7 @@ public class ListUtils {
 		} else if (obj instanceof List<?> list) {
 			return (List<String>) list;
 		}
-		throw new IllegalArgumentException("Cannot convert " + obj + " to a list");
+		throw new IllegalArgumentException(
+				"Invalid value found. Cannot convert " + obj.getClass().getSimpleName() + " to a list");
 	}
 }

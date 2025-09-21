@@ -157,7 +157,8 @@ public class SchematicGUIManager implements SchematicGUIManagerInterface, Listen
 		for (Map.Entry<Character, Pair<CustomItem, Action<Player>[]>> entry : decorativeIcons.entrySet()) {
 			gui.addElement(new SchematicGUIElement(entry.getKey(), entry.getValue().left().build(context)));
 		}
-		gui.build().refresh().show();
+		gui.build().show();
+		gui.refresh();
 		schematicGUICache.put(player.getUniqueId(), gui);
 		return true;
 	}

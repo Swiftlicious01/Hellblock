@@ -226,6 +226,7 @@ message.hellblock.login.abandoned:
 message.hellblock.grow.glowstone.tree: 
   - "<red>Soul Sand has been fertilized!</red>"
   - "<red>Right click with</red> <dark_red>flint</dark_red> <red>to grow the</red> <gold>glowstone tree</gold><red>!</red>"
+message.hellblock.lavarain.warning: "<red><i>It's starting to rain lava on your hellblock! Seek shelter!</red></i>"
 message.hellblock.banned.from.entry: "<red>You're banned from this hellblock and aren't allowed entry!</red>"
 message.hellblock.locked.no.entry: "<red>This hellblock is locked at the moment, you're not allowed entry!</red>"
 message.hellblock.create.process: "<red>Creating new hellblock! Please wait...</red>"

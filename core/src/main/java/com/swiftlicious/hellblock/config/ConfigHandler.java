@@ -12,7 +12,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
-import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -45,6 +44,7 @@ import com.swiftlicious.hellblock.generation.IslandOptions;
 import com.swiftlicious.hellblock.handlers.EventCarrier;
 import com.swiftlicious.hellblock.loot.Loot;
 import com.swiftlicious.hellblock.loot.LootBaseEffect;
+import com.swiftlicious.hellblock.loot.operation.WeightOperation;
 import com.swiftlicious.hellblock.mechanics.hook.HookConfig;
 import com.swiftlicious.hellblock.utils.extras.MathValue;
 import com.swiftlicious.hellblock.utils.extras.Pair;
@@ -92,6 +92,8 @@ public abstract class ConfigHandler implements ConfigLoader, Reloadable {
 	protected boolean lavaFishingEnabled;
 	protected int lavaMinTime;
 	protected int lavaMaxTime;
+	protected int finalLavaMinTime;
+	protected int finalLavaMaxTime;
 	protected int multipleLootSpawnDelay;
 	protected boolean restrictedSizeRange;
 	protected List<String> durabilityLore;
@@ -146,6 +148,7 @@ public abstract class ConfigHandler implements ConfigLoader, Reloadable {
 	protected int radius;
 	protected int fireChance;
 	protected int delay;
+	protected boolean warnPlayers;
 	protected boolean hurtCreatures;
 	protected boolean explodeTNT;
 
@@ -208,7 +211,7 @@ public abstract class ConfigHandler implements ConfigLoader, Reloadable {
 	public boolean asyncWorldSaving() {
 		return asyncWorldSaving;
 	}
-	
+
 	public String schematicPaster() {
 		return schematicPaster;
 	}
@@ -317,6 +320,10 @@ public abstract class ConfigHandler implements ConfigLoader, Reloadable {
 		return delay;
 	}
 
+	public boolean willWarnPlayers() {
+		return warnPlayers;
+	}
+
 	public boolean canHurtCreatures() {
 		return hurtCreatures;
 	}
@@ -403,6 +410,14 @@ public abstract class ConfigHandler implements ConfigLoader, Reloadable {
 
 	public int lavaMaxTime() {
 		return lavaMaxTime;
+	}
+
+	public int finalLavaMinTime() {
+		return finalLavaMinTime;
+	}
+
+	public int finalLavaMaxTime() {
+		return finalLavaMaxTime;
 	}
 
 	public int multipleLootSpawnDelay() {
@@ -619,9 +634,9 @@ public abstract class ConfigHandler implements ConfigLoader, Reloadable {
 		return lootFormatFunctions;
 	}
 
-	public abstract List<Pair<String, BiFunction<Context<Player>, Double, Double>>> parseWeightOperation(
-			List<String> ops);
+	public abstract List<Pair<String, WeightOperation>> parseWeightOperation(List<String> ops,
+			Function<String, Boolean> validator, Function<String, List<String>> groupProvider);
 
-	public abstract List<Pair<String, BiFunction<Context<Player>, Double, Double>>> parseGroupWeightOperation(
-			List<String> gops);
+	public abstract List<Pair<String, WeightOperation>> parseGroupWeightOperation(List<String> gops,
+			boolean forAvailable, Function<String, List<String>> groupProvider);
 }

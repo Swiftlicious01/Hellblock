@@ -19,6 +19,7 @@ import com.swiftlicious.hellblock.creation.addons.level.JobsRebornLevelerProvide
 import com.swiftlicious.hellblock.creation.addons.level.LevelerProvider;
 import com.swiftlicious.hellblock.creation.addons.papi.HellblockPapi;
 import com.swiftlicious.hellblock.creation.addons.papi.StatisticsPapi;
+import com.swiftlicious.hellblock.creation.addons.shop.ShopGUIHook;
 import com.swiftlicious.hellblock.creation.block.BlockManager;
 import com.swiftlicious.hellblock.creation.block.BlockProvider;
 import com.swiftlicious.hellblock.creation.entity.EntityManager;
@@ -27,20 +28,27 @@ import com.swiftlicious.hellblock.creation.entity.MythicEntityProvider;
 import com.swiftlicious.hellblock.creation.item.ItemManager;
 import com.swiftlicious.hellblock.creation.item.ItemProvider;
 import com.swiftlicious.hellblock.creation.item.MythicMobsItemProvider;
+import com.swiftlicious.hellblock.creation.item.SNBTItemProvider;
 import com.swiftlicious.hellblock.utils.extras.Pair;
 
 public class IntegrationManager implements IntegrationManagerInterface {
 
+	private static IntegrationManager integation;
 	protected final HellblockPlugin instance;
 	private final Map<String, LevelerProvider> levelerProviders = new HashMap<>();
 	private final Map<String, EnchantmentProvider> enchantmentProviders = new HashMap<>();
+
+	private boolean hasFloodGate;
+	private boolean hasGeyser;
 
 	public IntegrationManager(HellblockPlugin plugin) {
 		instance = plugin;
 		try {
 			this.load();
-		} catch (Exception ex) {
+		} catch (Throwable ex) {
 			plugin.getPluginLogger().warn("Failed to load integrations", ex);
+		} finally {
+			integation = this;
 		}
 	}
 
@@ -59,6 +67,7 @@ public class IntegrationManager implements IntegrationManagerInterface {
 		if (isHooked("Jobs")) {
 			registerLevelerProvider(new JobsRebornLevelerProvider());
 		}
+        registerItemProvider(new SNBTItemProvider());
 		registerEnchantmentProvider(new VanillaEnchantmentsProvider());
 		if (isHooked("AdvancedEnchantments")) {
 			registerEnchantmentProvider(new AdvancedEnchantmentsProvider());
@@ -70,6 +79,20 @@ public class IntegrationManager implements IntegrationManagerInterface {
 			new HellblockPapi(instance).load();
 			new StatisticsPapi(instance).load();
 		}
+		if (isHooked("ShopGUIPlus")) {
+			ShopGUIHook.register();
+		}
+
+		if (Bukkit.getPluginManager().getPlugin("Geyser-Spigot") != null) {
+			this.hasGeyser = true;
+		}
+		if (Bukkit.getPluginManager().getPlugin("floodgate") != null) {
+			this.hasFloodGate = true;
+		}
+	}
+	
+	public static IntegrationManager getInstance() {
+		return integation;
 	}
 
 	public boolean isHooked(String hooked) {
@@ -93,6 +116,14 @@ public class IntegrationManager implements IntegrationManagerInterface {
 			}
 		}
 		return false;
+	}
+
+	public boolean hasFloodGate() {
+		return hasFloodGate;
+	}
+
+	public boolean hasGeyser() {
+		return hasGeyser;
 	}
 
 	@Override

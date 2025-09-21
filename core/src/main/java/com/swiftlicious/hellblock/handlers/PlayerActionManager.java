@@ -12,6 +12,7 @@ import java.util.StringJoiner;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.entity.ExperienceOrb;
+import org.bukkit.entity.FishHook;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
@@ -20,10 +21,14 @@ import org.bukkit.potion.PotionEffectType;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
+import com.swiftlicious.hellblock.context.Context;
 import com.swiftlicious.hellblock.context.ContextKeys;
 import com.swiftlicious.hellblock.creation.addons.VaultHook;
 import com.swiftlicious.hellblock.creation.item.Item;
+import com.swiftlicious.hellblock.effects.Effect;
 import com.swiftlicious.hellblock.effects.EffectInterface;
+import com.swiftlicious.hellblock.loot.Loot;
+import com.swiftlicious.hellblock.loot.LootType;
 import com.swiftlicious.hellblock.nms.inventory.HandSlot;
 import com.swiftlicious.hellblock.nms.toast.AdvancementType;
 import com.swiftlicious.hellblock.utils.ListUtils;
@@ -31,6 +36,7 @@ import com.swiftlicious.hellblock.utils.PlayerUtils;
 import com.swiftlicious.hellblock.utils.RandomUtils;
 import com.swiftlicious.hellblock.utils.extras.Action;
 import com.swiftlicious.hellblock.utils.extras.MathValue;
+import com.swiftlicious.hellblock.utils.extras.Pair;
 import com.swiftlicious.hellblock.utils.extras.TextValue;
 import com.swiftlicious.hellblock.world.HellblockBlock;
 import com.swiftlicious.hellblock.world.HellblockWorld;
@@ -72,6 +78,8 @@ public class PlayerActionManager extends AbstractActionManager<Player> {
 		this.registerTitleAction();
 		this.registerSwingHandAction();
 		this.registerTickAction();
+		this.registerInsertArgumentAction();
+		this.registerDropRandomLootsAction();
 	}
 
 	private void registerMessageAction() {
@@ -159,6 +167,77 @@ public class PlayerActionManager extends AbstractActionManager<Player> {
 				return Action.empty();
 			}
 		}, "toast");
+	}
+
+	private void registerInsertArgumentAction() {
+		registerAction((args, chance) -> {
+			if (args instanceof Section section) {
+				List<Pair<String, TextValue<Player>>> argList = new ArrayList<>();
+				for (Map.Entry<String, Object> entry : section.getStringRouteMappedValues(false).entrySet()) {
+					argList.add(Pair.of(entry.getKey(), TextValue.auto(entry.getValue().toString())));
+				}
+				return context -> {
+					if (Math.random() > chance.evaluate(context))
+						return;
+					for (Pair<String, TextValue<Player>> pair : argList) {
+						context.arg(ContextKeys.of(pair.left(), String.class), pair.right().render(context));
+					}
+				};
+			} else {
+				instance.getPluginLogger().warn("Invalid value type: " + args.getClass().getSimpleName()
+						+ " found at context-arg action which is expected to be `Section`");
+				return Action.empty();
+			}
+		}, "context-arg");
+	}
+
+	private void registerDropRandomLootsAction() {
+		registerAction((args, chance) -> {
+			if (args instanceof Section section) {
+				boolean toInv = section.getBoolean("to-inventory");
+				MathValue<Player> count = MathValue.auto(section.get("amount"));
+				int extraAttempts = section.getInt("extra-attempts", 5);
+				return context -> {
+					if (Math.random() > chance.evaluate(context))
+						return;
+					Effect effect = context.arg(ContextKeys.EFFECT);
+					if (effect == null)
+						effect = EffectInterface.newInstance();
+					int triesTimes = 0;
+					int successTimes = 0;
+					int requiredTimes = (int) count.evaluate(context);
+					Player player = context.holder();
+					ItemStack rod = player.getInventory().getItemInMainHand();
+					if (rod.getType() != Material.FISHING_ROD)
+						rod = player.getInventory().getItemInOffHand();
+					if (rod.getType() != Material.FISHING_ROD)
+						rod = new ItemStack(Material.FISHING_ROD);
+					FishHook fishHook = context.arg(ContextKeys.HOOK_ENTITY);
+					if (fishHook == null)
+						return;
+
+					while (successTimes < requiredTimes && triesTimes < requiredTimes + extraAttempts) {
+						Loot loot = instance.getLootManager().getNextLoot(effect, context);
+						Context<Player> newContext = Context.player(player).combine(context);
+						if (loot != null && loot.type() == LootType.ITEM) {
+							newContext.arg(ContextKeys.ID, loot.id());
+							if (!toInv) {
+								instance.getItemManager().dropItemLoot(newContext, rod, fishHook);
+							} else {
+								ItemStack itemLoot = instance.getItemManager().getItemLoot(newContext, rod, fishHook);
+								PlayerUtils.giveItem(player, itemLoot, itemLoot.getAmount());
+							}
+							successTimes++;
+						}
+						triesTimes++;
+					}
+				};
+			} else {
+				instance.getPluginLogger().warn("Invalid value type: " + args.getClass().getSimpleName()
+						+ " found at drop-random-loots action which should be Section");
+				return Action.empty();
+			}
+		}, "drop-random-loots");
 	}
 
 	private void registerActionBarAction() {
@@ -384,17 +463,17 @@ public class PlayerActionManager extends AbstractActionManager<Player> {
 		}, "give-vanilla-item");
 		registerAction((args, chance) -> {
 			if (args instanceof Section section) {
-				String id = section.getString("item");
-				int amount = section.getInt("amount", 1);
+				TextValue<Player> id = TextValue.auto(section.getString("item"));
+				MathValue<Player> amount = MathValue.auto(section.get("amount", 1));
 				boolean toInventory = section.getBoolean("to-inventory", false);
 				return context -> {
 					if (Math.random() > chance.evaluate(context))
 						return;
 					Player player = context.holder();
-					ItemStack itemStack = instance.getItemManager().buildAny(context, id);
+					ItemStack itemStack = instance.getItemManager().buildAny(context, id.render(context));
 					if (itemStack != null) {
 						int maxStack = itemStack.getMaxStackSize();
-						int amountToGive = amount;
+						int amountToGive = (int) amount.evaluate(context);
 						while (amountToGive > 0) {
 							int perStackSize = Math.min(maxStack, amountToGive);
 							amountToGive -= perStackSize;
@@ -464,15 +543,19 @@ public class PlayerActionManager extends AbstractActionManager<Player> {
 	private void registerSoundAction() {
 		registerAction((args, chance) -> {
 			if (args instanceof Section section) {
-				Sound sound = Sound.sound(Key.key(section.getString("key")),
-						Sound.Source.valueOf(section.getString("source", "PLAYER").toUpperCase(Locale.ENGLISH)),
-						section.getFloat("volume", 1.0F).floatValue(), section.getFloat("pitch", 1.0F).floatValue());
+				MathValue<Player> volume = MathValue.auto(section.get("volume", 1));
+				MathValue<Player> pitch = MathValue.auto(section.get("pitch", 1));
+				Key key = Key.key(section.getString("key"));
+				Sound.Source source = Sound.Source
+						.valueOf(section.getString("source", "PLAYER").toUpperCase(Locale.ENGLISH));
 				return context -> {
 					if (Math.random() > chance.evaluate(context))
 						return;
 					final Player player = context.holder();
 					Audience audience = instance.getSenderFactory().getAudience(player);
-					audience.playSound(sound);
+					Sound sound = Sound.sound(key, source, (float) volume.evaluate(context),
+							(float) pitch.evaluate(context));
+					AdventureHelper.playSound(audience, sound);
 				};
 			} else {
 				instance.getPluginLogger().warn("Invalid value type: " + args.getClass().getSimpleName()

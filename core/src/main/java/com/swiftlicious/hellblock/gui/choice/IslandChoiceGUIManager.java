@@ -162,7 +162,8 @@ public class IslandChoiceGUIManager implements IslandChoiceGUIManagerInterface, 
 		for (Map.Entry<Character, Pair<CustomItem, Action<Player>[]>> entry : decorativeIcons.entrySet()) {
 			gui.addElement(new IslandChoiceGUIElement(entry.getKey(), entry.getValue().left().build(context)));
 		}
-		gui.build().refresh().show();
+		gui.build().show();
+		gui.refresh();
 		islandChoiceGUICache.put(player.getUniqueId(), gui);
 		return true;
 	}

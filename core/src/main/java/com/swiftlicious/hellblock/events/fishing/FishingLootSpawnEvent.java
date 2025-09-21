@@ -9,7 +9,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import com.swiftlicious.hellblock.context.Context;
-import com.swiftlicious.hellblock.loot.LootInterface;
+import com.swiftlicious.hellblock.loot.Loot;
 
 /**
  * This class represents an event that is triggered when fishing loot is
@@ -20,7 +20,7 @@ public class FishingLootSpawnEvent extends PlayerEvent {
 	private static final HandlerList handlerList = new HandlerList();
 	private final Location location;
 	private final Entity entity;
-	private final LootInterface loot;
+	private final Loot loot;
 	private final Context<Player> context;
 	private boolean skipActions;
 	private boolean summonEntity;
@@ -33,7 +33,7 @@ public class FishingLootSpawnEvent extends PlayerEvent {
 	 * @param loot     The loot that is being spawned
 	 * @param entity   The entity associated with the loot, if any
 	 */
-	public FishingLootSpawnEvent(@NotNull Context<Player> context, Location location, LootInterface loot,
+	public FishingLootSpawnEvent(@NotNull Context<Player> context, Location location, Loot loot,
 			@Nullable Entity entity) {
 		super(context.holder());
 		this.entity = entity;
@@ -78,7 +78,7 @@ public class FishingLootSpawnEvent extends PlayerEvent {
 	 * @return The loot
 	 */
 	@NotNull
-	public LootInterface getLoot() {
+	public Loot getLoot() {
 		return loot;
 	}
 

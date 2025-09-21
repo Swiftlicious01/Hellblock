@@ -73,6 +73,10 @@ public class PlaceholderManager implements PlaceholderManagerInterface {
 		return placeholders;
 	}
 
+	public boolean hasPapi() {
+		return hasPapi;
+	}
+
 	private String setPlaceholders(OfflinePlayer player, String text) {
 		return hasPapi ? PlaceholderAPIUtils.parse(player, text) : text;
 	}

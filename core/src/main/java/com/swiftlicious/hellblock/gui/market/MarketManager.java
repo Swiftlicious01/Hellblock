@@ -38,12 +38,14 @@ import com.swiftlicious.hellblock.context.ContextKeys;
 import com.swiftlicious.hellblock.creation.item.Item;
 import com.swiftlicious.hellblock.creation.item.CustomItem;
 import com.swiftlicious.hellblock.handlers.ActionManager;
+import com.swiftlicious.hellblock.handlers.RequirementManager;
 import com.swiftlicious.hellblock.player.EarningData;
 import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.scheduler.SchedulerTask;
 import com.swiftlicious.hellblock.utils.extras.Action;
 import com.swiftlicious.hellblock.utils.extras.MathValue;
 import com.swiftlicious.hellblock.utils.extras.Pair;
+import com.swiftlicious.hellblock.utils.extras.Requirement;
 import com.swiftlicious.hellblock.utils.extras.TextValue;
 
 import dev.dejvokep.boostedyaml.block.implementation.Section;
@@ -59,6 +61,9 @@ public class MarketManager implements MarketManagerInterface, Listener {
 	private boolean allowItemWithNoPrice;
 
 	protected TextValue<Player> title;
+	protected TextValue<Player> denyTitle;
+	protected TextValue<Player> allowTitle;
+	protected TextValue<Player> limitTitle;
 	protected String[] layout;
 	protected final Map<Character, Pair<CustomItem, Action<Player>[]>> decorativeIcons;
 	protected final ConcurrentMap<UUID, MarketGUI> marketGUICache;
@@ -85,6 +90,9 @@ public class MarketManager implements MarketManagerInterface, Listener {
 
 	private boolean allowBundle;
 	private boolean allowShulkerBox;
+
+	protected Requirement<Player>[] allowBundleRequirements;
+	protected Requirement<Player>[] allowShulkerBoxRequirements;
 
 	public MarketManager(HellblockPlugin plugin) {
 		this.instance = plugin;
@@ -128,11 +136,27 @@ public class MarketManager implements MarketManagerInterface, Listener {
 
 		this.formula = config.getString("price-formula", "{base} + {bonus} * {size}");
 		this.layout = config.getStringList("layout").toArray(new String[0]);
-		this.title = TextValue.auto(config.getString("title", "market.title"));
+		String defaultTitle = config.getString("title", "mechanics.market.title");
+		this.title = TextValue.auto(defaultTitle);
 		this.itemSlot = config.getString("item-slot.symbol", "I").charAt(0);
 		this.allowItemWithNoPrice = config.getBoolean("item-slot.allow-items-with-no-price", true);
 		this.allowBundle = config.getBoolean("allow-bundle", true);
+		this.allowBundleRequirements = instance.getRequirementManager(Player.class)
+				.parseRequirements(config.getSection("allow-bundle-requirements"), false);
 		this.allowShulkerBox = config.getBoolean("allow-shulker-box", true);
+		this.allowShulkerBoxRequirements = instance.getRequirementManager(Player.class)
+				.parseRequirements(config.getSection("allow-shulker-box-requirements"), false);
+
+		Section titleSection = config.getSection("titles");
+		if (titleSection != null) {
+			this.denyTitle = TextValue.auto(titleSection.getString("deny", defaultTitle));
+			this.limitTitle = TextValue.auto(titleSection.getString("limit", defaultTitle));
+			this.allowTitle = TextValue.auto(titleSection.getString("allow", defaultTitle));
+		} else {
+			this.denyTitle = null;
+			this.allowTitle = null;
+			this.limitTitle = null;
+		}
 
 		Section sellAllSection = config.getSection("sell-all-icons");
 		if (sellAllSection != null) {
@@ -220,7 +244,8 @@ public class MarketManager implements MarketManagerInterface, Listener {
 		for (Map.Entry<Character, Pair<CustomItem, Action<Player>[]>> entry : decorativeIcons.entrySet()) {
 			gui.addElement(new MarketGUIElement(entry.getKey(), entry.getValue().left().build(context)));
 		}
-		gui.build().refresh().show();
+		gui.build().show();
+		gui.refresh();
 		marketGUICache.put(player.getUniqueId(), gui);
 		return true;
 	}
@@ -463,12 +488,14 @@ public class MarketManager implements MarketManagerInterface, Listener {
 			return price * itemStack.getAmount();
 		}
 
-		if (allowBundle && itemStack.getItemMeta() instanceof BundleMeta bundleMeta) {
+		if (allowBundle && itemStack.getItemMeta() instanceof BundleMeta bundleMeta
+				&& RequirementManager.isSatisfied(context, allowBundleRequirements)) {
 			Pair<Integer, Double> pair = getItemsToSell(context, bundleMeta.getItems());
 			return pair.right();
 		}
 
-		if (allowShulkerBox && itemStack.getItemMeta() instanceof BlockStateMeta stateMeta) {
+		if (allowShulkerBox && itemStack.getItemMeta() instanceof BlockStateMeta stateMeta
+				&& RequirementManager.isSatisfied(context, allowShulkerBoxRequirements)) {
 			if (stateMeta.getBlockState() instanceof ShulkerBox shulkerBox) {
 				Pair<Integer, Double> pair = getItemsToSell(context, Arrays
 						.stream(shulkerBox.getInventory().getStorageContents()).filter(Objects::nonNull).toList());
@@ -523,7 +550,8 @@ public class MarketManager implements MarketManagerInterface, Listener {
 		for (ItemStack itemStack : itemStacks) {
 			double price = getItemPrice(context, itemStack);
 			if (price > 0 && itemStack != null) {
-				if (allowBundle && itemStack.getItemMeta() instanceof BundleMeta bundleMeta) {
+				if (allowBundle && itemStack.getItemMeta() instanceof BundleMeta bundleMeta
+						&& RequirementManager.isSatisfied(context, allowBundleRequirements)) {
 					clearWorthyItems(context, bundleMeta.getItems());
 					List<ItemStack> newItems = new ArrayList<>(bundleMeta.getItems());
 					newItems.removeIf(item -> item.getAmount() == 0 || item.getType() == Material.AIR);
@@ -531,7 +559,8 @@ public class MarketManager implements MarketManagerInterface, Listener {
 					itemStack.setItemMeta(bundleMeta);
 					continue;
 				}
-				if (allowShulkerBox && itemStack.getItemMeta() instanceof BlockStateMeta stateMeta) {
+				if (allowShulkerBox && itemStack.getItemMeta() instanceof BlockStateMeta stateMeta
+						&& RequirementManager.isSatisfied(context, allowShulkerBoxRequirements)) {
 					if (stateMeta.getBlockState() instanceof ShulkerBox shulkerBox) {
 						clearWorthyItems(context, Arrays.stream(shulkerBox.getInventory().getStorageContents())
 								.filter(Objects::nonNull).toList());

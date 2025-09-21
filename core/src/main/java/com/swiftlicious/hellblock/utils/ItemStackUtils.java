@@ -23,6 +23,7 @@ import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.creation.item.ItemEditor;
 import com.swiftlicious.hellblock.creation.item.tag.TagMapInterface;
 import com.swiftlicious.hellblock.creation.item.tag.TagValueType;
+import com.swiftlicious.hellblock.handlers.VersionHelper;
 import com.swiftlicious.hellblock.utils.extras.MathValue;
 import com.swiftlicious.hellblock.utils.extras.Pair;
 import com.swiftlicious.hellblock.utils.extras.TextValue;
@@ -102,14 +103,18 @@ public class ItemStackUtils {
 	public static void sectionToComponentEditor(Section section, List<ItemEditor> itemEditors) {
 		for (Map.Entry<String, Object> entry : section.getStringRouteMappedValues(false).entrySet()) {
 			String component = entry.getKey();
+			if (VersionHelper.isVersionNewerThan1_21_5() && component.equals("minecraft:hide_tooltip")) {
+				itemEditors.add((item, context) -> {
+					item.setComponent("minecraft:tooltip_display", Map.of("hide_tooltip", true));
+				});
+				continue;
+			}
 			Object value = entry.getValue();
 			if (value instanceof Section inner) {
 				Map<String, Object> innerMap = new HashMap<>();
 				sectionToMap(inner, innerMap);
 				TagMapInterface tagMap = TagMapInterface.of(innerMap);
-				itemEditors.add(((item, context) -> {
-					item.setComponent(component, tagMap.apply(context));
-				}));
+				itemEditors.add(((item, context) -> item.setComponent(component, tagMap.apply(context))));
 			} else if (value instanceof List<?> list) {
 				Object first = list.get(0);
 				if (first instanceof Map<?, ?>) {

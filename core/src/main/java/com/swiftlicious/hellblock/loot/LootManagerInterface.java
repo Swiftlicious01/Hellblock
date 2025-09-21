@@ -21,17 +21,17 @@ public interface LootManagerInterface extends Reloadable {
 	/**
 	 * Registers a new loot item.
 	 *
-	 * @param loot the {@link LootInterface} to be registered
+	 * @param loot the {@link Loot} to be registered
 	 * @return true if the loot was successfully registered, false otherwise
 	 */
-	boolean registerLoot(@NotNull LootInterface loot);
+	boolean registerLoot(@NotNull Loot loot);
 
 	/**
 	 * Get all the registered loots
 	 *
 	 * @return registered loots
 	 */
-	Collection<LootInterface> getRegisteredLoots();
+	Collection<Loot> getRegisteredLoots();
 
 	/**
 	 * Retrieves the members of a loot group identified by the given key.
@@ -46,11 +46,11 @@ public interface LootManagerInterface extends Reloadable {
 	 * Retrieves a loot item by its key.
 	 *
 	 * @param key the key identifying the loot item
-	 * @return an {@link Optional} containing the {@link LootInterface} if found, or an empty
+	 * @return an {@link Optional} containing the {@link Loot} if found, or an empty
 	 *         {@link Optional} if not
 	 */
 	@NotNull
-	Optional<LootInterface> getLoot(String key);
+	Optional<Loot> getLoot(String key);
 
 	/**
 	 * Retrieves a map of weighted loots based on the given effect and context.
@@ -66,8 +66,8 @@ public interface LootManagerInterface extends Reloadable {
 	 *
 	 * @param effect  the {@link Effect} influencing the loot selection
 	 * @param context the {@link Context} in which the loot selection occurs
-	 * @return the next {@link LootInterface} item, or null if no suitable loot is found
+	 * @return the next {@link Loot} item, or null if no suitable loot is found
 	 */
 	@Nullable
-	LootInterface getNextLoot(Effect effect, Context<Player> context);
+	Loot getNextLoot(Effect effect, Context<Player> context);
 }

@@ -19,7 +19,7 @@ public class CustomItemProvider implements ItemProvider {
 
 	@NotNull
 	@Override
-	public ItemStack buildItem(@NotNull Player player, @NotNull String id) {
+	public ItemStack buildItem(@NotNull Context<Player> player, @NotNull String id) {
 		String[] split = id.split(":", 2);
 		String finalID;
 		if (split.length == 1) {
@@ -30,7 +30,7 @@ public class CustomItemProvider implements ItemProvider {
 			finalID = split[1];
 		}
 		ItemStack itemStack = HellblockPlugin.getInstance().getItemManager()
-				.buildInternal(Context.player(player).arg(ContextKeys.ID, finalID), finalID);
+				.buildInternal(player.arg(ContextKeys.ID, finalID), finalID);
 		return requireNonNull(itemStack);
 	}
 

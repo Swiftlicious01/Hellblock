@@ -49,6 +49,14 @@ public interface NMSHandler {
 	abstract String getBiomeResourceLocation(Location location);
 
 	/**
+	 * Converts a JSON string into a Minecraft chat component.
+	 * 
+	 * @param json the JSON string to convert.
+	 * @return the Minecraft chat component.
+	 */
+	abstract Object getMinecraftComponent(String json);
+
+	/**
 	 * Opens an custom inventory using packets.
 	 * 
 	 * @param player    the player to open an inventory for.
@@ -82,7 +90,7 @@ public interface NMSHandler {
 	 * @return whether or not the hook is bit.
 	 */
 	abstract boolean isFishingHookBit(FishHook hook);
-	
+
 	/**
 	 * Gets the UUID of the owner of the given fish hook.
 	 * 
@@ -180,7 +188,7 @@ public interface NMSHandler {
 	 * @return the id of the itemstack.
 	 */
 	abstract int dropFakeItem(Player player, ItemStack itemStack, Location location);
-	
+
 	/**
 	 * Creates a fake armor stand.
 	 * 

@@ -3,8 +3,10 @@ package com.swiftlicious.hellblock.context;
 import java.util.Objects;
 
 import org.bukkit.Location;
+import org.bukkit.entity.FishHook;
 import org.bukkit.inventory.EquipmentSlot;
 
+import com.swiftlicious.hellblock.effects.Effect;
 import com.swiftlicious.hellblock.generation.HellBiome;
 import com.swiftlicious.hellblock.generation.IslandOptions;
 import com.swiftlicious.hellblock.loot.LootType;
@@ -26,6 +28,7 @@ public class ContextKeys<T> {
 	public static final ContextKeys<LootType> LOOT = of("loot", LootType.class);
 	public static final ContextKeys<String> NICK = of("nick", String.class);
 	public static final ContextKeys<Float> SIZE = of("size", Float.class);
+    public static final ContextKeys<Boolean> IS_NEW_SIZE_RECORD = of("is_new_size_record", Boolean.class);
 	public static final ContextKeys<Double> SIZE_MULTIPLIER = of("size_multiplier", Double.class);
 	public static final ContextKeys<Double> SIZE_ADDER = of("size_adder", Double.class);
 	public static final ContextKeys<String> SIZE_FORMATTED = of("size_formatted", String.class);
@@ -36,6 +39,7 @@ public class ContextKeys<T> {
 	public static final ContextKeys<String> ROD = of("rod", String.class);
 	public static final ContextKeys<String> BAIT = of("bait", String.class);
 	public static final ContextKeys<String> HOOK = of("hook", String.class);
+    public static final ContextKeys<FishHook> HOOK_ENTITY = of("hook_entity", FishHook.class);
 	public static final ContextKeys<String> HOUR = of("hour", String.class);
 	public static final ContextKeys<String> MINUTE = of("minute", String.class);
 	public static final ContextKeys<String> SECOND = of("second", String.class);
@@ -56,11 +60,16 @@ public class ContextKeys<T> {
 	public static final ContextKeys<Integer> AMOUNT = of("amount", Integer.class);
 	public static final ContextKeys<Integer> TOTAL_AMOUNT = of("total_amount", Integer.class);
 	public static final ContextKeys<Double> WEIGHT = of("0", Double.class);
+    public static final ContextKeys<Double> TOTAL_WEIGHT = of("1", Double.class);
 	public static final ContextKeys<Float> RECORD = of("record", Float.class);
+    public static final ContextKeys<Float> PREVIOUS_RECORD = of("previous_record", Float.class);
 	public static final ContextKeys<String> RECORD_FORMATTED = of("record_formatted", String.class);
+    public static final ContextKeys<String> PREVIOUS_RECORD_FORMATTED = of("previous_record_formatted", String.class);
 	public static final ContextKeys<EquipmentSlot> SLOT = of("hand", EquipmentSlot.class);
 	public static final ContextKeys<Double> BONUS = of("bonus", Double.class);
 	public static final ContextKeys<Double> BASE = of("base", Double.class);
+    public static final ContextKeys<Integer> LOOT_ORDER = of("loot_order", Integer.class);
+    public static final ContextKeys<Effect> EFFECT = of("effect", Effect.class);
 
 	public static final ContextKeys<Float> HELLBLOCK_LEVEL = of("hellblock_level", Float.class);
 	public static final ContextKeys<String> HELLBLOCK_RANK = of("hellblock_rank", String.class);

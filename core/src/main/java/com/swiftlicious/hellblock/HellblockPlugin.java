@@ -188,10 +188,10 @@ public class HellblockPlugin extends JavaPlugin {
 	public void onEnable() {
 		double startTime = System.currentTimeMillis();
 
-		// TODO: test support from 1.17.1 to 1.21.8+
+		// TODO: test support from 1.17 to 1.21.8+
 		if (!VersionHelper.getSupportedVersions().contains(VersionHelper.getServerVersion())) {
 			getPluginLogger().severe(
-					"Hellblock only supports legacy versions down to 1.17.1. Please update your server to be able to properly use this plugin.");
+					"Hellblock only supports legacy versions down to 1.17. Please update your server to be able to properly use this plugin.");
 			getPluginLogger().severe("Disabling plugin...");
 			Bukkit.getPluginManager().disablePlugin(this);
 			return;
@@ -366,6 +366,15 @@ public class HellblockPlugin extends JavaPlugin {
 				getPluginLogger()
 						.info(String.format("A total of %s hellblocks have been set as abandoned.", purgeCount.get()));
 		}
+
+		// Use scheduler to allow other plugins to load before reloading to prevent
+		// conflicts
+		if (VersionHelper.isFolia()) {
+			Bukkit.getGlobalRegionScheduler().run(this, (scheduledTask) -> this.reload());
+		} else {
+			Bukkit.getScheduler().runTask(this, this::reload);
+		}
+
 	}
 
 	@Override
@@ -852,6 +861,8 @@ public class HellblockPlugin extends JavaPlugin {
 	 * @param message The debugging message to be logged.
 	 */
 	public void debug(Object message) {
+		if (message == null)
+			return;
 		this.debugger.accept(message::toString);
 	}
 

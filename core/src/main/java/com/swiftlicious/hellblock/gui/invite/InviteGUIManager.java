@@ -192,7 +192,8 @@ public class InviteGUIManager implements InviteGUIManagerInterface, Listener {
 			gui.addElement(new InviteGUIElement(entry.getKey(), entry.getValue().left().build(context)));
 		}
 		gui.saveItems();
-		gui.build().refresh().show();
+		gui.build().show();
+		gui.refresh();
 		inviteGUICache.put(player.getUniqueId(), gui);
 		return true;
 	}

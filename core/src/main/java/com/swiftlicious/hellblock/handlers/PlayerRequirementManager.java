@@ -14,11 +14,15 @@ import org.bukkit.potion.PotionEffectType;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.context.ContextKeys;
+import com.swiftlicious.hellblock.creation.addons.IntegrationManager;
 import com.swiftlicious.hellblock.creation.addons.VaultHook;
+import com.swiftlicious.hellblock.creation.addons.bedrock.FloodGateUtils;
+import com.swiftlicious.hellblock.creation.addons.bedrock.GeyserUtils;
 import com.swiftlicious.hellblock.creation.addons.level.LevelerProvider;
 import com.swiftlicious.hellblock.effects.EffectProperties;
-import com.swiftlicious.hellblock.loot.LootInterface;
+import com.swiftlicious.hellblock.loot.Loot;
 import com.swiftlicious.hellblock.utils.ListUtils;
+import com.swiftlicious.hellblock.utils.MiscUtils;
 import com.swiftlicious.hellblock.utils.extras.MathValue;
 import com.swiftlicious.hellblock.utils.extras.Requirement;
 import dev.dejvokep.boostedyaml.block.implementation.Section;
@@ -51,6 +55,11 @@ public class PlayerRequirementManager extends AbstractRequirementManager<Player>
 		this.registerPotionEffectRequirement();
 		this.registerSneakRequirement();
 		this.registerGameModeRequirement();
+		this.registerIsFirstLootRequirement();
+		this.registerHasPlayerLootRequirement();
+		this.registerLootOrderRequirement();
+		this.registerIsBedrockPlayerRequirement();
+		this.registerIsNewSizeRecordRequirement();
 	}
 
 	@Override
@@ -142,6 +151,28 @@ public class PlayerRequirementManager extends AbstractRequirementManager<Player>
 		}, "item-in-hand");
 		registerRequirement((args, actions, runActions) -> {
 			if (args instanceof Section section) {
+				boolean mainOrOff = section.getString("hand", "main").equalsIgnoreCase("main");
+				int amount = section.getInt("amount", 1);
+				List<String> items = ListUtils.toList(section.get("item"));
+				return context -> {
+					ItemStack itemStack = mainOrOff ? context.holder().getInventory().getItemInMainHand()
+							: context.holder().getInventory().getItemInOffHand();
+					String id = instance.getItemManager().getItemID(itemStack);
+					if (!items.contains(id) || itemStack.getAmount() < amount) {
+						return true;
+					}
+					if (runActions)
+						ActionManager.trigger(context, actions);
+					return false;
+				};
+			} else {
+				instance.getPluginLogger().warn("Invalid value type: " + args.getClass().getSimpleName()
+						+ " found at !item-in-hand requirement which is expected be `Section`");
+				return Requirement.empty();
+			}
+		}, "!item-in-hand");
+		registerRequirement((args, actions, runActions) -> {
+			if (args instanceof Section section) {
 				boolean regex = section.getBoolean("regex", false);
 				String hand = section.getString("hand", "main");
 				int mode;
@@ -227,6 +258,51 @@ public class PlayerRequirementManager extends AbstractRequirementManager<Player>
 		}, "plugin-level");
 	}
 
+	private void registerIsBedrockPlayerRequirement() {
+		registerRequirement(((args, actions, runActions) -> context -> {
+			boolean arg = (boolean) args;
+			if (IntegrationManager.getInstance().hasGeyser()) {
+				boolean is = GeyserUtils.isBedrockPlayer(context.holder().getUniqueId());
+				if (is && arg) {
+					return true;
+				}
+				if (!is && !arg) {
+					return true;
+				}
+			}
+			if (IntegrationManager.getInstance().hasFloodGate()) {
+				boolean is = FloodGateUtils.isBedrockPlayer(context.holder().getUniqueId());
+				if (is && arg) {
+					return true;
+				}
+				if (!is && !arg) {
+					return true;
+				}
+			}
+			if (!IntegrationManager.getInstance().hasFloodGate() && !IntegrationManager.getInstance().hasGeyser()
+					&& !arg) {
+				return true;
+			}
+			if (runActions)
+				ActionManager.trigger(context, actions);
+			return false;
+		}), "is-bedrock-player");
+	}
+
+	private void registerIsNewSizeRecordRequirement() {
+		registerRequirement((args, actions, runActions) -> {
+			boolean is = (boolean) args;
+			return context -> {
+				boolean current = Optional.ofNullable(context.arg(ContextKeys.IS_NEW_SIZE_RECORD)).orElse(false);
+				if (is == current)
+					return true;
+				if (runActions)
+					ActionManager.trigger(context, actions);
+				return false;
+			};
+		}, "new-size-record");
+	}
+
 	private void registerInLavaRequirement() {
 		registerRequirement((args, actions, runActions) -> {
 			boolean inLava = (boolean) args;
@@ -272,7 +348,7 @@ public class PlayerRequirementManager extends AbstractRequirementManager<Player>
 			Set<String> groups = new HashSet<>(ListUtils.toList(args));
 			return context -> {
 				String lootID = context.arg(ContextKeys.ID);
-				Optional<LootInterface> loot = instance.getLootManager().getLoot(lootID);
+				Optional<Loot> loot = instance.getLootManager().getLoot(lootID);
 				if (loot.isEmpty())
 					return false;
 				String[] group = loot.get().lootGroup();
@@ -289,7 +365,7 @@ public class PlayerRequirementManager extends AbstractRequirementManager<Player>
 			Set<String> groups = new HashSet<>(ListUtils.toList(args));
 			return context -> {
 				String lootID = context.arg(ContextKeys.ID);
-				Optional<LootInterface> loot = instance.getLootManager().getLoot(lootID);
+				Optional<Loot> loot = instance.getLootManager().getLoot(lootID);
 				if (loot.isEmpty())
 					return false;
 				String[] group = loot.get().lootGroup();
@@ -430,7 +506,7 @@ public class PlayerRequirementManager extends AbstractRequirementManager<Player>
 			boolean has = (boolean) args;
 			return context -> {
 				String loot = context.arg(ContextKeys.ID);
-				Optional<LootInterface> lootInstance = instance.getLootManager().getLoot(loot);
+				Optional<Loot> lootInstance = instance.getLootManager().getLoot(loot);
 				if (lootInstance.isPresent()) {
 					if (!lootInstance.get().disableStats() && has)
 						return true;
@@ -449,7 +525,7 @@ public class PlayerRequirementManager extends AbstractRequirementManager<Player>
 			List<String> types = ListUtils.toList(args);
 			return context -> {
 				String loot = context.arg(ContextKeys.ID);
-				Optional<LootInterface> lootInstance = instance.getLootManager().getLoot(loot);
+				Optional<Loot> lootInstance = instance.getLootManager().getLoot(loot);
 				if (lootInstance.isPresent()) {
 					if (types.contains(lootInstance.get().type().name().toLowerCase(Locale.ENGLISH)))
 						return true;
@@ -463,7 +539,7 @@ public class PlayerRequirementManager extends AbstractRequirementManager<Player>
 			List<String> types = ListUtils.toList(args);
 			return context -> {
 				String loot = context.arg(ContextKeys.ID);
-				Optional<LootInterface> lootInstance = instance.getLootManager().getLoot(loot);
+				Optional<Loot> lootInstance = instance.getLootManager().getLoot(loot);
 				if (lootInstance.isPresent()) {
 					if (!types.contains(lootInstance.get().type().name().toLowerCase(Locale.ENGLISH)))
 						return true;
@@ -639,5 +715,50 @@ public class PlayerRequirementManager extends AbstractRequirementManager<Player>
 				return false;
 			};
 		}, "gamemode");
+	}
+
+	protected void registerIsFirstLootRequirement() {
+		registerRequirement((args, actions, advanced) -> {
+			boolean is = (boolean) args;
+			return context -> {
+				int order = Optional.ofNullable(context.arg(ContextKeys.LOOT_ORDER)).orElse(1);
+				if (is && order == 1)
+					return true;
+				if (!is && order != 1)
+					return true;
+				if (advanced)
+					ActionManager.trigger(context, actions);
+				return false;
+			};
+		}, "is-first-loot");
+	}
+
+	protected void registerLootOrderRequirement() {
+		registerRequirement((args, actions, advanced) -> {
+			int order = MiscUtils.getAsInt(args);
+			return context -> {
+				int actualOrder = Optional.ofNullable(context.arg(ContextKeys.LOOT_ORDER)).orElse(1);
+				if (order == actualOrder)
+					return true;
+				if (advanced)
+					ActionManager.trigger(context, actions);
+				return false;
+			};
+		}, "loot-order");
+	}
+
+	protected void registerHasPlayerLootRequirement() {
+		registerRequirement((args, actions, advanced) -> {
+			boolean has = (boolean) args;
+			return context -> {
+				if (has && context.holder() != null)
+					return true;
+				if (!has && context.holder() == null)
+					return true;
+				if (advanced)
+					ActionManager.trigger(context, actions);
+				return false;
+			};
+		}, "has-player");
 	}
 }

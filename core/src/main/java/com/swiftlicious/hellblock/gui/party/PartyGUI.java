@@ -94,7 +94,7 @@ public class PartyGUI {
 	public void show() {
 		context.holder().openInventory(inventory);
 		VersionHelper.getNMSManager().updateInventoryTitle(context.holder(),
-				AdventureHelper.componentToJson(AdventureHelper.miniMessage(manager.title.render(context))));
+				AdventureHelper.componentToJson(AdventureHelper.miniMessage(manager.title.render(context, true))));
 	}
 
 	@Nullable

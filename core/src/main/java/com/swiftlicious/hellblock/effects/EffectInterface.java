@@ -1,13 +1,10 @@
 package com.swiftlicious.hellblock.effects;
 
-import org.bukkit.entity.Player;
-
-import com.swiftlicious.hellblock.context.Context;
+import com.swiftlicious.hellblock.loot.operation.WeightOperation;
 import com.swiftlicious.hellblock.utils.extras.Pair;
 
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiFunction;
 
 /**
  * Represents an effect applied in the fishing.
@@ -128,7 +125,7 @@ public interface EffectInterface {
 	 *
 	 * @return the list of weight operations
 	 */
-	List<Pair<String, BiFunction<Context<Player>, Double, Double>>> weightOperations();
+    List<Pair<String, WeightOperation>> weightOperations();
 
 	/**
 	 * Adds the list of weight operations.
@@ -136,14 +133,14 @@ public interface EffectInterface {
 	 * @param weightOperations the list of weight operations to add
 	 * @return the effect instance
 	 */
-	Effect weightOperations(List<Pair<String, BiFunction<Context<Player>, Double, Double>>> weightOperations);
+    Effect weightOperations(List<Pair<String, WeightOperation>> weightOperations);
 
 	/**
 	 * Gets the list of weight operations that are conditions ignored.
 	 *
 	 * @return the list of weight operations that are conditions ignored
 	 */
-	List<Pair<String, BiFunction<Context<Player>, Double, Double>>> weightOperationsIgnored();
+    List<Pair<String, WeightOperation>> weightOperationsIgnored();
 
 	/**
 	 * Adds the list of weight operations that are conditions ignored.
@@ -152,7 +149,7 @@ public interface EffectInterface {
 	 *                         ignored
 	 * @return the effect instance
 	 */
-	Effect weightOperationsIgnored(List<Pair<String, BiFunction<Context<Player>, Double, Double>>> weightOperations);
+    Effect weightOperationsIgnored(List<Pair<String, WeightOperation>> weightOperations);
 
 	/**
 	 * Combines this effect with another effect.

@@ -8,7 +8,7 @@ subprojects {
     repositories {
         mavenCentral()
         gradlePluginPortal()
-        maven { url = 'https://repo.papermc.io/repository/maven-public' }
+        maven { url = 'https://repo.papermc.io/repository/maven-public' } // paper
     }
 }
 

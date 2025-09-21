@@ -30,13 +30,14 @@ import com.swiftlicious.hellblock.effects.Effect;
 import com.swiftlicious.hellblock.effects.EffectInterface;
 import com.swiftlicious.hellblock.effects.EffectModifier;
 import com.swiftlicious.hellblock.events.fishing.FishingEffectApplyEvent;
+import com.swiftlicious.hellblock.events.fishing.FishingHookStateEvent;
 import com.swiftlicious.hellblock.events.fishing.FishingLootSpawnEvent;
 import com.swiftlicious.hellblock.events.fishing.FishingResultEvent;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.handlers.RequirementManager;
 import com.swiftlicious.hellblock.handlers.VersionHelper;
 import com.swiftlicious.hellblock.listeners.fishing.BaitAnimationTask;
-import com.swiftlicious.hellblock.loot.LootInterface;
+import com.swiftlicious.hellblock.loot.Loot;
 import com.swiftlicious.hellblock.loot.LootType;
 import com.swiftlicious.hellblock.mechanics.MechanicType;
 import com.swiftlicious.hellblock.mechanics.fishing.hook.HookMechanic;
@@ -46,6 +47,7 @@ import com.swiftlicious.hellblock.scheduler.SchedulerTask;
 import com.swiftlicious.hellblock.utils.EventUtils;
 import com.swiftlicious.hellblock.utils.PlayerUtils;
 import com.swiftlicious.hellblock.utils.extras.ActionTrigger;
+import com.swiftlicious.hellblock.utils.extras.Pair;
 import com.swiftlicious.hellblock.utils.extras.TextValue;
 import com.swiftlicious.hellblock.utils.extras.TriConsumer;
 import com.swiftlicious.hellblock.utils.extras.TriFunction;
@@ -62,7 +64,7 @@ public class CustomFishingHook {
 	private final Context<Player> context;
 	private Effect tempFinalEffect;
 	private HookMechanic hookMechanic;
-	private LootInterface nextLoot;
+	private Loot nextLoot;
 	private BaitAnimationTask baitAnimationTask;
 	private boolean valid = true;
 
@@ -170,8 +172,7 @@ public class CustomFishingHook {
 						context.arg(ContextKeys.OTHER_Z, hook.getLocation().getBlockZ());
 
 						// get the next loot
-
-						LootInterface loot;
+						Loot loot;
 						try {
 							loot = plugin.getLootManager().getNextLoot(tempEffect, context);
 						} catch (Exception e) {
@@ -207,6 +208,7 @@ public class CustomFishingHook {
 							// trigger event
 							EventUtils.fireAndForget(new FishingEffectApplyEvent(this, tempEffect,
 									FishingEffectApplyEvent.Stage.FISHING));
+							context.arg(ContextKeys.EFFECT, tempEffect);
 
 							// start the mechanic
 							plugin.debug("Final Effect:" + tempEffect);
@@ -287,13 +289,17 @@ public class CustomFishingHook {
 		return hookMechanic;
 	}
 
+	public FishingGears gears() {
+		return gears;
+	}
+
 	/**
 	 * Gets the next loot.
 	 *
 	 * @return the next Loot, or null if none.
 	 */
 	@Nullable
-	public LootInterface getNextLoot() {
+	public Loot getNextLoot() {
 		return nextLoot;
 	}
 
@@ -335,11 +341,14 @@ public class CustomFishingHook {
 	public void onReelIn() {
 		if (!hook.isValid())
 			return;
+		context.arg(ContextKeys.OTHER_LOCATION, hook.getLocation());
 		if (hookMechanic != null) {
 			if (!hookMechanic.isHooked()) {
 				gears.trigger(ActionTrigger.REEL, context);
 				destroy();
 			} else {
+				EventUtils.fireAndForget(
+						new FishingHookStateEvent(context.holder(), hook, FishingHookStateEvent.State.HOOK));
 				instance.getEventManager().trigger(context, nextLoot.id(), MechanicType.LOOT, ActionTrigger.HOOK);
 				gears.trigger(ActionTrigger.HOOK, context);
 				startFishing();
@@ -356,6 +365,7 @@ public class CustomFishingHook {
 	public void onBite() {
 		if (!hook.isValid())
 			return;
+		context.arg(ContextKeys.OTHER_LOCATION, hook.getLocation());
 		instance.getEventManager().trigger(context, nextLoot.id(), MechanicType.LOOT, ActionTrigger.BITE);
 		gears.trigger(ActionTrigger.BITE, context);
 		if (RequirementManager.isSatisfied(context, instance.getConfigManager().autoFishingRequirements())) {
@@ -373,6 +383,7 @@ public class CustomFishingHook {
 	public void onLand() {
 		if (!hook.isValid())
 			return;
+		context.arg(ContextKeys.OTHER_LOCATION, hook.getLocation());
 		gears.trigger(ActionTrigger.LAND, context);
 	}
 
@@ -382,6 +393,7 @@ public class CustomFishingHook {
 	public void onEscape() {
 		if (!hook.isValid())
 			return;
+		context.arg(ContextKeys.OTHER_LOCATION, hook.getLocation());
 		instance.getEventManager().trigger(context, nextLoot.id(), MechanicType.LOOT, ActionTrigger.ESCAPE);
 		gears.trigger(ActionTrigger.ESCAPE, context);
 	}
@@ -392,6 +404,7 @@ public class CustomFishingHook {
 	public void onLure() {
 		if (!hook.isValid())
 			return;
+		context.arg(ContextKeys.OTHER_LOCATION, hook.getLocation());
 		instance.getEventManager().trigger(context, nextLoot.id(), MechanicType.LOOT, ActionTrigger.LURE);
 		gears.trigger(ActionTrigger.LURE, context);
 	}
@@ -449,6 +462,8 @@ public class CustomFishingHook {
 			return;
 		}
 
+		amount = event.getAmount();
+
 		gears.trigger(ActionTrigger.SUCCESS, context);
 
 		switch (lootType) {
@@ -457,7 +472,9 @@ public class CustomFishingHook {
 			context.arg(ContextKeys.SIZE_ADDER, tempFinalEffect.sizeAdder());
 			boolean directlyToInventory = nextLoot.toInventory().evaluate(context) != 0;
 			for (int i = 0; i < amount; i++) {
+				int order = i;
 				instance.getScheduler().sync().runLater(() -> {
+					context.arg(ContextKeys.LOOT_ORDER, order);
 					if (directlyToInventory) {
 						ItemStack stack = instance.getItemManager().getItemLoot(context,
 								gears.getItem(FishingGears.GearType.ROD).stream().findAny().orElseThrow().right(),
@@ -506,6 +523,7 @@ public class CustomFishingHook {
 			}
 		}
 		case BLOCK -> {
+			context.arg(ContextKeys.LOOT_ORDER, 1);
 			FallingBlock fallingBlock = instance.getBlockManager().summonBlockLoot(context);
 			FishingLootSpawnEvent spawnEvent = new FishingLootSpawnEvent(context, hook.getLocation(), nextLoot,
 					fallingBlock);
@@ -517,6 +535,7 @@ public class CustomFishingHook {
 			doSuccessActions();
 		}
 		case ENTITY -> {
+			context.arg(ContextKeys.LOOT_ORDER, 1);
 			Entity entity = instance.getEntityManager().summonEntityLoot(context);
 			FishingLootSpawnEvent spawnEvent = new FishingLootSpawnEvent(context, hook.getLocation(), nextLoot, entity);
 			Bukkit.getPluginManager().callEvent(spawnEvent);
@@ -535,18 +554,27 @@ public class CustomFishingHook {
 
 		if (!nextLoot.disableStats()) {
 			instance.getStorageManager().getOnlineUser(player.getUniqueId()).ifPresent(userData -> {
+				Pair<Integer, Integer> result = userData.getStatisticData()
+						.addAmount(nextLoot.statisticKey().amountKey(), 1);
 				userData.getStatisticData().addAmount(nextLoot.statisticKey().amountKey(), 1);
 				context.arg(ContextKeys.TOTAL_AMOUNT,
 						userData.getStatisticData().getAmount(nextLoot.statisticKey().amountKey()));
-				Optional.ofNullable(context.arg(ContextKeys.SIZE)).ifPresent(size -> {
-					float max = Math.max(0, userData.getStatisticData().getMaxSize(nextLoot.statisticKey().sizeKey()));
+				Optional.ofNullable(context.arg(ContextKeys.SIZE)).ifPresentOrElse(size -> {
+					float currentRecord = userData.getStatisticData().getMaxSize(nextLoot.statisticKey().sizeKey());
+					float max = Math.max(size, currentRecord);
 					context.arg(ContextKeys.RECORD, max);
+					context.arg(ContextKeys.PREVIOUS_RECORD, currentRecord);
 					context.arg(ContextKeys.RECORD_FORMATTED, String.format("%.2f", max));
+					context.arg(ContextKeys.PREVIOUS_RECORD_FORMATTED, String.format("%.2f", currentRecord));
 					if (userData.getStatisticData().updateSize(nextLoot.statisticKey().sizeKey(), size)) {
+						context.arg(ContextKeys.IS_NEW_SIZE_RECORD, true);
+						instance.getEventManager().trigger(context, id, MechanicType.LOOT, ActionTrigger.SUCCESS,
+								result.left(), result.right());
 						instance.getEventManager().trigger(context, id, MechanicType.LOOT,
 								ActionTrigger.NEW_SIZE_RECORD);
 					}
-				});
+				}, () -> instance.getEventManager().trigger(context, id, MechanicType.LOOT, ActionTrigger.SUCCESS,
+						result.left(), result.right()));
 			});
 		}
 

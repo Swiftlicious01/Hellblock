@@ -60,6 +60,6 @@ public class FishingHookStateEvent extends PlayerEvent {
 	}
 
 	public enum State {
-		BITE, ESCAPE, LURE, LAND
+		BITE, ESCAPE, LURE, LAND, HOOK
 	}
 }
