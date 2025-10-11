@@ -350,7 +350,7 @@ command.debug.worlds.success:
   - " - Entities: <arg:4>"
   - " - Tile Entities: <arg:5>"
   - " - Players: <arg:6>"
-message.hellblock.permission.schematic.denied: "<red>You don't have permission to generate this schematic type!</red>"
+message.hellblock.permission.schematic.denied: "<red>You don't meet the requirements to generate this schematic type!</red>"
 message.hellblock.login.unsafe.environment: "<red>You logged out in an unsafe hellblock environment because it was reset or deleted.</red>"
 message.hellblock.login.clear.inventory: "<red>Your inventory was cleared because your hellblock got reset or deleted.</red>"
 message.hellblock.login.clear.enderchest: "<red>Your enderchest was cleared because your hellblock got reset or deleted.</red>"

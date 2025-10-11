@@ -3,6 +3,7 @@ package com.swiftlicious.hellblock.database;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
@@ -14,7 +15,10 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
@@ -30,6 +34,8 @@ import org.bukkit.potion.PotionEffectType;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonSyntaxException;
@@ -68,6 +74,8 @@ public class StorageManager implements StorageManagerInterface, Listener {
 	private DataStorageProvider dataSource;
 	private StorageType previousType;
 	private final ConcurrentMap<UUID, UserData> onlineUserMap = new ConcurrentHashMap<>();
+	private final Cache<UUID, UserData> offlineUserCache = Caffeine.newBuilder().maximumSize(10_000)
+			.expireAfterAccess(Duration.ofMinutes(15)).build();
 	private final Set<UUID> locked = new HashSet<>();
 	private boolean hasRedis;
 	private RedisManager redisManager;
@@ -108,6 +116,8 @@ public class StorageManager implements StorageManagerInterface, Listener {
 
 	public void init() {
 		Bukkit.getPluginManager().registerEvents(this, instance);
+		preloadCachedIslandOwners()
+				.thenRun(() -> instance.getPluginLogger().info("Finished preloading island owner data."));
 	}
 
 	/**
@@ -200,6 +210,9 @@ public class StorageManager implements StorageManagerInterface, Listener {
 		if (this.dataSource != null && !onlineUserMap.isEmpty()) {
 			this.dataSource.updateManyPlayersData(onlineUserMap.values(), true);
 		}
+		if (this.dataSource != null && !offlineUserCache.asMap().isEmpty()) {
+			this.dataSource.updateManyPlayersData(offlineUserCache.asMap().values(), true);
+		}
 		if (this.dataSource != null) {
 			this.dataSource.disable();
 		}
@@ -207,6 +220,36 @@ public class StorageManager implements StorageManagerInterface, Listener {
 			this.redisManager.disable();
 		}
 		this.onlineUserMap.clear();
+		this.offlineUserCache.asMap().clear();
+	}
+
+	private final ExecutorService preloadExecutor = Executors.newFixedThreadPool(10); // adjust threads
+
+	@Override
+	public CompletableFuture<Void> preloadCachedIslandOwners() {
+		return instance.getCoopManager().getCachedIslandOwners().thenCompose(owners -> {
+			if (owners == null || owners.isEmpty()) {
+				return CompletableFuture.completedFuture(null);
+			}
+
+			// Run each preload task in parallel
+			List<CompletableFuture<Void>> preloadTasks = owners.parallelStream()
+					.map(ownerId -> CompletableFuture.supplyAsync(() ->
+			// join here because we're already async
+			instance.getStorageManager().getOfflineUserData(ownerId, false).join(), preloadExecutor)
+							.thenAccept(data -> {
+								if (data.isPresent()) {
+									instance.debug("Preloaded user data for island owner: " + ownerId);
+								}
+							}))
+					.collect(Collectors.toList());
+
+			return CompletableFuture.allOf(preloadTasks.toArray(CompletableFuture[]::new));
+		});
+	}
+	
+	public void shutdownPreloadExecutor() {
+		preloadExecutor.shutdownNow();
 	}
 
 	@NotNull
@@ -231,6 +274,23 @@ public class StorageManager implements StorageManagerInterface, Listener {
 		return onlineUserMap.values();
 	}
 
+	@NotNull
+	@Override
+	public Optional<UserData> getCachedUserData(@NotNull UUID uuid) {
+		// Prefer online user
+		Optional<UserData> online = getOnlineUser(uuid);
+		if (online.isPresent())
+			return online;
+
+		// Check cached offline user
+		return Optional.ofNullable(offlineUserCache.getIfPresent(uuid));
+	}
+
+	@Override
+	public void invalidateCachedUserData(@NotNull UUID uuid) {
+		offlineUserCache.invalidate(uuid);
+	}
+
 	@Override
 	public CompletableFuture<Optional<UserData>> getOfflineUserData(UUID uuid, boolean lock) {
 		final CompletableFuture<Optional<PlayerData>> optionalDataFuture = dataSource.getPlayerData(uuid, lock, null);
@@ -239,7 +299,12 @@ public class StorageManager implements StorageManagerInterface, Listener {
 				return CompletableFuture.completedFuture(Optional.empty());
 			}
 			final PlayerData data = optionalUser.get();
-			return CompletableFuture.completedFuture(Optional.of(UserDataInterface.builder().setData(data).build()));
+			UserData userData = UserDataInterface.builder().setData(data).build();
+
+			// Cache for future sync access
+			offlineUserCache.put(uuid, userData);
+
+			return CompletableFuture.completedFuture(Optional.of(userData));
 		});
 	}
 
@@ -452,8 +517,7 @@ public class StorageManager implements StorageManagerInterface, Listener {
 		}
 
 		// If the stored bio, name and entry messages references an old name
-		// placeholder,
-		// regenerate it
+		// placeholder, regenerate it
 		if (bukkitUser.getHellblockData().getOwnerUUID() != null
 				&& bukkitUser.getHellblockData().getOwnerUUID().equals(bukkitUser.getUUID())) {
 			String bio = bukkitUser.getHellblockData().getDisplaySettings().getIslandBio();

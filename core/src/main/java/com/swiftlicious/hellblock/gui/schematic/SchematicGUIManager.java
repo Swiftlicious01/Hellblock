@@ -168,6 +168,12 @@ public class SchematicGUIManager implements SchematicGUIManagerInterface, Listen
 					.warn("Player " + player.getName() + "'s hellblock data has not been loaded yet.");
 			return false;
 		}
+		if (!checkForSchematics()) {
+			AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
+					Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
+							net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
+			return false;
+		}
 		if (isReset && optionalUserData.get().getHellblockData().getResetCooldown() > 0) {
 			Sender audience = instance.getSenderFactory().wrap(player);
 			audience.sendMessage(instance.getTranslationManager().render(

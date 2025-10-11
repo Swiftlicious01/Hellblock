@@ -11,12 +11,14 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.bukkit.Bukkit;
+import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
 import org.bukkit.util.BoundingBox;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import com.sk89q.worldguard.WorldGuard;
 import com.swiftlicious.hellblock.HellblockPlugin;
@@ -165,6 +167,69 @@ public class ProtectionManager implements ProtectionManagerInterface, Reloadable
 				.executeSync(() -> world.getEntities().stream().filter(
 						entity -> entity.getType() != EntityType.PLAYER && bounds.contains(entity.getBoundingBox()))
 						.forEach(Entity::remove));
+	}
+
+	@Override
+	public CompletableFuture<@Nullable BoundingBox> getHellblockBounds(@NotNull World world, @NotNull UUID ownerId) {
+		if (!instance.getHellblockHandler().isInCorrectWorld(world)) {
+			return CompletableFuture.completedFuture(null);
+		}
+
+		return instance.getStorageManager().getOfflineUserData(ownerId, instance.getConfigManager().lockData())
+				.thenApply(result -> {
+					if (result.isEmpty()) {
+						return null;
+					}
+
+					UserData userData = result.get();
+					BoundingBox bounds = userData.getHellblockData().getBoundingBox();
+
+					if (bounds == null) {
+						return null;
+					}
+
+					return bounds;
+				});
+	}
+
+	@Override
+	public CompletableFuture<Boolean> isInsideIsland(@NotNull UUID ownerId, @NotNull Location location) {
+		final World world = location.getWorld();
+
+		// Fail early if world isn't valid
+		if (!instance.getHellblockHandler().isInCorrectWorld(world)) {
+			return CompletableFuture.completedFuture(false);
+		}
+
+		return getHellblockBounds(world, ownerId).thenApply(bounds -> {
+			if (bounds == null)
+				return false;
+
+			double x = location.getX();
+			double y = location.getY();
+			double z = location.getZ();
+
+			return bounds.contains(x, y, z);
+		});
+	}
+
+	@Override
+	public CompletableFuture<Boolean> isInsideIsland2D(@NotNull UUID ownerId, @NotNull Location location) {
+		final World world = location.getWorld();
+
+		if (!instance.getHellblockHandler().isInCorrectWorld(world)) {
+			return CompletableFuture.completedFuture(false);
+		}
+
+		return getHellblockBounds(world, ownerId).thenApply(bounds -> {
+			if (bounds == null)
+				return false;
+
+			double x = location.getX();
+			double z = location.getZ();
+
+			return bounds.getMinX() <= x && x <= bounds.getMaxX() && bounds.getMinZ() <= z && z <= bounds.getMaxZ();
+		});
 	}
 
 	private final Map<UUID, CompletableFuture<List<Block>>> activeBlockScans = new ConcurrentHashMap<>();

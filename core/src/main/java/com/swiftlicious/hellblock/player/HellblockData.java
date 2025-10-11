@@ -48,6 +48,8 @@ import com.swiftlicious.hellblock.upgrades.UpgradeCost;
 import com.swiftlicious.hellblock.upgrades.UpgradeData;
 
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.JoinConfiguration;
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 
 public class HellblockData {
 
@@ -273,31 +275,76 @@ public class HellblockData {
 	public void sendDisplayTextTo(Player viewer) {
 		final HellblockPlugin plugin = HellblockPlugin.getInstance();
 		final DisplaySettings settings = getDisplaySettings();
-
 		final DisplayChoice choice = settings.getDisplayChoice();
 
-		Component name = displayIslandNameWithContext();
-		Component bio = displayIslandBioWithContext();
+		Component nameComponent = displayIslandNameWithContext();
+		Component bioComponent = displayIslandBioWithContext();
 
-		Sender audience = HellblockPlugin.getInstance().getSenderFactory().wrap(viewer);
+		Sender audience = plugin.getSenderFactory().wrap(viewer);
 
-		switch (choice) {
-		case CHAT -> {
-			AdventureHelper.sendCenteredMessage(audience, name);
-			AdventureHelper.sendCenteredMessage(audience, bio);
+		if (choice == DisplayChoice.CHAT) {
+			AdventureHelper.sendCenteredMessage(audience, nameComponent);
+			AdventureHelper.sendCenteredMessage(audience, bioComponent);
+			return;
 		}
-		case TITLE -> {
-			try {
-				VersionHelper.getNMSManager().sendTitle(viewer, AdventureHelper.componentToJson(name),
-						AdventureHelper.componentToJson(bio), 10, 40, 20);
-			} catch (Exception ex) {
-				plugin.getPluginLogger().warn("Failed to send title to " + viewer.getName() + ": " + ex.getMessage());
-				// fallback to chat
-				AdventureHelper.sendCenteredMessage(audience, name);
-				AdventureHelper.sendCenteredMessage(audience, bio);
+
+		String titleJson = AdventureHelper.componentToJson(nameComponent);
+
+		List<Component> subtitleChunks = splitComponentByLength(bioComponent, 80); // max 80 visible characters
+		int intervalTicks = 70; // 3.5 seconds
+
+		for (int i = 0; i < subtitleChunks.size(); i++) {
+			Component chunk = subtitleChunks.get(i);
+			String subtitleJson = AdventureHelper.componentToJson(chunk);
+			int delay = i * intervalTicks;
+
+			plugin.getScheduler().sync().runLater(() -> {
+				try {
+					VersionHelper.getNMSManager().sendTitle(viewer, titleJson, subtitleJson, 10, 40, 20);
+				} catch (Exception ex) {
+					plugin.getPluginLogger()
+							.warn("Failed to send title to " + viewer.getName() + ": " + ex.getMessage());
+					AdventureHelper.sendCenteredMessage(audience, nameComponent);
+					AdventureHelper.sendCenteredMessage(audience, chunk);
+				}
+			}, delay, viewer.getLocation());
+		}
+	}
+
+	private List<Component> splitComponentByLength(Component component, int maxVisibleLength) {
+		List<Component> result = new ArrayList<>();
+
+		List<Component> currentChunk = new ArrayList<>();
+		int currentLength = 0;
+
+		for (Component child : component.children()) {
+			String plain = PlainTextComponentSerializer.plainText().serialize(child);
+			String[] words = plain.split(" ");
+
+			for (String word : words) {
+				int wordLength = word.length() + 1; // +1 for space
+
+				if (currentLength + wordLength > maxVisibleLength && !currentChunk.isEmpty()) {
+					// Flush current chunk
+					JoinConfiguration config = JoinConfiguration.builder().separator(Component.text(" ")).build();
+					result.add(Component.join(config, currentChunk));
+					currentChunk.clear();
+					currentLength = 0;
+				}
+
+				// Preserve the original formatting by copying styles
+				Component styledWord = Component.text(word).style(child.style()); // preserve color/bold/etc.
+				currentChunk.add(styledWord);
+				currentLength += wordLength;
 			}
 		}
+
+		if (!currentChunk.isEmpty()) {
+			JoinConfiguration config = JoinConfiguration.builder().separator(Component.text(" ")).build();
+			result.add(Component.join(config, currentChunk));
 		}
+
+		return result;
 	}
 
 	public @Nullable HellBiome getBiome() {

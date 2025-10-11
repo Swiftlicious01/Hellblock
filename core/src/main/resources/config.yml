@@ -91,6 +91,7 @@ hellblock:
   # Can be internalAsync (for us to handle it), fawe or worldedit  
   schematic-paster: internalAsync
   # You must add schematic as an option if you want all of the schematics in your "schematics" folder to appear as a choice to choose from.
+  # Default refers to the L skyblock shape and classic is the newer sphere shape. You can remove as you wish if you don't want a certain type appearing.
   island-options:
     - 'default'
     - 'classic'

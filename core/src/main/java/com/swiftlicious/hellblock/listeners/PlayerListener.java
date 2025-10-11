@@ -21,6 +21,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Tag;
+import org.bukkit.World;
 import org.bukkit.World.Environment;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
@@ -28,7 +29,7 @@ import org.bukkit.entity.Entity;
 import org.bukkit.entity.FallingBlock;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
-import org.bukkit.event.Event.Result;
+import org.bukkit.event.Event;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.HandlerList;
@@ -42,7 +43,6 @@ import org.bukkit.event.entity.EntityPotionEffectEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.AsyncPlayerChatEvent;
 import org.bukkit.event.player.PlayerBedEnterEvent;
-import org.bukkit.event.player.PlayerBedEnterEvent.BedEnterResult;
 import org.bukkit.event.player.PlayerChangedWorldEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerItemConsumeEvent;
@@ -53,6 +53,7 @@ import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.event.player.PlayerRespawnEvent.RespawnReason;
 import org.bukkit.event.player.PlayerTeleportEvent;
 import org.bukkit.event.player.PlayerTeleportEvent.TeleportCause;
+import org.bukkit.event.vehicle.VehicleMoveEvent;
 import org.bukkit.event.world.PortalCreateEvent;
 import org.bukkit.event.world.PortalCreateEvent.CreateReason;
 import org.bukkit.inventory.ItemStack;
@@ -256,12 +257,6 @@ public class PlayerListener implements Listener, Reloadable {
 		});
 	}
 
-	@EventHandler
-	public void onPlayerQuit(PlayerQuitEvent event) {
-		UUID uuid = event.getPlayer().getUniqueId();
-		outOfBoundsHandledTimestamps.remove(uuid);
-	}
-
 	private void teleportVisitorToOwnIslandOrSpawn(Player player, UserData visitor) {
 		HellblockData data = visitor.getHellblockData();
 		if (data.hasHellblock()) {
@@ -283,24 +278,40 @@ public class PlayerListener implements Listener, Reloadable {
 	}
 
 	@EventHandler
+	public void onPlayerQuit(PlayerQuitEvent event) {
+		UUID uuid = event.getPlayer().getUniqueId();
+		outOfBoundsHandledTimestamps.remove(uuid);
+	}
+
+	@EventHandler
 	public void onBedClick(PlayerBedEnterEvent event) {
 		if (!instance.getConfigManager().disableBedExplosions()) {
 			return;
 		}
+
 		final Player player = event.getPlayer();
+
+		// Check if the player is in the Hellblock world
 		if (!instance.getHellblockHandler().isInCorrectWorld(player)) {
 			return;
 		}
 
 		final Block bed = event.getBed();
-		final boolean sleepCondition = Tag.BEDS.isTagged(bed.getType())
-				&& event.getBedEnterResult() == BedEnterResult.NOT_POSSIBLE_HERE && !bed.getWorld().isBedWorks()
-				&& bed.getWorld().getEnvironment() == Environment.NETHER;
-		if (!sleepCondition) {
+
+		// Only proceed if the block is tagged as a bed
+		if (!Tag.BEDS.isTagged(bed.getType())) {
 			return;
 		}
+
+		// Only prevent if we're in the Nether and beds don't work
+		World world = bed.getWorld();
+		if (world.getEnvironment() != Environment.NETHER || world.isBedWorks()) {
+			return;
+		}
+
+		// Cancel usage and prevent explosion
 		event.setCancelled(true);
-		event.setUseBed(Result.DENY);
+		event.setUseBed(Event.Result.DENY);
 	}
 
 	@EventHandler
@@ -346,50 +357,213 @@ public class PlayerListener implements Listener, Reloadable {
 	@EventHandler
 	public void onLeaveHellblockBorders(PlayerMoveEvent event) {
 		final Player player = event.getPlayer();
-		if (!instance.getHellblockHandler().isInCorrectWorld(player)) {
+		if (!instance.getHellblockHandler().isInCorrectWorld(player))
 			return;
-		}
-
-		// ignore small movement (still within same block)
-		if (movedWithinBlock(event)) {
+		if (movedWithinBlock(event))
 			return;
-		}
 
-		final UUID id = player.getUniqueId();
-		instance.getCoopManager().getHellblockOwnerOfVisitingIsland(player).thenAccept(ownerUUID -> {
-			if (ownerUUID == null) {
+		final UUID playerId = player.getUniqueId();
+		final Location location = player.getLocation();
+
+		// Get the island owner at the current location
+		instance.getCoopManager().getHellblockOwnerOfLocation(location).thenAccept(currentOwnerId -> {
+			if (currentOwnerId == null)
+				return;
+
+			// If it's not their own island, skip enforcement
+			if (!currentOwnerId.equals(playerId)
+					&& !instance.getCoopManager().isIslandMember(currentOwnerId, playerId)) {
 				return;
 			}
-			instance.getStorageManager().getOfflineUserData(ownerUUID, instance.getConfigManager().lockData())
-					.thenAccept(
-							result -> result.ifPresent(ownerUser -> handleOutOfBoundsForPlayer(player, id, ownerUser)));
+
+			// Check if player is still within the island bounds
+			instance.getProtectionManager().isInsideIsland2D(currentOwnerId, location).thenAccept(isInside -> {
+				if (isInside)
+					return; // Still inside — no action needed
+
+				// Run boundary enforcement
+				instance.getStorageManager().getOfflineUserData(currentOwnerId, instance.getConfigManager().lockData())
+						.thenAccept(result -> result
+								.ifPresent(ownerUser -> handleOutOfBoundsForPlayer(player, playerId, ownerUser)));
+			});
 		});
 	}
 
-	@SuppressWarnings("removal")
 	@EventHandler
+	@SuppressWarnings("removal")
 	public void onTeleportOutsideBorders(PlayerTeleportEvent event) {
-		// only care about ender pearl / chorus fruit / dismount teleports
 		final Set<PlayerTeleportEvent.TeleportCause> allowedCauses = EnumSet.of(
 				PlayerTeleportEvent.TeleportCause.ENDER_PEARL, PlayerTeleportEvent.TeleportCause.CHORUS_FRUIT,
 				PlayerTeleportEvent.TeleportCause.DISMOUNT);
-		if (!allowedCauses.contains(event.getCause())) {
+
+		if (!allowedCauses.contains(event.getCause()))
 			return;
-		}
 
 		final Player player = event.getPlayer();
-		if (!instance.getHellblockHandler().isInCorrectWorld(player)) {
+		if (!instance.getHellblockHandler().isInCorrectWorld(player))
 			return;
-		}
 
-		final UUID id = player.getUniqueId();
-		instance.getCoopManager().getHellblockOwnerOfVisitingIsland(player).thenAccept(ownerUUID -> {
-			if (ownerUUID == null) {
+		final UUID playerId = player.getUniqueId();
+		final Location origin = event.getFrom();
+
+		instance.getCoopManager().getHellblockOwnerOfLocation(origin).thenAccept(currentOwnerId -> {
+			if (currentOwnerId == null)
+				return;
+
+			// If it's not their own island, allow teleport
+			if (!currentOwnerId.equals(playerId)
+					&& !instance.getCoopManager().isIslandMember(currentOwnerId, playerId)) {
 				return;
 			}
-			instance.getStorageManager().getOfflineUserData(ownerUUID, instance.getConfigManager().lockData())
-					.thenAccept(
-							result -> result.ifPresent(ownerUser -> handleOutOfBoundsForPlayer(player, id, ownerUser)));
+
+			// Check if teleport target is still inside the island
+			instance.getProtectionManager().isInsideIsland2D(currentOwnerId, event.getTo()).thenAccept(isInside -> {
+				if (isInside)
+					return; // Allowed teleport
+
+				// Enforce teleport boundary
+				instance.getStorageManager().getOfflineUserData(currentOwnerId, instance.getConfigManager().lockData())
+						.thenAccept(result -> result
+								.ifPresent(ownerUser -> handleOutOfBoundsForPlayer(player, playerId, ownerUser)));
+			});
+		});
+	}
+
+	@EventHandler
+	public void onElytraLeaveIsland(PlayerMoveEvent event) {
+		final Player player = event.getPlayer();
+		if (!player.isGliding())
+			return;
+		if (!instance.getHellblockHandler().isInCorrectWorld(player))
+			return;
+
+		final UUID playerId = player.getUniqueId();
+		final Location location = event.getTo();
+
+		// First, determine whose island the player is currently in
+		instance.getCoopManager().getHellblockOwnerOfLocation(location).thenAccept(currentOwnerId -> {
+			if (currentOwnerId == null)
+				return;
+
+			// Only enforce if this is the player's own island
+			if (!currentOwnerId.equals(playerId)
+					&& !instance.getCoopManager().isIslandMember(currentOwnerId, playerId)) {
+				return;
+			}
+
+			// Check if they are leaving their own island's bounds
+			instance.getProtectionManager().isInsideIsland2D(currentOwnerId, location).thenAccept(isInside -> {
+				if (isInside)
+					return;
+
+				// Confirm: this is their own island
+				instance.getStorageManager().getOfflineUserData(playerId, instance.getConfigManager().lockData())
+						.thenAccept(optUser -> {
+							if (optUser.isEmpty())
+								return;
+
+							UserData userData = optUser.get();
+
+							// Enforce only if the player is the island *owner* or coop member of current
+							// island
+							if (!currentOwnerId.equals(playerId)
+									&& !instance.getCoopManager().isIslandMember(currentOwnerId, playerId)) {
+								return; // Not their island — ignore
+							}
+
+							instance.getScheduler().sync().run(() -> {
+								player.setGliding(false);
+								Location fallback = instance.getHellblockHandler().getSafeSpawnLocation(userData);
+								player.teleport(fallback);
+							});
+						});
+			});
+		});
+	}
+
+	@EventHandler
+	public void onVehicleMove(VehicleMoveEvent event) {
+		final List<Entity> passengers = event.getVehicle().getPassengers();
+		if (passengers.isEmpty())
+			return;
+
+		for (Entity passenger : passengers) {
+			if (!(passenger instanceof Player player))
+				continue;
+
+			if (!instance.getHellblockHandler().isInCorrectWorld(player))
+				continue;
+
+			final UUID playerId = player.getUniqueId();
+			final Location location = event.getTo();
+
+			// Check whose island the player is currently in
+			instance.getCoopManager().getHellblockOwnerOfLocation(location).thenAccept(currentOwnerId -> {
+				if (currentOwnerId == null)
+					return;
+
+				// Only enforce border for owners or coop members
+				if (!currentOwnerId.equals(playerId)
+						&& !instance.getCoopManager().isIslandMember(currentOwnerId, playerId)) {
+					return;
+				}
+
+				// Check if they're still inside their own island
+				instance.getProtectionManager().isInsideIsland2D(currentOwnerId, location).thenAccept(isInside -> {
+					if (isInside)
+						return;
+
+					// Player left their island via vehicle
+					instance.getStorageManager()
+							.getOfflineUserData(currentOwnerId, instance.getConfigManager().lockData())
+							.thenAccept(result -> result
+									.ifPresent(ownerUser -> handleOutOfBoundsForPlayer(player, playerId, ownerUser)));
+				});
+			});
+		}
+	}
+
+	@EventHandler
+	public void onPlayerRespawn(PlayerRespawnEvent event) {
+		final Player player = event.getPlayer();
+		final UUID playerId = player.getUniqueId();
+		final Location respawnLoc = event.getRespawnLocation();
+
+		if (!instance.getHellblockHandler().isInCorrectWorld(respawnLoc.getWorld()))
+			return;
+
+		// Find which island the respawn location is in
+		instance.getCoopManager().getHellblockOwnerOfLocation(respawnLoc).thenAccept(currentOwnerId -> {
+			if (currentOwnerId == null)
+				return;
+
+			// Only care if it's their own island (owner or member)
+			if (!currentOwnerId.equals(playerId)
+					&& !instance.getCoopManager().isIslandMember(currentOwnerId, playerId)) {
+				return;
+			}
+
+			// If their respawn location is outside bounds, redirect
+			instance.getProtectionManager().isInsideIsland2D(currentOwnerId, respawnLoc).thenAccept(isInside -> {
+				if (isInside)
+					return;
+
+				// Teleport to spawn or fallback location
+				instance.getStorageManager().getOfflineUserData(currentOwnerId, instance.getConfigManager().lockData())
+						.thenAccept(optUser -> {
+							if (optUser.isEmpty())
+								return;
+							UserData userData = optUser.get();
+
+							instance.getScheduler().sync().run(() -> {
+								Location fallback = instance.getHellblockHandler().getSafeSpawnLocation(userData);
+								event.setRespawnLocation(fallback);
+
+								instance.debug("Redirected respawn for " + player.getName()
+										+ " to spawn (was outside their island)");
+							});
+						});
+			});
 		});
 	}
 

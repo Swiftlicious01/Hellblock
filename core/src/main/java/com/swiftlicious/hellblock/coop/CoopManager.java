@@ -15,6 +15,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import org.bukkit.Bukkit;
+import org.bukkit.Location;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.World;
 import org.bukkit.block.Block;
@@ -638,6 +639,38 @@ public class CoopManager implements Reloadable {
 		});
 	}
 
+	public CompletableFuture<@Nullable UUID> getHellblockOwnerOfLocation(@NotNull Location location) {
+		final World world = location.getWorld();
+
+		if (!instance.getHellblockHandler().isInCorrectWorld(world)) {
+			return CompletableFuture.completedFuture(null);
+		}
+
+		// check all cached island owners
+		return getCachedIslandOwners().thenCompose(owners -> {
+			if (owners == null || owners.isEmpty()) {
+				return CompletableFuture.completedFuture(null);
+			}
+
+			List<CompletableFuture<@Nullable UUID>> futures = new ArrayList<>();
+
+			for (UUID ownerUUID : owners) {
+				CompletableFuture<@Nullable UUID> check = instance.getProtectionManager()
+						.getHellblockBounds(world, ownerUUID) // returns BoundingBox
+						.thenApply(bounds -> {
+							if (bounds != null && bounds.contains(location.getX(), location.getY(), location.getZ())) {
+								return ownerUUID;
+							}
+							return null;
+						});
+				futures.add(check);
+			}
+
+			return CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new)).thenApply(v -> futures.stream()
+					.map(CompletableFuture::join).filter(Objects::nonNull).findFirst().orElse(null));
+		});
+	}
+
 	/**
 	 * Returns a cached set of all island owners. Refreshes from storage if the
 	 * cache has expired.
@@ -716,6 +749,74 @@ public class CoopManager implements Reloadable {
 
 					return members;
 				});
+	}
+
+	/**
+	 * Attempts to find the island owner at the given location using cached user
+	 * data. This is a fast, synchronous operation that does not hit the database.
+	 *
+	 * @param location The location to check.
+	 * @return Optional containing the UserData of the island owner, or empty if
+	 *         none found.
+	 */
+	/**
+	 * Attempts to find the island owner at the given location using cached user
+	 * data. This is a fast, synchronous operation that does not hit the database.
+	 *
+	 * @param location The location to check.
+	 * @return Optional containing the UserData of the island owner, or empty if
+	 *         none found.
+	 */
+	public Optional<UserData> getIslandOwnerAt(@NotNull Location location) {
+		final World world = location.getWorld();
+
+		if (!instance.getHellblockHandler().isInCorrectWorld(world)) {
+			return Optional.empty();
+		}
+
+		for (UUID ownerUUID : cachedIslandOwners) {
+			Optional<UserData> ownerDataOpt = instance.getStorageManager().getCachedUserData(ownerUUID);
+			if (ownerDataOpt.isEmpty())
+				continue;
+
+			UserData ownerData = ownerDataOpt.get();
+			HellblockData hellblockData = ownerData.getHellblockData();
+			if (hellblockData == null)
+				continue;
+
+			String formattedWorldName = instance.getWorldManager().getHellblockWorldFormat(hellblockData.getID());
+			Optional<HellblockWorld<?>> worldWrapperOpt = instance.getWorldManager().getWorld(formattedWorldName);
+
+			if (worldWrapperOpt.isEmpty())
+				continue;
+
+			UUID expectedWorldId = worldWrapperOpt.get().bukkitWorld().getUID();
+			if (!world.getUID().equals(expectedWorldId))
+				continue;
+
+			BoundingBox bounds = hellblockData.getBoundingBox();
+			if (bounds != null && bounds.contains(location.getX(), location.getY(), location.getZ())) {
+				return Optional.of(ownerData);
+			}
+		}
+
+		return Optional.empty();
+	}
+
+	public boolean isIslandMember(@NotNull UUID ownerId, @NotNull UUID playerId) {
+		if (ownerId.equals(playerId))
+			return true;
+
+		Optional<UserData> ownerData = instance.getStorageManager().getCachedUserData(ownerId);
+		if (ownerData.isEmpty())
+			return false;
+
+		HellblockData islandData = ownerData.get().getHellblockData();
+		if (islandData == null)
+			return false;
+
+		Set<UUID> coopMembers = islandData.getPartyPlusOwner();
+		return coopMembers.contains(playerId);
 	}
 
 	public CompletableFuture<Optional<UUID>> getIslandOwner(@NotNull UUID playerId) {

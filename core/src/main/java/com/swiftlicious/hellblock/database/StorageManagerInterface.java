@@ -43,6 +43,30 @@ public interface StorageManagerInterface extends Reloadable {
 	Collection<UserData> getOnlineUsers();
 
 	/**
+	 * Cache all island owner user data.
+	 * 
+	 * @return the preloading tasks to complete.
+	 */
+	CompletableFuture<Void> preloadCachedIslandOwners();
+
+	/**
+	 * Retrieves the cached user data from either online or offline if not possible.
+	 * 
+	 * @param uuid the UUID of the user
+	 * @return an {@link Optional} containing the {@link UserData} if the user is
+	 *         found.
+	 */
+	@NotNull
+	Optional<UserData> getCachedUserData(UUID uuid);
+
+	/**
+	 * Invalidate cache user data on certain events.
+	 * 
+	 * @param uuid the UUID of the user
+	 */
+	void invalidateCachedUserData(@NotNull UUID uuid);
+
+	/**
 	 * Retrieves the user data for an offline user by their UUID.
 	 *
 	 * @param uuid the UUID of the user

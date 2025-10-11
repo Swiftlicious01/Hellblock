@@ -39,6 +39,8 @@ import com.swiftlicious.hellblock.utils.LocationUtils;
 import com.swiftlicious.hellblock.utils.extras.Pair;
 import com.swiftlicious.hellblock.utils.extras.Requirement;
 
+import net.kyori.adventure.sound.Sound;
+
 public class VisitManager implements Reloadable {
 
 	protected final HellblockPlugin instance;
@@ -348,6 +350,9 @@ public class VisitManager implements Reloadable {
 			if (!data.hasHellblock()) {
 				instance.getSenderFactory().wrap(player).sendMessage(
 						instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_NOT_FOUND.build()));
+				AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
+						Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
+								net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
 				result.complete(false);
 				return;
 			}
@@ -355,6 +360,9 @@ public class VisitManager implements Reloadable {
 			if (data.isAbandoned()) {
 				instance.getSenderFactory().wrap(player).sendMessage(
 						instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_IS_ABANDONED.build()));
+				AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
+						Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
+								net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
 				result.complete(false);
 				return;
 			}
@@ -368,6 +376,10 @@ public class VisitManager implements Reloadable {
 			if (!ownerId.equals(player.getUniqueId())) {
 				instance.getSenderFactory().wrap(player).sendMessage(
 						instance.getTranslationManager().render(MessageConstants.MSG_NOT_OWNER_OF_HELLBLOCK.build()));
+				AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
+						Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
+								net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
+				result.complete(false);
 				return;
 			}
 
@@ -380,6 +392,9 @@ public class VisitManager implements Reloadable {
 				instance.getSenderFactory().wrap(player)
 						.sendMessage(instance.getTranslationManager().render(MessageConstants.MSG_FEATURED_EXISTS
 								.arguments(AdventureHelper.miniMessage(expiresAt)).build()));
+				AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
+						Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
+								net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
 				result.complete(false);
 				return;
 			}
@@ -395,6 +410,9 @@ public class VisitManager implements Reloadable {
 				if (currentFeatured >= maxSlots) {
 					instance.getSenderFactory().wrap(player).sendMessage(
 							instance.getTranslationManager().render(MessageConstants.MSG_FEATURED_FULL.build()));
+					AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
+							Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
+									net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
 					result.complete(false);
 					return;
 				}
@@ -403,6 +421,9 @@ public class VisitManager implements Reloadable {
 				if (requirements != null && !RequirementManager.isSatisfied(Context.player(player), requirements)) {
 					instance.getSenderFactory().wrap(player).sendMessage(instance.getTranslationManager()
 							.render(MessageConstants.MSG_FEATURED_FAILED_PURCHASE.build()));
+					AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
+							Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
+									net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
 					result.complete(false);
 					return;
 				}
@@ -415,6 +436,9 @@ public class VisitManager implements Reloadable {
 						.sendMessage(instance.getTranslationManager().render(MessageConstants.MSG_FEATURED_SUCCESS
 								.arguments(AdventureHelper.miniMessage(instance.getFormattedCooldown(duration / 1000L)))
 								.build()));
+				AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
+						Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.yes"),
+								net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
 
 				result.complete(true);
 			});
@@ -422,6 +446,9 @@ public class VisitManager implements Reloadable {
 		}, () -> {
 			instance.getSenderFactory().wrap(player).sendMessage(
 					instance.getTranslationManager().render(MessageConstants.COMMAND_DATA_FAILURE_NOT_LOADED.build()));
+			AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
+					Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
+							net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
 			result.complete(false);
 		});
 

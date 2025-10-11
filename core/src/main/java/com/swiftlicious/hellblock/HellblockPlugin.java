@@ -279,6 +279,7 @@ public class HellblockPlugin extends JavaPlugin {
 		this.debugger = getConfigManager().debug() ? (s) -> pluginLogger.info("[DEBUG] " + s.get()) : (s) -> {
 		};
 
+		this.coopManager = new CoopManager(this);
 		this.storageManager = new StorageManager(this);
 		this.storageManager.init();
 		this.storageManager.reload();
@@ -300,7 +301,6 @@ public class HellblockPlugin extends JavaPlugin {
 		this.mobSpawnHandler = new MobSpawnHandler(this);
 		this.islandChoiceConverter = new IslandChoiceConverter(this);
 		this.placementDetector = new IslandPlacementDetector(this);
-		this.coopManager = new CoopManager(this);
 		this.hopperHandler = new HopperHandler(this);
 		this.islandLevelManager = new LevelHandler(this);
 		this.protectionManager = new ProtectionManager(this);
@@ -540,6 +540,7 @@ public class HellblockPlugin extends JavaPlugin {
 			this.integrationManager.disable();
 		}
 		if (this.storageManager != null) {
+			this.storageManager.shutdownPreloadExecutor();
 			this.storageManager.disable();
 		}
 		if (this.worldManager != null) {

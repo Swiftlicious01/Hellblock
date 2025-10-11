@@ -73,6 +73,7 @@ import org.bukkit.event.player.PlayerArmorStandManipulateEvent;
 import org.bukkit.event.player.PlayerBedEnterEvent;
 import org.bukkit.event.player.PlayerBucketEmptyEvent;
 import org.bukkit.event.player.PlayerBucketFillEvent;
+import org.bukkit.event.player.PlayerCommandPreprocessEvent;
 import org.bukkit.event.player.PlayerEditBookEvent;
 import org.bukkit.event.player.PlayerInteractAtEntityEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
@@ -84,6 +85,7 @@ import org.bukkit.event.player.PlayerTeleportEvent;
 import org.bukkit.event.player.PlayerTeleportEvent.TeleportCause;
 import org.bukkit.event.vehicle.VehicleCreateEvent;
 import org.bukkit.event.vehicle.VehicleDestroyEvent;
+import org.bukkit.event.vehicle.VehicleEnterEvent;
 import org.bukkit.event.world.StructureGrowEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.projectiles.ProjectileSource;
@@ -263,80 +265,6 @@ public class ProtectionEvents implements Listener, Reloadable {
 		if (block.getType() == Material.TNT) {
 			explosionTracker.track(block, player);
 		}
-	}
-
-	private boolean isShopSign(Block block) {
-		if (!(block.getState() instanceof Sign sign)) {
-			return false;
-		}
-
-		Location loc = sign.getLocation();
-
-		// === Check QuickShop API ===
-		if (instance.getIntegrationManager().isHooked("QuickShop")) {
-			try {
-				Class<?> apiClass = Class.forName("org.maxgamer.quickshop.api.QuickShopAPI");
-				Object api = apiClass.getMethod("getAPI").invoke(null);
-				Object shop = apiClass.getMethod("getShop", Location.class).invoke(api, loc);
-				if (shop != null) {
-					return true;
-				}
-			} catch (Exception ignored) {
-				// Fallback continues below
-			}
-		}
-
-		// === Check ChestShop API ===
-		if (instance.getIntegrationManager().isHooked("ChestShop")) {
-			try {
-				Class<?> utilsClass = Class.forName("com.Acrobot.ChestShop.Shop.ShopUtils");
-				Object shop = utilsClass.getMethod("getShop", Location.class).invoke(null, loc);
-				if (shop != null) {
-					return true;
-				}
-			} catch (Exception ignored) {
-				// Fallback continues below
-			}
-		}
-
-		// === Check TradeShop API ==
-		if (instance.getIntegrationManager().isHooked("TradeShop")) {
-			try {
-				Class<?> shopUtilsClass = Class.forName("org.shanerx.tradeshop.utils.ShopUtils");
-				// ShopUtils is a singleton: ShopUtils.getInstance().isShop(loc)
-				Object instance = shopUtilsClass.getMethod("getInstance").invoke(null);
-				boolean isShop = (boolean) shopUtilsClass.getMethod("isShop", Location.class).invoke(instance,
-						block.getLocation());
-				if (isShop) {
-					return true;
-				}
-			} catch (Exception ex) {
-				// Fallback continues below
-			}
-		}
-
-		// === Fallback: Heuristic based on Adventure sign lines ===
-		try {
-			List<Component> lines = AdventureMetadata.getSignLines(sign.getSide(Side.FRONT));
-			for (Component line : lines) {
-				if (line == null)
-					continue;
-
-				// Convert Adventure Component to plain text without formatting
-				String plain = PlainTextComponentSerializer.plainText().serialize(line).toLowerCase(Locale.ROOT);
-
-				// Very common shop patterns
-				if (plain.contains("[shop]") || plain.contains("[buy]") || plain.contains("[sell]")
-						|| plain.contains("[trade]") || plain.contains("quickshop") || plain.contains("[tradeshop]")
-						|| plain.contains("[ultimateshop]")) {
-					return true;
-				}
-			}
-		} catch (Exception ex) {
-			instance.getPluginLogger().warn("Failed to read sign lines for shop detection: " + ex.getMessage());
-		}
-
-		return false;
 	}
 
 	@EventHandler(ignoreCancelled = true)
@@ -945,6 +873,40 @@ public class ProtectionEvents implements Listener, Reloadable {
 	}
 
 	@EventHandler(ignoreCancelled = true)
+	public void onVehicleEnter(VehicleEnterEvent event) {
+		if (!(event.getEntered() instanceof Player player))
+			return;
+
+		if (!player.hasPermission("hellblock.bypass.lock")) {
+			Location loc = event.getVehicle().getLocation();
+			denyIfNotAllowed(player, loc, event, MessageConstants.MSG_HELLBLOCK_PROTECTION_ENTRY_DENY.build(),
+					HellblockFlag.FlagType.ENTRY);
+		}
+
+		handleHellblockMessage(player);
+	}
+
+	@EventHandler(ignoreCancelled = true)
+	public void onPlayerCommand(PlayerCommandPreprocessEvent event) {
+		Player player = event.getPlayer();
+		if (!instance.getHellblockHandler().isInCorrectWorld(player))
+			return;
+
+		if (!player.hasPermission("hellblock.bypass.lock")) {
+			String msg = event.getMessage().toLowerCase(Locale.ROOT);
+			if (msg.startsWith("/home") || msg.startsWith("/warp") || msg.startsWith("/tp")
+					|| msg.startsWith("/visit")) {
+				// Predict destination if possible (e.g., via external APIs)
+				// Or deny preemptively if ENTRY is not allowed
+				denyIfNotAllowed(player, player.getLocation(), event,
+						MessageConstants.MSG_HELLBLOCK_PROTECTION_ENTRY_DENY.build(), HellblockFlag.FlagType.ENTRY);
+			}
+		}
+
+		handleHellblockMessage(player);
+	}
+
+	@EventHandler(ignoreCancelled = true)
 	public void onLiquidFlow(BlockFromToEvent event) {
 		Block from = event.getBlock();
 		Block to = event.getToBlock();
@@ -1285,6 +1247,80 @@ public class ProtectionEvents implements Listener, Reloadable {
 	public void onPlayerQuit(PlayerQuitEvent event) {
 		UUID playerId = event.getPlayer().getUniqueId();
 		playerInBoundsState.remove(playerId);
+	}
+
+	private boolean isShopSign(Block block) {
+		if (!(block.getState() instanceof Sign sign)) {
+			return false;
+		}
+
+		Location loc = sign.getLocation();
+
+		// === Check QuickShop API ===
+		if (instance.getIntegrationManager().isHooked("QuickShop")) {
+			try {
+				Class<?> apiClass = Class.forName("org.maxgamer.quickshop.api.QuickShopAPI");
+				Object api = apiClass.getMethod("getAPI").invoke(null);
+				Object shop = apiClass.getMethod("getShop", Location.class).invoke(api, loc);
+				if (shop != null) {
+					return true;
+				}
+			} catch (Exception ignored) {
+				// Fallback continues below
+			}
+		}
+
+		// === Check ChestShop API ===
+		if (instance.getIntegrationManager().isHooked("ChestShop")) {
+			try {
+				Class<?> utilsClass = Class.forName("com.Acrobot.ChestShop.Shop.ShopUtils");
+				Object shop = utilsClass.getMethod("getShop", Location.class).invoke(null, loc);
+				if (shop != null) {
+					return true;
+				}
+			} catch (Exception ignored) {
+				// Fallback continues below
+			}
+		}
+
+		// === Check TradeShop API ==
+		if (instance.getIntegrationManager().isHooked("TradeShop")) {
+			try {
+				Class<?> shopUtilsClass = Class.forName("org.shanerx.tradeshop.utils.ShopUtils");
+				// ShopUtils is a singleton: ShopUtils.getInstance().isShop(loc)
+				Object instance = shopUtilsClass.getMethod("getInstance").invoke(null);
+				boolean isShop = (boolean) shopUtilsClass.getMethod("isShop", Location.class).invoke(instance,
+						block.getLocation());
+				if (isShop) {
+					return true;
+				}
+			} catch (Exception ex) {
+				// Fallback continues below
+			}
+		}
+
+		// === Fallback: Heuristic based on Adventure sign lines ===
+		try {
+			List<Component> lines = AdventureMetadata.getSignLines(sign.getSide(Side.FRONT));
+			for (Component line : lines) {
+				if (line == null)
+					continue;
+
+				// Convert Adventure Component to plain text without formatting
+				String plain = PlainTextComponentSerializer.plainText().serialize(line).toLowerCase(Locale.ROOT);
+
+				// Very common shop patterns
+				if (plain.contains("[shop]") || plain.contains("[buy]") || plain.contains("[sell]")
+						|| plain.contains("[trade]") || plain.contains("quickshop") || plain.contains("[tradeshop]")
+						|| plain.contains("[ultimateshop]")) {
+					return true;
+				}
+			}
+		} catch (Exception ex) {
+			instance.getPluginLogger().warn("Failed to read sign lines for shop detection: " + ex.getMessage());
+		}
+
+		return false;
 	}
 
 	public class ExplosionTracker {

@@ -162,15 +162,28 @@ public class IslandChoiceGUIManager implements IslandChoiceGUIManagerInterface, 
 		}
 		Context<Player> context = Context.player(player);
 		if (noIslandOptionsAvailable()) {
-			instance.getHellblockHandler().createHellblock(player, IslandOptions.CLASSIC, isReset);
 			context.clearCustomData();
+			context.arg(ContextKeys.HELLBLOCK_GENERATION, true);
+			instance.getHellblockHandler().createHellblock(player, IslandOptions.CLASSIC, isReset)
+					.thenRun(() -> context.arg(ContextKeys.HELLBLOCK_GENERATION, false));
 			ActionManager.trigger(context, classicActions);
 			return false;
 		}
+		if (noDefaultOrClassicChoiceAvailable()) {
+			instance.getSchematicGUIManager().openSchematicGUI(context.holder(), isReset);
+			ActionManager.trigger(context, schematicActions);
+			return false;
+		}
 		IslandChoiceGUI gui = new IslandChoiceGUI(this, context, optionalUserData.get().getHellblockData(), isReset);
-		gui.addElement(new IslandChoiceDynamicGUIElement(defaultSlot, new ItemStack(Material.AIR)));
-		gui.addElement(new IslandChoiceDynamicGUIElement(classicSlot, new ItemStack(Material.AIR)));
-		gui.addElement(new IslandChoiceDynamicGUIElement(schematicSlot, new ItemStack(Material.AIR)));
+		if (instance.getConfigManager().islandOptions().contains(IslandOptions.DEFAULT)) {
+			gui.addElement(new IslandChoiceDynamicGUIElement(defaultSlot, new ItemStack(Material.AIR)));
+		}
+		if (instance.getConfigManager().islandOptions().contains(IslandOptions.CLASSIC)) {
+			gui.addElement(new IslandChoiceDynamicGUIElement(classicSlot, new ItemStack(Material.AIR)));
+		}
+		if (instance.getConfigManager().islandOptions().contains(IslandOptions.SCHEMATIC)) {
+			gui.addElement(new IslandChoiceDynamicGUIElement(schematicSlot, new ItemStack(Material.AIR)));
+		}
 		decorativeIcons.entrySet().forEach(entry -> gui
 				.addElement(new IslandChoiceGUIElement(entry.getKey(), entry.getValue().left().build(context))));
 		gui.build().show();
@@ -292,7 +305,8 @@ public class IslandChoiceGUIManager implements IslandChoiceGUIManagerInterface, 
 				return;
 			}
 
-			if (element.getSymbol() == defaultSlot) {
+			if (instance.getConfigManager().islandOptions().contains(IslandOptions.DEFAULT)
+					&& element.getSymbol() == defaultSlot) {
 				event.setCancelled(true);
 				player.closeInventory();
 				gui.context.clearCustomData();
@@ -302,7 +316,8 @@ public class IslandChoiceGUIManager implements IslandChoiceGUIManagerInterface, 
 				ActionManager.trigger(gui.context, defaultActions);
 			}
 
-			if (element.getSymbol() == classicSlot) {
+			if (instance.getConfigManager().islandOptions().contains(IslandOptions.CLASSIC)
+					&& element.getSymbol() == classicSlot) {
 				event.setCancelled(true);
 				player.closeInventory();
 				gui.context.clearCustomData();
@@ -312,7 +327,8 @@ public class IslandChoiceGUIManager implements IslandChoiceGUIManagerInterface, 
 				ActionManager.trigger(gui.context, classicActions);
 			}
 
-			if (element.getSymbol() == schematicSlot) {
+			if (instance.getConfigManager().islandOptions().contains(IslandOptions.SCHEMATIC)
+					&& element.getSymbol() == schematicSlot) {
 				event.setCancelled(true);
 				instance.getSchematicGUIManager().openSchematicGUI(gui.context.holder(), gui.isReset);
 				ActionManager.trigger(gui.context, schematicActions);
@@ -325,8 +341,11 @@ public class IslandChoiceGUIManager implements IslandChoiceGUIManagerInterface, 
 	}
 
 	private boolean noIslandOptionsAvailable() {
+		return !noDefaultOrClassicChoiceAvailable() && !instance.getSchematicGUIManager().checkForSchematics();
+	}
+
+	private boolean noDefaultOrClassicChoiceAvailable() {
 		return !instance.getConfigManager().islandOptions().contains(IslandOptions.DEFAULT)
-				&& !instance.getConfigManager().islandOptions().contains(IslandOptions.CLASSIC)
-				&& !instance.getSchematicGUIManager().checkForSchematics();
+				&& !instance.getConfigManager().islandOptions().contains(IslandOptions.CLASSIC);
 	}
 }

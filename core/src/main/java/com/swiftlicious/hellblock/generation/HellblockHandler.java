@@ -1106,6 +1106,48 @@ public class HellblockHandler {
 		return new VoidGenerator();
 	}
 
+	public Location getSafeSpawnLocation(@NotNull UserData offlineUser) {
+		try {
+			// Get the player's Hellblock world
+			final HellblockWorld<?> hellblockWorld = getHellblockWorld(offlineUser);
+			final World world = hellblockWorld.bukkitWorld();
+
+			if (world == null) {
+				instance.getPluginLogger().warn(
+						"Hellblock world is null for user " + offlineUser.getUUID() + ". Using global spawn fallback.");
+				return Bukkit.getWorlds().get(0).getSpawnLocation();
+			}
+
+			// Start from the world spawn
+			Location spawn = world.getSpawnLocation();
+
+			// Safety correction: ensure solid ground
+			Block block = spawn.getBlock();
+			int attempts = 0;
+
+			// Move up if in lava or air
+			while ((block.isEmpty() || block.isLiquid()) && attempts < 10) {
+				spawn.add(0, 1, 0);
+				block = spawn.getBlock();
+				attempts++;
+			}
+
+			// Fallback Y level if all else fails
+			if (block.isEmpty() || block.isLiquid()) {
+				spawn.setY(80); // A safe mid-level Y for Nether
+			}
+
+			// Center player on block
+			spawn.add(0.5, 0.1, 0.5);
+
+			return spawn;
+		} catch (Exception ex) {
+			instance.getPluginLogger().warn("Failed to get safe spawn location: " + ex.getMessage());
+			// Use global default fallback
+			return Bukkit.getWorlds().get(0).getSpawnLocation();
+		}
+	}
+
 	/**
 	 * Teleports the player to spawn using the configured spawn command. If not
 	 * forced, also sends a warning message about unsafe conditions.
