@@ -95,8 +95,9 @@ public class FishingResultEvent extends PlayerEvent implements Cancellable {
 	 * @return The amount of loot obtained
 	 */
 	public int getAmount() {
-		if (result == Result.FAILURE)
+		if (result == Result.FAILURE) {
 			return 0;
+		}
 		return Optional.ofNullable(context.arg(ContextKeys.AMOUNT)).orElse(1);
 	}
 

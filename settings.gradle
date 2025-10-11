@@ -1,18 +1,36 @@
 rootProject.name = "Hellblock"
-include(":core")
-include(":api")
-include(":v1_21_R5")
-include(":v1_21_R4")
-include(":v1_21_R3")
-include(":v1_21_R2")
-include(":v1_21_R1")
-include(":v1_20_R4")
-include(":v1_20_R3")
-include(":v1_20_R2")
-include(":v1_20_R1")
-include(":v1_19_R3")
-include(":v1_19_R2")
-include(":v1_19_R1")
-include(":v1_18_R2")
-include(":v1_18_R1")
-include(":v1_17_R1")
+
+// Always include core + api
+include(":core", ":api")
+
+// Auto-discover all version modules under paper/ and spigot/
+// Only include valid version folders under paper/ and spigot/
+["paper", "spigot"].each { parent ->
+    def parentDir = file(parent)
+    if (parentDir.exists()) {
+        parentDir.listFiles()
+            ?.findAll { it.isDirectory() && !it.name.startsWith(".") } // Ignore .settings, .git, etc.
+            ?.each { dir ->
+                def path = ":${parent}:${dir.name}"
+                include(path)
+                project(path).projectDir = dir
+            }
+    }
+}
+
+
+// Dependency resolution & version catalogs (TOML-based)
+dependencyResolutionManagement {
+    repositories {
+        mavenCentral()
+        gradlePluginPortal()
+        maven { url = 'https://repo.papermc.io/repository/maven-public' }
+        maven { url = 'https://hub.spigotmc.org/nexus/content/repositories/snapshots/' }
+    }
+
+    versionCatalogs {
+        hellblockLibs {
+            from(files("gradle/libs.versions.toml"))
+        }
+    }
+}

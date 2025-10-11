@@ -2,15 +2,15 @@ package com.swiftlicious.hellblock.listeners.generator;
 
 import java.util.UUID;
 
-import org.bukkit.Location;
+import com.swiftlicious.hellblock.listeners.NetherGeneratorHandler.LocationKey;
 
 public class GenPiston {
 
 	private UUID uuid;
-	private Location loc;
+	private LocationKey loc;
 	private boolean hasBeenUsed = false;
 
-	public GenPiston(Location loc, UUID uuid) {
+	public GenPiston(LocationKey loc, UUID uuid) {
 		this.uuid = uuid;
 		this.loc = loc;
 	}
@@ -23,11 +23,11 @@ public class GenPiston {
 		this.uuid = uuid;
 	}
 
-	public Location getLoc() {
+	public LocationKey getLoc() {
 		return loc;
 	}
 
-	public void setLoc(Location loc) {
+	public void setLoc(LocationKey loc) {
 		this.loc = loc;
 	}
 
@@ -38,5 +38,4 @@ public class GenPiston {
 	public void setHasBeenUsed(boolean hasBeenUsed) {
 		this.hasBeenUsed = hasBeenUsed;
 	}
-
 }

@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 import org.bukkit.Bukkit;
@@ -24,23 +23,18 @@ import com.swiftlicious.hellblock.world.HellblockWorld;
 
 public class RainHandler implements Reloadable {
 
-	private List<LavaRainTask> lavaRainingWorlds;
+	private final List<LavaRainTask> lavaRainingWorlds = new ArrayList<>();
 
 	protected final HellblockPlugin instance;
 
 	public RainHandler(HellblockPlugin plugin) {
 		instance = plugin;
-		this.lavaRainingWorlds = new ArrayList<>();
 	}
 
 	@Override
 	public void load() {
-		for (World world : Bukkit.getWorlds()) {
-			Optional<HellblockWorld<?>> optional = instance.getWorldManager().getWorld(world);
-			if (optional.isPresent()) {
-				startLavaRainProcess(optional.get());
-			}
-		}
+		Bukkit.getWorlds()
+				.forEach(world -> instance.getWorldManager().getWorld(world).ifPresent(this::startLavaRainProcess));
 	}
 
 	@Override
@@ -54,24 +48,28 @@ public class RainHandler implements Reloadable {
 	}
 
 	public void startLavaRainProcess(HellblockWorld<?> world) {
-		if (!instance.getConfigManager().lavaRainEnabled())
+		if (!instance.getConfigManager().lavaRainEnabled()) {
 			return;
+		}
+
+		// Schedule the *first* LavaRainTask with a random cooldown (10–15 min)
 		instance.getScheduler().asyncLater(
 				() -> getLavaRainingWorlds()
 						.add(new LavaRainTask(instance, world, true, false, RandomUtils.generateRandomInt(150, 250))),
 				RandomUtils.generateRandomInt(10, 15), TimeUnit.MINUTES);
 	}
 
-	public void stopLavaRainProcess(String world) {
-		Optional<LavaRainTask> isRaining = getLavaRainingWorlds().stream()
-				.filter(task -> task.getWorld().worldName().equalsIgnoreCase(world)).findAny();
-		if (isRaining.isPresent() && isRaining.get().isLavaRaining()) {
-			isRaining.get().cancelAnimation();
-		}
+	public void stopLavaRainProcess(String worldName) {
+		getLavaRainingWorlds().stream().filter(task -> task.getWorld().worldName().equalsIgnoreCase(worldName))
+				.findAny().ifPresent(task -> {
+					task.cancelAnimation();
+					getLavaRainingWorlds().remove(task);
+				});
 	}
 
 	public void stopAllLavaRain() {
-		getLavaRainingWorlds().stream().filter(Objects::nonNull).forEach(LavaRainTask::cancelAnimation);
+		getLavaRainingWorlds().forEach(LavaRainTask::cancelAnimation);
+		getLavaRainingWorlds().clear();
 	}
 
 	public @NotNull List<LavaRainTask> getLavaRainingWorlds() {
@@ -81,7 +79,7 @@ public class RainHandler implements Reloadable {
 	public boolean canHurtLivingCreatures() {
 		return instance.getConfigManager().canHurtCreatures();
 	}
-	
+
 	public boolean willSendWarning() {
 		return instance.getConfigManager().willWarnPlayers();
 	}
@@ -91,42 +89,41 @@ public class RainHandler implements Reloadable {
 	}
 
 	public @Nullable Block getHighestBlock(@Nullable Location location) {
-		if (location == null || location.getWorld() == null)
+		if (location == null || location.getWorld() == null) {
 			return null;
+		}
 
 		Block highestBlock = location.getWorld().getBlockAt(location.getBlockX(), location.getBlockY(),
 				location.getBlockZ());
 		for (int y = 0; y < 10; y++) {
-			// +2 for equal to eye level
-			Block block = location.getWorld().getBlockAt(location.getBlockX(), location.getBlockY() + 2 + y,
+			// +2 for eye level
+			final Block block = location.getWorld().getBlockAt(location.getBlockX(), location.getBlockY() + 2 + y,
 					location.getBlockZ());
-			if (block.getType() == Material.AIR || Tag.ALL_SIGNS.isTagged(block.getType())
-					|| Tag.BANNERS.isTagged(block.getType()) || Tag.FENCES.isTagged(block.getType())
-					|| Tag.FENCE_GATES.isTagged(block.getType()) || Tag.DOORS.isTagged(block.getType())
-					|| Tag.BUTTONS.isTagged(block.getType()) || Tag.PRESSURE_PLATES.isTagged(block.getType())
-					|| Tag.FIRE.isTagged(block.getType()) || block.getType() == Material.LAVA
-					|| block.getType() == Material.WATER || block.getType() == Material.COBWEB
-					|| block.getType() == Material.STRING || block.getType() == Material.FLOWER_POT
-					|| block.getType() == Material.BAMBOO || block.getType() == Material.NETHER_PORTAL
-					|| block.getType() == Material.END_PORTAL || block.getType() == Material.END_GATEWAY
-					|| block.getType() == Material.LADDER || block.getType() == Material.CHAIN
-					|| block.getType() == Material.CANDLE || block.getType() == Material.SEA_PICKLE
-					|| block.getType() == Material.VINE || block.getType() == Material.TWISTING_VINES
-					|| block.getType() == Material.WEEPING_VINES || block.getType() == Material.END_ROD
-					|| block.getType() == Material.LIGHTNING_ROD || block.getType() == Material.LEVER
-					|| block.getType() == Material.SWEET_BERRY_BUSH || block.getType() == Material.SCAFFOLDING
-					|| block.getType() == Material.LANTERN || block.getType() == Material.SOUL_LANTERN
-					|| block.getType() == Material.TURTLE_EGG || block.getType() == Material.SMALL_DRIPLEAF
-					|| block.getType() == Material.BIG_DRIPLEAF || block.getType() == Material.IRON_BARS
-					|| block.getType() == Material.POWDER_SNOW || block.getType() == Material.TRIPWIRE
-					|| block.getType() == Material.TRIPWIRE_HOOK || block.getType().toString().contains("GLASS_PANE"))
+			if (isTransparent(block)) {
 				continue;
-			// get first non-empty full block above player
+			}
 			highestBlock = block;
 			break;
 		}
-
 		return highestBlock;
+	}
+
+	private boolean isTransparent(Block block) {
+		final Material type = block.getType();
+		return type == Material.AIR || Tag.ALL_SIGNS.isTagged(type) || Tag.BANNERS.isTagged(type)
+				|| Tag.FENCES.isTagged(type) || Tag.FENCE_GATES.isTagged(type) || Tag.DOORS.isTagged(type)
+				|| Tag.BUTTONS.isTagged(type) || Tag.PRESSURE_PLATES.isTagged(type) || Tag.FIRE.isTagged(type)
+				|| type == Material.LAVA || type == Material.WATER || type == Material.COBWEB || type == Material.STRING
+				|| type == Material.FLOWER_POT || type == Material.BAMBOO || type == Material.NETHER_PORTAL
+				|| type == Material.END_PORTAL || type == Material.END_GATEWAY || type == Material.LADDER
+				|| type == Material.CHAIN || type == Material.CANDLE || type == Material.SEA_PICKLE
+				|| type == Material.VINE || type == Material.TWISTING_VINES || type == Material.WEEPING_VINES
+				|| type == Material.END_ROD || type == Material.LIGHTNING_ROD || type == Material.LEVER
+				|| type == Material.SWEET_BERRY_BUSH || type == Material.SCAFFOLDING || type == Material.LANTERN
+				|| type == Material.SOUL_LANTERN || type == Material.TURTLE_EGG || type == Material.SMALL_DRIPLEAF
+				|| type == Material.BIG_DRIPLEAF || type == Material.IRON_BARS || type == Material.POWDER_SNOW
+				|| type == Material.TRIPWIRE || type == Material.TRIPWIRE_HOOK
+				|| type.toString().contains("GLASS_PANE");
 	}
 
 	public class LavaRainLocation {
@@ -145,7 +142,7 @@ public class RainHandler implements Reloadable {
 			this.y2 = Math.max(min.getBlockY(), max.getBlockY());
 			this.z1 = Math.min(min.getBlockZ(), max.getBlockZ());
 			this.z2 = Math.max(min.getBlockZ(), max.getBlockZ());
-			boolean checkWorld = Objects.equals(Objects.requireNonNull(min.getWorld()),
+			final boolean checkWorld = Objects.equals(Objects.requireNonNull(min.getWorld()),
 					Objects.requireNonNull(max.getWorld()));
 			if (checkWorld) {
 				this.world = min.getWorld();
@@ -153,12 +150,12 @@ public class RainHandler implements Reloadable {
 		}
 
 		public @NotNull Iterator<Block> getBlocks() {
-			List<Block> list = new ArrayList<>(this.getAllCoordinates());
+			final List<Block> list = new ArrayList<>(this.getAllCoordinates());
 
 			for (int x = this.x1; x <= this.x2; ++x) {
 				for (int y = this.y1; y <= this.y2; ++y) {
 					for (int z = this.z1; z <= this.z2; ++z) {
-						Block block = this.world.getBlockAt(x, y, z);
+						final Block block = this.world.getBlockAt(x, y, z);
 						list.add(block);
 					}
 				}
@@ -189,9 +186,9 @@ public class RainHandler implements Reloadable {
 		}
 
 		public @NotNull Location getRandomLocation() {
-			int rndX = RandomUtils.generateRandomInt(Math.abs(this.x2 - this.x1) + 1) + this.x1;
-			int rndY = RandomUtils.generateRandomInt(Math.abs(this.y2 - this.y1) + 1) + this.y1;
-			int rndZ = RandomUtils.generateRandomInt(Math.abs(this.z2 - this.z1) + 1) + this.z1;
+			final int rndX = RandomUtils.generateRandomInt(Math.abs(this.x2 - this.x1) + 1) + this.x1;
+			final int rndY = RandomUtils.generateRandomInt(Math.abs(this.y2 - this.y1) + 1) + this.y1;
+			final int rndZ = RandomUtils.generateRandomInt(Math.abs(this.z2 - this.z1) + 1) + this.z1;
 			return new Location(this.world, (double) rndX, (double) rndY, (double) rndZ);
 		}
 

@@ -25,7 +25,7 @@ public abstract class AbstractCommandFeature<C> implements CommandFeature<C> {
 	@Override
 	@SuppressWarnings("unchecked")
 	public Command<C> registerCommand(CommandManager<C> manager, Command.Builder<C> builder) {
-		Command<C> command = (Command<C>) assembleCommand(manager, builder).build();
+		final Command<C> command = (Command<C>) assembleCommand(manager, builder).build();
 		manager.command(command);
 		return command;
 	}
@@ -38,6 +38,25 @@ public abstract class AbstractCommandFeature<C> implements CommandFeature<C> {
 	@Override
 	public void unregisterRelatedFunctions() {
 		// empty
+	}
+
+	@SuppressWarnings("unchecked")
+	@Override
+	public void handleFeedbackRaw(CommandContext<?> context, Component... components) {
+		if (context.flags().hasFlag("silent")) {
+			return;
+		}
+		for (Component component : components) {
+			// "dynamic" node — can be a fixed label like "raw" or your feature ID
+			commandManager.handleCommandFeedback((C) context.sender(), getFeatureID(), component);
+		}
+	}
+
+	@Override
+	public void handleFeedbackRaw(C sender, Component... components) {
+		for (Component component : components) {
+			commandManager.handleCommandFeedback(sender, getFeatureID(), component);
+		}
 	}
 
 	@Override

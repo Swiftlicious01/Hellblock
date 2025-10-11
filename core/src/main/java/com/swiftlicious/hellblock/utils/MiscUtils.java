@@ -8,11 +8,9 @@ import java.util.Map;
 public class MiscUtils {
 
 	public static List<String> getAsStringList(Object o) {
-		List<String> list = new ArrayList<>();
+		final List<String> list = new ArrayList<>();
 		if (o instanceof List<?>) {
-			for (Object object : (List<?>) o) {
-				list.add(object.toString());
-			}
+			((List<?>) o).forEach((Object object) -> list.add(object.toString()));
 		} else if (o instanceof String) {
 			list.add((String) o);
 		} else {
@@ -22,9 +20,9 @@ public class MiscUtils {
 	}
 
 	public static List<Float> getAsFloatList(Object o) {
-		List<Float> list = new ArrayList<>();
+		final List<Float> list = new ArrayList<>();
 		if (o instanceof List<?>) {
-			for (Object object : (List<?>) o) {
+			((List<?>) o).forEach((Object object) -> {
 				if (object instanceof Number) {
 					list.add(((Number) object).floatValue());
 				} else if (object instanceof String) {
@@ -36,7 +34,7 @@ public class MiscUtils {
 				} else {
 					throw new RuntimeException("Cannot convert " + object + " to float");
 				}
-			}
+			});
 		} else if (o instanceof Float) {
 			list.add((Float) o);
 		} else if (o instanceof String) {
@@ -100,8 +98,8 @@ public class MiscUtils {
 
 	@SuppressWarnings("unchecked")
 	public static <T> List<T> deepCopyList(List<T> originalList, Map<String, String> replacements) {
-		List<T> copiedList = new ArrayList<>();
-		for (T item : originalList) {
+		final List<T> copiedList = new ArrayList<>();
+		originalList.forEach(item -> {
 			if (item instanceof List) {
 				copiedList.add((T) deepCopyList((List<?>) item, replacements));
 			} else if (item instanceof Map) {
@@ -111,16 +109,16 @@ public class MiscUtils {
 			} else {
 				copiedList.add(item);
 			}
-		}
+		});
 		return copiedList;
 	}
 
 	@SuppressWarnings("unchecked")
 	public static Map<String, Object> deepCopyMap(Map<String, Object> originalMap, Map<String, String> replacements) {
-		Map<String, Object> copiedMap = new HashMap<>();
-		for (Map.Entry<String, Object> entry : originalMap.entrySet()) {
-			String key = entry.getKey();
-			Object value = entry.getValue();
+		final Map<String, Object> copiedMap = new HashMap<>();
+		originalMap.entrySet().forEach(entry -> {
+			final String key = entry.getKey();
+			final Object value = entry.getValue();
 			if (value instanceof List) {
 				copiedMap.put(key, deepCopyList((List<?>) value, replacements));
 			} else if (value instanceof Map) {
@@ -130,7 +128,7 @@ public class MiscUtils {
 			} else {
 				copiedMap.put(key, value);
 			}
-		}
+		});
 		return copiedMap;
 	}
 }

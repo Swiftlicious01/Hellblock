@@ -1,6 +1,7 @@
 package com.swiftlicious.hellblock.listeners.generator;
 
 import java.util.Arrays;
+import java.util.Locale;
 import java.util.Objects;
 
 import org.bukkit.Material;
@@ -23,50 +24,49 @@ public class GeneratorModeManager {
 	}
 
 	public void loadFromConfig() {
-		YamlDocument config = instance.getConfigManager().getMainConfig();
-		if (config.contains("netherrack-generator-options.generation")) {
-
-			Section section = config.getSection("netherrack-generator-options.generation");
-			if (section == null) {
-				instance.getPluginLogger().severe("No generation mode section found.");
-				return;
-			}
-			Material fallbackMaterial = null;
-			if (section.contains("fallback")) {
-				fallbackMaterial = Material
-						.getMaterial(Objects.requireNonNull(section.getString("fallback", "NETHERRACK").toUpperCase()));
-				if (fallbackMaterial == null || fallbackMaterial == Material.AIR) {
-					instance.getPluginLogger().severe(
-							String.format("%s is not a valid fallback material.", section.getString("fallback")));
-				}
-			}
-			GenMode mode = new GenMode(fallbackMaterial);
-			if (section.contains("search-for-players-nearby")) {
-				boolean searchForPlayersNearby = section.getBoolean("search-for-players-nearby", false);
-				mode.setSearchForPlayersNearby(searchForPlayersNearby);
-			}
-			if (section.contains("generation-sound")) {
-				String soundString = section.getString("generation-sound", "minecraft:entity.experience_orb.pickup");
-				if (soundString != null && !soundString.equalsIgnoreCase("none")) {
-					mode.setGenSound(soundString);
-				}
-			}
-			if (section.contains("particle-effect")) {
-				String particleString = section.getString("particle-effect", "LARGE_SMOKE");
-				if (particleString != null && !particleString.equalsIgnoreCase("none")) {
-					Arrays.stream(Particle.values())
-							.filter(particleEffect -> particleEffect.name().equalsIgnoreCase(particleString))
-							.findFirst().ifPresentOrElse(mode::setParticleEffect, () -> instance.getPluginLogger()
-									.severe(String.format("The particle %s does not exist.", particleString)));
-				}
-			}
-			if (section.contains("can-generate-while-lava-raining")) {
-				boolean canGenWhileLavaRaining = section.getBoolean("can-generate-while-lava-raining", true);
-				mode.setCanGenWhileLavaRaining(canGenWhileLavaRaining);
-			}
-
-			this.generatorMode = mode;
+		final YamlDocument config = instance.getConfigManager().getMainConfig();
+		if (!config.contains("netherrack-generator-options.generation")) {
+			return;
 		}
+		final Section section = config.getSection("netherrack-generator-options.generation");
+		if (section == null) {
+			instance.getPluginLogger().severe("No generation mode section found.");
+			return;
+		}
+		Material fallbackMaterial = null;
+		if (section.contains("fallback")) {
+			fallbackMaterial = Material.matchMaterial(
+					Objects.requireNonNull(section.getString("fallback", "NETHERRACK").toUpperCase(Locale.ROOT)));
+			if (fallbackMaterial == null || fallbackMaterial == Material.AIR || !fallbackMaterial.isBlock()) {
+				instance.getPluginLogger()
+						.severe("%s is not a valid fallback block type.".formatted(section.getString("fallback")));
+			}
+		}
+		final GenMode mode = new GenMode(fallbackMaterial);
+		if (section.contains("search-for-players-nearby")) {
+			final boolean searchForPlayersNearby = section.getBoolean("search-for-players-nearby", false);
+			mode.setSearchForPlayersNearby(searchForPlayersNearby);
+		}
+		if (section.contains("generation-sound")) {
+			final String soundString = section.getString("generation-sound", "minecraft:entity.experience_orb.pickup");
+			if (soundString != null && !"none".equalsIgnoreCase(soundString)) {
+				mode.setGenSound(soundString);
+			}
+		}
+		if (section.contains("particle-effect")) {
+			final String particleString = section.getString("particle-effect", "LARGE_SMOKE");
+			if (particleString != null && !"none".equalsIgnoreCase(particleString)) {
+				Arrays.stream(Particle.values())
+						.filter(particleEffect -> particleEffect.name().equalsIgnoreCase(particleString)).findFirst()
+						.ifPresentOrElse(mode::setParticleEffect, () -> instance.getPluginLogger()
+								.severe("The particle %s does not exist.".formatted(particleString)));
+			}
+		}
+		if (section.contains("can-generate-while-lava-raining")) {
+			final boolean canGenWhileLavaRaining = section.getBoolean("can-generate-while-lava-raining", true);
+			mode.setCanGenWhileLavaRaining(canGenWhileLavaRaining);
+		}
+		this.generatorMode = mode;
 	}
 
 	public @NotNull GenMode getGenMode() {

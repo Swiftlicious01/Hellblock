@@ -21,6 +21,10 @@ public interface CommandFeature<C> {
 
 	void handleFeedback(C sender, TranslatableComponent.Builder key, Component... args);
 
+	void handleFeedbackRaw(CommandContext<?> context, Component... components);
+
+	void handleFeedbackRaw(C sender, Component... components);
+
 	HellblockCommandManager<C> getHellblockCommandManager();
 
 	CommandConfig<C> getCommandConfig();

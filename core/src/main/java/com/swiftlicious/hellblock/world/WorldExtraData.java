@@ -15,7 +15,7 @@ import com.google.gson.annotations.SerializedName;
 public class WorldExtraData {
 
 	@SerializedName("extra")
-	private Map<String, Object> extra;
+	private final Map<String, Object> extra;
 
 	/**
 	 * Constructs a new WorldExtraData instance with empty extra data. Initializes

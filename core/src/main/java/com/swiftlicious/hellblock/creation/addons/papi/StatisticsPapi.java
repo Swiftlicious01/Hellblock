@@ -65,59 +65,64 @@ public class StatisticsPapi extends PlaceholderExpansion {
 
 	@Override
 	public @Nullable String onRequest(OfflinePlayer player, @NotNull String params) {
-		Optional<UserData> onlineUser = plugin.getStorageManager().getOnlineUser(player.getUniqueId());
-		String[] split = params.split("_", 2);
+		final Optional<UserData> onlineUser = plugin.getStorageManager().getOnlineUser(player.getUniqueId());
+		final String[] split = params.split("_", 2);
 		if (onlineUser.isPresent()) {
-			UserData data = onlineUser.get();
-			FishingStatistics statistics = data.getStatisticData();
+			final UserData data = onlineUser.get();
+			final FishingStatistics statistics = data.getStatisticData();
 			switch (split[0]) {
 			case "total" -> {
 				return String.valueOf(statistics.amountOfFishCaught());
 			}
 			case "hascaught" -> {
-				if (split.length == 1)
+				if (split.length == 1) {
 					return "Invalid format";
+				}
 				return String.valueOf(statistics.getAmount(split[1]) != 0);
 			}
 			case "amount" -> {
-				if (split.length == 1)
+				if (split.length == 1) {
 					return "Invalid format";
+				}
 				return String.valueOf(statistics.getAmount(split[1]));
 			}
 			case "size-record" -> {
-				float size = statistics.getMaxSize(split[1]);
-				return String.format("%.2f", size < 0 ? 0 : size);
+				final float size = statistics.getMaxSize(split[1]);
+				return "%.2f".formatted(size < 0 ? 0 : size);
 			}
 			case "category" -> {
-				if (split.length == 1)
+				if (split.length == 1) {
 					return "Invalid format";
-				String[] categorySplit = split[1].split("_", 2);
-				if (categorySplit.length == 1)
+				}
+				final String[] categorySplit = split[1].split("_", 2);
+				if (categorySplit.length == 1) {
 					return "Invalid format";
-				List<String> category = plugin.getStatisticsManager().getCategoryMembers(categorySplit[1]);
-				if (categorySplit[0].equals("total")) {
+				}
+				final List<String> category = plugin.getStatisticsManager().getCategoryMembers(categorySplit[1]);
+				if ("total".equals(categorySplit[0])) {
 					int total = 0;
 					for (String loot : category) {
 						total += statistics.getAmount(loot);
 					}
 					return String.valueOf(total);
-				} else if (categorySplit[0].equals("progress")) {
-					int size = category.size();
+				} else if ("progress".equals(categorySplit[0])) {
+					final int size = category.size();
 					int unlocked = 0;
 					for (String loot : category) {
-						if (statistics.getAmount(loot) != 0)
+						if (statistics.getAmount(loot) != 0) {
 							unlocked++;
+						}
 					}
-					double percent = ((double) unlocked * 100) / size;
-					String progress = String.format("%.1f", percent);
-					return progress.equals("100.0") ? "100" : progress;
+					final double percent = ((double) unlocked * 100) / size;
+					final String progress = "%.1f".formatted(percent);
+					return "100.0".equals(progress) ? "100" : progress;
 				}
 			}
 			}
 			return null;
 		} else {
-			Optional<PlayerData> optional = offlineDataCache.get(player.getUniqueId(), (uuid) -> {
-				CompletableFuture<Optional<PlayerData>> data = plugin.getStorageManager().getDataSource()
+			final Optional<PlayerData> optional = offlineDataCache.get(player.getUniqueId(), (uuid) -> {
+				final CompletableFuture<Optional<PlayerData>> data = plugin.getStorageManager().getDataSource()
 						.getPlayerData(player.getUniqueId(), false, Runnable::run);
 				try {
 					return data.get();
@@ -126,53 +131,55 @@ public class StatisticsPapi extends PlaceholderExpansion {
 				}
 			});
 			if (optional.isPresent()) {
-				PlayerData playerData = optional.get();
-				StatisticData statistics = playerData.getStatisticData();
+				final PlayerData playerData = optional.get();
+				final StatisticData statistics = playerData.getStatisticData();
 				switch (split[0]) {
 				case "total" -> {
-					int total = 0;
-					for (int i : statistics.amountMap.values()) {
-						total += i;
-					}
+					final int total = statistics.amountMap.values().stream().mapToInt(Integer::intValue).sum();
 					return String.valueOf(total);
 				}
 				case "hascaught" -> {
-					if (split.length == 1)
+					if (split.length == 1) {
 						return "Invalid format";
+					}
 					return String.valueOf(statistics.amountMap.getOrDefault(split[1], 0) != 0);
 				}
 				case "amount" -> {
-					if (split.length == 1)
+					if (split.length == 1) {
 						return "Invalid format";
+					}
 					return String.valueOf(statistics.amountMap.getOrDefault(split[1], 0));
 				}
 				case "size-record" -> {
-					float size = statistics.sizeMap.getOrDefault(split[1], 0f);
-					return String.format("%.2f", size < 0 ? 0 : size);
+					final float size = statistics.sizeMap.getOrDefault(split[1], 0f);
+					return "%.2f".formatted(size < 0 ? 0 : size);
 				}
 				case "category" -> {
-					if (split.length == 1)
+					if (split.length == 1) {
 						return "Invalid format";
-					String[] categorySplit = split[1].split("_", 2);
-					if (categorySplit.length == 1)
+					}
+					final String[] categorySplit = split[1].split("_", 2);
+					if (categorySplit.length == 1) {
 						return "Invalid format";
-					List<String> category = plugin.getStatisticsManager().getCategoryMembers(categorySplit[1]);
-					if (categorySplit[0].equals("total")) {
+					}
+					final List<String> category = plugin.getStatisticsManager().getCategoryMembers(categorySplit[1]);
+					if ("total".equals(categorySplit[0])) {
 						int total = 0;
 						for (String loot : category) {
 							total += statistics.amountMap.getOrDefault(loot, 0);
 						}
 						return String.valueOf(total);
-					} else if (categorySplit[0].equals("progress")) {
-						int size = category.size();
+					} else if ("progress".equals(categorySplit[0])) {
+						final int size = category.size();
 						int unlocked = 0;
 						for (String loot : category) {
-							if (statistics.amountMap.getOrDefault(loot, 0) != 0)
+							if (statistics.amountMap.getOrDefault(loot, 0) != 0) {
 								unlocked++;
+							}
 						}
-						double percent = ((double) unlocked * 100) / size;
-						String progress = String.format("%.1f", percent);
-						return progress.equals("100.0") ? "100" : progress;
+						final double percent = ((double) unlocked * 100) / size;
+						final String progress = "%.1f".formatted(percent);
+						return "100.0".equals(progress) ? "100" : progress;
 					}
 				}
 				}

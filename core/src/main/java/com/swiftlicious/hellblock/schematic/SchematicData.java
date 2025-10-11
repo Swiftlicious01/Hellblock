@@ -3,74 +3,185 @@ package com.swiftlicious.hellblock.schematic;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
-import org.jnbt.ByteArrayTag;
-import org.jnbt.CompoundTag;
-import org.jnbt.IntTag;
-import org.jnbt.ListTag;
-import org.jnbt.NBTInputStream;
-import org.jnbt.ShortTag;
-import org.jnbt.Tag;
+import net.kyori.adventure.nbt.BinaryTag;
+import net.kyori.adventure.nbt.BinaryTagIO;
+import net.kyori.adventure.nbt.BinaryTagTypes;
+import net.kyori.adventure.nbt.ByteArrayBinaryTag;
+import net.kyori.adventure.nbt.CompoundBinaryTag;
+import net.kyori.adventure.nbt.IntBinaryTag;
+import net.kyori.adventure.nbt.ListBinaryTag;
+import net.kyori.adventure.nbt.ShortBinaryTag;
 
 public class SchematicData {
 	public final short width;
 	public final short length;
 	public final short height;
-	public List<Tag> tileEntities;
+	public List<CompoundBinaryTag> tileEntities;
+	public List<CompoundBinaryTag> entities;
 	public byte[] blockdata;
-	public Map<String, Tag> palette;
+	public CompoundBinaryTag palette;
 	public Integer version;
 
-	public SchematicData(short width, short length, short height, List<Tag> tileEntities, byte[] blockdata,
-			Map<String, Tag> palette, Integer version) {
+	public SchematicData(short width, short length, short height, List<CompoundBinaryTag> tileEntities,
+			List<CompoundBinaryTag> entities, byte[] blockdata, CompoundBinaryTag palette, Integer version) {
 		this.width = width;
 		this.length = length;
 		this.height = height;
 		this.tileEntities = tileEntities;
+		this.entities = entities != null ? entities : Collections.emptyList();
 		this.blockdata = blockdata;
 		this.palette = palette;
 		this.version = version;
 	}
 
-	@SuppressWarnings("unchecked")
+	// Convenience constructor
+	public SchematicData(short width, short length, short height, List<CompoundBinaryTag> tileEntities,
+			byte[] blockdata, CompoundBinaryTag palette, Integer version) {
+		this(width, length, height, tileEntities, null, blockdata, palette, version);
+	}
+
+	/**
+	 * Load a schematic from a file.
+	 *
+	 * @param file The schematic file to load.
+	 * @return The loaded SchematicData.
+	 * @throws IOException If an I/O error occurs or the file format is invalid.
+	 */
 	public static SchematicData loadSchematic(File file) throws IOException {
-		FileInputStream stream = new FileInputStream(file);
-		NBTInputStream nbtStream = new NBTInputStream(stream);
+		try (InputStream stream = new FileInputStream(file)) {
+			final BinaryTag rawTag = BinaryTagIO.reader().read(stream);
 
-		CompoundTag schematicTag = (CompoundTag) nbtStream.readTag();
-		stream.close();
-		nbtStream.close();
-		Map<String, Tag> schematic = schematicTag.getValue();
+			if (!(rawTag instanceof CompoundBinaryTag schematicTag)) {
+				throw new IOException("Invalid schematic format — expected CompoundBinaryTag");
+			}
 
-		short width = getChildTag(schematic, "Width", ShortTag.class).getValue();
-		short length = getChildTag(schematic, "Length", ShortTag.class).getValue();
-		short height = getChildTag(schematic, "Height", ShortTag.class).getValue();
-		int version = getChildTag(schematic, "Version", IntTag.class).getValue();
-		Map<String, Tag> palette = getChildTag(schematic, "Palette", CompoundTag.class).getValue();
-		byte[] blockdata = getChildTag(schematic, "BlockData", ByteArrayTag.class).getValue();
-		if (version == 1) {
-			List<Tag> tileEntities = getChildTag(schematic, "TileEntities", ListTag.class).getValue();
-			return new SchematicData(width, length, height, tileEntities, blockdata, palette, version);
-		} else if (version == 2) {
-			List<Tag> BlockEntities = getChildTag(schematic, "BlockEntities", ListTag.class).getValue();
-			return new SchematicData(width, length, height, BlockEntities, blockdata, palette, version);
-		} else {
-			return new SchematicData(width, length, height, Collections.emptyList(), blockdata, palette, version);
+			final short width = getShort(schematicTag, "Width");
+			final short length = getShort(schematicTag, "Length");
+			final short height = getShort(schematicTag, "Height");
+			final int version = getInt(schematicTag, "Version");
+			final byte[] blockdata = getByteArray(schematicTag, "BlockData");
+
+			final CompoundBinaryTag palette = getCompound(schematicTag, "Palette");
+
+			List<CompoundBinaryTag> entities = List.of();
+			final BinaryTag entitiesTag = schematicTag.get("Entities");
+
+			if (entitiesTag instanceof ListBinaryTag listTag && listTag.elementType() == BinaryTagTypes.COMPOUND) {
+				entities = getCompoundList(schematicTag, "Entities");
+			}
+
+			switch (version) {
+			case 1 -> {
+				final List<CompoundBinaryTag> tileEntities = getCompoundList(schematicTag, "TileEntities");
+				return new SchematicData(width, length, height, tileEntities, entities, blockdata, palette, version);
+			}
+			case 2 -> {
+				final List<CompoundBinaryTag> blockEntities = getCompoundList(schematicTag, "BlockEntities");
+				return new SchematicData(width, length, height, blockEntities, entities, blockdata, palette, version);
+			}
+			default -> {
+				return new SchematicData(width, length, height, Collections.emptyList(), blockdata, palette, version);
+			}
+			}
 		}
 	}
 
-	public static <T extends Tag> T getChildTag(Map<String, Tag> items, String key, Class<T> expected)
-			throws IllegalArgumentException {
-		if (!items.containsKey(key)) {
-			throw new IllegalArgumentException("Schematic file is missing a \"" + key + "\" tag");
+	private static short getShort(CompoundBinaryTag tag, String key) {
+		final BinaryTag t = tag.get(key);
+		if (!(t instanceof ShortBinaryTag sbt)) {
+			throw new IllegalArgumentException("Tag \"" + key + "\" is not a Short");
 		}
-		Tag tag = items.get(key);
-		if (!expected.isInstance(tag)) {
-			throw new IllegalArgumentException(key + " tag is not of tag type " + expected.getName());
+		return sbt.value();
+	}
+
+	private static int getInt(CompoundBinaryTag tag, String key) {
+		final BinaryTag t = tag.get(key);
+		if (!(t instanceof IntBinaryTag ibt)) {
+			throw new IllegalArgumentException("Tag \"" + key + "\" is not an Int");
 		}
-		return expected.cast(tag);
+		return ibt.value();
+	}
+
+	private static byte[] getByteArray(CompoundBinaryTag tag, String key) {
+		final BinaryTag t = tag.get(key);
+		if (!(t instanceof ByteArrayBinaryTag bbt)) {
+			throw new IllegalArgumentException("Tag \"" + key + "\" is not a ByteArray");
+		}
+		return bbt.value();
+	}
+
+	private static CompoundBinaryTag getCompound(CompoundBinaryTag tag, String key) {
+		final BinaryTag t = tag.get(key);
+		if (!(t instanceof CompoundBinaryTag cbt)) {
+			throw new IllegalArgumentException("Tag \"" + key + "\" is not a CompoundBinaryTag");
+		}
+		return cbt;
+	}
+
+	private static List<CompoundBinaryTag> getCompoundList(CompoundBinaryTag tag, String key) {
+		final BinaryTag t = tag.get(key);
+		if (!(t instanceof ListBinaryTag list)) {
+			throw new IllegalArgumentException("Tag \"" + key + "\" is not a List");
+		}
+		if (list.elementType() != BinaryTagTypes.COMPOUND) {
+			throw new IllegalArgumentException("List \"" + key + "\" does not contain Compound tags");
+		}
+		final List<CompoundBinaryTag> result = new ArrayList<>();
+		for (BinaryTag item : list) {
+			result.add((CompoundBinaryTag) item);
+		}
+		return result;
+	}
+
+	/**
+	 * Retrieve a child tag from a CompoundBinaryTag with proper type checking.
+	 *
+	 * @param <T>      The expected tag type (e.g., IntBinaryTag.class).
+	 * @param tag      The parent CompoundBinaryTag.
+	 * @param key      The key to fetch.
+	 * @param expected The expected class of the tag.
+	 * @return The tag casted to the expected type.
+	 * @throws IllegalArgumentException if the key is missing or the type
+	 *                                  mismatches.
+	 */
+	@SuppressWarnings("unchecked")
+	public static <T extends BinaryTag> T getChildTag(CompoundBinaryTag tag, String key, Class<T> expected) {
+		final BinaryTag child = tag.get(key);
+
+		if (child == null) {
+			throw new IllegalArgumentException("Missing tag: " + key);
+		}
+
+		if (!expected.isInstance(child)) {
+			throw new IllegalArgumentException("Tag \"" + key + "\" is not of type " + expected.getSimpleName());
+		}
+
+		return (T) child;
+	}
+
+	/**
+	 * Safely retrieve an optional child tag from a CompoundBinaryTag.
+	 *
+	 * @param <T>      The expected tag type (e.g., IntBinaryTag.class).
+	 * @param tag      The CompoundBinaryTag containing child tags.
+	 * @param key      The key of the child tag.
+	 * @param expected The expected class of the tag.
+	 * @return The tag casted to the expected type, or null if not present or
+	 *         mismatched.
+	 */
+	@SuppressWarnings("unchecked")
+	public static <T extends BinaryTag> T getOptionalChildTag(CompoundBinaryTag tag, String key, Class<T> expected) {
+		final BinaryTag child = tag.get(key);
+
+		if (child == null || !expected.isInstance(child)) {
+			return null;
+		}
+
+		return (T) child;
 	}
 }

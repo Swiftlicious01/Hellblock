@@ -22,36 +22,35 @@ public class CustomDurabilityItem implements DurabilityItem {
 
 	@Override
 	public void damage(int value) {
-		int customMaxDamage = (int) item.getTag("HellblockItem", "max_dur").get();
-		int maxDamage = item.maxDamage().get();
-		double ratio = (double) maxDamage / (double) customMaxDamage;
-		int fakeDamage = (int) (value * ratio);
+		final int customMaxDamage = (int) item.getTag("HellblockItem", "max_dur").get();
+		final int maxDamage = item.maxDamage().get();
+		final double ratio = (double) maxDamage / (double) customMaxDamage;
+		final int fakeDamage = (int) (value * ratio);
 		item.damage(fakeDamage);
 		item.setTag(customMaxDamage - value, "HellblockItem", "cur_dur");
-		List<String> durabilityLore = HellblockPlugin.getInstance().getConfigManager().durabilityLore();
-		List<String> previousLore = item.lore().orElse(new ArrayList<>());
-		List<String> newLore = new ArrayList<>();
+		final List<String> durabilityLore = HellblockPlugin.getInstance().getConfigManager().durabilityLore();
+		final List<String> previousLore = item.lore().orElse(new ArrayList<>());
+		final List<String> newLore = new ArrayList<>();
 		for (String previous : previousLore) {
-			Component component = AdventureHelper.jsonToComponent(previous);
-			if (component instanceof ScoreComponent scoreComponent && scoreComponent.name().equals("hb")) {
-				if (scoreComponent.objective().equals("durability")) {
-					continue;
-				}
+			final Component component = AdventureHelper.jsonToComponent(previous);
+			if (component instanceof ScoreComponent scoreComponent && "hb".equals(scoreComponent.name())
+					&& "durability".equals(scoreComponent.objective())) {
+				continue;
 			}
 			newLore.add(previous);
 		}
-		for (String lore : durabilityLore) {
-			ScoreComponent.Builder builder = Component.score().name("hb").objective("durability");
+		durabilityLore.forEach(lore -> {
+			final ScoreComponent.Builder builder = Component.score().name("hb").objective("durability");
 			builder.append(AdventureHelper.miniMessage(lore.replace("{dur}", String.valueOf(customMaxDamage - value))
 					.replace("{max}", String.valueOf(customMaxDamage))));
 			newLore.add(AdventureHelper.componentToJson(builder.build()));
-		}
+		});
 		item.lore(newLore);
 	}
 
 	@Override
 	public int damage() {
-		int customMaxDamage = (int) item.getTag("HellblockItem", "max_dur").get();
+		final int customMaxDamage = (int) item.getTag("HellblockItem", "max_dur").get();
 		return customMaxDamage - (int) item.getTag("HellblockItem", "cur_dur").orElse(0);
 	}
 

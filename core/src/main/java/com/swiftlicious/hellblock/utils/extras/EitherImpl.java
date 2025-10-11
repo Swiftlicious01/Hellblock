@@ -37,40 +37,45 @@ final class EitherImpl<U, V> implements Either<U, V> {
 
 	public final EitherImpl<U, V> withPrimary(@Nullable U value) {
 		@Nullable
-		U newValue = value;
-		if (this.primary == newValue)
+		final U newValue = value;
+		if (this.primary == newValue) {
 			return this;
+		}
 		return new EitherImpl<>(this, newValue, this.fallback);
 	}
 
 	public EitherImpl<U, V> withPrimary(Optional<? extends U> optional) {
 		@Nullable
-		U value = optional.orElse(null);
-		if (this.primary == value)
+		final U value = optional.orElse(null);
+		if (this.primary == value) {
 			return this;
+		}
 		return new EitherImpl<>(this, value, this.fallback);
 	}
 
 	public EitherImpl<U, V> withFallback(@Nullable V value) {
 		@Nullable
-		V newValue = value;
-		if (this.fallback == newValue)
+		final V newValue = value;
+		if (this.fallback == newValue) {
 			return this;
+		}
 		return new EitherImpl<>(this, this.primary, newValue);
 	}
 
 	public EitherImpl<U, V> withFallback(Optional<? extends V> optional) {
 		@Nullable
-		V value = optional.orElse(null);
-		if (this.fallback == value)
+		final V value = optional.orElse(null);
+		if (this.fallback == value) {
 			return this;
+		}
 		return new EitherImpl<>(this, this.primary, value);
 	}
 
 	@Override
 	public boolean equals(@Nullable Object another) {
-		if (this == another)
+		if (this == another) {
 			return true;
+		}
 		return another instanceof EitherImpl<?, ?> && equalTo((EitherImpl<?, ?>) another);
 	}
 
@@ -88,13 +93,14 @@ final class EitherImpl<U, V> implements Either<U, V> {
 
 	@Override
 	public String toString() {
-		StringBuilder builder = new StringBuilder("Either{");
+		final StringBuilder builder = new StringBuilder("Either{");
 		if (primary != null) {
 			builder.append("primary=").append(primary);
 		}
 		if (fallback != null) {
-			if (builder.length() > 7)
+			if (builder.length() > 7) {
 				builder.append(", ");
+			}
 			builder.append("fallback=").append(fallback);
 		}
 		return builder.append("}").toString();
@@ -110,7 +116,7 @@ final class EitherImpl<U, V> implements Either<U, V> {
 
 	public static <U, V> EitherImpl<U, V> copyOf(EitherImpl<U, V> instance) {
 		if (instance instanceof EitherImpl<?, ?>) {
-			return (EitherImpl<U, V>) instance;
+			return instance;
 		}
 		return EitherImpl.of(instance.primary(), instance.fallback());
 	}

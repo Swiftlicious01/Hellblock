@@ -11,11 +11,7 @@ public class BukkitSchedulerAdapter extends AbstractJavaScheduler<Location, Worl
 
 	public BukkitSchedulerAdapter(HellblockPlugin plugin) {
 		super(plugin);
-		if (VersionHelper.isFolia()) {
-			this.sync = new FoliaExecutor(plugin);
-		} else {
-			this.sync = new BukkitExecutor(plugin);
-		}
+		this.sync = VersionHelper.isFolia() ? new FoliaExecutor(plugin) : new BukkitExecutor(plugin);
 	}
 
 	@Override

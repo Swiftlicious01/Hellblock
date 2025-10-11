@@ -25,16 +25,18 @@ public class ComponentItemFactory extends BukkitItemFactory {
 						Map.of("floats", List.of(data.floatValue()))))
 				: ((item, data) -> item.setComponent(ComponentKeys.CUSTOM_MODEL_DATA, data));
 		this.customModelDataGetter = VersionHelper.isVersionNewerThan1_21_4() ? (item) -> {
-			Optional<Object> optional = ComponentType.encodeJava(ComponentKeys.CUSTOM_MODEL_DATA,
+			final Optional<Object> optional = ComponentType.encodeJava(ComponentKeys.CUSTOM_MODEL_DATA,
 					item.getComponent(ComponentKeys.CUSTOM_MODEL_DATA));
-			if (optional.isEmpty())
+			if (optional.isEmpty()) {
 				return Optional.empty();
+			}
 			@SuppressWarnings("unchecked")
-			Map<String, Object> data = (Map<String, Object>) optional.get();
+			final Map<String, Object> data = (Map<String, Object>) optional.get();
 			@SuppressWarnings("unchecked")
-			List<Float> floats = (List<Float>) data.get("floats");
-			if (floats == null || floats.isEmpty())
+			final List<Float> floats = (List<Float>) data.get("floats");
+			if (floats == null || floats.isEmpty()) {
 				return Optional.empty();
+			}
 			return Optional.of((int) Math.floor(floats.get(0)));
 		}
 				: (item) -> Optional.ofNullable((Integer) ComponentType
@@ -53,8 +55,9 @@ public class ComponentItemFactory extends BukkitItemFactory {
 
 	@Override
 	protected Optional<Integer> customModelData(RtagItem item) {
-		if (!item.hasComponent(ComponentKeys.CUSTOM_MODEL_DATA))
+		if (!item.hasComponent(ComponentKeys.CUSTOM_MODEL_DATA)) {
 			return Optional.empty();
+		}
 		return this.customModelDataGetter.apply(item);
 	}
 
@@ -69,8 +72,9 @@ public class ComponentItemFactory extends BukkitItemFactory {
 
 	@Override
 	protected Optional<String> displayName(RtagItem item) {
-		if (!item.hasComponent(ComponentKeys.CUSTOM_NAME))
+		if (!item.hasComponent(ComponentKeys.CUSTOM_NAME)) {
 			return Optional.empty();
+		}
 		return Optional.ofNullable((String) ComponentType
 				.encodeJava(ComponentKeys.CUSTOM_NAME, item.getComponent(ComponentKeys.CUSTOM_NAME)).orElse(null));
 	}
@@ -85,8 +89,9 @@ public class ComponentItemFactory extends BukkitItemFactory {
 	@SuppressWarnings("unchecked")
 	@Override
 	protected Optional<List<String>> lore(RtagItem item) {
-		if (!item.hasComponent(ComponentKeys.LORE))
+		if (!item.hasComponent(ComponentKeys.LORE)) {
 			return Optional.empty();
+		}
 		return Optional.ofNullable((List<String>) ComponentType
 				.encodeJava(ComponentKeys.LORE, item.getComponent(ComponentKeys.LORE)).orElse(null));
 	}
@@ -122,23 +127,26 @@ public class ComponentItemFactory extends BukkitItemFactory {
 
 	@Override
 	protected Optional<Integer> damage(RtagItem item) {
-		if (!item.hasComponent(ComponentKeys.DAMAGE))
+		if (!item.hasComponent(ComponentKeys.DAMAGE)) {
 			return Optional.empty();
+		}
 		return Optional.ofNullable((Integer) ComponentType
 				.encodeJava(ComponentKeys.DAMAGE, item.getComponent(ComponentKeys.DAMAGE)).orElse(null));
 	}
 
 	@Override
 	protected void damage(RtagItem item, Integer damage) {
-		if (damage == null)
+		if (damage == null) {
 			damage = 0;
+		}
 		item.setComponent(ComponentKeys.DAMAGE, damage);
 	}
 
 	@Override
 	protected Optional<Integer> maxDamage(RtagItem item) {
-		if (!item.hasComponent(ComponentKeys.MAX_DAMAGE))
+		if (!item.hasComponent(ComponentKeys.MAX_DAMAGE)) {
 			return Optional.of((int) item.getItem().getType().getMaxDurability());
+		}
 		return Optional.ofNullable((Integer) ComponentType
 				.encodeJava(ComponentKeys.MAX_DAMAGE, item.getComponent(ComponentKeys.MAX_DAMAGE)).orElse(null));
 	}
@@ -154,34 +162,30 @@ public class ComponentItemFactory extends BukkitItemFactory {
 
 	@Override
 	protected void enchantments(RtagItem item, Map<Key, Short> enchantments) {
-		Map<String, Integer> enchants = new HashMap<>();
-		for (Map.Entry<Key, Short> entry : enchantments.entrySet()) {
-			enchants.put(entry.getKey().toString(), Integer.valueOf(entry.getValue()));
-		}
+		final Map<String, Integer> enchants = new HashMap<>();
+		enchantments.entrySet().forEach(entry -> enchants.put(entry.getKey().toString(), Integer.valueOf(entry.getValue())));
 		item.setComponent(ComponentKeys.ENCHANTMENTS, enchants);
 	}
 
 	@Override
 	protected void storedEnchantments(RtagItem item, Map<Key, Short> enchantments) {
-		Map<String, Integer> enchants = new HashMap<>();
-		for (Map.Entry<Key, Short> entry : enchantments.entrySet()) {
-			enchants.put(entry.getKey().toString(), Integer.valueOf(entry.getValue()));
-		}
+		final Map<String, Integer> enchants = new HashMap<>();
+		enchantments.entrySet().forEach(entry -> enchants.put(entry.getKey().toString(), Integer.valueOf(entry.getValue())));
 		item.setComponent(ComponentKeys.STORED_ENCHANTMENTS, enchants);
 	}
 
 	@Override
 	protected void addEnchantment(RtagItem item, Key enchantment, int level) {
-		Object enchant = item.getComponent(ComponentKeys.ENCHANTMENTS);
-		Map<String, Integer> map = VersionHelper.getNMSManager().itemEnchantmentsToMap(enchant);
+		final Object enchant = item.getComponent(ComponentKeys.ENCHANTMENTS);
+		final Map<String, Integer> map = VersionHelper.getNMSManager().itemEnchantmentsToMap(enchant);
 		map.put(enchantment.toString(), level);
 		item.setComponent(ComponentKeys.ENCHANTMENTS, map);
 	}
 
 	@Override
 	protected void addStoredEnchantment(RtagItem item, Key enchantment, int level) {
-		Object enchant = item.getComponent(ComponentKeys.STORED_ENCHANTMENTS);
-		Map<String, Integer> map = VersionHelper.getNMSManager().itemEnchantmentsToMap(enchant);
+		final Object enchant = item.getComponent(ComponentKeys.STORED_ENCHANTMENTS);
+		final Map<String, Integer> map = VersionHelper.getNMSManager().itemEnchantmentsToMap(enchant);
 		map.put(enchantment.toString(), level);
 		item.setComponent(ComponentKeys.STORED_ENCHANTMENTS, map);
 	}

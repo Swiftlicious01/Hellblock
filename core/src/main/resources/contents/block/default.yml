@@ -6,13 +6,14 @@
 
 apple_crate:
   show-in-fishfinder: false
+  disable-stat: true
   nick: Apple Crate
   block: barrel
   velocity:
     horizontal: 1.07
     vertical: 1.5
   properties:
-    directional: true
+    directional-6: true
     storage:
       apple_1:
         item: APPLE
@@ -48,43 +49,44 @@ apple_crate:
         chance: 0.8
 carrot_crate:
   show-in-fishfinder: false
+  disable-stat: true
   nick: Carrot Crate
   block: barrel
   velocity:
     horizontal: 1.07
     vertical: 1.5
   properties:
-    directional: true
+    directional-6: true
     storage:
       carrot_1:
-        item: Carrot
+        item: CARROT
         amount: 1~2
         chance: 0.8
       carrot_2:
-        item: Carrot
+        item: CARROT
         amount: 1~2
         chance: 0.8
       carrot_3:
-        item: Carrot
+        item: CARROT
         amount: 1~2
         chance: 0.8
       carrot_4:
-        item: Carrot
+        item: CARROT
         amount: 1~2
         chance: 0.8
       carrot_5:
-        item: Carrot
+        item: CARROT
         amount: 1~2
         chance: 0.8
       carrot_6:
-        item: Carrot
+        item: CARROT
         amount: 1~2
         chance: 0.8
       carrot_7:
-        item: Carrot
+        item: CARROT
         amount: 1~2
         chance: 0.8
       carrot_8:
-        item: Carrot
+        item: CARROT
         amount: 1~2
         chance: 0.8

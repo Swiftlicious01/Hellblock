@@ -24,7 +24,7 @@ public class WorldScheduler {
 		this.instance = plugin;
 
 		this.scheduler = new ScheduledThreadPoolExecutor(1, r -> {
-			Thread thread = Executors.defaultThreadFactory().newThread(r);
+			final Thread thread = Executors.defaultThreadFactory().newThread(r);
 			thread.setName("hellblock-world-scheduler");
 			return thread;
 		});
@@ -39,13 +39,13 @@ public class WorldScheduler {
 	}
 
 	public SchedulerTask asyncLater(Runnable task, long delay, TimeUnit unit) {
-		ScheduledFuture<?> future = this.scheduler.schedule(() -> this.worker.execute(task), delay, unit);
+		final ScheduledFuture<?> future = this.scheduler.schedule(() -> this.worker.execute(task), delay, unit);
 		return new JavaCancellable(future);
 	}
 
 	public SchedulerTask asyncRepeating(Runnable task, long delay, long interval, TimeUnit unit) {
-		ScheduledFuture<?> future = this.scheduler.scheduleAtFixedRate(() -> this.worker.execute(task), delay, interval,
-				unit);
+		final ScheduledFuture<?> future = this.scheduler.scheduleAtFixedRate(() -> this.worker.execute(task), delay,
+				interval, unit);
 		return new JavaCancellable(future);
 	}
 
@@ -62,7 +62,7 @@ public class WorldScheduler {
 
 		@Override
 		public ForkJoinWorkerThread newThread(ForkJoinPool pool) {
-			ForkJoinWorkerThread thread = ForkJoinPool.defaultForkJoinWorkerThreadFactory.newThread(pool);
+			final ForkJoinWorkerThread thread = ForkJoinPool.defaultForkJoinWorkerThreadFactory.newThread(pool);
 			thread.setDaemon(true);
 			thread.setName("hellblock-world-worker-" + COUNT.getAndIncrement());
 			return thread;

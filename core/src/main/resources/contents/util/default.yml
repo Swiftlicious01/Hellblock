@@ -7,7 +7,7 @@
 fishfinder:
   material: PAPER
   display:
-    name: '<#1E90FF>Fish Finder'
+    name: '<b><#1E90FF>Fish Finder'
     lore:
       - ''
       - '<#7FFFD4>Description:'
@@ -16,7 +16,7 @@ fishfinder:
       - '<gray> - fish species lurking below the surface.'
       - '<gray> - Whether you''re in uncharted territories or'
       - '<gray> - familiar lava, this device ensures you''re'
-      - '<gray> - always informed about your aquatic neighbors.'
+      - '<gray> - always informed about your lava-aquatic neighbors.'
       - ''
   custom-model-data: 50000
   events:
@@ -38,8 +38,7 @@ fishfinder:
           actions:
             action_1:
               type: fish-finder
-              value: false
-
+              value: lava
 lava_effect:
   material: PAPER
   custom-model-data: 49999

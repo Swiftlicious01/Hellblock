@@ -1,10 +1,13 @@
 package com.swiftlicious.hellblock.world.adapter;
 
+import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+
 import org.jetbrains.annotations.Nullable;
 
 import com.swiftlicious.hellblock.world.ChunkPos;
-import com.swiftlicious.hellblock.world.HellblockChunk;
-import com.swiftlicious.hellblock.world.HellblockRegion;
+import com.swiftlicious.hellblock.world.CustomChunk;
+import com.swiftlicious.hellblock.world.CustomRegion;
 import com.swiftlicious.hellblock.world.HellblockWorld;
 import com.swiftlicious.hellblock.world.RegionPos;
 import com.swiftlicious.hellblock.world.WorldExtraData;
@@ -28,7 +31,17 @@ public interface WorldAdapter<W> extends Comparable<WorldAdapter<W>> {
 	 * @param world The world name to create as a Hellblock world.
 	 * @return the created HellblockWorld instance.
 	 */
-	HellblockWorld<W> createWorld(String world);
+	CompletableFuture<HellblockWorld<W>> createWorld(String world);
+
+	/**
+	 * Retrieves or loads a Hellblock world based on the specified island ID.
+	 * 
+	 * @param islandId The ID of the island whose world is to be retrieved or
+	 *                 loaded.
+	 * @return a CompletableFuture that will complete with the HellblockWorld
+	 *         instance.
+	 */
+	CompletableFuture<HellblockWorld<W>> getOrLoadIslandWorld(int islandId);
 
 	/**
 	 * Deletes a Hellblock world based on the specified Bukkit world.
@@ -61,11 +74,11 @@ public interface WorldAdapter<W> extends Comparable<WorldAdapter<W>> {
 	 *                         belongs.
 	 * @param pos              The position of the region to be loaded.
 	 * @param createIfNotExist If true, creates the region if it does not exist.
-	 * @return The loaded {@link HellblockRegion}, or null if the region could not
-	 *         be loaded and createIfNotExist is false.
+	 * @return The loaded {@link CustomRegion}, or null if the region could not be
+	 *         loaded and createIfNotExist is false.
 	 */
 	@Nullable
-	HellblockRegion loadRegion(HellblockWorld<W> world, RegionPos pos, boolean createIfNotExist);
+	CustomRegion loadRegion(HellblockWorld<W> world, RegionPos pos, boolean createIfNotExist);
 
 	/**
 	 * Loads a chunk from the file or cache. Creates a new chunk if it doesn't exist
@@ -75,11 +88,11 @@ public interface WorldAdapter<W> extends Comparable<WorldAdapter<W>> {
 	 *                         belongs.
 	 * @param pos              The position of the chunk to be loaded.
 	 * @param createIfNotExist If true, creates the chunk if it does not exist.
-	 * @return The loaded {@link HellblockChunk}, or null if the chunk could not be
+	 * @return The loaded {@link CustomChunk}, or null if the chunk could not be
 	 *         loaded and createIfNotExist is false.
 	 */
 	@Nullable
-	HellblockChunk loadChunk(HellblockWorld<W> world, ChunkPos pos, boolean createIfNotExist);
+	CustomChunk loadChunk(HellblockWorld<W> world, ChunkPos pos, boolean createIfNotExist);
 
 	/**
 	 * Saves the specified region to a file or cache.
@@ -87,7 +100,7 @@ public interface WorldAdapter<W> extends Comparable<WorldAdapter<W>> {
 	 * @param world  The Hellblock world instance to which the region belongs.
 	 * @param region The region to be saved.
 	 */
-	void saveRegion(HellblockWorld<W> world, HellblockRegion region);
+	void saveRegion(HellblockWorld<W> world, CustomRegion region);
 
 	/**
 	 * Saves the specified chunk to a file or cache.
@@ -95,7 +108,7 @@ public interface WorldAdapter<W> extends Comparable<WorldAdapter<W>> {
 	 * @param world The Hellblock world instance to which the chunk belongs.
 	 * @param chunk The chunk to be saved.
 	 */
-	void saveChunk(HellblockWorld<W> world, HellblockChunk chunk);
+	void saveChunk(HellblockWorld<W> world, CustomChunk chunk);
 
 	/**
 	 * Retrieves the name of the given world.
@@ -112,7 +125,17 @@ public interface WorldAdapter<W> extends Comparable<WorldAdapter<W>> {
 	 * @return The world instance, or null if no world with the given name is found.
 	 */
 	@Nullable
-	W getWorld(String worldName);
+	Optional<W> getWorld(String worldName);
+
+	/**
+	 * Gets the loaded HellblockWorld instance by its name.
+	 *
+	 * @param worldName The name of the Hellblock world to retrieve.
+	 * @return The loaded {@link HellblockWorld} instance, or null if no world with
+	 *         the given name is found.
+	 */
+	@Nullable
+	HellblockWorld<W> getLoadedHellblockWorld(String worldName);
 
 	/**
 	 * Adapts the given object to a HellblockWorld instance if possible.

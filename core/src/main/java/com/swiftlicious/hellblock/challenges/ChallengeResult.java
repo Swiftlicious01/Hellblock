@@ -45,4 +45,13 @@ public class ChallengeResult {
 	public void setRewardClaimed(boolean claimedReward) {
 		this.claimedReward = claimedReward;
 	}
+
+	/**
+	 * Creates a deep copy of this ChallengeResult.
+	 *
+	 * @return a new ChallengeResult with the same values.
+	 */
+	public ChallengeResult copy() {
+		return new ChallengeResult(this.status, this.progress, this.claimedReward);
+	}
 }

@@ -8,58 +8,41 @@ public class WorldSetting implements Cloneable {
 
 	private final boolean enableScheduler;
 	private final int minTickUnit;
-	private final int tickCropInterval;
 	private final boolean offlineTick;
-	private final int randomTickSpeed;
 	private final int maxOfflineTime;
 	private final int maxLoadingTime;
-	private final int tickCropMode;
-	private final int cropPerChunk;
 
 	/**
 	 * Private constructor to initialize a WorldSetting instance with the provided
 	 * parameters.
 	 *
-	 * @param enableScheduler  Whether the scheduler is enabled.
-	 * @param minTickUnit      The minimum unit of tick.
-	 * @param tickCropMode     The tick mode of crop
-	 * @param tickCropInterval The interval for ticking crops.
-	 * @param cropPerChunk     The maximum number of crops per chunk.
-	 * @param offlineTick      Whether offline ticking is enabled.
-	 * @param maxOfflineTime   The maximum offline time allowed.
-	 * @param maxLoadingTime   The maximum time allowed to load.
-	 * @param randomTickSpeed  The random tick speed.
+	 * @param enableScheduler Whether the scheduler is enabled.
+	 * @param minTickUnit     The minimum unit of tick.
+	 * @param offlineTick     Whether offline ticking is enabled.
+	 * @param maxOfflineTime  The maximum offline time allowed.
+	 * @param maxLoadingTime  The maximum time allowed to load.
 	 */
-	private WorldSetting(boolean enableScheduler, int minTickUnit, int tickCropMode, int tickCropInterval,
-			boolean offlineTick, int maxOfflineTime, int maxLoadingTime, int cropPerChunk, int randomTickSpeed) {
+	private WorldSetting(boolean enableScheduler, int minTickUnit, boolean offlineTick, int maxOfflineTime,
+			int maxLoadingTime) {
 		this.enableScheduler = enableScheduler;
 		this.minTickUnit = minTickUnit;
-		this.tickCropInterval = tickCropInterval;
 		this.offlineTick = offlineTick;
 		this.maxOfflineTime = maxOfflineTime;
 		this.maxLoadingTime = maxLoadingTime;
-		this.randomTickSpeed = randomTickSpeed;
-		this.cropPerChunk = cropPerChunk;
-		this.tickCropMode = tickCropMode;
 	}
 
 	/**
 	 * Factory method to create a new instance of WorldSetting.
 	 *
-	 * @param enableScheduler  Whether the scheduler is enabled.
-	 * @param minTickUnit      The minimum unit of tick.
-	 * @param tickCropMode     The tick mode of crop
-	 * @param tickCropInterval The interval for ticking crops.
-	 * @param cropPerChunk     The maximum number of crops per chunk.
-	 * @param offlineTick      Whether offline ticking is enabled.
-	 * @param maxOfflineTime   The maximum offline time allowed.
-	 * @param randomTickSpeed  The random tick speed.
+	 * @param enableScheduler Whether the scheduler is enabled.
+	 * @param minTickUnit     The minimum unit of tick.
+	 * @param offlineTick     Whether offline ticking is enabled.
+	 * @param maxOfflineTime  The maximum offline time allowed.
 	 * @return A new WorldSetting instance.
 	 */
-	public static WorldSetting of(boolean enableScheduler, int minTickUnit, int tickCropMode, int tickCropInterval,
-			boolean offlineTick, int maxOfflineTime, int maxLoadingTime, int cropPerChunk, int randomTickSpeed) {
-		return new WorldSetting(enableScheduler, minTickUnit, tickCropMode, tickCropInterval, offlineTick,
-				maxOfflineTime, maxLoadingTime, cropPerChunk, randomTickSpeed);
+	public static WorldSetting of(boolean enableScheduler, int minTickUnit, boolean offlineTick, int maxOfflineTime,
+			int maxLoadingTime) {
+		return new WorldSetting(enableScheduler, minTickUnit, offlineTick, maxOfflineTime, maxLoadingTime);
 	}
 
 	/**
@@ -81,15 +64,6 @@ public class WorldSetting implements Cloneable {
 	}
 
 	/**
-	 * Gets the interval for ticking crops.
-	 *
-	 * @return The tick interval for crops.
-	 */
-	public int tickCropInterval() {
-		return tickCropInterval;
-	}
-
-	/**
 	 * Checks if offline ticking is enabled.
 	 *
 	 * @return true if offline ticking is enabled, false otherwise.
@@ -105,33 +79,6 @@ public class WorldSetting implements Cloneable {
 	 */
 	public int maxLoadingTime() {
 		return maxLoadingTime;
-	}
-
-	/**
-	 * Gets the maximum number of crops per chunk.
-	 *
-	 * @return The maximum number of crops per chunk.
-	 */
-	public int cropPerChunk() {
-		return cropPerChunk;
-	}
-
-	/**
-	 * Gets the random tick speed.
-	 *
-	 * @return The random tick speed.
-	 */
-	public int randomTickSpeed() {
-		return randomTickSpeed;
-	}
-
-	/**
-	 * Gets the tick mode of crop
-	 *
-	 * @return the mode
-	 */
-	public int tickCropMode() {
-		return tickCropMode;
 	}
 
 	/**

@@ -8,8 +8,6 @@ public interface QuadFunction<T, U, V, Z, R> {
 
 	default <W> QuadFunction<T, U, V, Z, W> andThen(Function<? super R, ? extends W> after) {
 		Objects.requireNonNull(after);
-		return (t, u, v, z) -> {
-			return after.apply(this.apply(t, u, v, z));
-		};
+		return (t, u, v, z) -> after.apply(this.apply(t, u, v, z));
 	}
 }

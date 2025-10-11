@@ -1,4 +1,14 @@
 # Hellblock Challenges #
+# This file defines various challenges that players can complete in the Hellblock Minecraft server.
+# Each challenge has specific actions, required amounts, and rewards.
+# The challenges are categorized by the type of action required to complete them.
+# Make sure to follow the structure and indentation for proper YAML formatting.
+# Refer to the comments for guidance on available actions and data fields.
+# You can customize the challenges and rewards as per your server's requirements.
+# Remember to restart the server or reload the configuration after making changes to this file.
+# For any issues or questions, refer to the Hellblock documentation or support channels.
+# Enjoy creating and completing challenges in Hellblock!
+
 # Global actions that are called when any challenge is completed.
 global:
   action:
@@ -21,83 +31,599 @@ global:
 
 challenges:
   # available action types:
-  # [BREAK, GROW, FISH, CRAFT, BREW, BARTER, INTERACT, FARM, KILL, SPAWN]
-  NETHERRACK_GENERATOR_CHALLENGE:
-    amount: 750
-    action: BREAK
-  GLOWSTONE_TREE_CHALLENGE:
-    amount: 25
-    action: GROW
-  LAVA_FISHING_CHALLENGE:
-    amount: 75
-    action: FISH
-  NETHER_CRAFTING_CHALLENGE:
-    amount: 36
-    action: CRAFT
-  NETHER_BREWING_CHALLENGE:
-    amount: 12
-    action: BREW
-  NETHER_BARTER_CHALLENGE:
-    amount: 50
-    action: BARTER
-  INFINITE_LAVA_CHALLENGE:
-    amount: 60
-    action: INTERACT
-  NETHER_FARMING_CHALLENGE:
-    amount: 150
-    action: FARM
-  WITHER_CHALLENGE:
-    amount: 20
-    action: KILL
-  GOLEM_CHALLENGE:
-    amount: 40
-    action: SPAWN
+  # [BREAK, GROW, FISH, CRAFT, BREW, BARTER, BREED, FARM, SLAY, LEVELUP]
+  # Break refers to the breaking of specific generated blocks from a nether generator.
+  # Grow refers to growing a specific tree type (includes glowstone trees).
+  # Fish refers to catching a specific type of item/mob from lava fishing from the contents/items, contents/blocks or content/entity folders.
+  # Craft refers to crafting a specific item (includes custom nether tools/armor from the config.yml).
+  # Brew refers to brewing a specific potion. (Use components to check https://minecraft.wiki/w/Data_component_format/potion_contents)
+  # Barter refers to bartering with piglins (can include custom bartering items from the config.yml). 
+  # Breed refers to breeding specific animals. Must be breedable.
+  # Farm refers to farming specific crops using lava. Must be crop that can be either placed on farmland or sugar cane or nether wart.
+  # Slay refers to slaying a specific monster/entity (can be the custom hell mobs we include such as the custom wither, wraiths or hell golems).
+  # Levelup refers to leveling up your hellblock to a specific level (this is checked periodically).
 
-rewards:
-  NETHERRACK_GENERATOR_CHALLENGE:
-    action:
+  # -------- BREAK CHALLENGES --------
+  BREAK_NETHERRACK_1:
+    needed-amount: 100
+    action: BREAK
+    data:
+      block: NETHERRACK
+    rewards:
       item_action:
         type: 'give-vanilla-item'
         value:
-          to-inventory: true
-          material: BOOK
-          display:
-            lore:
-              - '<light_purple>A nice book!'
-  GLOWSTONE_TREE_CHALLENGE:
-    action:
+          material: STONE_PICKAXE
+  BREAK_NETHERRACK_2:
+    needed-amount: 500
+    action: BREAK
+    data:
+      block: NETHERRACK
+    rewards:
       item_action:
         type: 'give-vanilla-item'
         value:
-          to-inventory: true
-          material: GOLD_INGOT
-          amount: 3
-          display:
-            name: '<gold>Gold Ingot'
-  LAVA_FISHING_CHALLENGE:
-    action:
-      item_action:
-        type: 'give-vanilla-item'
-        value:
-          to-inventory: true
-		  material: COBBLESTONE
-          amount: 1
-  NETHER_GOLEM_CHALLENGE:
-    action:
-      money_action:
-        type: 'give-money'
-        value: 50
-  NETHER_CRAFTING_CHALLENGE:
-    action:
-      item_action:
-        type: 'give-vanilla-item'
-        value:
-          to-inventory: true
-          material: WOOD_SWORD
+          material: IRON_PICKAXE
           enchantments:
-            enchant: minecraft:sharpness: 5
-  NETHER_BREWING_CHALLENGE:
-    action:
-      exp_action:
-        type: 'exp'
-        value: 100
+            minecraft:efficiency: 2
+  BREAK_BASALT:
+    needed-amount: 250
+    action: BREAK
+    data:
+      block: BASALT
+    rewards:
+      item_action:
+        type: 'give-vanilla-item'
+        value:
+          material: GOLD_PICKAXE
+          enchantments:
+            minecraft:unbreaking: 2
+  BREAK_BLACKSTONE:
+    needed-amount: 200
+    action: BREAK
+    data:
+      block: BLACKSTONE
+    rewards:
+      item_action:
+        type: 'give-vanilla-item'
+        value:
+          material: DIAMOND_PICKAXE
+  BREAK_ANCIENT_DEBRIS:
+    needed-amount: 10
+    action: BREAK
+    data:
+      block: ANCIENT_DEBRIS
+    rewards:
+      item_action:
+        type: 'give-vanilla-item'
+        value:
+          material: NETHERITE_SCRAP
+          amount: 2
+
+  # -------- GROW CHALLENGES --------
+  GROW_OAK:
+    needed-amount: 50
+    action: GROW
+    data:
+      tree: OAK
+    rewards:
+      item_action:
+        type: 'give-vanilla-item'
+        value:
+          material: APPLE
+          amount: 3
+  GROW_BIRCH:
+    needed-amount: 50
+    action: GROW
+    data:
+      tree: BIRCH
+    rewards:
+      item_action:
+        type: 'give-vanilla-item'
+        value:
+          material: BIRCH_LOG
+          amount: 16
+  GROW_SPRUCE:
+    needed-amount: 75
+    action: GROW
+    data:
+      tree: SPRUCE
+    rewards:
+      item_action:
+        type: 'give-vanilla-item'
+        value:
+          material: SPRUCE_SAPLING
+          amount: 2
+  GROW_GLOWSTONE:
+    needed-amount: 100
+    action: GROW
+    data:
+      tree: GLOWSTONE_TREE
+    rewards:
+      item_action:
+        type: 'give-vanilla-item'
+        value:
+          material: GLOWSTONE_DUST
+          amount: 12
+  GROW_CRIMSON:
+    needed-amount: 25
+    action: GROW
+    data:
+      tree: CRIMSON
+    rewards:
+      item_action:
+        type: 'give-vanilla-item'
+        value:
+          material: CRIMSON_STEM
+          amount: 16
+  GROW_WARPED:
+    needed-amount: 25
+    action: GROW
+    data:
+      tree: WARPED
+    rewards:
+      item_action:
+        type: 'give-vanilla-item'
+        value:
+          material: WARPED_STEM
+          amount: 16
+
+  # -------- FISH CHALLENGES --------
+  FISH_RUBBISH:
+    needed-amount: 5
+    action: FISH
+    data:
+      item: rubbish
+    rewards:
+      item_action:
+        type: 'give-vanilla-item'
+        value:
+          material: COAL
+          amount: 8
+  FISH_RAINBOW:
+    needed-amount: 3
+    action: FISH
+    data:
+      item: rainbow_fish
+    rewards:
+      item_action:
+        type: 'give-vanilla-item'
+        value:
+          material: EMERALD
+          amount: 2
+  FISH_TUNA:
+    needed-amount: 4
+    action: FISH
+    data:
+      item: tuna_fish
+    rewards:
+      item_action:
+        type: 'give-vanilla-item'
+        value:
+          material: COD
+          amount: 6
+  FISH_SKELETON:
+    needed-amount: 3
+    action: FISH
+    data:
+      entity: skeleton
+    rewards:
+      item_action:
+        type: 'give-vanilla-item'
+        value:
+          material: BONE
+          amount: 5
+  FISH_MYTHIC_KNIGHT:
+    needed-amount: 2
+    action: FISH
+    data:
+      entity: skeletalknight
+    rewards:
+      item_action:
+        type: 'give-vanilla-item'
+        value:
+          material: IRON_SWORD
+
+  # -------- CRAFT CHALLENGES --------
+  CRAFT_STONE_PICKAXE:
+    needed-amount: 1
+    action: CRAFT
+    data:
+      item: STONE_PICKAXE
+    rewards:
+      item_action:
+        type: 'give-vanilla-item'
+        value:
+          material: IRON_PICKAXE
+  CRAFT_GOLDEN_SWORD:
+    needed-amount: 1
+    action: CRAFT
+    data:
+      item: GOLDEN_SWORD
+    rewards:
+      item_action:
+        type: 'give-vanilla-item'
+        value:
+          material: GOLD_INGOT
+          amount: 4
+  CRAFT_NETHERITE_HELMET:
+    needed-amount: 1
+    action: CRAFT
+    data:
+      item: NETHERITE_HELMET
+    rewards:
+      item_action:
+        type: 'give-vanilla-item'
+        value:
+          material: DIAMOND_HELMET
+  CRAFT_NETHERSTAR_PICKAXE:
+    needed-amount: 1
+    action: CRAFT
+    data:
+      id: tools.netherstar.pickaxe
+    rewards:
+      item_action:
+        type: 'give-vanilla-item'
+        value:
+          material: DIRT
+          amount: 16
+  CRAFT_NETHERSTAR_CHESTPLATE:
+    needed-amount: 1
+    action: CRAFT
+    data:
+      id: armor.netherstar.chestplate
+    rewards:
+      item_action:
+        type: 'give-vanilla-item'
+        value:
+          material: DIAMOND
+
+  # -------- BREW CHALLENGES --------
+  BREW_STRENGTH_2:
+    needed-amount: 2
+    action: BREW
+    data:
+      material: POTION
+      potion_contents:
+        custom_effects:
+          - id: strength
+            amplifier: 1   # Strength II
+            duration: 180  # 3 minutes
+    rewards:
+      item_action:
+        type: 'give-vanilla-item'
+        value:
+          material: BLAZE_ROD
+  BREW_SWIFTNESS_2:
+    needed-amount: 2
+    action: BREW
+    data:
+      material: SPLASH_POTION
+      potion_contents:
+        custom_effects:
+          - id: swiftness
+            amplifier: 1   # Swiftness II
+            duration: 180
+    rewards:
+      item_action:
+        type: 'give-vanilla-item'
+        value:
+          material: SUGAR
+          amount: 10
+  BREW_HEALING_2:
+    needed-amount: 1
+    action: BREW
+    data:
+      material: POTION
+      potion_contents:
+        custom_effects:
+          - id: healing
+            amplifier: 1   # Instant Health II
+            duration: 1
+    rewards:
+      item_action:
+        type: 'give-vanilla-item'
+        value:
+          material: GLASS_BOTTLE
+          amount: 3
+  BREW_FIRE_RESISTANCE:
+    needed-amount: 2
+    action: BREW
+    data:
+      material: LINGERING_POTION
+      potion_contents:
+        custom_effects:
+          - id: fire_resistance
+            amplifier: 0
+            duration: 480
+    rewards:
+      item_action:
+        type: 'give-vanilla-item'
+        value:
+          material: BLAZE_POWDER
+  BREW_REGENERATION:
+    needed-amount: 1
+    action: BREW
+    data:
+      material: POTION
+      potion_contents:
+        custom_effects:
+          - id: regeneration
+            amplifier: 0
+            duration: 45
+    rewards:
+      item_action:
+        type: 'give-vanilla-item'
+        value:
+          material: GHAST_TEAR
+
+  # -------- BARTER CHALLENGES --------
+  BARTER_OBSIDIAN:
+    needed-amount: 5
+    action: BARTER
+    data:
+      item: OBSIDIAN
+    rewards:
+      item_action:
+        type: 'give-vanilla-item'
+        value:
+          material: GOLD_INGOT
+          amount: 5
+  BARTER_QUARTZ:
+    needed-amount: 12
+    action: BARTER
+    data:
+      item: QUARTZ
+    rewards:
+      item_action:
+        type: 'give-vanilla-item'
+        value:
+          material: IRON_INGOT
+          amount: 4
+  BARTER_DIRT:
+    needed-amount: 1
+    action: BARTER
+    data: 1 # All 3 of these bartering challenges use a barter item from config.yml based off the number it is given.
+    rewards:
+      item_action:
+        type: 'give-vanilla-item'
+        value:
+          material: BOOKSHELF
+          amount: 2
+  BARTER_CUSTOM_MAGMA_BLOCK:
+    needed-amount: 1
+    action: BARTER
+    data:
+      barter-item: 6
+    rewards:
+      item_action:
+        type: 'give-vanilla-item'
+        value:
+          material: LAPIS_LAZULI
+          amount: 10
+  BARTER_WITHER_ROSE:
+    needed-amount: 1
+    action: BARTER
+    data:
+      number: 4
+    rewards:
+      item_action:
+        type: 'give-vanilla-item'
+        value:
+          material: BREWING_STAND
+
+  # -------- BREED CHALLENGES --------
+  BREED_COW:
+    needed-amount: 5
+    action: BREED
+    data:
+      entity: COW
+    rewards:
+      item_action:
+        type: 'give-vanilla-item'
+        value:
+          material: LEATHER
+          amount: 8
+  BREED_SHEEP:
+    needed-amount: 5
+    action: BREED
+    data:
+      entity: SHEEP
+    rewards:
+      item_action:
+        type: 'give-vanilla-item'
+        value:
+          material: WHITE_WOOL
+          amount: 8
+  BREED_PIG:
+    needed-amount: 5
+    action: BREED
+    data:
+      entity: PIG
+    rewards:
+      item_action:
+        type: 'give-vanilla-item'
+        value:
+          material: PORKCHOP
+          amount: 6
+  BREED_CHICKEN:
+    needed-amount: 5
+    action: BREED
+    data:
+      entity: CHICKEN
+    rewards:
+      item_action:
+        type: 'give-vanilla-item'
+        value:
+          material: EGG
+          amount: 4
+  BREED_HORSE:
+    needed-amount: 2
+    action: BREED
+    data:
+      entity: HORSE
+    rewards:
+      item_action:
+        type: 'give-vanilla-item'
+        value:
+          material: SADDLE
+
+  # -------- FARM CHALLENGES --------
+  FARM_WHEAT:
+    needed-amount: 20
+    action: FARM
+    data:
+      crop: WHEAT
+    rewards:
+      item_action:
+        type: 'give-vanilla-item'
+        value:
+          material: BREAD
+          amount: 6
+  FARM_CARROTS:
+    needed-amount: 20
+    action: FARM
+    data:
+      crop: CARROTS
+    rewards:
+      item_action:
+        type: 'give-vanilla-item'
+        value:
+          material: GOLDEN_CARROT
+          amount: 2
+  FARM_POTATOES:
+    needed-amount: 20
+    action: FARM
+    data:
+      crop: POTATOES
+    rewards:
+      item_action:
+        type: 'give-vanilla-item'
+        value:
+          material: BAKED_POTATO
+          amount: 4
+  FARM_BEETROOTS:
+    needed-amount: 20
+    action: FARM
+    data:
+      crop: BEETROOTS
+    rewards:
+      item_action:
+        type: 'give-vanilla-item'
+        value:
+          material: BEETROOT_SOUP
+          amount: 2
+  FARM_SUGAR_CANE:
+    needed-amount: 15
+    action: FARM
+    data:
+      crop: SUGAR_CANE
+    rewards:
+      item_action:
+        type: 'give-vanilla-item'
+        value:
+          material: PAPER
+          amount: 12
+  FARM_NETHER_WART:
+    needed-amount: 10
+    action: FARM
+    data:
+      crop: NETHER_WART
+    rewards:
+      item_action:
+        type: 'give-vanilla-item'
+        value:
+          material: RED_NETHER_BRICKS
+          amount: 4
+
+  # -------- SLAY CHALLENGES --------
+  SLAY_ZOMBIE:
+    needed-amount: 20
+    action: SLAY
+    data:
+      entity: ZOMBIE
+    rewards:
+      item_action:
+        type: 'give-vanilla-item'
+        value:
+          material: ROTTEN_FLESH
+          amount: 10
+  SLAY_SKELETON:
+    needed-amount: 20
+    action: SLAY
+    data:
+      entity: SKELETON
+    rewards:
+      item_action:
+        type: 'give-vanilla-item'
+        value:
+          material: ARROW
+          amount: 16
+  SLAY_BLAZE:
+    needed-amount: 15
+    action: SLAY
+    data:
+      entity: BLAZE
+    rewards:
+      item_action:
+        type: 'give-vanilla-item'
+        value:
+          material: BLAZE_ROD
+          amount: 3
+  SLAY_WITHER_SKELETON:
+    needed-amount: 10
+    action: SLAY
+    data:
+      entity: WITHER_SKELETON
+    rewards:
+      item_action:
+        type: 'give-vanilla-item'
+        value:
+          material: COAL
+          amount: 8
+  SLAY_WRAITH:
+    needed-amount: 3
+    action: SLAY
+    data:
+      entity: WRAITH
+    rewards:
+      item_action:
+        type: 'give-vanilla-item'
+        value:
+          material: ENDER_PEARL
+          amount: 2
+
+  # -------- LEVELUP CHALLENGES --------
+  LEVELUP_HELLBLOCK_50:
+    needed-amount: 1
+    action: LEVELUP
+    data:
+      level: 50
+    rewards:
+      item_action:
+        type: 'give-vanilla-item'
+        value:
+          material: GOLD_BLOCK
+          amount: 1
+  LEVELUP_HELLBLOCK_100:
+    needed-amount: 1
+    action: LEVELUP
+    data:
+      level: 100
+    rewards:
+      item_action:
+        type: 'give-vanilla-item'
+        value:
+          material: DIAMOND_BLOCK
+          amount: 1
+  LEVELUP_HELLBLOCK_250:
+    needed-amount: 1
+    action: LEVELUP
+    data:
+      level: 250
+    rewards:
+      item_action:
+        type: 'give-vanilla-item'
+        value:
+          material: NETHERITE_INGOT
+          amount: 1

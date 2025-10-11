@@ -2,7 +2,6 @@ package com.swiftlicious.hellblock.gui.reset;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -45,8 +44,8 @@ public class ResetConfirmGUIManager implements ResetConfirmGUIManagerInterface, 
 
 	protected TextValue<Player> title;
 	protected String[] layout;
-	protected final Map<Character, Pair<CustomItem, Action<Player>[]>> decorativeIcons;
-	protected final ConcurrentMap<UUID, ResetConfirmGUI> resetConfirmGUICache;
+	protected final Map<Character, Pair<CustomItem, Action<Player>[]>> decorativeIcons = new HashMap<>();
+	protected final ConcurrentMap<UUID, ResetConfirmGUI> resetConfirmGUICache = new ConcurrentHashMap<>();
 
 	protected char denySlot;
 	protected char confirmSlot;
@@ -58,8 +57,6 @@ public class ResetConfirmGUIManager implements ResetConfirmGUIManagerInterface, 
 
 	public ResetConfirmGUIManager(HellblockPlugin plugin) {
 		this.instance = plugin;
-		this.decorativeIcons = new HashMap<>();
-		this.resetConfirmGUICache = new ConcurrentHashMap<>();
 	}
 
 	@Override
@@ -75,7 +72,7 @@ public class ResetConfirmGUIManager implements ResetConfirmGUIManagerInterface, 
 	}
 
 	private void loadConfig() {
-		Section config = instance.getConfigManager().getMainConfig().getSection("confirm-reset.gui");
+		Section config = instance.getConfigManager().getGuiConfig().getSection("confirm-reset.gui");
 
 		this.layout = config.getStringList("layout").toArray(new String[0]);
 		this.title = TextValue.auto(config.getString("title", "confirm-reset.title"));
@@ -103,11 +100,25 @@ public class ResetConfirmGUIManager implements ResetConfirmGUIManagerInterface, 
 		if (decorativeSection != null) {
 			for (Map.Entry<String, Object> entry : decorativeSection.getStringRouteMappedValues(false).entrySet()) {
 				if (entry.getValue() instanceof Section innerSection) {
-					char symbol = Objects.requireNonNull(innerSection.getString("symbol")).charAt(0);
-					decorativeIcons.put(symbol, Pair.of(
-							new SingleItemParser("gui", innerSection,
-									instance.getConfigManager().getItemFormatFunctions()).getItem(),
-							instance.getActionManager(Player.class).parseActions(innerSection.getSection("action"))));
+					try {
+						String symbolStr = innerSection.getString("symbol");
+						if (symbolStr == null || symbolStr.isEmpty()) {
+							instance.getPluginLogger()
+									.severe("Decorative icon missing symbol in entry: " + entry.getKey());
+							continue;
+						}
+
+						char symbol = symbolStr.charAt(0);
+
+						decorativeIcons.put(symbol,
+								Pair.of(new SingleItemParser("gui", innerSection,
+										instance.getConfigManager().getItemFormatFunctions()).getItem(),
+										instance.getActionManager(Player.class)
+												.parseActions(innerSection.getSection("action"))));
+					} catch (Exception e) {
+						instance.getPluginLogger().severe("Failed to load decorative icon entry: " + entry.getKey()
+								+ " due to: " + e.getMessage());
+					}
 				}
 			}
 		}
@@ -138,9 +149,8 @@ public class ResetConfirmGUIManager implements ResetConfirmGUIManagerInterface, 
 		ResetConfirmGUI gui = new ResetConfirmGUI(this, context, optionalUserData.get().getHellblockData());
 		gui.addElement(new ResetConfirmDynamicGUIElement(denySlot, new ItemStack(Material.AIR)));
 		gui.addElement(new ResetConfirmDynamicGUIElement(confirmSlot, new ItemStack(Material.AIR)));
-		for (Map.Entry<Character, Pair<CustomItem, Action<Player>[]>> entry : decorativeIcons.entrySet()) {
-			gui.addElement(new ResetConfirmGUIElement(entry.getKey(), entry.getValue().left().build(context)));
-		}
+		decorativeIcons.entrySet().forEach(entry -> gui
+				.addElement(new ResetConfirmGUIElement(entry.getKey(), entry.getValue().left().build(context))));
 		gui.build().show();
 		gui.refresh();
 		resetConfirmGUICache.put(player.getUniqueId(), gui);
@@ -242,12 +252,31 @@ public class ResetConfirmGUIManager implements ResetConfirmGUIManagerInterface, 
 				ActionManager.trigger(gui.context, denyActions);
 				return;
 			}
+			
+			Sender audience = instance.getSenderFactory().wrap(gui.context.holder());
+
+			if (gui.hellblockData.getOwnerUUID() != null && !gui.hellblockData.getOwnerUUID().equals(gui.context.holder().getUniqueId())) {
+				audience.sendMessage(
+						instance.getTranslationManager().render(MessageConstants.MSG_NOT_OWNER_OF_HELLBLOCK.build()));
+				AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
+						Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
+								net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
+				return;
+			}
+
+			if (gui.hellblockData.isAbandoned()) {
+				audience.sendMessage(
+						instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_IS_ABANDONED.build()));
+				AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
+						Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
+								net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
+				return;
+			}
 
 			if (gui.hellblockData.getResetCooldown() > 0) {
 				gui.context.arg(ContextKeys.RESET_COOLDOWN, gui.hellblockData.getResetCooldown()).arg(
 						ContextKeys.RESET_COOLDOWN_FORMATTED,
 						instance.getFormattedCooldown(gui.hellblockData.getResetCooldown()));
-				Sender audience = instance.getSenderFactory().wrap(gui.context.holder());
 				audience.sendMessage(instance.getTranslationManager()
 						.render(MessageConstants.MSG_HELLBLOCK_RESET_ON_COOLDOWN.arguments(AdventureHelper
 								.miniMessage(instance.getFormattedCooldown(gui.hellblockData.getResetCooldown())))
@@ -260,8 +289,8 @@ public class ResetConfirmGUIManager implements ResetConfirmGUIManagerInterface, 
 
 			if (element.getSymbol() == confirmSlot) {
 				event.setCancelled(true);
-				instance.getHellblockHandler().resetHellblock(gui.context.holder().getUniqueId(), false)
-						.thenRun(() -> player.closeInventory());
+				instance.getHellblockHandler().resetHellblock(gui.context.holder().getUniqueId(), false, null)
+						.thenRun(player::closeInventory);
 				gui.context.clearCustomData();
 				ActionManager.trigger(gui.context, confirmActions);
 			}

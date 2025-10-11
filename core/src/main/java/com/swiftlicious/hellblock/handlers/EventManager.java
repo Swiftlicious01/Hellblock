@@ -50,8 +50,9 @@ public class EventManager implements EventManagerInterface, Listener {
 
 	@Override
 	public boolean registerEventCarrier(EventCarrier carrier) {
-		if (this.carriers.containsKey(carrier.id()))
+		if (this.carriers.containsKey(carrier.id())) {
 			return false;
+		}
 		this.carriers.put(carrier.type().getType() + ":" + carrier.id(), carrier);
 		return true;
 	}
@@ -59,26 +60,29 @@ public class EventManager implements EventManagerInterface, Listener {
 	@EventHandler
 	public void onInteract(PlayerInteractEvent event) {
 		if (event.getAction() != org.bukkit.event.block.Action.RIGHT_CLICK_AIR
-				&& event.getAction() != org.bukkit.event.block.Action.RIGHT_CLICK_BLOCK)
+				&& event.getAction() != org.bukkit.event.block.Action.RIGHT_CLICK_BLOCK) {
 			return;
-		EquipmentSlot slot = event.getHand();
+		}
+		final EquipmentSlot slot = event.getHand();
 		if (slot == null) {
 			return;
 		}
-		ItemStack itemStack = event.getPlayer().getInventory().getItem(slot);
-		if (itemStack.getType() == Material.AIR || itemStack.getAmount() == 0)
+		final ItemStack itemStack = event.getPlayer().getInventory().getItem(slot);
+		if (itemStack.getType() == Material.AIR || itemStack.getAmount() == 0) {
 			return;
-		String id = instance.getItemManager().getItemID(itemStack);
-		Context<Player> context = Context.player(event.getPlayer());
-		Block clicked = event.getClickedBlock();
+		}
+		final String id = instance.getItemManager().getItemID(itemStack);
+		final Context<Player> context = Context.player(event.getPlayer());
+		final Block clicked = event.getClickedBlock();
 		context.arg(ContextKeys.OTHER_LOCATION,
 				clicked == null ? event.getPlayer().getLocation() : clicked.getLocation());
 		context.arg(ContextKeys.SLOT, event.getHand());
-		List<MechanicType> mechanics = MechanicType.getTypeByID(id);
+		final List<MechanicType> mechanics = MechanicType.getTypeByID(id);
 		if (mechanics != null) {
 			for (MechanicType type : mechanics) {
-				if (type == MechanicType.ROD)
+				if (type == MechanicType.ROD) {
 					continue;
+				}
 				trigger(context, id, type, ActionTrigger.INTERACT);
 			}
 		}
@@ -86,7 +90,7 @@ public class EventManager implements EventManagerInterface, Listener {
 
 	@EventHandler(ignoreCancelled = true)
 	public void onConsumeItem(PlayerItemConsumeEvent event) {
-		Context<Player> context = Context.player(event.getPlayer());
+		final Context<Player> context = Context.player(event.getPlayer());
 		trigger(context, instance.getItemManager().getItemID(event.getItem()), MechanicType.LOOT,
 				ActionTrigger.CONSUME);
 	}

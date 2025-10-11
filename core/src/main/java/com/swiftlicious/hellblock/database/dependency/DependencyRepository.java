@@ -8,7 +8,9 @@ import java.net.URLConnection;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -17,21 +19,21 @@ import java.util.concurrent.TimeUnit;
 public enum DependencyRepository {
 
 	/**
-	 * Maven Mirror
+	 * Maven Central
 	 */
-	MAVEN_CENTRAL_MIRROR("maven", "https://maven.aliyun.com/repository/public/") {
+	MAVEN_CENTRAL("maven", "https://repo1.maven.org/maven2/") {
 		@Override
 		protected URLConnection openConnection(Dependency dependency) throws IOException {
-			URLConnection connection = super.openConnection(dependency);
+			final URLConnection connection = super.openConnection(dependency);
 			connection.setConnectTimeout((int) TimeUnit.SECONDS.toMillis(5));
 			connection.setReadTimeout((int) TimeUnit.SECONDS.toMillis(10));
 			return connection;
 		}
 	},
 	/**
-	 * Maven Central
+	 * Maven Mirror
 	 */
-	MAVEN_CENTRAL("maven", "https://repo1.maven.org/maven2/");
+	MAVEN_CENTRAL_MIRROR("maven", "https://maven.aliyun.com/repository/public/");
 
 	private final String url;
 	private final String id;
@@ -46,12 +48,16 @@ public enum DependencyRepository {
 	}
 
 	public static List<DependencyRepository> getByID(String id) {
-		List<DependencyRepository> repositories = new ArrayList<>();
+		final List<DependencyRepository> repositories = new ArrayList<>();
 		for (DependencyRepository repository : values()) {
 			if (id.equals(repository.id)) {
 				repositories.add(repository);
 			}
 		}
+        // 中国大陆优先使用阿里云镜像
+        if (Locale.getDefault() == Locale.SIMPLIFIED_CHINESE) {
+            Collections.reverse(repositories);
+        }
 		return repositories;
 	}
 
@@ -63,7 +69,7 @@ public enum DependencyRepository {
 	 * @throws IOException if unable to open a connection
 	 */
 	protected URLConnection openConnection(Dependency dependency) throws IOException {
-		URL dependencyUrl = URI.create(this.url + dependency.getMavenRepoPath()).toURL();
+		final URL dependencyUrl = URI.create(this.url + dependency.getMavenRepoPath()).toURL();
 		return dependencyUrl.openConnection();
 	}
 
@@ -76,9 +82,9 @@ public enum DependencyRepository {
 	 */
 	public byte[] downloadRaw(Dependency dependency) throws DependencyDownloadException {
 		try {
-			URLConnection connection = openConnection(dependency);
+			final URLConnection connection = openConnection(dependency);
 			try (InputStream in = connection.getInputStream()) {
-				byte[] bytes = in.readAllBytes();
+				final byte[] bytes = in.readAllBytes();
 				if (bytes.length == 0) {
 					throw new DependencyDownloadException("Empty stream");
 				}

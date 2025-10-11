@@ -40,8 +40,8 @@ public final class UUIDFetcher {
 	 * @return The UUID of the given player.
 	 */
 	public static UUID getUUID(String name) {
-		String output = callURL(UUID_URL + name);
-		Matcher m = UUID_PATTERN.matcher(output);
+		final String output = callURL(UUID_URL + name);
+		final Matcher m = UUID_PATTERN.matcher(output);
 		if (m.find()) {
 			return UUID.fromString(insertDashes(m.group(1)));
 		}
@@ -54,7 +54,7 @@ public final class UUIDFetcher {
 	 * @return Formatted UUID with dashes.
 	 */
 	public static String insertDashes(String uuid) {
-		StringBuilder sb = new StringBuilder(uuid);
+		final StringBuilder sb = new StringBuilder(uuid);
 		sb.insert(8, '-');
 		sb.insert(13, '-');
 		sb.insert(18, '-');
@@ -63,8 +63,8 @@ public final class UUIDFetcher {
 	}
 
 	private static String callURL(String urlStr) {
-		StringBuilder sb = new StringBuilder();
-		URLConnection conn;
+		final StringBuilder sb = new StringBuilder();
+		final URLConnection conn;
 		BufferedReader br = null;
 		InputStreamReader in = null;
 		try {

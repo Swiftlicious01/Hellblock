@@ -5,15 +5,24 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.format.TextStyle;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.OfflinePlayer;
+import org.bukkit.World;
+import org.bukkit.entity.Player;
 import org.bukkit.util.BoundingBox;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -21,11 +30,24 @@ import org.jetbrains.annotations.Nullable;
 import com.google.gson.annotations.Expose;
 import com.google.gson.annotations.SerializedName;
 import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.config.locale.MessageConstants;
+import com.swiftlicious.hellblock.config.locale.TranslationManager;
 import com.swiftlicious.hellblock.generation.HellBiome;
 import com.swiftlicious.hellblock.generation.IslandOptions;
+import com.swiftlicious.hellblock.handlers.AdventureHelper;
+import com.swiftlicious.hellblock.handlers.VersionHelper;
+import com.swiftlicious.hellblock.handlers.VisitManager;
+import com.swiftlicious.hellblock.handlers.VisitManager.VisitRecord;
+import com.swiftlicious.hellblock.player.DisplaySettings.DisplayChoice;
 import com.swiftlicious.hellblock.protection.HellblockFlag;
 import com.swiftlicious.hellblock.protection.HellblockFlag.AccessType;
 import com.swiftlicious.hellblock.protection.HellblockFlag.FlagType;
+import com.swiftlicious.hellblock.sender.Sender;
+import com.swiftlicious.hellblock.upgrades.IslandUpgradeType;
+import com.swiftlicious.hellblock.upgrades.UpgradeCost;
+import com.swiftlicious.hellblock.upgrades.UpgradeData;
+
+import net.kyori.adventure.text.Component;
 
 public class HellblockData {
 
@@ -48,6 +70,9 @@ public class HellblockData {
 	@SerializedName("bounds")
 	protected BoundingBox boundingBox;
 	@Expose
+	@SerializedName("display")
+	protected DisplaySettings display;
+	@Expose
 	@SerializedName("party")
 	protected Set<UUID> party;
 	@Expose
@@ -63,6 +88,9 @@ public class HellblockData {
 	@SerializedName("flags")
 	protected Map<FlagType, AccessType> flags;
 	@Expose
+	@SerializedName("upgrades")
+	protected EnumMap<IslandUpgradeType, Integer> upgrades;
+	@Expose
 	@SerializedName("location")
 	protected Location location;
 	@Expose
@@ -72,8 +100,11 @@ public class HellblockData {
 	@SerializedName("creation")
 	protected long creationTime;
 	@Expose
-	@SerializedName("visitors")
-	protected int visitors;
+	@SerializedName("visitdata")
+	protected VisitData visitData;
+	@Expose
+	@SerializedName("recentvisitors")
+	protected List<VisitRecord> recentVisitors;
 	@Expose
 	@SerializedName("biome")
 	protected HellBiome biome;
@@ -99,11 +130,14 @@ public class HellblockData {
 	@SerializedName("transfercooldown")
 	protected long transferCooldown;
 
-	public final static float DEFAULT_LEVEL = 1.0F;
+	public static final float DEFAULT_LEVEL = 1.0F;
+
+	private static final long NO_EXPIRY = 0L;
 
 	public HellblockData(int id, float level, boolean hasHellblock, UUID ownerUUID, UUID linkedUUID,
-			BoundingBox boundingBox, Set<UUID> party, Set<UUID> trusted, Set<UUID> banned, Map<UUID, Long> invitations,
-			Map<FlagType, AccessType> flags, Location location, Location home, long creationTime, int visitors,
+			BoundingBox boundingBox, DisplaySettings display, Set<UUID> party, Set<UUID> trusted, Set<UUID> banned,
+			Map<UUID, Long> invitations, Map<FlagType, AccessType> flags, EnumMap<IslandUpgradeType, Integer> upgrades,
+			Location location, Location home, long creationTime, VisitData visitData, List<VisitRecord> recentVisitors,
 			HellBiome biome, IslandOptions choice, String schematic, boolean locked, boolean abandoned,
 			long resetCooldown, long biomeCooldown, long transferCooldown) {
 		this.id = id;
@@ -112,15 +146,18 @@ public class HellblockData {
 		this.ownerUUID = ownerUUID;
 		this.linkedUUID = linkedUUID;
 		this.boundingBox = boundingBox;
+		this.display = display;
 		this.party = party;
 		this.trusted = trusted;
 		this.banned = banned;
 		this.invitations = invitations;
 		this.flags = flags;
+		this.upgrades = upgrades;
 		this.location = location;
 		this.home = home;
 		this.creationTime = creationTime;
-		this.visitors = visitors;
+		this.visitData = visitData;
+		this.recentVisitors = recentVisitors;
 		this.biome = biome;
 		this.choice = choice;
 		this.schematic = schematic;
@@ -151,8 +188,116 @@ public class HellblockData {
 		return this.level;
 	}
 
-	public int getTotalVisits() {
-		return this.visitors;
+	public @NotNull VisitData getVisitData() {
+		return this.visitData;
+	}
+
+	public @NotNull List<VisitRecord> getRecentVisitors() {
+		return Collections.unmodifiableList(recentVisitors);
+	}
+
+	public @NotNull DisplaySettings getDisplaySettings() {
+		return this.display;
+	}
+
+	public String getDefaultIslandBio() {
+		final HellblockPlugin plugin = HellblockPlugin.getInstance();
+
+		// 1. Resolve the base translation
+		String template = plugin.getTranslationManager()
+				.miniMessageTranslation(MessageConstants.MSG_HELLBLOCK_BIO_DEFAULT
+						.arguments(Component.text(getResolvedOwnerName()), Component.text(this.level),
+								Component.text(this.party.size()), Component.text(this.display.getIslandName()))
+						.build().key());
+
+		// 2. Fallback in case translation is missing
+		if (template == null || template.isBlank()) {
+			template = "<gray>Welcome to</gray> <red><arg:0></red><gray>'s Hellblock island.</gray>";
+		}
+
+		return template;
+	}
+
+	public String getDefaultIslandName() {
+		final HellblockPlugin plugin = HellblockPlugin.getInstance();
+
+		// 1. Resolve the base translation
+		String template = plugin.getTranslationManager()
+				.miniMessageTranslation(MessageConstants.MSG_HELLBLOCK_NAME_DEFAULT
+						.arguments(Component.text(getResolvedOwnerName())).build().key());
+
+		// 2. Fallback in case translation is missing
+		if (template == null || template.isBlank()) {
+			template = "<red><arg:0></red><dark_red>'s Hellblock</dark_red>";
+		}
+
+		return template;
+	}
+
+	public Component displayIslandBioWithContext() {
+		final HellblockPlugin plugin = HellblockPlugin.getInstance();
+		final String rawBio = Optional.of(getDisplaySettings().getIslandBio()).filter(b -> !b.isBlank())
+				.orElseGet(this::getDefaultIslandBio);
+
+		// Replace placeholders dynamically
+		String resolved = rawBio.replace("<arg:0>", getResolvedOwnerName())
+				.replace("<arg:1>", String.valueOf(getLevel())).replace("<arg:2>", String.valueOf(getParty().size()))
+				.replace("<arg:3>", getDisplaySettings().getIslandName());
+
+		try {
+			return AdventureHelper.getMiniMessage().deserialize(resolved);
+		} catch (Exception ex) {
+			plugin.getPluginLogger()
+					.warn("Failed to parse island bio for " + getResolvedOwnerName() + ": " + ex.getMessage());
+			return Component.text(resolved);
+		}
+	}
+
+	public Component displayIslandNameWithContext() {
+		final HellblockPlugin plugin = HellblockPlugin.getInstance();
+		final String rawName = Optional.of(getDisplaySettings().getIslandName()).filter(b -> !b.isBlank())
+				.orElseGet(this::getDefaultIslandName);
+
+		// Replace placeholders dynamically
+		String resolved = rawName.replace("<arg:0>", getResolvedOwnerName());
+
+		try {
+			return AdventureHelper.getMiniMessage().deserialize(resolved);
+		} catch (Exception ex) {
+			plugin.getPluginLogger()
+					.warn("Failed to parse island name for " + getResolvedOwnerName() + ": " + ex.getMessage());
+			return Component.text(resolved);
+		}
+	}
+
+	public void sendDisplayTextTo(Player viewer) {
+		final HellblockPlugin plugin = HellblockPlugin.getInstance();
+		final DisplaySettings settings = getDisplaySettings();
+
+		final DisplayChoice choice = settings.getDisplayChoice();
+
+		Component name = displayIslandNameWithContext();
+		Component bio = displayIslandBioWithContext();
+
+		Sender audience = HellblockPlugin.getInstance().getSenderFactory().wrap(viewer);
+
+		switch (choice) {
+		case CHAT -> {
+			AdventureHelper.sendCenteredMessage(audience, name);
+			AdventureHelper.sendCenteredMessage(audience, bio);
+		}
+		case TITLE -> {
+			try {
+				VersionHelper.getNMSManager().sendTitle(viewer, AdventureHelper.componentToJson(name),
+						AdventureHelper.componentToJson(bio), 10, 40, 20);
+			} catch (Exception ex) {
+				plugin.getPluginLogger().warn("Failed to send title to " + viewer.getName() + ": " + ex.getMessage());
+				// fallback to chat
+				AdventureHelper.sendCenteredMessage(audience, name);
+				AdventureHelper.sendCenteredMessage(audience, bio);
+			}
+		}
+		}
 	}
 
 	public @Nullable HellBiome getBiome() {
@@ -172,13 +317,13 @@ public class HellblockData {
 	}
 
 	public @NotNull String getCreationTime() {
-		LocalDateTime localDate = LocalDateTime.ofInstant(Instant.ofEpochMilli(this.creationTime),
+		final LocalDateTime localDate = LocalDateTime.ofInstant(Instant.ofEpochMilli(this.creationTime),
 				ZoneId.systemDefault());
-		Locale locale = HellblockPlugin.getInstance().getTranslationManager().parseLocale(
+		final Locale locale = HellblockPlugin.getInstance().getTranslationManager().parseLocale(
 				HellblockPlugin.getInstance().getConfigManager().getMainConfig().getString("force-locale", ""));
-		DateTimeFormatter formatter = DateTimeFormatter.ofPattern("KK:mm:ss a", locale);
-		String now = localDate.format(formatter);
-		return String.format("%s %s %s %s", localDate.getMonth().getDisplayName(TextStyle.FULL, locale),
+		final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("KK:mm:ss a", locale);
+		final String now = localDate.format(formatter);
+		return "%s %s %s %s".formatted(localDate.getMonth().getDisplayName(TextStyle.FULL, locale),
 				localDate.getDayOfMonth(), localDate.getYear(), now);
 	}
 
@@ -196,6 +341,24 @@ public class HellblockData {
 
 	public @Nullable UUID getOwnerUUID() {
 		return this.ownerUUID;
+	}
+
+	public String getResolvedOwnerName() {
+		if (this.ownerUUID == null) {
+			return HellblockPlugin.getInstance().getTranslationManager()
+					.miniMessageTranslation(MessageConstants.FORMAT_UNKNOWN.build().key());
+		}
+
+		OfflinePlayer offline = Bukkit.getOfflinePlayer(this.ownerUUID);
+		if (offline.hasPlayedBefore() && offline.getName() != null) {
+			return offline.getName();
+		}
+		return HellblockPlugin.getInstance().getTranslationManager()
+				.miniMessageTranslation(MessageConstants.FORMAT_UNKNOWN.build().key());
+	}
+
+	public boolean isOwner(@NotNull UUID id) {
+		return this.ownerUUID.equals(id);
 	}
 
 	public @Nullable UUID getLinkedUUID() {
@@ -218,6 +381,21 @@ public class HellblockData {
 		return this.party;
 	}
 
+	public boolean isInParty(@NotNull UUID id) {
+		return this.party.contains(id);
+	}
+
+	public @NotNull Set<UUID> getPartyPlusOwner() {
+		final Set<UUID> members = new HashSet<>();
+		if (this.ownerUUID != null) {
+			members.add(this.ownerUUID);
+		}
+		if (!this.party.isEmpty()) {
+			members.addAll(this.party);
+		}
+		return members;
+	}
+
 	public @NotNull Set<UUID> getTrusted() {
 		return this.trusted;
 	}
@@ -227,14 +405,21 @@ public class HellblockData {
 	}
 
 	public @NotNull Set<UUID> getIslandMembers() {
-		Set<UUID> members = new HashSet<>();
-		if (this.ownerUUID != null)
+		final Set<UUID> members = new HashSet<>();
+		if (this.ownerUUID != null) {
 			members.add(this.ownerUUID);
-		if (this.party != null && !this.party.isEmpty())
+		}
+		if (!this.party.isEmpty()) {
 			members.addAll(this.party);
-		if (this.trusted != null && !this.trusted.isEmpty())
+		}
+		if (!this.trusted.isEmpty()) {
 			members.addAll(this.trusted);
+		}
 		return members;
+	}
+
+	public boolean canAccess(@NotNull UUID playerID) {
+		return getIslandMembers().contains(playerID);
 	}
 
 	public @NotNull Map<UUID, Long> getInvitations() {
@@ -242,31 +427,15 @@ public class HellblockData {
 	}
 
 	public boolean hasInvite(@NotNull UUID playerID) {
-		boolean inviteExists = false;
-		if (!this.invitations.isEmpty()) {
-			for (Map.Entry<UUID, Long> invites : this.invitations.entrySet()) {
-				if (invites.getKey().equals(playerID)) {
-					inviteExists = true;
-					break;
-				}
-			}
-		}
-		return inviteExists;
+		return invitations.containsKey(playerID);
 	}
 
 	public boolean hasInviteExpired(@NotNull UUID playerID) {
-		boolean expired = false;
-		if (!this.invitations.isEmpty()) {
-			for (Map.Entry<UUID, Long> invites : this.invitations.entrySet()) {
-				if (invites.getKey().equals(playerID)) {
-					if (invites.getValue().longValue() == 0) {
-						expired = true;
-						break;
-					}
-				}
-			}
+		final Long expiry = invitations.get(playerID);
+		if (expiry == null) {
+			return false; // no invite
 		}
-		return expired;
+		return expiry != NO_EXPIRY && System.currentTimeMillis() > expiry;
 	}
 
 	public @NotNull Map<FlagType, AccessType> getProtectionFlags() {
@@ -274,31 +443,201 @@ public class HellblockData {
 	}
 
 	public @NotNull AccessType getProtectionValue(@NotNull FlagType flag) {
-		AccessType returnValue = flag.getDefaultValue() ? AccessType.ALLOW : AccessType.DENY;
-		if (!this.flags.isEmpty()) {
-			for (Map.Entry<FlagType, AccessType> flags : this.flags.entrySet()) {
-				if (flags.getKey().getName().equalsIgnoreCase(flag.getName())) {
-					returnValue = flags.getValue();
-					break;
-				}
-			}
-		}
-		return returnValue;
+		return flags.getOrDefault(flag, flag.getDefaultValue() ? AccessType.ALLOW : AccessType.DENY);
 	}
 
 	public @Nullable String getProtectionData(@NotNull FlagType flag) {
-		if (!(flag == FlagType.GREET_MESSAGE || flag == FlagType.FAREWELL_MESSAGE))
+		if (flag != FlagType.GREET_MESSAGE && flag != FlagType.FAREWELL_MESSAGE) {
 			return null;
-		String data = flag.getData() != null ? flag.getData() : null;
-		if (!this.flags.isEmpty()) {
-			for (Map.Entry<FlagType, AccessType> flags : this.flags.entrySet()) {
-				if (flags.getKey().getName().equalsIgnoreCase(flag.getName())) {
-					data = flags.getKey().getData();
-					break;
-				}
-			}
 		}
-		return data;
+		// Either return the data from stored flag (if present) or fall back to the
+		// enum’s data
+		return flags.containsKey(flag) ? flag.getData() : flag.getData();
+	}
+
+	public @NotNull EnumMap<IslandUpgradeType, Integer> getIslandUpgrades() {
+		return this.upgrades;
+	}
+
+	public int getUpgradeLevel(@NotNull IslandUpgradeType type) {
+		return this.upgrades.getOrDefault(type, 0);
+	}
+
+	public boolean canUpgrade(@NotNull IslandUpgradeType type) {
+		return getUpgradeLevel(type) < HellblockPlugin.getInstance().getUpgradeManager().getMaxTierFor(type);
+	}
+
+	public Number getValue(@NotNull IslandUpgradeType type) {
+		return HellblockPlugin.getInstance().getUpgradeManager().getTier(getUpgradeLevel(type)).getUpgrade(type)
+				.getValue();
+	}
+
+	public Integer getIntValue(IslandUpgradeType type) {
+		return (Integer) getValue(type);
+	}
+
+	public Double getDoubleValue(IslandUpgradeType type) {
+		return (Double) getValue(type);
+	}
+
+	public @NotNull List<UpgradeCost> getCurrentCosts(@NotNull IslandUpgradeType type) {
+		return HellblockPlugin.getInstance().getUpgradeManager().getTier(getUpgradeLevel(type)).getUpgrade(type)
+				.getCosts();
+	}
+
+	public @NotNull List<UpgradeCost> getNextCosts(@NotNull IslandUpgradeType type) {
+		final UpgradeData next = HellblockPlugin.getInstance().getUpgradeManager()
+				.getNextUpgradeData(getUpgradeLevel(type), type);
+		return (next != null) ? next.getCosts() : null;
+	}
+
+	/**
+	 * Apply upgrade (increases stored level and applies bounds/values when needed).
+	 * This method assumes permission/payment checks are done externally.
+	 */
+	public void applyUpgrade(@NotNull IslandUpgradeType type) {
+		if (!canUpgrade(type)) {
+			return;
+		}
+
+		// Increase stored tier for this upgrade type
+		upgradeTier(type);
+
+		final Player ownerPlayer = Bukkit.getPlayer(this.ownerUUID);
+		if (ownerPlayer == null || !ownerPlayer.isOnline()) {
+			throw new IllegalStateException("Owner is not online while trying to apply an upgrade.");
+		}
+
+		final Sender owner = HellblockPlugin.getInstance().getSenderFactory().wrap(ownerPlayer);
+		final TranslationManager tm = HellblockPlugin.getInstance().getTranslationManager();
+
+		final Component message;
+		final Component memberMessage;
+		Component arg;
+
+		switch (type) {
+		case PROTECTION_RANGE -> {
+			int newRange = getMaxProtectionRange();
+			expandBoundingBox(newRange);
+			arg = Component.text(newRange);
+
+			message = tm.render(MessageConstants.MSG_HELLBLOCK_UPGRADE_RANGE.arguments(arg).build());
+			memberMessage = tm.render(MessageConstants.MSG_HELLBLOCK_UPGRADE_RANGE_MEMBER
+					.arguments(Component.text(ownerPlayer.getName()), arg).build());
+		}
+		case PARTY_SIZE -> {
+			int newPartySize = getMaxPartySize();
+			arg = Component.text(newPartySize);
+
+			message = tm.render(MessageConstants.MSG_HELLBLOCK_UPGRADE_PARTY.arguments(arg).build());
+			memberMessage = tm.render(MessageConstants.MSG_HELLBLOCK_UPGRADE_PARTY_MEMBER
+					.arguments(Component.text(ownerPlayer.getName()), arg).build());
+		}
+		case HOPPER_LIMIT -> {
+			int newHopperLimit = getMaxHopperLimit();
+			arg = Component.text(newHopperLimit);
+
+			message = tm.render(MessageConstants.MSG_HELLBLOCK_UPGRADE_HOPPER.arguments(arg).build());
+			memberMessage = tm.render(MessageConstants.MSG_HELLBLOCK_UPGRADE_HOPPER_MEMBER
+					.arguments(Component.text(ownerPlayer.getName()), arg).build());
+		}
+		case GENERATOR_CHANCE -> {
+			double newGeneratorChance = getNewGeneratorChance();
+			arg = Component.text(newGeneratorChance);
+
+			message = tm.render(MessageConstants.MSG_HELLBLOCK_UPGRADE_GENERATOR.arguments(arg).build());
+			memberMessage = tm.render(MessageConstants.MSG_HELLBLOCK_UPGRADE_GENERATOR_MEMBER
+					.arguments(Component.text(ownerPlayer.getName()), arg).build());
+		}
+		case PIGLIN_BARTERING -> {
+			double piglinBarteringChance = getNewBarteringChance();
+			arg = Component.text(piglinBarteringChance);
+
+			message = tm.render(MessageConstants.MSG_HELLBLOCK_UPGRADE_BARTERING.arguments(arg).build());
+			memberMessage = tm.render(MessageConstants.MSG_HELLBLOCK_UPGRADE_BARTERING_MEMBER
+					.arguments(Component.text(ownerPlayer.getName()), arg).build());
+		}
+		case CROP_GROWTH -> {
+			double cropGrowthRate = getNewCropGrowthRate();
+			arg = Component.text(cropGrowthRate);
+
+			message = tm.render(MessageConstants.MSG_HELLBLOCK_UPGRADE_CROP.arguments(arg).build());
+			memberMessage = tm.render(MessageConstants.MSG_HELLBLOCK_UPGRADE_CROP_MEMBER
+					.arguments(Component.text(ownerPlayer.getName()), arg).build());
+		}
+		case MOB_SPAWN_RATE -> {
+			double mobSpawnRate = getNewMobSpawningRate();
+			arg = Component.text(mobSpawnRate);
+
+			message = tm.render(MessageConstants.MSG_HELLBLOCK_UPGRADE_MOB.arguments(arg).build());
+			memberMessage = tm.render(MessageConstants.MSG_HELLBLOCK_UPGRADE_MOB_MEMBER
+					.arguments(Component.text(ownerPlayer.getName()), arg).build());
+		}
+		default -> {
+			return; // Safety for future upgrades
+		}
+		}
+
+		// Send message to owner
+		owner.sendMessage(message);
+
+		// Send message to all online party members
+		this.party.stream().map(Bukkit::getPlayer).filter(member -> member != null && member.isOnline())
+				.map(member -> HellblockPlugin.getInstance().getSenderFactory().wrap(member))
+				.forEach(sender -> sender.sendMessage(memberMessage));
+	}
+
+	/**
+	 * Expands or rebuilds the island bounding box to match the absolute protection
+	 * range.
+	 *
+	 * @param newRange The absolute protection range (from upgrades).
+	 */
+	public void expandBoundingBox(int newRange) {
+		final Location center = getHellblockLocation();
+		final World world = center.getWorld();
+
+		if (world == null) {
+			throw new IllegalStateException("World not loaded for island center");
+		}
+
+		final double half = newRange / 2.0;
+
+		// Create a new Bukkit BoundingBox using absolute coordinates
+		this.boundingBox = new BoundingBox(center.getX() - half, world.getMinHeight(), center.getZ() - half,
+				center.getX() + half, world.getMaxHeight(), center.getZ() + half);
+	}
+
+	public int getMaxPartySize() {
+		return getIntValue(IslandUpgradeType.PARTY_SIZE);
+	}
+
+	public int getMaxPlayersIncludingOwner() {
+		return 1 + getMaxPartySize();
+	}
+
+	public int getMaxProtectionRange() {
+		return getIntValue(IslandUpgradeType.PROTECTION_RANGE);
+	}
+
+	public int getMaxHopperLimit() {
+		return getIntValue(IslandUpgradeType.HOPPER_LIMIT);
+	}
+
+	public double getNewGeneratorChance() {
+		return getDoubleValue(IslandUpgradeType.GENERATOR_CHANCE);
+	}
+
+	public double getNewBarteringChance() {
+		return getDoubleValue(IslandUpgradeType.PIGLIN_BARTERING);
+	}
+
+	public double getNewCropGrowthRate() {
+		return getDoubleValue(IslandUpgradeType.CROP_GROWTH);
+	}
+
+	public double getNewMobSpawningRate() {
+		return getDoubleValue(IslandUpgradeType.MOB_SPAWN_RATE);
 	}
 
 	public void setDefaultHellblockData(boolean hasHellblock, @Nullable Location hellblockLocation, int hellblockID) {
@@ -307,11 +646,27 @@ public class HellblockData {
 		this.id = hellblockID;
 		this.level = HellblockData.DEFAULT_LEVEL;
 		this.biome = HellBiome.NETHER_WASTES;
+		this.display = new DisplaySettings(getDefaultIslandName(), getDefaultIslandBio(), DisplayChoice.CHAT);
+		this.display.setAsDefaultIslandName();
+		this.display.setAsDefaultIslandBio();
 	}
 
 	public void transferHellblockData(@NotNull UserData transferee) {
 		this.id = transferee.getHellblockData().id;
 		this.hasHellblock = transferee.getHellblockData().hasHellblock;
+		this.display = transferee.getHellblockData().display;
+		if (this.display.isDefaultIslandBio() && !this.display.getIslandBio().contains(getResolvedOwnerName())) {
+			this.display.setIslandBio(getDefaultIslandBio());
+			this.display.setAsDefaultIslandBio();
+			HellblockPlugin.getInstance()
+					.debug("Updated island bio for " + getResolvedOwnerName() + " due to ownership transfer.");
+		}
+		if (this.display.isDefaultIslandName() && !this.display.getIslandName().contains(getResolvedOwnerName())) {
+			this.display.setIslandName(getDefaultIslandName());
+			this.display.setAsDefaultIslandName();
+			HellblockPlugin.getInstance()
+					.debug("Updated island name for " + getResolvedOwnerName() + " due to ownership transfer.");
+		}
 		this.location = transferee.getHellblockData().location;
 		this.home = transferee.getHellblockData().home;
 		this.level = transferee.getHellblockData().level;
@@ -319,16 +674,21 @@ public class HellblockData {
 		this.trusted = transferee.getHellblockData().trusted;
 		this.banned = transferee.getHellblockData().banned;
 		this.flags = transferee.getHellblockData().flags;
+		this.upgrades = transferee.getHellblockData().upgrades;
 		this.biome = transferee.getHellblockData().biome;
 		this.biomeCooldown = transferee.getHellblockData().biomeCooldown;
 		this.resetCooldown = transferee.getHellblockData().resetCooldown;
 		this.creationTime = transferee.getHellblockData().creationTime;
+		final BoundingBox oldBoundingBox = this.boundingBox;
 		this.boundingBox = transferee.getHellblockData().boundingBox;
 		this.ownerUUID = transferee.getHellblockData().ownerUUID;
 		this.choice = transferee.getHellblockData().choice;
 		this.schematic = transferee.getHellblockData().schematic;
 		this.locked = transferee.getHellblockData().locked;
-		this.visitors = transferee.getHellblockData().visitors;
+		this.visitData = transferee.getHellblockData().visitData;
+		this.recentVisitors = transferee.getHellblockData().recentVisitors;
+		HellblockPlugin.getInstance().getHopperHandler().transferHoppers(oldBoundingBox,
+				transferee.getHellblockData().boundingBox);
 	}
 
 	public void resetHellblockData() {
@@ -336,20 +696,23 @@ public class HellblockData {
 		this.location = null;
 		this.home = null;
 		this.level = 0.0F;
-		this.party = new HashSet<>();
-		this.trusted = new HashSet<>();
-		this.banned = new HashSet<>();
-		this.flags = new HashMap<>();
-		this.invitations = new HashMap<>();
+		this.party.clear();
+		this.trusted.clear();
+		this.banned.clear();
+		this.flags.clear();
+		this.upgrades.clear();
+		setDefaultUpgradeTiers();
 		this.biome = null;
 		this.biomeCooldown = 0L;
 		this.creationTime = 0L;
+		HellblockPlugin.getInstance().getHopperHandler().clearHoppers(this.boundingBox);
 		this.boundingBox = null;
 		this.ownerUUID = null;
 		this.choice = null;
 		this.schematic = null;
 		this.locked = false;
-		this.visitors = 0;
+		getVisitData().reset();
+		this.recentVisitors.clear();
 	}
 
 	public void setHasHellblock(boolean hasHellblock) {
@@ -388,24 +751,24 @@ public class HellblockData {
 		this.level = this.level - levels;
 	}
 
-	public void setTotalVisits(int visitors) {
-		this.visitors = visitors;
+	public void setVisitData(@NotNull VisitData visitData) {
+		this.visitData = visitData;
 	}
 
-	public void addTotalVisit() {
-		this.visitors++;
+	public void addVisitor(@NotNull UUID visitorId) {
+		VisitManager visitManager = HellblockPlugin.getInstance().getVisitManager();
+		recentVisitors.add(visitManager.new VisitRecord(visitorId));
+		if (recentVisitors.size() > 50) {
+			recentVisitors.remove(0); // remove oldest
+		}
 	}
 
-	public void removeTotalVisit() {
-		this.visitors--;
+	public void cleanupOldVisitors(long cutoff) {
+		recentVisitors.removeIf(record -> record.getTimestamp() < cutoff);
 	}
 
-	public void addToTotalVisits(int visits) {
-		this.visitors = this.visitors + visits;
-	}
-
-	public void removeFromTotalVisits(int visits) {
-		this.visitors = this.visitors - visits;
+	public void setDisplaySettings(@Nullable DisplaySettings display) {
+		this.display = display;
 	}
 
 	public void setBiome(@Nullable HellBiome biome) {
@@ -436,6 +799,12 @@ public class HellblockData {
 		this.transferCooldown = transferCooldown;
 	}
 
+	public void resetAllCooldowns() {
+		this.resetCooldown = 0L;
+		this.biomeCooldown = 0L;
+		this.transferCooldown = 0L;
+	}
+
 	public void setOwnerUUID(@Nullable UUID ownerUUID) {
 		this.ownerUUID = ownerUUID;
 	}
@@ -457,53 +826,59 @@ public class HellblockData {
 	}
 
 	public void addToParty(@NotNull UUID newMember) {
-		if (!this.party.contains(newMember))
+		if (!this.party.contains(newMember)) {
 			this.party.add(newMember);
+		}
 	}
 
 	public void kickFromParty(@NotNull UUID oldMember) {
-		if (this.party.contains(oldMember))
+		if (this.party.contains(oldMember)) {
 			this.party.remove(oldMember);
+		}
 	}
 
-	public void setParty(@Nullable Set<UUID> partyMembers) {
+	public void setParty(@NotNull Set<UUID> partyMembers) {
 		this.party = partyMembers;
 	}
 
 	public void addTrustPermission(@NotNull UUID newTrustee) {
-		if (!this.trusted.contains(newTrustee))
+		if (!this.trusted.contains(newTrustee)) {
 			this.trusted.add(newTrustee);
+		}
 	}
 
 	public void removeTrustPermission(@NotNull UUID oldTrustee) {
-		if (this.trusted.contains(oldTrustee))
+		if (this.trusted.contains(oldTrustee)) {
 			this.trusted.remove(oldTrustee);
+		}
 	}
 
-	public void setTrusted(@Nullable Set<UUID> trustedMembers) {
+	public void setTrusted(@NotNull Set<UUID> trustedMembers) {
 		this.trusted = trustedMembers;
 	}
 
 	public void banPlayer(@NotNull UUID bannedPlayer) {
-		if (!this.banned.contains(bannedPlayer))
+		if (!this.banned.contains(bannedPlayer)) {
 			this.banned.add(bannedPlayer);
+		}
 	}
 
 	public void unbanPlayer(@NotNull UUID unbannedPlayer) {
-		if (this.banned.contains(unbannedPlayer))
+		if (this.banned.contains(unbannedPlayer)) {
 			this.banned.remove(unbannedPlayer);
+		}
 	}
 
-	public void setBanned(@Nullable Set<UUID> bannedPlayers) {
+	public void setBanned(@NotNull Set<UUID> bannedPlayers) {
 		this.banned = bannedPlayers;
 	}
 
-	public void setInvitations(@Nullable Map<UUID, Long> invitations) {
+	public void setInvitations(@NotNull Map<UUID, Long> invitations) {
 		this.invitations = invitations;
 	}
 
 	public void sendInvitation(@NotNull UUID playerID) {
-		this.invitations.putIfAbsent(playerID, 86400L);
+		this.invitations.putIfAbsent(playerID, TimeUnit.SECONDS.toDays(86400));
 	}
 
 	public void removeInvitation(@NotNull UUID playerID) {
@@ -516,24 +891,32 @@ public class HellblockData {
 		this.invitations.clear();
 	}
 
-	public void setProtectionFlags(@Nullable Map<FlagType, AccessType> flags) {
+	public void setProtectionFlags(@NotNull Map<FlagType, AccessType> flags) {
 		this.flags = flags;
 	}
 
 	public void setProtectionValue(@NotNull HellblockFlag flag) {
-		if (!this.flags.isEmpty()) {
-			for (Iterator<Map.Entry<FlagType, AccessType>> iterator = this.flags.entrySet().iterator(); iterator
-					.hasNext();) {
-				Map.Entry<FlagType, AccessType> flags = iterator.next();
-				if (flags.getKey().getName().equalsIgnoreCase(flag.getFlag().getName())) {
-					iterator.remove();
-				}
-			}
-		}
+		final FlagType type = flag.getFlag();
+		final AccessType defaultValue = type.getDefaultValue() ? AccessType.ALLOW : AccessType.DENY;
 
-		AccessType returnValue = flag.getFlag().getDefaultValue() ? AccessType.ALLOW : AccessType.DENY;
-		if (flag.getStatus() != returnValue) {
-			this.flags.put(flag.getFlag(), flag.getStatus());
+		if (flag.getStatus() != defaultValue) {
+			this.flags.put(type, flag.getStatus());
+		} else {
+			this.flags.remove(type);
+		}
+	}
+
+	public void setIslandUpgrades(@NotNull EnumMap<IslandUpgradeType, Integer> upgrades) {
+		this.upgrades = upgrades;
+	}
+
+	public void upgradeTier(IslandUpgradeType type) {
+		this.upgrades.put(type, getUpgradeLevel(type) + 1);
+	}
+
+	public void setDefaultUpgradeTiers() {
+		for (IslandUpgradeType upgrade : IslandUpgradeType.values()) {
+			this.upgrades.put(upgrade, 0);
 		}
 	}
 
@@ -543,13 +926,15 @@ public class HellblockData {
 	 * @return a new instance of HellblockData with default values.
 	 */
 	public static @NotNull HellblockData empty() {
-		return new HellblockData(0, 0.0F, false, null, null, null, new HashSet<>(), new HashSet<>(), new HashSet<>(),
-				new HashMap<>(), new HashMap<>(), null, null, 0L, 0, null, null, null, false, false, 0L, 0L, 0L);
+		return new HellblockData(0, 0.0F, false, null, null, null, new DisplaySettings("", "", DisplayChoice.CHAT),
+				new HashSet<>(), new HashSet<>(), new HashSet<>(), new HashMap<>(), new HashMap<>(),
+				new EnumMap<>(IslandUpgradeType.class), null, null, 0L, new VisitData(), new ArrayList<>(), null, null,
+				null, false, false, 0L, 0L, 0L);
 	}
 
 	public @NotNull HellblockData copy() {
-		return new HellblockData(id, level, hasHellblock, ownerUUID, linkedUUID, boundingBox, party, trusted, banned,
-				invitations, flags, location, home, creationTime, visitors, biome, choice, schematic, locked, abandoned,
-				resetCooldown, biomeCooldown, transferCooldown);
+		return new HellblockData(id, level, hasHellblock, ownerUUID, linkedUUID, boundingBox, display, party, trusted,
+				banned, invitations, flags, upgrades, location, home, creationTime, visitData, recentVisitors, biome,
+				choice, schematic, locked, abandoned, resetCooldown, biomeCooldown, transferCooldown);
 	}
 }

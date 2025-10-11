@@ -116,15 +116,15 @@ public enum Dependency {
 
 	@NotNull
 	public String getFileName(@Nullable String classifier) {
-		String name = this.customArtifactID.toLowerCase(Locale.ROOT).replace('_', '-');
-		String extra = classifier == null || classifier.isEmpty() ? "" : "-" + classifier;
+		final String name = this.customArtifactID.toLowerCase(Locale.ROOT).replace('_', '-');
+		final String extra = classifier == null || classifier.isEmpty() ? "" : "-" + classifier;
 		return name + "-" + this.getVersion() + extra + ".jar";
 	}
 
 	@NotNull
 	public String getMavenRepoPath() {
-		return String.format(MAVEN_FORMAT, rewriteEscaping(this.groupId).replace(".", "/"),
-				rewriteEscaping(this.artifactId), getVersion(), rewriteEscaping(this.artifactId), getVersion());
+		return MAVEN_FORMAT.formatted(rewriteEscaping(this.groupId).replace(".", "/"), rewriteEscaping(this.artifactId),
+				getVersion(), rewriteEscaping(this.artifactId), getVersion());
 	}
 
 	@NotNull

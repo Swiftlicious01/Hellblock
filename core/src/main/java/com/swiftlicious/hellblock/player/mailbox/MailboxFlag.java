@@ -1,0 +1,6 @@
+package com.swiftlicious.hellblock.player.mailbox;
+
+public enum MailboxFlag {
+	SEND_MESSAGE, RESET_INVENTORY, RESET_ENDERCHEST, UNSAFE_LOCATION, SHOW_RESET_GUI, NOTIFY_OWNER, NOTIFY_PARTY,
+	NOTIFY_TRUSTED, RESET_ANIMATION;
+}

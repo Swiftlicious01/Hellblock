@@ -24,9 +24,7 @@ public class StatisticsManager implements StatisticsManagerInterface {
 	@Override
 	public void load() {
 		this.loadCategoriesFromPluginFolder();
-		for (Map.Entry<String, List<String>> entry : categoryMap.entrySet()) {
-			instance.debug("Category: {" + entry.getKey() + "} Members: " + entry.getValue());
-		}
+		categoryMap.entrySet().forEach(entry -> instance.debug("Category: {" + entry.getKey() + "} Members: " + entry.getValue()));
 	}
 
 	@Override
@@ -35,20 +33,22 @@ public class StatisticsManager implements StatisticsManagerInterface {
 	}
 
 	public void loadCategoriesFromPluginFolder() {
-		Deque<File> fileDeque = new ArrayDeque<>();
+		final Deque<File> fileDeque = new ArrayDeque<>();
 		for (String type : List.of("category")) {
-			File typeFolder = new File(instance.getDataFolder() + File.separator + "contents" + File.separator + type);
+			final File typeFolder = new File(instance.getDataFolder() + File.separator + "contents" + File.separator + type);
 			if (!typeFolder.exists()) {
-				if (!typeFolder.mkdirs())
+				if (!typeFolder.mkdirs()) {
 					return;
+				}
 				instance.saveResource("contents" + File.separator + type + File.separator + "default.yml", false);
 			}
 			fileDeque.push(typeFolder);
 			while (!fileDeque.isEmpty()) {
-				File file = fileDeque.pop();
-				File[] files = file.listFiles();
-				if (files == null)
+				final File file = fileDeque.pop();
+				final File[] files = file.listFiles();
+				if (files == null) {
 					continue;
+				}
 				for (File subFile : files) {
 					if (subFile.isDirectory()) {
 						fileDeque.push(subFile);
@@ -61,10 +61,8 @@ public class StatisticsManager implements StatisticsManagerInterface {
 	}
 
 	private void loadSingleFile(File file) {
-		YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
-		for (String key : config.getKeys(false)) {
-			categoryMap.put(key, config.getStringList(key));
-		}
+		final YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+		config.getKeys(false).forEach(key -> categoryMap.put(key, config.getStringList(key)));
 	}
 
 	@NotNull

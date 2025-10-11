@@ -11,7 +11,6 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.HashSet;
@@ -19,6 +18,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.PriorityBlockingQueue;
@@ -28,40 +28,44 @@ import java.util.function.Function;
 import org.bukkit.Bukkit;
 import org.bukkit.NamespacedKey;
 import org.bukkit.World;
+import org.bukkit.World.Environment;
 import org.bukkit.WorldCreator;
 import org.bukkit.WorldType;
-import org.bukkit.World.Environment;
 import org.bukkit.persistence.PersistentDataType;
 import org.jetbrains.annotations.Nullable;
 
-import com.flowpowered.nbt.CompoundMap;
-import com.flowpowered.nbt.CompoundTag;
-import com.flowpowered.nbt.stream.NBTInputStream;
-import com.flowpowered.nbt.stream.NBTOutputStream;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.generation.VoidGenerator;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.handlers.VersionHelper;
+import com.swiftlicious.hellblock.utils.FileUtils;
 import com.swiftlicious.hellblock.utils.StringUtils;
-import com.swiftlicious.hellblock.utils.TagUtils;
-import com.swiftlicious.hellblock.utils.extras.Key;
 import com.swiftlicious.hellblock.world.BlockPos;
 import com.swiftlicious.hellblock.world.ChunkPos;
+import com.swiftlicious.hellblock.world.CustomBlock;
+import com.swiftlicious.hellblock.world.CustomBlockState;
+import com.swiftlicious.hellblock.world.CustomBlockStateInterface;
+import com.swiftlicious.hellblock.world.CustomChunk;
+import com.swiftlicious.hellblock.world.CustomRegion;
+import com.swiftlicious.hellblock.world.CustomSection;
+import com.swiftlicious.hellblock.world.CustomSectionInterface;
+import com.swiftlicious.hellblock.world.CustomWorldInterface;
 import com.swiftlicious.hellblock.world.DelayedTickTask;
-import com.swiftlicious.hellblock.world.HellblockBlock;
-import com.swiftlicious.hellblock.world.HellblockBlockState;
-import com.swiftlicious.hellblock.world.HellblockBlockStateInterface;
-import com.swiftlicious.hellblock.world.HellblockChunk;
-import com.swiftlicious.hellblock.world.HellblockRegion;
-import com.swiftlicious.hellblock.world.HellblockSection;
-import com.swiftlicious.hellblock.world.HellblockSectionInterface;
 import com.swiftlicious.hellblock.world.HellblockWorld;
-import com.swiftlicious.hellblock.world.HellblockWorldInterface;
 import com.swiftlicious.hellblock.world.RegionPos;
 import com.swiftlicious.hellblock.world.SerializableChunk;
 import com.swiftlicious.hellblock.world.SerializableSection;
 import com.swiftlicious.hellblock.world.WorldExtraData;
 
+import net.kyori.adventure.nbt.BinaryTag;
+import net.kyori.adventure.nbt.BinaryTagIO;
+import net.kyori.adventure.nbt.CompoundBinaryTag;
+import net.kyori.adventure.nbt.IntArrayBinaryTag;
+import net.kyori.adventure.nbt.ListBinaryTag;
+
+/**
+ * An implementation of AbstractWorldAdapter for Bukkit/Spigot/Paper servers.
+ */
 public class BukkitWorldAdapter extends AbstractWorldAdapter<World> {
 
 	private static BiFunction<World, RegionPos, File> regionFileProvider;
@@ -90,55 +94,110 @@ public class BukkitWorldAdapter extends AbstractWorldAdapter<World> {
 	}
 
 	@Override
-	public World getWorld(String worldName) {
-		return Bukkit.getWorld(worldName);
+	public Optional<World> getWorld(String worldName) {
+		World world = Bukkit.getWorld(worldName);
+		return Optional.ofNullable(world);
+	}
+
+	@Override
+	@Nullable
+	public HellblockWorld<World> getLoadedHellblockWorld(String worldName) {
+		Optional<World> bukkitOpt = getWorld(worldName);
+
+		if (bukkitOpt.isPresent()) {
+			HellblockPlugin.getInstance().getWorldManager().markWorldAccess(worldName);
+			return adapt(bukkitOpt.get());
+		}
+
+		return null;
 	}
 
 	@Override
 	public HellblockWorld<World> adapt(Object world) {
-		return HellblockWorldInterface.create((World) world, this);
+		if (!(world instanceof World)) {
+			throw new IllegalArgumentException("Expected Bukkit World, but got: " + world.getClass().getName());
+		}
+		return CustomWorldInterface.create((World) world, this);
 	}
 
 	@Override
-	public HellblockWorld<World> createWorld(String world) {
-		World hellblockWorld = getWorld(world);
-		if (hellblockWorld == null) {
-			VoidGenerator voidGen = new VoidGenerator();
-			hellblockWorld = WorldCreator.name(world).type(WorldType.FLAT).generateStructures(false)
-					.environment(Environment.NETHER).generator(voidGen).biomeProvider(voidGen.new VoidBiomeProvider())
-					.createWorld();
-			HellblockPlugin.getInstance().debug(String.format("Created a new Hellblock World: %s", world));
+	public CompletableFuture<HellblockWorld<World>> createWorld(String worldName) {
+		CompletableFuture<HellblockWorld<World>> future = new CompletableFuture<>();
+
+		// Ensure the world creation and loading is performed on the main thread
+		HellblockPlugin.getInstance().getScheduler().executeSync(() -> {
+			World hellblockWorld = getWorld(worldName).orElse(null);
+			if (hellblockWorld == null) {
+				final VoidGenerator voidGen = new VoidGenerator();
+				hellblockWorld = WorldCreator.name(worldName).type(WorldType.FLAT).generateStructures(false)
+						.environment(Environment.NETHER).generator(voidGen)
+						.biomeProvider(voidGen.new VoidBiomeProvider()).createWorld();
+				HellblockPlugin.getInstance().debug("Created a new Hellblock World: %s".formatted(worldName));
+			}
+			final HellblockWorld<World> adaptedWorld = adapt(hellblockWorld);
+			HellblockPlugin.getInstance().getLavaRainHandler().startLavaRainProcess(adaptedWorld);
+			future.complete(adaptedWorld);
+		});
+
+		return future;
+	}
+
+	@Override
+	public CompletableFuture<HellblockWorld<World>> getOrLoadIslandWorld(int islandId) {
+		String worldName = HellblockPlugin.getInstance().getWorldManager().getHellblockWorldFormat(islandId);
+
+		// Attempt to get already-loaded world
+		HellblockWorld<World> existing = getLoadedHellblockWorld(worldName);
+		if (existing != null) {
+			return CompletableFuture.completedFuture(existing);
 		}
-		HellblockWorld<World> adaptedWorld = adapt(hellblockWorld);
-		HellblockPlugin.getInstance().getLavaRainHandler().startLavaRainProcess(adaptedWorld);
-		return adaptedWorld;
+
+		// Otherwise, load or create it
+		return createWorld(worldName);
 	}
 
 	@Override
 	public void deleteWorld(String world) {
+		World bukkitWorld = getWorld(world).orElse(null);
+		if (bukkitWorld == null) {
+			return;
+		}
+		HellblockPlugin.getInstance().getLavaRainHandler().stopLavaRainProcess(bukkitWorld.getName());
+		Bukkit.unloadWorld(bukkitWorld, false);
+		final File worldFolder = worldFolderProvider.apply(bukkitWorld);
+		if (worldFolder.exists() && worldFolder.isDirectory()) {
+			try {
+				FileUtils.deleteDirectory(worldFolder.toPath());
+				HellblockPlugin.getInstance().debug("Deleted Hellblock World: %s".formatted(world));
+			} catch (IOException e) {
+				HellblockPlugin.getInstance().getPluginLogger()
+						.severe("Failed to delete Hellblock world folder: " + worldFolder.getAbsolutePath(), e);
+			}
+		}
 	}
 
 	@Override
 	public WorldExtraData loadExtraData(World world) {
 		if (VersionHelper.isVersionNewerThan1_18()) {
 			// init world basic info
-			String json = world.getPersistentDataContainer().get(WORLD_DATA, PersistentDataType.STRING);
-			WorldExtraData data = (json == null || json.equals("null")) ? WorldExtraData.empty()
+			final String json = world.getPersistentDataContainer().get(WORLD_DATA, PersistentDataType.STRING);
+			WorldExtraData data = (json == null || "null".equals(json)) ? WorldExtraData.empty()
 					: AdventureHelper.getGson().serializer().fromJson(json, WorldExtraData.class);
-			if (data == null)
+			if (data == null) {
 				data = WorldExtraData.empty();
+			}
 			return data;
 		} else {
-			File data = new File(getWorldFolder(world), DATA_FILE);
+			final File data = new File(getWorldFolder(world), DATA_FILE);
 			if (data.exists()) {
-				byte[] fileBytes = new byte[(int) data.length()];
+				final byte[] fileBytes = new byte[(int) data.length()];
 				try (FileInputStream fis = new FileInputStream(data)) {
 					fis.read(fileBytes);
 				} catch (IOException e) {
 					HellblockPlugin.getInstance().getPluginLogger().severe(
 							"[" + world.getName() + "] Failed to load extra data from " + data.getAbsolutePath(), e);
 				}
-				String jsonContent = new String(fileBytes, StandardCharsets.UTF_8);
+				final String jsonContent = new String(fileBytes, StandardCharsets.UTF_8);
 				return AdventureHelper.getGson().serializer().fromJson(jsonContent, WorldExtraData.class);
 			} else {
 				return WorldExtraData.empty();
@@ -152,8 +211,8 @@ public class BukkitWorldAdapter extends AbstractWorldAdapter<World> {
 			world.world().getPersistentDataContainer().set(WORLD_DATA, PersistentDataType.STRING,
 					AdventureHelper.getGson().serializer().toJson(world.extraData()));
 		} else {
-			File data = new File(getWorldFolder(world.world()), DATA_FILE);
-			File parentDir = data.getParentFile();
+			final File data = new File(getWorldFolder(world.world()), DATA_FILE);
+			final File parentDir = data.getParentFile();
 			if (parentDir != null && !parentDir.exists()) {
 				parentDir.mkdirs();
 			}
@@ -168,22 +227,20 @@ public class BukkitWorldAdapter extends AbstractWorldAdapter<World> {
 
 	@Nullable
 	@Override
-	public HellblockRegion loadRegion(HellblockWorld<World> world, RegionPos pos, boolean createIfNotExist) {
-		File data = getRegionDataFile(world.world(), pos);
-		// if the data file not exists
+	public CustomRegion loadRegion(HellblockWorld<World> world, RegionPos pos, boolean createIfNotExist) {
+		final File data = getRegionDataFile(world.world(), pos);
+		// if the data file doesn't exist
 		if (!data.exists()) {
 			return createIfNotExist ? world.createRegion(pos) : null;
 		} else {
 			// load region from local files
-			try (BufferedInputStream bis = new BufferedInputStream(new FileInputStream(data))) {
-				DataInputStream dataStream = new DataInputStream(bis);
-				HellblockRegion region = deserializeRegion(world, dataStream, pos);
-				dataStream.close();
-				return region;
+			try (BufferedInputStream bis = new BufferedInputStream(new FileInputStream(data));
+					DataInputStream dataStream = new DataInputStream(bis)) {
+				return deserializeRegion(world, dataStream, pos);
 			} catch (Exception e) {
 				HellblockPlugin.getInstance().getPluginLogger().severe("[" + world.worldName()
 						+ "] Failed to load Hellblock region data at " + pos + ". Deleting the corrupted region.", e);
-				boolean success = data.delete();
+				final boolean success = data.delete();
 				if (success) {
 					return createIfNotExist ? world.createRegion(pos) : null;
 				} else {
@@ -196,23 +253,23 @@ public class BukkitWorldAdapter extends AbstractWorldAdapter<World> {
 
 	@Nullable
 	@Override
-	public HellblockChunk loadChunk(HellblockWorld<World> world, ChunkPos pos, boolean createIfNotExist) {
-		HellblockRegion region = world.getOrCreateRegion(pos.toRegionPos());
+	public CustomChunk loadChunk(HellblockWorld<World> world, ChunkPos pos, boolean createIfNotExist) {
+		final CustomRegion region = world.getOrCreateRegion(pos.toRegionPos());
 		// In order to reduce frequent disk reads to determine whether a region exists,
 		// we read the region into the cache
 		if (!region.isLoaded()) {
 			region.load();
 		}
-		byte[] bytes = region.getCachedChunkBytes(pos);
+		final byte[] bytes = region.getCachedChunkBytes(pos);
 		if (bytes == null) {
 			return createIfNotExist ? world.createChunk(pos) : null;
 		} else {
 			try {
-				long time1 = System.currentTimeMillis();
-				DataInputStream dataStream = new DataInputStream(new ByteArrayInputStream(bytes));
-				HellblockChunk chunk = deserializeChunk(world, dataStream);
+				final long time1 = System.currentTimeMillis();
+				final DataInputStream dataStream = new DataInputStream(new ByteArrayInputStream(bytes));
+				final CustomChunk chunk = deserializeChunk(world, dataStream);
 				dataStream.close();
-				long time2 = System.currentTimeMillis();
+				final long time2 = System.currentTimeMillis();
 				HellblockPlugin.getInstance().debug(() -> "[" + world.worldName() + "] Took " + (time2 - time1)
 						+ "ms to load chunk " + pos + " from cached region");
 				return chunk;
@@ -226,23 +283,23 @@ public class BukkitWorldAdapter extends AbstractWorldAdapter<World> {
 	}
 
 	@Override
-	public void saveRegion(HellblockWorld<World> world, HellblockRegion region) {
-		File file = getRegionDataFile(world.world(), region.regionPos());
+	public void saveRegion(HellblockWorld<World> world, CustomRegion region) {
+		final File file = getRegionDataFile(world.world(), region.regionPos());
 		if (region.canPrune()) {
 			if (file.exists()) {
 				file.delete();
 			}
 			return;
 		}
-		long time1 = System.currentTimeMillis();
-		File parentDir = file.getParentFile();
+		final long time1 = System.currentTimeMillis();
+		final File parentDir = file.getParentFile();
 		if (parentDir != null && !parentDir.exists()) {
 			parentDir.mkdirs();
 		}
 		try (FileOutputStream fos = new FileOutputStream(file);
 				BufferedOutputStream bos = new BufferedOutputStream(fos)) {
 			bos.write(serializeRegion(region));
-			long time2 = System.currentTimeMillis();
+			final long time2 = System.currentTimeMillis();
 			HellblockPlugin.getInstance().debug(() -> "[" + world.worldName() + "] Took " + (time2 - time1)
 					+ "ms to save region " + region.regionPos());
 		} catch (IOException e) {
@@ -252,15 +309,15 @@ public class BukkitWorldAdapter extends AbstractWorldAdapter<World> {
 	}
 
 	@Override
-	public void saveChunk(HellblockWorld<World> world, HellblockChunk chunk) {
-		RegionPos pos = chunk.chunkPos().toRegionPos();
-		Optional<HellblockRegion> region = world.getLoadedRegion(pos);
+	public void saveChunk(HellblockWorld<World> world, CustomChunk chunk) {
+		final RegionPos pos = chunk.chunkPos().toRegionPos();
+		final Optional<CustomRegion> region = world.getLoadedRegion(pos);
 		if (region.isEmpty()) {
 			HellblockPlugin.getInstance().getPluginLogger().severe("[" + world.worldName() + "] Region " + pos
 					+ " unloaded before chunk " + chunk.chunkPos() + " saving.");
 		} else {
-			HellblockRegion hellblockRegion = region.get();
-			SerializableChunk serializableChunk = toSerializableChunk(chunk);
+			final CustomRegion hellblockRegion = region.get();
+			final SerializableChunk serializableChunk = toSerializableChunk(chunk);
 			if (serializableChunk.canPrune()) {
 				hellblockRegion.removeCachedChunk(chunk.chunkPos());
 			} else {
@@ -279,34 +336,34 @@ public class BukkitWorldAdapter extends AbstractWorldAdapter<World> {
 		return BUKKIT_WORLD_PRIORITY;
 	}
 
-	private HellblockRegion deserializeRegion(HellblockWorld<World> world, DataInputStream dataStream, RegionPos pos)
+	private CustomRegion deserializeRegion(HellblockWorld<World> world, DataInputStream dataStream, RegionPos pos)
 			throws IOException {
-		ConcurrentHashMap<ChunkPos, byte[]> map = new ConcurrentHashMap<>();
-		int chunkAmount = dataStream.readInt();
+		final ConcurrentMap<ChunkPos, byte[]> map = new ConcurrentHashMap<>();
+		final int chunkAmount = dataStream.readInt();
 		for (int i = 0; i < chunkAmount; i++) {
-			int chunkX = dataStream.readInt();
-			int chunkZ = dataStream.readInt();
-			ChunkPos chunkPos = ChunkPos.of(chunkX, chunkZ);
-			byte[] chunkData = new byte[dataStream.readInt()];
+			final int chunkX = dataStream.readInt();
+			final int chunkZ = dataStream.readInt();
+			final ChunkPos chunkPos = ChunkPos.of(chunkX, chunkZ);
+			final byte[] chunkData = new byte[dataStream.readInt()];
 			dataStream.read(chunkData);
 			map.put(chunkPos, chunkData);
 		}
 		return world.restoreRegion(pos, map);
 	}
 
-	private byte[] serializeRegion(HellblockRegion region) {
-		ByteArrayOutputStream outByteStream = new ByteArrayOutputStream();
-		DataOutputStream outStream = new DataOutputStream(outByteStream);
+	private byte[] serializeRegion(CustomRegion region) {
+		final ByteArrayOutputStream outByteStream = new ByteArrayOutputStream();
+		final DataOutputStream outStream = new DataOutputStream(outByteStream);
 		try {
 			outStream.writeByte(REGION_VERSION);
 			outStream.writeInt(region.regionPos().x());
 			outStream.writeInt(region.regionPos().z());
-			Map<ChunkPos, byte[]> map = region.dataToSave();
+			final Map<ChunkPos, byte[]> map = region.dataToSave();
 			outStream.writeInt(map.size());
 			for (Map.Entry<ChunkPos, byte[]> entry : map.entrySet()) {
 				outStream.writeInt(entry.getKey().x());
 				outStream.writeInt(entry.getKey().z());
-				byte[] dataArray = entry.getValue();
+				final byte[] dataArray = entry.getValue();
 				outStream.writeInt(dataArray.length);
 				outStream.write(dataArray);
 			}
@@ -317,18 +374,17 @@ public class BukkitWorldAdapter extends AbstractWorldAdapter<World> {
 		return outByteStream.toByteArray();
 	}
 
-	private HellblockChunk deserializeChunk(HellblockWorld<World> world, DataInputStream dataStream)
-			throws IOException {
-		int chunkVersion = dataStream.readByte();
-		byte[] blockData = readCompressedBytes(dataStream);
+	private CustomChunk deserializeChunk(HellblockWorld<World> world, DataInputStream dataStream) throws IOException {
+		final int chunkVersion = dataStream.readByte();
+		final byte[] blockData = readCompressedBytes(dataStream);
 		return deserializeChunk(world, blockData, chunkVersion);
 	}
 
 	private byte[] readCompressedBytes(DataInputStream dataStream) throws IOException {
-		int compressedLength = dataStream.readInt();
-		int decompressedLength = dataStream.readInt();
-		byte[] compressedData = new byte[compressedLength];
-		byte[] decompressedData = new byte[decompressedLength];
+		final int compressedLength = dataStream.readInt();
+		final int decompressedLength = dataStream.readInt();
+		final byte[] compressedData = new byte[compressedLength];
+		final byte[] decompressedData = new byte[decompressedLength];
 
 		dataStream.read(compressedData);
 		zstdDecompress(decompressedData, compressedData);
@@ -348,146 +404,164 @@ public class BukkitWorldAdapter extends AbstractWorldAdapter<World> {
 	}
 
 	private byte[] serializeChunk(SerializableChunk serializableChunk) {
-		ByteArrayOutputStream outByteStream = new ByteArrayOutputStream();
-		DataOutputStream outStream = new DataOutputStream(outByteStream);
+		final ByteArrayOutputStream outByteStream = new ByteArrayOutputStream();
+		final DataOutputStream outStream = new DataOutputStream(outByteStream);
+
 		try {
+			// Write the chunk format version
 			outStream.writeByte(CHUNK_VERSION);
-			byte[] serializedSections = toBytes(serializableChunk);
-			byte[] compressed = zstdCompress(serializedSections);
+
+			// Convert sections to CompoundBinaryTag list
+			final Collection<SerializableSection> sections = serializableChunk.sections();
+
+			final List<CompoundBinaryTag> sectionTags = sections.stream().map(this::toCompoundTag).toList();
+
+			// Serialize and compress
+			final byte[] serializedSections = toBytes(sectionTags);
+			final byte[] compressed = zstdCompress(serializedSections);
+
+			// Write metadata and data
 			outStream.writeInt(compressed.length);
 			outStream.writeInt(serializedSections.length);
 			outStream.write(compressed);
+
 		} catch (IOException e) {
-			HellblockPlugin.getInstance().getPluginLogger()
-					.severe("Failed to serialize chunk " + ChunkPos.of(serializableChunk.x(), serializableChunk.z()));
+			HellblockPlugin.getInstance().getPluginLogger().severe("Failed to serialize chunk "
+					+ ChunkPos.of(serializableChunk.x(), serializableChunk.z()) + ": " + e.getMessage());
 		}
+
 		return outByteStream.toByteArray();
 	}
 
-	private byte[] toBytes(SerializableChunk chunk) throws IOException {
-		ByteArrayOutputStream outByteStream = new ByteArrayOutputStream(16384);
-		DataOutputStream outStream = new DataOutputStream(outByteStream);
-		outStream.writeInt(chunk.x());
-		outStream.writeInt(chunk.z());
-		outStream.writeInt(chunk.loadedSeconds());
-		outStream.writeLong(chunk.lastLoadedTime());
-		// write queue
-		int[] queue = chunk.queuedTasks();
-		outStream.writeInt(queue.length / 2);
-		for (int i : queue) {
-			outStream.writeInt(i);
-		}
-		// write ticked blocks
-		int[] tickedSet = chunk.ticked();
-		outStream.writeInt(tickedSet.length);
-		for (int i : tickedSet) {
-			outStream.writeInt(i);
-		}
-		// write block data
-		List<SerializableSection> sectionsToSave = chunk.sections();
-		outStream.writeInt(sectionsToSave.size());
-		for (SerializableSection section : sectionsToSave) {
-			outStream.writeInt(section.sectionID());
-			byte[] blockData = toBytes(section.blocks());
-			outStream.writeInt(blockData.length);
-			outStream.write(blockData);
-		}
-		return outByteStream.toByteArray();
-	}
+	private byte[] toBytes(Collection<CompoundBinaryTag> blocks) throws IOException {
+		final ByteArrayOutputStream outByteStream = new ByteArrayOutputStream(16384);
+		final DataOutputStream outStream = new DataOutputStream(outByteStream);
 
-	private byte[] toBytes(Collection<CompoundTag> blocks) throws IOException {
-		ByteArrayOutputStream outByteStream = new ByteArrayOutputStream(16384);
-		DataOutputStream outStream = new DataOutputStream(outByteStream);
 		outStream.writeInt(blocks.size());
-		for (CompoundTag block : blocks) {
-			byte[] blockData = toBytes(block);
+
+		for (CompoundBinaryTag block : blocks) {
+			final byte[] blockData = toBytes(block);
 			outStream.writeInt(blockData.length);
 			outStream.write(blockData);
 		}
+
 		return outByteStream.toByteArray();
 	}
 
-	private byte[] toBytes(CompoundTag tag) throws IOException {
-		if (tag == null || tag.getValue().isEmpty())
+	private byte[] toBytes(CompoundBinaryTag tag) throws IOException {
+		if (tag == null || tag.isEmpty()) {
 			return new byte[0];
-		ByteArrayOutputStream outByteStream = new ByteArrayOutputStream();
-		try (NBTOutputStream outStream = new NBTOutputStream(outByteStream, NBTInputStream.NO_COMPRESSION,
-				ByteOrder.BIG_ENDIAN)) {
-			outStream.writeTag(tag);
-			return outByteStream.toByteArray();
 		}
+		final ByteArrayOutputStream outByteStream = new ByteArrayOutputStream();
+		BinaryTagIO.writer().write(tag, outByteStream);
+		return outByteStream.toByteArray();
 	}
 
-	@SuppressWarnings("all")
-	private HellblockChunk deserializeChunk(HellblockWorld world, byte[] bytes, int chunkVersion) throws IOException {
-		Function<String, Key> keyFunction = chunkVersion < 2 ? (s) -> {
-			return Key.of("hellblock", StringUtils.toLowerCase(s));
-		} : s -> {
-			return Key.of(s);
-		};
-		DataInputStream chunkData = new DataInputStream(new ByteArrayInputStream(bytes));
-		// read coordinate
-		int x = chunkData.readInt();
-		int z = chunkData.readInt();
-		ChunkPos coordinate = new ChunkPos(x, z);
-		// read loading info
-		int loadedSeconds = chunkData.readInt();
-		long lastLoadedTime = chunkData.readLong();
-		// read task queue
-		int tasksSize = chunkData.readInt();
-		PriorityBlockingQueue<DelayedTickTask> queue = new PriorityBlockingQueue<>(Math.max(11, tasksSize));
+	private CustomChunk deserializeChunk(HellblockWorld<World> world, byte[] bytes, int chunkVersion)
+			throws IOException {
+		final Function<String, net.kyori.adventure.key.Key> keyFunction = chunkVersion < 2
+				? s -> net.kyori.adventure.key.Key.key("hellblock", StringUtils.toLowerCase(s))
+				: net.kyori.adventure.key.Key::key;
+
+		final DataInputStream chunkData = new DataInputStream(new ByteArrayInputStream(bytes));
+
+		// Read chunk coordinate
+		final int x = chunkData.readInt();
+		final int z = chunkData.readInt();
+		final ChunkPos coordinate = new ChunkPos(x, z);
+
+		// Read loading info
+		final int loadedSeconds = chunkData.readInt();
+		final long lastLoadedTime = chunkData.readLong();
+
+		// Read task queue
+		final int tasksSize = chunkData.readInt();
+		final PriorityBlockingQueue<DelayedTickTask> queue = new PriorityBlockingQueue<>(Math.max(11, tasksSize));
 		for (int i = 0; i < tasksSize; i++) {
-			int time = chunkData.readInt();
-			BlockPos pos = new BlockPos(chunkData.readInt());
+			final int time = chunkData.readInt();
+			final BlockPos pos = new BlockPos(chunkData.readInt());
 			queue.add(new DelayedTickTask(time, pos));
 		}
-		// read ticked blocks
-		int tickedSize = chunkData.readInt();
-		Set<BlockPos> tickedSet = new HashSet<>(Math.max(11, tickedSize));
+
+		// Read ticked blocks
+		final int tickedSize = chunkData.readInt();
+		final Set<BlockPos> tickedSet = new HashSet<>(Math.max(11, tickedSize));
 		for (int i = 0; i < tickedSize; i++) {
 			tickedSet.add(new BlockPos(chunkData.readInt()));
 		}
-		// read block data
-		ConcurrentMap<Integer, HellblockSection> sectionMap = new ConcurrentHashMap<>();
-		int sections = chunkData.readInt();
-		// read sections
+
+		// Read block sections
+		final int sections = chunkData.readInt();
+		final ConcurrentMap<Integer, CustomSection> sectionMap = new ConcurrentHashMap<>();
+
 		for (int i = 0; i < sections; i++) {
-			ConcurrentMap<BlockPos, HellblockBlockState> blockMap = new ConcurrentHashMap<>();
-			int sectionID = chunkData.readInt();
-			byte[] sectionBytes = new byte[chunkData.readInt()];
-			chunkData.read(sectionBytes);
-			DataInputStream sectionData = new DataInputStream(new ByteArrayInputStream(sectionBytes));
-			int blockAmount = sectionData.readInt();
-			// read blocks
+			final int sectionID = chunkData.readInt();
+			final byte[] sectionBytes = new byte[chunkData.readInt()];
+			chunkData.readFully(sectionBytes);
+
+			final DataInputStream sectionData = new DataInputStream(new ByteArrayInputStream(sectionBytes));
+			final int blockAmount = sectionData.readInt();
+			final ConcurrentMap<BlockPos, CustomBlockState> blockMap = new ConcurrentHashMap<>();
+
 			for (int j = 0; j < blockAmount; j++) {
-				byte[] blockData = new byte[sectionData.readInt()];
-				sectionData.read(blockData);
-				CompoundTag tag = readCompound(blockData);
-				CompoundMap block = tag.getValue();
-				Key key = keyFunction.apply((String) block.get("type").getValue());
-				CompoundMap data = (CompoundMap) block.get("data").getValue();
-				HellblockBlock customBlock = new HellblockBlock(key);
-				if (customBlock == null) {
-					HellblockPlugin.getInstance().getInstance().getPluginLogger().warn("[" + world.worldName()
-							+ "] Unrecognized block " + key + " has been removed from chunk " + ChunkPos.of(x, z));
+				final byte[] blockData = new byte[sectionData.readInt()];
+				sectionData.readFully(blockData);
+				final CompoundBinaryTag tag = readCompound(blockData);
+				if (tag == null || tag.isEmpty()) {
 					continue;
 				}
-				for (int pos : (int[]) block.get("pos").getValue()) {
-					BlockPos blockPos = new BlockPos(pos);
-					blockMap.put(blockPos, HellblockBlockStateInterface.create(customBlock, TagUtils.deepClone(data)));
+
+				final String typeString = tag.getString("type");
+				final net.kyori.adventure.key.Key key = keyFunction.apply(typeString);
+
+				final BinaryTag posTag = tag.get("pos");
+				if (!(posTag instanceof IntArrayBinaryTag posArray)) {
+					continue;
+				}
+
+				final BinaryTag dataTag = tag.get("data");
+				if (!(dataTag instanceof CompoundBinaryTag dataCompound)) {
+					continue;
+				}
+
+				final CustomBlock customBlock = new CustomBlock(key);
+				for (int pos : posArray.value()) {
+					final BlockPos blockPos = new BlockPos(pos);
+					blockMap.put(blockPos, CustomBlockStateInterface.create(customBlock, dataCompound));
 				}
 			}
-			sectionMap.put(sectionID, HellblockSectionInterface.restore(sectionID, blockMap));
+
+			sectionMap.put(sectionID, CustomSectionInterface.restore(sectionID, blockMap));
 		}
+
 		return world.restoreChunk(coordinate, loadedSeconds, lastLoadedTime, sectionMap, queue, tickedSet);
 	}
 
-	private CompoundTag readCompound(byte[] bytes) throws IOException {
-		if (bytes.length == 0)
+	private CompoundBinaryTag readCompound(byte[] bytes) throws IOException {
+		if (bytes.length == 0) {
 			return null;
-		try (NBTInputStream nbtInputStream = new NBTInputStream(new ByteArrayInputStream(bytes),
-				NBTInputStream.NO_COMPRESSION, ByteOrder.BIG_ENDIAN)) {
-			return (CompoundTag) nbtInputStream.readTag();
 		}
+
+		try (ByteArrayInputStream input = new ByteArrayInputStream(bytes)) {
+			final BinaryTag tag = BinaryTagIO.reader().read(input);
+			if (tag instanceof CompoundBinaryTag compoundTag) {
+				return compoundTag;
+			} else {
+				throw new IOException("Expected CompoundBinaryTag, got: " + tag.getClass().getSimpleName());
+			}
+		}
+	}
+
+	private CompoundBinaryTag toCompoundTag(SerializableSection section) {
+		final CompoundBinaryTag.Builder builder = CompoundBinaryTag.builder();
+
+		builder.putInt("sectionID", section.sectionID());
+
+		final List<CompoundBinaryTag> blockTags = section.blocks();
+		final ListBinaryTag blockList = ListBinaryTag.from(blockTags);
+
+		builder.put("blocks", blockList);
+
+		return builder.build();
 	}
 }

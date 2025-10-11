@@ -120,38 +120,38 @@ public abstract class AbstractSQLDatabase extends AbstractStorage {
 	 */
 	@Override
 	public CompletableFuture<Optional<PlayerData>> getPlayerData(UUID uuid, boolean lock, Executor executor) {
-		var future = new CompletableFuture<Optional<PlayerData>>();
-		if (executor == null)
+		final var future = new CompletableFuture<Optional<PlayerData>>();
+		if (executor == null) {
 			executor = plugin.getScheduler().async();
+		}
 		executor.execute(() -> {
 			try (Connection connection = getConnection();
 					PreparedStatement statement = connection
-							.prepareStatement(String.format(SqlConstants.SQL_SELECT_BY_UUID, getTableName("data")))) {
+							.prepareStatement(SqlConstants.SQL_SELECT_BY_UUID.formatted(getTableName("data")))) {
 				statement.setString(1, uuid.toString());
-				ResultSet rs = statement.executeQuery();
+				final ResultSet rs = statement.executeQuery();
 				if (rs.next()) {
 					final Blob blob = rs.getBlob("data");
 					final byte[] dataByteArray = blob.getBytes(1, (int) blob.length());
 					blob.free();
-					PlayerData data = plugin.getStorageManager().fromBytes(dataByteArray);
+					final PlayerData data = plugin.getStorageManager().fromBytes(dataByteArray);
 					data.setUUID(uuid);
 					if (lock) {
-						int lockValue = rs.getInt(2);
+						final int lockValue = rs.getInt(2);
 						if (lockValue != 0 && getCurrentSeconds() - 30 <= lockValue) {
-							connection.close();
 							data.setLocked(true);
 							future.complete(Optional.of(data));
-							plugin.getPluginLogger()
-									.warn(String.format("Player %s's data is locked. Retrying...", uuid));
+							plugin.getPluginLogger().warn("Player %s's data is locked. Retrying...".formatted(uuid));
 							return;
 						}
 					}
-					if (lock)
+					if (lock) {
 						lockOrUnlockPlayerData(uuid, true);
+					}
 					future.complete(Optional.of(data));
 				} else if (Bukkit.getPlayer(uuid) != null) {
 					// the player is online
-					var data = PlayerData.empty();
+					final var data = PlayerData.empty();
 					data.setUUID(uuid);
 					insertPlayerData(uuid, data, lock, connection);
 					future.complete(Optional.of(data));
@@ -159,7 +159,7 @@ public abstract class AbstractSQLDatabase extends AbstractStorage {
 					future.complete(Optional.empty());
 				}
 			} catch (SQLException ex) {
-				plugin.getPluginLogger().warn(String.format("Failed to get %s's data.", uuid), ex);
+				plugin.getPluginLogger().warn("Failed to get %s's data.".formatted(uuid), ex);
 				future.completeExceptionally(ex);
 			}
 		});
@@ -176,19 +176,19 @@ public abstract class AbstractSQLDatabase extends AbstractStorage {
 	 */
 	@Override
 	public CompletableFuture<Boolean> updatePlayerData(UUID uuid, PlayerData playerData, boolean unlock) {
-		var future = new CompletableFuture<Boolean>();
+		final var future = new CompletableFuture<Boolean>();
 		plugin.getScheduler().async().execute(() -> {
 			try (Connection connection = getConnection();
 					PreparedStatement statement = connection
-							.prepareStatement(String.format(SqlConstants.SQL_UPDATE_BY_UUID, getTableName("data")))) {
+							.prepareStatement(SqlConstants.SQL_UPDATE_BY_UUID.formatted(getTableName("data")))) {
 				statement.setInt(1, unlock ? 0 : getCurrentSeconds());
 				statement.setBlob(2, new ByteArrayInputStream(playerData.toBytes()));
 				statement.setString(3, uuid.toString());
 				statement.executeUpdate();
 				future.complete(true);
-				plugin.debug(String.format("SQL data saved for %s; unlock: %s", uuid, unlock));
+				plugin.debug("SQL data saved for %s; unlock: %s".formatted(uuid, unlock));
 			} catch (SQLException ex) {
-				plugin.getPluginLogger().warn(String.format("Failed to update %s's data.", uuid), ex);
+				plugin.getPluginLogger().warn("Failed to update %s's data.".formatted(uuid), ex);
 				future.completeExceptionally(ex);
 			}
 		});
@@ -203,7 +203,7 @@ public abstract class AbstractSQLDatabase extends AbstractStorage {
 	 */
 	@Override
 	public void updateManyPlayersData(Collection<? extends UserData> users, boolean unlock) {
-		String sql = String.format(SqlConstants.SQL_UPDATE_BY_UUID, getTableName("data"));
+		final String sql = SqlConstants.SQL_UPDATE_BY_UUID.formatted(getTableName("data"));
 		try (Connection connection = getConnection()) {
 			connection.setAutoCommit(false);
 			try (PreparedStatement statement = connection.prepareStatement(sql)) {
@@ -235,13 +235,13 @@ public abstract class AbstractSQLDatabase extends AbstractStorage {
 	protected void insertPlayerData(UUID uuid, PlayerData playerData, boolean lock, @Nullable Connection previous) {
 		try (Connection connection = previous == null ? getConnection() : previous;
 				PreparedStatement statement = connection
-						.prepareStatement(String.format(SqlConstants.SQL_INSERT_DATA_BY_UUID, getTableName("data")))) {
+						.prepareStatement(SqlConstants.SQL_INSERT_DATA_BY_UUID.formatted(getTableName("data")))) {
 			statement.setString(1, uuid.toString());
 			statement.setInt(2, lock ? getCurrentSeconds() : 0);
 			statement.setBlob(3, new ByteArrayInputStream(plugin.getStorageManager().toBytes(playerData)));
 			statement.execute();
 		} catch (SQLException ex) {
-			plugin.getPluginLogger().warn(String.format("Failed to insert %s's data.", uuid), ex);
+			plugin.getPluginLogger().warn("Failed to insert %s's data.".formatted(uuid), ex);
 		}
 	}
 
@@ -255,12 +255,12 @@ public abstract class AbstractSQLDatabase extends AbstractStorage {
 	public void lockOrUnlockPlayerData(UUID uuid, boolean lock) {
 		try (Connection connection = getConnection();
 				PreparedStatement statement = connection
-						.prepareStatement(String.format(SqlConstants.SQL_LOCK_BY_UUID, getTableName("data")))) {
+						.prepareStatement(SqlConstants.SQL_LOCK_BY_UUID.formatted(getTableName("data")))) {
 			statement.setInt(1, lock ? getCurrentSeconds() : 0);
 			statement.setString(2, uuid.toString());
 			statement.execute();
 		} catch (SQLException ex) {
-			plugin.getPluginLogger().warn(String.format("Failed to lock %s's data.", uuid), ex);
+			plugin.getPluginLogger().warn("Failed to lock %s's data.".formatted(uuid), ex);
 		}
 	}
 
@@ -275,22 +275,22 @@ public abstract class AbstractSQLDatabase extends AbstractStorage {
 	 */
 	@Override
 	public CompletableFuture<Boolean> updateOrInsertPlayerData(UUID uuid, PlayerData playerData, boolean unlock) {
-		var future = new CompletableFuture<Boolean>();
+		final var future = new CompletableFuture<Boolean>();
 		plugin.getScheduler().async().execute(() -> {
 			try (Connection connection = getConnection();
 					PreparedStatement statement = connection
-							.prepareStatement(String.format(SqlConstants.SQL_SELECT_BY_UUID, getTableName("data")))) {
+							.prepareStatement(SqlConstants.SQL_SELECT_BY_UUID.formatted(getTableName("data")))) {
 				statement.setString(1, uuid.toString());
-				ResultSet rs = statement.executeQuery();
+				final ResultSet rs = statement.executeQuery();
 				if (rs.next()) {
 					try (PreparedStatement statement2 = connection
-							.prepareStatement(String.format(SqlConstants.SQL_UPDATE_BY_UUID, getTableName("data")))) {
+							.prepareStatement(SqlConstants.SQL_UPDATE_BY_UUID.formatted(getTableName("data")))) {
 						statement2.setInt(1, unlock ? 0 : getCurrentSeconds());
 						statement2.setBlob(2, new ByteArrayInputStream(plugin.getStorageManager().toBytes(playerData)));
 						statement2.setString(3, uuid.toString());
 						statement2.executeUpdate();
 					} catch (SQLException ex) {
-						plugin.getPluginLogger().warn(String.format("Failed to update %s's data.", uuid), ex);
+						plugin.getPluginLogger().warn("Failed to update %s's data.".formatted(uuid), ex);
 					}
 					future.complete(true);
 				} else {
@@ -298,7 +298,7 @@ public abstract class AbstractSQLDatabase extends AbstractStorage {
 					future.complete(true);
 				}
 			} catch (SQLException ex) {
-				plugin.getPluginLogger().warn(String.format("Failed to get %s's data.", uuid), ex);
+				plugin.getPluginLogger().warn("Failed to get %s's data.".formatted(uuid), ex);
 			}
 		});
 		return future;
@@ -311,13 +311,13 @@ public abstract class AbstractSQLDatabase extends AbstractStorage {
 	 */
 	@Override
 	public Set<UUID> getUniqueUsers() {
-		Set<UUID> uuids = new HashSet<>();
+		final Set<UUID> uuids = new HashSet<>();
 		try (Connection connection = getConnection();
 				PreparedStatement statement = connection
-						.prepareStatement(String.format(SqlConstants.SQL_SELECT_ALL_UUID, getTableName("data")))) {
+						.prepareStatement(SqlConstants.SQL_SELECT_ALL_UUID.formatted(getTableName("data")))) {
 			try (ResultSet rs = statement.executeQuery()) {
 				while (rs.next()) {
-					UUID uuid = UUID.fromString(rs.getString("uuid"));
+					final UUID uuid = UUID.fromString(rs.getString("uuid"));
 					uuids.add(uuid);
 				}
 			}

@@ -98,17 +98,17 @@ public interface ActionManager<T> extends Reloadable {
 	 *         actions associated with those triggers.
 	 */
 	default Map<ActionTrigger, Action<T>[]> parseEventActions(Section section) {
-		Map<ActionTrigger, Action<T>[]> actionMap = new HashMap<>();
-		for (Map.Entry<String, Object> entry : section.getStringRouteMappedValues(false).entrySet()) {
-			if (entry.getValue() instanceof Section innerSection) {
-				try {
-					actionMap.put(ActionTrigger.valueOf(entry.getKey().toUpperCase(Locale.ENGLISH)),
-							parseActions(innerSection));
-				} catch (IllegalArgumentException e) {
-					throw new RuntimeException(e);
-				}
-			}
-		}
+		final Map<ActionTrigger, Action<T>[]> actionMap = new HashMap<>();
+		section.getStringRouteMappedValues(false).entrySet().stream()
+				.filter(entry -> entry.getValue() instanceof Section).forEach(entry -> {
+					final Section innerSection = (Section) entry;
+					try {
+						actionMap.put(ActionTrigger.valueOf(entry.getKey().toUpperCase(Locale.ENGLISH)),
+								parseActions(innerSection));
+					} catch (IllegalArgumentException e) {
+						throw new RuntimeException(e);
+					}
+				});
 		return actionMap;
 	}
 
@@ -120,12 +120,12 @@ public interface ActionManager<T> extends Reloadable {
 	 *         values are arrays of actions associated with those times.
 	 */
 	default TreeMap<Integer, Action<T>[]> parseTimesActions(Section section) {
-		TreeMap<Integer, Action<T>[]> actionMap = new TreeMap<>();
-		for (Map.Entry<String, Object> entry : section.getStringRouteMappedValues(false).entrySet()) {
-			if (entry.getValue() instanceof Section innerSection) {
-				actionMap.put(Integer.parseInt(entry.getKey()), parseActions(innerSection));
-			}
-		}
+		final TreeMap<Integer, Action<T>[]> actionMap = new TreeMap<>();
+		section.getStringRouteMappedValues(false).entrySet().stream()
+				.filter(entry -> entry.getValue() instanceof Section).forEach(entry -> {
+					final Section innerSection = (Section) entry;
+					actionMap.put(Integer.parseInt(entry.getKey()), parseActions(innerSection));
+				});
 		return actionMap;
 	}
 
@@ -137,9 +137,9 @@ public interface ActionManager<T> extends Reloadable {
 	 * @param actions The list of actions to trigger.
 	 */
 	static <T> void trigger(@NotNull Context<T> context, @Nullable List<Action<T>> actions) {
-		if (actions != null)
-			for (Action<T> action : actions)
-				action.trigger(context);
+		if (actions != null) {
+			actions.forEach(action -> action.trigger(context));
+		}
 	}
 
 	/**
@@ -150,8 +150,10 @@ public interface ActionManager<T> extends Reloadable {
 	 * @param actions The array of actions to trigger.
 	 */
 	static <T> void trigger(@NotNull Context<T> context, @Nullable Action<T>[] actions) {
-		if (actions != null)
-			for (Action<T> action : actions)
+		if (actions != null) {
+			for (Action<T> action : actions) {
 				action.trigger(context);
+			}
+		}
 	}
 }

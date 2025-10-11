@@ -50,11 +50,11 @@ hellblock_create:
     - /hellblock new
     - /hb new
     - /newisland 
-	- /newisland create
-	- /newhellisland
-	- /newhellisland create
+    - /newisland create
+    - /newhellisland
+    - /newhellisland create
     - /newhellblock
-	- /newhellblock create
+    - /newhellblock create
 
 # Reset hellblock to a new one
 # Usage: [COMMAND]
@@ -67,12 +67,12 @@ hellblock_reset:
     - /hellblock replace
     - /hb replace
     - /hellblock restart
-	- /newisland reset
-	- /newisland restart
-	- /newisland replace
-	- /newhellisland reset
-	- /newhellisland restart
-	- /newhellisland replace
+    - /newisland reset
+    - /newisland restart
+    - /newisland replace
+    - /newhellisland reset
+    - /newhellisland restart
+    - /newhellisland replace
     - /hb restart
 
 # View top 10 leveled hellblocks
@@ -83,6 +83,9 @@ hellblock_top:
   usage:
     - /hellblock top
     - /hb top
+    - /islandtop
+    - /hellblocktop
+    - /hbtop
 
 # Change hellblock biome 
 # Usage: [COMMAND] [biome]
@@ -98,8 +101,8 @@ hellblock_biome:
     - /hb newbiome
     - /hellblock biome
     - /hb biome
-	- /changebiome
-	- /newbiome
+    - /changebiome
+    - /newbiome
     - /setbiome
 
 # Visit a player's hellblock
@@ -110,12 +113,60 @@ hellblock_visit:
   usage:
     - /hellblock visit
     - /hb visit
-	- /visit
-	- /goto
+    - /visit
+    - /goto
     - /hellblock warp
     - /hb warp
     - /hellblock goto
     - /hb goto
+
+# View a visit log of your recent visitors
+# Usage: [COMMAND]
+hellblock_visit_log:
+  enable: true
+  permission: hellblock.user
+  usage:
+    - /hellblock visitlog
+    - /hb visitlog
+    - /visitlog
+
+# Open warps/visits menu
+# Usage: [COMMAND] [type]
+hellblock_warps:
+  enable: true
+  permission: hellblock.user
+  usage:
+    - /hellblock warps
+    - /hb warps
+    - /hellblock visitmenu
+    - /hb visitmenu
+
+# Sets the warp location for visiting usage
+# Usage: [COMMAND]
+hellblock_setwarp:
+  enable: true
+  permission: hellblock.user
+  usage:
+    - /hellblock setwarp
+    - /hb setwarp
+    - /hellblock newwarp
+    - /hb newwarp
+
+# View a list of player's currently visiting your hellblock
+# Usage: [COMMAND]
+hellblock_visitors:
+  enable: true
+  permission: hellblock.user
+  usage:
+    - /hellblock visiting
+    - /hb visiting
+    - /visiting
+    - /hellblock visitlist
+    - /hb visitlist
+    - /visitlist
+    - /hellblock visitors
+    - /hb visitors
+    - /visitors
 
 # Teleport to hellblock home location
 # Usage: [COMMAND]
@@ -125,8 +176,8 @@ hellblock_home:
   usage:
     - /hellblock home
     - /hb home
-	- /home
-	- /gohome
+    - /home
+    - /gohome
     - /hellblock tp
     - /hb tp
     - /hellblock teleport
@@ -140,8 +191,8 @@ hellblock_sethome:
   usage:
     - /hellblock sethome
     - /hb sethome
-	- /sethome
-	- /newhome
+    - /sethome
+    - /newhome
     - /hellblock newhome
     - /hb newhome
 
@@ -153,9 +204,9 @@ hellblock_fixhome:
   usage:
     - /hellblock fixhome
     - /hb fixhome
-	- /fixhome
-	- /restorehome
-	- /readjusthome
+    - /fixhome
+    - /restorehome
+    - /readjusthome
     - /hellblock restorehome
     - /hb restorehome
     - /hellblock readjusthome
@@ -169,8 +220,8 @@ hellblock_lock:
   usage:
     - /hellblock lock
     - /hb lock
-	- /lock
-	- /unlock
+    - /lock
+    - /unlock
     - /hellblock unlock
     - /hb unlock
 
@@ -192,6 +243,82 @@ hellblock_unban:
     - /hellblock unban
     - /hb unban
 
+# Upgrade your hellblock settings
+# Usage: [COMMAND] [type]
+hellblock_upgrade:
+  enable: true
+  permission: hellblock.user
+  usage:
+    - /hellblock upgrades
+    - /hellblock upgrade
+    - /hb upgrades
+    - /hb upgrade
+    - /upgrades
+    - /upgrade
+
+# View the amount of hoppers you have placed and the max allowed
+# Usage: [COMMAND]
+hellblock_hopper:
+  enable: true
+  permission: hellblock.user
+  usage:
+    - /hellblock hoppers
+    - /hb hoppers
+    - /viewhoppers
+    - /hellblock hopper
+    - /hb hopper
+    - /viewhopper
+    - /hoppercount
+
+# Set your hellblock's bio when visited to display to visitors.
+# Usage: [COMMAND] [description]
+hellblock_bio:
+  enable: true
+  permission: hellblock.user
+  usage:
+    - /hellblock setbio
+    - /hellblock changebio
+    - /hellblock bio
+    - /hellblock setdesc
+    - /hellblock changedesc
+    - /hellblock setdescription
+    - /hellblock changedescription
+    - /hellblock desc
+    - /hellblock description
+    - /hb setbio
+    - /hb changebio
+    - /hb bio
+    - /hb setdesc
+    - /hb changedesc
+    - /hb setdescription
+    - /hb changedescription
+    - /hb desc
+    - /hb description
+
+# Set your hellblock's display name when visited.
+# Usage: [COMMAND] [name]
+hellblock_name:
+  enable: true
+  permission: hellblock.user
+  usage:
+    - /hellblock setname
+    - /hellblock changename
+    - /hellblock name
+    - /hb setname
+    - /hb changename
+    - /hb name
+
+# Toggle display between showing as title or chat
+# Usage: [COMMAND]
+hellblock_display_toggle:
+  enable: true
+  permission: hellblock.user
+  usage:
+    - /hellblock displaytoggle
+    - /hellblock displaychoice
+    - /hb displaytoggle
+    - /hb displaychoice
+
 # Leave the hellblock party
 # Usage: [COMMAND] [username]
 coop_leave:
@@ -199,8 +326,8 @@ coop_leave:
   permission: hellblock.coop
   usage:
     - /hellcoop leave
-	- /leave
-	- /coop leave
+    - /leave
+    - /coop leave
 
 # Kick a player from hellblock
 # Usage: [COMMAND] [username]
@@ -210,8 +337,8 @@ coop_kick:
   usage:
     - /hellcoop kick
     - /hellcoop remove
-	- /coop kick
-	- /coop remove
+    - /coop kick
+    - /coop remove
 
 # Accept an invite from a player
 # Usage: [COMMAND] [username]
@@ -220,9 +347,18 @@ coop_accept:
   permission: hellblock.coop
   usage:
     - /hellcoop accept
-	- /coop accept
-	- /coop join
-	- /hellcoop accept
+    - /hellcoop join
+    - /coop accept
+    - /coop join
+
+# Toggle coop settings
+# Usage: [COMMAND] [settings]
+coop_toggle:
+  enable: true
+  permission: hellblock.coop
+  usage:
+    - /hellcoop toggle
+    - /coop toggle
 
 # Reject an invite from a player
 # Usage: [COMMAND] [username]
@@ -231,9 +367,9 @@ coop_reject:
   permission: hellblock.coop
   usage:
     - /hellcoop reject
-    - /hellcoop decline
-	- /coop reject
-	- /coop decline
+    - /hellcoop decline 
+    - /coop reject
+    - /coop decline
 
 # Invite a player to join a hellblock
 # Usage: [COMMAND] [username]
@@ -243,8 +379,8 @@ coop_invite:
   usage:
     - /hellcoop invite
     - /hellcoop add
-	- /coop invite
-	- /coop add
+    - /coop invite
+    - /coop add
 
 # Get a list of invites from other hellblocks to join
 # Usage: [COMMAND]
@@ -254,10 +390,10 @@ coop_invites:
   usage:
     - /hellcoop invitations
     - /hellcoop invites
-	- /invitations
-	- /invites
-	- /coop invites
-	- /coop invitations
+    - /invitations
+    - /invites
+    - /coop invites
+    - /coop invitations
 
 # Transfers ownership from one player to another
 # Usage: [COMMAND] [username]
@@ -269,22 +405,22 @@ coop_owner:
     - /hellcoop transferowner
     - /hellcoop changeowner
     - /hellcoop newowner
-	- /hellcoop changeleader
-	- /hellcoop newleader
-	- /hellcoop setleader
-	- /hellcoop transferleader
-	- /coop setowner
-	- /coop transferowner
-	- /coop changeowner
-	- /coop newowner
-	- /coop changeleader
-	- /coop newleader
-	- /coop setleader
-	- /coop transferleader
-	- /changeleader
-	- /newleader
-	- /setleader
-	- /transferleader
+    - /hellcoop changeleader
+    - /hellcoop newleader
+    - /hellcoop setleader
+    - /hellcoop transferleader
+    - /coop setowner
+    - /coop transferowner
+    - /coop changeowner
+    - /coop newowner
+    - /coop changeleader
+    - /coop newleader
+    - /coop setleader
+    - /coop transferleader
+    - /changeleader
+    - /newleader
+    - /setleader
+    - /transferleader
 
 # Trusts a player on hellblocks
 # Usage: [COMMAND] [username]
@@ -293,8 +429,8 @@ coop_trust:
   permission: hellblock.coop
   usage:
     - /hellcoop trust
-	- /coop trust
-	- /trust
+    - /coop trust
+    - /trust
 
 # Untrust a player from hellblocks
 # Usage: [COMMAND] [username]
@@ -303,8 +439,8 @@ coop_untrust:
   permission: hellblock.coop
   usage:
     - /hellcoop untrust
-	- /coop untrust
-	- /untrust
+    - /coop untrust
+    - /untrust
 
 # Get a list of commands for coop usage
 # Usage: [COMMAND]
@@ -313,8 +449,8 @@ coop_help:
   permission: hellblock.coop
   usage:
     - /hellcoop help
-	- /coop
-	- /coop help
+    - /coop
+    - /coop help
 
 # Cancel an invitation to a player
 # Usage: [COMMAND] [username]
@@ -324,8 +460,8 @@ coop_cancel:
   usage:
     - /hellcoop cancel
     - /hellcoop revoke
-	- /coop cancel
-	- /coop revoke
+    - /coop cancel
+    - /coop revoke
 
 # Force teleport to a hellblock
 # Usage: [COMMAND] [username]
@@ -340,6 +476,24 @@ admin_teleport:
     - /hellblock admin goto
     - /hb admin goto
 
+# Rollback a player's hellblock
+# Usage: [COMMAND] [username]
+admin_rollback:
+  enable: true
+  permission: hellblock.admin
+  usage:
+    - /hellblock admin rollback
+    - /hb admin rollback
+
+# List rollbacks for a player
+# Usage: [COMMAND] [username]
+admin_rollback_list:
+  enable: true
+  permission: hellblock.admin
+  usage:
+    - /hellblock admin rollback list
+    - /hb admin rollback list
+
 # Force delete a player's hellblock
 # Usage: [COMMAND] [username]
 admin_delete:
@@ -348,6 +502,8 @@ admin_delete:
   usage:
     - /hellblock admin delete
     - /hb admin delete
+    - /hellblock admin disband
+    - /hb admin disband
 
 # Force purge all hellblocks that are inactive within a certain amount of days.
 # Usage: [COMMAND] [days]
@@ -357,6 +513,144 @@ admin_purge:
   usage:
     - /hellblock admin purge
     - /hb admin purge
+
+# Restores the given player's island from being abandoned (can't bring back from deletion)
+# Usage: [COMMAND] [username]
+admin_restore:
+  enable: true
+  permission: hellblock.admin
+  usage:
+    - /hellblock admin restore
+    - /hb admin restore
+
+# Sets the island level for the given player 
+# Usage: [COMMAND] [username] [level]
+admin_setlevel:
+  enable: true
+  permission: hellblock.admin
+  usage:
+    - /hellblock admin setlevel
+    - /hb admin setlevel
+    - /hellblock admin changelevel
+    - /hb admin changelevel
+
+# Resets all cooldowns for the player
+# Usage: [COMMAND] [username]
+admin_resetcooldown:
+  enable: true
+  permission: hellblock.admin
+  usage:
+    - /hellblock admin resetcooldown
+    - /hb admin resetcooldown
+    - /hellblock admin resetcooldowns
+    - /hb admin resetcooldowns
+
+# Inspects information about the player's island
+# Usage: [COMMAND] [username]
+admin_inspect:
+  enable: true
+  permission: hellblock.admin
+  usage:
+    - /hellblock admin inspect
+    - /hb admin inspect
+    - /hellblock admin info
+    - /hb admin info
+
+# Force sets the player's home to the given location
+# Usage: [COMMAND] [username]
+admin_forcehome:
+  enable: true
+  permission: hellblock.admin
+  usage:
+    - /hellblock admin forcehome
+    - /hb admin forcehome
+    - /hellblock admin sethome
+    - /hb admin sethome
+
+# Force sets the player's biome to the given biome
+# Usage: [COMMAND] [username] [biome]
+admin_forcebiome:
+  enable: true
+  permission: hellblock.admin
+  usage:
+    - /hellblock admin forcebiome
+    - /hb admin forcebiome
+    - /hellblock admin setbiome
+    - /hb admin setbiome
+
+# Force unlocks or locks the player's island
+# Usage: [COMMAND] [username]
+admin_unlock:
+  enable: true
+  permission: hellblock.admin
+  usage:
+    - /hellblock admin unlock
+    - /hb admin unlock
+    - /hellblock admin lock
+    - /hb admin lock
+
+# Fixes corrupt owner data for the given player by setting the inputted as the new owner
+# Usage: [COMMAND] [username]
+admin_fixowner:
+  enable: true
+  permission: hellblock.admin
+  usage:
+    - /hellblock admin fixowner
+    - /hb admin fixowner
+
+# Cleans up any corrupted or broken islands within the database
+# Usage: [COMMAND] 
+admin_cleanup:
+  enable: true
+  permission: hellblock.admin
+  usage:
+    - /hellblock admin cleanup
+    - /hb admin cleanup
+
+# Forces an island's status to be set as abandoned
+# Usage: [COMMAND] [username]
+admin_abandon:
+  enable: true
+  permission: hellblock.admin
+  usage:
+    - /hellblock admin abandon
+    - /hb admin abandon
+
+# Shows a list of all of the abandoned islands
+# Usage: [COMMAND]
+admin_abandoned:
+  enable: true
+  permission: hellblock.admin
+  usage:
+    - /hellblock admin abandoned
+    - /hb admin abandoned
+
+# Shows the last activity for the given player
+# Usage: [COMMAND] [username]
+admin_activity:
+  enable: true
+  permission: hellblock.admin
+  usage:
+    - /hellblock admin activity
+    - /hb admin activity
+
+# Transfers ownership forcefully for an island between two players
+# Usage: [COMMAND] [username] [new username]
+admin_transfer:
+  enable: true
+  permission: hellblock.admin
+  usage:
+    - /hellblock admin transfer
+    - /hb admin transfer
+
+# Help page for admin commands
+# Usage: [COMMAND]
+admin_help:
+  enable: true
+  permission: hellblock.admin
+  usage:
+    - /hellblock admin help
+    - /hb admin help
 
 # A command to reload the plugin
 # Usage: [COMMAND]
@@ -371,6 +665,7 @@ reload:
 # Usage [COMMAND]
 about:
   enable: true
+  permission: hellblock.user
   usage:
     - /hellblock about
     - /hb about
@@ -400,7 +695,7 @@ give_item:
   usage:
     - /hellblock items give
     - /hb items give
-	
+
 # A command to give items
 # Usage: [COMMAND] [uuid] [id]
 give_item_by_uuid:
@@ -517,7 +812,7 @@ debug_biome:
   usage:
     - /hellblock debug biome
     - /hb debug biome
-	
+
 # A command to debug the snbt
 # Usage: [COMMAND]
 debug_snbt:

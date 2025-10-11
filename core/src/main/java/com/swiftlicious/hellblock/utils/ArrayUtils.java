@@ -29,11 +29,11 @@ public class ArrayUtils {
 		}
 		if (array.length <= index) {
 			@SuppressWarnings("unchecked")
-			T[] emptyArray = (T[]) Array.newInstance(array.getClass().getComponentType(), 0);
+			final T[] emptyArray = (T[]) Array.newInstance(array.getClass().getComponentType(), 0);
 			return emptyArray;
 		}
 		@SuppressWarnings("unchecked")
-		T[] subArray = (T[]) Array.newInstance(array.getClass().getComponentType(), array.length - index);
+		final T[] subArray = (T[]) Array.newInstance(array.getClass().getComponentType(), array.length - index);
 		System.arraycopy(array, index, subArray, 0, array.length - index);
 		return subArray;
 	}
@@ -48,11 +48,11 @@ public class ArrayUtils {
 	 * @return a list of subarrays
 	 */
 	public static <T> List<T[]> splitArray(T[] array, int chunkSize) {
-		List<T[]> result = new ArrayList<>();
+		final List<T[]> result = new ArrayList<>();
 		for (int i = 0; i < array.length; i += chunkSize) {
-			int end = Math.min(array.length, i + chunkSize);
+			final int end = Math.min(array.length, i + chunkSize);
 			@SuppressWarnings("unchecked")
-			T[] chunk = (T[]) Array.newInstance(array.getClass().getComponentType(), end - i);
+			final T[] chunk = (T[]) Array.newInstance(array.getClass().getComponentType(), end - i);
 			System.arraycopy(array, i, chunk, 0, end - i);
 			result.add(chunk);
 		}
@@ -68,7 +68,7 @@ public class ArrayUtils {
 	 * @return a new array with the appended element
 	 */
 	public static <T> T[] appendElementToArray(T[] array, T element) {
-		T[] newArray = Arrays.copyOf(array, array.length + 1);
+		final T[] newArray = Arrays.copyOf(array, array.length + 1);
 		newArray[array.length] = element;
 		return newArray;
 	}

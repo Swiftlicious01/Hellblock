@@ -2,6 +2,7 @@ package com.swiftlicious.hellblock.world;
 
 import java.util.Optional;
 import java.util.TreeSet;
+import java.util.concurrent.CompletableFuture;
 
 import org.bukkit.World;
 import com.swiftlicious.hellblock.api.Reloadable;
@@ -21,6 +22,16 @@ public interface WorldManagerInterface extends Reloadable {
 	 * @return The loaded HellblockWorld instance.
 	 */
 	HellblockWorld<?> loadWorld(World world);
+
+	/**
+	 * Ensures that the Hellblock world for the specified island ID is loaded. If
+	 * the world is not already loaded, it will be loaded asynchronously.
+	 *
+	 * @param islandId The ID of the island to ensure is loaded.
+	 * @return A CompletableFuture that completes with the HellblockWorld instance
+	 *         once it is loaded.
+	 */
+	CompletableFuture<HellblockWorld<?>> ensureHellblockWorldLoaded(int islandId);
 
 	/**
 	 * Unloads the Hellblock world associated with the specified Bukkit world.

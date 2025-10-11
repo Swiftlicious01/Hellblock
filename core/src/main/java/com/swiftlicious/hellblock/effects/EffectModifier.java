@@ -59,16 +59,18 @@ public class EffectModifier implements EffectModifierInterface {
 
 		@Override
 		public Builder requirements(List<Requirement<Player>> requirements) {
-			if (requirements == null)
+			if (requirements == null) {
 				return this;
+			}
 			this.requirements.addAll(requirements);
 			return this;
 		}
 
 		@Override
 		public Builder modifiers(List<TriConsumer<Effect, Context<Player>, Integer>> modifiers) {
-			if (modifiers == null)
+			if (modifiers == null) {
 				return this;
+			}
 			this.modifiers.addAll(modifiers);
 			return this;
 		}
@@ -82,7 +84,7 @@ public class EffectModifier implements EffectModifierInterface {
 		@Override
 		@SuppressWarnings("unchecked")
 		public EffectModifier build() {
-			return new EffectModifier(id, type, this.requirements.toArray(new Requirement[0]), this.modifiers);
+			return new EffectModifier(id, type, this.requirements.toArray(Requirement[]::new), this.modifiers);
 		}
 	}
 }

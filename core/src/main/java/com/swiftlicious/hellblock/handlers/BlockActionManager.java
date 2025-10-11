@@ -1,22 +1,23 @@
 package com.swiftlicious.hellblock.handlers;
 
-import com.swiftlicious.hellblock.HellblockPlugin;
-import com.swiftlicious.hellblock.world.HellblockBlockState;
+import org.bukkit.block.data.BlockData;
 
-public class BlockActionManager extends AbstractActionManager<HellblockBlockState> {
+import com.swiftlicious.hellblock.HellblockPlugin;
+
+public class BlockActionManager extends AbstractActionManager<BlockData> {
 
 	public BlockActionManager(HellblockPlugin plugin) {
 		super(plugin);
 	}
 
 	@Override
-	protected void registerBuiltInActions() {
+	public void registerBuiltInActions() {
 		super.registerBuiltInActions();
-		super.registerBundleAction(HellblockBlockState.class);
+		super.registerBundleAction(BlockData.class);
 	}
 
 	@Override
 	public void load() {
-		loadExpansions(HellblockBlockState.class);
+		loadExpansions(BlockData.class);
 	}
 }

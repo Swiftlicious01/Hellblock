@@ -32,22 +32,21 @@ public class ActionMessageNearby<T> extends AbstractBuiltInAction<T> {
 
 	@Override
 	protected void triggerAction(Context<T> context) {
-		if (context.argOrDefault(ContextKeys.OFFLINE, false))
+		if (context.argOrDefault(ContextKeys.OFFLINE, false)) {
 			return;
-		double realRange = range.evaluate(context);
+		}
+		final double realRange = range.evaluate(context);
 		OfflinePlayer owner = null;
 		if (context.holder() instanceof Player player) {
 			owner = player;
 		}
-		Location location = requireNonNull(context.arg(ContextKeys.LOCATION));
+		final Location location = requireNonNull(context.arg(ContextKeys.LOCATION));
 		for (Player player : location.getWorld().getPlayers()) {
 			if (LocationUtils.getDistance(player.getLocation(), location) <= realRange) {
 				context.arg(ContextKeys.TEMP_NEAR_PLAYER, player.getName());
-				List<String> replaced = plugin.getPlaceholderManager().parse(owner, messages, context.placeholderMap());
-                Sender audience = plugin.getSenderFactory().wrap(player);
-				for (String text : replaced) {
-					audience.sendMessage(AdventureHelper.miniMessage(text));
-				}
+				final List<String> replaced = plugin.getPlaceholderManager().parse(owner, messages, context.placeholderMap());
+				final Sender audience = plugin.getSenderFactory().wrap(player);
+				replaced.forEach(text -> audience.sendMessage(AdventureHelper.miniMessage(text)));
 			}
 		}
 	}

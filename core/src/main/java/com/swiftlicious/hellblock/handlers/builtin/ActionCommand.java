@@ -23,18 +23,16 @@ public class ActionCommand<T> extends AbstractBuiltInAction<T> {
 
 	@Override
 	protected void triggerAction(Context<T> context) {
-		if (context.argOrDefault(ContextKeys.OFFLINE, false))
+		if (context.argOrDefault(ContextKeys.OFFLINE, false)) {
 			return;
+		}
 		OfflinePlayer owner = null;
 		if (context.holder() instanceof Player player) {
 			owner = player;
 		}
-		List<String> replaced = plugin.getPlaceholderManager().parse(owner, commands, context.placeholderMap());
-		plugin.getScheduler().sync().run(() -> {
-			for (String text : replaced) {
-				Bukkit.getServer().dispatchCommand(Bukkit.getConsoleSender(), text);
-			}
-		}, null);
+		final List<String> replaced = plugin.getPlaceholderManager().parse(owner, commands, context.placeholderMap());
+		plugin.getScheduler().sync()
+				.run(() -> replaced.forEach(text -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), text)), null);
 	}
 
 	public List<String> commands() {

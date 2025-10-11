@@ -15,20 +15,20 @@ import com.swiftlicious.hellblock.utils.LocationUtils;
 public class LocationAdapter extends TypeAdapter<Location> {
 
 	@Override
-	public void write(JsonWriter out, Location location) throws IOException {
-		if (location == null || location.getWorld() == null) {
+	public void write(JsonWriter out, Location loc) throws IOException {
+		if (loc == null || loc.getWorld() == null) {
 			out.nullValue();
 			return;
 		}
-		out.beginArray();
-		out.value(location.getWorld().getName());
-		out.value(LocationUtils.round(location.getX(), 3));
-		out.value(LocationUtils.round(location.getY(), 3));
-		out.value(LocationUtils.round(location.getZ(), 3));
-		// This is required for 1.19-1.19.2 compatibility.
-		out.value(LocationUtils.round((double) location.getYaw(), 3));
-		out.value(LocationUtils.round((double) location.getPitch(), 3));
-		out.endArray();
+
+		out.beginObject();
+		out.name("world").value(loc.getWorld().getName());
+		out.name("x").value(LocationUtils.round(loc.getX(), 3));
+		out.name("y").value(LocationUtils.round(loc.getY(), 3));
+		out.name("z").value(LocationUtils.round(loc.getZ(), 3));
+		out.name("yaw").value(LocationUtils.round((double) loc.getYaw(), 3));
+		out.name("pitch").value(LocationUtils.round((double) loc.getPitch(), 3));
+		out.endObject();
 	}
 
 	@Override
@@ -37,14 +37,25 @@ public class LocationAdapter extends TypeAdapter<Location> {
 			in.nextNull();
 			return null;
 		}
-		in.beginArray();
-		World world = Bukkit.getWorld(in.nextString());
-		double x = in.nextDouble();
-		double y = in.nextDouble();
-		double z = in.nextDouble();
-		float yaw = (float) in.nextDouble();
-		float pitch = (float) in.nextDouble();
-		in.endArray();
-		return new Location(world, x, y, z, yaw, pitch);
+
+		String worldName = null;
+		double x = 0, y = 0, z = 0;
+		float yaw = 0, pitch = 0;
+
+		in.beginObject();
+		while (in.hasNext()) {
+			switch (in.nextName()) {
+			case "world" -> worldName = in.nextString();
+			case "x" -> x = in.nextDouble();
+			case "y" -> y = in.nextDouble();
+			case "z" -> z = in.nextDouble();
+			case "yaw" -> yaw = (float) in.nextDouble();
+			case "pitch" -> pitch = (float) in.nextDouble();
+			}
+		}
+		in.endObject();
+
+		World world = Bukkit.getWorld(worldName);
+		return (world != null) ? new Location(world, x, y, z, yaw, pitch) : null;
 	}
 }

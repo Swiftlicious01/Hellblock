@@ -18,7 +18,6 @@ import com.swiftlicious.hellblock.utils.extras.Pair;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -38,33 +37,33 @@ public class HologramManager implements Listener, Reloadable {
 	public void load() {
 		Bukkit.getPluginManager().registerEvents(this, instance);
 		this.cacheCheckTask = instance.getScheduler().asyncRepeating(() -> {
-			List<UUID> removed = new ArrayList<>();
-			long current = System.currentTimeMillis();
-			for (Map.Entry<UUID, HologramCache> entry : hologramMap.entrySet()) {
-				Player player = Bukkit.getPlayer(entry.getKey());
+			final List<UUID> removed = new ArrayList<>();
+			final long current = System.currentTimeMillis();
+			hologramMap.entrySet().forEach(entry -> {
+				final Player player = Bukkit.getPlayer(entry.getKey());
 				if (player == null || !player.isOnline()) {
 					removed.add(entry.getKey());
 				} else {
 					entry.getValue().removeOutDated(current, player);
 				}
-			}
-			for (UUID uuid : removed) {
-				hologramMap.remove(uuid);
-			}
+			});
+			removed.forEach(hologramMap::remove);
 		}, 100, 100, TimeUnit.MILLISECONDS);
 	}
 
 	@Override
 	public void unload() {
 		HandlerList.unregisterAll(this);
-		for (Map.Entry<UUID, HologramCache> entry : hologramMap.entrySet()) {
-			Player player = Bukkit.getPlayer(entry.getKey());
+		hologramMap.entrySet().forEach(entry -> {
+			final Player player = Bukkit.getPlayer(entry.getKey());
 			if (player != null && player.isOnline()) {
 				entry.getValue().removeAll(player);
 			}
-		}
-		if (!cacheCheckTask.isCancelled())
+		});
+		if (cacheCheckTask != null && !cacheCheckTask.isCancelled()) {
 			cacheCheckTask.cancel();
+			cacheCheckTask = null;
+		}
 		this.hologramMap.clear();
 	}
 
@@ -89,35 +88,31 @@ public class HologramManager implements Listener, Reloadable {
 		private final ConcurrentMap<Location, Pair<FakeNamedEntity, Long>> cache = new ConcurrentHashMap<>();
 
 		public void removeOutDated(long current, Player player) {
-			List<Location> removed = new ArrayList<>();
-			for (Map.Entry<Location, Pair<FakeNamedEntity, Long>> entry : cache.entrySet()) {
-				if (entry.getValue().right() < current) {
-					entry.getValue().left().destroy(player);
-					removed.add(entry.getKey());
-				}
-			}
-			for (Location location : removed) {
-				cache.remove(location);
-			}
+			final List<Location> removed = new ArrayList<>();
+			cache.entrySet().stream().filter(entry -> entry.getValue().right() < current).forEach(entry -> {
+				entry.getValue().left().destroy(player);
+				removed.add(entry.getKey());
+			});
+			removed.forEach(cache::remove);
 		}
 
 		public void showHologram(Player player, Location location, String json, int millis) {
-			Pair<FakeNamedEntity, Long> pair = cache.get(location);
+			final Pair<FakeNamedEntity, Long> pair = cache.get(location);
 			if (pair != null) {
 				pair.left().name(json);
 				pair.left().updateMetaData(player);
 				pair.right(System.currentTimeMillis() + millis);
 			} else {
-				long removeTime = System.currentTimeMillis() + millis;
+				final long removeTime = System.currentTimeMillis() + millis;
 				if (VersionHelper.isVersionNewerThan1_19_4()) {
-					FakeTextDisplay fakeEntity = VersionHelper.getNMSManager()
+					final FakeTextDisplay fakeEntity = VersionHelper.getNMSManager()
 							.createFakeTextDisplay(location.clone().add(0, 1.25, 0));
 					fakeEntity.name(json);
 					fakeEntity.rgba(0, 0, 0, 0);
 					fakeEntity.spawn(player);
 					this.cache.put(location, Pair.of(fakeEntity, removeTime));
 				} else {
-					FakeArmorStand fakeEntity = VersionHelper.getNMSManager().createFakeArmorStand(location);
+					final FakeArmorStand fakeEntity = VersionHelper.getNMSManager().createFakeArmorStand(location);
 					fakeEntity.name(json);
 					fakeEntity.small(true);
 					fakeEntity.invisible(true);
@@ -128,9 +123,7 @@ public class HologramManager implements Listener, Reloadable {
 		}
 
 		public void removeAll(Player player) {
-			for (Map.Entry<Location, Pair<FakeNamedEntity, Long>> entry : this.cache.entrySet()) {
-				entry.getValue().left().destroy(player);
-			}
+			this.cache.entrySet().forEach(entry -> entry.getValue().left().destroy(player));
 			cache.clear();
 		}
 	}

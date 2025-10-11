@@ -38,33 +38,34 @@ public class EntityConfigParser {
 	}
 
 	private void analyze(Section section, Map<String, Node<ConfigParserFunction>> functionMap) {
-		Map<String, Object> dataMap = section.getStringRouteMappedValues(false);
+		final Map<String, Object> dataMap = section.getStringRouteMappedValues(false);
 		for (Map.Entry<String, Object> entry : dataMap.entrySet()) {
-			String key = entry.getKey();
-			Node<ConfigParserFunction> node = functionMap.get(key);
-			if (node == null)
+			final String key = entry.getKey();
+			final Node<ConfigParserFunction> node = functionMap.get(key);
+			if (node == null) {
 				continue;
-			ConfigParserFunction function = node.nodeValue();
+			}
+			final ConfigParserFunction function = node.nodeValue();
 			if (function != null) {
 				switch (function.type()) {
 				case ENTITY -> {
-					EntityParserFunction entityParserFunction = (EntityParserFunction) function;
-					Consumer<EntityConfig.Builder> consumer = entityParserFunction.accept(entry.getValue());
+					final EntityParserFunction entityParserFunction = (EntityParserFunction) function;
+					final Consumer<EntityConfig.Builder> consumer = entityParserFunction.accept(entry.getValue());
 					entityBuilderConsumers.add(consumer);
 				}
 				case BASE_EFFECT -> {
-					BaseEffectParserFunction baseEffectParserFunction = (BaseEffectParserFunction) function;
-					Consumer<LootBaseEffect.Builder> consumer = baseEffectParserFunction.accept(entry.getValue());
+					final BaseEffectParserFunction baseEffectParserFunction = (BaseEffectParserFunction) function;
+					final Consumer<LootBaseEffect.Builder> consumer = baseEffectParserFunction.accept(entry.getValue());
 					effectBuilderConsumers.add(consumer);
 				}
 				case LOOT -> {
-					LootParserFunction lootParserFunction = (LootParserFunction) function;
-					Consumer<Loot.Builder> consumer = lootParserFunction.accept(entry.getValue());
+					final LootParserFunction lootParserFunction = (LootParserFunction) function;
+					final Consumer<Loot.Builder> consumer = lootParserFunction.accept(entry.getValue());
 					lootBuilderConsumers.add(consumer);
 				}
 				case EVENT -> {
-					EventParserFunction eventParserFunction = (EventParserFunction) function;
-					Consumer<EventCarrier.Builder> consumer = eventParserFunction.accept(entry.getValue());
+					final EventParserFunction eventParserFunction = (EventParserFunction) function;
+					final Consumer<EventCarrier.Builder> consumer = eventParserFunction.accept(entry.getValue());
 					eventBuilderConsumers.add(consumer);
 				}
 				default -> throw new IllegalArgumentException("Unexpected value: " + function.type());
@@ -78,34 +79,27 @@ public class EntityConfigParser {
 	}
 
 	public EntityConfig getEntity() {
-		EntityConfig.Builder builder = EntityConfigInterface.builder().id(id);
-		for (Consumer<EntityConfig.Builder> consumer : entityBuilderConsumers) {
-			consumer.accept(builder);
-		}
+		final EntityConfig.Builder builder = EntityConfigInterface.builder().id(id);
+		entityBuilderConsumers.forEach(consumer -> consumer.accept(builder));
 		return builder.build();
 	}
 
 	private LootBaseEffect getBaseEffect() {
-		LootBaseEffect.Builder builder = LootBaseEffectInterface.builder();
-		for (Consumer<LootBaseEffect.Builder> consumer : effectBuilderConsumers) {
-			consumer.accept(builder);
-		}
+		final LootBaseEffect.Builder builder = LootBaseEffectInterface.builder();
+		effectBuilderConsumers.forEach(consumer -> consumer.accept(builder));
 		return builder.build();
 	}
 
 	public Loot getLoot() {
-		Loot.Builder builder = LootInterface.builder().id(id).type(LootType.ENTITY).lootBaseEffect(getBaseEffect());
-		for (Consumer<Loot.Builder> consumer : lootBuilderConsumers) {
-			consumer.accept(builder);
-		}
+		final Loot.Builder builder = LootInterface.builder().id(id).type(LootType.ENTITY)
+				.lootBaseEffect(getBaseEffect());
+		lootBuilderConsumers.forEach(consumer -> consumer.accept(builder));
 		return builder.build();
 	}
 
 	public EventCarrier getEventCarrier() {
-		EventCarrier.Builder builder = EventCarrierInterface.builder().id(id).type(MechanicType.LOOT);
-		for (Consumer<EventCarrier.Builder> consumer : eventBuilderConsumers) {
-			consumer.accept(builder);
-		}
+		final EventCarrier.Builder builder = EventCarrierInterface.builder().id(id).type(MechanicType.LOOT);
+		eventBuilderConsumers.forEach(consumer -> consumer.accept(builder));
 		return builder.build();
 	}
 }

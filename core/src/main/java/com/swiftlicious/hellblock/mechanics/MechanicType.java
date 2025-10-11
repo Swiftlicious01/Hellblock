@@ -1,14 +1,15 @@
 package com.swiftlicious.hellblock.mechanics;
 
-import net.kyori.adventure.util.Index;
-import org.jetbrains.annotations.ApiStatus;
-import org.jetbrains.annotations.Nullable;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+
+import org.jetbrains.annotations.ApiStatus;
+import org.jetbrains.annotations.Nullable;
+
+import net.kyori.adventure.util.Index;
 
 /**
  * Represents a type of mechanic. This class provides predefined mechanic types
@@ -24,7 +25,7 @@ public class MechanicType {
 	public static final MechanicType BAIT = of("bait");
 	public static final MechanicType HOOK = of("hook");
 	public static final MechanicType ENCHANT = of("enchant");
-    public static final MechanicType EQUIPMENT = of("equipment");
+	public static final MechanicType EQUIPMENT = of("equipment");
 
 	private final String type;
 
@@ -86,7 +87,7 @@ public class MechanicType {
 	 */
 	@ApiStatus.Internal
 	public static void register(String id, MechanicType type) {
-		List<MechanicType> previous = types.computeIfAbsent(id, k -> new ArrayList<>());
+		final List<MechanicType> previous = types.computeIfAbsent(id, k -> new ArrayList<>());
 		previous.add(type);
 	}
 
@@ -112,11 +113,13 @@ public class MechanicType {
 
 	@Override
 	public boolean equals(Object object) {
-		if (this == object)
+		if (this == object) {
 			return true;
-		if (object == null || getClass() != object.getClass())
+		}
+		if (object == null || getClass() != object.getClass()) {
 			return false;
-		MechanicType mechanicType = (MechanicType) object;
+		}
+		final MechanicType mechanicType = (MechanicType) object;
 		return Objects.equals(type, mechanicType.type);
 	}
 

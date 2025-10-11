@@ -4,9 +4,9 @@ import org.jetbrains.annotations.NotNull;
 
 public class HellblockChallenge {
 
-	private ChallengeType type;
-	private CompletionStatus status;
-	private int progress;
+	private final ChallengeType type;
+	private final CompletionStatus status;
+	private final int progress;
 
 	public HellblockChallenge(@NotNull ChallengeType type, @NotNull CompletionStatus status, int progress) {
 		this.type = type;
@@ -33,6 +33,6 @@ public class HellblockChallenge {
 	}
 
 	public enum ActionType {
-		BREAK, GROW, FISH, INTERACT, CRAFT, FARM, SPAWN, KILL, BREW, BARTER;
+		BREAK, GROW, FISH, BREED, CRAFT, FARM, LEVELUP, SLAY, BREW, BARTER;
 	}
 }

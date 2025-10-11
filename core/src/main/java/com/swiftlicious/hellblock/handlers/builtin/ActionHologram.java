@@ -35,7 +35,7 @@ public class ActionHologram<T> extends AbstractBuiltInAction<T> {
 		super(plugin, chance);
 		this.text = TextValue.auto(section.getString("text", ""));
 		this.duration = MathValue.auto(section.get("duration", 20));
-		this.other = section.getString("position", "other").equals("other");
+		this.other = "other".equals(section.getString("position", "other"));
 		this.x = MathValue.auto(section.get("x", 0));
 		this.y = MathValue.auto(section.get("y", 0));
 		this.z = MathValue.auto(section.get("z", 0));
@@ -45,39 +45,38 @@ public class ActionHologram<T> extends AbstractBuiltInAction<T> {
 
 	@Override
 	protected void triggerAction(Context<T> context) {
-		if (context.argOrDefault(ContextKeys.OFFLINE, false))
+		if (context.argOrDefault(ContextKeys.OFFLINE, false)) {
 			return;
+		}
 		Player owner = null;
 		if (context.holder() instanceof Player p) {
 			owner = p;
 		}
-		Location location = other ? requireNonNull(context.arg(ContextKeys.LOCATION)).clone()
+		final Location location = other ? requireNonNull(context.arg(ContextKeys.LOCATION)).clone()
 				: owner.getLocation().clone();
 		// Pos3 pos3 = Pos3.from(location).add(0,1,0);
 		location.add(x.evaluate(context), y.evaluate(context), z.evaluate(context));
-		Optional<HellblockWorld<?>> optionalWorld = plugin.getWorldManager().getWorld(location.getWorld());
+		final Optional<HellblockWorld<?>> optionalWorld = plugin.getWorldManager().getWorld(location.getWorld());
 		if (optionalWorld.isEmpty()) {
 			return;
 		}
-		List<Player> viewers = new ArrayList<>();
+		final List<Player> viewers = new ArrayList<>();
 		if (onlyShowToOne) {
-			if (owner == null)
+			if (owner == null) {
 				return;
+			}
 			viewers.add(owner);
 		} else {
-			for (Player player : location.getWorld().getPlayers()) {
-				if (LocationUtils.getDistance(player.getLocation(), location) <= range) {
-					viewers.add(player);
-				}
-			}
+			location.getWorld().getPlayers().stream()
+					.filter(player -> LocationUtils.getDistance(player.getLocation(), location) <= range)
+					.forEach(viewers::add);
 		}
-		if (viewers.isEmpty())
+		if (viewers.isEmpty()) {
 			return;
-		String json = AdventureHelper.componentToJson(AdventureHelper.miniMessage(text.render(context)));
-		int durationInMillis = (int) (duration.evaluate(context) * 50);
-		for (Player viewer : viewers) {
-			plugin.getHologramManager().showHologram(viewer, location, json, durationInMillis);
 		}
+		final String json = AdventureHelper.componentToJson(AdventureHelper.miniMessage(text.render(context)));
+		final int durationInMillis = (int) (duration.evaluate(context) * 50);
+		viewers.forEach(viewer -> plugin.getHologramManager().showHologram(viewer, location, json, durationInMillis));
 	}
 
 	public TextValue<T> text() {

@@ -1,7 +1,40 @@
 package com.swiftlicious.hellblock.schematic;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Queue;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import org.bukkit.Bukkit;
+import org.bukkit.Location;
+import org.bukkit.Material;
+import org.bukkit.Particle;
+import org.bukkit.World;
+import org.bukkit.block.Block;
+import org.bukkit.entity.Player;
+import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.util.Vector;
+import org.jetbrains.annotations.NotNull;
+
 import com.sk89q.worldedit.EditSession;
+import com.sk89q.worldedit.WorldEdit;
 import com.sk89q.worldedit.WorldEditException;
+import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldedit.bukkit.BukkitWorld;
 import com.sk89q.worldedit.extension.platform.Capability;
 import com.sk89q.worldedit.extension.platform.Platform;
@@ -12,27 +45,39 @@ import com.sk89q.worldedit.extent.clipboard.io.ClipboardReader;
 import com.sk89q.worldedit.function.operation.Operation;
 import com.sk89q.worldedit.function.operation.Operations;
 import com.sk89q.worldedit.math.BlockVector3;
+import com.sk89q.worldedit.regions.Region;
 import com.sk89q.worldedit.session.ClipboardHolder;
+import com.sk89q.worldedit.world.block.BaseBlock;
 import com.swiftlicious.hellblock.HellblockPlugin;
-
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.concurrent.CompletableFuture;
-
-import org.bukkit.Location;
+import com.swiftlicious.hellblock.config.locale.MessageConstants;
+import com.swiftlicious.hellblock.handlers.AdventureHelper;
+import com.swiftlicious.hellblock.handlers.VersionHelper;
+import com.swiftlicious.hellblock.player.mailbox.MailboxFlag;
+import com.swiftlicious.hellblock.scheduler.SchedulerTask;
+import com.swiftlicious.hellblock.schematic.SchematicManager.SpawnSearchMode;
 
 public class WorldEditHook implements SchematicPaster {
 
-	private static final Map<File, ClipboardFormat> cachedClipboardFormat = new HashMap<>();
+	private static final Map<File, ClipboardFormat> cachedClipboardFormat = new ConcurrentHashMap<>();
+	private static final long PASTE_TIMEOUT_TICKS = 200L; // 10 seconds (20 ticks/second)
+
+	private final Map<UUID, SchedulerTask> runningPastes = new ConcurrentHashMap<>();
+	private final Map<UUID, Integer> pasteProgress = new ConcurrentHashMap<>(); // percentage (0–100)
+	private final Map<UUID, Integer> totalBlocks = new ConcurrentHashMap<>(); // total block count
+	private final Map<UUID, SchedulerTask> pasteTimeouts = new ConcurrentHashMap<>();
+	private final Map<UUID, SchedulerTask> pasteTimers = new ConcurrentHashMap<>();
+
+	protected final HellblockPlugin instance;
+
+	public WorldEditHook(HellblockPlugin plugin) {
+		instance = plugin;
+	}
 
 	public static boolean isWorking() {
 		try {
 			final Platform platform = com.sk89q.worldedit.WorldEdit.getInstance().getPlatformManager()
 					.queryCapability(Capability.WORLD_EDITING);
-			int liveDataVersion = platform.getDataVersion();
+			final int liveDataVersion = platform.getDataVersion();
 			return liveDataVersion != -1;
 		} catch (Throwable t) {
 			HellblockPlugin.getInstance().getPluginLogger().severe(
@@ -43,46 +88,448 @@ public class WorldEditHook implements SchematicPaster {
 	}
 
 	@Override
-	public void pasteHellblock(File file, Location location, boolean ignoreAirBlock,
-			CompletableFuture<Void> completableFuture) {
+	public CompletableFuture<Location> pasteHellblock(UUID playerId, File file, Location location,
+			boolean ignoreAirBlock, SchematicMetadata metadata, boolean animated) {
+
+		CompletableFuture<Location> future = new CompletableFuture<>();
+
 		try {
-			ClipboardFormat format = cachedClipboardFormat.getOrDefault(file, ClipboardFormats.findByFile(file));
-			Clipboard clipboard;
+			final ClipboardFormat format = cachedClipboardFormat.getOrDefault(file,
+					ClipboardFormats.findByPath(file.toPath()));
+			final Clipboard clipboard;
 			try (ClipboardReader reader = format.getReader(new FileInputStream(file))) {
 				clipboard = reader.read();
 			}
 
-			int width = clipboard.getDimensions().x();
-			int height = clipboard.getDimensions().y();
-			int length = clipboard.getDimensions().z();
+			int width = getSchematicWidth(file);
+			int height = getSchematicHeight(file);
+			int length = getSchematicLength(file);
 
-			int newLength = (int) (length / 2.00);
-			int newWidth = (int) (width / 2.00);
-			int newHeight = (int) (height / 2.00);
+			final int offsetX = width / 2;
+			final int offsetY = height / 2;
+			final int offsetZ = length / 2;
 
-			location.subtract(newWidth, newHeight, newLength); // Center the schematic (for real this time)
-
-			// Change the //copy point to the minimum corner
+			Location pasteLocation = location.clone().subtract(offsetX, offsetY, offsetZ);
 			clipboard.setOrigin(clipboard.getRegion().getMinimumPoint());
 
-			try (EditSession editSession = com.sk89q.worldedit.WorldEdit.getInstance()
-					.newEditSession(new BukkitWorld(location.getWorld()))) {
-				Operation operation = new ClipboardHolder(clipboard).createPaste(editSession)
-						.to(BlockVector3.at(location.getX(), location.getY(), location.getZ())).copyEntities(true)
-						.ignoreAirBlocks(ignoreAirBlock).build();
-				Operations.complete(operation);
-				Operations.complete(editSession.commit());
-				cachedClipboardFormat.putIfAbsent(file, format);
-				completableFuture.complete(null);
-			}
-		} catch (WorldEditException | IOException ex) {
-			HellblockPlugin.getInstance().getPluginLogger()
-					.severe("Unable to load hellblock island schematic with WorldEdit.", ex);
+			instance.getScheduler().executeSync(() -> {
+				final SchedulerTask[] progressTaskRef = new SchedulerTask[1];
+				final int[] elapsed = { 0 };
+
+				try (EditSession editSession = WorldEdit.getInstance()
+						.newEditSession(new BukkitWorld(location.getWorld()))) {
+
+					if (animated) {
+						List<BaseBlockWithLocation> blockQueue = new ArrayList<>();
+						Region region = clipboard.getRegion();
+						BlockVector3 origin = region.getMinimumPoint();
+
+						for (BlockVector3 pos : region) {
+							BaseBlock block = clipboard.getFullBlock(pos);
+							if (!ignoreAirBlock || !block.getBlockType().getMaterial().isAir()) {
+								blockQueue.add(new BaseBlockWithLocation(block, pos.subtract(origin)));
+							}
+						}
+
+						int blockCount = blockQueue.size();
+						long durationTicks = (blockCount / 10L) + 20L;
+
+						Player player = Bukkit.getPlayer(playerId);
+						if (player != null) {
+							instance.getIslandGenerator().startSchematicCameraAnimation(player, pasteLocation,
+									durationTicks, true);
+						}
+
+						pasteProgress.put(playerId, 0);
+						totalBlocks.put(playerId, blockCount);
+
+						pasteBlocksProgressively(playerId, blockQueue, editSession, pasteLocation, future, () -> {
+							Vector treeVec = metadata.getTree();
+							Location treeLoc = treeVec != null ? treeVec.toLocation(pasteLocation.getWorld())
+									: pasteLocation.clone().add(width / 2.0, 0, length / 2.0); // Try center if null
+
+							Optional<TreeAnimationData> treeDataOpt = scanGlowstoneTree(treeLoc, 5); // radius 5 block
+																										// scan
+							if (treeDataOpt.isPresent()) {
+								TreeAnimationData treeData = treeDataOpt.get();
+
+								// Add synthetic stage
+								totalBlocks.put(playerId,
+										totalBlocks.getOrDefault(playerId, 0) + treeData.getStagedBlocks().size());
+
+								animateTreeFromScanned(playerId, pasteLocation.getWorld(), treeData, editSession)
+										.thenRun(() -> {
+											pasteProgress.put(playerId, 100);
+											completeWithSpawn(playerId, location, pasteLocation, metadata, width,
+													height, length, future);
+										}).exceptionally(ex -> {
+											instance.getPluginLogger().severe("Tree animation failed", ex);
+											future.completeExceptionally(ex);
+											return null;
+										});
+							} else {
+								completeWithSpawn(playerId, location, pasteLocation, metadata, width, height, length,
+										future);
+							}
+						});
+
+						progressTaskRef[0] = instance.getScheduler().sync().runRepeating(() -> {
+							int percent = pasteProgress.getOrDefault(playerId, 0);
+							if (!future.isDone()) {
+								if (player != null) {
+									VersionHelper.getNMSManager().sendActionBar(player,
+											AdventureHelper.componentToJson(instance.getTranslationManager().render(
+													MessageConstants.MSG_HELLBLOCK_SCHEMATIC_PROGRESS_BAR.arguments(
+															AdventureHelper.miniMessage(String.valueOf(percent)),
+															AdventureHelper.miniMessage(String.valueOf(elapsed[0])))
+															.build())));
+								}
+							}
+							elapsed[0]++;
+						}, 20L, 20L, location);
+
+					} else {
+						Operation operation = new ClipboardHolder(clipboard).createPaste(editSession)
+								.to(BlockVector3.at(pasteLocation.getBlockX(), pasteLocation.getBlockY(),
+										pasteLocation.getBlockZ()))
+								.copyEntities(true).ignoreAirBlocks(ignoreAirBlock).build();
+
+						Operations.complete(operation);
+						Operations.complete(editSession.commit());
+
+						completeWithSpawn(playerId, location, pasteLocation, metadata, width, height, length, future);
+					}
+
+					cachedClipboardFormat.putIfAbsent(file, format);
+
+				} catch (WorldEditException ex) {
+					instance.getPluginLogger().severe("WorldEdit paste failed.", ex);
+					future.completeExceptionally(ex);
+				} finally {
+					SchedulerTask timeout = pasteTimeouts.remove(playerId);
+					if (timeout != null)
+						timeout.cancel();
+
+					SchedulerTask timer = pasteTimers.remove(playerId);
+					if (timer != null)
+						timer.cancel();
+
+					SchedulerTask progress = progressTaskRef[0];
+					if (progress != null)
+						progress.cancel();
+
+					if (animated) {
+						Player player = Bukkit.getPlayer(playerId);
+						if (player != null)
+							instance.getIslandGenerator().cleanupAnimation(player);
+						else
+							instance.getMailboxManager().queueMailbox(playerId, MailboxFlag.RESET_ANIMATION);
+					}
+				}
+			}, location);
+
+		} catch (IOException ex) {
+			instance.getPluginLogger().severe("Failed to load schematic file.", ex);
+			future.completeExceptionally(ex);
 		}
+
+		SchedulerTask timeoutTask = instance.getScheduler().sync().runLater(() -> {
+			if (!future.isDone()) {
+				pasteProgress.remove(playerId);
+				totalBlocks.remove(playerId);
+				runningPastes.remove(playerId);
+				future.completeExceptionally(new TimeoutException("Schematic paste timed out after 10 seconds."));
+				instance.getPluginLogger().warn("WorldEdit schematic paste for player " + playerId + " timed out.");
+			}
+		}, PASTE_TIMEOUT_TICKS, location);
+
+		pasteTimeouts.put(playerId, timeoutTask);
+
+		runningPastes.put(playerId, new SchedulerTask() {
+			@Override
+			public void cancel() {
+				future.cancel(false);
+			}
+
+			@Override
+			public boolean isCancelled() {
+				return future.isCancelled();
+			}
+		});
+
+		return future;
+	}
+
+	private void pasteBlocksProgressively(UUID playerId, List<BaseBlockWithLocation> blocks, EditSession editSession,
+			Location pasteLocation, CompletableFuture<Location> future, Runnable onComplete) {
+
+		Iterator<BaseBlockWithLocation> iterator = blocks.iterator();
+		int total = blocks.size();
+		int[] placed = { 0 };
+
+		final SchedulerTask[] taskRef = new SchedulerTask[1];
+
+		taskRef[0] = instance.getScheduler().sync().runRepeating(() -> {
+			Player player = Bukkit.getPlayer(playerId);
+
+			for (int i = 0; i < 10 && iterator.hasNext(); i++) {
+				BaseBlockWithLocation entry = iterator.next();
+
+				BlockVector3 abs = BlockVector3.at(pasteLocation.getBlockX() + entry.relative.x(),
+						pasteLocation.getBlockY() + entry.relative.y(), pasteLocation.getBlockZ() + entry.relative.z());
+
+				try {
+					editSession.setBlock(abs, entry.block);
+				} catch (WorldEditException e) {
+					instance.getPluginLogger().warn("Failed to paste block during WorldEdit animation.", e);
+				}
+
+				if (player != null) {
+					Location worldLoc = new Location(pasteLocation.getWorld(), abs.x(), abs.y(), abs.z());
+
+					player.spawnParticle(Particle.BLOCK_CRUMBLE, worldLoc, 5,
+							entry.block.toBaseBlock().getBlockType().getMaterial());
+					AdventureHelper.playPositionalSound(player.getWorld(), worldLoc, "minecraft:block.stone.place",
+							0.5f, 1.2f);
+				}
+
+				placed[0]++;
+			}
+
+			pasteProgress.put(playerId, (int) ((placed[0] / (double) total) * 100));
+			totalBlocks.put(playerId, total);
+
+			if (!iterator.hasNext()) {
+				try {
+					Operations.complete(editSession.commit());
+				} catch (WorldEditException e) {
+					instance.getPluginLogger().severe("Error finalizing WorldEdit paste operation.", e);
+					future.completeExceptionally(e);
+					return;
+				}
+
+				taskRef[0].cancel();
+				runningPastes.remove(playerId);
+
+				onComplete.run();
+			}
+		}, 1L, 1L, pasteLocation);
+	}
+
+	public Optional<TreeAnimationData> scanGlowstoneTree(@NotNull Location center, int radius) {
+		Set<Block> visited = new HashSet<>();
+		Queue<Block> queue = new ArrayDeque<>();
+
+		Block base = center.getBlock();
+		if (!isGlowstoneTreeBlock(base))
+			return Optional.empty();
+
+		queue.add(base);
+
+		while (!queue.isEmpty()) {
+			Block current = queue.poll();
+			if (!visited.add(current))
+				continue;
+
+			for (int dx = -1; dx <= 1; dx++) {
+				for (int dy = -1; dy <= 1; dy++) {
+					for (int dz = -1; dz <= 1; dz++) {
+						if (Math.abs(dx) + Math.abs(dy) + Math.abs(dz) > 1)
+							continue;
+
+						Block neighbor = current.getRelative(dx, dy, dz);
+						if (neighbor.getLocation().distance(center) > radius)
+							continue;
+
+						if (!visited.contains(neighbor) && isGlowstoneTreeBlock(neighbor)) {
+							queue.add(neighbor);
+						}
+					}
+				}
+			}
+		}
+
+		if (visited.isEmpty())
+			return Optional.empty();
+		return Optional.of(new TreeAnimationData(visited));
+	}
+
+	public CompletableFuture<Void> animateTreeFromScanned(@NotNull UUID playerId, @NotNull World world,
+			@NotNull TreeAnimationData treeData, @NotNull EditSession editSession) {
+		return CompletableFuture.runAsync(() -> {
+			List<List<BlockVector3>> stages = new ArrayList<>(treeData.getStagedBlocks().values());
+			AtomicInteger step = new AtomicInteger();
+
+			Location topLocation = BukkitAdapter.adapt(world, treeData.getTopBlock()).add(0.5, 0.5, 0.5);
+
+			BukkitRunnable animationTask = new BukkitRunnable() {
+				@Override
+				public void run() {
+					int currentStep = step.getAndIncrement();
+
+					if (currentStep >= stages.size()) {
+						world.spawnParticle(Particle.CLOUD, topLocation, 30, 0.4, 0.3, 0.4, 0.02);
+						world.spawnParticle(Particle.END_ROD, topLocation, 20, 0.2, 0.3, 0.2, 0.01);
+						world.strikeLightningEffect(topLocation);
+						AdventureHelper.playPositionalSound(world, topLocation,
+								"minecraft:entity.lightning_bolt.thunder", 0.8f, 1.0f);
+						cancel();
+						return;
+					}
+
+					stages.get(currentStep).forEach(vec -> {
+						Block block = world.getBlockAt(vec.x(), vec.y(), vec.z());
+						Material type = block.getType(); // Retain existing material
+
+						try {
+							editSession.setBlock(vec, BukkitAdapter.asBlockType(type).getDefaultState());
+						} catch (WorldEditException e) {
+							instance.getPluginLogger().warn("Failed to set tree block", e);
+						}
+
+						Location loc = block.getLocation().add(0.5, 0.5, 0.5);
+						world.spawnParticle(Particle.END_ROD, loc, 8, 0.1, 0.1, 0.1, 0.01);
+						AdventureHelper.playPositionalSound(world, loc, "minecraft:block.amethyst_block.hit", 0.6f,
+								1.4f);
+					});
+
+					pasteProgress.compute(playerId, (k, v) -> {
+						int progress = (int) (((double) (currentStep + 1) / stages.size()) * 100);
+						return Math.min(progress, 100);
+					});
+				}
+			};
+
+			SchedulerTask task = instance.getScheduler().sync().runRepeating(animationTask, 0L, 3L, topLocation);
+			UUID treeAnimId = UUID
+					.nameUUIDFromBytes(("tree-" + topLocation.toString()).getBytes(StandardCharsets.UTF_8));
+			instance.getIslandGenerator().trackAnimation(treeAnimId, task);
+		});
+	}
+
+	private boolean isGlowstoneTreeBlock(Block block) {
+		Material mat = block.getType();
+		return mat == Material.GLOWSTONE || mat == Material.GRAVEL;
+	}
+
+	private void completeWithSpawn(UUID playerId, Location origin, Location pasteLocation, SchematicMetadata metadata,
+			int width, int height, int length, CompletableFuture<Location> future) {
+
+		Location spawn = metadata.getHome() != null ? pasteLocation.clone().add(metadata.getHome())
+				: instance.getSchematicManager().findSafeSpawn(origin.getWorld(), pasteLocation, width, height, length,
+						SpawnSearchMode.CENTER);
+
+		totalBlocks.put(playerId, 1);
+		pasteProgress.put(playerId, 100);
+		runningPastes.remove(playerId);
+		pasteProgress.remove(playerId);
+		totalBlocks.remove(playerId);
+
+		future.complete(spawn);
+	}
+
+	public int countBlocksInClipboard(Clipboard clipboard, boolean ignoreAirBlocks) {
+		Region region = clipboard.getRegion();
+		int count = 0;
+
+		for (BlockVector3 pos : region) {
+			BaseBlock block = clipboard.getFullBlock(pos);
+			if (!ignoreAirBlocks || !block.getBlockType().getMaterial().isAir()) {
+				count++;
+			}
+		}
+		return count;
+	}
+
+	public Vector getCachedDimensions(File file) {
+		return instance.getSchematicManager().schematicDimensions.computeIfAbsent(file, f -> {
+			try (ClipboardReader reader = ClipboardFormats.findByPath(f.toPath()).getReader(new FileInputStream(f))) {
+				Clipboard clipboard = reader.read();
+				return new Vector(clipboard.getDimensions().x(), clipboard.getDimensions().y(),
+						clipboard.getDimensions().z());
+			} catch (IOException e) {
+				instance.getPluginLogger().warn("Failed to read dimensions for schematic: " + f.getName(), e);
+				return new Vector(0, 0, 0);
+			}
+		});
+	}
+
+	public int getSchematicWidth(File file) {
+		Vector dims = getCachedDimensions(file);
+		return dims.getBlockX();
+	}
+
+	public int getSchematicHeight(File file) {
+		Vector dims = getCachedDimensions(file);
+		return dims.getBlockY();
+	}
+
+	public int getSchematicLength(File file) {
+		Vector dims = getCachedDimensions(file);
+		return dims.getBlockZ();
+	}
+
+	@Override
+	public boolean cancelPaste(UUID playerId) {
+		SchedulerTask task = runningPastes.remove(playerId);
+		SchedulerTask timeout = pasteTimeouts.remove(playerId);
+		pasteProgress.remove(playerId);
+		totalBlocks.remove(playerId);
+
+		if (timeout != null)
+			timeout.cancel();
+		if (task != null) {
+			task.cancel();
+			return true;
+		}
+		return false;
+	}
+
+	@Override
+	public int getPasteProgress(UUID playerId) {
+		return pasteProgress.getOrDefault(playerId, 0);
 	}
 
 	@Override
 	public void clearCache() {
 		cachedClipboardFormat.clear();
+	}
+
+	public class TreeAnimationData {
+		private final Map<Integer, List<BlockVector3>> stagedBlocks = new TreeMap<>();
+		private final BlockVector3 topBlock;
+
+		public TreeAnimationData(Set<Block> treeBlocks) {
+			BlockVector3 highest = null;
+
+			for (Block b : treeBlocks) {
+				BlockVector3 vec = BlockVector3.at(b.getX(), b.getY(), b.getZ());
+				stagedBlocks.computeIfAbsent(vec.y(), __ -> new ArrayList<>()).add(vec);
+
+				if (highest == null || vec.y() > highest.y()) {
+					highest = vec;
+				}
+			}
+
+			this.topBlock = highest;
+		}
+
+		public Map<Integer, List<BlockVector3>> getStagedBlocks() {
+			return stagedBlocks;
+		}
+
+		public BlockVector3 getTopBlock() {
+			return topBlock;
+		}
+	}
+
+	private static class BaseBlockWithLocation {
+		final BaseBlock block;
+		final BlockVector3 relative;
+
+		public BaseBlockWithLocation(BaseBlock block, BlockVector3 relative) {
+			this.block = block;
+			this.relative = relative;
+		}
 	}
 }

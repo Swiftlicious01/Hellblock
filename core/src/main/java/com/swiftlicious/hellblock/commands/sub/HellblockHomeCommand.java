@@ -1,6 +1,7 @@
 package com.swiftlicious.hellblock.commands.sub;
 
 import java.util.Optional;
+import java.util.UUID;
 
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
@@ -12,6 +13,7 @@ import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.commands.BukkitCommandFeature;
 import com.swiftlicious.hellblock.commands.HellblockCommandManager;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
+import com.swiftlicious.hellblock.player.HellblockData;
 import com.swiftlicious.hellblock.player.UserData;
 
 import net.kyori.adventure.text.Component;
@@ -27,51 +29,69 @@ public class HellblockHomeCommand extends BukkitCommandFeature<CommandSender> {
 			Command.Builder<CommandSender> builder) {
 		return builder.senderType(Player.class).handler(context -> {
 			final Player player = context.sender();
-			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
+
+			final Optional<UserData> onlineUserOpt = HellblockPlugin.getInstance().getStorageManager()
 					.getOnlineUser(player.getUniqueId());
-			if (onlineUser.isEmpty()) {
+
+			if (onlineUserOpt.isEmpty()) {
 				handleFeedback(context, MessageConstants.COMMAND_DATA_FAILURE_NOT_LOADED);
 				return;
 			}
-			if (!onlineUser.get().getHellblockData().hasHellblock()) {
+
+			final UserData user = onlineUserOpt.get();
+			final HellblockData data = user.getHellblockData();
+
+			if (!data.hasHellblock()) {
 				handleFeedback(context, MessageConstants.MSG_HELLBLOCK_NOT_FOUND);
 				return;
-			} else {
-				if (onlineUser.get().getHellblockData().getOwnerUUID() == null) {
-					throw new NullPointerException(
-							"Owner reference returned null, please report this to the developer.");
-				}
-				HellblockPlugin.getInstance().getStorageManager()
-						.getOfflineUserData(onlineUser.get().getHellblockData().getOwnerUUID(),
-								HellblockPlugin.getInstance().getConfigManager().lockData())
-						.thenAccept((owner) -> {
-							if (owner.isEmpty()) {
-								String username = Bukkit
-										.getOfflinePlayer(onlineUser.get().getHellblockData().getOwnerUUID())
-										.getName() != null ? Bukkit
-												.getOfflinePlayer(onlineUser.get().getHellblockData().getOwnerUUID())
-												.getName() : "???";
-								handleFeedback(context, MessageConstants.MSG_HELLBLOCK_PLAYER_DATA_FAILURE_LOAD
-										.arguments(Component.text(username)));
-								return;
-							}
-							UserData ownerUser = owner.get();
-							if (ownerUser.getHellblockData().isAbandoned()) {
-								handleFeedback(context, MessageConstants.MSG_HELLBLOCK_IS_ABANDONED);
-								return;
-							}
-							if (ownerUser.getHellblockData().getHomeLocation() != null) {
-								HellblockPlugin.getInstance().getCoopManager()
-										.makeHomeLocationSafe(ownerUser, onlineUser.get())
-										.thenRun(() -> handleFeedback(context,
-												MessageConstants.MSG_HELLBLOCK_HOME_TELEPORT));
-							} else {
-								handleFeedback(context, MessageConstants.MSG_HELLBLOCK_ERROR_HOME_LOCATION);
-								throw new NullPointerException(
-										"Hellblock home location returned null, please report this to the developer.");
-							}
-						});
 			}
+
+			final UUID ownerUUID = data.getOwnerUUID();
+			if (ownerUUID == null) {
+				HellblockPlugin.getInstance().getPluginLogger().severe("Hellblock owner UUID was null for player "
+						+ player.getName() + " (" + player.getUniqueId() + "). This indicates corrupted data.");
+				throw new IllegalStateException(
+						"Owner reference was null. This should never happen — please report to the developer.");
+			}
+
+			HellblockPlugin.getInstance().getStorageManager()
+					.getOfflineUserData(ownerUUID, HellblockPlugin.getInstance().getConfigManager().lockData())
+					.thenAccept(ownerOpt -> {
+						if (ownerOpt.isEmpty()) {
+							final String username = Bukkit.getOfflinePlayer(ownerUUID).getName();
+							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_PLAYER_DATA_FAILURE_LOAD
+									.arguments(Component.text(username != null ? username : "???")));
+							return;
+						}
+
+						final UserData ownerUser = ownerOpt.get();
+						if (ownerUser.getHellblockData().isAbandoned()) {
+							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_IS_ABANDONED);
+							return;
+						}
+
+						if (ownerUser.getHellblockData().getHomeLocation() == null) {
+							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_ERROR_HOME_LOCATION);
+							HellblockPlugin.getInstance().getPluginLogger()
+									.severe("Hellblock home location was null for owner " + ownerUser.getName() + " ("
+											+ ownerUser.getUUID() + ")");
+							throw new IllegalStateException(
+									"Hellblock home location returned null. This should never happen — please report to the developer.");
+						}
+
+						HellblockPlugin.getInstance().getCoopManager().makeHomeLocationSafe(ownerUser, user)
+								.thenRun(() -> handleFeedback(context, MessageConstants.MSG_HELLBLOCK_HOME_TELEPORT))
+								.exceptionally(ex -> {
+									HellblockPlugin.getInstance().getPluginLogger().warn("makeHomeLocationSafe failed for "
+											+ player.getName() + ": " + ex.getMessage());
+									return null;
+								});
+					}).exceptionally(ex -> {
+						HellblockPlugin.getInstance().getPluginLogger()
+								.warn("getOfflineUserData failed for home teleport of " + player.getName() + ": "
+										+ ex.getMessage());
+						return null;
+					});
 		});
 	}
 

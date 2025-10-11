@@ -1,16 +1,21 @@
 package com.swiftlicious.hellblock.gui.party;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
+import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Event.Result;
 import org.bukkit.event.EventHandler;
@@ -22,6 +27,7 @@ import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
+import org.jetbrains.annotations.Nullable;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
@@ -47,16 +53,19 @@ public class PartyGUIManager implements PartyGUIManagerInterface, Listener {
 
 	protected TextValue<Player> title;
 	protected String[] layout;
-	protected final Map<Character, Pair<CustomItem, Action<Player>[]>> decorativeIcons;
-	protected final List<Tuple<Character, Section, Tuple<CustomItem, UUID, Action<Player>[]>>> memberIcons;
-	protected final Map<Character, Pair<CustomItem, Action<Player>[]>> newMemberIcons;
-	protected final ConcurrentMap<UUID, PartyGUI> partyGUICache;
+	protected final Map<Character, Pair<CustomItem, Action<Player>[]>> decorativeIcons = new HashMap<>();
+	protected final List<Tuple<Character, Section, Tuple<CustomItem, UUID, Action<Player>[]>>> memberIcons = new ArrayList<>();
+	protected final Map<Character, Pair<CustomItem, Action<Player>[]>> newMemberIcons = new HashMap<>();
+	protected final Map<Character, Section> newMemberIconSections = new HashMap<>();
+	protected final ConcurrentMap<UUID, PartyGUI> partyGUICache = new ConcurrentHashMap<>();
 
 	protected char backSlot;
 	protected char ownerSlot;
 
 	protected String ownerName;
 	protected List<String> ownerLore;
+	protected String onlineStatus;
+	protected String offlineStatus;
 
 	protected CustomItem backIcon;
 	protected CustomItem ownerIcon;
@@ -65,10 +74,6 @@ public class PartyGUIManager implements PartyGUIManagerInterface, Listener {
 
 	public PartyGUIManager(HellblockPlugin plugin) {
 		this.instance = plugin;
-		this.decorativeIcons = new HashMap<>();
-		this.memberIcons = new ArrayList<>();
-		this.newMemberIcons = new HashMap<>();
-		this.partyGUICache = new ConcurrentHashMap<>();
 	}
 
 	@Override
@@ -86,10 +91,13 @@ public class PartyGUIManager implements PartyGUIManagerInterface, Listener {
 	}
 
 	private void loadConfig() {
-		Section config = instance.getConfigManager().getMainConfig().getSection("party.gui");
+		Section config = instance.getConfigManager().getGuiConfig().getSection("party.gui");
 
 		this.layout = config.getStringList("layout").toArray(new String[0]);
 		this.title = TextValue.auto(config.getString("title", "party.title"));
+
+		this.onlineStatus = config.getString("login-status-placeholders.online");
+		this.offlineStatus = config.getString("login-status-placeholders.offline");
 
 		Section backSection = config.getSection("back-icon");
 		if (backSection != null) {
@@ -113,29 +121,24 @@ public class PartyGUIManager implements PartyGUIManagerInterface, Listener {
 
 		Section memberSection = config.getSection("member-icon");
 		if (memberSection != null) {
-			for (Map.Entry<String, Object> entry : memberSection.getStringRouteMappedValues(false).entrySet()) {
-				if (entry.getValue() instanceof Section innerSection) {
-					char symbol = Objects.requireNonNull(innerSection.getString("symbol")).charAt(0);
-					memberIcons.add(Tuple.of(symbol, innerSection, Tuple.of(
-							new SingleItemParser("member", innerSection,
-									instance.getConfigManager().getItemFormatFunctions()).getItem(),
-							null,
-							instance.getActionManager(Player.class).parseActions(innerSection.getSection("action")))));
-				}
-			}
+			char symbol = memberSection.getString("symbol", "M").charAt(0);
+
+			memberIcons.add(Tuple.of(symbol, memberSection, Tuple.of(
+					new SingleItemParser("member", memberSection, instance.getConfigManager().getItemFormatFunctions())
+							.getItem(),
+					null, instance.getActionManager(Player.class).parseActions(memberSection.getSection("action")))));
 		}
 
 		Section newMemberSection = config.getSection("new-member-icon");
 		if (newMemberSection != null) {
-			for (Map.Entry<String, Object> entry : newMemberSection.getStringRouteMappedValues(false).entrySet()) {
-				if (entry.getValue() instanceof Section innerSection) {
-					char symbol = Objects.requireNonNull(innerSection.getString("symbol")).charAt(0);
-					newMemberIcons.put(symbol, Pair.of(
-							new SingleItemParser("new_member", innerSection,
-									instance.getConfigManager().getItemFormatFunctions()).getItem(),
-							instance.getActionManager(Player.class).parseActions(innerSection.getSection("action"))));
-				}
-			}
+			char symbol = newMemberSection.getString("symbol", "M").charAt(0);
+
+			newMemberIcons.put(symbol, Pair.of(
+					new SingleItemParser("new_member", newMemberSection,
+							instance.getConfigManager().getItemFormatFunctions()).getItem(),
+					instance.getActionManager(Player.class).parseActions(newMemberSection.getSection("action"))));
+
+			newMemberIconSections.put(symbol, newMemberSection);
 		}
 
 		// Load decorative icons from the configuration
@@ -143,11 +146,25 @@ public class PartyGUIManager implements PartyGUIManagerInterface, Listener {
 		if (decorativeSection != null) {
 			for (Map.Entry<String, Object> entry : decorativeSection.getStringRouteMappedValues(false).entrySet()) {
 				if (entry.getValue() instanceof Section innerSection) {
-					char symbol = Objects.requireNonNull(innerSection.getString("symbol")).charAt(0);
-					decorativeIcons.put(symbol, Pair.of(
-							new SingleItemParser("gui", innerSection,
-									instance.getConfigManager().getItemFormatFunctions()).getItem(),
-							instance.getActionManager(Player.class).parseActions(innerSection.getSection("action"))));
+					try {
+						String symbolStr = innerSection.getString("symbol");
+						if (symbolStr == null || symbolStr.isEmpty()) {
+							instance.getPluginLogger()
+									.severe("Decorative icon missing symbol in entry: " + entry.getKey());
+							continue;
+						}
+
+						char symbol = symbolStr.charAt(0);
+
+						decorativeIcons.put(symbol,
+								Pair.of(new SingleItemParser("gui", innerSection,
+										instance.getConfigManager().getItemFormatFunctions()).getItem(),
+										instance.getActionManager(Player.class)
+												.parseActions(innerSection.getSection("action"))));
+					} catch (Exception e) {
+						instance.getPluginLogger().severe("Failed to load decorative icon entry: " + entry.getKey()
+								+ " due to: " + e.getMessage());
+					}
 				}
 			}
 		}
@@ -169,37 +186,112 @@ public class PartyGUIManager implements PartyGUIManagerInterface, Listener {
 		}
 		if (optionalUserData.get().getHellblockData().getOwnerUUID() == null) {
 			instance.getPluginLogger()
-					.warn("Owner UUID for player " + player.getName() + "'s was unable to be retrieved.");
+					.warn("Owner UUID for player " + player.getName() + " was unable to be retrieved.");
 			return false;
 		}
+
 		Context<Player> context = Context.player(player);
 		PartyGUI gui = new PartyGUI(this, context, optionalUserData.get().getHellblockData(), isOwner);
-		gui.addElement(new PartyDynamicGUIElement(backSlot, new ItemStack(Material.AIR)));
-		gui.addElement(new PartyDynamicGUIElement(ownerSlot, new ItemStack(Material.AIR)));
+
 		Optional<UserData> optionalOwnerData = instance.getStorageManager()
 				.getOnlineUser(optionalUserData.get().getHellblockData().getOwnerUUID());
 		if (optionalOwnerData.isEmpty()) {
-			instance.getPluginLogger().warn("Player " + player.getName() + "'s hellblock owner data for "
-					+ optionalUserData.get().getHellblockData().getOwnerUUID() + "  has not been loaded yet.");
+			instance.getPluginLogger().warn("Hellblock owner data for "
+					+ optionalUserData.get().getHellblockData().getOwnerUUID() + " not loaded.");
 			return false;
 		}
-		for (int i = 0; i < instance.getCoopManager().getMaxPartySize(optionalOwnerData.get()); i++) {
-			for (Tuple<Character, Section, Tuple<CustomItem, UUID, Action<Player>[]>> entry : memberIcons) {
-				gui.addElement(new PartyDynamicGUIElement(entry.left(), new ItemStack(Material.AIR)));
+
+		int maxSize = instance.getCoopManager().getMaxPartySize(optionalOwnerData.orElseThrow());
+		Set<UUID> partyMembers = optionalOwnerData.get().getHellblockData().getParty();
+		if (partyMembers == null)
+			partyMembers = Collections.emptySet();
+		Iterator<UUID> memberIt = partyMembers.iterator();
+
+		int filled = 0;
+
+		// 1) Real members
+		for (Tuple<Character, Section, Tuple<CustomItem, UUID, Action<Player>[]>> memberSlot : memberIcons) {
+			if (filled >= maxSize)
+				break;
+
+			UUID memberUUID = memberIt.hasNext() ? memberIt.next() : null;
+			if (memberUUID != null) {
+				gui.addElement(new PartyDynamicGUIElement(memberSlot.left(), new ItemStack(Material.AIR), memberUUID));
+			} else {
+				gui.addElement(new PartyDynamicGUIElement(memberSlot.left(), new ItemStack(Material.AIR), null));
 			}
-			if (isOwner) {
-				for (Map.Entry<Character, Pair<CustomItem, Action<Player>[]>> entry : newMemberIcons.entrySet()) {
-					gui.addElement(new PartyDynamicGUIElement(entry.getKey(), new ItemStack(Material.AIR)));
-				}
+			filled++;
+		}
+
+		// 2) Invite slots (up to maxSize)
+		for (Map.Entry<Character, Pair<CustomItem, Action<Player>[]>> entry : newMemberIcons.entrySet()) {
+			if (filled >= maxSize)
+				break;
+
+			gui.addElement(new PartyDynamicGUIElement(entry.getKey(), new ItemStack(Material.AIR), null));
+			filled++;
+		}
+
+		// 3) Filler slots (beyond maxSize, but still in layout)
+		for (int i = filled; i < memberIcons.size(); i++) {
+			Tuple<Character, Section, Tuple<CustomItem, UUID, Action<Player>[]>> memberSlot = memberIcons.get(i);
+
+			Pair<CustomItem, Action<Player>[]> newMemberIcon = newMemberIcons.get(memberSlot.left());
+			if (newMemberIcon != null) {
+				gui.addElement(new PartyDynamicGUIElement(memberSlot.left(), new ItemStack(Material.AIR), null));
+			} else {
+				gui.addElement(
+						new PartyGUIElement(memberSlot.left(), buildPlaceholderForSlot(memberSlot.left(), context)));
 			}
 		}
-		for (Map.Entry<Character, Pair<CustomItem, Action<Player>[]>> entry : decorativeIcons.entrySet()) {
-			gui.addElement(new PartyGUIElement(entry.getKey(), entry.getValue().left().build(context)));
-		}
+
+		// 4) Decorative slots
+		decorativeIcons.entrySet().forEach(
+				entry -> gui.addElement(new PartyGUIElement(entry.getKey(), entry.getValue().left().build(context))));
+
+		// 5) Back + Owner placeholders (dynamic so refresh() can populate them)
+		gui.addElement(new PartyDynamicGUIElement(backSlot, new ItemStack(Material.AIR)));
+		gui.addElement(new PartyDynamicGUIElement(ownerSlot, new ItemStack(Material.AIR)));
+
 		gui.build().show();
 		gui.refresh();
 		partyGUICache.put(player.getUniqueId(), gui);
 		return true;
+	}
+
+	/**
+	 * Build an ItemStack placeholder for a given slot using decorative icons first,
+	 * then sensible fallbacks. IMPORTANT: This uses only existing CustomItem
+	 * templates (decorative/member/newMember) and never creates a CustomItem via a
+	 * factory method.
+	 */
+	private ItemStack buildPlaceholderForSlot(Character slot, Context<Player> context) {
+		// 1) try decorative icon exact match
+		Pair<CustomItem, Action<Player>[]> deco = decorativeIcons.get(slot);
+		if (deco != null) {
+			return deco.left().build(context);
+		}
+
+		// 2) try first decorative icon as generic fallback
+		if (!decorativeIcons.isEmpty()) {
+			return decorativeIcons.values().iterator().next().left().build(context);
+		}
+
+		// 3) try member slot template if present
+		for (Tuple<Character, Section, Tuple<CustomItem, UUID, Action<Player>[]>> m : memberIcons) {
+			if (Objects.equals(m.left(), slot)) {
+				return m.right().left().build(context);
+			}
+		}
+
+		// 4) try new member template if present
+		Pair<CustomItem, Action<Player>[]> nm = newMemberIcons.get(slot);
+		if (nm != null) {
+			return nm.left().build(context);
+		}
+
+		// 5) absolute fallback (only if no templates exist) - a plain ItemStack
+		return new ItemStack(Material.BLACK_STAINED_GLASS_PANE);
 	}
 
 	/**
@@ -335,15 +427,41 @@ public class PartyGUIManager implements PartyGUIManagerInterface, Listener {
 			for (Tuple<Character, Section, Tuple<CustomItem, UUID, Action<Player>[]>> memberIcon : memberIcons) {
 				if (element.getSymbol() == memberIcon.left() && element.getUUID() != null) {
 					event.setCancelled(true);
-					String username = Bukkit.getPlayer(element.getUUID()) != null
-							? Bukkit.getPlayer(element.getUUID()).getName()
-							: Bukkit.getOfflinePlayer(element.getUUID()).hasPlayedBefore()
-									&& Bukkit.getOfflinePlayer(element.getUUID()).getName() != null
-											? Bukkit.getOfflinePlayer(element.getUUID()).getName()
-											: null;
+
+					UUID memberUUID = element.getUUID();
+					String username = null;
+
+					Player onlinePlayer = Bukkit.getPlayer(memberUUID);
+					if (onlinePlayer != null) {
+						username = onlinePlayer.getName();
+					} else {
+						OfflinePlayer offlinePlayer = Bukkit.getOfflinePlayer(memberUUID);
+						if (offlinePlayer.hasPlayedBefore() && offlinePlayer.getName() != null) {
+							username = offlinePlayer.getName();
+						}
+					}
+
 					if (username != null) {
-						instance.getCoopManager().removeMemberFromHellblock(userData.get(), username,
-								memberIcon.right().mid());
+						if (event.isLeftClick()) {
+							instance.getCoopManager().removeMemberFromHellblock(userData.get(), username, memberUUID);
+						} else {
+							if (event.isShiftClick()) {
+								// Load target user data async
+								HellblockPlugin.getInstance().getStorageManager()
+										.getOfflineUserData(memberUUID,
+												HellblockPlugin.getInstance().getConfigManager().lockData())
+										.thenAccept(result -> {
+											if (result.isEmpty()) {
+												event.setCancelled(true);
+												return;
+											}
+
+											final UserData targetUser = result.get();
+											instance.getCoopManager().transferOwnershipOfHellblock(userData.get(),
+													targetUser, false);
+										});
+							}
+						}
 						ActionManager.trigger(gui.context, memberIcon.right().right());
 						break;
 					}
@@ -352,14 +470,58 @@ public class PartyGUIManager implements PartyGUIManagerInterface, Listener {
 
 			Pair<CustomItem, Action<Player>[]> newMemberIcon = this.newMemberIcons.get(element.getSymbol());
 			if (newMemberIcon != null && element.getUUID() == null) {
-				event.setCancelled(true);
-				instance.getInviteGUIManager().openInvitationGUI(player);
-				ActionManager.trigger(gui.context, newMemberIcon.right());
+				int maxSize = instance.getCoopManager().getMaxPartySize(userData.get());
+				int slotIndex = getMemberSlotIndex(element.getSymbol());
+				if (slotIndex >= 0 && slotIndex < maxSize) {
+					// within allowed party size -> interactive invite
+					event.setCancelled(true);
+					instance.getInviteGUIManager().openInvitationGUI(player, gui.isOwner);
+					ActionManager.trigger(gui.context, newMemberIcon.right());
+				} else {
+					// beyond allowed slots => non-interactive filler (still cancel the click)
+					event.setCancelled(true);
+				}
 				return;
 			}
 		}
 
 		// Refresh the GUI
 		instance.getScheduler().sync().runLater(gui::refresh, 1, player.getLocation());
+	}
+
+	/**
+	 * Return the Section to use for a slot symbol. Prefers new-member-section (if
+	 * one exists), otherwise returns the member-icons section (if any), otherwise
+	 * null.
+	 */
+	public @Nullable Section getSectionForSlotChar(Character symbol) {
+		Section s = newMemberIconSections.get(symbol);
+		if (s != null)
+			return s;
+		return memberIcons.stream().filter(t -> Objects.equals(t.left(), symbol)).findFirst().map(Tuple::mid)
+				.orElse(null);
+	}
+
+	/**
+	 * Returns the zero-based index of the slot in the logical member-slot ordering:
+	 * indices 0..memberIcons.size()-1 -> entries from memberIcons (in list order)
+	 * indices memberIcons.size().. -> keys from newMemberIcons (iteration order)
+	 * Returns -1 if symbol not found.
+	 */
+	public int getMemberSlotIndex(Character symbol) {
+		for (int i = 0; i < memberIcons.size(); i++) {
+			if (Objects.equals(memberIcons.get(i).left(), symbol))
+				return i;
+		}
+
+		int offset = memberIcons.size();
+		int idx = 0;
+		for (Character key : newMemberIcons.keySet()) {
+			if (Objects.equals(key, symbol))
+				return offset + idx;
+			idx++;
+		}
+
+		return -1;
 	}
 }

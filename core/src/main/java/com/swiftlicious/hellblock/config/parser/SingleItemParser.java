@@ -40,16 +40,17 @@ public class SingleItemParser {
 	}
 
 	private void analyze(Section section, Map<String, Node<ConfigParserFunction>> functionMap) {
-		Map<String, Object> dataMap = section.getStringRouteMappedValues(false);
+		final Map<String, Object> dataMap = section.getStringRouteMappedValues(false);
 		for (Map.Entry<String, Object> entry : dataMap.entrySet()) {
-			String key = entry.getKey();
-			Node<ConfigParserFunction> node = functionMap.get(key);
-			if (node == null)
+			final String key = entry.getKey();
+			final Node<ConfigParserFunction> node = functionMap.get(key);
+			if (node == null) {
 				continue;
-			ConfigParserFunction function = node.nodeValue();
+			}
+			final ConfigParserFunction function = node.nodeValue();
 			if (function != null) {
 				if (function instanceof ItemParserFunction propertyFunction) {
-					BiConsumer<Item<ItemStack>, Context<Player>> result = propertyFunction.accept(entry.getValue());
+					final BiConsumer<Item<ItemStack>, Context<Player>> result = propertyFunction.accept(entry.getValue());
 					tagConsumers.add(new PriorityFunction<>(propertyFunction.getPriority(), result));
 				}
 				continue;

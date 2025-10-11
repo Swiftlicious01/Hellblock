@@ -30,27 +30,27 @@ public class ClassUtils {
 			return null;
 		}
 
-		URL jarUrl = file.toURI().toURL();
-		List<Class<? extends T>> classes = new ArrayList<>();
+		final URL jarUrl = file.toURI().toURL();
+		final List<Class<? extends T>> classes = new ArrayList<>();
 
 		try (URLClassLoader loader = new URLClassLoader(new URL[] { jarUrl }, clazz.getClassLoader());
 				JarInputStream jarStream = new JarInputStream(jarUrl.openStream())) {
 
 			JarEntry entry;
 			while ((entry = jarStream.getNextJarEntry()) != null) {
-				String name = entry.getName();
+				final String name = entry.getName();
 				if (!name.endsWith(".class")) {
 					continue;
 				}
 
-				String className = name.substring(0, name.lastIndexOf('.')).replace('/', '.');
+				final String className = name.substring(0, name.lastIndexOf('.')).replace('/', '.');
 
 				try {
-					Class<?> loadedClass = loader.loadClass(className);
+					final Class<?> loadedClass = loader.loadClass(className);
 					if (clazz.isAssignableFrom(loadedClass)) {
-						Type superclassType = loadedClass.getGenericSuperclass();
+						final Type superclassType = loadedClass.getGenericSuperclass();
 						if (superclassType instanceof ParameterizedType parameterizedType) {
-							Type[] typeArguments = parameterizedType.getActualTypeArguments();
+							final Type[] typeArguments = parameterizedType.getActualTypeArguments();
 							if (typeArguments.length > 0 && typeArguments[0].equals(type)) {
 								classes.add(loadedClass.asSubclass(clazz));
 							}
@@ -61,10 +61,6 @@ public class ClassUtils {
 			}
 		}
 
-		if (classes.isEmpty()) {
-			return null;
-		}
-
-		return classes.get(0);
+		return classes.isEmpty() ? null : classes.get(0);
 	}
 }

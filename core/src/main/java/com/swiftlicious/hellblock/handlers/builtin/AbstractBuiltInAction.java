@@ -25,8 +25,9 @@ public abstract class AbstractBuiltInAction<T> implements Action<T> {
 
 	@Override
 	public void trigger(Context<T> context) {
-		if (Math.random() > chance.evaluate(context))
+		if (Math.random() > chance.evaluate(context)) {
 			return;
+		}
 		triggerAction(context);
 	}
 

@@ -25,7 +25,7 @@ public class UUIDAdapter extends TypeAdapter<UUID> {
 			in.nextNull();
 			return null;
 		}
-		String uuid = in.nextString();
+		final String uuid = in.nextString();
 		try {
 			return UUID.fromString(uuid);
 		} catch (IllegalArgumentException ignored) {

@@ -1,32 +1,32 @@
 package com.swiftlicious.hellblock.player;
 
-import java.util.Calendar;
+import java.time.LocalDate;
 
 import org.jetbrains.annotations.NotNull;
 
 import com.google.gson.annotations.Expose;
 import com.google.gson.annotations.SerializedName;
 
-public class EarningData {
+public final class EarningData {
 
 	@Expose
 	@SerializedName("earnings")
 	protected double earnings;
 	@Expose
 	@SerializedName("date")
-	protected int date;
+	protected LocalDate date;
 
-	public EarningData(double earnings, int date) {
+	public EarningData(double earnings, LocalDate date) {
 		this.earnings = earnings;
 		this.date = date;
-		this.refresh();
+		refresh();
 	}
 
 	public double getEarnings() {
 		return this.earnings;
 	}
 
-	public int getDate() {
+	public LocalDate getDate() {
 		return this.date;
 	}
 
@@ -34,7 +34,7 @@ public class EarningData {
 		this.earnings = earnings;
 	}
 
-	public void setDate(int date) {
+	public void setDate(LocalDate date) {
 		this.date = date;
 	}
 
@@ -45,19 +45,21 @@ public class EarningData {
 	 * @return a new instance of EarningData with default values.
 	 */
 	public static @NotNull EarningData empty() {
-		return new EarningData(0.0D, 0);
+		return new EarningData(0.0D, LocalDate.now());
 	}
 
 	public @NotNull EarningData copy() {
 		return new EarningData(earnings, date);
 	}
 
+	/**
+	 * Resets earnings if the stored date does not match today's date.
+	 */
 	public void refresh() {
-		Calendar calendar = Calendar.getInstance();
-		int dat = (calendar.get(Calendar.MONTH) + 1) * 100 + calendar.get(Calendar.DATE);
-		if (dat != date) {
-			date = dat;
-			earnings = 0;
+		LocalDate today = LocalDate.now();
+		if (!today.equals(date)) {
+			this.date = today;
+			this.earnings = 0.0D;
 		}
 	}
 }

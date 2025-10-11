@@ -1,13 +1,12 @@
 package com.swiftlicious.hellblock.context;
 
 import org.bukkit.Location;
+import org.bukkit.block.data.BlockData;
 import org.jetbrains.annotations.NotNull;
 
-import com.swiftlicious.hellblock.world.HellblockBlockState;
+public class BlockContext extends AbstractContext<BlockData> {
 
-public class BlockContext extends AbstractContext<HellblockBlockState> {
-
-	public BlockContext(@NotNull HellblockBlockState block, Location location, boolean sync) {
+	public BlockContext(@NotNull BlockData block, Location location, boolean sync) {
 		super(block, sync);
 		updateLocation(location);
 	}

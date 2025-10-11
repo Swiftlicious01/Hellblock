@@ -1,4 +1,11 @@
 # HELLBLOCK CONFIGURATION #
+# Plugin: Hellblock
+# Version: 1.0.0-ALPHA
+# Website: https://www.spigotmc.org/resources/hellblock.107958/
+# Copyright (c) 2024 Swiftlicious
+# License: MIT
+# License details can be found at https://opensource.org/license/mit/
+# Support: https://discord.gg/swiftlicious
 
 # Developer: @Swiftlicious
 config-version: '${config_version}'
@@ -47,10 +54,6 @@ general:
         # Disabling this stops all mechanisms from ticking unless fully managed via the API.
         # If you're not familiar with using Hellblock API, keep this set to true as it meets the needs of 99% of users.
         enable: true
-        # This is different from the vanilla RandomTickSpeed.
-        # "Random tick" here means randomly selecting n blocks within a 16x16x16 section every second for ticking, unlike Minecraft's per-tick approach.
-        # Therefore, Hellblock' random ticks have minimal impact on the server and run on multiple threads.
-        random-tick-speed: 30
         # The minimum tick interval in seconds when using scheduled tick mode
         # A value of 200s means a crop is guaranteed to tick at least once every 180 seconds
         # For crops, growth rates are nearly uniform under the same conditions
@@ -68,21 +71,6 @@ general:
           # potentially causing unexpected issues
           # This setting allows the plugin to forcibly interrupt the tick process if loading time exceeds a set threshold
           max-loading-time: 100 #ms
-        # Crop settings
-        farming:
-          # [RANDOM_TICK]
-          # Random tick mode mirrors vanilla behavior, where crops grow randomly
-          # This randomness can cause significant stage differences among crops grown under identical conditions
-          # [SCHEDULED_TICK]
-          # Scheduled tick mode provides more predictable growth management,
-          # ensuring crops grow at nearly the same rate
-          # [ALL]
-          # Run RANDOM_TICK and SCHEDULED_TICK at the same time
-          mode: RANDOM_TICK
-          # Tick interval determines how many times a block is ticked before its logic is executed
-          tick-interval: 
-          # Limit the number of crops per chunk (-1 means no limit)
-          max-per-chunk: -1
       # Override default settings for specific worlds here
       _WORLDS_:
         world:
@@ -94,15 +82,14 @@ general:
 hellblock:
   # Whether or not players can transfer ownership to others for their hellblocks. 
   can-transfer-islands: true
+  # Whether or not the generation animation is disabled when creating a new hellblock.
+  # Only set to true if you find the animation annoying as it is pretty quick anyway.
+  disable-generation-animation: false
   # Whether or not players can link their nether portals to other player's hellblocks. If false a nether portal on any island will just
   # teleport them to their own hellblock.
   can-link-hellblocks: true
-  # This is the maximum amount of players that can join a party without having defined permissions. If you want it set lower than this you can
-  # give the player the permission 'hellcoop.size.<insert number here>' to reduce the number below. The number here is set for when players
-  # have the wildcard permission 'hellcoop.size.*'.
-  max-party-size: 20
   # Can be internalAsync (for us to handle it), fawe or worldedit  
-  schematic-paster: worldedit
+  schematic-paster: internalAsync
   # You must add schematic as an option if you want all of the schematics in your "schematics" folder to appear as a choice to choose from.
   island-options:
     - 'default'
@@ -110,12 +97,8 @@ hellblock:
     - 'schematic'
   # The starting height for each hellblock. This will be the height a spawn point is set per hellblock when creating a island.
   height: 150
-  # The distance between each hellblock. This is only accounted for when all hellblocks are stored in one world. Otherwise this is ignored.
-  distance: 110
   # Use worldguard for hellblock protection or have us handle it?
-  use-worldguard-protection: true
-  # The protection range for each hellblock. This is how far it will protect using WorldGuard or our internal protection system.
-  protection-range: 105
+  use-worldguard-protection: false
   # Whether or not the owner and party's inventory gets cleared when hellblock gets reset.
   clear-inventory-on-reset: true
   # Whether or not the owner and party's enderchest gets cleared when hellblock gets reset.
@@ -135,7 +118,216 @@ hellblock:
   # Use particle effect borders in place of the actual world border for each hellblock limit.
   use-particle-border: false
   # If set to true it will teleport players who fall in the void to their hellblock or to spawn if no hellblock is found.
+  # Otherwise will die in void.
   void-teleport: true
+  # Lightning effect played on death? It doesn't hurt the player but just shows lightning when killed by any means.
+  # If this is found to be more on the annoying side you can set this to false.
+  lightning-on-death: true
+  # Display settings (applicable to changing island name or bio):
+  display-settings:
+    # This doesn't include color codes just actual characters (only for bios)
+    max-bio-character-length: 80
+    # The same as above but for names only.
+    max-name-character-length: 30
+    # Max color code changes allowed in bios 
+    max-color-codes: 10 
+    # Max new lines allowed in a bio 
+    max-new-lines: 3
+    # Wrap length to prevent huge lines (only for bios)
+    wrap-length: 55
+    # This is a banned list of words to be included within display changes
+    # Will automatically detect attempts to bypass.
+    banned-phrases:
+      - "fuck"
+      - "shit"
+      - "bitch"
+      - "slut"
+      - "dick"
+      - "whore"
+      - "pussy"
+      - "asshole"
+      - "ass"
+      - "crap"
+      - "penis"
+      - "vagina"
+      - "tits"
+      - "prick"
+      - "nigger"
+      - "nigga"
+      - "faggot"
+      - "bastard"
+  # The default starting number for each of the following:
+  # Protection range stands for the starting range in each direction (x, z) that players can build before being stopped.
+  # Party size is the starting party count allowed per hellblock.
+  # Hopper limit is the amount of hoppers allowed to work per hellblock before stopping any being placed/working further.
+  # Generator chance is the additional chance added to the configured chance per generator block below a 10% defined in this file. 
+  # Piglin bartering chance is the additonal chance added to the configured chance per piglin bartering item below a 5% defined in this file.
+  # Crop growth rate will grow your crops faster (in combination when lava rain or next to lava already) by a defined percentage.
+  # Mob spawn rate will increase the chance for mobs to spawn on your island by a defined percentage.
+  # 0.0 starting means it will not add anything to the defined values.
+  # When defining values per generator-chance, piglin-bartering, crop-growth or mob-spawn-rate it will not be a overall value 
+  # but it just adds to the current so 0.2 for tier 1 will add to an already default value of say 0.5.
+  upgrades:
+    default:
+      protection-range: 100
+      party-size: 4
+      hopper-limit: 20
+      generator-chance: 0.0
+      piglin-bartering: 0.0
+      crop-growth: 0.0
+      mob-spawn-rate: 0.0
+    tier-1:
+      protection-range:
+        value: 125
+        costs:
+          - type: MONEY
+            amount: 500
+          - type: EXP
+            amount: 100
+          - type: ITEM
+            item: IRON_INGOT
+            amount: 16
+      party-size:
+        value: 5
+        costs:
+          - type: MONEY
+            amount: 250
+          - type: EXP
+            amount: 50
+      hopper-limit:
+        value: 30
+        costs:
+          - type: MONEY
+            amount: 300
+          - type: ITEM
+            item: REDSTONE
+            amount: 32
+      generator-chance:
+        value: 0.2
+        costs:
+          - type: EXPERIENCE
+            amount: 500
+          - type: ITEM
+            item: DIAMOND
+            amount: 16
+      piglin-bartering:
+        value: 0.1
+        costs:
+          - type: EXPERIENCE
+            amount: 450
+      crop-growth:
+        value: 0.2
+        costs:
+          - type: ITEM
+            item: GOLD_INGOT
+            amount: 64
+      mob-spawn-rate:
+        value: 0.3
+        costs:
+          - type: MONEY
+            amount: 7500
+    tier-2:
+      protection-range:
+        value: 150
+        costs:
+          - type: MONEY
+            amount: 1000
+          - type: EXP
+            amount: 200
+          - type: ITEM
+            item: GOLD_INGOT
+            amount: 8
+      party-size:
+        value: 6
+        costs:
+          - type: MONEY
+            amount: 500
+          - type: EXP
+            amount: 100
+      hopper-limit:
+        value: 40
+        costs:
+          - type: MONEY
+            amount: 600
+          - type: ITEM
+            item: IRON_BLOCK
+            amount: 4
+      generator-chance:
+        value: 0.3
+        costs:
+          - type: XP
+            amount: 1000
+          - type: MONEY
+            amount: 5000
+      piglin-bartering:
+        value: 0.2
+        costs:
+          - type: MONEY
+            amount: 10000
+      crop-growth:
+        value: 0.3
+        costs:
+          - type: MONEY
+            amount: 25000
+          - type: XP
+            amount: 8000
+      mob-spawn-rate:
+        value: 0.4
+        costs:
+          - type: EXP
+            amount: 15000
+    tier-3:
+      protection-range:
+        value: 175
+        costs:
+          - type: MONEY
+            amount: 2000
+          - type: EXP
+            amount: 400
+          - type: ITEM
+            item: DIAMOND
+            amount: 4
+      party-size:
+        value: 7
+        costs:
+          - type: MONEY
+            amount: 1000
+          - type: EXP
+            amount: 200
+      hopper-limit:
+        value: 50
+        costs:
+          - type: MONEY
+            amount: 1200
+          - type: ITEM
+            item: GOLD_BLOCK
+            amount: 2
+      generator-chance:
+        value: 0.5
+        costs:
+          - type: ITEM
+            item: EMERALD
+            amount: 24
+          - type: MONEY
+            amount: 2500
+          - type: EXP
+            amount: 400
+      piglin-bartering:
+        value: 0.4
+        costs:
+          - type: ITEM
+            item: NETHERITE_BLOCK
+            amount: 8
+      crop-growth:
+        value: 0.3
+        costs:
+          - type: MONEY
+            amount: 50000
+      mob-spawn-rate:
+        value: 0.2
+        costs:
+          - type: EXP
+            amount: 25000
   creation-title-screen:
     enable: true
     title: '<red>Welcome <dark_red>{player}'
@@ -159,7 +351,7 @@ hellblock:
     volume: 1.0
     pitch: 1.0
   starter-chest: 
-    inventory-name: '<dark_red>Hellblock Chest'
+    inventory-name: '<center><dark_red>Hellblock Chest</dark_red></center>'
     items:
       '1':
         material: BROWN_MUSHROOM
@@ -205,998 +397,6 @@ hellblock:
         material: BONE
         amount: 1
         slot: 23
-  gui:
-    # Title for the hellblock menu
-    title: '<gradient:#A52A2A:#800000:#A52A2A>Hellblock Menu</gradient>'
-    # Layout for the hellblock menu
-    layout:
-      - 'TECPLBFRX'
-    # For the items that are exclusive to owners only (biome, reset, lock and flags) what decorative item should it use in it's place?
-    # Leave empty ('') for it to replace it with air.
-    owner-exclusive-placeholder-icon: 'glass-pane'
-    # Teleport icon to teleport to hellblock
-    teleport-icon:
-      symbol: 'T'
-      material: ENDER_PEARL
-      display:
-        name: '<green>Teleport to your Hellblock!'
-        lore:
-          - '<aqua>Click to go to your home island!'
-      action:
-        sound_action:
-          type: sound
-          value:
-            key: 'minecraft:entity.enderman.teleport'
-            source: 'player'
-            volume: 1
-            pitch: 1
-        particle_action:
-          type: particle
-          value:
-            key: 'ENDER_SIGNAL'
-            count: 5
-        message_action:
-          type: message
-          value: '<red>Teleporting you to your hellblock!'
-      components:
-        minecraft:hide_tooltip: {}
-    # Challenge icon to view hellblock challenges
-    challenge-icon:
-      symbol: 'C'
-      material: KNOWLEDGE_BOOK
-      display:
-        name: '<green>View all Hellblock Challenges!'
-        lore:
-          - '<aqua>Click to view a list of challenges for you to complete!'
-      action:
-        sound_action:
-          type: sound
-          value:
-            key: 'minecraft:ui.button.click'
-            source: 'player'
-            volume: 1
-            pitch: 1
-      components:
-        minecraft:hide_tooltip: {}
-    # Level icon to view hellblock level
-    level-icon:
-      symbol: 'E'
-      material: EXPERIENCE_BOTTLE
-      display:
-        name: '<green>View your island level!'
-        lore:
-          - '<gold>Level: <yellow>{hellblock_level}'
-          - ' '
-          - '<gold>Your overall rank is <yellow><bold>{hellblock_rank}'
-      action:
-        sound_action:
-          type: sound
-          value:
-            key: 'minecraft:entity.player.levelup'
-            source: 'player'
-            volume: 1
-            pitch: 1
-      components:
-        minecraft:hide_tooltip: {}
-    # Party icon to view party members 
-    party-icon:
-      symbol: 'P'
-      material: BEACON
-      display:
-        name: '<green>View your party members!'
-        lore:
-          - '<aqua>Click to see a list of your party members!'
-      action:
-        sound_action:
-          type: sound
-          value:
-            key: 'minecraft:ui.button.click'
-            source: 'player'
-            volume: 1
-            pitch: 1
-      components:
-        minecraft:hide_tooltip: {}
-    # Biome icon to change hellblock biome
-    biome-icon:
-      symbol: 'B'
-      material: WARPED_FUNGUS
-      display:
-        name: '<green>Change island biome!'
-        lore:
-          - '<aqua>Click to view all of the biome options!'
-      action:
-        sound_action:
-          type: sound
-          value:
-            key: 'minecraft:ui.button.click'
-            source: 'player'
-            volume: 1
-            pitch: 1
-      components:
-        minecraft:hide_tooltip: {}
-    # Flag icon to change hellblock protection flags
-    flag-icon:
-      symbol: 'F'
-      material: REPEATER
-      display:
-        name: '<green>Change your Hellblock Protection Flags!'
-        lore:
-          - '<aqua>Click to change your hellblock protection flags!'
-      action:
-        sound_action:
-          type: sound
-          value:
-            key: 'minecraft:ui.button.click'
-            source: 'player'
-            volume: 1
-            pitch: 1
-      components:
-        minecraft:hide_tooltip: {}
-    # Lock icon to change visitor status
-    lock-icon:
-      symbol: 'L'
-      material: ENDER_CHEST
-      display:
-        name: '<green>Lock your Hellblock!'
-        lore:
-          - '<aqua>Click to change the visitor status of your hellblock!'
-      action:
-        sound_action:
-          type: sound
-          value:
-            key: 'minecraft:ui.button.click'
-            source: 'player'
-            volume: 1
-            pitch: 1
-        message_action:
-          type: message
-          value: "<red>You've just <dark_red>locked <red>your hellblock island!"
-      components:
-        minecraft:hide_tooltip: {}
-    # Unlock icon to change visitor status
-    unlock-icon:
-      symbol: 'L'
-      material: CHEST
-      display:
-        name: '<green>Unlock your Hellblock!'
-        lore:
-          - '<aqua>Click to change the visitor status of your hellblock!'
-      action:
-        sound_action:
-          type: sound
-          value:
-            key: 'minecraft:ui.button.click'
-            source: 'player'
-            volume: 1
-            pitch: 1
-        message_action:
-          type: message
-          value: "<red>You've just <dark_red>unlocked <red>your hellblock island!"
-      components:
-        minecraft:hide_tooltip: {}
-    # Reset icon to restart hellblock
-    reset-icon:
-      symbol: 'R'
-      material: NETHER_BRICKS
-      display:
-        name: '<green>Reset your Hellblock'
-        lore:
-          - '<aqua>Click to reset your hellblock island!'
-      action:
-        sound_action:
-          type: sound
-          value:
-            key: 'minecraft:ui.button.click'
-            source: 'player'
-            volume: 1
-            pitch: 1
-      components:
-        minecraft:hide_tooltip: {}
-    # Cooldown icon for reset
-    reset-cooldown-icon:
-      material: BARRIER
-      display:
-        name: '<red>Reset is on cooldown!'
-        lore:
-          - '<dark_red>Your ability to reset is on cooldown for:'
-          - '<red>{reset_cooldown_formatted}'
-      action:
-        sound_action:
-          type: sound
-          value:
-            key: 'minecraft:entity.villager.no'
-            source: 'player'
-            volume: 1
-            pitch: 1
-        message_action:
-          type: message
-          value: '<red>You've recently reset your hellblock already, you must wait for <dark_red>{reset_cooldown_formatted}<red>!'
-      components:
-        minecraft:hide_tooltip: {}
-    # Cooldown icon for biome
-    biome-cooldown-icon:
-      material: BARRIER
-      display:
-        name: '<red>Biome Change is on cooldown!'
-        lore:
-          - '<dark_red>Your ability to change the biome is on cooldown for:'
-          - '<red>{biome_cooldown_formatted}'
-      action:
-        sound_action:
-          type: sound
-          value:
-            key: 'minecraft:entity.villager.no'
-            source: 'player'
-            volume: 1
-            pitch: 1
-        message_action:
-          type: message
-          value: '<red>You've recently changed your biome already, you must wait for <dark_red>{biome_cooldown_formatted}<red>!'
-        components:
-          minecraft:hide_tooltip: {}
-    # Decorative icons for visual enhancement
-    decorative-icons:
-      glass-pane:
-        symbol: 'A'
-        material: BLACK_STAINED_GLASS_PANE
-        display:
-          name: ' '  
-        components:
-          minecraft:hide_tooltip: {}
-      close-icon:
-        symbol: 'X'
-        material: RED_STAINED_GLASS_PANE
-        display:
-          name: '<red>Close Menu'
-        action:
-          sound_action:
-            type: sound
-            value:
-              key: 'minecraft:ui.button.click'
-              source: 'player'
-              volume: 1
-              pitch: 1
-          close_action:
-            type: close-inv
-        components:
-          minecraft:hide_tooltip: {}
-
-party:
-  gui:
-    # The title for the coop party menu
-    title: '<gradient:#A52A2A:#800000:#A52A2A>Hellblock Party</gradient>'
-    # The layout for the party menu
-    layout:
-      - 'AAAAAAAAA'
-      - 'AOMMMMMMA'
-      - 'AMMMMMMMA'
-      - 'AMMMMMMMA'
-      - 'AAAAAAAAX'
-    # Back icon to return to main menu
-    back-icon:
-      symbol: 'X'
-      material: RED_STAINED_GLASS_PANE
-      display:
-        name: '<red>Return to Main Menu'
-      action:
-        sound_action:
-          type: sound
-          value:
-            key: 'minecraft:ui.button.click'
-            source: 'player'
-            volume: 1
-            pitch: 1
-      components:
-        minecraft:hide_tooltip: {}
-      # Owner icon to view owner of hellblock
-      owner-icon:
-        symbol: 'O'
-        material: PLAYER_HEAD
-        display:
-          name: '<aqua>{player}'
-          lore:
-            - '<yellow>Role: <gold>Owner'
-        action:
-          sound_action:
-            type: sound
-            value:
-              key: 'minecraft:ui.button.click'
-              source: 'player'
-              volume: 1
-              pitch: 1
-        components:
-          minecraft:hide_tooltip: {}
-      # Member icon to view members of hellblock
-      member-icon:
-        symbol: 'M'
-        material: PLAYER_HEAD
-        display:
-          name: '<aqua>{player}'
-          owner-lore: 
-            - '<yellow>Role: <gold>Member'
-            - ' '
-            - '<red>Click to kick them!'
-          member-lore:
-            - '<yellow>Role: <gold>Member'
-        action:
-          sound_action:
-            type: sound
-            value:
-              key: 'minecraft:ui.button.click'
-              source: 'player'
-              volume: 1
-              pitch: 1
-        components:
-          minecraft:hide_tooltip: {}
-      # New member icon to add new players to the hellblock
-      new-member-icon:
-        symbol: 'M'
-        material: PLAYER_HEAD
-        head64: 'eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvYmFkYzA0OGE3Y2U3OGY3ZGFkNzJhMDdkYTI3ZDg1YzA5MTY4ODFlNTUyMmVlZWQxZTNkYWYyMTdhMzhjMWEifX19'
-        display:
-          name: '<dark_green>Empty Slot'
-          owner-lore: 
-            - '<green>Click to invite a new member!'
-        action:
-          sound_action:
-            type: sound
-            value:
-              key: 'minecraft:ui.button.click'
-              source: 'player'
-              volume: 1
-              pitch: 1 
-        components:
-          minecraft:hide_tooltip: {}
-      # Decorative icons for visual enhancement
-      decorative-icons:
-        glass-pane:
-          symbol: 'A'
-          material: BLACK_STAINED_GLASS_PANE
-          display:
-            name: ' '
-          components:
-            minecraft:hide_tooltip: {}
-
-invitation:
-  gui:
-    # The title for the invite menu
-    title: '<gradient:#A52A2A:#800000:#A52A2A>Hellblock Invitations</gradient>'
-    # The layout for the invite menu
-    # This layout is for the player's actual inventory. Do not edit this to be anything but 4x9 rows.
-    layout:
-      - 'PPPPPPPPP'
-      - 'PPPPPPPPP'
-      - 'PPPPPPPPP'
-      - 'LAAAXAAAR'
-    # Search icon for typing in the player's icon (Actions aren't acceptable here)
-    # The only things that can be changed are what are shown below. name represents what will come up if nothing is typed in.
-    # Otherwise what is typed in the anvil's search bar will be set to the name of the item below.
-    search-icon:
-      material: NAME_TAG
-      display:
-        name: '<Type Name Here>'
-      components:
-        minecraft:hide_tooltip: {}
-    # No player found icon
-    player-not-found-icon:
-      material: BARRIER
-      display:
-        name: '<red>No Player Found'
-      action:
-        sound_action:
-          type: sound
-          value:
-            key: 'minecraft:entity.villager.no'
-            source: 'player'
-            volume: 1
-            pitch: 1
-      components:
-        minecraft:hide_tooltip: {}
-    # Player found icon
-    player-found-icon:
-      material: PLAYER_HEAD
-      display:
-        name: '<green>{player}'
-        lore:
-          - '<dark_green>Click to send invite!'
-      action:
-        sound_action:
-          type: sound
-          value:
-            key: 'minecraft:block.note_block.pling'
-            source: 'player'
-            volume: 1
-            pitch: 1
-	  components:
-        minecraft:hide_tooltip: {}
-    # Player icon for each different player to invite
-    player-icon:
-      symbol: 'P' 
-      material: PLAYER_HEAD
-      display:
-        name: '<yellow>{player}'
-        lore:
-          - '<gold>Click to invite them!'
-      action:
-        sound_action:
-          type: sound
-          value:
-            key: 'minecraft:ui.button.click'
-            source: 'player'
-            volume: 1
-            pitch: 1
-      components:
-        minecraft:hide_tooltip: {}
-    # Scroll left icon
-    scroll-left-icon:
-      symbol: 'L'
-      material: ORANGE_STAINED_GLASS_PANE
-      display:
-        name: '<gold>Previous Page'
-      action:
-        sound_action:
-          type: sound
-          value:
-            key: 'minecraft:ui.button.click'
-            source: 'player'
-            volume: 1
-            pitch: 1
-      components:
-        minecraft:hide_tooltip: {}
-    # Scroll right icon
-    scroll-right-icon:
-      symbol: 'R'
-      material: ORANGE_STAINED_GLASS_PANE
-      display:
-        name: '<gold>Next Page'
-      action: 
-        sound_action:
-          type: sound
-          value:
-            key: 'minecraft:ui.button.click'
-            source: 'player'
-            volume: 1
-            pitch: 1
-      components:
-        minecrat:hide_tooltip: {}
-    # Back icon to return to party menu
-    back-icon:
-      symbol: 'X'
-      material: RED_STAINED_GLASS_PANE
-      display: 
-        name: '<red>Return to Party Menu'
-      action:
-        sound_action:
-          type: sound
-          value:
-            key: 'minecraft:ui.button.click'
-            source: 'player'
-            volume: 1
-            pitch: 1
-      components:
-        minecraft:hide_tooltip: {}
-    # Decorative icons for visual enhancement
-    decorative-icons:
-      glass-pane:
-        symbol: 'A'
-        material: BLACK_STAINED_GLASS_PANE
-        display:
-          name: ' '
-        components:
-          minecraft:hide_tooltip: {}
-
-challenges:
-  gui:
-    # The title for the challenges menu
-    title: '<gradient:#A52A2A:#800000:#A52A2A>Hellblock Challenges</gradient>'
-    # The layout for the challenges menu
-    layout:
-      - 'A0123456A'
-      - 'AAA789AAX'
-    # Make completed and claimed challenges glow?
-    highlight-completed-challenges: true
-    # Back icon to return to main menu
-    back-icon:
-      symbol: 'X'
-      material: RED_STAINED_GLASS_PANE
-      display:
-        name: '<red>Return to Main Menu'
-      action:
-        sound_action:
-          type: sound
-          value:
-            key: 'minecraft:ui.button.click'
-            source: 'player'
-            volume: 1
-            pitch: 1
-      components:
-        minecraft:hide_tooltip: {}
-    # Challenge icons for each different challenge type
-    challenge-icons:
-      challenge-one:
-        symbol: '1'
-        material: GOLDEN_PICKAXE
-        # Check the challenges file for each different challenge types to input here
-        challenge-type: NETHERRACK_GENERATOR_CHALLENGE
-        display:
-          completed-name: '<green>Break {needed_amount} generated blocks!'
-          uncompleted-name: '<red>Break {needed_amount} generated blocks!'
-          unclaimed-lore:
-            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
-            - ' '
-            - ' '
-            - '<yellow>Click to claim your reward!'
-          claimed-lore:
-            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
-            - ' '
-            - '<yellow>Reward Claimed!'
-          uncompleted-lore:
-            - '<dark_red>Progress: <gray>({current_amount}/{needed_amount})'
-            - '{progress_bar}'
-        action:
-          sound_action:
-            type: sound
-            value:
-              key: 'minecraft:ui.button.click'
-              source: 'player'
-              volume: 1
-              pitch: 1
-        components:
-          minecraft:hide_tooltip: {}
-    # Decorative icons for visual enhancement
-    decorative-icons:
-      glass-pane:
-        symbol: 'A'
-        material: BLACK_STAINED_GLASS_PANE
-        display:
-          name: ' '
-        components:
-          minecraft:hide_tooltip: {}
-
-flags:
-  gui:
-    # The title for the flags menu
-    title: '<gradient:#A52A2A:#800000:#A52A2A>Hellblock Flags</gradient>'
-    # The layout for the flags menu
-    layout:
-      - 'AAAAAAAAX'
-      - 'ABPXXXXXA'
-      - 'AXXXXXXXA'
-      - 'AXXXXXXXA'
-      - 'AXXXXXXXA'
-      - 'AAAXXXAAA'
-    # Make the flags that are selected glow?
-    highlight-selected-flags: true
-    # Back icon to return to main menu
-    back-icon:
-      symbol: 'X'
-      material: RED_STAINED_GLASS_PANE
-      display:
-        name: '<red>Return to Main Menu'
-      action:
-        sound_action:
-          type: sound
-          value:
-            key: 'minecraft:ui.button.click'
-            source: 'player'
-            volume: 1
-            pitch: 1
-      components:
-        minecraft:hide_tooltip: {}
-    # Flag icons for each different flag type
-    flag-icons:
-      block-break-icon:
-        symbol: 'B'
-        material: STONE_PICKAXE
-        flag-type: BLOCK_BREAK
-        display:
-          name: '<yellow>Block Break Flag'
-          lore:
-            - '<gold>Allowed: <yellow>{flag_value}'
-        action:
-          sound_action:
-            type: sound
-            value:
-              key: 'minecraft:ui.button.click'
-              source: 'player'
-              volume: 1
-              pitch: 1
-        components:
-          minecraft:hide_tooltip: {}
-      block-place-icon:
-        symbol: 'P'
-        material: COBBLESTONE
-        flag-type: BLOCK_PLACE
-        display:
-          name: '<yellow>Block Place Flag'
-          lore:
-            - '<gold>Allowed: <yellow>{flag_value}'
-        action:
-          sound_action:
-            type: sound
-            value:
-              key: 'minecraft:ui.button.click'
-              source: 'player'
-              volume: 1
-              pitch: 1
-        components:
-          minecraft:hide_tooltip: {}
-    # Decorative icons for visual enhancement
-    decorative-icons:
-      glass-pane:
-        symbol: 'A'
-        material: BLACK_STAINED_GLASS_PANE
-        display:
-          name: ' '
-        components:
-          minecraft:hide_tooltip: {}
-
-biome:
-  gui:
-    # The title for the biome menu
-    title: '<gradient:#A52A2A:#800000:#A52A2A>Hellblock Biomes</gradient>'
-    # The layout for the biome menu
-    layout:
-      - 'ASWCNBFAX'
-    # Make the biome that is currently selected glow?
-    highlight-selected-biome: true
-    # Biome icons
-    biome-icons:
-      # Soul sand valley icon
-      soul-sand-valley-icon:
-        symbol: 'S'
-        material: SOUL_SOIL
-        # The biome defined for this icon. The options are all listed out below:
-        # [SOUL_SAND_VALLEY, WARPED_FOREST, CRIMSON_FOREST, NETHER_WASTES, BASALT_DELTAS, NETHER_FORTRESS]
-        biome: SOUL_SAND_VALLEY
-        display:
-          name: '<red>Soul Sand Valley'
-          unselected-lore:
-            - '<dark_red>Click to change to this biome!'
-          selected-lore:
-            - '<dark_red>Click to change to this biome!'
-            - ' '
-            - '<yellow>This is your current selection!'
-        action:
-          sound_action:
-            type: sound
-            value:
-              key: 'minecraft:ui.button.click'
-              source: 'player'
-              volume: 1
-              pitch: 1
-      # You can also have requirements per biome, for example charging them using Vault economy.
-      # requirement:
-      #   money_requirement:
-      #     type: money
-      #     value: 500
-        components:
-          minecraft:hide_tooltip: {}
-      # Warped forest icon
-      warped-forest-icon:
-        symbol: 'W'
-        material: WARPED_STEM
-        biome: WARPED_FOREST
-        display:
-          name: '<red>Warped Forest'
-          unselected-lore:
-            - '<dark_red>Click to change to this biome!'
-          selected-lore:
-            - '<dark_red>Click to change to this biome!'
-            - ' '
-            - '<yellow>This is your current selection!'
-        action:
-          sound_action:
-            type: sound
-            value:
-              key: 'minecraft:ui.button.click'
-              source: 'player'
-              volume: 1
-              pitch: 1
-        components:
-          minecraft:hide_tooltip: {}
-      # Crimson forest icon
-      crimson-forest-icon:
-        symbol: 'C'
-        material: CRIMSON_STEM
-        biome: CRIMSON_FOREST
-        display:
-          name: '<red>Crimson Forest'
-          unselected-lore:
-            - '<dark_red>Click to change to this biome!'
-          selected-lore:
-            - '<dark_red>Click to change to this biome!'
-            - ' '
-            - '<yellow>This is your current selection!'
-        action:
-          sound_action:
-            type: sound
-            value:
-              key: 'minecraft:ui.button.click'
-              source: 'player'
-              volume: 1
-              pitch: 1
-        components:
-          minecraft:hide_tooltip: {}
-      # Nether wastes icon
-      nether-wastes-icon:
-        symbol: 'N'
-        material: NETHERRACK
-        biome: NETHER_WASTES
-        display:
-          name: '<red>Nether Wastes'
-          unselected-lore:
-            - '<dark_red>Click to change to this biome!'
-          selected-lore:
-            - '<dark_red>Click to change to this biome!'
-            - ' '
-            - '<yellow>This is your current selection!'
-        action:
-          sound_action:
-            type: sound
-            value:
-              key: 'minecraft:ui.button.click'
-              source: 'player'
-              volume: 1
-              pitch: 1
-        components:
-          minecraft:hide_tooltip: {}
-      # Basalt deltas icon
-      basalt-deltas-icon:
-        symbol: 'B'
-        material: NETHERITE_BLOCK
-        biome: BASALT_DELTAS
-        display:
-          name: '<red>Basalt Deltas'
-          unselected-lore:
-            - '<dark_red>Click to change to this biome!'
-          selected-lore:
-            - '<dark_red>Click to change to this biome!'
-            - ' '
-            - '<yellow>This is your current selection!'
-        action:
-          sound_action:
-            type: sound
-            value:
-              key: 'minecraft:ui.button.click'
-              source: 'player'
-              volume: 1
-              pitch: 1
-        components:
-          minecraft:hide_tooltip: {}
-      # Nether fortress icon
-      nether-fortress-icon:
-        symbol: 'F'
-        material: NETHER_BRICK
-        biome: NETHER_FORTRESS
-        display:
-          name: '<red>Nether Fortress'
-          unselected-lore:
-            - '<dark_red>Click to change to this biome!'
-          selected-lore:
-            - '<dark_red>Click to change to this biome!'
-            - ' '
-            - '<yellow>This is your current selection!'
-        action:
-          sound_action:
-            type: sound
-            value:
-              key: 'minecraft:ui.button.click'
-              source: 'player'
-              volume: 1
-              pitch: 1
-        components:
-          minecraft:hide_tooltip: {}
-    # Back icon to return to main menu
-    back-icon:
-      symbol: 'X'
-      material: RED_STAINED_GLASS_PANE
-      display:
-        name: '<red>Return to Main Menu'
-      action:
-        sound_action:
-          type: sound
-          value:
-            key: 'minecraft:ui.button.click'
-            source: 'player'
-            volume: 1
-            pitch: 1
-      components:
-        minecraft:hide_tooltip: {}
-    decorative-icons:
-      glass-pane:
-        symbol: 'A'
-        material: BLACK_STAINED_GLASS_PANE
-        display:
-          name: ' '
-        components:
-          minecraft:hide_tooltip: {}
-
-confirm-reset:
-  gui:
-    # The title for the reset confirm menu
-    title: '<gradient:#A52A2A:#800000:#A52A2A>Confirmation Menu</gradient>'
-    # The layout for the reset confirm menu
-    # One row with 5 characters will result in a hopper inventory menu being used instead of a regular one.
-    layout:
-      - 'ACADA'
-    # Deny icon for denying reset action
-    deny-icon:
-      symbol: 'D'
-      material: RED_WOOL
-      display:
-        name: '<red>Deny Reset Action'
-      action:
-        sound_action:
-          type: sound
-          value:
-            key: 'minecraft:ui.button.click'
-            source: 'player'
-            volume: 1
-            pitch: 1
-      components:
-        minecraft:hide_tooltip: {}
-    # Confirm icon for confirming reset action
-    confirm-icon:
-      symbol: 'C'
-      material: LIME_WOOL
-      display:
-        name: '<green>Confirm Reset Action'
-      action:
-        sound_action:
-          type: sound
-          value:
-            key: 'minecraft:ui.button.click'
-            source: 'player'
-            volume: 1
-            pitch: 1
-      components:
-        minecraft:hide_tooltip: {}
-    # Decorative icons for visual enhancement 
-    decorative-icons:
-      glass-pane:
-        symbol: 'A'
-        material: BLACK_STAINED_GLASS_PANE
-        display:
-          name: ' '  
-        components:
-          minecraft:hide_tooltip: {}
-
-island-choice:
-  gui:
-    # The title for the island choice menu
-    title: '<gradient:#A52A2A:#800000:#A52A2A>Pick your island type!</gradient>'
-    # The layout for the island choice menu
-    layout: 
-      - 'AADACASAA'
-    # Default icon for default island type
-    default-icon:
-      symbol: 'D'
-      material: NETHERRACK
-      display:
-        name: '<red>Default Type'
-        lore:
-          - '<dark_red>Click to generate a default hellblock!'
-      action:
-        sound_action:
-          type: sound
-          value:
-            key: 'minecraft:ui.button.click'
-            source: 'player'
-            volume: 1
-            pitch: 1
-      components:
-        minecraft:hide_tooltip: {}
-    # Classic icon for classic island type
-    classic-icon:
-      symbol: 'C'
-      material: SOUL_SAND
-      display:
-        name: '<red>Classic Type'
-        lore:
-          - '<dark_red>Click to generate a classic hellblock!'
-      action:
-        sound_action:
-          type: sound
-          value:
-            key: 'minecraft:ui.button.click'
-            source: 'player'
-            volume: 1
-            pitch: 1
-      components:
-        minecraft:hide_tooltip: {}
-    # Schematic icon for schematic options
-    schematic-icon:
-      symbol: 'S'
-      material: MAP
-      display:
-        name: '<red>Schematic Options'
-        lore:
-          - '<dark_red>Click to view the schematic options to generate!'
-      action:
-        sound_action:
-          type: sound
-          value:
-            key: 'minecraft:ui.button.click'
-            source: 'player'
-            volume: 1
-            pitch: 1
-      components:
-        minecraft:hide_tooltip: {}
-    # Decorative icons for visual enhancement
-    decorative-icons:
-      glass-pane:
-        symbol: 'A'
-        material: BLACK_STAINED_GLASS_PANE
-        display:
-          name: ' '  
-        components:
-          minecraft:hide_tooltip: {}
-
-schematic:
-  gui:
-    # The title for the schematic menu
-    title: '<gradient:#A52A2A:#800000:#A52A2A>Choose a schematic!</gradient>'
-    # The layout for the schematic menu
-    layout:
-      - 'AAAAAAAAA'
-      - 'A1XXXXXXA'
-      - 'AXXXXXXXA' 
-      - 'AXXXXXXXA'
-      - 'AXXXXXXXA'
-      - 'AAAAAAAAB'
-    # The schematic format for each schematic to be viewed in the menu
-    schematic-icons:
-      schematic-1:
-	    symbol: '1'
-        schematic: 'example.schem'
-        material: PAPER
-        display:
-          name: '<gold>Example'
-          lore:
-            - '<yellow>Click to generate Example!'
-        requirement:
-          permission_requirement:
-            type: permission
-            value: 'hellblock.schematic.example'
-        action:
-          sound_action:
-            type: sound
-            value:
-              key: 'minecraft:ui.button.click'
-              source: 'player'
-              volume: 1
-              pitch: 1
-        components:
-          minecraft:hide_tooltip: {}
-    # The back icon to choose a default island format
-    back-icon:
-      symbol: 'B'
-      material: RED_STAINED_GLASS_PANE
-      display:
-        name: '<red>Back to Main Menu'
-      action:
-        sound_action:
-          type: sound
-          value:
-            key: 'minecrat:ui.button.click'
-            source: 'player'
-            volume: 1
-            pitch: 1
-      components:
-        minecraft:hide_tooltip: {}
-    # Decorative icons for visual enhancement
-    decorative-icons:
-      placeholder:
-        symbol: 'X'
-        material: AIR
-      glass-pane:
-        symbol: 'A'
-        material: BLACK_STAINED_GLASS_PANE
-        display:
-          name: ' '
-        components:
-          miencraft:hide_tooltip: {}
 
 # You add the block material type and then the amount of levels you want it to add to the hellblock.
 # Example: 'cobblestone:5' will add 5 levels to the hellblock when cobblestone is placed. Doesn't matter if a trusted member, party member or owner places it.
@@ -1205,28 +405,124 @@ schematic:
 # If you wish to define a specific mob spawner type you can put the entity's name after like shown in the example below for it to only work for that entity type.
 level-system:
   blocks:
-    COBBLESTONE: 0.5
+    # Overworld survival essentials (valuable)
+    DIRT: 1
+    GRASS_BLOCK: 1
+    SAND: 0.8
+    GRAVEL: 0.3
+    COBBLESTONE: 1
+    STONE: 1
+    LOG: 1.2
+    PLANKS: 0.8
+    LEAVES: 0.2
+    # Overworld ores (very valuable here)
+    COAL_BLOCK: 2
+    IRON_BLOCK: 3
+    GOLD_BLOCK: 4
+    LAPIS_BLOCK: 4
+    REDSTONE_BLOCK: 3.5
+    COPPER_BLOCK: 3
+    DIAMOND_BLOCK: 10
+    EMERALD_BLOCK: 12
+    BEACON: 25
+    # Common Nether blocks (low value)
+    NETHERRACK: 0.05
+    SOUL_SAND: 0.1
+    SOUL_SOIL: 0.1
+    NETHER_BRICKS: 0.1
+    QUARTZ_BLOCK: 0.2
     GLOWSTONE: 0.2
-    NETHERITE_BLOCK: 15
-    'SPAWNER:BLAZE': 50
+    BLACKSTONE: 0.2
+    # Still valuable Nether blocks
+    BASALT: 0.8
+    MAGMA_BLOCK: 1
+    CRYING_OBSIDIAN: 2
+    OBSIDIAN: 2
+    ANCIENT_DEBRIS: 8
+    NETHERITE_BLOCK: 20
+    # End-game prestige
+    END_STONE: 1
+    PURPUR_BLOCK: 1.5
+    SEA_LANTERN: 2
+    # Spawners (late-game)
+    'SPAWNER:ZOMBIE': 15
+    'SPAWNER:SKELETON': 20
+    'SPAWNER:BLAZE': 25      # weaker than before (since Blaze = common in Nether)
+    'SPAWNER:IRON_GOLEM': 50
+    'SPAWNER:WITHER_SKELETON': 40
+    'SPAWNER:PIGLIN': 20
+    'SPAWNER:ENDER_DRAGON': 500
 
 piglin-bartering:
   # If set to true this will clear all default items and only the custom items added below will be dropped.
   clear-default-outcome: false
   # This won't change the default items that piglins barter but you can add custom items that are harder to get in the nether here.
   # The amount represents a random chance to get up to that number when bartering between 1 and x where x represents the number you input here.
+  # The weight is the chance that this item will be dropped at all.
   items:
+    # Overworld basics (common)
     '1':
+      material: DIRT
+      amount: 4
+      weight: 25
+      display:
+        name: '<green>Overworld Dirt'
+    '2':
+      material: OAK_LOG
+      amount: 3
+      weight: 20
+      display:
+        name: '<gold>Oak Log'
+    '3':
+      material: COBBLESTONE
+      amount: 8
+      weight: 20
+      display:
+        name: '<gray>Cobblestone'
+    # Nether prestige / utility (medium)
+    '4':
       material: WITHER_ROSE
       amount: 3
+      weight: 10
       display:
         name: '<black>Wither Rose'
+    '5':
+      material: CRYING_OBSIDIAN
+      amount: 2
+      weight: 8
+      display:
+        name: '<dark_purple>Crying Obsidian'
+    '6':
+      material: MAGMA_BLOCK
+      amount: 6
+      weight: 12
+      display:
+        name: '<gold>Magma Block'
+    # Rare overworld prestige (low)
+    '7':
+      material: IRON_INGOT
+      amount: 2
+      weight: 3
+      display:
+        name: '<white>Iron Ingot'
+    '8':
+      material: EMERALD
+      amount: 1
+      weight: 1
+      display:
+        name: '<green>Emerald'
+    '9':
+      material: DIAMOND
+      amount: 1
+      weight: 1
+      display:
+        name: '<aqua>Diamond'
 
 potions:
   nether-potion:
     enable: true
     material: POTION
-	glowing: true
+    glowing: true
     crafting:
       materials:
         GLOWSTONE_DUST: 'G'
@@ -1964,9 +1260,18 @@ netherrack-generator-options:
     pistons: false
   generation:
     blocks:
-      NETHERRACK: 95
-      NETHER_GOLD_ORE: 1.5
-      NETHER_QUARTZ_ORE: 2
+      NETHERRACK: 85                # overwhelmingly common filler
+      BASALT: 5                     # terrain block, less frequent
+      BLACKSTONE: 3                 # complements basalt, rarer
+      NETHER_BRICKS: 2              # fortress remnants
+      RED_NETHER_BRICKS: 1          # rarer fortress variant
+      MAGMA_BLOCK: 1                # lava-adjacent solid block
+      CHISELED_NETHER_BRICKS: 0.5   # decorative fortress detail
+      CRACKED_NETHER_BRICKS: 0.4    # weathered fortress block
+      POLISHED_BLACKSTONE: 0.3      # rare polished variant
+      NETHER_QUARTZ_ORE: 1.5        # common ore but still much less than filler
+      NETHER_GOLD_ORE: 0.8          # rarer than quartz
+      ANCIENT_DEBRIS: 0.05          # ultra rare progression ore
     fallback: NETHERRACK
     particle-effect: LARGE_SMOKE
     generation-sound: 'minecraft:entity.experience_orb.pickup'
@@ -1992,6 +1297,8 @@ lava-fishing-options:
   global-effects:
     effect_1:
       type: conditional
+      conditions:
+        is-first-loot: true
       effects:
         effect_1:
           type: wait-time-multiplier
@@ -2057,7 +1364,7 @@ lava-fishing-options:
             fade-in: 20
             stay: 30
             fade-out: 10
-            chance: 1.0
+          chance: 1.0
       failure:
         title_action:
           type: random-title
@@ -2072,7 +1379,7 @@ lava-fishing-options:
             fade-in: 20
             stay: 30
             fade-out: 10
-            chance: 1.0
+          chance: 1.0
     rod:
       land:
         priority_action:
@@ -2080,14 +1387,15 @@ lava-fishing-options:
           value:
             priority_1:
               conditions:
-                lava-fishing: true
+                in-lava: true
               actions:
                 fake_item_action:
                   type: fake-item
                   value:
                     duration: 35
                     position: other
-                    item: util:lava_effect
+                    item: lava_effect
+                    use-item-display: true
 
   # Global properties which would help you reduce duplicated lines
   global-loot-property:
@@ -2171,11 +1479,11 @@ lava-fishing-options:
       action:
         sound_action:
           type: sound
-            value:
-              key: 'minecraft:entity.villager.no'
-              source: 'player'
-              volume: 1
-              pitch: 1
+          value:
+            key: 'minecraft:entity.villager.no'
+            source: 'player'
+            volume: 1
+            pitch: 1
     limit-icon:
       material: REDSTONE_BLOCK
       display:
@@ -2276,12 +1584,12 @@ lava-fishing-options:
   # To modify vanilla fishing time, you should edit paper-world-defaults.yml where there's a section called fishing-time-range
   lava-fishing:
     # in ticks
-	# By default, the plugin will pick a random value from the maximum and minimum time for waiting time
+  # By default, the plugin will pick a random value from the maximum and minimum time for waiting time
     min-wait-time: 100
     max-wait-time: 600
-	# The minimum and maximum waiting time after applying the effects
-	final-min-wait-time: 50
-	final-max-wait-time: 1200
+  # The minimum and maximum waiting time after applying the effects
+  final-min-wait-time: 50
+  final-max-wait-time: 1200
 
   # Size settings
   size:
@@ -2298,7 +1606,7 @@ lava-fishing-options:
 other-settings:
   # Anti-auto-fishing mod toggle
   anti-auto-fishing-mod: false
-	
+  
   # It's recommended to use MiniMessage format. If you insist on using legacy color code "&", enable the support below.
   # Disabling this would improve performance
   legacy-color-code-support: true
@@ -2340,6 +1648,19 @@ other-settings:
   custom-durability-format:
     - ''
     - '<gray>Durability</gray><white>: {dur} <gray>/</gray> {max}</white>'
+
+  # Magma walker enchantment settings
+  # Change the display name or lore of the enchantment book.
+  # Also set the settings of the lore added to the boots after applied.
+  magma-walker:
+    enchantment-book-format:
+      name: "<dark_red><i>Book of Magma Walker {level}</i></dark_red>"
+      lore:
+        - '<gray><i>Applies Magma Walker {level} to boots in an anvil.</i></gray>'
+        - '<gray><i>Walk on lava throughout your hellblock; it becomes magma blocks briefly.</i></gray>'
+    boots-format:
+      - ''
+      - '<dark_red><i>"Magma Walker {level}</i></dark_red>'
 
   # Offset characters' unicodes
   # Never edit this unless you know what you are doing

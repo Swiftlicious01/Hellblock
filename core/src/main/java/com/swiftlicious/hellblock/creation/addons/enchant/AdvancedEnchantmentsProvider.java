@@ -2,7 +2,6 @@ package com.swiftlicious.hellblock.creation.addons.enchant;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.NotNull;
@@ -20,10 +19,9 @@ public class AdvancedEnchantmentsProvider implements EnchantmentProvider {
 
 	@Override
 	public List<Pair<String, Short>> getEnchants(@NotNull ItemStack itemStack) {
-		List<Pair<String, Short>> enchants = new ArrayList<>();
-		for (Map.Entry<String, Integer> entry : AEAPI.getEnchantmentsOnItem(itemStack).entrySet()) {
-			enchants.add(Pair.of("AE:" + entry.getKey(), entry.getValue().shortValue()));
-		}
+		final List<Pair<String, Short>> enchants = new ArrayList<>();
+		AEAPI.getEnchantmentsOnItem(itemStack).entrySet()
+				.forEach(entry -> enchants.add(Pair.of("AE:" + entry.getKey(), entry.getValue().shortValue())));
 		return enchants;
 	}
 }

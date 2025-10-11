@@ -62,7 +62,8 @@ public class DebugLootCommand extends BukkitCommandFeature<CommandSender> {
 					int page = (int) context.optional("page").orElse(1) - 1;
 
 					Context<Player> playerContext = Context.player(player);
-					FishingGears gears = new FishingGears(playerContext);
+					FishingGears gears = new FishingGears();
+					gears.init(playerContext);
 
 					Effect effect = EffectInterface.newInstance();
 					// The effects impact mechanism at this stage

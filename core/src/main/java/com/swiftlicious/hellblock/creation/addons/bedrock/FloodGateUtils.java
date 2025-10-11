@@ -6,7 +6,7 @@ import org.geysermc.floodgate.api.FloodgateApi;
 
 public class FloodGateUtils {
 
-    public static boolean isBedrockPlayer(UUID uuid) {
-        return FloodgateApi.getInstance().isFloodgatePlayer(uuid);
-    }
+	public static boolean isBedrockPlayer(UUID uuid) {
+		return FloodgateApi.getInstance().isFloodgatePlayer(uuid);
+	}
 }

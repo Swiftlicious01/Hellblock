@@ -4,11 +4,11 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
@@ -50,9 +50,9 @@ public class SchematicGUIManager implements SchematicGUIManagerInterface, Listen
 
 	protected TextValue<Player> title;
 	protected String[] layout;
-	protected final Map<Character, Pair<CustomItem, Action<Player>[]>> decorativeIcons;
-	protected final List<Tuple<Character, String, Tuple<CustomItem, Action<Player>[], Requirement<Player>[]>>> schematicIcons;
-	protected final ConcurrentMap<UUID, SchematicGUI> schematicGUICache;
+	protected final Map<Character, Pair<CustomItem, Action<Player>[]>> decorativeIcons = new HashMap<>();
+	protected final List<Tuple<Character, String, Tuple<CustomItem, Action<Player>[], Requirement<Player>[]>>> schematicIcons = new ArrayList<>();
+	protected final ConcurrentMap<UUID, SchematicGUI> schematicGUICache = new ConcurrentHashMap<>();
 
 	protected char backSlot;
 
@@ -61,9 +61,6 @@ public class SchematicGUIManager implements SchematicGUIManagerInterface, Listen
 
 	public SchematicGUIManager(HellblockPlugin plugin) {
 		this.instance = plugin;
-		this.decorativeIcons = new HashMap<>();
-		this.schematicIcons = new ArrayList<>();
-		this.schematicGUICache = new ConcurrentHashMap<>();
 	}
 
 	@Override
@@ -80,7 +77,7 @@ public class SchematicGUIManager implements SchematicGUIManagerInterface, Listen
 	}
 
 	private void loadConfig() {
-		Section config = instance.getConfigManager().getMainConfig().getSection("schematic.gui");
+		Section config = instance.getConfigManager().getGuiConfig().getSection("schematic.gui");
 
 		this.layout = config.getStringList("layout").toArray(new String[0]);
 		this.title = TextValue.auto(config.getString("title", "schematic.title"));
@@ -97,17 +94,34 @@ public class SchematicGUIManager implements SchematicGUIManagerInterface, Listen
 		Section schematicSection = config.getSection("schematic-icons");
 		if (schematicSection != null) {
 			for (Map.Entry<String, Object> entry : schematicSection.getStringRouteMappedValues(false).entrySet()) {
-				if (entry.getValue() instanceof Section innerSection) {
-					char symbol = Objects.requireNonNull(innerSection.getString("symbol")).charAt(0);
-					String schematic = Objects.requireNonNull(innerSection.getString("schematic"));
-					schematicIcons.add(Tuple.of(symbol, schematic, Tuple.of(
-							new SingleItemParser("schematic", innerSection,
-									instance.getConfigManager().getItemFormatFunctions()).getItem(),
-							instance.getActionManager(Player.class).parseActions(innerSection.getSection("action")),
-							instance.getRequirementManager(Player.class)
-									.parseRequirements(innerSection.getSection("requirement"), true))));
-				}
+				try {
+					if (entry.getValue() instanceof Section innerSection) {
+						String symbolStr = innerSection.getString("symbol");
+						if (symbolStr == null || symbolStr.isEmpty()) {
+							instance.getPluginLogger()
+									.severe("Schematic icon missing symbol in entry: " + entry.getKey());
+							continue;
+						}
+						char symbol = symbolStr.charAt(0);
 
+						String schematic = innerSection.getString("schematic");
+						if (schematic == null || schematic.isEmpty()) {
+							instance.getPluginLogger()
+									.severe("Schematic icon missing schematic name for symbol: " + symbol);
+							continue;
+						}
+
+						schematicIcons.add(Tuple.of(symbol, schematic, Tuple.of(
+								new SingleItemParser("schematic", innerSection,
+										instance.getConfigManager().getItemFormatFunctions()).getItem(),
+								instance.getActionManager(Player.class).parseActions(innerSection.getSection("action")),
+								instance.getRequirementManager(Player.class)
+										.parseRequirements(innerSection.getSection("requirement"), true))));
+					}
+				} catch (Exception e) {
+					instance.getPluginLogger().severe(
+							"Failed to load schematic icon entry: " + entry.getKey() + " due to: " + e.getMessage());
+				}
 			}
 		}
 
@@ -116,11 +130,25 @@ public class SchematicGUIManager implements SchematicGUIManagerInterface, Listen
 		if (decorativeSection != null) {
 			for (Map.Entry<String, Object> entry : decorativeSection.getStringRouteMappedValues(false).entrySet()) {
 				if (entry.getValue() instanceof Section innerSection) {
-					char symbol = Objects.requireNonNull(innerSection.getString("symbol")).charAt(0);
-					decorativeIcons.put(symbol, Pair.of(
-							new SingleItemParser("gui", innerSection,
-									instance.getConfigManager().getItemFormatFunctions()).getItem(),
-							instance.getActionManager(Player.class).parseActions(innerSection.getSection("action"))));
+					try {
+						String symbolStr = innerSection.getString("symbol");
+						if (symbolStr == null || symbolStr.isEmpty()) {
+							instance.getPluginLogger()
+									.severe("Decorative icon missing symbol in entry: " + entry.getKey());
+							continue;
+						}
+
+						char symbol = symbolStr.charAt(0);
+
+						decorativeIcons.put(symbol,
+								Pair.of(new SingleItemParser("gui", innerSection,
+										instance.getConfigManager().getItemFormatFunctions()).getItem(),
+										instance.getActionManager(Player.class)
+												.parseActions(innerSection.getSection("action"))));
+					} catch (Exception e) {
+						instance.getPluginLogger().severe("Failed to load decorative icon entry: " + entry.getKey()
+								+ " due to: " + e.getMessage());
+					}
 				}
 			}
 		}
@@ -151,12 +179,10 @@ public class SchematicGUIManager implements SchematicGUIManagerInterface, Listen
 		Context<Player> context = Context.player(player);
 		SchematicGUI gui = new SchematicGUI(this, context, optionalUserData.get().getHellblockData(), isReset);
 		gui.addElement(new SchematicDynamicGUIElement(backSlot, new ItemStack(Material.AIR)));
-		for (Tuple<Character, String, Tuple<CustomItem, Action<Player>[], Requirement<Player>[]>> schematic : schematicIcons) {
-			gui.addElement(new SchematicDynamicGUIElement(schematic.left(), new ItemStack(Material.AIR)));
-		}
-		for (Map.Entry<Character, Pair<CustomItem, Action<Player>[]>> entry : decorativeIcons.entrySet()) {
-			gui.addElement(new SchematicGUIElement(entry.getKey(), entry.getValue().left().build(context)));
-		}
+		schematicIcons.forEach(schematic -> gui
+				.addElement(new SchematicDynamicGUIElement(schematic.left(), new ItemStack(Material.AIR))));
+		decorativeIcons.entrySet().forEach(entry -> gui
+				.addElement(new SchematicGUIElement(entry.getKey(), entry.getValue().left().build(context))));
 		gui.build().show();
 		gui.refresh();
 		schematicGUICache.put(player.getUniqueId(), gui);
@@ -175,10 +201,10 @@ public class SchematicGUIManager implements SchematicGUIManagerInterface, Listen
 		if (!(event.getInventory().getHolder() instanceof SchematicGUIHolder))
 			return;
 		SchematicGUI gui = schematicGUICache.remove(player.getUniqueId());
-		if (!gui.hellblockData.hasHellblock()) {
-			instance.getScheduler().sync().runLater(() -> {
-				openSchematicGUI(player, gui.isReset);
-			}, 2L, player.getLocation());
+		if (!gui.hellblockData.hasHellblock() && !instance.getIslandGenerator().isAnimating(player)
+				&& !gui.context.arg(ContextKeys.HELLBLOCK_GENERATION)) {
+			instance.getScheduler().sync().runLater(() -> openSchematicGUI(player, gui.isReset), 2L,
+					player.getLocation());
 		}
 	}
 
@@ -256,6 +282,11 @@ public class SchematicGUIManager implements SchematicGUIManagerInterface, Listen
 				return;
 			}
 
+			if (gui.context.arg(ContextKeys.HELLBLOCK_GENERATION)) {
+				event.setCancelled(true);
+				return; // already in progress
+			}
+
 			if (element.getSymbol() == backSlot) {
 				event.setCancelled(true);
 				instance.getIslandChoiceGUIManager().openIslandChoiceGUI(gui.context.holder(), gui.isReset);
@@ -284,9 +315,13 @@ public class SchematicGUIManager implements SchematicGUIManagerInterface, Listen
 						&& (schematic.mid().endsWith(".schem") || schematic.mid().endsWith(".schematic"))) {
 					event.setCancelled(true);
 					if (RequirementManager.isSatisfied(gui.context, schematic.right().right())) {
-						instance.getHellblockHandler().createHellblock(gui.context.holder(), IslandOptions.SCHEMATIC,
-								schematic.mid(), gui.isReset).thenRun(() -> player.closeInventory());
+						player.closeInventory();
 						gui.context.clearCustomData();
+						gui.context.arg(ContextKeys.HELLBLOCK_GENERATION, true);
+						instance.getHellblockHandler()
+								.createHellblock(gui.context.holder(), IslandOptions.SCHEMATIC, schematic.mid(),
+										gui.isReset)
+								.thenRun(() -> gui.context.arg(ContextKeys.HELLBLOCK_GENERATION, false));
 						ActionManager.trigger(gui.context, schematic.right().mid());
 					} else {
 						audience.sendMessage(instance.getTranslationManager()

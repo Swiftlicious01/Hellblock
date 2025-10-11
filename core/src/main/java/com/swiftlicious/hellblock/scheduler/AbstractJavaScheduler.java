@@ -27,7 +27,7 @@ public abstract class AbstractJavaScheduler<T, W> implements SchedulerAdapter<T,
 
 	public AbstractJavaScheduler(HellblockPlugin plugin) {
 		this.scheduler = new ScheduledThreadPoolExecutor(4, r -> {
-			Thread thread = Executors.defaultThreadFactory().newThread(r);
+			final Thread thread = Executors.defaultThreadFactory().newThread(r);
 			thread.setName("hellblock-scheduler");
 			return thread;
 		});
@@ -43,14 +43,15 @@ public abstract class AbstractJavaScheduler<T, W> implements SchedulerAdapter<T,
 
 	@Override
 	public SchedulerTask asyncLater(Runnable task, long delay, TimeUnit unit) {
-        ScheduledFuture<?> future = this.scheduler.schedule(() -> this.worker.execute(task), delay, unit);
-        return new JavaCancellable(future);
+		final ScheduledFuture<?> future = this.scheduler.schedule(() -> this.worker.execute(task), delay, unit);
+		return new JavaCancellable(future);
 	}
 
 	@Override
 	public SchedulerTask asyncRepeating(Runnable task, long delay, long interval, TimeUnit unit) {
-        ScheduledFuture<?> future = this.scheduler.scheduleAtFixedRate(() -> this.worker.execute(task), delay, interval, unit);
-        return new JavaCancellable(future);
+		final ScheduledFuture<?> future = this.scheduler.scheduleAtFixedRate(() -> this.worker.execute(task), delay,
+				interval, unit);
+		return new JavaCancellable(future);
 	}
 
 	@Override
@@ -60,7 +61,7 @@ public abstract class AbstractJavaScheduler<T, W> implements SchedulerAdapter<T,
 			if (!this.scheduler.awaitTermination(1, TimeUnit.MINUTES)) {
 				HellblockPlugin.getInstance().getPluginLogger()
 						.severe("Timed out waiting for the Hellblock scheduler to terminate");
-				reportRunningTasks(thread -> thread.getName().equals("hellblock-scheduler"));
+				reportRunningTasks(thread -> "hellblock-scheduler".equals(thread.getName()));
 			}
 		} catch (InterruptedException e) {
 			e.printStackTrace();
@@ -97,7 +98,7 @@ public abstract class AbstractJavaScheduler<T, W> implements SchedulerAdapter<T,
 
 		@Override
 		public ForkJoinWorkerThread newThread(ForkJoinPool pool) {
-			ForkJoinWorkerThread thread = ForkJoinPool.defaultForkJoinWorkerThreadFactory.newThread(pool);
+			final ForkJoinWorkerThread thread = ForkJoinPool.defaultForkJoinWorkerThreadFactory.newThread(pool);
 			thread.setDaemon(true);
 			thread.setName("hellblock-worker-" + COUNT.getAndIncrement());
 			return thread;

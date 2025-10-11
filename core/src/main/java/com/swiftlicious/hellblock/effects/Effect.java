@@ -122,8 +122,9 @@ public class Effect implements EffectInterface {
 
 	@Override
 	public void combine(Effect another) {
-		if (another == null)
+		if (another == null) {
 			return;
+		}
 		this.sizeMultiplier += (another.sizeMultiplier() - 1);
 		this.sizeAdder += another.sizeAdder();
 		this.waitTimeMultiplier += (another.waitTimeMultiplier() - 1);

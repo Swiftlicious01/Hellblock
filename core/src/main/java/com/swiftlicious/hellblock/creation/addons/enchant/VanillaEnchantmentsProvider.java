@@ -19,11 +19,10 @@ public class VanillaEnchantmentsProvider implements EnchantmentProvider {
 
 	@Override
 	public List<Pair<String, Short>> getEnchants(@NotNull ItemStack itemStack) {
-		Map<Enchantment, Integer> enchantments = itemStack.getEnchantments();
-		List<Pair<String, Short>> enchants = new ArrayList<>(enchantments.size());
-		for (Map.Entry<Enchantment, Integer> en : enchantments.entrySet()) {
-			enchants.add(Pair.of(en.getKey().getKey().toString(), en.getValue().shortValue()));
-		}
+		final Map<Enchantment, Integer> enchantments = itemStack.getEnchantments();
+		final List<Pair<String, Short>> enchants = new ArrayList<>(enchantments.size());
+		enchantments.entrySet()
+				.forEach(en -> enchants.add(Pair.of(en.getKey().getKey().toString(), en.getValue().shortValue())));
 		return enchants;
 	}
 }

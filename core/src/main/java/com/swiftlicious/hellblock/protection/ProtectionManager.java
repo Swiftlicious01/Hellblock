@@ -1,12 +1,14 @@
 package com.swiftlicious.hellblock.protection;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Queue;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.bukkit.Bukkit;
 import org.bukkit.World;
@@ -20,8 +22,10 @@ import com.sk89q.worldguard.WorldGuard;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.api.Reloadable;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
+import com.swiftlicious.hellblock.player.HellblockData;
 import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.sender.Sender;
+import com.swiftlicious.hellblock.world.HellblockWorld;
 
 public class ProtectionManager implements ProtectionManagerInterface, Reloadable {
 
@@ -29,59 +33,23 @@ public class ProtectionManager implements ProtectionManagerInterface, Reloadable
 
 	public IslandProtection islandProtection;
 
-	private final Map<UUID, HellblockCuboid> cachedHellblocks;
-
 	private final boolean worldGuard = Bukkit.getPluginManager().isPluginEnabled("WorldGuard");
 
 	public ProtectionManager(HellblockPlugin plugin) {
 		instance = plugin;
-		this.cachedHellblocks = new HashMap<>();
-		setProtectionFromConfig();
 	}
 
 	@Override
-	public void reload() {
+	public void load() {
 		setProtectionFromConfig();
-		this.cachedHellblocks.clear();
-		loadHellblockCuboids();
-	}
-
-	private void loadHellblockCuboids() {
-		// If using worldguard ignore this method.
-		if (islandProtection instanceof DefaultProtection) {
-			for (UUID playerData : instance.getStorageManager().getDataSource().getUniqueUsers()) {
-				instance.getStorageManager().getOfflineUserData(playerData, instance.getConfigManager().lockData())
-						.thenAccept((result) -> {
-							if (result.isEmpty())
-								return;
-							UserData offlineUser = result.get();
-							UUID ownerUUID = offlineUser.getHellblockData().getOwnerUUID();
-							if (ownerUUID != null && ownerUUID.equals(playerData)) {
-								BoundingBox bounds = offlineUser.getHellblockData().getBoundingBox();
-								if (bounds != null) {
-									String world = instance.getConfigManager().perPlayerWorlds() ? ownerUUID.toString()
-											: instance.getConfigManager().worldName();
-									HellblockCuboid cuboid = new HellblockCuboid(String.format("%s_%s",
-											ownerUUID.toString(), offlineUser.getHellblockData().getID()), world,
-											bounds);
-									getCachedHellblocks().putIfAbsent(ownerUUID, cuboid);
-								}
-							}
-						});
-			}
-		}
-	}
-
-	public Map<UUID, HellblockCuboid> getCachedHellblocks() {
-		return this.cachedHellblocks;
 	}
 
 	private void setProtectionFromConfig() {
 		if ((worldGuard) && instance.getConfigManager().worldguardProtect() && WorldGuardHook.isWorking()) {
 			if (instance.getIntegrationManager().isHooked("WorldGuard", "7")) {
-				islandProtection = new WorldGuardHook();
+				islandProtection = new WorldGuardHook(instance);
 			} else {
-				String version = WorldGuard.getVersion();
+				final String version = WorldGuard.getVersion();
 				if (!version.startsWith("7.")) {
 					instance.getPluginLogger()
 							.warn("WorldGuard version must be 7.0 or higher to be able to use it for Hellblock.");
@@ -94,11 +62,12 @@ public class ProtectionManager implements ProtectionManagerInterface, Reloadable
 					"WorldGuard version doesn't support this minecraft version, disabling WorldGuard integration.");
 		}
 
-		if (islandProtection == null) {
-			islandProtection = new DefaultProtection();
-			ProtectionEvents events = new ProtectionEvents(instance);
-			events.reload();
+		if (islandProtection != null) {
+			return;
 		}
+		islandProtection = new DefaultProtection(instance);
+		final ProtectionEvents events = new ProtectionEvents(instance);
+		events.reload();
 	}
 
 	public IslandProtection getIslandProtection() {
@@ -107,118 +76,184 @@ public class ProtectionManager implements ProtectionManagerInterface, Reloadable
 
 	@Override
 	public void changeProtectionFlag(@NotNull World world, @NotNull UUID id, @NotNull HellblockFlag flag) {
-		Optional<UserData> user = instance.getStorageManager().getOnlineUser(id);
-
-		if (user.isEmpty() || !user.get().isOnline()) {
-			return;
-		}
-
-		Sender audience = instance.getSenderFactory().wrap(user.get().getPlayer());
-
-		if (user.get().getHellblockData().isAbandoned()) {
-			audience.sendMessage(
-					instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_IS_ABANDONED.build()));
-			return;
-		}
-
-		if (!user.get().getHellblockData().hasHellblock()) {
-			audience.sendMessage(
-					instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_NOT_FOUND.build()));
-			return;
-		}
-
-		if (user.get().getHellblockData().getOwnerUUID() == null)
-			throw new NullPointerException("Owner reference returned null, please report this to the developer.");
-
-		if (user.get().getHellblockData().getOwnerUUID() != null
-				&& !user.get().getHellblockData().getOwnerUUID().equals(id)) {
-			audience.sendMessage(
-					instance.getTranslationManager().render(MessageConstants.MSG_NOT_OWNER_OF_HELLBLOCK.build()));
-			return;
-		}
-
-		user.get().getHellblockData().setProtectionValue(flag);
-		islandProtection.changeHellblockFlag(world, user.get(), flag);
-	}
-
-	@Override
-	public void changeLockStatus(@NotNull World world, @NotNull UUID id) {
-		Optional<UserData> user = instance.getStorageManager().getOnlineUser(id);
-
-		if (user.isEmpty() || !user.get().isOnline()) {
-			return;
-		}
-
-		Sender audience = instance.getSenderFactory().wrap(user.get().getPlayer());
-
-		if (user.get().getHellblockData().isAbandoned()) {
-			audience.sendMessage(
-					instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_IS_ABANDONED.build()));
-			return;
-		}
-
-		if (!user.get().getHellblockData().hasHellblock()) {
-			audience.sendMessage(
-					instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_NOT_FOUND.build()));
-			return;
-		}
-
-		if (user.get().getHellblockData().getOwnerUUID() == null)
-			throw new NullPointerException("Owner reference returned null, please report this to the developer.");
-
-		if (user.get().getHellblockData().getOwnerUUID() != null
-				&& !user.get().getHellblockData().getOwnerUUID().equals(id)) {
-			audience.sendMessage(
-					instance.getTranslationManager().render(MessageConstants.MSG_NOT_OWNER_OF_HELLBLOCK.build()));
-			return;
-		}
-
-		boolean locked = user.get().getHellblockData().isLocked();
-		HellblockFlag flag = new HellblockFlag(HellblockFlag.FlagType.ENTRY,
-				locked ? HellblockFlag.AccessType.DENY : HellblockFlag.AccessType.ALLOW);
-		user.get().getHellblockData().setProtectionValue(flag);
-		islandProtection.lockHellblock(world, user.get());
-	}
-
-	@Override
-	public void clearHellblockEntities(@NotNull World world, @NotNull BoundingBox bounds) {
-		instance.getScheduler().executeSync(() -> {
-			world.getEntities().stream()
-					.filter(entity -> entity.getType() != EntityType.PLAYER && bounds.contains(entity.getBoundingBox()))
-					.forEach(Entity::remove);
+		validateUser(id, world).ifPresent(user -> {
+			user.getHellblockData().setProtectionValue(flag);
+			islandProtection.changeHellblockFlag(world, user, flag);
 		});
 	}
 
 	@Override
+	public void changeLockStatus(@NotNull World world, @NotNull UUID id) {
+		validateUser(id, world).ifPresent(user -> {
+			final boolean locked = user.getHellblockData().isLocked();
+			final HellblockFlag flag = new HellblockFlag(HellblockFlag.FlagType.ENTRY,
+					locked ? HellblockFlag.AccessType.DENY : HellblockFlag.AccessType.ALLOW);
+			user.getHellblockData().setProtectionValue(flag);
+			islandProtection.lockHellblock(world, user);
+		});
+	}
+
+	@Override
+	public void restoreIsland(@NotNull HellblockData data) {
+		final UUID ownerUUID = data.getOwnerUUID();
+		if (ownerUUID == null) {
+			instance.getPluginLogger()
+					.severe("Tried to restore island with null owner UUID (ID: " + data.getID() + ")");
+			throw new IllegalStateException("Cannot restore island without a valid owner UUID.");
+		}
+
+		final Optional<HellblockWorld<?>> worldOpt = instance.getWorldManager()
+				.getWorld(instance.getWorldManager().getHellblockWorldFormat(data.getID()));
+
+		if (worldOpt.isEmpty()) {
+			throw new IllegalStateException(
+					"Could not restore island because its world is missing (ID: " + data.getID() + ")");
+		}
+
+		final World bukkitWorld = worldOpt.get().bukkitWorld();
+
+		// Update abandoned flag in data
+		data.setAsAbandoned(false);
+
+		// Reapply protection regions/messages
+		islandProtection.updateHellblockMessages(bukkitWorld, ownerUUID);
+
+		// Re-register island ownership with protection handlers
+		islandProtection.restoreFlags(bukkitWorld, ownerUUID);
+
+		instance.debug("Island for " + ownerUUID + " restored successfully.");
+	}
+
+	private Optional<UserData> validateUser(UUID id, World world) {
+		final Optional<UserData> userOpt = instance.getStorageManager().getOnlineUser(id);
+
+		if (userOpt.isEmpty() || !userOpt.get().isOnline()) {
+			return Optional.empty();
+		}
+
+		final UserData user = userOpt.get();
+		final Sender audience = instance.getSenderFactory().wrap(user.getPlayer());
+
+		if (user.getHellblockData().isAbandoned()) {
+			audience.sendMessage(
+					instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_IS_ABANDONED.build()));
+			return Optional.empty();
+		}
+
+		if (!user.getHellblockData().hasHellblock()) {
+			audience.sendMessage(
+					instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_NOT_FOUND.build()));
+			return Optional.empty();
+		}
+
+		if (user.getHellblockData().getOwnerUUID() == null) {
+			throw new NullPointerException("Owner reference returned null, please report this to the developer.");
+		}
+
+		if (user.getHellblockData().getOwnerUUID().equals(id)) {
+			return Optional.of(user);
+		}
+
+		audience.sendMessage(
+				instance.getTranslationManager().render(MessageConstants.MSG_NOT_OWNER_OF_HELLBLOCK.build()));
+		return Optional.empty();
+	}
+
+	@Override
+	public void clearHellblockEntities(@NotNull World world, @NotNull BoundingBox bounds) {
+		instance.getScheduler()
+				.executeSync(() -> world.getEntities().stream().filter(
+						entity -> entity.getType() != EntityType.PLAYER && bounds.contains(entity.getBoundingBox()))
+						.forEach(Entity::remove));
+	}
+
+	private final Map<UUID, CompletableFuture<List<Block>>> activeBlockScans = new ConcurrentHashMap<>();
+
+	@Override
 	public CompletableFuture<List<Block>> getHellblockBlocks(@NotNull World world, @NotNull UUID id) {
-		CompletableFuture<List<Block>> blockSupplier = new CompletableFuture<>();
+		// Cancel previous scan for this UUID if running
+		cancelBlockScan(id);
+
+		final CompletableFuture<List<Block>> blockSupplier = new CompletableFuture<>();
+		activeBlockScans.put(id, blockSupplier);
+
 		instance.getStorageManager().getOfflineUserData(id, instance.getConfigManager().lockData())
-				.thenAccept((result) -> {
-					if (result.isEmpty())
-						return;
-					UserData offlineUser = result.get();
-					BoundingBox bounds = offlineUser.getHellblockData().getBoundingBox();
-					if (bounds == null)
+				.thenAccept(result -> {
+					if (result.isEmpty()) {
 						blockSupplier.complete(new ArrayList<>());
+						activeBlockScans.remove(id);
+						return;
+					}
 
-					int minX = (int) Math.min(bounds.getMinX(), bounds.getMaxX());
-					int minY = (int) Math.min(bounds.getMinY(), bounds.getMaxY());
-					int minZ = (int) Math.min(bounds.getMinZ(), bounds.getMaxZ());
-					int maxX = (int) Math.max(bounds.getMinX(), bounds.getMaxX());
-					int maxY = (int) Math.max(bounds.getMinY(), bounds.getMaxY());
-					int maxZ = (int) Math.max(bounds.getMinZ(), bounds.getMaxZ());
+					final UserData offlineUser = result.get();
+					final BoundingBox bounds = offlineUser.getHellblockData().getBoundingBox();
+					if (bounds == null) {
+						blockSupplier.complete(new ArrayList<>());
+						activeBlockScans.remove(id);
+						return;
+					}
 
-					List<Block> blocks = new ArrayList<>();
-					for (int x = minX; x <= maxX; x++) {
-						for (int y = minY; y <= maxY; y++) {
-							for (int z = minZ; z <= maxZ; z++) {
-								Block block = world.getBlockAt(x, y, z);
-								blocks.add(block);
+					final int minX = (int) Math.floor(bounds.getMinX());
+					final int minY = (int) Math.floor(bounds.getMinY());
+					final int minZ = (int) Math.floor(bounds.getMinZ());
+					final int maxX = (int) Math.ceil(bounds.getMaxX());
+					final int maxY = (int) Math.ceil(bounds.getMaxY());
+					final int maxZ = (int) Math.ceil(bounds.getMaxZ());
+
+					final List<Block> collectedBlocks = new ArrayList<>();
+					final Queue<int[]> positions = new ArrayDeque<>();
+
+					// Collect coords async
+					instance.getScheduler().executeAsync(() -> {
+						for (int x = minX; x <= maxX; x++) {
+							for (int y = minY; y <= maxY; y++) {
+								for (int z = minZ; z <= maxZ; z++) {
+									positions.add(new int[] { x, y, z });
+								}
 							}
 						}
-					}
-					blockSupplier.complete(blocks);
+
+						// Start batched processing
+						processBatch(id, world, positions, collectedBlocks, blockSupplier);
+					});
 				});
+
 		return blockSupplier;
+	}
+
+	private void processBatch(UUID id, World world, Queue<int[]> positions, List<Block> collectedBlocks,
+			CompletableFuture<List<Block>> future) {
+		// If scan was cancelled, stop immediately
+		if (!activeBlockScans.containsKey(id) || future.isCancelled()) {
+			return;
+		}
+
+		final int batchSize = 500;
+		int processed = 0;
+
+		while (processed < batchSize && !positions.isEmpty()) {
+			final int[] coords = positions.poll();
+			final Block block = world.getBlockAt(coords[0], coords[1], coords[2]);
+			if (!block.getType().isAir()) {
+				collectedBlocks.add(block);
+			}
+			processed++;
+		}
+
+		if (positions.isEmpty()) {
+			// Done
+			future.complete(collectedBlocks);
+			activeBlockScans.remove(id);
+		} else {
+			// Schedule next tick
+			instance.getScheduler().executeSync(() -> processBatch(id, world, positions, collectedBlocks, future));
+		}
+	}
+
+	public void cancelBlockScan(@NotNull UUID id) {
+		final CompletableFuture<List<Block>> future = activeBlockScans.remove(id);
+		if (future != null && !future.isDone()) {
+			future.cancel(true);
+		}
 	}
 }

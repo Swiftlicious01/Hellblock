@@ -49,19 +49,19 @@ public class EventCarrier implements EventCarrierInterface {
 
 	@Override
 	public void trigger(Context<Player> context, ActionTrigger trigger) {
-		Optional.ofNullable(actionMap.get(trigger)).ifPresent(actions -> {
-			ActionManager.trigger(context, actions);
-		});
+		Optional.ofNullable(actionMap.get(trigger)).ifPresent(actions -> ActionManager.trigger(context, actions));
 	}
 
 	@Override
 	public void trigger(Context<Player> context, ActionTrigger trigger, int previousTimes, int afterTimes) {
 		Optional.ofNullable(actionTimesMap.get(trigger)).ifPresent(integerTreeMap -> {
 			for (Map.Entry<Integer, Action<Player>[]> entry : integerTreeMap.entrySet()) {
-				if (entry.getKey() <= previousTimes)
+				if (entry.getKey() <= previousTimes) {
 					continue;
-				if (entry.getKey() > afterTimes)
+				}
+				if (entry.getKey() > afterTimes) {
 					return;
+				}
 				ActionManager.trigger(context, entry.getValue());
 			}
 		});

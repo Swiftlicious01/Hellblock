@@ -32,18 +32,20 @@ public class ComponentItemFactory1_21_5 extends ComponentItemFactory {
 
 	@Override
 	protected Optional<String> displayName(RtagItem item) {
-		if (!item.hasComponent(ComponentKeys.CUSTOM_NAME))
+		if (!item.hasComponent(ComponentKeys.CUSTOM_NAME)) {
 			return Optional.empty();
+		}
 		return ComponentType.encodeJson(ComponentKeys.CUSTOM_NAME, item.getComponent(ComponentKeys.CUSTOM_NAME))
 				.map(jsonElement -> AdventureHelper.getGson().serializer().toJson(jsonElement));
 	}
 
 	@Override
 	protected Optional<List<String>> lore(RtagItem item) {
-		if (!item.hasComponent(ComponentKeys.LORE))
+		if (!item.hasComponent(ComponentKeys.LORE)) {
 			return Optional.empty();
+		}
 		return ComponentType.encodeJson(ComponentKeys.LORE, item.getComponent(ComponentKeys.LORE)).map(list -> {
-			List<String> lore = new ArrayList<>();
+			final List<String> lore = new ArrayList<>();
 			for (JsonElement jsonElement : (JsonArray) list) {
 				lore.add(AdventureHelper.getGson().serializer().toJson(jsonElement));
 			}
@@ -56,10 +58,9 @@ public class ComponentItemFactory1_21_5 extends ComponentItemFactory {
 		if (lore == null || lore.isEmpty()) {
 			item.removeComponent(ComponentKeys.LORE);
 		} else {
-			List<Object> loreTags = new ArrayList<>();
-			for (String json : lore) {
-				loreTags.add(ChatComponent.toTag(VersionHelper.getNMSManager().getMinecraftComponent(json)));
-			}
+			final List<Object> loreTags = new ArrayList<>();
+			lore.forEach(json -> loreTags
+					.add(ChatComponent.toTag(VersionHelper.getNMSManager().getMinecraftComponent(json))));
 			item.setComponent(ComponentKeys.LORE, TagList.newTag(loreTags));
 		}
 	}

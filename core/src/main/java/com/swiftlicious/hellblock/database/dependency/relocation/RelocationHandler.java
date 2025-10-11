@@ -36,7 +36,7 @@ public class RelocationHandler {
 			classLoader = dependencyManager.obtainClassLoaderWith(DEPENDENCIES);
 
 			// load the relocator class
-			Class<?> jarRelocatorClass = classLoader.loadClass(JAR_RELOCATOR_CLASS);
+			final Class<?> jarRelocatorClass = classLoader.loadClass(JAR_RELOCATOR_CLASS);
 
 			// prepare the the reflected constructor & method instances
 			this.jarRelocatorConstructor = jarRelocatorClass.getDeclaredConstructor(File.class, File.class, Map.class);
@@ -58,13 +58,11 @@ public class RelocationHandler {
 	}
 
 	public void remap(Path input, Path output, List<Relocation> relocations) throws Exception {
-		Map<String, String> mappings = new HashMap<>();
-		for (Relocation relocation : relocations) {
-			mappings.put(relocation.getPattern(), relocation.getRelocatedPattern());
-		}
+		final Map<String, String> mappings = new HashMap<>();
+		relocations.forEach(relocation -> mappings.put(relocation.getPattern(), relocation.getRelocatedPattern()));
 
 		// create and invoke a new relocator
-		Object relocator = this.jarRelocatorConstructor.newInstance(input.toFile(), output.toFile(), mappings);
+		final Object relocator = this.jarRelocatorConstructor.newInstance(input.toFile(), output.toFile(), mappings);
 		this.jarRelocatorRunMethod.invoke(relocator);
 	}
 }

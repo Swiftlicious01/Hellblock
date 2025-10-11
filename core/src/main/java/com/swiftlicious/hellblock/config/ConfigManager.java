@@ -21,8 +21,6 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 import org.bukkit.Material;
-import org.bukkit.NamespacedKey;
-import org.bukkit.Registry;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
@@ -60,8 +58,15 @@ import com.swiftlicious.hellblock.handlers.RequirementManager;
 import com.swiftlicious.hellblock.handlers.VersionHelper;
 import com.swiftlicious.hellblock.loot.LootInterface;
 import com.swiftlicious.hellblock.loot.StatisticsKeys;
-import com.swiftlicious.hellblock.loot.operation.*;
+import com.swiftlicious.hellblock.loot.operation.AddWeightOperation;
+import com.swiftlicious.hellblock.loot.operation.CustomWeightOperation;
+import com.swiftlicious.hellblock.loot.operation.DivideWeightOperation;
+import com.swiftlicious.hellblock.loot.operation.ModuloWeightOperation;
+import com.swiftlicious.hellblock.loot.operation.MultiplyWeightOperation;
+import com.swiftlicious.hellblock.loot.operation.ReduceWeightOperation;
+import com.swiftlicious.hellblock.loot.operation.WeightOperation;
 import com.swiftlicious.hellblock.mechanics.MechanicType;
+import com.swiftlicious.hellblock.schematic.ItemRegistry;
 import com.swiftlicious.hellblock.utils.ItemStackUtils;
 import com.swiftlicious.hellblock.utils.ListUtils;
 import com.swiftlicious.hellblock.utils.OffsetUtils;
@@ -90,17 +95,25 @@ import dev.dejvokep.boostedyaml.settings.updater.UpdaterSettings;
 import dev.dejvokep.boostedyaml.utils.format.NodeRole;
 import net.kyori.adventure.sound.Sound;
 
-public class ConfigManager extends ConfigHandler {
+public final class ConfigManager extends ConfigHandler {
 
 	private YamlDocument mainConfig;
+	private YamlDocument guiConfig;
+	private ConfigRegistry registry;
 
 	public YamlDocument getMainConfig() {
 		return mainConfig;
 	}
 
-	private Function<String, Boolean> lootValidator = (id) -> {
-		return instance.getLootManager().getLoot(id).isPresent();
-	};
+	public YamlDocument getGuiConfig() {
+		return guiConfig;
+	}
+
+	public ConfigRegistry getRegistry() {
+		return registry;
+	}
+
+	private final Function<String, Boolean> lootValidator = (id) -> instance.getLootManager().getLoot(id).isPresent();
 
 	public ConfigManager(HellblockPlugin plugin) {
 		super(plugin);
@@ -112,11 +125,12 @@ public class ConfigManager extends ConfigHandler {
 		this.registerBuiltInEffectModifierParser();
 		this.registerBuiltInHookParser();
 		this.registerBuiltInBlockParser();
+		this.registry = new ConfigRegistry(plugin);
 	}
 
 	@Override
 	public void load() {
-		String configVersion = HellblockProperties.getValue("config");
+		final String configVersion = HellblockProperties.getValue("config");
 		try (InputStream inputStream = new FileInputStream(resolveConfig("config.yml").toFile())) {
 			mainConfig = YamlDocument.create(inputStream, instance.getResource("config.yml".replace("\\", "/")),
 					GeneralSettings.builder().setRouteSeparator('.').setUseDefaults(false).build(),
@@ -151,24 +165,43 @@ public class ConfigManager extends ConfigHandler {
 
 		this.loadSettings();
 		this.loadConfigs();
+		this.createGUIConfig();
 		this.loadGlobalEffects();
+		this.registry.load();
 	}
 
 	private void loadGlobalEffects() {
-		YamlDocument config = getMainConfig();
+		final YamlDocument config = getMainConfig();
 		globalEffects = new ArrayList<>();
-		Section globalEffectSection = config.getSection("lava-fishing-options.global-effects");
+		final Section globalEffectSection = config.getSection("lava-fishing-options.global-effects");
 		if (globalEffectSection != null) {
-			for (Map.Entry<String, Object> entry : globalEffectSection.getStringRouteMappedValues(false).entrySet()) {
-				if (entry.getValue() instanceof Section innerSection) {
-					globalEffects.add(parseEffect(innerSection, id -> instance.getLootManager().getGroupMembers(id)));
-				}
-			}
+			globalEffectSection.getStringRouteMappedValues(false).entrySet().stream()
+					.filter(entry -> entry.getValue() instanceof Section).map(entry -> (Section) entry.getValue())
+					.forEach(innerSection -> globalEffects
+							.add(parseEffect(innerSection, id -> instance.getLootManager().getGroupMembers(id))));
+		}
+	}
+
+	private void createGUIConfig() {
+		try (InputStream inputStream = new FileInputStream(resolveConfig("gui.yml").toFile())) {
+			guiConfig = YamlDocument.create(inputStream, instance.getResource("gui.yml".replace("\\", "/")),
+					GeneralSettings.builder().setRouteSeparator('.').setUseDefaults(false).build(),
+					LoaderSettings.builder().setAutoUpdate(true).build(),
+					DumperSettings.builder().setScalarFormatter((tag, value, role, def) -> {
+						if (role == NodeRole.KEY) {
+							return ScalarStyle.PLAIN;
+						} else {
+							return tag == Tag.STR ? ScalarStyle.DOUBLE_QUOTED : ScalarStyle.PLAIN;
+						}
+					}).build());
+			guiConfig.save(resolveConfig("gui.yml").toFile());
+		} catch (IOException ex) {
+			throw new RuntimeException(ex);
 		}
 	}
 
 	private void loadSettings() {
-		YamlDocument config = getMainConfig();
+		final YamlDocument config = getMainConfig();
 
 		instance.getTranslationManager()
 				.forceLocale(instance.getTranslationManager().parseLocale(config.getString("force-locale", "")));
@@ -190,16 +223,13 @@ public class ConfigManager extends ConfigHandler {
 		perPlayerWorlds = config.getBoolean("general.worlds.per-player-worlds", false);
 
 		transferIslands = config.getBoolean("hellblock.can-transfer-islands", true);
+		disableGenerationAnimation = config.getBoolean("hellblock.disable-generation-animation", false);
 		linkHellblocks = config.getBoolean("hellblock.can-link-hellblocks", true);
 		schematicPaster = config.getString("hellblock.schematic-paster", "worldedit");
 		config.getStringList("hellblock.island-options")
-				.forEach(option -> islandOptions.add(IslandOptions.valueOf(option)));
+				.forEach(option -> islandOptions.add(IslandOptions.valueOf(option.toUpperCase(Locale.ENGLISH))));
 		height = config.getInt("hellblock.height", 150);
-		partySize = config.getInt("hellblock.max-party-size", 20);
-		distance = config.getInt("hellblock.distance", 110);
 		worldguardProtect = config.getBoolean("hellblock.use-worldguard-protection", false);
-		// TODO: have a way to increase the range
-		protectionRange = config.getInt("hellblock.protection-range", 105);
 		resetInventory = config.getBoolean("hellblock.clear-inventory-on-reset", true);
 		resetEnderchest = config.getBoolean("hellblock.clear-enderchest-on-reset", true);
 		abandonTime = config.getInt("hellblock.abandon-after-days", 30);
@@ -209,55 +239,67 @@ public class ConfigManager extends ConfigHandler {
 		growNaturalTrees = config.getBoolean("hellblock.grow-natural-trees", false);
 		useParticleBorder = config.getBoolean("hellblock.use-particle-border", false);
 		voidTeleport = config.getBoolean("hellblock.void-teleport", true);
+		lightningDeath = config.getBoolean("hellblock.lightning-on-death", true);
+
+		maxBioCharLength = config.getInt("hellblock.display-settings.max-bio-character-length", 80);
+		maxNameCharLength = config.getInt("hellblock.display-settings.max-name-character-length", 30);
+		maxColorCodes = config.getInt("hellblock.display-settings.max-color-codes", 10);
+		maxNewLines = config.getInt("hellblock.display-settings.max-new-lines", 3);
+		wrapLength = config.getInt("hellblock.display-settings.wrap-length", 55);
+		bannedWords = config.getStringList("hellblock.display-settings.banned-phrases", new ArrayList<>());
 
 		chestInventoryName = config.getString("hellblock.starter-chest.inventory-name", "Chest");
-		Section chestItemsSection = config.getSection("hellblock.starter-chest.items");
+		final Section chestItemsSection = config.getSection("hellblock.starter-chest.items");
 		if (chestItemsSection != null) {
 			for (Map.Entry<String, Object> entry : chestItemsSection.getStringRouteMappedValues(false).entrySet()) {
-				if (StringUtils.isNotInteger(entry.getKey()))
+				if (StringUtils.isNotInteger(entry.getKey())) {
 					continue;
-				int itemID = Integer.parseInt(entry.getKey());
+				}
+				final int itemID = Integer.parseInt(entry.getKey());
 				if (entry.getValue() instanceof Section inner) {
-					int slot = inner.getInt("slot", RandomUtils.generateRandomInt(0, 26));
-					CustomItem item = new SingleItemParser("chest_item_" + itemID, inner,
-							instance.getConfigManager().getItemFormatFunctions()).getItem();
+					final int slot = inner.getInt("slot", RandomUtils.generateRandomInt(0, 26));
+					final CustomItem item = new SingleItemParser("chest_item_" + itemID, inner,
+							getItemFormatFunctions()).getItem();
 					chestItems.putIfAbsent(itemID, Pair.of(slot, item));
 				}
 			}
 		}
 
-		Section levelSystemSection = config.getSection("level-system.blocks");
+		final Section levelSystemSection = config.getSection("level-system.blocks");
 		if (levelSystemSection != null) {
 			int i = 0;
 			for (Map.Entry<String, Object> entry : levelSystemSection.getStringRouteMappedValues(false).entrySet()) {
-				float level = (float) entry.getValue();
-				Material material;
+				final MathValue<Player> level = MathValue.auto(((Number) entry.getValue()).floatValue());
+				final Material material;
 				EntityType entity = null;
 				if (entry.getKey().contains(":")) {
-					String[] split = entry.getKey().split(":");
-					material = Material.getMaterial(split[0].toUpperCase());
+					final String[] split = entry.getKey().split(":");
+					material = Material.matchMaterial(split[0].toUpperCase(Locale.ROOT));
 					if (material != null && material == Material.SPAWNER) {
-						entity = EntityType.valueOf(split[1].toUpperCase());
+						entity = EntityType.valueOf(split[1].toUpperCase(Locale.ROOT));
 					}
 				} else {
-					material = Material.getMaterial(entry.getKey().toUpperCase());
+					material = Material.matchMaterial(entry.getKey().toUpperCase(Locale.ROOT));
 				}
-				if (material != null && material.isBlock() && level > 0.0F)
+				if (material != null && material.isBlock()) {
 					levelSystem.putIfAbsent(i++, Tuple.of(material, entity, level));
+				}
 			}
 		}
 
 		clearDefaultOutcome = config.getBoolean("piglin-bartering.clear-default-outcome", true);
-		Section barteringSection = config.getSection("piglin-bartering.items");
+		final Section barteringSection = config.getSection("piglin-bartering.items");
 		if (barteringSection != null) {
 			for (Map.Entry<String, Object> entry : barteringSection.getStringRouteMappedValues(false).entrySet()) {
-				if (StringUtils.isNotInteger(entry.getKey()))
+				if (StringUtils.isNotInteger(entry.getKey())) {
 					continue;
-				int itemID = Integer.parseInt(entry.getKey());
+				}
+				final int itemID = Integer.parseInt(entry.getKey());
 				if (entry.getValue() instanceof Section inner) {
-					CustomItem item = new SingleItemParser("barter_item_" + itemID, inner,
-							instance.getConfigManager().getItemFormatFunctions()).getItem();
-					barteringItems.add(item);
+					final CustomItem item = new SingleItemParser("barter_item_" + itemID, inner,
+							getItemFormatFunctions()).getItem();
+					final MathValue<Player> weight = MathValue.auto(inner.getInt("weight"));
+					barteringItems.putIfAbsent(item, weight);
 				}
 			}
 		}
@@ -265,16 +307,20 @@ public class ConfigManager extends ConfigHandler {
 		randomStats = config.getBoolean("wither-stats.random-stats", true);
 		randomMinHealth = config.getInt("wither-stats.random-min-health", 200);
 		randomMaxHealth = config.getInt("wither-stats.random-max-health", 200);
-		if (randomMinHealth <= 0)
+		if (randomMinHealth <= 0) {
 			randomMinHealth = 200;
-		if (randomMaxHealth <= 0)
+		}
+		if (randomMaxHealth <= 0) {
 			randomMaxHealth = 500;
+		}
 		randomMinStrength = config.getDouble("wither-stats.random-min-strength", 0.5);
 		randomMaxStrength = config.getDouble("wither-stats.random-max-strength", 2.5);
-		if (randomMinStrength <= 0)
+		if (randomMinStrength <= 0) {
 			randomMinStrength = 0.5;
-		if (randomMaxStrength <= 0)
+		}
+		if (randomMaxStrength <= 0) {
 			randomMaxStrength = 2.5;
+		}
 		defaultStrength = config.getDouble("wither-stats.default-strength", 1.25);
 		defaultHealth = config.getInt("wither-stats.default-health", 300);
 
@@ -290,24 +336,26 @@ public class ConfigManager extends ConfigHandler {
 
 		searchRadius = config.getDouble("netherrack-generator-options.player-search-radius", 4D);
 		pistonAutomation = config.getBoolean("netherrack-generator-options.automation.pistons", false);
-		Section genResultSection = config.getSection("netherrack-generator-options.generation.blocks");
+		final Section genResultSection = config.getSection("netherrack-generator-options.generation.blocks");
 		if (genResultSection != null) {
-			for (Map.Entry<String, Object> entry : genResultSection.getStringRouteMappedValues(false).entrySet()) {
-				Material material = Material.getMaterial(entry.getKey().toUpperCase());
-				MathValue<Player> chance = MathValue.auto(entry.getValue());
+			genResultSection.getStringRouteMappedValues(false).entrySet().forEach(entry -> {
+				final Material material = Material.matchMaterial(entry.getKey().toUpperCase(Locale.ROOT));
+				final MathValue<Player> chance = MathValue.auto(entry.getValue());
 				if (material != null) {
 					generationResults.putIfAbsent(material, chance);
 				}
-			}
+			});
 		}
 
 		lavaFishingEnabled = config.getBoolean("lava-fishing-options.enable", true);
 		lavaMinTime = config.getInt("lava-fishing-options.lava-fishing.min-wait-time", 100);
-		if (lavaMinTime < 0)
+		if (lavaMinTime < 0) {
 			lavaMinTime = 0;
+		}
 		lavaMaxTime = config.getInt("lava-fishing-options.lava-fishing.max-wait-time", 600);
-		if (lavaMaxTime < 0)
+		if (lavaMaxTime < 0) {
 			lavaMaxTime = 0;
+		}
 		finalLavaMinTime = config.getInt("lava-fishing-options.final-min-wait-time", 50);
 		finalLavaMaxTime = config.getInt("lava-fishing-options.final-max-wait-time", 1200);
 
@@ -324,7 +372,16 @@ public class ConfigManager extends ConfigHandler {
 		durabilityLore = new ArrayList<>(config.getStringList("other-settings.custom-durability-format").stream()
 				.map(it -> "<!i>" + it).toList());
 
-		Section challengeSoundSection = config.getSection("hellblock.challenge-completed-sound");
+		magmaWalkerBookName = config.getString("other-settings.magma-walker.enchantment-book-format.name",
+				"Book of Magma Walker {level}");
+		magmaWalkerBookLore = new ArrayList<>(
+				config.getStringList("other-settings.magma-walker.enchantment-book-format.lore").stream()
+						.map(it -> "<!i>" + it).toList());
+
+		magmaWalkerBootsLore = new ArrayList<>(config.getStringList("other-settings.magma-walker.boots-format").stream()
+				.map(it -> "<!i>" + it).toList());
+
+		final Section challengeSoundSection = config.getSection("hellblock.challenge-completed-sound");
 		if (challengeSoundSection != null) {
 			challengeCompletedSound = Sound.sound(
 					net.kyori.adventure.key.Key.key(challengeSoundSection.getString("key")),
@@ -334,7 +391,7 @@ public class ConfigManager extends ConfigHandler {
 					challengeSoundSection.getFloat("pitch", 1.0F).floatValue());
 		}
 
-		Section linkingSoundSection = config.getSection("hellblock.linking-hellblock-sound");
+		final Section linkingSoundSection = config.getSection("hellblock.linking-hellblock-sound");
 		if (linkingSoundSection != null) {
 			linkingHellblockSound = Sound.sound(net.kyori.adventure.key.Key.key(linkingSoundSection.getString("key")),
 					Sound.Source.valueOf(linkingSoundSection.getString("source", "PLAYER").toUpperCase(Locale.ENGLISH)),
@@ -342,7 +399,7 @@ public class ConfigManager extends ConfigHandler {
 					linkingSoundSection.getFloat("pitch", 1.0F).floatValue());
 		}
 
-		Section creatingSoundSection = config.getSection("hellblock.creating-hellblock-sound");
+		final Section creatingSoundSection = config.getSection("hellblock.creating-hellblock-sound");
 		if (creatingSoundSection != null) {
 			creatingHellblockSound = Sound.sound(net.kyori.adventure.key.Key.key(creatingSoundSection.getString("key")),
 					Sound.Source
@@ -351,14 +408,14 @@ public class ConfigManager extends ConfigHandler {
 					creatingSoundSection.getFloat("pitch", 1.0F).floatValue());
 		}
 
-		Section titleScreenSection = config.getSection("hellblock.creation-title-screen");
+		final Section titleScreenSection = config.getSection("hellblock.creation-title-screen");
 		if (titleScreenSection != null) {
-			boolean enabled = titleScreenSection.getBoolean("enable", true);
-			String title = titleScreenSection.getString("title");
-			String subtitle = titleScreenSection.getString("subtitle");
-			int fadeIn = titleScreenSection.getInt("fadeIn", 3) * 20;
-			int stay = titleScreenSection.getInt("stay", 2) * 20;
-			int fadeOut = titleScreenSection.getInt("fadeOut", 3) * 20;
+			final boolean enabled = titleScreenSection.getBoolean("enable", true);
+			final String title = titleScreenSection.getString("title");
+			final String subtitle = titleScreenSection.getString("subtitle");
+			final int fadeIn = titleScreenSection.getInt("fadeIn", 3) * 20;
+			final int stay = titleScreenSection.getInt("stay", 2) * 20;
+			final int fadeOut = titleScreenSection.getInt("fadeOut", 3) * 20;
 			creationTitleScreen = new TitleScreenInfo(enabled, title, subtitle, fadeIn, stay, fadeOut);
 		}
 
@@ -384,30 +441,30 @@ public class ConfigManager extends ConfigHandler {
 		LootInterface.DefaultProperties.DEFAULT_SHOW_IN_FINDER = config
 				.getBoolean("lava-fishing-options.global-loot-property.show-in-fishfinder", true);
 
-		Section placeholderSection = config.getSection("other-settings.placeholder-register");
+		final Section placeholderSection = config.getSection("other-settings.placeholder-register");
 		if (placeholderSection != null) {
-			for (Map.Entry<String, Object> entry : placeholderSection.getStringRouteMappedValues(false).entrySet()) {
-				if (entry.getValue() instanceof String original) {
-					instance.getPlaceholderManager().registerCustomPlaceholder(entry.getKey(), original);
-				}
-			}
+			placeholderSection.getStringRouteMappedValues(false).entrySet().stream()
+					.filter(entry -> entry.getValue() instanceof String).forEach(entry -> {
+						final String original = (String) entry.getValue();
+						instance.getPlaceholderManager().registerCustomPlaceholder(entry.getKey(), original);
+					});
 		}
 
 		OffsetUtils.load(config.getSection("other-settings.offset-characters"));
 
 		EventManagerInterface.GLOBAL_ACTIONS.clear();
 		EventManagerInterface.GLOBAL_TIMES_ACTION.clear();
-		Section globalEvents = config.getSection("lava-fishing-options.global-events");
+		final Section globalEvents = config.getSection("lava-fishing-options.global-events");
 		if (globalEvents != null) {
-			for (Map.Entry<String, Object> entry : globalEvents.getStringRouteMappedValues(false).entrySet()) {
-				MechanicType type = MechanicType.index().value(entry.getKey());
+			globalEvents.getStringRouteMappedValues(false).entrySet().forEach(entry -> {
+				final MechanicType type = MechanicType.index().value(entry.getKey());
 				if (entry.getValue() instanceof Section inner) {
-					Map<ActionTrigger, Action<Player>[]> actionMap = new HashMap<>();
-					Map<ActionTrigger, TreeMap<Integer, Action<Player>[]>> actionTimesMap = new HashMap<>();
-					for (Map.Entry<String, Object> innerEntry : inner.getStringRouteMappedValues(false).entrySet()) {
+					final Map<ActionTrigger, Action<Player>[]> actionMap = new HashMap<>();
+					final Map<ActionTrigger, TreeMap<Integer, Action<Player>[]>> actionTimesMap = new HashMap<>();
+					inner.getStringRouteMappedValues(false).entrySet().forEach(innerEntry -> {
 						if (innerEntry.getValue() instanceof Section actionSection) {
-							String trigger = innerEntry.getKey().toUpperCase(Locale.ENGLISH);
-							if (trigger.equals("SUCCESS_TIMES") || trigger.equals("SUCCESS-TIMES")) {
+							final String trigger = innerEntry.getKey().toUpperCase(Locale.ENGLISH);
+							if ("SUCCESS_TIMES".equals(trigger) || "SUCCESS-TIMES".equals(trigger)) {
 								actionTimesMap.put(ActionTrigger.SUCCESS,
 										instance.getActionManager(Player.class).parseTimesActions(actionSection));
 							} else {
@@ -415,10 +472,10 @@ public class ConfigManager extends ConfigHandler {
 										instance.getActionManager(Player.class).parseActions(actionSection));
 							}
 						}
-					}
+					});
 					EventManager.GLOBAL_TIMES_ACTION.put(type, actionTimesMap);
 				}
-			}
+			});
 		}
 	}
 
@@ -430,30 +487,31 @@ public class ConfigManager extends ConfigHandler {
 	}
 
 	private void loadConfigs() {
-		Deque<File> fileDeque = new ArrayDeque<>();
+		final Deque<File> fileDeque = new ArrayDeque<>();
 		for (ConfigType type : ConfigType.values()) {
-			File typeFolder = new File(instance.getDataFolder(), "contents" + File.separator + type.path());
+			final File typeFolder = new File(instance.getDataFolder(), "contents" + File.separator + type.path());
 			if (!typeFolder.exists()) {
-				if (!typeFolder.mkdirs())
+				if (!typeFolder.mkdirs()) {
 					return;
+				}
 				instance.saveResource("contents" + File.separator + type.path() + File.separator + "default.yml",
 						false);
 			}
-			Map<String, Node<ConfigParserFunction>> nodes = type.parser();
+			final Map<String, Node<ConfigParserFunction>> nodes = type.parser();
 			fileDeque.push(typeFolder);
 			while (!fileDeque.isEmpty()) {
-				File file = fileDeque.pop();
-				File[] files = file.listFiles();
-				if (files == null)
+				final File file = fileDeque.pop();
+				final File[] files = file.listFiles();
+				if (files == null) {
 					continue;
+				}
 				for (File subFile : files) {
 					if (subFile.isDirectory()) {
 						fileDeque.push(subFile);
 					} else if (subFile.isFile() && subFile.getName().endsWith(".yml")) {
 						try {
-							YamlDocument document = instance.getConfigManager().loadData(subFile);
-							for (Map.Entry<String, Object> entry : document.getStringRouteMappedValues(false)
-									.entrySet()) {
+							final YamlDocument document = loadData(subFile);
+							document.getStringRouteMappedValues(false).entrySet().forEach(entry -> {
 								try {
 									if (entry.getValue() instanceof Section section) {
 										type.parse(entry.getKey(), section, nodes);
@@ -462,7 +520,7 @@ public class ConfigManager extends ConfigHandler {
 									instance.getPluginLogger().warn("Invalid config " + subFile.getPath()
 											+ " - Failed to parse section " + entry.getKey(), e);
 								}
-							}
+							});
 						} catch (ConstructorException e) {
 							instance.getPluginLogger().warn("Could not load config file: " + subFile.getAbsolutePath()
 									+ ". Is it a corrupted file?");
@@ -474,15 +532,17 @@ public class ConfigManager extends ConfigHandler {
 	}
 
 	public Map<ItemStack, Character> getCraftingMaterials(Section section) {
-		Map<ItemStack, Character> map = new HashMap<>();
+		final Map<ItemStack, Character> map = new HashMap<>();
 		for (Map.Entry<String, Object> entry : section.getStringRouteMappedValues(false).entrySet()) {
-			if (!(entry.getValue() instanceof Character))
+			if (!(entry.getValue() instanceof Character)) {
 				continue;
-			char symbol = (char) entry.getValue();
-			if (entry.getKey().equalsIgnoreCase("NETHER_POTION")) {
+			}
+			final char symbol = (char) entry.getValue();
+			// SPECIAL CASE
+			if ("NETHER_POTION".equalsIgnoreCase(entry.getKey())) {
 				map.put(instance.getNetherBrewingHandler().getNetherPotion().load(), symbol);
 			} else {
-				Material material = Material.getMaterial(entry.getKey().toUpperCase());
+				final Material material = Material.matchMaterial(entry.getKey().toUpperCase(Locale.ROOT));
 				if (material != null) {
 					map.put(new ItemStack(material), symbol);
 				}
@@ -492,69 +552,65 @@ public class ConfigManager extends ConfigHandler {
 	}
 
 	public Map<Key, Short> getEnchantments(Section section) {
-		Map<Key, Short> map = new HashMap<>();
-		for (Map.Entry<String, Object> entry : section.getStringRouteMappedValues(false).entrySet()) {
-			int level = Math.min(255, Math.max(1, (int) entry.getValue()));
-			if (Registry.ENCHANTMENT.get(Objects.requireNonNull(NamespacedKey.fromString(entry.getKey()))) != null) {
+		final Map<Key, Short> map = new HashMap<>();
+		section.getStringRouteMappedValues(false).entrySet().forEach(entry -> {
+			final int level = Math.min(255, Math.max(1, (int) entry.getValue()));
+			if (ItemRegistry.getEnchantment(entry.getKey()) != null) {
 				map.put(Key.fromString(entry.getKey()), (short) level);
 			}
-		}
+		});
 		return map;
 	}
 
 	private List<Tuple<Double, String, Short>> getPossibleEnchantments(Section section) {
-		List<Tuple<Double, String, Short>> list = new ArrayList<>();
-		for (Map.Entry<String, Object> entry : section.getStringRouteMappedValues(false).entrySet()) {
-			if (entry.getValue() instanceof Section inner) {
-				Tuple<Double, String, Short> tuple = Tuple.of(inner.getDouble("chance"), inner.getString("enchant"),
-						Short.valueOf(String.valueOf(inner.getInt("level"))));
-				list.add(tuple);
-			}
-		}
+		final List<Tuple<Double, String, Short>> list = new ArrayList<>();
+		section.getStringRouteMappedValues(false).entrySet().stream()
+				.filter(entry -> entry.getValue() instanceof Section).map(entry -> (Section) entry.getValue())
+				.forEach(inner -> {
+					final Tuple<Double, String, Short> tuple = Tuple.of(inner.getDouble("chance"),
+							inner.getString("enchant"), Short.valueOf(String.valueOf(inner.getInt("level"))));
+					list.add(tuple);
+				});
 		return list;
 	}
 
 	private Pair<Key, Short> getEnchantmentPair(String enchantmentWithLevel) {
-		String[] split = enchantmentWithLevel.split(":", 3);
+		final String[] split = enchantmentWithLevel.split(":", 3);
 		return Pair.of(Key.of(split[0], split[1]), Short.parseShort(split[2]));
 	}
 
 	@SuppressWarnings("unchecked")
 	private void registerBuiltInItemProperties() {
-		Function<Object, BiConsumer<Item<ItemStack>, Context<Player>>> f1 = arg -> {
-			Section section = (Section) arg;
-			boolean stored = Objects.equals(section.getNameAsString(), "stored-enchantment-pool");
-			Section amountSection = section.getSection("amount");
-			Section enchantSection = section.getSection("pool");
-			List<Pair<Integer, MathValue<Player>>> amountList = new ArrayList<>();
-			for (Map.Entry<String, Object> entry : amountSection.getStringRouteMappedValues(false).entrySet()) {
-				amountList.add(Pair.of(Integer.parseInt(entry.getKey()), MathValue.auto(entry.getValue())));
-			}
-			List<Pair<Pair<Key, Short>, MathValue<Player>>> enchantPoolPair = new ArrayList<>();
-			for (Map.Entry<String, Object> entry : enchantSection.getStringRouteMappedValues(false).entrySet()) {
-				enchantPoolPair.add(Pair.of(getEnchantmentPair(entry.getKey()), MathValue.auto(entry.getValue())));
-			}
+		final Function<Object, BiConsumer<Item<ItemStack>, Context<Player>>> f1 = arg -> {
+			final Section section = (Section) arg;
+			final boolean stored = Objects.equals(section.getNameAsString(), "stored-enchantment-pool");
+			final Section amountSection = section.getSection("amount");
+			final Section enchantSection = section.getSection("pool");
+			final List<Pair<Integer, MathValue<Player>>> amountList = new ArrayList<>();
+			amountSection.getStringRouteMappedValues(false).entrySet().forEach(entry -> amountList
+					.add(Pair.of(Integer.parseInt(entry.getKey()), MathValue.auto(entry.getValue()))));
+			final List<Pair<Pair<Key, Short>, MathValue<Player>>> enchantPoolPair = new ArrayList<>();
+			enchantSection.getStringRouteMappedValues(false).entrySet().forEach(entry -> enchantPoolPair
+					.add(Pair.of(getEnchantmentPair(entry.getKey()), MathValue.auto(entry.getValue()))));
 			if (amountList.isEmpty() || enchantPoolPair.isEmpty()) {
 				throw new RuntimeException("Both `pool` and `amount` should not be empty");
 			}
 			return (item, context) -> {
-				List<Pair<Integer, Double>> parsedAmountPair = new ArrayList<>(amountList.size());
-				for (Pair<Integer, MathValue<Player>> rawValue : amountList) {
-					parsedAmountPair.add(Pair.of(rawValue.left(), rawValue.right().evaluate(context)));
-				}
-				int amount = WeightUtils.getRandom(parsedAmountPair);
-				if (amount <= 0)
+				final List<Pair<Integer, Double>> parsedAmountPair = new ArrayList<>(amountList.size());
+				amountList.forEach(
+						rawValue -> parsedAmountPair.add(Pair.of(rawValue.left(), rawValue.right().evaluate(context))));
+				final int amount = WeightUtils.getRandom(parsedAmountPair);
+				if (amount <= 0) {
 					return;
-				Set<Enchantment> addedEnchantments = new HashSet<>();
-				List<Pair<Pair<Key, Short>, Double>> cloned = new ArrayList<>(enchantPoolPair.size());
-				for (Pair<Pair<Key, Short>, MathValue<Player>> rawValue : enchantPoolPair) {
-					cloned.add(Pair.of(rawValue.left(), rawValue.right().evaluate(context)));
 				}
+				final Set<Enchantment> addedEnchantments = new HashSet<>();
+				final List<Pair<Pair<Key, Short>, Double>> cloned = new ArrayList<>(enchantPoolPair.size());
+				enchantPoolPair
+						.forEach(rawValue -> cloned.add(Pair.of(rawValue.left(), rawValue.right().evaluate(context))));
 				int i = 0;
 				outer: while (i < amount && !cloned.isEmpty()) {
-					Pair<Key, Short> enchantPair = WeightUtils.getRandom(cloned);
-					Enchantment enchantment = Registry.ENCHANTMENT
-							.get(Objects.requireNonNull(NamespacedKey.fromString(enchantPair.left().toString())));
+					final Pair<Key, Short> enchantPair = WeightUtils.getRandom(cloned);
+					final Enchantment enchantment = ItemRegistry.getEnchantment(enchantPair.left().toString());
 					if (enchantment == null) {
 						instance.getPluginLogger().warn("Enchantment: " + enchantPair.left() + " doesn't exist.");
 						return;
@@ -580,109 +636,105 @@ public class ConfigManager extends ConfigHandler {
 		};
 		this.registerItemParser(f1, 4800, "stored-enchantment-pool");
 		this.registerItemParser(f1, 4700, "enchantment-pool");
-		Function<Object, BiConsumer<Item<ItemStack>, Context<Player>>> f2 = arg -> {
-			Section section = (Section) arg;
-			boolean stored = Objects.equals(section.getNameAsString(), "random-stored-enchantments");
-			List<Tuple<Double, String, Short>> enchantments = getPossibleEnchantments(section);
+		final Function<Object, BiConsumer<Item<ItemStack>, Context<Player>>> f2 = arg -> {
+			final Section section = (Section) arg;
+			final boolean stored = Objects.equals(section.getNameAsString(), "random-stored-enchantments");
+			final List<Tuple<Double, String, Short>> enchantments = getPossibleEnchantments(section);
 			return (item, context) -> {
-				Set<String> ids = new HashSet<>();
-				for (Tuple<Double, String, Short> pair : enchantments) {
-					if (Math.random() < pair.left() && !ids.contains(pair.mid())) {
-						if (stored) {
-							item.addStoredEnchantment(Key.fromString(pair.mid()), pair.right());
-						} else {
-							item.addEnchantment(Key.fromString(pair.mid()), pair.right());
-						}
-						ids.add(pair.mid());
-					}
-				}
+				final Set<String> ids = new HashSet<>();
+				enchantments.stream().filter(pair -> Math.random() < pair.left() && !ids.contains(pair.mid()))
+						.forEach(pair -> {
+							if (stored) {
+								item.addStoredEnchantment(Key.fromString(pair.mid()), pair.right());
+							} else {
+								item.addEnchantment(Key.fromString(pair.mid()), pair.right());
+							}
+							ids.add(pair.mid());
+						});
 			};
 		};
 		this.registerItemParser(f2, 4850, "random-stored-enchantments");
 		this.registerItemParser(f2, 4750, "random-enchantments");
 		this.registerItemParser(arg -> {
-			Section section = (Section) arg;
-			Map<Key, Short> map = getEnchantments(section);
+			final Section section = (Section) arg;
+			final Map<Key, Short> map = getEnchantments(section);
 			return (item, context) -> item.storedEnchantments(map);
 		}, 4600, "stored-enchantments");
 		this.registerItemParser(arg -> {
-			Section section = (Section) arg;
-			Map<Key, Short> map = getEnchantments(section);
+			final Section section = (Section) arg;
+			final Map<Key, Short> map = getEnchantments(section);
 			return (item, context) -> item.enchantments(map);
 		}, 4500, "enchantments");
 		this.registerItemParser(arg -> {
-			String base64 = (String) arg;
+			final String base64 = (String) arg;
 			return (item, context) -> item.skull(base64);
 		}, 5200, "head64");
 		this.registerItemParser(arg -> {
-			boolean glint = (boolean) arg;
+			final boolean glint = (boolean) arg;
 			return (item, context) -> item.glint(glint);
 		}, 5500, "glowing");
 		this.registerItemParser(arg -> {
-			List<String> args = ListUtils.toList(arg);
+			final List<String> args = ListUtils.toList(arg);
 			return (item, context) -> item.itemFlags(args);
 		}, 5100, "item-flags");
 		this.registerItemParser(arg -> {
-			MathValue<Player> mathValue = MathValue.auto(arg);
+			final MathValue<Player> mathValue = MathValue.auto(arg);
 			return (item, context) -> item.customModelData((int) mathValue.evaluate(context));
 		}, 5000, "custom-model-data");
 		this.registerItemParser(arg -> {
-			TextValue<Player> textValue = TextValue.auto("<!i><white>" + arg);
-			return (item, context) -> {
-				item.displayName(AdventureHelper.miniMessageToJson(textValue.render(context)));
-			};
+			final TextValue<Player> textValue = TextValue.auto("<!i><white>" + arg);
+			return (item, context) -> item.displayName(AdventureHelper.miniMessageToJson(textValue.render(context)));
 		}, 4000, "display", "name");
 		this.registerItemParser(arg -> {
-			List<String> list = ListUtils.toList(arg);
-			List<TextValue<Player>> lore = new ArrayList<>();
-			for (String text : list) {
-				lore.add(TextValue.auto("<!i><white>" + text));
-			}
-			return (item, context) -> {
-				item.lore(lore.stream().map(it -> AdventureHelper.miniMessageToJson(it.render(context))).toList());
-			};
+			final List<String> list = ListUtils.toList(arg);
+			final List<TextValue<Player>> lore = new ArrayList<>();
+			list.forEach(text -> lore.add(TextValue.auto("<!i><white>" + text)));
+			return (item, context) -> item
+					.lore(lore.stream().map(it -> AdventureHelper.miniMessageToJson(it.render(context))).toList());
 		}, 3_000, "display", "lore");
 		this.registerItemParser(arg -> {
-			boolean enable = (boolean) arg;
+			final boolean enable = (boolean) arg;
 			return (item, context) -> {
-				if (!enable)
+				if (!enable) {
 					return;
+				}
 				item.setTag(context.arg(ContextKeys.ID), "HellblockItem", "id");
 			};
 		}, 2_000, "tag");
 		this.registerItemParser(arg -> {
-			boolean enable = (boolean) arg;
-			return (item, context) -> {
-				item.unbreakable(enable);
-			};
+			final boolean enable = (boolean) arg;
+			return (item, context) -> item.unbreakable(enable);
 		}, 2_211, "unbreakable");
 		this.registerItemParser(arg -> {
-			boolean enable = (boolean) arg;
+			final boolean enable = (boolean) arg;
 			return (item, context) -> {
-				if (enable)
+				if (enable) {
 					return;
+				}
 				item.setTag(UUID.randomUUID(), "HellblockItem", "uuid");
 			};
 		}, 2_222, "stackable");
 		this.registerItemParser(arg -> {
-			boolean enable = (boolean) arg;
+			final boolean enable = (boolean) arg;
 			return (item, context) -> item.setTag(enable ? 1 : 0, "HellblockItem", "placeable");
 		}, 2_335, "placeable");
 		this.registerItemParser(arg -> {
-			String sizePair = (String) arg;
-			String[] split = sizePair.split("~", 2);
-			MathValue<Player> min = MathValue.auto(split[0]);
-			MathValue<Player> max = split.length == 2 ? MathValue.auto(split[1]) : MathValue.auto(split[0]);
+			final String sizePair = (String) arg;
+			final String[] split = sizePair.split("~", 2);
+			final MathValue<Player> min = MathValue.auto(split[0]);
+			final MathValue<Player> max = split.length == 2 ? MathValue.auto(split[1]) : MathValue.auto(split[0]);
 			return (item, context) -> {
-				double minSize = min.evaluate(context);
-				double maxSize = max.evaluate(context);
+				final double minSize = min.evaluate(context);
+				final double maxSize = max.evaluate(context);
 				float size = (float) RandomUtils.generateRandomDouble(minSize, maxSize);
 				Double sm = context.arg(ContextKeys.SIZE_MULTIPLIER);
-				if (sm == null)
+				if (sm == null) {
 					sm = 1.0;
+				}
 				Double sa = context.arg(ContextKeys.SIZE_ADDER);
-				if (sa == null)
+				if (sa == null) {
 					sa = 0.0;
+				}
 				size = (float) (sm * size + sa);
 				if (this.restrictedSizeRange()) {
 					if (size > maxSize) {
@@ -696,38 +748,39 @@ public class ConfigManager extends ConfigHandler {
 				context.arg(ContextKeys.SIZE, size);
 				context.arg(ContextKeys.MIN_SIZE, minSize);
 				context.arg(ContextKeys.MAX_SIZE, maxSize);
-				context.arg(ContextKeys.SIZE_FORMATTED, String.format("%.2f", size));
+				context.arg(ContextKeys.SIZE_FORMATTED, "%.2f".formatted(size));
 			};
 		}, 1_000, "size");
 		this.registerItemParser(arg -> {
-			Section section = (Section) arg;
-			MathValue<Player> base = MathValue.auto(section.get("base", "0"));
-			MathValue<Player> bonus = MathValue.auto(section.get("bonus", "0"));
+			final Section section = (Section) arg;
+			final MathValue<Player> base = MathValue.auto(section.get("base", "0"));
+			final MathValue<Player> bonus = MathValue.auto(section.get("bonus", "0"));
 			return (item, context) -> {
-				double basePrice = base.evaluate(context);
+				final double basePrice = base.evaluate(context);
 				context.arg(ContextKeys.BASE, basePrice);
-				double bonusPrice = bonus.evaluate(context);
+				final double bonusPrice = bonus.evaluate(context);
 				context.arg(ContextKeys.BONUS, bonusPrice);
-				String formula = instance.getMarketManager().getFormula();
-				TextValue<Player> playerTextValue = TextValue.auto(formula);
+				final String formula = instance.getMarketManager().getFormula();
+				final TextValue<Player> playerTextValue = TextValue.auto(formula);
 				String rendered = playerTextValue.render(context);
-				List<String> unparsed = instance.getPlaceholderManager().resolvePlaceholders(rendered);
+				final List<String> unparsed = instance.getPlaceholderManager().resolvePlaceholders(rendered);
 				for (String unparsedValue : unparsed) {
 					rendered = rendered.replace(unparsedValue, "0");
 				}
-				double price = ExpressionHelper.evaluate(rendered);
+				final double price = ExpressionHelper.evaluate(rendered);
 				item.setTag(price, "Price");
 				context.arg(ContextKeys.PRICE, price);
-				context.arg(ContextKeys.PRICE_FORMATTED, String.format("%.2f", price));
+				context.arg(ContextKeys.PRICE_FORMATTED, "%.2f".formatted(price));
 			};
 		}, 1_500, "price");
 		this.registerItemParser(arg -> {
-			boolean random = (boolean) arg;
+			final boolean random = (boolean) arg;
 			return (item, context) -> {
-				if (!random)
+				if (!random) {
 					return;
+				}
 				if (item.hasTag("HellblockItem", "max_dur")) {
-					CustomDurabilityItem durabilityItem = new CustomDurabilityItem(item);
+					final CustomDurabilityItem durabilityItem = new CustomDurabilityItem(item);
 					durabilityItem.damage(RandomUtils.generateRandomInt(0, durabilityItem.maxDamage() - 1));
 				} else {
 					item.damage(RandomUtils.generateRandomInt(0, item.maxDamage().get() - 1));
@@ -735,56 +788,48 @@ public class ConfigManager extends ConfigHandler {
 			};
 		}, 3200, "random-durability");
 		this.registerItemParser(arg -> {
-			MathValue<Player> mathValue = MathValue.auto(arg);
+			final MathValue<Player> mathValue = MathValue.auto(arg);
 			return (item, context) -> {
-				int max = (int) mathValue.evaluate(context);
+				final int max = (int) mathValue.evaluate(context);
 				item.setTag(max, "HellblockItem", "max_dur");
 				item.setTag(max, "HellblockItem", "cur_dur");
-				CustomDurabilityItem customDurabilityItem = new CustomDurabilityItem(item);
+				final CustomDurabilityItem customDurabilityItem = new CustomDurabilityItem(item);
 				customDurabilityItem.damage(0);
 			};
 		}, 3100, "max-durability");
 		this.registerItemParser(arg -> {
-			Section section = (Section) arg;
-			List<ItemEditor> editors = new ArrayList<>();
+			final Section section = (Section) arg;
+			final List<ItemEditor> editors = new ArrayList<>();
 			ItemStackUtils.sectionToTagEditor(section, editors);
-			return (item, context) -> {
-				for (ItemEditor editor : editors) {
-					editor.apply(((AbstractItem<RtagItem, ItemStack>) item).getRTagItem(), context);
-				}
-			};
+			return (item, context) -> editors
+					.forEach(editor -> editor.apply(((AbstractItem<RtagItem, ItemStack>) item).getRTagItem(), context));
 		}, 10_050, "nbt");
 		if (VersionHelper.isVersionNewerThan1_20_5()) {
 			this.registerItemParser(arg -> {
-				Section section = (Section) arg;
-				List<ItemEditor> editors = new ArrayList<>();
+				final Section section = (Section) arg;
+				final List<ItemEditor> editors = new ArrayList<>();
 				ItemStackUtils.sectionToComponentEditor(section, editors);
-				return (item, context) -> {
-					for (ItemEditor editor : editors) {
-						editor.apply(((AbstractItem<RtagItem, ItemStack>) item).getRTagItem(), context);
-					}
-				};
+				return (item, context) -> editors.forEach(
+						editor -> editor.apply(((AbstractItem<RtagItem, ItemStack>) item).getRTagItem(), context));
 			}, 10_075, "components");
 		}
 	}
 
 	private void registerBuiltInEffectModifierParser() {
 		this.registerEffectModifierParser(object -> {
-			Section section = (Section) object;
+			final Section section = (Section) object;
 			return builder -> builder.requirements(
 					List.of(instance.getRequirementManager(Player.class).parseRequirements(section, true)));
 		}, "requirements");
 		this.registerEffectModifierParser(object -> {
-			Section section = (Section) object;
-			List<TriConsumer<Effect, Context<Player>, Integer>> property = new ArrayList<>();
-			for (Map.Entry<String, Object> entry : section.getStringRouteMappedValues(false).entrySet()) {
+			final Section section = (Section) object;
+			final List<TriConsumer<Effect, Context<Player>, Integer>> property = new ArrayList<>();
+			section.getStringRouteMappedValues(false).entrySet().forEach(entry -> {
 				if (entry.getValue() instanceof Section innerSection) {
 					property.add(parseEffect(innerSection, id -> instance.getLootManager().getGroupMembers(id)));
 				}
-			}
-			return builder -> {
-				builder.modifiers(property);
-			};
+			});
+			return builder -> builder.modifiers(property);
 		}, "effects");
 	}
 
@@ -793,8 +838,9 @@ public class ConfigManager extends ConfigHandler {
 		if (!section.contains("type")) {
 			throw new RuntimeException(section.getRouteAsString());
 		}
-		Action<Player>[] actions = instance.getActionManager(Player.class).parseActions(section.getSection("actions"));
-		String type = section.getString("type");
+		final Action<Player>[] actions = instance.getActionManager(Player.class)
+				.parseActions(section.getSection("actions"));
+		final String type = section.getString("type");
 		if (type == null) {
 			throw new RuntimeException(section.getRouteAsString());
 		}
@@ -808,7 +854,7 @@ public class ConfigManager extends ConfigHandler {
 			}));
 		}
 		case "weight-mod" -> {
-			var op = parseWeightOperation(section.getStringList("value"), lootValidator, groupProvider);
+			final var op = parseWeightOperation(section.getStringList("value"), lootValidator, groupProvider);
 			return (((effect, context, phase) -> {
 				if (phase == 1) {
 					effect.weightOperations(op);
@@ -817,7 +863,7 @@ public class ConfigManager extends ConfigHandler {
 			}));
 		}
 		case "weight-mod-ignore-conditions" -> {
-			var op = parseWeightOperation(section.getStringList("value"), lootValidator, groupProvider);
+			final var op = parseWeightOperation(section.getStringList("value"), lootValidator, groupProvider);
 			return (((effect, context, phase) -> {
 				if (phase == 1) {
 					effect.weightOperationsIgnored(op);
@@ -826,7 +872,7 @@ public class ConfigManager extends ConfigHandler {
 			}));
 		}
 		case "group-mod", "group_mod" -> {
-			var op = parseGroupWeightOperation(section.getStringList("value"), true, groupProvider);
+			final var op = parseGroupWeightOperation(section.getStringList("value"), true, groupProvider);
 			return (((effect, context, phase) -> {
 				if (phase == 1) {
 					effect.weightOperations(op);
@@ -835,7 +881,7 @@ public class ConfigManager extends ConfigHandler {
 			}));
 		}
 		case "group-mod-ignore-conditions", "group_mod_ignore_conditions" -> {
-			var op = parseGroupWeightOperation(section.getStringList("value"), false, groupProvider);
+			final var op = parseGroupWeightOperation(section.getStringList("value"), false, groupProvider);
 			return (((effect, context, phase) -> {
 				if (phase == 1) {
 					effect.weightOperationsIgnored(op);
@@ -844,7 +890,7 @@ public class ConfigManager extends ConfigHandler {
 			}));
 		}
 		case "wait-time", "wait_time" -> {
-			MathValue<Player> value = MathValue.auto(section.get("value"));
+			final MathValue<Player> value = MathValue.auto(section.get("value"));
 			return (((effect, context, phase) -> {
 				if (phase == 2) {
 					effect.waitTimeAdder(effect.waitTimeAdder() + value.evaluate(context));
@@ -853,7 +899,7 @@ public class ConfigManager extends ConfigHandler {
 			}));
 		}
 		case "hook-time", "hook_time", "wait-time-multiplier", "wait_time_multiplier" -> {
-			MathValue<Player> value = MathValue.auto(section.get("value"));
+			final MathValue<Player> value = MathValue.auto(section.get("value"));
 			return (((effect, context, phase) -> {
 				if (phase == 2) {
 					effect.waitTimeMultiplier(effect.waitTimeMultiplier() - 1 + value.evaluate(context));
@@ -862,7 +908,7 @@ public class ConfigManager extends ConfigHandler {
 			}));
 		}
 		case "size" -> {
-			MathValue<Player> value = MathValue.auto(section.get("value"));
+			final MathValue<Player> value = MathValue.auto(section.get("value"));
 			return (((effect, context, phase) -> {
 				if (phase == 2) {
 					effect.sizeAdder(effect.sizeAdder() + value.evaluate(context));
@@ -871,7 +917,7 @@ public class ConfigManager extends ConfigHandler {
 			}));
 		}
 		case "size-multiplier", "size-bonus" -> {
-			MathValue<Player> value = MathValue.auto(section.get("value"));
+			final MathValue<Player> value = MathValue.auto(section.get("value"));
 			return (((effect, context, phase) -> {
 				if (phase == 2) {
 					effect.sizeMultiplier(effect.sizeMultiplier() - 1 + value.evaluate(context));
@@ -880,7 +926,7 @@ public class ConfigManager extends ConfigHandler {
 			}));
 		}
 		case "multiple-loot" -> {
-			MathValue<Player> value = MathValue.auto(section.get("value"));
+			final MathValue<Player> value = MathValue.auto(section.get("value"));
 			return (((effect, context, phase) -> {
 				if (phase == 2) {
 					effect.multipleLootChance(effect.multipleLootChance() + value.evaluate(context));
@@ -889,20 +935,20 @@ public class ConfigManager extends ConfigHandler {
 			}));
 		}
 		case "conditional" -> {
-			Requirement<Player>[] requirements = instance.getRequirementManager(Player.class)
+			final Requirement<Player>[] requirements = instance.getRequirementManager(Player.class)
 					.parseRequirements(section.getSection("conditions"), true);
-			Section effectSection = section.getSection("effects");
-			List<TriConsumer<Effect, Context<Player>, Integer>> effects = new ArrayList<>();
-			if (effectSection != null)
-				for (Map.Entry<String, Object> entry : effectSection.getStringRouteMappedValues(false).entrySet())
-					if (entry.getValue() instanceof Section inner)
-						effects.add(parseEffect(inner, groupProvider));
+			final Section effectSection = section.getSection("effects");
+			final List<TriConsumer<Effect, Context<Player>, Integer>> effects = new ArrayList<>();
+			if (effectSection != null) {
+				effectSection.getStringRouteMappedValues(false).entrySet().stream()
+						.filter(entry -> entry.getValue() instanceof Section).map(entry -> (Section) entry.getValue())
+						.forEach(inner -> effects.add(parseEffect(inner, groupProvider)));
+			}
 			return (((effect, context, phase) -> {
-				if (!RequirementManager.isSatisfied(context, requirements))
+				if (!RequirementManager.isSatisfied(context, requirements)) {
 					return;
-				for (TriConsumer<Effect, Context<Player>, Integer> consumer : effects) {
-					consumer.accept(effect, context, phase);
 				}
+				effects.forEach(consumer -> consumer.accept(effect, context, phase));
 			}));
 		}
 		default -> {
@@ -916,26 +962,26 @@ public class ConfigManager extends ConfigHandler {
 			Function<String, List<String>> groupProvider) {
 		switch (op.charAt(0)) {
 		case '-' -> {
-			MathValue<Player> arg = MathValue.auto(op.substring(1));
+			final MathValue<Player> arg = MathValue.auto(op.substring(1));
 			return new ReduceWeightOperation(arg, memberCount, forAvailable);
 		}
 		case '+' -> {
-			MathValue<Player> arg = MathValue.auto(op.substring(1));
+			final MathValue<Player> arg = MathValue.auto(op.substring(1));
 			return new AddWeightOperation(arg, memberCount, forAvailable);
 		}
 		case '=' -> {
-			String expression = op.substring(1);
-			MathValue<Player> arg = MathValue.auto(expression);
-			List<String> placeholders = instance.getPlaceholderManager().resolvePlaceholders(expression);
-			List<String> otherEntries = new ArrayList<>();
-			List<Pair<String, String[]>> otherGroups = new ArrayList<>();
+			final String expression = op.substring(1);
+			final MathValue<Player> arg = MathValue.auto(expression);
+			final List<String> placeholders = instance.getPlaceholderManager().resolvePlaceholders(expression);
+			final List<String> otherEntries = new ArrayList<>();
+			final List<Pair<String, String[]>> otherGroups = new ArrayList<>();
 			for (String placeholder : placeholders) {
 				if (placeholder.startsWith("{entry_")) {
 					otherEntries.add(placeholder.substring("{entry_".length(), placeholder.length() - 1));
 				} else if (placeholder.startsWith("{group")) {
 					// only for loots
-					String groupExpression = placeholder.substring("{group_".length(), placeholder.length() - 1);
-					List<String> members = getGroupMembers(groupExpression, groupProvider);
+					final String groupExpression = placeholder.substring("{group_".length(), placeholder.length() - 1);
+					final List<String> members = getGroupMembers(groupExpression, groupProvider);
 					if (members.isEmpty()) {
 						instance.getPluginLogger().warn(
 								"Failed to load expression: " + expression + ". Invalid group: " + groupExpression);
@@ -955,38 +1001,38 @@ public class ConfigManager extends ConfigHandler {
 			Function<String, List<String>> groupProvider) {
 		switch (op.charAt(0)) {
 		case '/' -> {
-			MathValue<Player> arg = MathValue.auto(op.substring(1));
+			final MathValue<Player> arg = MathValue.auto(op.substring(1));
 			return new DivideWeightOperation(arg, forAvailable);
 		}
 		case '*' -> {
-			MathValue<Player> arg = MathValue.auto(op.substring(1));
+			final MathValue<Player> arg = MathValue.auto(op.substring(1));
 			return new MultiplyWeightOperation(arg, forAvailable);
 		}
 		case '-' -> {
-			MathValue<Player> arg = MathValue.auto(op.substring(1));
+			final MathValue<Player> arg = MathValue.auto(op.substring(1));
 			return new ReduceWeightOperation(arg, 1, forAvailable);
 		}
 		case '%' -> {
-			MathValue<Player> arg = MathValue.auto(op.substring(1));
+			final MathValue<Player> arg = MathValue.auto(op.substring(1));
 			return new ModuloWeightOperation(arg, forAvailable);
 		}
 		case '+' -> {
-			MathValue<Player> arg = MathValue.auto(op.substring(1));
+			final MathValue<Player> arg = MathValue.auto(op.substring(1));
 			return new AddWeightOperation(arg, 1, forAvailable);
 		}
 		case '=' -> {
-			String expression = op.substring(1);
-			MathValue<Player> arg = MathValue.auto(expression);
-			List<String> placeholders = instance.getPlaceholderManager().resolvePlaceholders(expression);
-			List<String> otherEntries = new ArrayList<>();
-			List<Pair<String, String[]>> otherGroups = new ArrayList<>();
+			final String expression = op.substring(1);
+			final MathValue<Player> arg = MathValue.auto(expression);
+			final List<String> placeholders = instance.getPlaceholderManager().resolvePlaceholders(expression);
+			final List<String> otherEntries = new ArrayList<>();
+			final List<Pair<String, String[]>> otherGroups = new ArrayList<>();
 			for (String placeholder : placeholders) {
 				if (placeholder.startsWith("{entry_")) {
 					otherEntries.add(placeholder.substring("{entry_".length(), placeholder.length() - 1));
 				} else if (placeholder.startsWith("{group")) {
 					// only for loots
-					String groupExpression = placeholder.substring("{group_".length(), placeholder.length() - 1);
-					List<String> members = getGroupMembers(groupExpression, groupProvider);
+					final String groupExpression = placeholder.substring("{group_".length(), placeholder.length() - 1);
+					final List<String> members = getGroupMembers(groupExpression, groupProvider);
 					if (members.isEmpty()) {
 						instance.getPluginLogger().warn(
 								"Failed to load expression: " + expression + ". Invalid group: " + groupExpression);
@@ -1002,69 +1048,64 @@ public class ConfigManager extends ConfigHandler {
 		}
 	}
 
+	@Override
 	public List<Pair<String, WeightOperation>> parseWeightOperation(List<String> ops,
 			Function<String, Boolean> validator, Function<String, List<String>> groupProvider) {
-		List<Pair<String, WeightOperation>> result = new ArrayList<>();
+		final List<Pair<String, WeightOperation>> result = new ArrayList<>();
 		for (String op : ops) {
-			String[] split = op.split(":", 3);
+			final String[] split = op.split(":", 3);
 			if (split.length < 2) {
 				instance.getPluginLogger().warn("Illegal weight operation: " + op);
 				continue;
 			}
 			if (split.length == 2) {
-				String id = split[0];
+				final String id = split[0];
 				if (!validator.apply(id)) {
 					instance.getPluginLogger().warn("Illegal weight operation: " + op + ". Id " + id + " is not valid");
 					continue;
 				}
 				result.add(Pair.of(id, parseWeightOperation(split[1], false, groupProvider)));
 			} else {
-				String type = split[0];
-				String id = split[1];
+				final String type = split[0];
+				final String id = split[1];
 				switch (type) {
 				case "group_for_each" -> {
-					List<String> members = getGroupMembers(id, groupProvider);
+					final List<String> members = getGroupMembers(id, groupProvider);
 					if (members.isEmpty()) {
 						instance.getPluginLogger().warn("Failed to load expression: " + op + ". Invalid group: " + id);
 						continue;
 					}
-					WeightOperation operation = parseWeightOperation(split[2], false, groupProvider);
-					for (String member : members) {
-						result.add(Pair.of(member, operation));
-					}
+					final WeightOperation operation = parseWeightOperation(split[2], false, groupProvider);
+					members.forEach(member -> result.add(Pair.of(member, operation)));
 				}
 				case "group_available_for_each" -> {
-					List<String> members = getGroupMembers(id, groupProvider);
+					final List<String> members = getGroupMembers(id, groupProvider);
 					if (members.isEmpty()) {
 						instance.getPluginLogger().warn("Failed to load expression: " + op + ". Invalid group: " + id);
 						continue;
 					}
-					WeightOperation operation = parseWeightOperation(split[2], true, groupProvider);
-					for (String member : members) {
-						result.add(Pair.of(member, operation));
-					}
+					final WeightOperation operation = parseWeightOperation(split[2], true, groupProvider);
+					members.forEach(member -> result.add(Pair.of(member, operation)));
 				}
 				case "group_total" -> {
-					List<String> members = getGroupMembers(id, groupProvider);
+					final List<String> members = getGroupMembers(id, groupProvider);
 					if (members.isEmpty()) {
 						instance.getPluginLogger().warn("Failed to load expression: " + op + ". Invalid group: " + id);
 						continue;
 					}
-					WeightOperation operation = parseSharedGroupWeight(split[2], members.size(), false, groupProvider);
-					for (String member : members) {
-						result.add(Pair.of(member, operation));
-					}
+					final WeightOperation operation = parseSharedGroupWeight(split[2], members.size(), false,
+							groupProvider);
+					members.forEach(member -> result.add(Pair.of(member, operation)));
 				}
 				case "group_available_total" -> {
-					List<String> members = getGroupMembers(id, groupProvider);
+					final List<String> members = getGroupMembers(id, groupProvider);
 					if (members.isEmpty()) {
 						instance.getPluginLogger().warn("Failed to load expression: " + op + ". Invalid group: " + id);
 						continue;
 					}
-					WeightOperation operation = parseSharedGroupWeight(split[2], members.size(), true, groupProvider);
-					for (String member : members) {
-						result.add(Pair.of(member, operation));
-					}
+					final WeightOperation operation = parseSharedGroupWeight(split[2], members.size(), true,
+							groupProvider);
+					members.forEach(member -> result.add(Pair.of(member, operation)));
 				}
 				case "loot_available" -> {
 					if (!validator.apply(id)) {
@@ -1088,39 +1129,38 @@ public class ConfigManager extends ConfigHandler {
 		return result;
 	}
 
+	@Override
 	public List<Pair<String, WeightOperation>> parseGroupWeightOperation(List<String> gops, boolean forAvailable,
 			Function<String, List<String>> groupProvider) {
-		List<Pair<String, WeightOperation>> result = new ArrayList<>();
+		final List<Pair<String, WeightOperation>> result = new ArrayList<>();
 		for (String gop : gops) {
-			String[] split = gop.split(":", 2);
+			final String[] split = gop.split(":", 2);
 			if (split.length < 2) {
 				instance.getPluginLogger().warn("Illegal weight operation: " + gop);
 				continue;
 			}
-			WeightOperation operation = parseWeightOperation(split[1], forAvailable, groupProvider);
-			String groupExpression = split[0];
-			for (String member : getGroupMembers(groupExpression, groupProvider)) {
-				result.add(Pair.of(member, operation));
-			}
+			final WeightOperation operation = parseWeightOperation(split[1], forAvailable, groupProvider);
+			final String groupExpression = split[0];
+			getGroupMembers(groupExpression, groupProvider).forEach(member -> result.add(Pair.of(member, operation)));
 		}
 		return result;
 	}
 
 	private List<String> getGroupMembers(String groupExpression, Function<String, List<String>> groupProvider) {
 		if (groupExpression.contains("&")) {
-			String[] groups = groupExpression.split("&");
-			List<Set<String>> groupSets = new ArrayList<>();
+			final String[] groups = groupExpression.split("&");
+			final List<Set<String>> groupSets = new ArrayList<>();
 			for (String group : groups) {
 				groupSets.add(new HashSet<>(groupProvider.apply(group)));
 			}
-			Set<String> intersection = groupSets.get(0);
+			final Set<String> intersection = groupSets.get(0);
 			for (int i = 1; i < groupSets.size(); i++) {
 				intersection.retainAll(groupSets.get(i));
 			}
 			return new ArrayList<>(intersection);
 		} else if (groupExpression.contains("|")) {
-			Set<String> members = new HashSet<>();
-			String[] groups = groupExpression.split("\\|");
+			final Set<String> members = new HashSet<>();
+			final String[] groups = groupExpression.split("\\|");
 			for (String group : groups) {
 				members.addAll(groupProvider.apply(group));
 			}
@@ -1132,39 +1172,39 @@ public class ConfigManager extends ConfigHandler {
 
 	private void registerBuiltInHookParser() {
 		this.registerHookParser(object -> {
-			List<String> lore = ListUtils.toList(object);
+			final List<String> lore = ListUtils.toList(object);
 			return builder -> builder.lore(lore.stream().map(it -> "<!i>" + it).toList());
 		}, "lore-on-rod");
 	}
 
 	private void registerBuiltInBaseEffectParser() {
 		this.registerBaseEffectParser(object -> {
-			MathValue<Player> mathValue = MathValue.auto(object);
+			final MathValue<Player> mathValue = MathValue.auto(object);
 			return builder -> builder.waitTimeAdder(mathValue);
 		}, "base-effects", "wait-time-adder");
 		this.registerBaseEffectParser(object -> {
-			MathValue<Player> mathValue = MathValue.auto(object);
+			final MathValue<Player> mathValue = MathValue.auto(object);
 			return builder -> builder.waitTimeMultiplier(mathValue);
 		}, "base-effects", "wait-time-multiplier");
 	}
 
 	private void registerBuiltInBlockParser() {
 		this.registerBlockParser(object -> {
-			String block = (String) object;
+			final String block = (String) object;
 			return builder -> builder.blockID(block);
 		}, "block");
 		this.registerBlockParser(object -> {
-			Section section = (Section) object;
-			List<BlockDataModifier> dataModifiers = new ArrayList<>();
-			List<BlockStateModifier> stateModifiers = new ArrayList<>();
+			final Section section = (Section) object;
+			final List<BlockDataModifier> dataModifiers = new ArrayList<>();
+			final List<BlockStateModifier> stateModifiers = new ArrayList<>();
 			for (Map.Entry<String, Object> innerEntry : section.getStringRouteMappedValues(false).entrySet()) {
-				BlockDataModifierFactory dataModifierFactory = instance.getBlockManager()
+				final BlockDataModifierFactory dataModifierFactory = instance.getBlockManager()
 						.getBlockDataModifierFactory(innerEntry.getKey());
 				if (dataModifierFactory != null) {
 					dataModifiers.add(dataModifierFactory.process(innerEntry.getValue()));
 					continue;
 				}
-				BlockStateModifierFactory stateModifierFactory = instance.getBlockManager()
+				final BlockStateModifierFactory stateModifierFactory = instance.getBlockManager()
 						.getBlockStateModifierFactory(innerEntry.getKey());
 				if (stateModifierFactory != null) {
 					stateModifiers.add(stateModifierFactory.process(innerEntry.getValue()));
@@ -1176,123 +1216,123 @@ public class ConfigManager extends ConfigHandler {
 			};
 		}, "properties");
 		this.registerBlockParser(object -> {
-			MathValue<Player> mathValue = MathValue.auto(object);
+			final MathValue<Player> mathValue = MathValue.auto(object);
 			return builder -> builder.horizontalVector(mathValue);
 		}, "velocity", "horizontal");
 		this.registerBlockParser(object -> {
-			MathValue<Player> mathValue = MathValue.auto(object);
+			final MathValue<Player> mathValue = MathValue.auto(object);
 			return builder -> builder.verticalVector(mathValue);
 		}, "velocity", "vertical");
 	}
 
 	private void registerBuiltInEntityParser() {
 		this.registerEntityParser(object -> {
-			String entity = (String) object;
+			final String entity = (String) object;
 			return builder -> builder.entityID(entity);
 		}, "entity");
 		this.registerEntityParser(object -> {
-			MathValue<Player> mathValue = MathValue.auto(object);
+			final MathValue<Player> mathValue = MathValue.auto(object);
 			return builder -> builder.horizontalVector(mathValue);
 		}, "velocity", "horizontal");
 		this.registerEntityParser(object -> {
-			MathValue<Player> mathValue = MathValue.auto(object);
+			final MathValue<Player> mathValue = MathValue.auto(object);
 			return builder -> builder.verticalVector(mathValue);
 		}, "velocity", "vertical");
 		this.registerEntityParser(object -> {
-			Section section = (Section) object;
+			final Section section = (Section) object;
 			return builder -> builder.propertyMap(section.getStringRouteMappedValues(false));
 		}, "properties");
 	}
 
 	private void registerBuiltInEventParser() {
 		this.registerEventParser(object -> {
-			boolean disable = (boolean) object;
+			final boolean disable = (boolean) object;
 			return builder -> builder.disableGlobalActions(disable);
 		}, "disable-global-event");
 		this.registerEventParser(object -> {
-			Section section = (Section) object;
-			Action<Player>[] actions = instance.getActionManager(Player.class).parseActions(section);
+			final Section section = (Section) object;
+			final Action<Player>[] actions = instance.getActionManager(Player.class).parseActions(section);
 			return builder -> builder.action(ActionTrigger.LURE, actions);
 		}, "events", "lure");
 		this.registerEventParser(object -> {
-			Section section = (Section) object;
-			Action<Player>[] actions = instance.getActionManager(Player.class).parseActions(section);
+			final Section section = (Section) object;
+			final Action<Player>[] actions = instance.getActionManager(Player.class).parseActions(section);
 			return builder -> builder.action(ActionTrigger.ESCAPE, actions);
 		}, "events", "escape");
 		this.registerEventParser(object -> {
-			Section section = (Section) object;
-			Action<Player>[] actions = instance.getActionManager(Player.class).parseActions(section);
+			final Section section = (Section) object;
+			final Action<Player>[] actions = instance.getActionManager(Player.class).parseActions(section);
 			return builder -> builder.action(ActionTrigger.SUCCESS, actions);
 		}, "events", "success");
 		this.registerEventParser(object -> {
-			Section section = (Section) object;
-			Action<Player>[] actions = instance.getActionManager(Player.class).parseActions(section);
+			final Section section = (Section) object;
+			final Action<Player>[] actions = instance.getActionManager(Player.class).parseActions(section);
 			return builder -> builder.action(ActionTrigger.ACTIVATE, actions);
 		}, "events", "activate");
 		this.registerEventParser(object -> {
-			Section section = (Section) object;
-			Action<Player>[] actions = instance.getActionManager(Player.class).parseActions(section);
+			final Section section = (Section) object;
+			final Action<Player>[] actions = instance.getActionManager(Player.class).parseActions(section);
 			return builder -> builder.action(ActionTrigger.FAILURE, actions);
 		}, "events", "failure");
 		this.registerEventParser(object -> {
-			Section section = (Section) object;
-			Action<Player>[] actions = instance.getActionManager(Player.class).parseActions(section);
+			final Section section = (Section) object;
+			final Action<Player>[] actions = instance.getActionManager(Player.class).parseActions(section);
 			return builder -> builder.action(ActionTrigger.HOOK, actions);
 		}, "events", "hook");
 		this.registerEventParser(object -> {
-			Section section = (Section) object;
-			Action<Player>[] actions = instance.getActionManager(Player.class).parseActions(section);
+			final Section section = (Section) object;
+			final Action<Player>[] actions = instance.getActionManager(Player.class).parseActions(section);
 			return builder -> builder.action(ActionTrigger.CONSUME, actions);
 		}, "events", "consume");
 		this.registerEventParser(object -> {
-			Section section = (Section) object;
-			Action<Player>[] actions = instance.getActionManager(Player.class).parseActions(section);
+			final Section section = (Section) object;
+			final Action<Player>[] actions = instance.getActionManager(Player.class).parseActions(section);
 			return builder -> builder.action(ActionTrigger.CAST, actions);
 		}, "events", "cast");
 		this.registerEventParser(object -> {
-			Section section = (Section) object;
-			Action<Player>[] actions = instance.getActionManager(Player.class).parseActions(section);
+			final Section section = (Section) object;
+			final Action<Player>[] actions = instance.getActionManager(Player.class).parseActions(section);
 			return builder -> builder.action(ActionTrigger.BITE, actions);
 		}, "events", "bite");
 		this.registerEventParser(object -> {
-			Section section = (Section) object;
-			Action<Player>[] actions = instance.getActionManager(Player.class).parseActions(section);
+			final Section section = (Section) object;
+			final Action<Player>[] actions = instance.getActionManager(Player.class).parseActions(section);
 			return builder -> builder.action(ActionTrigger.LAND, actions);
 		}, "events", "land");
 		this.registerEventParser(object -> {
-			Section section = (Section) object;
-			Action<Player>[] actions = instance.getActionManager(Player.class).parseActions(section);
+			final Section section = (Section) object;
+			final Action<Player>[] actions = instance.getActionManager(Player.class).parseActions(section);
 			return builder -> builder.action(ActionTrigger.TIMER, actions);
 		}, "events", "timer");
 		this.registerEventParser(object -> {
-			Section section = (Section) object;
-			Action<Player>[] actions = instance.getActionManager(Player.class).parseActions(section);
+			final Section section = (Section) object;
+			final Action<Player>[] actions = instance.getActionManager(Player.class).parseActions(section);
 			return builder -> builder.action(ActionTrigger.INTERACT, actions);
 		}, "events", "interact");
 		this.registerEventParser(object -> {
-			Section section = (Section) object;
-			Action<Player>[] actions = instance.getActionManager(Player.class).parseActions(section);
+			final Section section = (Section) object;
+			final Action<Player>[] actions = instance.getActionManager(Player.class).parseActions(section);
 			return builder -> builder.action(ActionTrigger.REEL, actions);
 		}, "events", "reel");
 		this.registerEventParser(object -> {
-			Section section = (Section) object;
-			Action<Player>[] actions = instance.getActionManager(Player.class).parseActions(section);
+			final Section section = (Section) object;
+			final Action<Player>[] actions = instance.getActionManager(Player.class).parseActions(section);
 			return builder -> builder.action(ActionTrigger.NEW_SIZE_RECORD, actions);
 		}, "events", "new_size_record");
 		this.registerEventParser(object -> {
-			Section section = (Section) object;
-			Action<Player>[] actions = instance.getActionManager(Player.class).parseActions(section);
+			final Section section = (Section) object;
+			final Action<Player>[] actions = instance.getActionManager(Player.class).parseActions(section);
 			return builder -> builder.action(ActionTrigger.NEW_SIZE_RECORD, actions);
 		}, "events", "new-size-record");
 		this.registerEventParser(object -> {
-			Section section = (Section) object;
-			TreeMap<Integer, Action<Player>[]> actions = instance.getActionManager(Player.class)
+			final Section section = (Section) object;
+			final TreeMap<Integer, Action<Player>[]> actions = instance.getActionManager(Player.class)
 					.parseTimesActions(section);
 			return builder -> builder.actionTimes(ActionTrigger.SUCCESS, actions);
 		}, "events", "success_times");
 		this.registerEventParser(object -> {
-			Section section = (Section) object;
-			TreeMap<Integer, Action<Player>[]> actions = instance.getActionManager(Player.class)
+			final Section section = (Section) object;
+			final TreeMap<Integer, Action<Player>[]> actions = instance.getActionManager(Player.class)
 					.parseTimesActions(section);
 			return builder -> builder.actionTimes(ActionTrigger.SUCCESS, actions);
 		}, "events", "success-times");
@@ -1300,18 +1340,16 @@ public class ConfigManager extends ConfigHandler {
 
 	private void registerBuiltInLootParser() {
 		this.registerLootParser(object -> {
-			Section section = (Section) object;
-			Map<String, TextValue<Player>> data = new LinkedHashMap<>();
-			for (Map.Entry<String, Object> entry : section.getStringRouteMappedValues(false).entrySet()) {
+			final Section section = (Section) object;
+			final Map<String, TextValue<Player>> data = new LinkedHashMap<>();
+			section.getStringRouteMappedValues(false).entrySet().forEach(entry -> {
 				if (entry.getValue() instanceof String str) {
 					data.put(entry.getKey(), TextValue.auto(str));
 				} else {
 					data.put(entry.getKey(), TextValue.auto(entry.getValue().toString()));
 				}
-			}
-			return builder -> {
-				builder.customData(data);
-			};
+			});
+			return builder -> builder.customData(data);
 		}, "custom-data");
 		this.registerLootParser(object -> {
 			if (object instanceof Boolean b) {
@@ -1321,28 +1359,28 @@ public class ConfigManager extends ConfigHandler {
 			}
 		}, "to-inventory");
 		this.registerLootParser(object -> {
-			boolean value = (boolean) object;
+			final boolean value = (boolean) object;
 			return builder -> builder.preventGrabbing(value);
 		}, "prevent-grabbing");
 		this.registerLootParser(object -> {
-			String string = (String) object;
+			final String string = (String) object;
 			return builder -> builder.nick(string);
 		}, "nick");
 		this.registerLootParser(object -> {
-			boolean value = (boolean) object;
+			final boolean value = (boolean) object;
 			return builder -> builder.showInFinder(value);
 		}, "show-in-fishfinder");
 		this.registerLootParser(object -> {
-			boolean value = (boolean) object;
+			final boolean value = (boolean) object;
 			return builder -> builder.disableStatistics(value);
 		}, "disable-stat");
 		this.registerLootParser(object -> {
-			List<String> args = ListUtils.toList(object);
+			final List<String> args = ListUtils.toList(object);
 			return builder -> builder.groups(args.toArray(new String[0]));
 		}, "group");
 		this.registerLootParser(object -> {
-			Section section = (Section) object;
-			StatisticsKeys keys = new StatisticsKeys(section.getString("amount"), section.getString("size"));
+			final Section section = (Section) object;
+			final StatisticsKeys keys = new StatisticsKeys(section.getString("amount"), section.getString("size"));
 			return builder -> builder.statisticsKeys(keys);
 		}, "statistics");
 	}

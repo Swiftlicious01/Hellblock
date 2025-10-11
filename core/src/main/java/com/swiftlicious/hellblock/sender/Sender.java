@@ -96,5 +96,4 @@ public interface Sender {
 	default boolean isValid() {
 		return true;
 	}
-
 }

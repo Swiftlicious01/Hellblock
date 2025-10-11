@@ -1,24 +1,241 @@
+import java.util.Properties
+
 plugins {
     id 'java'
+}
+
+ext {
+    builder = System.getenv("GITHUB_ACTOR") ?: System.getProperty("user.name") ?: "unknown"
 }
 
 subprojects {
     apply plugin: 'java'
 
     repositories {
+    	mavenLocal()
         mavenCentral()
         gradlePluginPortal()
-        maven { url = 'https://repo.papermc.io/repository/maven-public' } // paper
+        maven { url = 'https://repo.papermc.io/repository/maven-public' }
+    }
+    
+    dependencies {
+    	compileOnly 'org.jetbrains:annotations:26.0.2-1'
+    }
+
+    java {
+        toolchain {
+            languageVersion = JavaLanguageVersion.of(21)
+        }
+    }
+
+    tasks.withType(JavaCompile).configureEach {
+        options.encoding = 'UTF-8'
+    }
+
+	tasks.withType(ProcessResources).configureEach {
+    	filteringCharset = 'UTF-8'
+
+    	def filterProps = [
+        	builder: rootProject.ext.builder,
+        	config_version: rootProject.findProperty("config_version") ?: "1",
+        	lang: rootProject.findProperty("lang") ?: "en",
+
+        	asm_version: hellblockLibs.versions.asm.get(),
+        	asm_commons_version: hellblockLibs.versions.asmcommons.get(),
+        	jar_relocator_version: hellblockLibs.versions.jarrelocator.get(),
+        	h2_driver_version: hellblockLibs.versions.h2.get(),
+        	sqlite_driver_version: hellblockLibs.versions.sqlite.get(),
+        	boosted_yaml_version: hellblockLibs.versions.boostedyaml.get(),
+        	postgresql_driver_version: hellblockLibs.versions.postgresql.get(),
+        	cloud_core_version: hellblockLibs.versions.cloudcore.get(),
+        	cloud_brigadier_version: hellblockLibs.versions.cloudbrigadier.get(),
+        	cloud_services_version: hellblockLibs.versions.cloudservices.get(),
+        	cloud_bukkit_version: hellblockLibs.versions.cloudbukkit.get(),
+        	cloud_paper_version: hellblockLibs.versions.cloudpaper.get(),
+        	cloud_minecraft_extras_version: hellblockLibs.versions.cloudminecraftextras.get(),
+       	 	mongodb_driver_version: hellblockLibs.versions.mongodb.get(),
+       	 	mariadb_driver_version: hellblockLibs.versions.mariadb.get(),
+        	mysql_driver_version: hellblockLibs.versions.mysql.get(),
+        	hikari_version: hellblockLibs.versions.hikari.get(),
+        	commons_pool_version: hellblockLibs.versions.commonspool.get(),
+        	gson_version: hellblockLibs.versions.gson.get(),
+        	geantyref_version: hellblockLibs.versions.geantyref.get(),
+        	jedis_version: hellblockLibs.versions.jedis.get(),
+        	zstd_version: hellblockLibs.versions.zstd.get(),
+        	exp4j_version: hellblockLibs.versions.exp4j.get(),
+        	lz4_version: hellblockLibs.versions.lz4.get(),
+        	slf4j_version: hellblockLibs.versions.slf4j.get(),
+        	caffeine_version: hellblockLibs.versions.caffeine.get()
+    	]
+
+  	 	def configOnly = [
+        	config_version: rootProject.findProperty("config_version") ?: "1"
+    	]
+
+		filesMatching(["*.yml", "**/*.yml", "*.json", "**/*.json"]) {
+    		if (name == "plugin.yml") {
+        		expand(filterProps + [project_version: rootProject.findProperty("project_version") ?: "unspecified"])
+    		} else if (name == "config.yml" || name == "commands.yml" || name == "database.yml") {
+        		expand(configOnly)
+    		}
+	    }
+
+    	filesMatching("hellblock.properties") {
+        	expand(filterProps)
+    	}
     }
 }
 
-processResources {
-	filteringCharset = 'UTF-8'
-   	def map = ['project_version': (rootProject.properties['project_version']), 'config_version': (rootProject.properties['config_version'])]
-    filesMatching(['hellblock.properties']) {
-       	expand(rootProject.properties)
+// Store link results for later summary output
+ext.eclipseLinkSummary = [:].withDefault { [] }
+
+subprojects { subproj ->
+    apply plugin: 'eclipse'
+
+    // Allow CLI override: ./gradlew eclipse -PeclipseLatestOnly=true
+    def linkOnlyLatest = project.hasProperty("eclipseLatestOnly")
+
+    eclipse {
+        project {
+            // Normalize project name to avoid "Hellblock-Hellblock"
+            def parentName = (subproj.parent != rootProject)
+                ? subproj.parent.name.replace('Hellblock-', '')
+                : null
+            def childName = subproj.name.replace('Hellblock-', '')
+            def cleanName = parentName
+                ? "Hellblock-${parentName}-${childName}"
+                : "Hellblock-${childName}"
+            name = cleanName
+
+            // Skip build helper projects like paper-build or spigot-build
+            if (subproj.name.endsWith("build")) {
+                println "⚙️  [Eclipse] Detected helper project '${subproj.name}', applying minimal UTF-8 config."
+                referencedProjects = []
+                return
+            }
+
+            // Only link dependencies for core
+            if (subproj.name == "core") {
+                def refs = [] as List<String>
+
+                // Always include API
+                if (rootProject.childProjects.containsKey('api')) {
+                    refs << "Hellblock-api"
+                }
+
+                def paperDir = file("${rootDir}/paper")
+                def spigotDir = file("${rootDir}/spigot")
+
+                if (linkOnlyLatest) {
+                    def latestPaper = paperDir.listFiles()?.findAll {
+                        it.isDirectory() && it.name.startsWith("v1_")
+                    }?.max { it.name }
+                    def latestSpigot = spigotDir.listFiles()?.findAll {
+                        it.isDirectory() && it.name.startsWith("v1_")
+                    }?.max { it.name }
+
+                    if (latestPaper) refs << "Hellblock-paper-${latestPaper.name}".toString()
+                    if (latestSpigot) refs << "Hellblock-spigot-${latestSpigot.name}".toString()
+
+                    println "🔗 [Eclipse] Linking ONLY latest versions for 'core': ${refs.join(', ')}"
+                } else {
+                    paperDir.listFiles()?.findAll {
+                        it.isDirectory() && it.name.startsWith("v1_")
+                    }?.each { dir -> refs << "Hellblock-paper-${dir.name}".toString() }
+
+                    spigotDir.listFiles()?.findAll {
+                        it.isDirectory() && it.name.startsWith("v1_")
+                    }?.each { dir -> refs << "Hellblock-spigot-${dir.name}".toString() }
+
+                    println "🔗 [Eclipse] Linking ALL Paper + Spigot versions for 'core'."
+                }
+
+                // Apply safely as pure List<String>
+                referencedProjects = refs.collect { it.toString() }
+
+                // Store for summary
+                rootProject.ext.eclipseLinkSummary[cleanName] = referencedProjects
+
+                println "✅ [Eclipse] '${cleanName}' linked with: ${referencedProjects.join(', ')}"
+            }
+        }
+
+        // --- Force UTF-8 encoding ---
+        jdt {
+            file {
+                withProperties { props ->
+                    props['encoding/<project>'] = 'UTF-8'
+                }
+            }
+        }
+
+        // --- Prevent nested bin/main issues ---
+        classpath {
+            defaultOutputDir = file('bin/main')
+            file {
+                whenMerged { cp ->
+                    cp.entries.findAll { it.class.name.contains('SourceFolder') }.each { entry ->
+                        entry.output = 'bin/main'
+                    }
+                }
+            }
+        }
     }
-    filesMatching(['plugin.yml', 'config.yml', 'commands.yml']) {
-       	expand(map)
+
+    println "✅ Configured Eclipse project: ${subproj.name} (linkOnlyLatest=${linkOnlyLatest})"
+}
+
+// --- 🧩 After all projects evaluated, print the summary ---
+gradle.afterProject { p, state ->
+    if (p == rootProject && state.failure == null && !rootProject.ext.eclipseLinkSummary.isEmpty()) {
+        println "\n📘 === Eclipse Linking Summary ==="
+        rootProject.ext.eclipseLinkSummary.each { proj, refs ->
+            def msg = refs.isEmpty()
+                ? "❌ No linked projects"
+                : "✅ Linked to ${refs.size()} project(s): ${refs.join(', ')}"
+            println "  • ${proj}: ${msg}"
+        }
+        println "=================================\n"
+    }
+}
+
+subprojects { subproj ->
+    apply plugin: 'eclipse'
+
+    // Ensure Eclipse writes UTF-8 for *all* projects (including Paperweight helpers)
+    def writeUtf8 = tasks.register("writeEclipseUtf8ResourcePrefs") {
+        doLast {
+            def settingsDir = new File(project.projectDir, ".settings")
+            settingsDir.mkdirs()
+            def prefsFile = new File(settingsDir, "org.eclipse.core.resources.prefs")
+
+            def p = new Properties()
+            if (prefsFile.exists()) {
+                prefsFile.withInputStream { p.load(it) }
+            }
+            // These are the keys Eclipse’s Resource plugin reads for encoding
+            p.setProperty("eclipse.preferences.version", "1")
+            p.setProperty("encoding/<project>", "UTF-8")
+            // (Some installs also honor the root key)
+            p.setProperty("encoding", "UTF-8")
+
+            prefsFile.withOutputStream { p.store(it, null) }
+            println "📝 Wrote UTF-8 resource prefs for ${project.name} → ${prefsFile}"
+        }
+    }
+
+    // Make the standard `eclipse` task generate those prefs too
+    tasks.named("eclipse").configure { dependsOn(writeUtf8) }
+
+    // Keep JDT encoding too (applies to Java projects)
+    eclipse {
+        jdt {
+            file {
+                withProperties { props ->
+                    // JDT-level encoding (good for real Java modules)
+                    props['org.eclipse.jdt.core.encoding'] = 'UTF-8'
+                }
+            }
+        }
     }
 }

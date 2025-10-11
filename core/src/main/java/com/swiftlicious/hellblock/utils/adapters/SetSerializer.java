@@ -10,7 +10,6 @@ import com.google.gson.JsonDeserializationContext;
 import com.google.gson.JsonDeserializer;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonNull;
-import com.google.gson.JsonParseException;
 import com.google.gson.JsonSerializationContext;
 import com.google.gson.JsonSerializer;
 
@@ -39,13 +38,12 @@ public class SetSerializer<T> implements JsonSerializer<Set<T>>, JsonDeserialize
 	 */
 	@Override
 	public JsonElement serialize(Set<T> set, Type type, JsonSerializationContext jsonSerializationContext) {
-		if (set == null || set.isEmpty())
+		if (set == null || set.isEmpty()) {
 			return JsonNull.INSTANCE;
-		JsonArray jsonArray = new JsonArray();
-
-		for (T entry : set) {
-			jsonArray.add(jsonSerializationContext.serialize(entry));
 		}
+		final JsonArray jsonArray = new JsonArray();
+
+		set.forEach(entry -> jsonArray.add(jsonSerializationContext.serialize(entry)));
 
 		return jsonArray;
 	}
@@ -57,20 +55,18 @@ public class SetSerializer<T> implements JsonSerializer<Set<T>>, JsonDeserialize
 	 * @param type                       deserialization type
 	 * @param jsonDeserializationContext deserialization context
 	 * @return deserialized hashmap
-	 * @throws JsonParseException if json is not parsed correctly
 	 */
 	@Override
-	public Set<T> deserialize(JsonElement jsonElement, Type type, JsonDeserializationContext jsonDeserializationContext)
-			throws JsonParseException {
-		Gson gson = HellblockPlugin.getInstance().getStorageManager().getGson();
+	public Set<T> deserialize(JsonElement jsonElement, Type type,
+			JsonDeserializationContext jsonDeserializationContext) {
+		final Gson gson = HellblockPlugin.getInstance().getStorageManager().getGson();
 
-		JsonArray JsonArray = (JsonArray) jsonElement;
+		final JsonArray JsonArray = (JsonArray) jsonElement;
 
-		JsonArray collection = JsonArray.getAsJsonArray();
+		final JsonArray collection = JsonArray.getAsJsonArray();
 
-		Set<T> reAssembledHashSet = new HashSet<>();
+		final Set<T> reAssembledHashSet = new HashSet<>();
 		for (int i = 0; i < collection.size(); i++) {
-
 			reAssembledHashSet.add(gson.fromJson(collection.get(i), collectionClassType));
 		}
 		return reAssembledHashSet;

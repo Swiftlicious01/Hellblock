@@ -1,6 +1,7 @@
 package com.swiftlicious.hellblock.commands.sub;
 
 import java.util.Optional;
+import java.util.UUID;
 
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
@@ -11,6 +12,7 @@ import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.commands.BukkitCommandFeature;
 import com.swiftlicious.hellblock.commands.HellblockCommandManager;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
+import com.swiftlicious.hellblock.player.HellblockData;
 import com.swiftlicious.hellblock.player.UserData;
 
 public class HellblockLockCommand extends BukkitCommandFeature<CommandSender> {
@@ -24,38 +26,52 @@ public class HellblockLockCommand extends BukkitCommandFeature<CommandSender> {
 			Command.Builder<CommandSender> builder) {
 		return builder.senderType(Player.class).handler(context -> {
 			final Player player = context.sender();
-			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
+
+			final Optional<UserData> onlineUserOpt = HellblockPlugin.getInstance().getStorageManager()
 					.getOnlineUser(player.getUniqueId());
-			if (onlineUser.isEmpty()) {
+
+			if (onlineUserOpt.isEmpty()) {
 				handleFeedback(context, MessageConstants.COMMAND_DATA_FAILURE_NOT_LOADED);
 				return;
 			}
-			if (onlineUser.get().getHellblockData().hasHellblock()) {
-				if (onlineUser.get().getHellblockData().getOwnerUUID() == null) {
-					throw new NullPointerException(
-							"Owner reference returned null, please report this to the developer.");
-				}
-				if (onlineUser.get().getHellblockData().getOwnerUUID() != null
-						&& !onlineUser.get().getHellblockData().getOwnerUUID().equals(player.getUniqueId())) {
-					handleFeedback(context, MessageConstants.MSG_NOT_OWNER_OF_HELLBLOCK);
-					return;
-				}
-				if (onlineUser.get().getHellblockData().isAbandoned()) {
-					handleFeedback(context, MessageConstants.MSG_HELLBLOCK_IS_ABANDONED);
-					return;
-				}
-				onlineUser.get().getHellblockData().setLockedStatus(!onlineUser.get().getHellblockData().isLocked());
-				if (onlineUser.get().getHellblockData().isLocked()) {
-					handleFeedback(context, MessageConstants.MSG_HELLBLOCK_LOCK_SUCCESS);
-				} else {
-					handleFeedback(context, MessageConstants.MSG_HELLBLOCK_UNLOCK_SUCCESS);
-				}
-				HellblockPlugin.getInstance().getCoopManager().kickVisitorsIfLocked(onlineUser.get().getUUID());
-				HellblockPlugin.getInstance().getProtectionManager().changeLockStatus(player.getWorld(), onlineUser.get().getUUID());
-			} else {
+
+			final UserData user = onlineUserOpt.get();
+			final HellblockData data = user.getHellblockData();
+
+			// Player does not have a hellblock
+			if (!data.hasHellblock()) {
 				handleFeedback(context, MessageConstants.MSG_HELLBLOCK_NOT_FOUND);
 				return;
 			}
+
+			// Validate ownership
+			final UUID ownerUUID = data.getOwnerUUID();
+			if (ownerUUID == null) {
+				HellblockPlugin.getInstance().getPluginLogger().severe("Hellblock owner UUID was null for player "
+						+ player.getName() + " (" + player.getUniqueId() + "). This indicates corrupted data.");
+				throw new IllegalStateException(
+						"Owner reference was null. This should never happen — please report to the developer.");
+			}
+
+			if (!data.isOwner(ownerUUID)) {
+				handleFeedback(context, MessageConstants.MSG_NOT_OWNER_OF_HELLBLOCK);
+				return;
+			}
+
+			if (data.isAbandoned()) {
+				handleFeedback(context, MessageConstants.MSG_HELLBLOCK_IS_ABANDONED);
+				return;
+			}
+
+			// Toggle locked status
+			data.setLockedStatus(!data.isLocked());
+
+			handleFeedback(context, data.isLocked() ? MessageConstants.MSG_HELLBLOCK_LOCK_SUCCESS
+					: MessageConstants.MSG_HELLBLOCK_UNLOCK_SUCCESS);
+			
+			// Side effects
+			HellblockPlugin.getInstance().getCoopManager().kickVisitorsIfLocked(user.getUUID());
+			HellblockPlugin.getInstance().getProtectionManager().changeLockStatus(player.getWorld(), user.getUUID());
 		});
 	}
 

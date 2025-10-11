@@ -15,16 +15,11 @@ import org.jetbrains.annotations.Nullable;
 import com.swiftlicious.hellblock.challenges.ChallengeType;
 import com.swiftlicious.hellblock.challenges.ProgressBar;
 import com.swiftlicious.hellblock.context.Context;
-import com.swiftlicious.hellblock.creation.item.CustomItem;
 import com.swiftlicious.hellblock.creation.item.Item;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.handlers.VersionHelper;
 import com.swiftlicious.hellblock.player.ChallengeData;
 import com.swiftlicious.hellblock.player.HellblockData;
-import com.swiftlicious.hellblock.utils.extras.Action;
-import com.swiftlicious.hellblock.utils.extras.Tuple;
-
-import dev.dejvokep.boostedyaml.block.implementation.Section;
 
 public class ChallengesGUI {
 
@@ -71,9 +66,8 @@ public class ChallengesGUI {
 			}
 			line++;
 		}
-		for (Map.Entry<Integer, ChallengesGUIElement> entry : itemsSlotMap.entrySet()) {
-			this.inventory.setItem(entry.getKey(), entry.getValue().getItemStack().clone());
-		}
+		itemsSlotMap.entrySet()
+				.forEach(entry -> this.inventory.setItem(entry.getKey(), entry.getValue().getItemStack().clone()));
 	}
 
 	public ChallengesGUI addElement(ChallengesGUIElement... elements) {
@@ -90,8 +84,8 @@ public class ChallengesGUI {
 
 	public void show() {
 		context.holder().openInventory(inventory);
-		VersionHelper.getNMSManager().updateInventoryTitle(context.holder(),
-				AdventureHelper.componentToJson(AdventureHelper.miniMessage(manager.title.render(context, true))));
+		VersionHelper.getNMSManager().updateInventoryTitle(context.holder(), AdventureHelper
+				.componentToJson(AdventureHelper.parseCenteredTitleMultiline(manager.title.render(context, true))));
 	}
 
 	@Nullable
@@ -115,7 +109,7 @@ public class ChallengesGUI {
 			backElement.setItemStack(manager.backIcon.build(context));
 		}
 
-		for (Tuple<Character, Section, Tuple<CustomItem, ChallengeType, Action<Player>[]>> challenge : manager.challengeIcons) {
+		manager.challengeIcons.forEach(challenge -> {
 			ChallengesDynamicGUIElement challengeElement = (ChallengesDynamicGUIElement) getElement(challenge.left());
 			if (challengeElement != null && !challengeElement.getSlots().isEmpty()) {
 				Item<ItemStack> item = manager.instance.getItemManager().wrap(challenge.right().left().build(context));
@@ -128,17 +122,19 @@ public class ChallengesGUI {
 					item.displayName(newName);
 					List<String> newLore = new ArrayList<>();
 					if (challengeData.isChallengeRewardClaimed(challengeType)) {
-						for (String lore : challenge.mid().getStringList("display.claimed-lore")) {
-							newLore.add(AdventureHelper.miniMessageToJson(lore
-									.replace("{current_amount}", String.valueOf(challengeType.getNeededAmount()))
-									.replace("{needed_amount}", String.valueOf(challengeType.getNeededAmount()))));
-						}
+						challenge
+								.mid().getStringList(
+										"display.claimed-lore")
+								.forEach(lore -> newLore.add(AdventureHelper.miniMessageToJson(lore
+										.replace("{current_amount}", String.valueOf(challengeType.getNeededAmount()))
+										.replace("{needed_amount}", String.valueOf(challengeType.getNeededAmount())))));
 					} else {
-						for (String lore : challenge.mid().getStringList("display.unclaimed-lore")) {
-							newLore.add(AdventureHelper.miniMessageToJson(lore
-									.replace("{current_amount}", String.valueOf(challengeType.getNeededAmount()))
-									.replace("{needed_amount}", String.valueOf(challengeType.getNeededAmount()))));
-						}
+						challenge
+								.mid().getStringList(
+										"display.unclaimed-lore")
+								.forEach(lore -> newLore.add(AdventureHelper.miniMessageToJson(lore
+										.replace("{current_amount}", String.valueOf(challengeType.getNeededAmount()))
+										.replace("{needed_amount}", String.valueOf(challengeType.getNeededAmount())))));
 					}
 					item.lore(newLore);
 					if (manager.highlightCompletion)
@@ -151,32 +147,35 @@ public class ChallengesGUI {
 									.replace("{needed_amount}", String.valueOf(challengeType.getNeededAmount())));
 					item.displayName(newName);
 					List<String> newLore = new ArrayList<>();
-					for (String lore : challenge.mid().getStringList("display.uncompleted-lore")) {
-						newLore.add(
-								AdventureHelper
-										.miniMessageToJson(lore
-												.replace("{current_amount}",
-														String.valueOf(
-																challengeData.getChallengeProgress(challengeType)))
-												.replace("{needed_amount}",
-														String.valueOf(challengeType.getNeededAmount()))
-												.replace("{progress_bar}",
-														ProgressBar.getProgressBar(
-																new ProgressBar(challengeType.getNeededAmount(),
-																		challengeData
-																				.getChallengeProgress(challengeType)),
-																25))));
-					}
+					challenge
+							.mid().getStringList(
+									"display.uncompleted-lore")
+							.forEach(
+									lore -> newLore
+											.add(AdventureHelper
+													.miniMessageToJson(lore
+															.replace("{current_amount}",
+																	String.valueOf(challengeData.getChallengeProgress(
+																			challengeType)))
+															.replace(
+																	"{needed_amount}",
+																	String.valueOf(challengeType.getNeededAmount()))
+															.replace("{progress_bar}",
+																	ProgressBar.getProgressBar(new ProgressBar(
+																			challengeType.getNeededAmount(),
+																			challengeData.getChallengeProgress(
+																					challengeType)),
+																			25)))));
 					item.lore(newLore);
 				}
 				challengeElement.setItemStack(item.load());
 			}
-		}
-		for (Map.Entry<Integer, ChallengesGUIElement> entry : itemsSlotMap.entrySet()) {
-			if (entry.getValue() instanceof ChallengesDynamicGUIElement dynamicGUIElement) {
-				this.inventory.setItem(entry.getKey(), dynamicGUIElement.getItemStack().clone());
-			}
-		}
+		});
+		itemsSlotMap.entrySet().stream().filter(entry -> entry.getValue() instanceof ChallengesDynamicGUIElement)
+				.forEach(entry -> {
+					ChallengesDynamicGUIElement dynamicGUIElement = (ChallengesDynamicGUIElement) entry.getValue();
+					this.inventory.setItem(entry.getKey(), dynamicGUIElement.getItemStack().clone());
+				});
 		return this;
 	}
 }

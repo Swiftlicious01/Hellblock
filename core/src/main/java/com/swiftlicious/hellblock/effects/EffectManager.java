@@ -28,8 +28,9 @@ public class EffectManager implements EffectManagerInterface {
 
 	@Override
 	public boolean registerEffectModifier(EffectModifier effect, MechanicType type) {
-		if (effectModifiers.containsKey(effect.id()))
+		if (effectModifiers.containsKey(effect.id())) {
 			return false;
+		}
 		this.effectModifiers.put(type.getType() + ":" + effect.id(), effect);
 		return true;
 	}

@@ -47,20 +47,21 @@ public class ActionParticle<T> extends AbstractBuiltInAction<T> {
 		this.extra = section.getDouble("extra", 0.0);
 		this.scale = section.getDouble("scale", 1d).floatValue();
 
-		if (section.contains("itemStack"))
+		if (section.contains("itemStack")) {
 			itemStack = plugin.getItemManager().buildAny(null, section.getString("itemStack"));
-		else
+		} else {
 			itemStack = null;
+		}
 
 		if (section.contains("color")) {
-			String[] rgb = section.getString("color", "255,255,255").split(",");
+			final String[] rgb = section.getString("color", "255,255,255").split(",");
 			color = Color.fromRGB(Integer.parseInt(rgb[0]), Integer.parseInt(rgb[1]), Integer.parseInt(rgb[2]));
 		} else {
 			color = null;
 		}
 
 		if (section.contains("color")) {
-			String[] rgb = section.getString("to-color", "255,255,255").split(",");
+			final String[] rgb = section.getString("to-color", "255,255,255").split(",");
 			toColor = Color.fromRGB(Integer.parseInt(rgb[0]), Integer.parseInt(rgb[1]), Integer.parseInt(rgb[2]));
 		} else {
 			toColor = null;
@@ -69,9 +70,10 @@ public class ActionParticle<T> extends AbstractBuiltInAction<T> {
 
 	@Override
 	protected void triggerAction(Context<T> context) {
-		if (context.argOrDefault(ContextKeys.OFFLINE, false))
+		if (context.argOrDefault(ContextKeys.OFFLINE, false)) {
 			return;
-		Location location = requireNonNull(context.arg(ContextKeys.LOCATION));
+		}
+		final Location location = requireNonNull(context.arg(ContextKeys.LOCATION));
 		location.getWorld().spawnParticle(particleType, location.getX() + x, location.getY() + y, location.getZ() + z,
 				count, offSetX, offSetY, offSetZ, extra,
 				itemStack != null ? itemStack

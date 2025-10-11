@@ -13,7 +13,7 @@ import com.swiftlicious.hellblock.scheduler.SchedulerTask;
 /**
  * A task responsible for animating bait when it's attached to a fishing hook.
  */
-public class BaitAnimationTask implements Runnable {
+public final class BaitAnimationTask implements Runnable {
 
 	private final SchedulerTask task;
 	private final int entityID;
@@ -31,8 +31,8 @@ public class BaitAnimationTask implements Runnable {
 	public BaitAnimationTask(HellblockPlugin plugin, Player player, FishHook fishHook, ItemStack baitItem) {
 		this.player = player;
 		this.fishHook = fishHook;
-		this.task = plugin.getScheduler().asyncRepeating(this, 50, 50, TimeUnit.MILLISECONDS);
-		ItemStack itemStack = baitItem.clone();
+		this.task = plugin.getScheduler().asyncRepeating(this::run, 50, 50, TimeUnit.MILLISECONDS);
+		final ItemStack itemStack = baitItem.clone();
 		itemStack.setAmount(1);
 		this.entityID = VersionHelper.getNMSManager().dropFakeItem(player, itemStack,
 				fishHook.getLocation().clone().subtract(0, 0.6, 0));

@@ -26,14 +26,13 @@ beginner_rod:
       - '<gray> - novice angler''s best friend.'
       - ''
       - '<#FFD700>Effects:'
-      - '<gray> - Increase the hook time'
-      - '<gray> - Reduces the challenge of fishing'
+      - '<gray> - Increase the waiting time'
   custom-model-data: 50001
   max-durability: 64
   effects:
     effect_1:
       type: wait-time-multiplier
-      value: 1.8
+      value: 1.5
 
 silver_rod:
   material: fishing_rod
@@ -89,15 +88,8 @@ star_rod:
       - '<gray> - of the universe. Its endless magical reservoir ensures'
       - '<gray> - that time seems to stand still, granting anglers what'
       - '<gray> - feels like an eternity to perfect their catch.'
-      - ''
-      - '<#FFD700>Effects:'
-      - '<gray> - -15s Wait Time'
   custom-model-data: 50004
   max-durability: 128
-  effects:
-    effect_1:
-      type: group-mod
-      value: 15
 
 bone_rod:
   material: fishing_rod
@@ -114,8 +106,8 @@ bone_rod:
       - '<gray> - regular rods.'
       - ''
       - '<#FFD700>Effects:'
-      - '<gray> - Fishing in lava'
-      - '<gray> - Sometimes skeleton would grab the hook'
+      - '<gray> - Fish in lava'
+      - '<gray> - Attract skeletons'
   custom-model-data: 50005
   max-durability: 32
   effects:
@@ -137,17 +129,17 @@ magical_rod:
       - ''
       - '<#FFD700>Effects:'
       - '<gray> - Get an enchantment book from fishing.'
-      - '<gray> - Require a long time to get hooked.'
+      - '<gray> - The waiting time is very long.'
       - ''
       - '<#CD5C5C>Requirements:'
       - '<gray> - 1x book bait'
-      - '<gray> - 10 exp levels'
+      - '<gray> - 30 exp levels'
   custom-model-data: 50006
   max-durability: 16
   requirements:
     requirement_1:
       type: level
-      value: 10
+      value: 30
       not-met-actions:
         action_1:
           type: message
@@ -166,7 +158,7 @@ magical_rod:
     cast:
       action_level:
         type: level
-        value: -10
+        value: -1
   effects:
     effect_1:
       type: group-mod-ignore-conditions
@@ -174,7 +166,7 @@ magical_rod:
         - enchantments:+10
     effect_2:
       type: wait-time-multiplier
-      value: 3
+      value: 2.5
 
 master_rod:
   material: fishing_rod
@@ -190,8 +182,7 @@ master_rod:
       - '<gray> - time it takes for a fish to bite.'
       - ''
       - '<#FFD700>Effects:'
-      - '<gray> - Reduce the hook time'
-      - '<gray> - Increase the challenge of fishing'
+      - '<gray> - Reduce the waiting time'
       - '<gray> - Higher chance of getting quality fish'
   custom-model-data: 50007
   max-durability: 128
@@ -199,7 +190,7 @@ master_rod:
     effect_1:
       type: wait-time-multiplier
       value: 0.95
-    effect_3:
+    effect_2:
       type: group-mod
       value:
         - silver_star:+5

@@ -1,0 +1,24 @@
+plugins {
+    id 'java'
+}
+
+dependencies {
+    // Spigot 1.18.2
+    compileOnly 'org.spigotmc:spigot:1.18.2-R0.1-SNAPSHOT:remapped-mojang'
+
+    // Shared internal API module
+    compileOnly project(":api")
+}
+
+java {
+    // Java 17 (required for Spigot 1.18.2)
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+compileJava {
+    // UTF-8 encoding and Java release compatibility
+    options.encoding = 'UTF-8'
+    options.release.set(17)
+}

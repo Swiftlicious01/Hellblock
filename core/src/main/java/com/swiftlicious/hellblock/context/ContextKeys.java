@@ -10,6 +10,7 @@ import com.swiftlicious.hellblock.effects.Effect;
 import com.swiftlicious.hellblock.generation.HellBiome;
 import com.swiftlicious.hellblock.generation.IslandOptions;
 import com.swiftlicious.hellblock.loot.LootType;
+import com.swiftlicious.hellblock.player.DisplaySettings.DisplayChoice;
 
 /**
  * Represents keys for accessing context values with specific types.
@@ -23,12 +24,12 @@ public class ContextKeys<T> {
 	public static final ContextKeys<Integer> Y = of("y", Integer.class);
 	public static final ContextKeys<Integer> Z = of("z", Integer.class);
 	public static final ContextKeys<String> WORLD = of("world", String.class);
-    public static final ContextKeys<Boolean> OFFLINE = of("offline", Boolean.class);
+	public static final ContextKeys<Boolean> OFFLINE = of("offline", Boolean.class);
 	public static final ContextKeys<String> ID = of("id", String.class);
 	public static final ContextKeys<LootType> LOOT = of("loot", LootType.class);
 	public static final ContextKeys<String> NICK = of("nick", String.class);
 	public static final ContextKeys<Float> SIZE = of("size", Float.class);
-    public static final ContextKeys<Boolean> IS_NEW_SIZE_RECORD = of("is_new_size_record", Boolean.class);
+	public static final ContextKeys<Boolean> IS_NEW_SIZE_RECORD = of("is_new_size_record", Boolean.class);
 	public static final ContextKeys<Double> SIZE_MULTIPLIER = of("size_multiplier", Double.class);
 	public static final ContextKeys<Double> SIZE_ADDER = of("size_adder", Double.class);
 	public static final ContextKeys<String> SIZE_FORMATTED = of("size_formatted", String.class);
@@ -39,7 +40,7 @@ public class ContextKeys<T> {
 	public static final ContextKeys<String> ROD = of("rod", String.class);
 	public static final ContextKeys<String> BAIT = of("bait", String.class);
 	public static final ContextKeys<String> HOOK = of("hook", String.class);
-    public static final ContextKeys<FishHook> HOOK_ENTITY = of("hook_entity", FishHook.class);
+	public static final ContextKeys<FishHook> HOOK_ENTITY = of("hook_entity", FishHook.class);
 	public static final ContextKeys<String> HOUR = of("hour", String.class);
 	public static final ContextKeys<String> MINUTE = of("minute", String.class);
 	public static final ContextKeys<String> SECOND = of("second", String.class);
@@ -60,21 +61,35 @@ public class ContextKeys<T> {
 	public static final ContextKeys<Integer> AMOUNT = of("amount", Integer.class);
 	public static final ContextKeys<Integer> TOTAL_AMOUNT = of("total_amount", Integer.class);
 	public static final ContextKeys<Double> WEIGHT = of("0", Double.class);
-    public static final ContextKeys<Double> TOTAL_WEIGHT = of("1", Double.class);
+	public static final ContextKeys<Double> TOTAL_WEIGHT = of("1", Double.class);
 	public static final ContextKeys<Float> RECORD = of("record", Float.class);
-    public static final ContextKeys<Float> PREVIOUS_RECORD = of("previous_record", Float.class);
+	public static final ContextKeys<Float> PREVIOUS_RECORD = of("previous_record", Float.class);
 	public static final ContextKeys<String> RECORD_FORMATTED = of("record_formatted", String.class);
-    public static final ContextKeys<String> PREVIOUS_RECORD_FORMATTED = of("previous_record_formatted", String.class);
+	public static final ContextKeys<String> PREVIOUS_RECORD_FORMATTED = of("previous_record_formatted", String.class);
 	public static final ContextKeys<EquipmentSlot> SLOT = of("hand", EquipmentSlot.class);
 	public static final ContextKeys<Double> BONUS = of("bonus", Double.class);
 	public static final ContextKeys<Double> BASE = of("base", Double.class);
-    public static final ContextKeys<Integer> LOOT_ORDER = of("loot_order", Integer.class);
-    public static final ContextKeys<Effect> EFFECT = of("effect", Effect.class);
+	public static final ContextKeys<Integer> LOOT_ORDER = of("loot_order", Integer.class);
+	public static final ContextKeys<Effect> EFFECT = of("effect", Effect.class);
 
+	public static final ContextKeys<Boolean> HELLBLOCK_GENERATION = of("hellblock_generation", Boolean.class);
 	public static final ContextKeys<Float> HELLBLOCK_LEVEL = of("hellblock_level", Float.class);
 	public static final ContextKeys<String> HELLBLOCK_RANK = of("hellblock_rank", String.class);
+	public static final ContextKeys<String> HELLBLOCK_NAME = of("hellblock_name", String.class);
+	public static final ContextKeys<String> HELLBLOCK_BIO = of("hellblock_bio", String.class);
 	public static final ContextKeys<Integer> HELLBLOCK_ID = of("hellblock_id", Integer.class);
-	public static final ContextKeys<Integer> HELLBLOCK_VISITORS = of("hellblock_visits", Integer.class);
+	public static final ContextKeys<Integer> HELLBLOCK_PARTY_COUNT = of("hellblock_party_count", Integer.class);
+	public static final ContextKeys<Integer> HELLBLOCK_OVERALL_VISITORS = of("hellblock_total_visits", Integer.class);
+	public static final ContextKeys<Integer> HELLBLOCK_DAILY_VISITORS = of("hellblock_daily_visits", Integer.class);
+	public static final ContextKeys<Integer> HELLBLOCK_WEEKLY_VISITORS = of("hellblock_weekly_visits", Integer.class);
+	public static final ContextKeys<Integer> HELLBLOCK_MONTHLY_VISITORS = of("hellblock_monthly_visits", Integer.class);
+	public static final ContextKeys<Integer> HELLBLOCK_HOPPER_TIER = of("hellblock_hopper_tier", Integer.class);
+	public static final ContextKeys<Integer> HELLBLOCK_PARTY_TIER = of("hellblock_party_tier", Integer.class);
+	public static final ContextKeys<Integer> HELLBLOCK_RANGE_TIER = of("hellblock_range_tier", Integer.class);
+	public static final ContextKeys<Integer> HELLBLOCK_GENERATOR_TIER = of("hellblock_generator_tier", Integer.class);
+	public static final ContextKeys<Integer> HELLBLOCK_BARTERING_TIER = of("hellblock_bartering_tier", Integer.class);
+	public static final ContextKeys<Integer> HELLBLOCK_CROP_TIER = of("hellblock_crop_tier", Integer.class);
+	public static final ContextKeys<Integer> HELLBLOCK_MOB_TIER = of("hellblock_mob_tier", Integer.class);
 	public static final ContextKeys<Boolean> HELLBLOCK_STATUS = of("hellblock_status", Boolean.class);
 	public static final ContextKeys<Location> HELLBLOCK_LOCATION = of("hellblock_location", Location.class);
 	public static final ContextKeys<Location> HELLBLOCK_HOME_LOCATION = of("hellblock_home_location", Location.class);
@@ -87,8 +102,19 @@ public class ContextKeys<T> {
 			String.class);
 	public static final ContextKeys<Long> CREATION_TIME = of("creation_time", Long.class);
 	public static final ContextKeys<String> CREATION_TIME_FORMATTED = of("creation_time_formatted", String.class);
+	public static final ContextKeys<DisplayChoice> HELLBLOCK_DISPLAY_CHOICE = of("hellblock_display_choice",
+			DisplayChoice.class);
 	public static final ContextKeys<HellBiome> HELLBLOCK_BIOME = of("hellblock_biome", HellBiome.class);
 	public static final ContextKeys<IslandOptions> HELLBLOCK_CHOICE = of("hellblock_choice", IslandOptions.class);
+	public static final ContextKeys<String> VISIT_NAME = of("visit_name", String.class);
+	public static final ContextKeys<String> VISIT_ISLAND_NAME = of("visit_island_name", String.class);
+	public static final ContextKeys<String> VISIT_ISLAND_BIO = of("visit_island_bio", String.class);
+	public static final ContextKeys<Integer> VISIT_COUNT = of("visit_count", Integer.class);
+	public static final ContextKeys<Integer> VISIT_RANK = of("visit_rank", Integer.class);
+	public static final ContextKeys<String> VISIT_UUID = of("visit_uuid", String.class);
+	public static final ContextKeys<Float> VISIT_LEVEL = of("visit_level", Float.class);
+	public static final ContextKeys<Long> FEATURED_TIME = of("featured_time", Long.class);
+	public static final ContextKeys<String> FEATURED_TIME_FORMATTED = of("featured_time_formatted", String.class);
 
 	private final String key;
 	private final Class<T> type;
@@ -125,7 +151,7 @@ public class ContextKeys<T> {
 	 * @return a new ContextKeys instance.
 	 */
 	public static <T> ContextKeys<T> of(String key, Class<T> type) {
-		return new ContextKeys<T>(key, type);
+		return new ContextKeys<>(key, type);
 	}
 
 	@Override
@@ -133,7 +159,7 @@ public class ContextKeys<T> {
 		if (this == other) {
 			return true;
 		} else if (other != null && this.getClass() == other.getClass()) {
-			ContextKeys<?> that = (ContextKeys<?>) other;
+			final ContextKeys<?> that = (ContextKeys<?>) other;
 			return Objects.equals(this.key, that.key);
 		} else {
 			return false;

@@ -26,9 +26,10 @@ public class JsonHandler extends AbstractStorage {
 
 	public JsonHandler(HellblockPlugin plugin) {
 		super(plugin);
-		File folder = new File(plugin.getDataFolder(), "data");
-		if (!folder.exists())
+		final File folder = new File(plugin.getDataFolder(), "data");
+		if (!folder.exists()) {
 			folder.mkdirs();
+		}
 	}
 
 	@Override
@@ -38,8 +39,8 @@ public class JsonHandler extends AbstractStorage {
 
 	@Override
 	public CompletableFuture<Optional<PlayerData>> getPlayerData(UUID uuid, boolean lock, Executor executor) {
-		File file = getPlayerDataFile(uuid);
-		PlayerData playerData;
+		final File file = getPlayerDataFile(uuid);
+		final PlayerData playerData;
 		if (file.exists()) {
 			playerData = readFromJsonFile(file, PlayerData.class);
 		} else if (Bukkit.getPlayer(uuid) != null) {
@@ -90,7 +91,7 @@ public class JsonHandler extends AbstractStorage {
 	 * @return The parsed object.
 	 */
 	public <T> T readFromJsonFile(File file, Class<T> classOfT) {
-		String jsonContent = new String(readFileToByteArray(file), StandardCharsets.UTF_8);
+		final String jsonContent = new String(readFileToByteArray(file), StandardCharsets.UTF_8);
 		return plugin.getStorageManager().getGson().fromJson(jsonContent, classOfT);
 	}
 
@@ -101,7 +102,7 @@ public class JsonHandler extends AbstractStorage {
 	 * @return The byte array representing the file's content.
 	 */
 	public byte[] readFileToByteArray(File file) {
-		byte[] fileBytes = new byte[(int) file.length()];
+		final byte[] fileBytes = new byte[(int) file.length()];
 		try (FileInputStream fis = new FileInputStream(file)) {
 			fis.read(fileBytes);
 		} catch (IOException ex) {
@@ -114,10 +115,10 @@ public class JsonHandler extends AbstractStorage {
 	// folder.
 	@Override
 	public Set<UUID> getUniqueUsers() {
-		File folder = new File(plugin.getDataFolder(), "data");
-		Set<UUID> uuids = new HashSet<>();
+		final File folder = new File(plugin.getDataFolder(), "data");
+		final Set<UUID> uuids = new HashSet<>();
 		if (folder.exists()) {
-			File[] files = folder.listFiles();
+			final File[] files = folder.listFiles();
 			if (files != null) {
 				for (File file : files) {
 					uuids.add(UUID.fromString(Files.getNameWithoutExtension(file.getName())));

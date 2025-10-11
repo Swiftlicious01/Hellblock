@@ -27,8 +27,9 @@ public class EventUtils {
 	 * @throws IllegalArgumentException if the event is not cancellable
 	 */
 	public static boolean fireAndCheckCancel(Event event) {
-		if (!(event instanceof Cancellable cancellable))
+		if (!(event instanceof Cancellable cancellable)) {
 			throw new IllegalArgumentException("Only cancellable events are allowed here");
+		}
 		Bukkit.getPluginManager().callEvent(event);
 		return cancellable.isCancelled();
 	}

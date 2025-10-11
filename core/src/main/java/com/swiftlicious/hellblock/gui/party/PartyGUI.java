@@ -2,6 +2,7 @@ package com.swiftlicious.hellblock.gui.party;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -9,7 +10,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import org.bukkit.Bukkit;
-import org.bukkit.Material;
+import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.inventory.Inventory;
@@ -18,15 +19,14 @@ import org.jetbrains.annotations.Nullable;
 
 import com.mojang.authlib.GameProfile;
 import com.swiftlicious.hellblock.context.Context;
+import com.swiftlicious.hellblock.context.ContextKeys;
 import com.swiftlicious.hellblock.creation.item.CustomItem;
 import com.swiftlicious.hellblock.creation.item.Item;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.handlers.VersionHelper;
 import com.swiftlicious.hellblock.player.GameProfileBuilder;
 import com.swiftlicious.hellblock.player.HellblockData;
-import com.swiftlicious.hellblock.utils.extras.Action;
-import com.swiftlicious.hellblock.utils.extras.Pair;
-import com.swiftlicious.hellblock.utils.extras.Tuple;
+import com.swiftlicious.hellblock.player.UserData;
 
 import dev.dejvokep.boostedyaml.block.implementation.Section;
 
@@ -74,9 +74,8 @@ public class PartyGUI {
 			}
 			line++;
 		}
-		for (Map.Entry<Integer, PartyGUIElement> entry : itemsSlotMap.entrySet()) {
-			this.inventory.setItem(entry.getKey(), entry.getValue().getItemStack().clone());
-		}
+		itemsSlotMap.entrySet()
+				.forEach(entry -> this.inventory.setItem(entry.getKey(), entry.getValue().getItemStack().clone()));
 	}
 
 	public PartyGUI addElement(PartyGUIElement... elements) {
@@ -93,8 +92,8 @@ public class PartyGUI {
 
 	public void show() {
 		context.holder().openInventory(inventory);
-		VersionHelper.getNMSManager().updateInventoryTitle(context.holder(),
-				AdventureHelper.componentToJson(AdventureHelper.miniMessage(manager.title.render(context, true))));
+		VersionHelper.getNMSManager().updateInventoryTitle(context.holder(), AdventureHelper
+				.componentToJson(AdventureHelper.parseCenteredTitleMultiline(manager.title.render(context, true))));
 	}
 
 	@Nullable
@@ -112,97 +111,178 @@ public class PartyGUI {
 	 * 
 	 * @return The PartyGUI instance.
 	 */
+	/**
+	 * Refresh the GUI, updating the display based on current data.
+	 *
+	 * @return The PartyGUI instance.
+	 */
 	public PartyGUI refresh() {
+		// --- Back button ---
 		PartyDynamicGUIElement backElement = (PartyDynamicGUIElement) getElement(manager.backSlot);
 		if (backElement != null && !backElement.getSlots().isEmpty()) {
 			backElement.setItemStack(manager.backIcon.build(context));
 		}
-		PartyDynamicGUIElement ownerElement = (PartyDynamicGUIElement) getElement(manager.ownerSlot);
-		if (ownerElement != null && !ownerElement.getSlots().isEmpty()) {
-			try {
-				UUID ownerUUID = hellblockData.getOwnerUUID();
-				Item<ItemStack> item = manager.instance.getItemManager().wrap(manager.ownerIcon.build(context));
-				String username = Bukkit.getPlayer(ownerUUID) != null ? Bukkit.getPlayer(ownerUUID).getName()
-						: Bukkit.getOfflinePlayer(ownerUUID).hasPlayedBefore()
-								&& Bukkit.getOfflinePlayer(ownerUUID).getName() != null
-										? Bukkit.getOfflinePlayer(ownerUUID).getName()
-										: null;
-				if (username != null) {
-					String newName = AdventureHelper.miniMessageToJson(manager.ownerName.replace("{player}", username));
-					item.displayName(newName);
-					List<String> newLore = new ArrayList<>();
-					for (String lore : manager.ownerLore) {
-						newLore.add(AdventureHelper.miniMessageToJson(lore.replace("{player}", username)));
+
+		manager.instance.getStorageManager()
+				.getOfflineUserData(hellblockData.getOwnerUUID(), manager.instance.getConfigManager().lockData())
+				.thenAccept(result -> {
+					if (result.isEmpty()) {
+						// Close inventory on the main thread
+						manager.instance.getScheduler().executeSync(() -> context.holder().closeInventory());
+						return;
 					}
-					item.lore(newLore);
-				}
-				GameProfile profile = GameProfileBuilder.fetch(ownerUUID);
-				item.skull(profile.getProperties().get("textures").iterator().next().getValue());
-				ownerElement.setUUID(ownerUUID);
-				ownerElement.setItemStack(item.load());
-			} catch (IllegalArgumentException | IOException ex) {
-				// ignored
-			}
-		}
-		Set<UUID> party = hellblockData.getParty();
-		if (party == null || party.isEmpty()) {
-			for (Map.Entry<Character, Pair<CustomItem, Action<Player>[]>> entry : manager.newMemberIcons.entrySet()) {
-				PartyDynamicGUIElement memberElement = (PartyDynamicGUIElement) getElement(entry.getKey());
-				if (memberElement != null && !memberElement.getSlots().isEmpty()) {
-					memberElement.setItemStack(entry.getValue().left().build(context));
-				}
-			}
-		} else {
-			for (UUID id : party) {
-				for (Tuple<Character, Section, Tuple<CustomItem, UUID, Action<Player>[]>> entry : manager.memberIcons) {
-					PartyDynamicGUIElement memberElement = (PartyDynamicGUIElement) getElement(entry.left());
-					if (memberElement != null && !memberElement.getSlots().isEmpty()) {
-						Item<ItemStack> item = manager.instance.getItemManager()
-								.wrap(entry.right().left().build(context));
-						String username = Bukkit.getPlayer(id) != null ? Bukkit.getPlayer(id).getName()
-								: Bukkit.getOfflinePlayer(id).hasPlayedBefore()
-										&& Bukkit.getOfflinePlayer(id).getName() != null
-												? Bukkit.getOfflinePlayer(id).getName()
-												: null;
-						if (username != null) {
-							String newName = AdventureHelper.miniMessageToJson(
-									entry.mid().getString("display.name").replace("{player}", username));
-							item.displayName(newName);
-							List<String> newLore = new ArrayList<>();
-							if (isOwner) {
-								for (String lore : entry.mid().getStringList("display.owner-lore")) {
-									newLore.add(AdventureHelper.miniMessageToJson(lore.replace("{player}", username)));
-								}
-							} else {
-								for (String lore : entry.mid().getStringList("display.member-lore")) {
-									newLore.add(AdventureHelper.miniMessageToJson(lore.replace("{player}", username)));
-								}
-							}
-							item.lore(newLore);
-						}
+
+					UserData ownerData = result.get();
+
+					context.arg(ContextKeys.HELLBLOCK_PARTY_COUNT, ownerData.getHellblockData().getParty().size());
+
+					// --- Owner icon ---
+					PartyDynamicGUIElement ownerElement = (PartyDynamicGUIElement) getElement(manager.ownerSlot);
+					if (ownerElement != null && !ownerElement.getSlots().isEmpty()) {
 						try {
-							GameProfile profile = GameProfileBuilder.fetch(id);
+							UUID ownerUUID = ownerData.getUUID();
+							Item<ItemStack> item = manager.instance.getItemManager()
+									.wrap(manager.ownerIcon.build(context));
+
+							String username = Bukkit.getPlayer(ownerUUID) != null
+									? Bukkit.getPlayer(ownerUUID).getName()
+									: Bukkit.getOfflinePlayer(ownerUUID).hasPlayedBefore()
+											&& Bukkit.getOfflinePlayer(ownerUUID).getName() != null
+													? Bukkit.getOfflinePlayer(ownerUUID).getName()
+													: null;
+
+							boolean isOnline = Bukkit.getPlayer(ownerUUID) != null
+									&& Bukkit.getPlayer(ownerUUID).isOnline();
+
+							if (username != null) {
+								item.displayName(AdventureHelper.miniMessageToJson(
+										manager.ownerName.replace("{player}", username).replace("{login_status}",
+												isOnline ? manager.onlineStatus : manager.offlineStatus)));
+
+								List<String> newLore = new ArrayList<>();
+								manager.ownerLore.forEach(lore -> newLore.add(AdventureHelper
+										.miniMessageToJson(lore.replace("{player}", username).replace("{login_status}",
+												isOnline ? manager.onlineStatus : manager.offlineStatus))));
+								item.lore(newLore);
+							}
+
+							GameProfile profile = GameProfileBuilder.fetch(ownerUUID);
 							item.skull(profile.getProperties().get("textures").iterator().next().getValue());
-							memberElement.setUUID(id);
-							memberElement.setItemStack(item.load());
+
+							ownerElement.setUUID(ownerUUID);
+							ownerElement.setItemStack(item.load());
 						} catch (IllegalArgumentException | IOException ex) {
 							// ignored
 						}
 					}
-				}
-			}
-			for (Map.Entry<Character, Pair<CustomItem, Action<Player>[]>> entry : manager.newMemberIcons.entrySet()) {
-				PartyDynamicGUIElement memberElement = (PartyDynamicGUIElement) getElement(entry.getKey());
-				if (memberElement != null && memberElement.getItemStack().getType() == Material.AIR) {
-					memberElement.setItemStack(entry.getValue().left().build(context));
-				}
-			}
-		}
-		for (Map.Entry<Integer, PartyGUIElement> entry : itemsSlotMap.entrySet()) {
-			if (entry.getValue() instanceof PartyDynamicGUIElement dynamicGUIElement) {
-				this.inventory.setItem(entry.getKey(), dynamicGUIElement.getItemStack().clone());
-			}
-		}
+
+					// --- Party members ---
+					Set<UUID> party = ownerData.getHellblockData().getParty();
+					if (party.isEmpty())
+						party = Collections.emptySet();
+
+					// Render existing members
+					party.forEach(id -> manager.memberIcons
+							.forEach(entry -> renderSlot(entry.left(), entry.right().left(), entry.mid(), id, false)));
+
+					// Fill newMemberIcons: interactive up to maxSize, filler beyond maxSize
+					int maxSize = manager.instance.getCoopManager().getMaxPartySize(ownerData);
+
+					manager.newMemberIcons.entrySet().forEach(entry -> {
+						Character symbol = entry.getKey();
+						int index = manager.getMemberSlotIndex(symbol);
+						boolean beyondLimit = index >= maxSize;
+
+						renderSlot(symbol, entry.getValue().left(), null, null, beyondLimit);
+					});
+
+					// --- Push all dynamic elements into inventory ---
+					itemsSlotMap.entrySet().stream().filter(entry -> entry.getValue() instanceof PartyDynamicGUIElement)
+							.forEach(entry -> {
+								PartyDynamicGUIElement dynamicGUIElement = (PartyDynamicGUIElement) entry.getValue();
+								this.inventory.setItem(entry.getKey(), dynamicGUIElement.getItemStack().clone());
+							});
+				});
 		return this;
+	}
+
+	/**
+	 * Render a single member slot (with placeholder replacement and skulls).
+	 */
+	private void renderSlot(Character symbol, CustomItem baseItem, @Nullable Section config, @Nullable UUID memberId,
+			boolean beyondLimit) {
+
+		PartyDynamicGUIElement element = (PartyDynamicGUIElement) getElement(symbol);
+		if (element == null || element.getSlots().isEmpty())
+			return;
+
+		Item<ItemStack> item = manager.instance.getItemManager().wrap(baseItem.build(context));
+
+		// username (if member)
+		String username = null;
+		boolean isOnline = false;
+		if (memberId != null) {
+			Player online = Bukkit.getPlayer(memberId);
+			if (online != null) {
+				username = online.getName();
+				if (online.isOnline())
+					isOnline = true;
+			} else {
+				OfflinePlayer offline = Bukkit.getOfflinePlayer(memberId);
+				if (offline.hasPlayedBefore() && offline.getName() != null)
+					username = offline.getName();
+			}
+		}
+
+		// determine config to use: prefer passed config, else ask manager for section
+		// for this symbol
+		Section cfg = config != null ? config : manager.getSectionForSlotChar(symbol);
+
+		// Display name: prefer cfg.display.name (with {player}) if present; otherwise
+		// keep the CustomItem built name.
+		if (cfg != null) {
+			String displayName = cfg.getString("display.name");
+			if (displayName != null) {
+				if (username != null)
+					displayName = displayName.replace("{player}", username).replace("{login_status}",
+							isOnline ? manager.onlineStatus : manager.offlineStatus);
+				item.displayName(AdventureHelper.miniMessageToJson(displayName));
+			}
+		}
+
+		// Lore
+		if (beyondLimit) {
+			// beyond maxSize => clear lore completely
+			item.lore(Collections.emptyList());
+		} else if (cfg != null) {
+			List<String> loreList = isOwner ? cfg.getStringList("display.owner-lore")
+					: cfg.getStringList("display.member-lore");
+			if (loreList != null && !loreList.isEmpty()) {
+				List<String> parsed = new ArrayList<>(loreList.size());
+				for (String lore : loreList) {
+					if (username != null)
+						lore = lore.replace("{player}", username).replace("{login_status}",
+								isOnline ? manager.onlineStatus : manager.offlineStatus);
+					parsed.add(AdventureHelper.miniMessageToJson(lore));
+				}
+				item.lore(parsed);
+			}
+		}
+		// else: keep the CustomItem's built lore (if any) when cfg == null and not
+		// beyondLimit
+
+		// Skull (if member)
+		if (memberId != null) {
+			try {
+				GameProfile profile = GameProfileBuilder.fetch(memberId);
+				item.skull(profile.getProperties().get("textures").iterator().next().getValue());
+				element.setUUID(memberId);
+			} catch (IllegalArgumentException | IOException ignored) {
+			}
+		} else {
+			element.setUUID(null);
+		}
+
+		element.setItemStack(item.load());
 	}
 }

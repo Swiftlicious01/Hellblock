@@ -8,7 +8,6 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Particle;
-import org.bukkit.Sound;
 import org.bukkit.block.BlockFace;
 import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.FishHook;
@@ -22,6 +21,7 @@ import com.swiftlicious.hellblock.context.ContextKeys;
 import com.swiftlicious.hellblock.effects.Effect;
 import com.swiftlicious.hellblock.effects.EffectProperties;
 import com.swiftlicious.hellblock.events.fishing.FishingHookStateEvent;
+import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.handlers.VersionHelper;
 import com.swiftlicious.hellblock.nms.fluid.FluidData;
 import com.swiftlicious.hellblock.scheduler.SchedulerTask;
@@ -165,9 +165,18 @@ public class LavaFishingMechanic implements HookMechanic {
 								(int) (1.0F + 0.3 * 20.0F), 0.3, 0.0D, 0.3, 0.20000000298023224D);
 						this.nibble = RandomUtils.generateRandomInt(20, 40);
 						this.hooked = true;
-						hook.getWorld().playSound(location, Sound.ENTITY_GENERIC_EXTINGUISH_FIRE, 0.25F,
-								1.0F + (RandomUtils.generateRandomFloat(0, 1) - RandomUtils.generateRandomFloat(0, 1))
-										* 0.4F);
+						float pitch = 1.0F
+								+ (RandomUtils.generateRandomFloat(0, 1) - RandomUtils.generateRandomFloat(0, 1))
+										* 0.4F;
+
+						hook.getWorld().getNearbyEntities(location, 16, 16, 16, e -> e instanceof Player).forEach(e -> {
+							final Player player = (Player) e;
+							AdventureHelper.playSound(
+									HellblockPlugin.getInstance().getSenderFactory().getAudience(player),
+									net.kyori.adventure.sound.Sound.sound(
+											net.kyori.adventure.key.Key.key("minecraft:entity.generic.extinguish_fire"),
+											net.kyori.adventure.sound.Sound.Source.BLOCK, 0.25f, pitch));
+						});
 						EventUtils.fireAndForget(
 								new FishingHookStateEvent(context.holder(), hook, FishingHookStateEvent.State.BITE));
 						if (this.tempEntity != null && this.tempEntity.isValid()) {

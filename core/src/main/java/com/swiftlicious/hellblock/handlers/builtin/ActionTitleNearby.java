@@ -3,7 +3,6 @@ package com.swiftlicious.hellblock.handlers.builtin;
 import static java.util.Objects.requireNonNull;
 
 import org.bukkit.Location;
-import org.bukkit.entity.Player;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.context.Context;
@@ -37,18 +36,19 @@ public class ActionTitleNearby<T> extends AbstractBuiltInAction<T> {
 
 	@Override
 	protected void triggerAction(Context<T> context) {
-		if (context.argOrDefault(ContextKeys.OFFLINE, false))
+		if (context.argOrDefault(ContextKeys.OFFLINE, false)) {
 			return;
-		Location location = requireNonNull(context.arg(ContextKeys.LOCATION));
-		for (Player player : location.getWorld().getPlayers()) {
-			if (LocationUtils.getDistance(player.getLocation(), location) <= range) {
-				context.arg(ContextKeys.TEMP_NEAR_PLAYER, player.getName());
-				VersionHelper.getNMSManager().sendTitle(player,
-						AdventureHelper.componentToJson(AdventureHelper.miniMessage(title.render(context))),
-						AdventureHelper.componentToJson(AdventureHelper.miniMessage(subtitle.render(context))), fadeIn,
-						stay, fadeOut);
-			}
 		}
+		final Location location = requireNonNull(context.arg(ContextKeys.LOCATION));
+		location.getWorld().getPlayers().stream()
+				.filter(player -> LocationUtils.getDistance(player.getLocation(), location) <= range)
+				.forEach(player -> {
+					context.arg(ContextKeys.TEMP_NEAR_PLAYER, player.getName());
+					VersionHelper.getNMSManager().sendTitle(player,
+							AdventureHelper.componentToJson(AdventureHelper.miniMessage(title.render(context))),
+							AdventureHelper.componentToJson(AdventureHelper.miniMessage(subtitle.render(context))),
+							fadeIn, stay, fadeOut);
+				});
 	}
 
 	public TextValue<T> title() {

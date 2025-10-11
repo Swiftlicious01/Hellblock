@@ -33,7 +33,7 @@ import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.commands.BukkitCommandFeature;
 import com.swiftlicious.hellblock.commands.HellblockCommandManager;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
-import com.swiftlicious.hellblock.database.DataStorageInterface;
+import com.swiftlicious.hellblock.database.DataStorageProvider;
 import com.swiftlicious.hellblock.utils.extras.CompletableFutures;
 
 import net.kyori.adventure.text.Component;
@@ -58,7 +58,7 @@ public class ExportDataCommand extends BukkitCommandFeature<CommandSender> {
 					handleFeedback(context, MessageConstants.COMMAND_DATA_EXPORT_START);
 					plugin.getScheduler().async().execute(() -> {
 
-						DataStorageInterface storageProvider = plugin.getStorageManager().getDataSource();
+						DataStorageProvider storageProvider = plugin.getStorageManager().getDataSource();
 
 						Set<UUID> uuids = storageProvider.getUniqueUsers();
 						Set<CompletableFuture<Void>> futures = new HashSet<>();

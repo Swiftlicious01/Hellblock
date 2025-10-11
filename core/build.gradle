@@ -1,159 +1,222 @@
-plugins {
-    id 'com.gradleup.shadow' version '9.0.0-beta11'
+// --- ensure Shadow uses its own ASM version, not Paperweight’s ---
+buildscript {
+    repositories {
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'org.ow2.asm:asm:9.7'
+        classpath 'org.ow2.asm:asm-commons:9.7'
+        classpath 'org.ow2.asm:asm-tree:9.7'
+        classpath 'org.ow2.asm:asm-util:9.7'
+    }
 }
 
-apply plugin: 'com.gradleup.shadow'
+// --- now declare plugins (Gradle 9+ requires this order) ---
+plugins {
+    id 'com.gradleup.shadow' version '9.0.0-beta11'
+    id 'java'
+}
+
+description = "Core for Hellblock"
 
 repositories {
-    maven { url = 'https://maven.enginehub.org/repo/' } // worldedit & worldguard
-    maven { url = 'https://jitpack.io/' } // vault, jobs, shopguiplus & rtag
-    maven { url = 'https://libraries.minecraft.net' } // authlib
-    maven { url = 'https://repo.papermc.io/repository/maven-public/' } // folia
-    maven { url = 'https://mvn.lumine.io/repository/maven-public/' } // mythicmobs
-    maven { url = 'https://hub.spigotmc.org/nexus/content/repositories/snapshots/' } // spigot
-    maven { url = 'https://repo.glaremasters.me/repository/concuncan/' } // slimeworldmanager
-    maven { url = 'https://repo.infernalsuite.com/repository/maven-snapshots/' } // advancedslimepaper
-    maven { url = 'https://repo.rapture.pw/repository/maven-releases/' } // flow nbt
-    maven { url = 'https://repo.opencollab.dev/main/' } // geyser
-    // placeholderapi
     maven {
-    	url = 'https://repo.extendedclip.com/content/repositories/placeholderapi/'
+        url = 'https://maven.enginehub.org/repo/'
         content {
-        	includeGroup 'me.clip'
+            includeGroup 'com.sk89q.worldedit'
+            includeGroup 'com.sk89q.worldguard'
+            includeGroup 'com.sk89q.worldedit.worldedit-libs'
+            includeGroup 'com.sk89q.worldguard.worldguard-libs'
         }
+    }
+    maven { url = 'https://jitpack.io/' }
+    maven { url = 'https://libraries.minecraft.net' }
+    maven {
+        url = 'https://repo.papermc.io/repository/maven-public'
+        content { includeGroup 'dev.folia' }
+        metadataSources { mavenPom(); artifact() }
+    }
+    maven { url = 'https://mvn.lumine.io/repository/maven-public/' }
+    maven { url = 'https://hub.spigotmc.org/nexus/content/repositories/snapshots/' }
+    maven { url = 'https://repo.glaremasters.me/repository/concuncan/' }
+    maven { url = 'https://repo.bg-software.com/repository/api/' }
+    maven { url = 'https://nexus.neetgames.com/repository/maven-public' }
+    maven { url = 'https://repo.codemc.io/repository/maven-public/' }
+    maven { url = 'https://repo.infernalsuite.com/repository/maven-snapshots/' }
+    maven { url = 'https://repo.rapture.pw/repository/maven-releases/' }
+    maven { url = 'https://repo.opencollab.dev/main/' }
+    maven {
+        url = 'https://repo.extendedclip.com/content/repositories/placeholderapi/'
+        content { includeGroup 'me.clip' }
     }
 }
 
 dependencies {
-	// server
-    compileOnly "dev.folia:folia-api:${rootProject.properties["paper_version"]}-R0.1-SNAPSHOT"
-    implementation(project(":api"))
-    implementation(project(":v1_21_R5"))
-    implementation(project(":v1_21_R4"))
-    implementation(project(":v1_21_R3"))
-    implementation(project(":v1_21_R2"))
-    implementation(project(":v1_21_R1"))
-    implementation(project(":v1_20_R4"))
-    implementation(project(":v1_20_R3"))
-    implementation(project(":v1_20_R2"))
-    implementation(project(":v1_20_R1"))
-    implementation(project(":v1_19_R3"))
-    implementation(project(":v1_19_R2"))
-    implementation(project(":v1_19_R1"))
-    implementation(project(":v1_18_R2"))
-    implementation(project(":v1_18_R1"))
-    implementation(project(":v1_17_R1"))
+    // Paper APIs (or spigot for testing purposes only, will always depend on paper)
+    compileOnly hellblockLibs.folia
+    // compileOnly hellblockLibs.spigot
+    compileOnly hellblockLibs.aswm
 
-    // nbt
-    implementation "com.saicone.rtag:rtag:${rootProject.properties["rtag_version"]}"
-    implementation "com.saicone.rtag:rtag-item:${rootProject.properties["rtag_version"]}"
-    implementation "com.saicone.rtag:rtag-entity:${rootProject.properties["rtag_version"]}"
-    implementation "com.saicone.rtag:rtag-block:${rootProject.properties["rtag_version"]}"
-    
-    // adventure api
-    implementation "net.kyori:adventure-api:${rootProject.properties["adventure_bundle_version"]}"
-    implementation "net.kyori:adventure-text-minimessage:${rootProject.properties["adventure_bundle_version"]}"
-    implementation "net.kyori:adventure-platform-bukkit:${rootProject.properties["adventure_platform_version"]}"
-    implementation "net.kyori:adventure-text-serializer-json-legacy-impl:${rootProject.properties["adventure_bundle_version"]}"
-    implementation("net.kyori:adventure-text-serializer-gson:${rootProject.properties["adventure_bundle_version"]}") {
+    // Internal API
+    implementation project(":api")
+
+    // --- ASM FIX for Shadow 9 ---
+    implementation 'org.ow2.asm:asm:9.7'
+    implementation 'org.ow2.asm:asm-commons:9.7'
+    implementation 'org.ow2.asm:asm-tree:9.7'
+    implementation 'org.ow2.asm:asm-util:9.7'
+
+	// --- Auto-discover and add versioned Paper & Spigot modules safely ---
+
+	// PAPER (Mojang-mapped) IMPLS — default configuration
+	rootProject.childProjects['paper']?.childProjects
+    	?.findAll { it.key ==~ /v\d+_\d+_R\d+/ } // Only versioned modules
+    	?.each { name, proj ->
+        	if (proj.configurations.findByName("reobf") != null) {
+            	// If somehow a Paper module has reobf (rare), use it
+            	implementation project(path: proj.path, configuration: "reobf")
+        	} else {
+            	implementation project(proj.path)
+        	}
+    	}
+
+	// SPIGOT (Spigot-mapped) IMPLS — depend on reobf output if available
+	rootProject.childProjects['spigot']?.childProjects
+    	?.findAll { it.key ==~ /v\d+_\d+_R\d+/ } // Only versioned modules
+    	?.each { name, proj ->
+        	if (proj.configurations.findByName("reobf") != null) {
+           	 	implementation project(path: proj.path, configuration: "reobf")
+        	} else {
+            	implementation project(proj.path)
+        	}
+    	}
+
+    implementation hellblockLibs.rtagcore
+    implementation hellblockLibs.rtagitem
+    implementation hellblockLibs.rtagentity
+    implementation hellblockLibs.rtagblock
+
+    implementation(hellblockLibs.adventureapi) {
+        exclude module: 'adventure-bom'
+        exclude module: 'checker-qual'
+        exclude module: 'annotations'
+    }
+    implementation hellblockLibs.adventureminimessage
+    implementation hellblockLibs.adventureplatform
+    implementation hellblockLibs.adventurejsonlegacy
+    implementation hellblockLibs.adventureplain
+    implementation hellblockLibs.adventurenbt
+    implementation(hellblockLibs.adventuregson) {
         exclude group: 'com.google.code.gson'
     }
-        
-    implementation "io.papermc:paperlib:${rootProject.properties["paperlib_version"]}"
-    
-    // authlib
-    implementation "com.mojang:authlib:${rootProject.properties["authlib_version"]}"
-    
-    implementation "org.pepsoft.jnbt:JNBT:${rootProject.properties["jnbt_version"]}"
 
-    // command
-    compileOnly "org.incendo:cloud-core:${rootProject.properties["cloud_core_version"]}"
-    compileOnly "org.incendo:cloud-minecraft-extras:${rootProject.properties["cloud_minecraft_extras_version"]}"
-    compileOnly "org.incendo:cloud-paper:${rootProject.properties["cloud_paper_version"]}"
-        
-  	// papi
-    compileOnly "me.clip:placeholderapi:${rootProject.properties["placeholder_api_version"]}"
+    implementation hellblockLibs.paperlib
+    implementation hellblockLibs.authlib
+    compileOnly hellblockLibs.jackson
+    compileOnly hellblockLibs.jacksonannotations
 
-    // gson
-    compileOnly "com.google.code.gson:gson:${rootProject.properties["gson_version"]}"
+    // Cloud & optional APIs
+    compileOnly hellblockLibs.cloudcore
+    compileOnly hellblockLibs.cloudminecraftextras
+    compileOnly hellblockLibs.cloudpaper
+    compileOnly hellblockLibs.immutables
+    compileOnly hellblockLibs.placeholderapi
+    compileOnly hellblockLibs.gson
+    compileOnly hellblockLibs.log4j
+    compileOnly hellblockLibs.slf4j
 
-    // jetbrains
-  	compileOnly "org.jetbrains:annotations:${rootProject.properties["jetbrains_annotations_version"]}"
-    compileOnly "org.apache.logging.log4j:log4j-core:${rootProject.properties["log4j_version"]}"
-  
-    // mythic mobs
-    compileOnly "io.lumine:Mythic-Dist:${rootProject.properties["mythic_mobs_version"]}"
-    
-    // shop gui plus
-    compileOnly "com.github.brcdev-minecraft:shopgui-api:${rootProject.properties["shop_gui_version"]}"
-    
-    // slime world manager support
-    compileOnly "com.infernalsuite.aswm:api:${rootProject.properties["paper_version"]}-R0.1-SNAPSHOT"
-    
-    implementation "com.flowpowered:flow-nbt:${rootProject.properties["flow_nbt_version"]}" // do not relocate (compatibility with AdvancedSlimePaper)
+    // WorldEdit / WorldGuard
+    compileOnly hellblockLibs.worldeditcore
+    compileOnly hellblockLibs.worldeditbukkit
+    compileOnly hellblockLibs.worldeditlibscore
+    compileOnly hellblockLibs.worldeditlibsbukkit
+    compileOnly hellblockLibs.worldguardcore
+    compileOnly hellblockLibs.worldguardbukkit
+    compileOnly hellblockLibs.worldguardlibscore
 
-    // worldedit & worldguard
-    compileOnly("com.sk89q.worldedit:worldedit-bukkit:${rootProject.properties["worldedit_version"]}-SNAPSHOT") {
-    	exclude group: 'org.bukkit'
-    }
-    compileOnly "com.sk89q.worldguard:worldguard-core:${rootProject.properties["worldguard_version"]}-SNAPSHOT"
-    compileOnly "com.sk89q.worldguard:worldguard-bukkit:${rootProject.properties["worldguard_version"]}-SNAPSHOT"
+    // Database & caching
+    compileOnly hellblockLibs.sqlite
+    compileOnly hellblockLibs.h2
+    compileOnly hellblockLibs.mongodb
+    compileOnly hellblockLibs.hikari
+    compileOnly hellblockLibs.jedis
+    compileOnly hellblockLibs.caffeine
+    compileOnly hellblockLibs.exp4j
+    compileOnly hellblockLibs.lz4
+    compileOnly hellblockLibs.boostedyaml
 
-    // database
-    compileOnly "org.xerial:sqlite-jdbc:${rootProject.properties["sqlite_driver_version"]}"
-    compileOnly "com.h2database:h2:${rootProject.properties["h2_driver_version"]}"
-    compileOnly "org.mongodb:mongodb-driver-sync:${rootProject.properties["mongodb_driver_version"]}"
-    compileOnly "com.zaxxer:HikariCP:${rootProject.properties["hikari_version"]}"
-    compileOnly "redis.clients:jedis:${rootProject.properties["jedis_version"]}"
+    // Geyser
+    compileOnly hellblockLibs.geyser
+    compileOnly hellblockLibs.floodgate
 
-    // vault support
-    compileOnly("com.github.MilkBowl:VaultAPI:${rootProject.properties["vault_version"]}") {
-   		exclude group: 'org.bukkit'
-    }
-    
-    // jobs
-    compileOnly "com.github.Zrips:Jobs:v${rootProject.properties["jobs_version"]}"
-    
-    // libs
-    compileOnly(files("libs/AdvancedEnchantments-api.jar"))
-        
-    // caffeine
-  	compileOnly "com.github.ben-manes.caffeine:caffeine:${rootProject.properties["caffeine_version"]}"
-        
-    // exp4j
-    compileOnly "net.objecthunter:exp4j:${rootProject.properties["exp4j_version"]}"
-  	// lz4
-   	compileOnly "org.lz4:lz4-java:${rootProject.properties["lz4_version"]}"
-    
-    // config
-    compileOnly "dev.dejvokep:boosted-yaml:${rootProject.properties["boosted_yaml_version"]}"
-    
-    // geyser
-    compileOnly "org.geysermc.geyser:api:${rootProject.properties["geyser_version"]}-SNAPSHOT"
-    // floodgate
-    compileOnly "org.geysermc.floodgate:api:${rootProject.properties["floodgate_version"]}-SNAPSHOT"
+    // External plugin APIs
+    compileOnly(hellblockLibs.vault) { exclude group: 'org.bukkit' }
+    compileOnly hellblockLibs.mythicmobs
+    compileOnly(hellblockLibs.shopgui) { exclude group: 'org.spigotmc', module: 'spigot-api' }
+    compileOnly hellblockLibs.jobs
+    compileOnly hellblockLibs.wildstacker
+    compileOnly hellblockLibs.mcmmo
+    compileOnly hellblockLibs.stackermob
+
+    // Local libs
+    compileOnly files("libs/AdvancedEnchantments-api.jar")
 }
 
 compileJava {
- 	options.encoding = 'UTF-8'
-   	options.release.set(21)
-    dependsOn(tasks.clean)
+    options.compilerArgs += ['-Xlint:all', '-Xlint:-processing']
+    options.encoding = 'UTF-8'
 }
 
 java {
-	sourceCompatibility = JavaVersion.VERSION_21
-    targetCompatibility = JavaVersion.VERSION_21
-  	toolchain {
-        languageVersion = JavaLanguageVersion.of(21)
-    }
+    toolchain { languageVersion = JavaLanguageVersion.of(21) }
 }
 
-shadowJar {
-    destinationDirectory.set(file('$rootDir/target'))
+configurations.all {
+    resolutionStrategy.force 'org.ow2.asm:asm:9.7'
+    resolutionStrategy.force 'org.ow2.asm:asm-commons:9.7'
+    resolutionStrategy.force 'org.ow2.asm:asm-tree:9.7'
+    resolutionStrategy.force 'org.ow2.asm:asm-util:9.7'
+}
+
+tasks.named("shadowJar") { task ->
+
+    // Precompute the filtered files provider at configuration time
+    def filteredFilesProvider = project.provider {
+        def result = []
+        if (task.hasProperty("configurations")) {
+            def configs = task.configurations.getOrElse([])
+            configs.each { cfg ->
+                cfg.resolve().each { file ->
+                    def name = file.name.toLowerCase()
+                    if (!name.contains("paperweight") && !name.contains("dev-bundle")) {
+                        result << file
+                    }
+                }
+            }
+        }
+        // Build a detached FileCollection here, so no project.files inside doFirst
+        return project.layout.files(result)
+    }
+
+    doFirst {
+        // Only read the provider here — no project calls
+        def detachedFiles = filteredFilesProvider.get()
+        if (!detachedFiles.isEmpty()) {
+            task.from(detachedFiles)
+        }
+        logger.lifecycle("Running ShadowJar with isolated classpath...")
+        logger.lifecycle("Filtered ${detachedFiles.files.size()} JARs for shading.")
+    }
+
+    // Normal Shadow config
+    destinationDirectory.set(file("${rootDir}/target"))
+    archiveBaseName.set("Hellblock")
+    archiveVersion.set(hellblockLibs.versions.pluginVersion.get())
     archiveClassifier.set('')
-    archiveFileName = "Hellblock-${rootProject.properties["project_version"]}.jar"
-    minimize()
-    	
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    mergeServiceFiles()
+
+    // Relocations at config time (safe)
     relocate 'com.mysql', 'com.swiftlicious.hellblock.libraries.mysql'
     relocate 'org.mariadb', 'com.swiftlicious.hellblock.libraries.mariadb'
     relocate 'org.postgresql', 'com.swiftlicious.hellblock.libraries.postgresql'
@@ -163,17 +226,24 @@ shadowJar {
     relocate 'org.bson', 'com.swiftlicious.hellblock.libraries.bson'
     relocate 'org.apache.commons.pool2', 'com.swiftlicious.hellblock.libraries.commonspool2'
     relocate 'net.objecthunter.exp4j', 'com.swiftlicious.hellblock.libraries.exp4j'
-    relocate 'net.jpountz', 'com.swiftlicious.hellblock.libraries.jpountz' //lz4
-    relocate "net.kyori", "com.swiftlicious.hellblock.libraries"
+    relocate 'net.jpountz', 'com.swiftlicious.hellblock.libraries.jpountz'
+    relocate 'net.kyori', 'com.swiftlicious.hellblock.libraries'
     relocate 'com.github.benmanes.caffeine', 'com.swiftlicious.hellblock.libraries.caffeine'
     relocate 'org.incendo', 'com.swiftlicious.hellblock.libraries'
     relocate 'dev.dejvokep.boostedyaml', 'com.swiftlicious.hellblock.libraries.boostedyaml'
     relocate 'com.saicone.rtag', 'com.swiftlicious.hellblock.libraries.rtag'
     relocate 'io.papermc.lib', 'com.swiftlicious.hellblock.libraries.paperlib'
     relocate 'com.mojang.authlib', 'com.swiftlicious.hellblock.libraries.authlib'
-    relocate 'org.jnbt', 'com.swiftlicious.hellblock.libraries.jnbt'
 }
 
 artifacts {
-    archives(tasks.shadowJar)
+    add("default", tasks.shadowJar)
+}
+
+tasks.build {
+    dependsOn tasks.shadowJar
+}
+
+tasks.jar {
+    enabled = false
 }

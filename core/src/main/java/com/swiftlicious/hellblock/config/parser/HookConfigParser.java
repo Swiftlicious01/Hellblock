@@ -53,49 +53,53 @@ public class HookConfigParser {
 		this.id = id;
 		this.material = section.getString("material");
 		this.maxUsages = section.getInt("max-durability", -1);
-		if (!section.contains("tag"))
+		if (!section.contains("tag")) {
 			section.set("tag", true);
+		}
 		analyze(section, functionMap);
 	}
 
 	private void analyze(Section section, Map<String, Node<ConfigParserFunction>> functionMap) {
-		Map<String, Object> dataMap = section.getStringRouteMappedValues(false);
+		final Map<String, Object> dataMap = section.getStringRouteMappedValues(false);
 		for (Map.Entry<String, Object> entry : dataMap.entrySet()) {
-			String key = entry.getKey();
-			Node<ConfigParserFunction> node = functionMap.get(key);
-			if (node == null)
+			final String key = entry.getKey();
+			final Node<ConfigParserFunction> node = functionMap.get(key);
+			if (node == null) {
 				continue;
-			ConfigParserFunction function = node.nodeValue();
+			}
+			final ConfigParserFunction function = node.nodeValue();
 			if (function != null) {
 				switch (function.type()) {
 				case BASE_EFFECT -> {
-					BaseEffectParserFunction baseEffectParserFunction = (BaseEffectParserFunction) function;
-					Consumer<LootBaseEffect.Builder> consumer = baseEffectParserFunction.accept(entry.getValue());
+					final BaseEffectParserFunction baseEffectParserFunction = (BaseEffectParserFunction) function;
+					final Consumer<LootBaseEffect.Builder> consumer = baseEffectParserFunction.accept(entry.getValue());
 					baseEffectBuilderConsumers.add(consumer);
 				}
 				case LOOT -> {
-					LootParserFunction lootParserFunction = (LootParserFunction) function;
-					Consumer<Loot.Builder> consumer = lootParserFunction.accept(entry.getValue());
+					final LootParserFunction lootParserFunction = (LootParserFunction) function;
+					final Consumer<Loot.Builder> consumer = lootParserFunction.accept(entry.getValue());
 					lootBuilderConsumers.add(consumer);
 				}
 				case ITEM -> {
-					ItemParserFunction propertyFunction = (ItemParserFunction) function;
-					BiConsumer<Item<ItemStack>, Context<Player>> result = propertyFunction.accept(entry.getValue());
+					final ItemParserFunction propertyFunction = (ItemParserFunction) function;
+					final BiConsumer<Item<ItemStack>, Context<Player>> result = propertyFunction
+							.accept(entry.getValue());
 					tagConsumers.add(new PriorityFunction<>(propertyFunction.getPriority(), result));
 				}
 				case EVENT -> {
-					EventParserFunction eventParserFunction = (EventParserFunction) function;
-					Consumer<EventCarrier.Builder> consumer = eventParserFunction.accept(entry.getValue());
+					final EventParserFunction eventParserFunction = (EventParserFunction) function;
+					final Consumer<EventCarrier.Builder> consumer = eventParserFunction.accept(entry.getValue());
 					eventBuilderConsumers.add(consumer);
 				}
 				case EFFECT_MODIFIER -> {
-					EffectModifierParserFunction effectModifierParserFunction = (EffectModifierParserFunction) function;
-					Consumer<EffectModifier.Builder> consumer = effectModifierParserFunction.accept(entry.getValue());
+					final EffectModifierParserFunction effectModifierParserFunction = (EffectModifierParserFunction) function;
+					final Consumer<EffectModifier.Builder> consumer = effectModifierParserFunction
+							.accept(entry.getValue());
 					effectBuilderConsumers.add(consumer);
 				}
 				case HOOK -> {
-					HookParserFunction hookParserFunction = (HookParserFunction) function;
-					Consumer<HookConfig.Builder> consumer = hookParserFunction.accept(entry.getValue());
+					final HookParserFunction hookParserFunction = (HookParserFunction) function;
+					final Consumer<HookConfig.Builder> consumer = hookParserFunction.accept(entry.getValue());
 					hookBuilderConsumers.add(consumer);
 				}
 				default -> throw new IllegalArgumentException("Unexpected value: " + function.type());
@@ -113,42 +117,32 @@ public class HookConfigParser {
 	}
 
 	public EventCarrier getEventCarrier() {
-		EventCarrier.Builder builder = EventCarrierInterface.builder().id(id).type(MechanicType.HOOK);
-		for (Consumer<EventCarrier.Builder> consumer : eventBuilderConsumers) {
-			consumer.accept(builder);
-		}
+		final EventCarrier.Builder builder = EventCarrierInterface.builder().id(id).type(MechanicType.HOOK);
+		eventBuilderConsumers.forEach(consumer -> consumer.accept(builder));
 		return builder.build();
 	}
 
 	public EffectModifier getEffectModifier() {
-		EffectModifier.Builder builder = EffectModifierInterface.builder().id(id).type(MechanicType.HOOK);
-		for (Consumer<EffectModifier.Builder> consumer : effectBuilderConsumers) {
-			consumer.accept(builder);
-		}
+		final EffectModifier.Builder builder = EffectModifierInterface.builder().id(id).type(MechanicType.HOOK);
+		effectBuilderConsumers.forEach(consumer -> consumer.accept(builder));
 		return builder.build();
 	}
 
 	public HookConfig getHook() {
-		HookConfig.Builder builder = HookConfigInterface.builder().maxUsages(maxUsages).id(id);
-		for (Consumer<HookConfig.Builder> consumer : hookBuilderConsumers) {
-			consumer.accept(builder);
-		}
+		final HookConfig.Builder builder = HookConfigInterface.builder().maxUsages(maxUsages).id(id);
+		hookBuilderConsumers.forEach(consumer -> consumer.accept(builder));
 		return builder.build();
 	}
 
 	private LootBaseEffect getBaseEffect() {
-		LootBaseEffect.Builder builder = LootBaseEffectInterface.builder();
-		for (Consumer<LootBaseEffect.Builder> consumer : baseEffectBuilderConsumers) {
-			consumer.accept(builder);
-		}
+		final LootBaseEffect.Builder builder = LootBaseEffectInterface.builder();
+		baseEffectBuilderConsumers.forEach(consumer -> consumer.accept(builder));
 		return builder.build();
 	}
 
 	public Loot getLoot() {
-		Loot.Builder builder = LootInterface.builder().id(id).type(LootType.ITEM).lootBaseEffect(getBaseEffect());
-		for (Consumer<Loot.Builder> consumer : lootBuilderConsumers) {
-			consumer.accept(builder);
-		}
+		final Loot.Builder builder = LootInterface.builder().id(id).type(LootType.ITEM).lootBaseEffect(getBaseEffect());
+		lootBuilderConsumers.forEach(consumer -> consumer.accept(builder));
 		return builder.build();
 	}
 }

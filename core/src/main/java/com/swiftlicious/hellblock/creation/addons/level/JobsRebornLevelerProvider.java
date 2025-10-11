@@ -14,21 +14,24 @@ public class JobsRebornLevelerProvider implements LevelerProvider {
 
 	@Override
 	public void addXp(@NotNull Player player, @NotNull String target, double amount) {
-		JobsPlayer jobsPlayer = Jobs.getPlayerManager().getJobsPlayer(player);
-		Job job = Jobs.getJob(target);
-		if (jobsPlayer != null && jobsPlayer.isInJob(job))
+		final JobsPlayer jobsPlayer = Jobs.getPlayerManager().getJobsPlayer(player);
+		final Job job = Jobs.getJob(target);
+		if (jobsPlayer != null && jobsPlayer.isInJob(job)) {
 			Jobs.getPlayerManager().addExperience(jobsPlayer, job, amount);
+		}
 	}
 
 	@Override
 	public int getLevel(@NotNull Player player, @NotNull String target) {
-		JobsPlayer jobsPlayer = Jobs.getPlayerManager().getJobsPlayer(player);
+		final JobsPlayer jobsPlayer = Jobs.getPlayerManager().getJobsPlayer(player);
 		if (jobsPlayer != null) {
-			List<JobProgression> jobs = jobsPlayer.getJobProgression();
-			Job job = Jobs.getJob(target);
-			for (JobProgression progression : jobs)
-				if (progression.getJob().equals(job))
+			final List<JobProgression> jobs = jobsPlayer.getJobProgression();
+			final Job job = Jobs.getJob(target);
+			for (JobProgression progression : jobs) {
+				if (progression.getJob().equals(job)) {
 					return progression.getLevel();
+				}
+			}
 		}
 		return 0;
 	}

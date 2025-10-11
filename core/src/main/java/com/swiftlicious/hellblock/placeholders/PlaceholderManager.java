@@ -21,11 +21,10 @@ public class PlaceholderManager implements PlaceholderManagerInterface {
 
 	protected final HellblockPlugin instance;
 	private boolean hasPapi;
-	private final Map<String, BiFunction<OfflinePlayer, Map<String, String>, String>> customPlaceholderMap;
+	private final Map<String, BiFunction<OfflinePlayer, Map<String, String>, String>> customPlaceholderMap = new HashMap<>();
 
 	public PlaceholderManager(HellblockPlugin plugin) {
 		instance = plugin;
-		this.customPlaceholderMap = new HashMap<>();
 	}
 
 	/**
@@ -49,8 +48,9 @@ public class PlaceholderManager implements PlaceholderManagerInterface {
 
 	@Override
 	public boolean registerCustomPlaceholder(String placeholder, String original) {
-		if (this.customPlaceholderMap.containsKey(placeholder))
+		if (this.customPlaceholderMap.containsKey(placeholder)) {
 			return false;
+		}
 		this.customPlaceholderMap.put(placeholder, (p, map) -> PlaceholderAPIUtils.parse(p, parse(p, original, map)));
 		return true;
 	}
@@ -58,18 +58,20 @@ public class PlaceholderManager implements PlaceholderManagerInterface {
 	@Override
 	public boolean registerCustomPlaceholder(String placeholder,
 			BiFunction<OfflinePlayer, Map<String, String>, String> provider) {
-		if (this.customPlaceholderMap.containsKey(placeholder))
+		if (this.customPlaceholderMap.containsKey(placeholder)) {
 			return false;
+		}
 		this.customPlaceholderMap.put(placeholder, provider);
 		return true;
 	}
 
 	@Override
 	public List<String> resolvePlaceholders(String text) {
-		List<String> placeholders = new ArrayList<>();
-		Matcher matcher = PATTERN.matcher(text);
-		while (matcher.find())
+		final List<String> placeholders = new ArrayList<>();
+		final Matcher matcher = PATTERN.matcher(text);
+		while (matcher.find()) {
 			placeholders.add(matcher.group());
+		}
 		return placeholders;
 	}
 
@@ -84,30 +86,34 @@ public class PlaceholderManager implements PlaceholderManagerInterface {
 	@Override
 	public String parseSingle(@Nullable OfflinePlayer player, String placeholder, Map<String, String> replacements) {
 		String result = null;
-		if (replacements != null)
+		if (replacements != null) {
 			result = replacements.get(placeholder);
-		if (result != null)
+		}
+		if (result != null) {
 			return result;
-		String custom = Optional.ofNullable(customPlaceholderMap.get(placeholder))
+		}
+		final String custom = Optional.ofNullable(customPlaceholderMap.get(placeholder))
 				.map(supplier -> supplier.apply(player, replacements)).orElse(null);
-		if (custom == null)
+		if (custom == null) {
 			return placeholder;
+		}
 		return setPlaceholders(player, custom);
 	}
 
 	@Override
 	public String parse(@Nullable OfflinePlayer player, String text, Map<String, String> replacements) {
-		var list = resolvePlaceholders(text);
+		final var list = resolvePlaceholders(text);
 		for (String papi : list) {
 			String replacer = null;
 			if (replacements != null) {
 				replacer = replacements.get(papi);
 			}
 			if (replacer == null) {
-				String custom = Optional.ofNullable(customPlaceholderMap.get(papi))
+				final String custom = Optional.ofNullable(customPlaceholderMap.get(papi))
 						.map(supplier -> supplier.apply(player, replacements)).orElse(null);
-				if (custom != null)
+				if (custom != null) {
 					replacer = setPlaceholders(player, parse(player, custom, replacements));
+				}
 			}
 			if (replacer != null) {
 				text = text.replace(papi, replacer);

@@ -26,6 +26,9 @@ public class EntityManager implements EntityManagerInterface {
 
 	public EntityManager(HellblockPlugin plugin) {
 		this.instance = plugin;
+	}
+
+	public void init() {
 		this.registerEntityProvider(new EntityProvider() {
 			@Override
 			public String identifier() {
@@ -43,9 +46,8 @@ public class EntityManager implements EntityManagerInterface {
 
 	@Override
 	public void load() {
-		for (EntityProvider provider : entityProviders.values()) {
-			instance.debug("Registered EntityProvider: " + provider.identifier());
-		}
+		entityProviders.values()
+				.forEach(provider -> instance.debug("Registered EntityProvider: " + provider.identifier()));
 		instance.debug("Loaded " + entities.size() + " entities");
 	}
 
@@ -67,17 +69,19 @@ public class EntityManager implements EntityManagerInterface {
 
 	@Override
 	public boolean registerEntity(EntityConfig entity) {
-		if (entities.containsKey(entity.id()))
+		if (entities.containsKey(entity.id())) {
 			return false;
+		}
 		this.entities.put(entity.id(), entity);
 		return true;
 	}
 
 	public boolean registerEntityProvider(EntityProvider entityProvider) {
-		if (entityProviders.containsKey(entityProvider.identifier()))
+		if (entityProviders.containsKey(entityProvider.identifier())) {
 			return false;
-		else
+		} else {
 			entityProviders.put(entityProvider.identifier(), entityProvider);
+		}
 		return true;
 	}
 
@@ -92,27 +96,27 @@ public class EntityManager implements EntityManagerInterface {
 	@NotNull
 	@Override
 	public Entity summonEntityLoot(Context<Player> context) {
-		String id = context.arg(ContextKeys.ID);
-		EntityConfig config = requireNonNull(entities.get(id), "Entity " + id + " not found");
-		Location hookLocation = requireNonNull(context.arg(ContextKeys.OTHER_LOCATION));
-		Location playerLocation = requireNonNull(context.holder().getLocation());
-		String entityID = config.entityID();
-		Entity entity;
+		final String id = context.arg(ContextKeys.ID);
+		final EntityConfig config = requireNonNull(entities.get(id), "Entity " + id + " not found");
+		final Location hookLocation = requireNonNull(context.arg(ContextKeys.OTHER_LOCATION));
+		final Location playerLocation = requireNonNull(context.holder().getLocation());
+		final String entityID = config.entityID();
+		final Entity entity;
 		if (entityID.contains(":")) {
-			String[] split = entityID.split(":", 2);
-			EntityProvider provider = requireNonNull(entityProviders.get(split[0]),
+			final String[] split = entityID.split(":", 2);
+			final EntityProvider provider = requireNonNull(entityProviders.get(split[0]),
 					"EntityProvider " + split[0] + " doesn't exist");
 			entity = requireNonNull(provider.spawn(hookLocation, split[1], config.propertyMap()),
 					"Entity " + entityID + " doesn't exist");
 		} else {
 			entity = entityProviders.get("vanilla").spawn(hookLocation, entityID, config.propertyMap());
 		}
-		double d0 = playerLocation.getX() - hookLocation.getX();
-		double d1 = playerLocation.getY() - hookLocation.getY();
-		double d2 = playerLocation.getZ() - hookLocation.getZ();
-		double d3 = config.horizontalVector().evaluate(context);
-		double d4 = config.verticalVector().evaluate(context);
-		Vector vector = new Vector(d0 * 0.1D * d3,
+		final double d0 = playerLocation.getX() - hookLocation.getX();
+		final double d1 = playerLocation.getY() - hookLocation.getY();
+		final double d2 = playerLocation.getZ() - hookLocation.getZ();
+		final double d3 = config.horizontalVector().evaluate(context);
+		final double d4 = config.verticalVector().evaluate(context);
+		final Vector vector = new Vector(d0 * 0.1D * d3,
 				d1 * 0.1D + Math.sqrt(Math.sqrt(d0 * d0 + d1 * d1 + d2 * d2)) * 0.08D * d4, d2 * 0.1D * d3);
 		entity.setVelocity(vector);
 		return entity;

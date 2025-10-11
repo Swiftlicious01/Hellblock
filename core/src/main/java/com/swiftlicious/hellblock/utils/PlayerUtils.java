@@ -21,8 +21,8 @@ public class PlayerUtils {
 			boolean noPickUpDelay, boolean throwRandomly) {
 		requireNonNull(player, "player");
 		requireNonNull(itemStack, "itemStack");
-		Location location = player.getLocation().clone();
-		Item item = player.getWorld().dropItem(player.getEyeLocation().clone().subtract(new Vector(0, 0.3, 0)),
+		final Location location = player.getLocation().clone();
+		final Item item = player.getWorld().dropItem(player.getEyeLocation().clone().subtract(new Vector(0, 0.3, 0)),
 				itemStack);
 		item.setPickupDelay(noPickUpDelay ? 0 : 40);
 		item.setOwner(player.getUniqueId());
@@ -30,14 +30,14 @@ public class PlayerUtils {
 			item.setThrower(player.getUniqueId());
 		}
 		if (throwRandomly) {
-			double d1 = RandomUtils.generateRandomDouble(0, 1) * 0.5f;
-			double d2 = RandomUtils.generateRandomDouble(0, 1) * (Math.PI * 2);
+			final double d1 = RandomUtils.generateRandomDouble(0, 1) * 0.5f;
+			final double d2 = RandomUtils.generateRandomDouble(0, 1) * (Math.PI * 2);
 			item.setVelocity(new Vector(-Math.sin(d2) * d1, 0.2f, Math.cos(d2) * d1));
 		} else {
-			double d1 = Math.sin(location.getPitch() * (Math.PI / 180));
-			double d2 = RandomUtils.generateRandomDouble(0, 0.02);
-			double d3 = RandomUtils.generateRandomDouble(0, 1) * (Math.PI * 2);
-			Vector vector = location.getDirection().multiply(0.3).setY(-d1 * 0.3 + 0.1
+			final double d1 = Math.sin(location.getPitch() * (Math.PI / 180));
+			final double d2 = RandomUtils.generateRandomDouble(0, 0.02);
+			final double d3 = RandomUtils.generateRandomDouble(0, 1) * (Math.PI * 2);
+			final Vector vector = location.getDirection().multiply(0.3).setY(-d1 * 0.3 + 0.1
 					+ (RandomUtils.generateRandomDouble(0, 1) - RandomUtils.generateRandomDouble(0, 1)) * 0.1);
 			vector.add(new Vector(Math.cos(d3) * d2, 0, Math.sin(d3) * d2));
 			item.setVelocity(vector);
@@ -45,21 +45,19 @@ public class PlayerUtils {
 	}
 
 	public static int putItemsToInventory(Inventory inventory, ItemStack itemStack, int amount) {
-		ItemMeta meta = itemStack.getItemMeta();
-		int maxStackSize = itemStack.getMaxStackSize();
+		final ItemMeta meta = itemStack.getItemMeta();
+		final int maxStackSize = itemStack.getMaxStackSize();
 		for (ItemStack other : inventory.getStorageContents()) {
-			if (other != null) {
-				if (other.getType() == itemStack.getType() && other.getItemMeta().equals(meta)) {
-					if (other.getAmount() < maxStackSize) {
-						int delta = maxStackSize - other.getAmount();
-						if (amount > delta) {
-							other.setAmount(maxStackSize);
-							amount -= delta;
-						} else {
-							other.setAmount(amount + other.getAmount());
-							return 0;
-						}
-					}
+			final boolean inventoryCondition = other != null && other.getType() == itemStack.getType()
+					&& other.getItemMeta().equals(meta) && other.getAmount() < maxStackSize;
+			if (inventoryCondition) {
+				final int delta = maxStackSize - other.getAmount();
+				if (amount > delta) {
+					other.setAmount(maxStackSize);
+					amount -= delta;
+				} else {
+					other.setAmount(amount + other.getAmount());
+					return 0;
 				}
 			}
 		}
@@ -69,11 +67,11 @@ public class PlayerUtils {
 				if (other == null) {
 					if (amount > maxStackSize) {
 						amount -= maxStackSize;
-						ItemStack cloned = itemStack.clone();
+						final ItemStack cloned = itemStack.clone();
 						cloned.setAmount(maxStackSize);
 						inventory.addItem(cloned);
 					} else {
-						ItemStack cloned = itemStack.clone();
+						final ItemStack cloned = itemStack.clone();
 						cloned.setAmount(amount);
 						inventory.addItem(cloned);
 						return 0;
@@ -86,26 +84,24 @@ public class PlayerUtils {
 	}
 
 	public static int giveItem(Player player, ItemStack itemStack, int amount) {
-		PlayerInventory inventory = player.getInventory();
-		ItemMeta meta = itemStack.getItemMeta();
-		int maxStackSize = itemStack.getMaxStackSize();
+		final PlayerInventory inventory = player.getInventory();
+		final ItemMeta meta = itemStack.getItemMeta();
+		final int maxStackSize = itemStack.getMaxStackSize();
 		if (amount > maxStackSize * 100) {
 			amount = maxStackSize * 100;
 		}
-		int actualAmount = amount;
+		final int actualAmount = amount;
 		for (ItemStack other : inventory.getStorageContents()) {
-			if (other != null) {
-				if (other.getType() == itemStack.getType() && other.getItemMeta().equals(meta)) {
-					if (other.getAmount() < maxStackSize) {
-						int delta = maxStackSize - other.getAmount();
-						if (amount > delta) {
-							other.setAmount(maxStackSize);
-							amount -= delta;
-						} else {
-							other.setAmount(amount + other.getAmount());
-							return actualAmount;
-						}
-					}
+			final boolean giveCondition = other != null && other.getType() == itemStack.getType()
+					&& other.getItemMeta().equals(meta) && other.getAmount() < maxStackSize;
+			if (giveCondition) {
+				final int delta = maxStackSize - other.getAmount();
+				if (amount > delta) {
+					other.setAmount(maxStackSize);
+					amount -= delta;
+				} else {
+					other.setAmount(amount + other.getAmount());
+					return actualAmount;
 				}
 			}
 		}
@@ -114,11 +110,11 @@ public class PlayerUtils {
 				if (other == null) {
 					if (amount > maxStackSize) {
 						amount -= maxStackSize;
-						ItemStack cloned = itemStack.clone();
+						final ItemStack cloned = itemStack.clone();
 						cloned.setAmount(maxStackSize);
 						inventory.addItem(cloned);
 					} else {
-						ItemStack cloned = itemStack.clone();
+						final ItemStack cloned = itemStack.clone();
 						cloned.setAmount(amount);
 						inventory.addItem(cloned);
 						return actualAmount;
@@ -129,13 +125,13 @@ public class PlayerUtils {
 
 		if (amount > 0) {
 			for (int i = 0; i < amount / maxStackSize; i++) {
-				ItemStack cloned = itemStack.clone();
+				final ItemStack cloned = itemStack.clone();
 				cloned.setAmount(maxStackSize);
 				player.getWorld().dropItem(player.getLocation(), cloned);
 			}
-			int left = amount % maxStackSize;
+			final int left = amount % maxStackSize;
 			if (left != 0) {
-				ItemStack cloned = itemStack.clone();
+				final ItemStack cloned = itemStack.clone();
 				cloned.setAmount(left);
 				player.getWorld().dropItem(player.getLocation(), cloned);
 			}
@@ -155,17 +151,19 @@ public class PlayerUtils {
 	 *         for failures
 	 */
 	public static int removeItems(Inventory inventory, Material type, int amount) {
-		if (type == null || inventory == null)
+		if (type == null || inventory == null) {
 			return -1;
-		if (amount <= 0)
+		}
+		if (amount <= 0) {
 			return -1;
+		}
 
 		if (amount == Integer.MAX_VALUE) {
 			inventory.remove(type);
 			return 0;
 		}
 
-		Map<Integer, ItemStack> retVal = inventory.removeItem(new ItemStack(type, amount));
+		final Map<Integer, ItemStack> retVal = inventory.removeItem(new ItemStack(type, amount));
 
 		int notRemoved = 0;
 		for (ItemStack item : retVal.values()) {

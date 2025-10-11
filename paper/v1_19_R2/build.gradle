@@ -1,0 +1,25 @@
+plugins {
+    id 'io.papermc.paperweight.userdev' version '2.0.0-beta.19' // Latest stable version
+    id 'java'
+}
+
+dependencies {
+    // Paper 1.19.3 development bundle
+    paperweightDevelopmentBundle 'io.papermc.paper:dev-bundle:1.19.3-R0.1-SNAPSHOT'
+
+    // Shared internal API module
+    compileOnly project(":api")
+}
+
+java {
+    // Java 17 (required for Paper 1.19.3)
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+compileJava {
+    // UTF-8 encoding and Java release compatibility
+    options.encoding = 'UTF-8'
+    options.release.set(17)
+}

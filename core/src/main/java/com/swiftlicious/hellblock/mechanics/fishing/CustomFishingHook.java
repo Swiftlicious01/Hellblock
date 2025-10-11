@@ -2,7 +2,6 @@ package com.swiftlicious.hellblock.mechanics.fishing;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -24,11 +23,11 @@ import org.jetbrains.annotations.Nullable;
 import org.jetbrains.annotations.ApiStatus;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.challenges.HellblockChallenge.ActionType;
 import com.swiftlicious.hellblock.context.Context;
 import com.swiftlicious.hellblock.context.ContextKeys;
 import com.swiftlicious.hellblock.effects.Effect;
 import com.swiftlicious.hellblock.effects.EffectInterface;
-import com.swiftlicious.hellblock.effects.EffectModifier;
 import com.swiftlicious.hellblock.events.fishing.FishingEffectApplyEvent;
 import com.swiftlicious.hellblock.events.fishing.FishingHookStateEvent;
 import com.swiftlicious.hellblock.events.fishing.FishingLootSpawnEvent;
@@ -48,8 +47,6 @@ import com.swiftlicious.hellblock.utils.EventUtils;
 import com.swiftlicious.hellblock.utils.PlayerUtils;
 import com.swiftlicious.hellblock.utils.extras.ActionTrigger;
 import com.swiftlicious.hellblock.utils.extras.Pair;
-import com.swiftlicious.hellblock.utils.extras.TextValue;
-import com.swiftlicious.hellblock.utils.extras.TriConsumer;
 import com.swiftlicious.hellblock.utils.extras.TriFunction;
 
 /**
@@ -59,7 +56,7 @@ public class CustomFishingHook {
 
 	protected final HellblockPlugin instance;
 	private final FishHook hook;
-	private final SchedulerTask task;
+	private SchedulerTask task;
 	private final FishingGears gears;
 	private final Context<Player> context;
 	private Effect tempFinalEffect;
@@ -77,9 +74,10 @@ public class CustomFishingHook {
 	 */
 	public static TriFunction<FishHook, Context<Player>, Effect, List<HookMechanic>> defaultMechanicProviders() {
 		return (h, c, e) -> {
-			List<HookMechanic> mechanics = new ArrayList<>();
-			if (HellblockPlugin.getInstance().getConfigManager().lavaFishingEnabled())
+			final List<HookMechanic> mechanics = new ArrayList<>();
+			if (HellblockPlugin.getInstance().getConfigManager().lavaFishingEnabled()) {
 				mechanics.add(new LavaFishingMechanic(h, e, c));
+			}
 			return mechanics;
 		};
 	}
@@ -104,127 +102,127 @@ public class CustomFishingHook {
 	 */
 	public CustomFishingHook(HellblockPlugin plugin, FishHook hook, FishingGears gears, Context<Player> context) {
 		this.instance = plugin;
-		this.gears = gears;
-		// enable bait animation
-		if (instance.getConfigManager().baitAnimation() && !gears.getItem(FishingGears.GearType.BAIT).isEmpty()) {
-			this.baitAnimationTask = new BaitAnimationTask(plugin, context.holder(), hook,
-					gears.getItem(FishingGears.GearType.BAIT).get(0).right());
-		}
-		this.gears.trigger(ActionTrigger.CAST, context);
 		this.hook = hook;
+		this.gears = gears;
 		// once it becomes a custom hook, the wait time is controlled by plugin
 		this.context = context;
-		Effect effect = EffectInterface.newInstance();
-		// The effects impact mechanism at this stage
-		for (EffectModifier modifier : gears.effectModifiers()) {
-			for (TriConsumer<Effect, Context<Player>, Integer> consumer : modifier.modifiers()) {
-				consumer.accept(effect, context, 0);
-			}
+	}
+
+	public void init() {
+		// enable bait animation
+		if (instance.getConfigManager().baitAnimation() && !gears.getItem(FishingGears.GearType.BAIT).isEmpty()) {
+			this.baitAnimationTask = new BaitAnimationTask(instance, context.holder(), hook,
+					gears.getItem(FishingGears.GearType.BAIT).get(0).right());
 		}
 
-		// trigger event
+		this.gears.trigger(ActionTrigger.CAST, context);
+
+		final Effect effect = EffectInterface.newInstance();
+
+		// The effects impact mechanism at this stage
+		gears.effectModifiers()
+				.forEach(modifier -> modifier.modifiers().forEach(consumer -> consumer.accept(effect, context, 0)));
+
+		// Fire event
 		EventUtils.fireAndForget(new FishingEffectApplyEvent(this, effect, FishingEffectApplyEvent.Stage.CAST));
 
-		List<HookMechanic> enabledMechanics = mechanicProviders.apply(hook, context, effect);
-		this.task = plugin.getScheduler().sync().runRepeating(() -> {
-			// destroy if hook is invalid
-			if (!hook.isValid()) {
-				plugin.getFishingManager().destroyHook(context.holder().getUniqueId());
-				return;
-			}
-			if (this.hookMechanic != null) {
-				if (this.hookMechanic.shouldStop()) {
+		final List<HookMechanic> enabledMechanics = mechanicProviders.apply(hook, context, effect);
+
+		this.task = instance.getScheduler().sync().runRepeating(() -> tickHook(enabledMechanics, effect), 1, 1,
+				hook.getLocation());
+	}
+
+	private void tickHook(List<HookMechanic> enabledMechanics, Effect effect) {
+		// destroy if hook is invalid
+		if (!hook.isValid()) {
+			instance.getFishingManager().destroyHook(context.holder().getUniqueId());
+			return;
+		}
+
+		if (this.hookMechanic != null && this.hookMechanic.shouldStop()) {
+			this.hookMechanic.destroy();
+			this.hookMechanic = null;
+		}
+
+		enabledMechanics.forEach(mechanic -> {
+			final boolean startCondition = mechanic.canStart() && this.hookMechanic != mechanic;
+			// find the first available mechanic
+			if (startCondition) {
+				if (this.hookMechanic != null) {
 					this.hookMechanic.destroy();
-					this.hookMechanic = null;
+				}
+				this.hookMechanic = mechanic;
+
+				// remove bait animation if there exists
+				if (this.baitAnimationTask != null) {
+					this.baitAnimationTask.cancelAnimation();
+					this.baitAnimationTask = null;
+				}
+
+				// to update some properties
+				mechanic.preStart();
+				final Effect tempEffect = effect.copy();
+
+				gears.effectModifiers().forEach(
+						modifier -> modifier.modifiers().forEach(consumer -> consumer.accept(tempEffect, context, 1)));
+
+				// trigger event
+				EventUtils.fireAndForget(
+						new FishingEffectApplyEvent(this, tempEffect, FishingEffectApplyEvent.Stage.LOOT));
+
+				context.arg(ContextKeys.OTHER_LOCATION, hook.getLocation());
+				context.arg(ContextKeys.OTHER_X, hook.getLocation().getBlockX());
+				context.arg(ContextKeys.OTHER_Y, hook.getLocation().getBlockY());
+				context.arg(ContextKeys.OTHER_Z, hook.getLocation().getBlockZ());
+
+				// get the next loot
+				Loot loot;
+				try {
+					loot = instance.getLootManager().getNextLoot(tempEffect, context);
+				} catch (Exception e) {
+					loot = null;
+					instance.getPluginLogger().warn("Error occurred when getting next loot.", e);
+				}
+				if (loot != null) {
+					this.nextLoot = loot;
+
+					context.arg(ContextKeys.ID, loot.id());
+					context.arg(ContextKeys.NICK, loot.nick());
+					context.arg(ContextKeys.LOOT, loot.type());
+
+					context.clearCustomData();
+					loot.customData().entrySet()
+							.forEach(entry -> context.arg(ContextKeys.of("data_" + entry.getKey(), String.class),
+									entry.getValue().render(context)));
+
+					instance.debug("Next Loot: " + loot.id());
+					instance.debug(context);
+					// get its basic properties
+					final Effect baseEffect = loot.baseEffect().toEffect(context);
+					instance.debug("Loot Base Effect:" + baseEffect);
+					tempEffect.combine(baseEffect);
+					// apply the gears' effects
+					gears.effectModifiers().forEach(modifier -> modifier.modifiers()
+							.forEach(consumer -> consumer.accept(tempEffect, context, 2)));
+
+					// trigger event
+					EventUtils.fireAndForget(
+							new FishingEffectApplyEvent(this, tempEffect, FishingEffectApplyEvent.Stage.FISHING));
+					context.arg(ContextKeys.EFFECT, tempEffect);
+
+					// start the mechanic
+					instance.debug("Final Effect:" + tempEffect);
+					mechanic.start(tempEffect);
+
+					this.tempFinalEffect = tempEffect;
+				} else {
+					mechanic.start(tempEffect);
+					this.tempFinalEffect = tempEffect;
+					// to prevent players from getting any loot
+					mechanic.freeze();
 				}
 			}
-			for (HookMechanic mechanic : enabledMechanics) {
-				// find the first available mechanic
-				if (mechanic.canStart()) {
-					if (this.hookMechanic != mechanic) {
-						if (this.hookMechanic != null)
-							this.hookMechanic.destroy();
-						this.hookMechanic = mechanic;
-
-						// remove bait animation if there exists
-						if (this.baitAnimationTask != null) {
-							this.baitAnimationTask.cancelAnimation();
-							this.baitAnimationTask = null;
-						}
-
-						// to update some properties
-						mechanic.preStart();
-						Effect tempEffect = effect.copy();
-
-						for (EffectModifier modifier : gears.effectModifiers()) {
-							for (TriConsumer<Effect, Context<Player>, Integer> consumer : modifier.modifiers()) {
-								consumer.accept(tempEffect, context, 1);
-							}
-						}
-
-						// trigger event
-						EventUtils.fireAndForget(
-								new FishingEffectApplyEvent(this, tempEffect, FishingEffectApplyEvent.Stage.LOOT));
-
-						context.arg(ContextKeys.OTHER_LOCATION, hook.getLocation());
-						context.arg(ContextKeys.OTHER_X, hook.getLocation().getBlockX());
-						context.arg(ContextKeys.OTHER_Y, hook.getLocation().getBlockY());
-						context.arg(ContextKeys.OTHER_Z, hook.getLocation().getBlockZ());
-
-						// get the next loot
-						Loot loot;
-						try {
-							loot = plugin.getLootManager().getNextLoot(tempEffect, context);
-						} catch (Exception e) {
-							loot = null;
-							plugin.getPluginLogger().warn("Error occurred when getting next loot.", e);
-						}
-						if (loot != null) {
-							this.nextLoot = loot;
-
-							context.arg(ContextKeys.ID, loot.id());
-							context.arg(ContextKeys.NICK, loot.nick());
-							context.arg(ContextKeys.LOOT, loot.type());
-
-							context.clearCustomData();
-							for (Map.Entry<String, TextValue<Player>> entry : loot.customData().entrySet()) {
-								context.arg(ContextKeys.of("data_" + entry.getKey(), String.class),
-										entry.getValue().render(context));
-							}
-
-							plugin.debug("Next Loot: " + loot.id());
-							plugin.debug(context);
-							// get its basic properties
-							Effect baseEffect = loot.baseEffect().toEffect(context);
-							plugin.debug("Loot Base Effect:" + baseEffect);
-							tempEffect.combine(baseEffect);
-							// apply the gears' effects
-							for (EffectModifier modifier : gears.effectModifiers()) {
-								for (TriConsumer<Effect, Context<Player>, Integer> consumer : modifier.modifiers()) {
-									consumer.accept(tempEffect, context, 2);
-								}
-							}
-
-							// trigger event
-							EventUtils.fireAndForget(new FishingEffectApplyEvent(this, tempEffect,
-									FishingEffectApplyEvent.Stage.FISHING));
-							context.arg(ContextKeys.EFFECT, tempEffect);
-
-							// start the mechanic
-							plugin.debug("Final Effect:" + tempEffect);
-							mechanic.start(tempEffect);
-
-							this.tempFinalEffect = tempEffect;
-						} else {
-							mechanic.start(tempEffect);
-							this.tempFinalEffect = tempEffect;
-							// to prevent players from getting any loot
-							mechanic.freeze();
-						}
-					}
-				}
-			}
-		}, 1, 1, hook.getLocation());
+		});
 	}
 
 	/**
@@ -233,19 +231,24 @@ public class CustomFishingHook {
 	 */
 	@ApiStatus.Internal
 	public void stop() {
-		if (!this.valid)
+		if (!this.valid) {
 			return;
-		this.valid = false;
-		if (!this.task.isCancelled())
-			this.task.cancel();
-		if (this.hook.isValid())
-			this.hook.remove();
-		if (this.hookMechanic != null)
-			hookMechanic.destroy();
-		if (this.baitAnimationTask != null) {
-			this.baitAnimationTask.cancelAnimation();
-			this.baitAnimationTask = null;
 		}
+		this.valid = false;
+		if (!this.task.isCancelled()) {
+			this.task.cancel();
+		}
+		if (this.hook.isValid()) {
+			this.hook.remove();
+		}
+		if (this.hookMechanic != null) {
+			hookMechanic.destroy();
+		}
+		if (this.baitAnimationTask == null) {
+			return;
+		}
+		this.baitAnimationTask.cancelAnimation();
+		this.baitAnimationTask = null;
 	}
 
 	/**
@@ -304,17 +307,16 @@ public class CustomFishingHook {
 	}
 
 	public boolean isHookValid() {
-		if (hook == null)
-			return false;
-		return hook.isValid() && valid;
+		return hook == null ? false : hook.isValid() && valid;
 	}
 
 	/**
 	 * Starts a fishing action.
 	 */
 	public void startFishing() {
-		if (!hook.isValid())
+		if (!hook.isValid()) {
 			return;
+		}
 
 		handleSuccessfulFishing();
 		destroy();
@@ -325,7 +327,7 @@ public class CustomFishingHook {
 		final Player player = context.holder();
 		instance.getScheduler().sync().runLater(() -> {
 			if (player.isOnline()) {
-				ItemStack item = player.getInventory()
+				final ItemStack item = player.getInventory()
 						.getItem(gears.getRodSlot() == HandSlot.MAIN ? EquipmentSlot.HAND : EquipmentSlot.OFF_HAND);
 				if (item.getType() == Material.FISHING_ROD) {
 					VersionHelper.getNMSManager().useItem(player, gears.getRodSlot(), item);
@@ -339,8 +341,9 @@ public class CustomFishingHook {
 	 * Handles the reel-in action.
 	 */
 	public void onReelIn() {
-		if (!hook.isValid())
+		if (!hook.isValid()) {
 			return;
+		}
 		context.arg(ContextKeys.OTHER_LOCATION, hook.getLocation());
 		if (hookMechanic != null) {
 			if (!hookMechanic.isHooked()) {
@@ -363,26 +366,29 @@ public class CustomFishingHook {
 	 * Handles the bite action.
 	 */
 	public void onBite() {
-		if (!hook.isValid())
+		if (!hook.isValid()) {
 			return;
+		}
 		context.arg(ContextKeys.OTHER_LOCATION, hook.getLocation());
 		instance.getEventManager().trigger(context, nextLoot.id(), MechanicType.LOOT, ActionTrigger.BITE);
 		gears.trigger(ActionTrigger.BITE, context);
-		if (RequirementManager.isSatisfied(context, instance.getConfigManager().autoFishingRequirements())) {
-			handleSuccessfulFishing();
-			VersionHelper.getNMSManager().swingHand(context.holder(), gears.getRodSlot());
-			destroy();
-			scheduleNextFishing();
+		if (!RequirementManager.isSatisfied(context, instance.getConfigManager().autoFishingRequirements())) {
 			return;
 		}
+		handleSuccessfulFishing();
+		VersionHelper.getNMSManager().swingHand(context.holder(), gears.getRodSlot());
+		destroy();
+		scheduleNextFishing();
+		return;
 	}
 
 	/**
 	 * Handles the landing action.
 	 */
 	public void onLand() {
-		if (!hook.isValid())
+		if (!hook.isValid()) {
 			return;
+		}
 		context.arg(ContextKeys.OTHER_LOCATION, hook.getLocation());
 		gears.trigger(ActionTrigger.LAND, context);
 	}
@@ -391,8 +397,9 @@ public class CustomFishingHook {
 	 * Handles the escape action.
 	 */
 	public void onEscape() {
-		if (!hook.isValid())
+		if (!hook.isValid()) {
 			return;
+		}
 		context.arg(ContextKeys.OTHER_LOCATION, hook.getLocation());
 		instance.getEventManager().trigger(context, nextLoot.id(), MechanicType.LOOT, ActionTrigger.ESCAPE);
 		gears.trigger(ActionTrigger.ESCAPE, context);
@@ -402,8 +409,9 @@ public class CustomFishingHook {
 	 * Handles the lure action.
 	 */
 	public void onLure() {
-		if (!hook.isValid())
+		if (!hook.isValid()) {
 			return;
+		}
 		context.arg(ContextKeys.OTHER_LOCATION, hook.getLocation());
 		instance.getEventManager().trigger(context, nextLoot.id(), MechanicType.LOOT, ActionTrigger.LURE);
 		gears.trigger(ActionTrigger.LURE, context);
@@ -414,14 +422,21 @@ public class CustomFishingHook {
 	 */
 	public void handleFailedFishing() {
 
-		if (!valid)
+		if (!valid) {
 			return;
+		}
 
 		// update the hook location
 		context.arg(ContextKeys.OTHER_LOCATION, hook.getLocation());
 		context.arg(ContextKeys.OTHER_X, hook.getLocation().getBlockX());
 		context.arg(ContextKeys.OTHER_Y, hook.getLocation().getBlockY());
 		context.arg(ContextKeys.OTHER_Z, hook.getLocation().getBlockZ());
+
+		final FishingResultEvent event = new FishingResultEvent(context, FishingResultEvent.Result.FAILURE, hook,
+				nextLoot);
+		if (EventUtils.fireAndCheckCancel(event)) {
+			return;
+		}
 
 		gears.trigger(ActionTrigger.FAILURE, context);
 		instance.getEventManager().trigger(context, nextLoot.id(), MechanicType.LOOT, ActionTrigger.FAILURE);
@@ -433,17 +448,18 @@ public class CustomFishingHook {
 	@SuppressWarnings("removal")
 	public void handleSuccessfulFishing() {
 
-		if (!valid)
+		if (!valid) {
 			return;
+		}
 
 		// update the hook location
-		Location hookLocation = hook.getLocation();
+		final Location hookLocation = hook.getLocation();
 		context.arg(ContextKeys.OTHER_LOCATION, hookLocation);
 		context.arg(ContextKeys.OTHER_X, hookLocation.getBlockX());
 		context.arg(ContextKeys.OTHER_Y, hookLocation.getBlockY());
 		context.arg(ContextKeys.OTHER_Z, hookLocation.getBlockZ());
 
-		LootType lootType = context.arg(ContextKeys.LOOT);
+		final LootType lootType = context.arg(ContextKeys.LOOT);
 		Objects.requireNonNull(lootType, "Missing loot type");
 		Objects.requireNonNull(tempFinalEffect, "Missing final effects");
 
@@ -457,7 +473,8 @@ public class CustomFishingHook {
 		// set the amount of loot
 		context.arg(ContextKeys.AMOUNT, amount);
 
-		FishingResultEvent event = new FishingResultEvent(context, FishingResultEvent.Result.SUCCESS, hook, nextLoot);
+		final FishingResultEvent event = new FishingResultEvent(context, FishingResultEvent.Result.SUCCESS, hook,
+				nextLoot);
 		if (EventUtils.fireAndCheckCancel(event)) {
 			return;
 		}
@@ -470,18 +487,19 @@ public class CustomFishingHook {
 		case ITEM -> {
 			context.arg(ContextKeys.SIZE_MULTIPLIER, tempFinalEffect.sizeMultiplier());
 			context.arg(ContextKeys.SIZE_ADDER, tempFinalEffect.sizeAdder());
-			boolean directlyToInventory = nextLoot.toInventory().evaluate(context) != 0;
+			final boolean directlyToInventory = nextLoot.toInventory().evaluate(context) != 0;
 			for (int i = 0; i < amount; i++) {
-				int order = i;
+				final int order = i;
 				instance.getScheduler().sync().runLater(() -> {
 					context.arg(ContextKeys.LOOT_ORDER, order);
 					if (directlyToInventory) {
-						ItemStack stack = instance.getItemManager().getItemLoot(context,
+						final ItemStack stack = instance.getItemManager().getItemLoot(context,
 								gears.getItem(FishingGears.GearType.ROD).stream().findAny().orElseThrow().right(),
 								hook);
 						if (stack.getType() != Material.AIR) {
 							if (Objects.equals(context.arg(ContextKeys.NICK), "UNDEFINED")) {
-								Optional<String> displayName = instance.getItemManager().wrap(stack).displayName();
+								final Optional<String> displayName = instance.getItemManager().wrap(stack)
+										.displayName();
 								if (displayName.isPresent()) {
 									context.arg(ContextKeys.NICK, AdventureHelper.jsonToMiniMessage(displayName.get()));
 								} else {
@@ -490,13 +508,16 @@ public class CustomFishingHook {
 							}
 							PlayerUtils.giveItem(context.holder(), stack, stack.getAmount());
 						}
+						instance.getStorageManager().getOnlineUser(context.holder().getUniqueId())
+								.ifPresent(user -> instance.getChallengeManager()
+										.handleChallengeProgression(context.holder(), ActionType.FISH, stack));
 					} else {
-						Item item = instance.getItemManager().dropItemLoot(context,
+						final Item item = instance.getItemManager().dropItemLoot(context,
 								gears.getItem(FishingGears.GearType.ROD).stream().findAny().orElseThrow().right(),
 								hook);
 						if (item != null && Objects.equals(context.arg(ContextKeys.NICK), "UNDEFINED")) {
-							ItemStack stack = item.getItemStack();
-							Optional<String> displayName = instance.getItemManager().wrap(stack).displayName();
+							final ItemStack stack = item.getItemStack();
+							final Optional<String> displayName = instance.getItemManager().wrap(stack).displayName();
 							if (displayName.isPresent()) {
 								context.arg(ContextKeys.NICK, AdventureHelper.jsonToMiniMessage(displayName.get()));
 							} else {
@@ -504,19 +525,24 @@ public class CustomFishingHook {
 							}
 						}
 						if (item != null) {
-							FishingLootSpawnEvent spawnEvent = new FishingLootSpawnEvent(context, hookLocation,
+							final FishingLootSpawnEvent spawnEvent = new FishingLootSpawnEvent(context, hookLocation,
 									nextLoot, item);
 							Bukkit.getPluginManager().callEvent(spawnEvent);
-							if (!spawnEvent.summonEntity())
+							if (!spawnEvent.summonEntity()) {
 								item.remove();
-							if (spawnEvent.skipActions())
+							}
+							if (spawnEvent.skipActions()) {
 								return;
+							}
 							if (item.isValid() && nextLoot.preventGrabbing()) {
 								item.getPersistentDataContainer().set(
 										Objects.requireNonNull(NamespacedKey.fromString("owner", instance)),
 										PersistentDataType.STRING, context.holder().getName());
 							}
 						}
+						instance.getStorageManager().getOnlineUser(context.holder().getUniqueId())
+								.ifPresent(user -> instance.getChallengeManager()
+										.handleChallengeProgression(context.holder(), ActionType.FISH, item));
 					}
 					doSuccessActions();
 				}, (long) instance.getConfigManager().multipleLootSpawnDelay() * i, hookLocation);
@@ -524,48 +550,59 @@ public class CustomFishingHook {
 		}
 		case BLOCK -> {
 			context.arg(ContextKeys.LOOT_ORDER, 1);
-			FallingBlock fallingBlock = instance.getBlockManager().summonBlockLoot(context);
-			FishingLootSpawnEvent spawnEvent = new FishingLootSpawnEvent(context, hook.getLocation(), nextLoot,
+			final FallingBlock fallingBlock = instance.getBlockManager().summonBlockLoot(context);
+			final FishingLootSpawnEvent spawnEvent = new FishingLootSpawnEvent(context, hook.getLocation(), nextLoot,
 					fallingBlock);
 			Bukkit.getPluginManager().callEvent(spawnEvent);
-			if (!spawnEvent.summonEntity())
+			if (!spawnEvent.summonEntity()) {
 				fallingBlock.remove();
-			if (spawnEvent.skipActions())
+			}
+			if (spawnEvent.skipActions()) {
 				return;
+			}
+			instance.getStorageManager().getOnlineUser(context.holder().getUniqueId())
+					.ifPresent(user -> instance.getChallengeManager().handleChallengeProgression(context.holder(),
+							ActionType.FISH, fallingBlock.getBlockData()));
 			doSuccessActions();
 		}
 		case ENTITY -> {
 			context.arg(ContextKeys.LOOT_ORDER, 1);
-			Entity entity = instance.getEntityManager().summonEntityLoot(context);
-			FishingLootSpawnEvent spawnEvent = new FishingLootSpawnEvent(context, hook.getLocation(), nextLoot, entity);
+			final Entity entity = instance.getEntityManager().summonEntityLoot(context);
+			final FishingLootSpawnEvent spawnEvent = new FishingLootSpawnEvent(context, hook.getLocation(), nextLoot,
+					entity);
 			Bukkit.getPluginManager().callEvent(spawnEvent);
-			if (!spawnEvent.summonEntity())
+			if (!spawnEvent.summonEntity()) {
 				entity.remove();
-			if (spawnEvent.skipActions())
+			}
+			if (spawnEvent.skipActions()) {
 				return;
+			}
+			instance.getStorageManager().getOnlineUser(context.holder().getUniqueId()).ifPresent(user -> instance
+					.getChallengeManager().handleChallengeProgression(context.holder(), ActionType.FISH, entity));
 			doSuccessActions();
 		}
 		}
 	}
 
 	private void doSuccessActions() {
-		String id = context.arg(ContextKeys.ID);
-		Player player = context.holder();
+		final String id = context.arg(ContextKeys.ID);
+		final Player player = context.holder();
 
 		if (!nextLoot.disableStats()) {
 			instance.getStorageManager().getOnlineUser(player.getUniqueId()).ifPresent(userData -> {
-				Pair<Integer, Integer> result = userData.getStatisticData()
+				final Pair<Integer, Integer> result = userData.getStatisticData()
 						.addAmount(nextLoot.statisticKey().amountKey(), 1);
 				userData.getStatisticData().addAmount(nextLoot.statisticKey().amountKey(), 1);
 				context.arg(ContextKeys.TOTAL_AMOUNT,
 						userData.getStatisticData().getAmount(nextLoot.statisticKey().amountKey()));
 				Optional.ofNullable(context.arg(ContextKeys.SIZE)).ifPresentOrElse(size -> {
-					float currentRecord = userData.getStatisticData().getMaxSize(nextLoot.statisticKey().sizeKey());
-					float max = Math.max(size, currentRecord);
+					final float currentRecord = userData.getStatisticData()
+							.getMaxSize(nextLoot.statisticKey().sizeKey());
+					final float max = Math.max(size, currentRecord);
 					context.arg(ContextKeys.RECORD, max);
 					context.arg(ContextKeys.PREVIOUS_RECORD, currentRecord);
-					context.arg(ContextKeys.RECORD_FORMATTED, String.format("%.2f", max));
-					context.arg(ContextKeys.PREVIOUS_RECORD_FORMATTED, String.format("%.2f", currentRecord));
+					context.arg(ContextKeys.RECORD_FORMATTED, "%.2f".formatted(max));
+					context.arg(ContextKeys.PREVIOUS_RECORD_FORMATTED, "%.2f".formatted(currentRecord));
 					if (userData.getStatisticData().updateSize(nextLoot.statisticKey().sizeKey(), size)) {
 						context.arg(ContextKeys.IS_NEW_SIZE_RECORD, true);
 						instance.getEventManager().trigger(context, id, MechanicType.LOOT, ActionTrigger.SUCCESS,

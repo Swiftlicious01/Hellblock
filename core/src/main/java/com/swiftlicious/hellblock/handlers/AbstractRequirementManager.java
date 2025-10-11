@@ -8,6 +8,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.block.Block;
@@ -47,10 +49,9 @@ public abstract class AbstractRequirementManager<T> implements RequirementManage
 	public AbstractRequirementManager(HellblockPlugin plugin, Class<T> tClass) {
 		this.instance = plugin;
 		this.tClass = tClass;
-		this.registerBuiltInRequirements();
 	}
 
-	protected void registerBuiltInRequirements() {
+	public void registerBuiltInRequirements() {
 		this.registerEnvironmentRequirement();
 		this.registerYRequirement();
 		this.registerAndRequirement();
@@ -72,8 +73,9 @@ public abstract class AbstractRequirementManager<T> implements RequirementManage
 	@Override
 	public boolean registerRequirement(@NotNull RequirementFactory<T> requirementFactory, @NotNull String... types) {
 		for (String type : types) {
-			if (this.requirementFactoryMap.containsKey(type))
+			if (this.requirementFactoryMap.containsKey(type)) {
 				return false;
+			}
 		}
 		for (String type : types) {
 			this.requirementFactoryMap.put(type, requirementFactory);
@@ -101,14 +103,14 @@ public abstract class AbstractRequirementManager<T> implements RequirementManage
 	@SuppressWarnings("unchecked")
 	@Override
 	public Requirement<T>[] parseRequirements(Section section, boolean runActions) {
-		List<Requirement<T>> requirements = new ArrayList<>();
-		if (section != null)
-			for (Map.Entry<String, Object> entry : section.getStringRouteMappedValues(false).entrySet()) {
-				String typeOrName = entry.getKey();
+		final List<Requirement<T>> requirements = new ArrayList<>();
+		if (section != null) {
+			section.getStringRouteMappedValues(false).entrySet().forEach(entry -> {
+				final String typeOrName = entry.getKey();
 				if (hasRequirement(typeOrName)) {
 					requirements.add(parseRequirement(typeOrName, entry.getValue()));
 				} else {
-					Section inner = section.getSection(typeOrName);
+					final Section inner = section.getSection(typeOrName);
 					if (inner != null) {
 						requirements.add(parseRequirement(inner, runActions));
 					} else {
@@ -116,56 +118,59 @@ public abstract class AbstractRequirementManager<T> implements RequirementManage
 								.warn("Section " + section.getRouteAsString() + "." + typeOrName + " is misconfigured");
 					}
 				}
-			}
-		return requirements.toArray(new Requirement[0]);
+			});
+		}
+		return requirements.toArray(Requirement[]::new);
 	}
 
 	@NotNull
 	@Override
 	public Requirement<T> parseRequirement(@NotNull Section section, boolean runActions) {
-		List<Action<T>> actionList = new ArrayList<>();
+		final List<Action<T>> actionList = new ArrayList<>();
 		if (runActions && section.contains("not-met-actions")) {
-			Action<T>[] actions = instance.getActionManager(tClass)
+			final Action<T>[] actions = instance.getActionManager(tClass)
 					.parseActions(requireNonNull(section.getSection("not-met-actions")));
 			actionList.addAll(List.of(actions));
 		}
-		String type = section.getString("type");
+		final String type = section.getString("type");
 		if (type == null) {
 			instance.getPluginLogger().warn("No requirement type found at " + section.getRouteAsString());
 			return Requirement.empty();
 		}
-		var factory = getRequirementFactory(type);
-		if (factory == null) {
-			instance.getPluginLogger().warn("Requirement type: " + type + " not exists");
-			return Requirement.empty();
+		final var factory = getRequirementFactory(type);
+		if (factory != null) {
+			return factory.process(section.get("value"), actionList, runActions);
 		}
-		return factory.process(section.get("value"), actionList, runActions);
+		instance.getPluginLogger().warn("Requirement type: " + type + " doesn't exist");
+		return Requirement.empty();
 	}
 
 	@NotNull
 	@Override
 	public Requirement<T> parseRequirement(@NotNull String type, @NotNull Object value) {
-		RequirementFactory<T> factory = getRequirementFactory(type);
-		if (factory == null) {
-			instance.getPluginLogger().warn("Requirement type: " + type + " doesn't exist.");
-			return Requirement.empty();
+		final RequirementFactory<T> factory = getRequirementFactory(type);
+		if (factory != null) {
+			return factory.process(value);
 		}
-		return factory.process(value);
+		instance.getPluginLogger().warn("Requirement type: " + type + " doesn't exist.");
+		return Requirement.empty();
 	}
 
 	@SuppressWarnings({ "unchecked" })
 	protected void loadExpansions(Class<T> tClass) {
-		File expansionFolder = new File(instance.getDataFolder(), EXPANSION_FOLDER);
-		if (!expansionFolder.exists())
+		final File expansionFolder = new File(instance.getDataFolder(), EXPANSION_FOLDER);
+		if (!expansionFolder.exists()) {
 			expansionFolder.mkdirs();
-		List<Class<? extends RequirementExpansion<T>>> classes = new ArrayList<>();
-		File[] expansionJars = expansionFolder.listFiles();
-		if (expansionJars == null)
+		}
+		final List<Class<? extends RequirementExpansion<T>>> classes = new ArrayList<>();
+		final File[] expansionJars = expansionFolder.listFiles();
+		if (expansionJars == null) {
 			return;
+		}
 		for (File expansionJar : expansionJars) {
 			if (expansionJar.getName().endsWith(".jar")) {
 				try {
-					Class<? extends RequirementExpansion<T>> expansionClass = (Class<? extends RequirementExpansion<T>>) ClassUtils
+					final Class<? extends RequirementExpansion<T>> expansionClass = (Class<? extends RequirementExpansion<T>>) ClassUtils
 							.findClass(expansionJar, RequirementExpansion.class, tClass);
 					classes.add(expansionClass);
 				} catch (IOException | ClassNotFoundException e) {
@@ -175,7 +180,7 @@ public abstract class AbstractRequirementManager<T> implements RequirementManage
 		}
 		try {
 			for (Class<? extends RequirementExpansion<T>> expansionClass : classes) {
-				RequirementExpansion<T> expansion = expansionClass.getDeclaredConstructor().newInstance();
+				final RequirementExpansion<T> expansion = expansionClass.getDeclaredConstructor().newInstance();
 				unregisterRequirement(expansion.getRequirementType());
 				registerRequirement(expansion.getRequirementFactory(), expansion.getRequirementType());
 				instance.getPluginLogger().info("Loaded requirement expansion: " + expansion.getRequirementType() + "["
@@ -193,30 +198,36 @@ public abstract class AbstractRequirementManager<T> implements RequirementManage
 
 	protected void registerEnvironmentRequirement() {
 		registerRequirement((args, actions, advanced) -> {
-			List<String> environments = ListUtils.toList(args);
+			final List<String> environments = ListUtils.toList(args);
 			return context -> {
-				Location location = context.arg(ContextKeys.LOCATION);
-				if (location == null)
+				final Location location = context.arg(ContextKeys.LOCATION);
+				if (location == null) {
 					return false;
-				var name = location.getWorld().getEnvironment().name().toLowerCase(Locale.ENGLISH);
-				if (environments.contains(name))
+				}
+				final var name = location.getWorld().getEnvironment().name().toLowerCase(Locale.ENGLISH);
+				if (environments.contains(name)) {
 					return true;
-				if (advanced)
+				}
+				if (advanced) {
 					ActionManager.trigger(context, actions);
+				}
 				return false;
 			};
 		}, "environment");
 		registerRequirement((args, actions, advanced) -> {
-			List<String> environments = ListUtils.toList(args);
+			final List<String> environments = ListUtils.toList(args);
 			return context -> {
-				Location location = context.arg(ContextKeys.LOCATION);
-				if (location == null)
+				final Location location = context.arg(ContextKeys.LOCATION);
+				if (location == null) {
 					return false;
-				var name = location.getWorld().getEnvironment().name().toLowerCase(Locale.ENGLISH);
-				if (!environments.contains(name))
+				}
+				final var name = location.getWorld().getEnvironment().name().toLowerCase(Locale.ENGLISH);
+				if (!environments.contains(name)) {
 					return true;
-				if (advanced)
+				}
+				if (advanced) {
 					ActionManager.trigger(context, actions);
+				}
 				return false;
 			};
 		}, "!environment");
@@ -224,19 +235,22 @@ public abstract class AbstractRequirementManager<T> implements RequirementManage
 
 	protected void registerYRequirement() {
 		registerRequirement((args, actions, runActions) -> {
-			List<String> list = ListUtils.toList(args);
-			List<Pair<Double, Double>> posPairs = list.stream().map(line -> {
-				String[] split = line.split("~");
+			final List<String> list = ListUtils.toList(args);
+			final List<Pair<Double, Double>> posPairs = list.stream().map(line -> {
+				final String[] split = line.split("~");
 				return new Pair<>(Double.parseDouble(split[0]), Double.parseDouble(split[1]));
 			}).toList();
 			return context -> {
-				Location location = requireNonNull(context.arg(ContextKeys.LOCATION));
-				double y = location.getY();
-				for (Pair<Double, Double> pair : posPairs)
-					if (y >= pair.left() && y <= pair.right())
+				final Location location = requireNonNull(context.arg(ContextKeys.LOCATION));
+				final double y = location.getY();
+				for (Pair<Double, Double> pair : posPairs) {
+					if (y >= pair.left() && y <= pair.right()) {
 						return true;
-				if (runActions)
+					}
+				}
+				if (runActions) {
 					ActionManager.trigger(context, actions);
+				}
 				return false;
 			};
 		}, "ypos");
@@ -245,13 +259,16 @@ public abstract class AbstractRequirementManager<T> implements RequirementManage
 	protected void registerOrRequirement() {
 		registerRequirement((args, actions, runActions) -> {
 			if (args instanceof Section section) {
-				Requirement<T>[] requirements = parseRequirements(section, runActions);
+				final Requirement<T>[] requirements = parseRequirements(section, runActions);
 				return context -> {
-					for (Requirement<T> requirement : requirements)
-						if (requirement.isSatisfied(context))
+					for (Requirement<T> requirement : requirements) {
+						if (requirement.isSatisfied(context)) {
 							return true;
-					if (runActions)
+						}
+					}
+					if (runActions) {
 						ActionManager.trigger(context, actions);
+					}
 					return false;
 				};
 			} else {
@@ -265,16 +282,19 @@ public abstract class AbstractRequirementManager<T> implements RequirementManage
 	protected void registerAndRequirement() {
 		registerRequirement((args, actions, runActions) -> {
 			if (args instanceof Section section) {
-				Requirement<T>[] requirements = parseRequirements(section, runActions);
+				final Requirement<T>[] requirements = parseRequirements(section, runActions);
 				return context -> {
 					outer: {
-						for (Requirement<T> requirement : requirements)
-							if (!requirement.isSatisfied(context))
+						for (Requirement<T> requirement : requirements) {
+							if (!requirement.isSatisfied(context)) {
 								break outer;
+							}
+						}
 						return true;
 					}
-					if (runActions)
+					if (runActions) {
 						ActionManager.trigger(context, actions);
+					}
 					return false;
 				};
 			} else {
@@ -287,12 +307,14 @@ public abstract class AbstractRequirementManager<T> implements RequirementManage
 
 	protected void registerRandomRequirement() {
 		registerRequirement((args, actions, runActions) -> {
-			MathValue<T> value = MathValue.auto(args);
+			final MathValue<T> value = MathValue.auto(args);
 			return context -> {
-				if (Math.random() < value.evaluate(context, true))
+				if (Math.random() < value.evaluate(context, true)) {
 					return true;
-				if (runActions)
+				}
+				if (runActions) {
 					ActionManager.trigger(context, actions);
+				}
 				return false;
 			};
 		}, "random");
@@ -300,19 +322,22 @@ public abstract class AbstractRequirementManager<T> implements RequirementManage
 
 	protected void registerTimeRequirement() {
 		registerRequirement((args, actions, runActions) -> {
-			List<String> list = ListUtils.toList(args);
-			List<Pair<Integer, Integer>> timePairs = list.stream().map(line -> {
-				String[] split = line.split("~");
+			final List<String> list = ListUtils.toList(args);
+			final List<Pair<Integer, Integer>> timePairs = list.stream().map(line -> {
+				final String[] split = line.split("~");
 				return new Pair<>(Integer.parseInt(split[0]), Integer.parseInt(split[1]));
 			}).toList();
 			return context -> {
-				Location location = requireNonNull(context.arg(ContextKeys.LOCATION));
-				long time = location.getWorld().getTime();
-				for (Pair<Integer, Integer> pair : timePairs)
-					if (time >= pair.left() && time <= pair.right())
+				final Location location = requireNonNull(context.arg(ContextKeys.LOCATION));
+				final long time = location.getWorld().getTime();
+				for (Pair<Integer, Integer> pair : timePairs) {
+					if (time >= pair.left() && time <= pair.right()) {
 						return true;
-				if (runActions)
+					}
+				}
+				if (runActions) {
 					ActionManager.trigger(context, actions);
+				}
 				return false;
 			};
 		}, "time");
@@ -320,26 +345,30 @@ public abstract class AbstractRequirementManager<T> implements RequirementManage
 
 	protected void registerBiomeRequirement() {
 		registerRequirement((args, actions, runActions) -> {
-			HashSet<String> biomes = new HashSet<>(ListUtils.toList(args));
+			final Set<String> biomes = new HashSet<>(ListUtils.toList(args));
 			return context -> {
-				Location location = requireNonNull(context.arg(ContextKeys.LOCATION));
-				String currentBiome = VersionHelper.getNMSManager().getBiomeResourceLocation(location);
-				if (biomes.contains(currentBiome))
+				final Location location = requireNonNull(context.arg(ContextKeys.LOCATION));
+				final String currentBiome = VersionHelper.getNMSManager().getBiomeResourceLocation(location);
+				if (biomes.contains(currentBiome)) {
 					return true;
-				if (runActions)
+				}
+				if (runActions) {
 					ActionManager.trigger(context, actions);
+				}
 				return false;
 			};
 		}, "biome");
 		registerRequirement((args, actions, runActions) -> {
-			HashSet<String> biomes = new HashSet<>(ListUtils.toList(args));
+			final Set<String> biomes = new HashSet<>(ListUtils.toList(args));
 			return context -> {
-				Location location = requireNonNull(context.arg(ContextKeys.LOCATION));
-				String currentBiome = VersionHelper.getNMSManager().getBiomeResourceLocation(location);
-				if (!biomes.contains(currentBiome))
+				final Location location = requireNonNull(context.arg(ContextKeys.LOCATION));
+				final String currentBiome = VersionHelper.getNMSManager().getBiomeResourceLocation(location);
+				if (!biomes.contains(currentBiome)) {
 					return true;
-				if (runActions)
+				}
+				if (runActions) {
 					ActionManager.trigger(context, actions);
+				}
 				return false;
 			};
 		}, "!biome");
@@ -347,24 +376,28 @@ public abstract class AbstractRequirementManager<T> implements RequirementManage
 
 	protected void registerWorldRequirement() {
 		registerRequirement((args, actions, runActions) -> {
-			HashSet<String> worlds = new HashSet<>(ListUtils.toList(args));
+			final Set<String> worlds = new HashSet<>(ListUtils.toList(args));
 			return context -> {
-				Location location = requireNonNull(context.arg(ContextKeys.LOCATION));
-				if (worlds.contains(location.getWorld().getName()))
+				final Location location = requireNonNull(context.arg(ContextKeys.LOCATION));
+				if (worlds.contains(location.getWorld().getName())) {
 					return true;
-				if (runActions)
+				}
+				if (runActions) {
 					ActionManager.trigger(context, actions);
+				}
 				return false;
 			};
 		}, "world");
 		registerRequirement((args, actions, runActions) -> {
-			HashSet<String> worlds = new HashSet<>(ListUtils.toList(args));
+			final Set<String> worlds = new HashSet<>(ListUtils.toList(args));
 			return context -> {
-				Location location = requireNonNull(context.arg(ContextKeys.LOCATION));
-				if (!worlds.contains(location.getWorld().getName()))
+				final Location location = requireNonNull(context.arg(ContextKeys.LOCATION));
+				if (!worlds.contains(location.getWorld().getName())) {
 					return true;
-				if (runActions)
+				}
+				if (runActions) {
 					ActionManager.trigger(context, actions);
+				}
 				return false;
 			};
 		}, "!world");
@@ -372,37 +405,62 @@ public abstract class AbstractRequirementManager<T> implements RequirementManage
 
 	protected void registerWeatherRequirement() {
 		registerRequirement((args, actions, runActions) -> {
-			HashSet<String> weathers = new HashSet<>(ListUtils.toList(args));
+			final Set<String> weathers = new HashSet<>(ListUtils.toList(args));
 			return context -> {
-				String currentWeather;
-				Location location = requireNonNull(context.arg(ContextKeys.LOCATION));
-				World world = location.getWorld();
-				Optional<LavaRainTask> lavaRain = instance.getLavaRainHandler().getLavaRainingWorlds().stream()
+				final String currentWeather;
+				final Location location = requireNonNull(context.arg(ContextKeys.LOCATION));
+				final World world = location.getWorld();
+				final Optional<LavaRainTask> lavaRain = instance.getLavaRainHandler().getLavaRainingWorlds().stream()
 						.filter(task -> world.getName().equalsIgnoreCase(task.getWorld().worldName())).findAny();
-				if (lavaRain.isPresent() && lavaRain.get().isLavaRaining())
+				if (lavaRain.isPresent() && lavaRain.get().isLavaRaining()) {
 					currentWeather = "lavarain";
-				else
+				} else {
 					currentWeather = "clear";
-				if (weathers.contains(currentWeather))
+				}
+				if (weathers.contains(currentWeather)) {
 					return true;
-				if (runActions)
+				}
+				if (runActions) {
 					ActionManager.trigger(context, actions);
+				}
 				return false;
 			};
 		}, "weather");
+		registerRequirement((args, actions, runActions) -> {
+			final Set<String> weathers = new HashSet<>(ListUtils.toList(args));
+			return context -> {
+				final String currentWeather;
+				final Location location = requireNonNull(context.arg(ContextKeys.LOCATION));
+				final World world = location.getWorld();
+				final Optional<LavaRainTask> lavaRain = instance.getLavaRainHandler().getLavaRainingWorlds().stream()
+						.filter(task -> world.getName().equalsIgnoreCase(task.getWorld().worldName())).findAny();
+				if (!lavaRain.isPresent() && !lavaRain.get().isLavaRaining()) {
+					currentWeather = "lavarain";
+				} else {
+					currentWeather = "clear";
+				}
+				if (weathers.contains(currentWeather)) {
+					return true;
+				}
+				if (runActions) {
+					ActionManager.trigger(context, actions);
+				}
+				return false;
+			};
+		}, "!weather");
 	}
 
 	protected void registerLiquidDepthRequirement() {
 		registerRequirement((args, actions, advanced) -> {
-			String depthRange = (String) args;
-			String[] split = depthRange.split("~");
+			final String depthRange = (String) args;
+			final String[] split = depthRange.split("~");
 			if (split.length != 2) {
 				instance.getPluginLogger().warn("Invalid value found(" + depthRange
 						+ "). `liquid-depth` requires a range in the format 'min~max' (e.g., 1~10).");
 				return Requirement.empty();
 			}
-			int min;
-			int max;
+			final int min;
+			final int max;
 			try {
 				min = Integer.parseInt(split[0]);
 				max = Integer.parseInt(split[1]);
@@ -411,18 +469,20 @@ public abstract class AbstractRequirementManager<T> implements RequirementManage
 				return Requirement.empty();
 			}
 			return context -> {
-				Location location = requireNonNull(context.arg(ContextKeys.OTHER_LOCATION));
-				Location startLocation = location.getBlock().isLiquid() ? location.clone()
+				final Location location = requireNonNull(context.arg(ContextKeys.OTHER_LOCATION));
+				final Location startLocation = location.getBlock().isLiquid() ? location.clone()
 						: location.clone().subtract(0, 1, 0);
 				int depth = 0;
 				while (startLocation.getBlock().isLiquid()) {
 					startLocation.subtract(0, 1, 0);
 					depth++;
 				}
-				if (depth >= min && depth <= max)
+				if (depth >= min && depth <= max) {
 					return true;
-				if (advanced)
+				}
+				if (advanced) {
 					ActionManager.trigger(context, actions);
+				}
 				return false;
 			};
 		}, "liquid-depth");
@@ -430,14 +490,16 @@ public abstract class AbstractRequirementManager<T> implements RequirementManage
 
 	protected void registerDateRequirement() {
 		registerRequirement((args, actions, runActions) -> {
-			HashSet<String> dates = new HashSet<>(ListUtils.toList(args));
+			final Set<String> dates = new HashSet<>(ListUtils.toList(args));
 			return context -> {
-				Calendar calendar = Calendar.getInstance();
-				String current = (calendar.get(Calendar.MONTH) + 1) + "/" + calendar.get(Calendar.DATE);
-				if (dates.contains(current))
+				final Calendar calendar = Calendar.getInstance();
+				final String current = (calendar.get(Calendar.MONTH) + 1) + "/" + calendar.get(Calendar.DATE);
+				if (dates.contains(current)) {
 					return true;
-				if (runActions)
+				}
+				if (runActions) {
 					ActionManager.trigger(context, actions);
+				}
 				return false;
 			};
 		}, "date");
@@ -448,93 +510,105 @@ public abstract class AbstractRequirementManager<T> implements RequirementManage
 			instance.getPluginLogger()
 					.severe("It seems that you made a mistake where you put \"list\" into \"conditions\" section.");
 			instance.getPluginLogger().warn("list:");
-			for (String e : ListUtils.toList(args)) {
-				instance.getPluginLogger().warn(" - " + e);
-			}
+			ListUtils.toList(args).forEach(e -> instance.getPluginLogger().warn(" - " + e));
 			return Requirement.empty();
 		}, "list");
 	}
 
 	protected void registerLightRequirement() {
 		registerRequirement((args, actions, advanced) -> {
-			List<String> list = ListUtils.toList(args);
-			List<Pair<Integer, Integer>> lightPairs = list.stream().map(line -> {
-				String[] split = line.split("~");
+			final List<String> list = ListUtils.toList(args);
+			final List<Pair<Integer, Integer>> lightPairs = list.stream().map(line -> {
+				final String[] split = line.split("~");
 				return new Pair<>(Integer.parseInt(split[0]), Integer.parseInt(split[1]));
 			}).toList();
 			return context -> {
-				Location location = requireNonNull(context.arg(ContextKeys.LOCATION));
-				int temp = location.getBlock().getLightLevel();
-				for (Pair<Integer, Integer> pair : lightPairs)
-					if (temp >= pair.left() && temp <= pair.right())
+				final Location location = requireNonNull(context.arg(ContextKeys.LOCATION));
+				final int temp = location.getBlock().getLightLevel();
+				for (Pair<Integer, Integer> pair : lightPairs) {
+					if (temp >= pair.left() && temp <= pair.right()) {
 						return true;
-				if (advanced)
+					}
+				}
+				if (advanced) {
 					ActionManager.trigger(context, actions);
+				}
 				return false;
 			};
 		}, "light");
 		registerRequirement((args, actions, advanced) -> {
-			List<String> list = ListUtils.toList(args);
-			List<Pair<Integer, Integer>> lightPairs = list.stream().map(line -> {
-				String[] split = line.split("~");
+			final List<String> list = ListUtils.toList(args);
+			final List<Pair<Integer, Integer>> lightPairs = list.stream().map(line -> {
+				final String[] split = line.split("~");
 				return new Pair<>(Integer.parseInt(split[0]), Integer.parseInt(split[1]));
 			}).toList();
 			return context -> {
-				Location location = requireNonNull(context.arg(ContextKeys.LOCATION));
-				int temp = location.getBlock().getLightFromSky();
-				for (Pair<Integer, Integer> pair : lightPairs)
-					if (temp >= pair.left() && temp <= pair.right())
+				final Location location = requireNonNull(context.arg(ContextKeys.LOCATION));
+				final int temp = location.getBlock().getLightFromSky();
+				for (Pair<Integer, Integer> pair : lightPairs) {
+					if (temp >= pair.left() && temp <= pair.right()) {
 						return true;
-				if (advanced)
+					}
+				}
+				if (advanced) {
 					ActionManager.trigger(context, actions);
+				}
 				return false;
 			};
 		}, "natural-light", "skylight");
 		registerRequirement((args, actions, advanced) -> {
-			int value = (int) args;
+			final int value = (int) args;
 			return context -> {
-				Location location = requireNonNull(context.arg(ContextKeys.LOCATION));
-				int light = location.getBlock().getLightFromSky();
-				if (light > value)
+				final Location location = requireNonNull(context.arg(ContextKeys.LOCATION));
+				final int light = location.getBlock().getLightFromSky();
+				if (light > value) {
 					return true;
-				if (advanced)
+				}
+				if (advanced) {
 					ActionManager.trigger(context, actions);
+				}
 				return false;
 			};
 		}, "skylight_more_than", "skylight-more-than", "natural_light_more_than", "natural-light-more-than");
 		registerRequirement((args, actions, advanced) -> {
-			int value = (int) args;
+			final int value = (int) args;
 			return context -> {
-				Location location = requireNonNull(context.arg(ContextKeys.LOCATION));
-				int light = location.getBlock().getLightFromSky();
-				if (light < value)
+				final Location location = requireNonNull(context.arg(ContextKeys.LOCATION));
+				final int light = location.getBlock().getLightFromSky();
+				if (light < value) {
 					return true;
-				if (advanced)
+				}
+				if (advanced) {
 					ActionManager.trigger(context, actions);
+				}
 				return false;
 			};
 		}, "skylight_less_than", "skylight-less-than", "natural_light_less_than", "natural-light-less-than");
 		registerRequirement((args, actions, advanced) -> {
-			int value = (int) args;
+			final int value = (int) args;
 			return context -> {
-				Location location = requireNonNull(context.arg(ContextKeys.LOCATION));
-				int light = location.getBlock().getLightLevel();
-				if (light > value)
+				final Location location = requireNonNull(context.arg(ContextKeys.LOCATION));
+				final int light = location.getBlock().getLightLevel();
+				if (light > value) {
 					return true;
-				if (advanced)
+				}
+				if (advanced) {
 					ActionManager.trigger(context, actions);
+				}
 				return false;
 			};
 		}, "light_more_than", "light-more-than");
 		registerRequirement((args, actions, advanced) -> {
-			int value = (int) args;
+			final int value = (int) args;
 			return context -> {
-				Location location = requireNonNull(context.arg(ContextKeys.LOCATION));
-				int light = location.getBlock().getLightLevel();
-				if (light < value)
+				final Location location = requireNonNull(context.arg(ContextKeys.LOCATION));
+				final int light = location.getBlock().getLightLevel();
+				if (light < value) {
 					return true;
-				if (advanced)
+				}
+				if (advanced) {
 					ActionManager.trigger(context, actions);
+				}
 				return false;
 			};
 		}, "light_less_than", "light-less-than");
@@ -542,20 +616,23 @@ public abstract class AbstractRequirementManager<T> implements RequirementManage
 
 	protected void registerTemperatureRequirement() {
 		registerRequirement((args, actions, advanced) -> {
-			List<String> list = ListUtils.toList(args);
-			List<Pair<Integer, Integer>> temperaturePairs = list.stream().map(line -> {
-				String[] split = line.split("~");
+			final List<String> list = ListUtils.toList(args);
+			final List<Pair<Integer, Integer>> temperaturePairs = list.stream().map(line -> {
+				final String[] split = line.split("~");
 				return new Pair<>(Integer.parseInt(split[0]), Integer.parseInt(split[1]));
 			}).toList();
 			return context -> {
-				Location location = requireNonNull(context.arg(ContextKeys.LOCATION));
-				double temp = location.getWorld().getTemperature(location.getBlockX(), location.getBlockY(),
+				final Location location = requireNonNull(context.arg(ContextKeys.LOCATION));
+				final double temp = location.getWorld().getTemperature(location.getBlockX(), location.getBlockY(),
 						location.getBlockZ());
-				for (Pair<Integer, Integer> pair : temperaturePairs)
-					if (temp >= pair.left() && temp <= pair.right())
+				for (Pair<Integer, Integer> pair : temperaturePairs) {
+					if (temp >= pair.left() && temp <= pair.right()) {
 						return true;
-				if (advanced)
+					}
+				}
+				if (advanced) {
 					ActionManager.trigger(context, actions);
+				}
 				return false;
 			};
 		}, "temperature");
@@ -563,8 +640,8 @@ public abstract class AbstractRequirementManager<T> implements RequirementManage
 
 	protected void registerMoistureRequirement() {
 		registerRequirement((args, actions, advanced) -> {
-			int value;
-			int y;
+			final int value;
+			final int y;
 			if (args instanceof Integer integer) {
 				y = -1;
 				value = integer;
@@ -577,19 +654,20 @@ public abstract class AbstractRequirementManager<T> implements RequirementManage
 				return Requirement.empty();
 			}
 			return context -> {
-				Location location = requireNonNull(context.arg(ContextKeys.LOCATION)).clone().add(0, y, 0);
-				Block block = location.getBlock();
+				final Location location = requireNonNull(context.arg(ContextKeys.LOCATION)).clone().add(0, y, 0);
+				final Block block = location.getBlock();
 				if (block.getBlockData() instanceof Farmland farmland) {
 					return farmland.getMoisture() > value;
 				}
-				if (advanced)
+				if (advanced) {
 					ActionManager.trigger(context, actions);
+				}
 				return false;
 			};
 		}, "moisture-more-than", "moisture_more_than");
 		registerRequirement((args, actions, advanced) -> {
-			int value;
-			int y;
+			final int value;
+			final int y;
 			if (args instanceof Integer integer) {
 				y = -1;
 				value = integer;
@@ -602,13 +680,14 @@ public abstract class AbstractRequirementManager<T> implements RequirementManage
 				return Requirement.empty();
 			}
 			return context -> {
-				Location location = requireNonNull(context.arg(ContextKeys.LOCATION)).clone().add(0, y, 0);
-				Block block = location.getBlock();
+				final Location location = requireNonNull(context.arg(ContextKeys.LOCATION)).clone().add(0, y, 0);
+				final Block block = location.getBlock();
 				if (block.getBlockData() instanceof Farmland farmland) {
 					return farmland.getMoisture() < value;
 				}
-				if (advanced)
+				if (advanced) {
 					ActionManager.trigger(context, actions);
+				}
 				return false;
 			};
 		}, "moisture-less-than", "moisture_less_than");
@@ -617,13 +696,15 @@ public abstract class AbstractRequirementManager<T> implements RequirementManage
 	protected void registerPAPIRequirement() {
 		registerRequirement((args, actions, runActions) -> {
 			if (args instanceof Section section) {
-				MathValue<T> v1 = MathValue.auto(section.get("value1"));
-				MathValue<T> v2 = MathValue.auto(section.get("value2"));
+				final MathValue<T> v1 = MathValue.auto(section.get("value1"));
+				final MathValue<T> v2 = MathValue.auto(section.get("value2"));
 				return context -> {
-					if (v1.evaluate(context, true) < v2.evaluate(context, true))
+					if (v1.evaluate(context, true) < v2.evaluate(context, true)) {
 						return true;
-					if (runActions)
+					}
+					if (runActions) {
 						ActionManager.trigger(context, actions);
+					}
 					return false;
 				};
 			} else {
@@ -634,13 +715,15 @@ public abstract class AbstractRequirementManager<T> implements RequirementManage
 		}, "<");
 		registerRequirement((args, actions, runActions) -> {
 			if (args instanceof Section section) {
-				MathValue<T> v1 = MathValue.auto(section.get("value1"));
-				MathValue<T> v2 = MathValue.auto(section.get("value2"));
+				final MathValue<T> v1 = MathValue.auto(section.get("value1"));
+				final MathValue<T> v2 = MathValue.auto(section.get("value2"));
 				return context -> {
-					if (v1.evaluate(context, true) <= v2.evaluate(context, true))
+					if (v1.evaluate(context, true) <= v2.evaluate(context, true)) {
 						return true;
-					if (runActions)
+					}
+					if (runActions) {
 						ActionManager.trigger(context, actions);
+					}
 					return false;
 				};
 			} else {
@@ -651,13 +734,15 @@ public abstract class AbstractRequirementManager<T> implements RequirementManage
 		}, "<=");
 		registerRequirement((args, actions, runActions) -> {
 			if (args instanceof Section section) {
-				MathValue<T> v1 = MathValue.auto(section.get("value1"));
-				MathValue<T> v2 = MathValue.auto(section.get("value2"));
+				final MathValue<T> v1 = MathValue.auto(section.get("value1"));
+				final MathValue<T> v2 = MathValue.auto(section.get("value2"));
 				return context -> {
-					if (v1.evaluate(context, true) != v2.evaluate(context, true))
+					if (v1.evaluate(context, true) != v2.evaluate(context, true)) {
 						return true;
-					if (runActions)
+					}
+					if (runActions) {
 						ActionManager.trigger(context, actions);
+					}
 					return false;
 				};
 			} else {
@@ -668,13 +753,15 @@ public abstract class AbstractRequirementManager<T> implements RequirementManage
 		}, "!=");
 		registerRequirement((args, actions, runActions) -> {
 			if (args instanceof Section section) {
-				MathValue<T> v1 = MathValue.auto(section.get("value1"));
-				MathValue<T> v2 = MathValue.auto(section.get("value2"));
+				final MathValue<T> v1 = MathValue.auto(section.get("value1"));
+				final MathValue<T> v2 = MathValue.auto(section.get("value2"));
 				return context -> {
-					if (v1.evaluate(context, true) == v2.evaluate(context, true))
+					if (v1.evaluate(context, true) == v2.evaluate(context, true)) {
 						return true;
-					if (runActions)
+					}
+					if (runActions) {
 						ActionManager.trigger(context, actions);
+					}
 					return false;
 				};
 			} else {
@@ -685,13 +772,15 @@ public abstract class AbstractRequirementManager<T> implements RequirementManage
 		}, "==", "=");
 		registerRequirement((args, actions, runActions) -> {
 			if (args instanceof Section section) {
-				MathValue<T> v1 = MathValue.auto(section.get("value1"));
-				MathValue<T> v2 = MathValue.auto(section.get("value2"));
+				final MathValue<T> v1 = MathValue.auto(section.get("value1"));
+				final MathValue<T> v2 = MathValue.auto(section.get("value2"));
 				return context -> {
-					if (v1.evaluate(context, true) >= v2.evaluate(context, true))
+					if (v1.evaluate(context, true) >= v2.evaluate(context, true)) {
 						return true;
-					if (runActions)
+					}
+					if (runActions) {
 						ActionManager.trigger(context, actions);
+					}
 					return false;
 				};
 			} else {
@@ -702,13 +791,15 @@ public abstract class AbstractRequirementManager<T> implements RequirementManage
 		}, ">=");
 		registerRequirement((args, actions, runActions) -> {
 			if (args instanceof Section section) {
-				MathValue<T> v1 = MathValue.auto(section.get("value1"));
-				MathValue<T> v2 = MathValue.auto(section.get("value2"));
+				final MathValue<T> v1 = MathValue.auto(section.get("value1"));
+				final MathValue<T> v2 = MathValue.auto(section.get("value2"));
 				return context -> {
-					if (v1.evaluate(context, true) > v2.evaluate(context, true))
+					if (v1.evaluate(context, true) > v2.evaluate(context, true)) {
 						return true;
-					if (runActions)
+					}
+					if (runActions) {
 						ActionManager.trigger(context, actions);
+					}
 					return false;
 				};
 			} else {
@@ -719,13 +810,15 @@ public abstract class AbstractRequirementManager<T> implements RequirementManage
 		}, ">");
 		registerRequirement((args, actions, runActions) -> {
 			if (args instanceof Section section) {
-				TextValue<T> v1 = TextValue.auto(section.getString("papi", ""));
-				String v2 = section.getString("regex", "");
+				final TextValue<T> v1 = TextValue.auto(section.getString("papi", ""));
+				final String v2 = section.getString("regex", "");
 				return context -> {
-					if (v1.render(context, true).matches(v2))
+					if (v1.render(context, true).matches(v2)) {
 						return true;
-					if (runActions)
+					}
+					if (runActions) {
 						ActionManager.trigger(context, actions);
+					}
 					return false;
 				};
 			} else {
@@ -736,13 +829,15 @@ public abstract class AbstractRequirementManager<T> implements RequirementManage
 		}, "regex");
 		registerRequirement((args, actions, runActions) -> {
 			if (args instanceof Section section) {
-				TextValue<T> v1 = TextValue.auto(section.getString("value1", ""));
-				TextValue<T> v2 = TextValue.auto(section.getString("value2", ""));
+				final TextValue<T> v1 = TextValue.auto(section.getString("value1", ""));
+				final TextValue<T> v2 = TextValue.auto(section.getString("value2", ""));
 				return context -> {
-					if (v1.render(context, true).startsWith(v2.render(context, true)))
+					if (v1.render(context, true).startsWith(v2.render(context, true))) {
 						return true;
-					if (runActions)
+					}
+					if (runActions) {
 						ActionManager.trigger(context, actions);
+					}
 					return false;
 				};
 			} else {
@@ -753,13 +848,15 @@ public abstract class AbstractRequirementManager<T> implements RequirementManage
 		}, "startsWith");
 		registerRequirement((args, actions, runActions) -> {
 			if (args instanceof Section section) {
-				TextValue<T> v1 = TextValue.auto(section.getString("value1", ""));
-				TextValue<T> v2 = TextValue.auto(section.getString("value2", ""));
+				final TextValue<T> v1 = TextValue.auto(section.getString("value1", ""));
+				final TextValue<T> v2 = TextValue.auto(section.getString("value2", ""));
 				return context -> {
-					if (!v1.render(context, true).startsWith(v2.render(context, true)))
+					if (!v1.render(context, true).startsWith(v2.render(context, true))) {
 						return true;
-					if (runActions)
+					}
+					if (runActions) {
 						ActionManager.trigger(context, actions);
+					}
 					return false;
 				};
 			} else {
@@ -770,13 +867,15 @@ public abstract class AbstractRequirementManager<T> implements RequirementManage
 		}, "!startsWith");
 		registerRequirement((args, actions, runActions) -> {
 			if (args instanceof Section section) {
-				TextValue<T> v1 = TextValue.auto(section.getString("value1", ""));
-				TextValue<T> v2 = TextValue.auto(section.getString("value2", ""));
+				final TextValue<T> v1 = TextValue.auto(section.getString("value1", ""));
+				final TextValue<T> v2 = TextValue.auto(section.getString("value2", ""));
 				return context -> {
-					if (v1.render(context, true).endsWith(v2.render(context, true)))
+					if (v1.render(context, true).endsWith(v2.render(context, true))) {
 						return true;
-					if (runActions)
+					}
+					if (runActions) {
 						ActionManager.trigger(context, actions);
+					}
 					return false;
 				};
 			} else {
@@ -787,13 +886,15 @@ public abstract class AbstractRequirementManager<T> implements RequirementManage
 		}, "endsWith");
 		registerRequirement((args, actions, runActions) -> {
 			if (args instanceof Section section) {
-				TextValue<T> v1 = TextValue.auto(section.getString("value1", ""));
-				TextValue<T> v2 = TextValue.auto(section.getString("value2", ""));
+				final TextValue<T> v1 = TextValue.auto(section.getString("value1", ""));
+				final TextValue<T> v2 = TextValue.auto(section.getString("value2", ""));
 				return context -> {
-					if (!v1.render(context, true).endsWith(v2.render(context, true)))
+					if (!v1.render(context, true).endsWith(v2.render(context, true))) {
 						return true;
-					if (runActions)
+					}
+					if (runActions) {
 						ActionManager.trigger(context, actions);
+					}
 					return false;
 				};
 			} else {
@@ -804,13 +905,15 @@ public abstract class AbstractRequirementManager<T> implements RequirementManage
 		}, "!endsWith");
 		registerRequirement((args, actions, runActions) -> {
 			if (args instanceof Section section) {
-				TextValue<T> v1 = TextValue.auto(section.getString("value1", ""));
-				TextValue<T> v2 = TextValue.auto(section.getString("value2", ""));
+				final TextValue<T> v1 = TextValue.auto(section.getString("value1", ""));
+				final TextValue<T> v2 = TextValue.auto(section.getString("value2", ""));
 				return context -> {
-					if (v1.render(context, true).contains(v2.render(context, true)))
+					if (v1.render(context, true).contains(v2.render(context, true))) {
 						return true;
-					if (runActions)
+					}
+					if (runActions) {
 						ActionManager.trigger(context, actions);
+					}
 					return false;
 				};
 			} else {
@@ -821,13 +924,15 @@ public abstract class AbstractRequirementManager<T> implements RequirementManage
 		}, "contains");
 		registerRequirement((args, actions, runActions) -> {
 			if (args instanceof Section section) {
-				TextValue<T> v1 = TextValue.auto(section.getString("value1", ""));
-				TextValue<T> v2 = TextValue.auto(section.getString("value2", ""));
+				final TextValue<T> v1 = TextValue.auto(section.getString("value1", ""));
+				final TextValue<T> v2 = TextValue.auto(section.getString("value2", ""));
 				return context -> {
-					if (!v1.render(context, true).contains(v2.render(context, true)))
+					if (!v1.render(context, true).contains(v2.render(context, true))) {
 						return true;
-					if (runActions)
+					}
+					if (runActions) {
 						ActionManager.trigger(context, actions);
+					}
 					return false;
 				};
 			} else {
@@ -838,13 +943,15 @@ public abstract class AbstractRequirementManager<T> implements RequirementManage
 		}, "!contains");
 		registerRequirement((args, actions, runActions) -> {
 			if (args instanceof Section section) {
-				TextValue<T> papi = TextValue.auto(section.getString("papi", ""));
-				List<String> values = ListUtils.toList(section.get("values"));
+				final TextValue<T> papi = TextValue.auto(section.getString("papi", ""));
+				final List<String> values = ListUtils.toList(section.get("values"));
 				return context -> {
-					if (values.contains(papi.render(context, true)))
+					if (values.contains(papi.render(context, true))) {
 						return true;
-					if (runActions)
+					}
+					if (runActions) {
 						ActionManager.trigger(context, actions);
+					}
 					return false;
 				};
 			} else {
@@ -855,13 +962,15 @@ public abstract class AbstractRequirementManager<T> implements RequirementManage
 		}, "in-list");
 		registerRequirement((args, actions, runActions) -> {
 			if (args instanceof Section section) {
-				TextValue<T> papi = TextValue.auto(section.getString("papi", ""));
-				List<String> values = ListUtils.toList(section.get("values"));
+				final TextValue<T> papi = TextValue.auto(section.getString("papi", ""));
+				final List<String> values = ListUtils.toList(section.get("values"));
 				return context -> {
-					if (!values.contains(papi.render(context, true)))
+					if (!values.contains(papi.render(context, true))) {
 						return true;
-					if (runActions)
+					}
+					if (runActions) {
 						ActionManager.trigger(context, actions);
+					}
 					return false;
 				};
 			} else {
@@ -872,14 +981,15 @@ public abstract class AbstractRequirementManager<T> implements RequirementManage
 		}, "!in-list");
 		registerRequirement((args, actions, runActions) -> {
 			if (args instanceof Section section) {
-				TextValue<T> v1 = TextValue.auto(section.getString("value1", ""));
-				TextValue<T> v2 = TextValue.auto(section.getString("value2", ""));
-
+				final TextValue<T> v1 = TextValue.auto(section.getString("value1", ""));
+				final TextValue<T> v2 = TextValue.auto(section.getString("value2", ""));
 				return context -> {
-					if (v1.render(context, true).equals(v2.render(context, true)))
+					if (v1.render(context, true).equals(v2.render(context, true))) {
 						return true;
-					if (runActions)
+					}
+					if (runActions) {
 						ActionManager.trigger(context, actions);
+					}
 					return false;
 				};
 			} else {
@@ -890,13 +1000,15 @@ public abstract class AbstractRequirementManager<T> implements RequirementManage
 		}, "equals");
 		registerRequirement((args, actions, runActions) -> {
 			if (args instanceof Section section) {
-				TextValue<T> v1 = TextValue.auto(section.getString("value1", ""));
-				TextValue<T> v2 = TextValue.auto(section.getString("value2", ""));
+				final TextValue<T> v1 = TextValue.auto(section.getString("value1", ""));
+				final TextValue<T> v2 = TextValue.auto(section.getString("value2", ""));
 				return context -> {
-					if (!v1.render(context, true).equals(v2.render(context, true)))
+					if (!v1.render(context, true).equals(v2.render(context, true))) {
 						return true;
-					if (runActions)
+					}
+					if (runActions) {
 						ActionManager.trigger(context, actions);
+					}
 					return false;
 				};
 			} else {

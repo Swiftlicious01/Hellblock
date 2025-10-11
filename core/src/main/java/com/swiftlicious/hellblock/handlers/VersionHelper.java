@@ -69,20 +69,17 @@ public class VersionHelper {
 
 		supportedVersions = List.of("1.17", "1.17.1", "1.18", "1.18.1", "1.18.2", "1.19", "1.19.1", "1.19.2", "1.19.3",
 				"1.19.4", "1.20", "1.20.1", "1.20.2", "1.20.3", "1.20.4", "1.20.5", "1.20.6", "1.21", "1.21.1",
-				"1.21.2", "1.21.3", "1.21.4", "1.21.5", "1.21.6", "1.21.7", "1.21.8");
+				"1.21.2", "1.21.3", "1.21.4", "1.21.5", "1.21.6", "1.21.7", "1.21.8", "1.21.9", "1.21.10");
 
 		// Check if the server is Spigot or Paper
 		try {
-			Class.forName("com.destroystokyo.paper.ParticleBuilder");
-			isPaper = true;
+			isPaper = Class.forName("com.destroystokyo.paper.ParticleBuilder") != null;
 		} catch (ClassNotFoundException checkFolia) {
 			try {
-				Class.forName("io.papermc.paper.threadedregions.RegionizedServer");
-				isFolia = true;
+				isFolia = Class.forName("io.papermc.paper.threadedregions.RegionizedServer") != null;
 			} catch (ClassNotFoundException checkSpigot) {
 				try {
-					Class.forName("org.spigotmc.SpigotConfig");
-					isSpigot = true;
+					isSpigot = Class.forName("org.spigotmc.SpigotConfig") != null;
 				} catch (ClassNotFoundException noServerCoreFound) {
 					// could not find either paper or spigot.
 					Bukkit.getPluginManager().disablePlugin(HellblockPlugin.getInstance());
@@ -97,11 +94,13 @@ public class VersionHelper {
 		pluginVersion = HellblockPlugin.getInstance().getDescription().getVersion();
 		nmsManager = getNMSHandler();
 	}
-
+	
 	private static NMSHandler getNMSHandler() {
 		String bukkitVersion = getServerVersion();
 		String packageName;
+
 		switch (bukkitVersion) {
+		case "1.21.9", "1.21.10" -> packageName = "1_21_R6";
 		case "1.21.6", "1.21.7", "1.21.8" -> packageName = "1_21_R5";
 		case "1.21.5" -> packageName = "1_21_R4";
 		case "1.21.4" -> packageName = "1_21_R3";
@@ -119,14 +118,20 @@ public class VersionHelper {
 		case "1.17", "1.17.1" -> packageName = "1_17_R1";
 		default -> throw new UnsupportedVersionException("Unsupported server version: " + bukkitVersion);
 		}
+
 		try {
-			Class<?> clazz = Class
-					.forName("com.swiftlicious.hellblock.v" + packageName.toLowerCase() + ".NMSUtils" + packageName);
+			// Choose namespace based on platform
+			String basePackage = isPaper() ? "com.swiftlicious.hellblock.paper" : "com.swiftlicious.hellblock.spigot";
+
+			String className = basePackage + ".v" + packageName.toLowerCase() + ".NMSUtils" + packageName;
+
+			Class<?> clazz = Class.forName(className);
 			Constructor<?> constructor = clazz.getDeclaredConstructor();
 			constructor.setAccessible(true);
 			return (NMSHandler) constructor.newInstance();
 		} catch (ReflectiveOperationException ex) {
-			throw new RuntimeException("Failed to initialize nms data for cross compatibility.", ex);
+			throw new RuntimeException(
+					"Failed to initialize NMS handler for version " + bukkitVersion + " (paper=" + isPaper() + ")", ex);
 		}
 	}
 
@@ -260,6 +265,14 @@ public class VersionHelper {
 
 	public static boolean isVersionNewerThan1_21_8() {
 		return version >= 21.79;
+	}
+
+	public static boolean isVersionNewerThan1_21_9() {
+		return version >= 21.89;
+	}
+
+	public static boolean isVersionNewerThan1_21_10() {
+		return version >= 21.99;
 	}
 
 	// Method to compare two version strings

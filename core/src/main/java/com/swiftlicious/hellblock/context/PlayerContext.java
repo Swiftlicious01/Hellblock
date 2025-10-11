@@ -12,8 +12,10 @@ import org.jetbrains.annotations.Nullable;
 public final class PlayerContext extends AbstractContext<Player> {
 
 	public PlayerContext(@Nullable Player player, boolean sync) {
-        super(player, sync);
-        if (player == null) return;
+		super(player, sync);
+		if (player == null) {
+			return;
+		}
 		final Location location = player.getLocation();
 		arg(ContextKeys.PLAYER, player.getName());
 		updateLocation(location);

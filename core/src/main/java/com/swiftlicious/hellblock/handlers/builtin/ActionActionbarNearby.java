@@ -29,18 +29,20 @@ public class ActionActionbarNearby<T> extends AbstractBuiltInAction<T> {
 
 	@Override
 	protected void triggerAction(Context<T> context) {
-		if (context.argOrDefault(ContextKeys.OFFLINE, false))
+		if (context.argOrDefault(ContextKeys.OFFLINE, false)) {
 			return;
+		}
 		OfflinePlayer owner = null;
 		if (context.holder() instanceof Player player) {
 			owner = player;
 		}
-		Location location = requireNonNull(context.arg(ContextKeys.LOCATION));
-		double realRange = range.evaluate(context);
+		final Location location = requireNonNull(context.arg(ContextKeys.LOCATION));
+		final double realRange = range.evaluate(context);
 		for (Player player : location.getWorld().getPlayers()) {
 			if (LocationUtils.getDistance(player.getLocation(), location) <= realRange) {
 				context.arg(ContextKeys.TEMP_NEAR_PLAYER, player.getName());
-				String replaced = plugin.getPlaceholderManager().parse(owner, actionbar, context.placeholderMap());
+				final String replaced = plugin.getPlaceholderManager().parse(owner, actionbar,
+						context.placeholderMap());
 				VersionHelper.getNMSManager().sendActionBar(player,
 						AdventureHelper.componentToJson(AdventureHelper.miniMessage(replaced)));
 			}

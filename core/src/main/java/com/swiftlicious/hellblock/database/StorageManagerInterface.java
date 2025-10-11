@@ -65,10 +65,10 @@ public interface StorageManagerInterface extends Reloadable {
 	/**
 	 * Retrieves the data storage provider.
 	 *
-	 * @return the {@link DataStorageInterface} instance
+	 * @return the {@link DataStorageProvider} instance
 	 */
 	@NotNull
-	DataStorageInterface getDataSource();
+	DataStorageProvider getDataSource();
 
 	/**
 	 * Checks if Redis is enabled for data storage.

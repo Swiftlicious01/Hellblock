@@ -23,18 +23,18 @@ public class ActionSpawnEntity<T> extends AbstractBuiltInAction<T> {
 	public ActionSpawnEntity(HellblockPlugin plugin, Section section, MathValue<T> chance) {
 		super(plugin, chance);
 		this.id = section.getString("id");
-		Section proeprtySection = section.getSection("properties");
+		final Section proeprtySection = section.getSection("properties");
 		this.properties = proeprtySection == null ? new HashMap<>() : proeprtySection.getStringRouteMappedValues(false);
 	}
 
 	@Override
 	protected void triggerAction(Context<T> context) {
-		Location location = requireNonNull(context.arg(ContextKeys.LOCATION));
-		String finalID;
-		EntityProvider provider;
+		final Location location = requireNonNull(context.arg(ContextKeys.LOCATION));
+		final String finalID;
+		final EntityProvider provider;
 		if (id.contains(":")) {
-			String[] split = id.split(":", 2);
-			String providerID = split[0];
+			final String[] split = id.split(":", 2);
+			final String providerID = split[0];
 			finalID = split[1];
 			provider = plugin.getIntegrationManager().getEntityProvider(providerID);
 		} else {

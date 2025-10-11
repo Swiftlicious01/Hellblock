@@ -1,13 +1,14 @@
 package com.swiftlicious.hellblock.gui.invite;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.stream.Collectors;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
@@ -46,8 +47,10 @@ public class InviteGUIManager implements InviteGUIManagerInterface, Listener {
 
 	protected TextValue<Player> title;
 	protected String[] layout;
-	protected final Map<Character, Pair<CustomItem, Action<Player>[]>> decorativeIcons;
-	protected final ConcurrentMap<UUID, InviteGUI> inviteGUICache;
+	protected final Map<Character, Pair<CustomItem, Action<Player>[]>> decorativeIcons = new HashMap<>();
+	protected final ConcurrentMap<UUID, InviteGUI> inviteGUICache = new ConcurrentHashMap<>();
+
+	protected final List<Integer> headSlots = new ArrayList<>();
 
 	protected char backSlot;
 	protected char leftSlot;
@@ -73,8 +76,6 @@ public class InviteGUIManager implements InviteGUIManagerInterface, Listener {
 
 	public InviteGUIManager(HellblockPlugin plugin) {
 		this.instance = plugin;
-		this.decorativeIcons = new HashMap<>();
-		this.inviteGUICache = new ConcurrentHashMap<>();
 	}
 
 	@Override
@@ -90,7 +91,7 @@ public class InviteGUIManager implements InviteGUIManagerInterface, Listener {
 	}
 
 	private void loadConfig() {
-		Section config = instance.getConfigManager().getMainConfig().getSection("invitation.gui");
+		Section config = instance.getConfigManager().getGuiConfig().getSection("invitation.gui");
 
 		this.layout = config.getStringList("layout").toArray(new String[0]);
 		this.title = TextValue.auto(config.getString("title", "invite.title"));
@@ -160,23 +161,62 @@ public class InviteGUIManager implements InviteGUIManagerInterface, Listener {
 		if (decorativeSection != null) {
 			for (Map.Entry<String, Object> entry : decorativeSection.getStringRouteMappedValues(false).entrySet()) {
 				if (entry.getValue() instanceof Section innerSection) {
-					char symbol = Objects.requireNonNull(innerSection.getString("symbol")).charAt(0);
-					decorativeIcons.put(symbol, Pair.of(
-							new SingleItemParser("gui", innerSection,
-									instance.getConfigManager().getItemFormatFunctions()).getItem(),
-							instance.getActionManager(Player.class).parseActions(innerSection.getSection("action"))));
+					try {
+						String symbolStr = innerSection.getString("symbol");
+						if (symbolStr == null || symbolStr.isEmpty()) {
+							instance.getPluginLogger()
+									.severe("Decorative icon missing symbol in entry: " + entry.getKey());
+							continue;
+						}
+
+						char symbol = symbolStr.charAt(0);
+
+						decorativeIcons.put(symbol,
+								Pair.of(new SingleItemParser("gui", innerSection,
+										instance.getConfigManager().getItemFormatFunctions()).getItem(),
+										instance.getActionManager(Player.class)
+												.parseActions(innerSection.getSection("action"))));
+					} catch (Exception e) {
+						instance.getPluginLogger().severe("Failed to load decorative icon entry: " + entry.getKey()
+								+ " due to: " + e.getMessage());
+					}
+				}
+			}
+		}
+
+		parseHeadSlotsFromLayout(Arrays.asList(this.layout), this.playerSlot);
+	}
+
+	/**
+	 * Parse the layout and cache which slots are player head slots. This must be
+	 * called once after config is loaded.
+	 */
+	private void parseHeadSlotsFromLayout(List<String> layout, char playerSlotSymbol) {
+		headSlots.clear();
+		for (int row = 0; row < layout.size(); row++) {
+			String line = layout.get(row);
+			for (int col = 0; col < line.length(); col++) {
+				char symbol = line.charAt(col);
+				int slot = row * 9 + col;
+				if (symbol == playerSlotSymbol) {
+					headSlots.add(slot);
 				}
 			}
 		}
 	}
 
+	protected int getPageSize() {
+		return headSlots.size();
+	}
+
 	/**
 	 * Open the Invitation GUI for a player
 	 *
-	 * @param player player
+	 * @param player  player
+	 * @param isOwner whether is owner or not.
 	 */
 	@Override
-	public boolean openInvitationGUI(Player player) {
+	public boolean openInvitationGUI(Player player, boolean isOwner) {
 		Optional<UserData> optionalUserData = instance.getStorageManager().getOnlineUser(player.getUniqueId());
 		if (optionalUserData.isEmpty()) {
 			instance.getPluginLogger()
@@ -184,15 +224,19 @@ public class InviteGUIManager implements InviteGUIManagerInterface, Listener {
 			return false;
 		}
 		Context<Player> context = Context.player(player);
-		InviteGUI gui = new InviteGUI(this, context, optionalUserData.get().getHellblockData());
+		InviteGUI gui = new InviteGUI(this, context, optionalUserData.get().getHellblockData(), isOwner);
 		gui.addElement(new InviteDynamicGUIElement(backSlot, new ItemStack(Material.AIR)));
 		gui.addElement(new InviteDynamicGUIElement(leftSlot, new ItemStack(Material.AIR)));
 		gui.addElement(new InviteDynamicGUIElement(rightSlot, new ItemStack(Material.AIR)));
-		for (Map.Entry<Character, Pair<CustomItem, Action<Player>[]>> entry : decorativeIcons.entrySet()) {
-			gui.addElement(new InviteGUIElement(entry.getKey(), entry.getValue().left().build(context)));
-		}
-		gui.saveItems();
+		decorativeIcons.entrySet().forEach(entry -> gui.addElement(new InviteGUIElement(entry.getKey(), entry.getValue().left().build(context))));
+		gui.saveItems(player);
+		gui.clearPlayerInventory(player);
+		// start polling search and populate heads
+		gui.startSearchPolling();
 		gui.build().show();
+		gui.currentPage = 0;
+		gui.refreshPlayerHeads(gui.currentPage);
+		gui.refreshSearch(); // initial
 		gui.refresh();
 		inviteGUICache.put(player.getUniqueId(), gui);
 		return true;
@@ -211,9 +255,9 @@ public class InviteGUIManager implements InviteGUIManagerInterface, Listener {
 			return;
 		InviteGUI gui = inviteGUICache.remove(player.getUniqueId());
 		if (gui != null) {
-			gui.returnItems();
-			if (gui.searchTask.isCancelled())
-				gui.searchTask.cancel();
+			gui.cancelSearchPolling();
+			// if they close GUI but we want to return items
+			gui.returnItems(player);
 		}
 	}
 
@@ -226,9 +270,9 @@ public class InviteGUIManager implements InviteGUIManagerInterface, Listener {
 	public void onQuit(PlayerQuitEvent event) {
 		InviteGUI gui = inviteGUICache.remove(event.getPlayer().getUniqueId());
 		if (gui != null) {
-			gui.returnItems();
-			if (gui.searchTask.isCancelled())
-				gui.searchTask.cancel();
+			gui.cancelSearchPolling();
+			// if they quit but we want to return items
+			gui.returnItems(event.getPlayer());
 		}
 	}
 
@@ -269,12 +313,10 @@ public class InviteGUIManager implements InviteGUIManagerInterface, Listener {
 		if (clickedInv == null)
 			return;
 
-		Player player = (Player) event.getWhoClicked();
-
-		// Check if the clicked inventory is a InviteGUI
 		if (!(event.getInventory().getHolder() instanceof InviteGUIHolder))
 			return;
 
+		Player player = (Player) event.getWhoClicked();
 		InviteGUI gui = inviteGUICache.get(player.getUniqueId());
 		if (gui == null) {
 			event.setCancelled(true);
@@ -282,159 +324,191 @@ public class InviteGUIManager implements InviteGUIManagerInterface, Listener {
 			return;
 		}
 
-		if (clickedInv == player.getInventory()) {
-			int slot = event.getSlot();
-			InviteGUIElement element = gui.getElement(slot);
-			if (element == null) {
-				event.setCancelled(true);
-				return;
-			}
+		// unify common checks for UserData / hellblock ownership / abandonment
+		Optional<UserData> optionalUser = instance.getStorageManager()
+				.getOnlineUser(gui.context.holder().getUniqueId());
 
-			Optional<UserData> userData = instance.getStorageManager()
-					.getOnlineUser(gui.context.holder().getUniqueId());
+		if (optionalUser.isEmpty() || !gui.hellblockData.hasHellblock() || gui.hellblockData.getOwnerUUID() == null) {
+			event.setCancelled(true);
+			player.closeInventory();
+			return;
+		}
 
-			if (userData.isEmpty() || !gui.hellblockData.hasHellblock() || gui.hellblockData.getOwnerUUID() == null) {
-				event.setCancelled(true);
-				player.closeInventory();
-				return;
-			}
+		// determine clicked element based on clicked slot mapping
+		int slot = event.getSlot();
+		InviteGUIElement element = gui.getElement(slot);
+		if (element == null) {
+			event.setCancelled(true);
+			return;
+		}
 
-			Pair<CustomItem, Action<Player>[]> decorativeIcon = this.decorativeIcons.get(element.getSymbol());
-			if (decorativeIcon != null) {
-				ActionManager.trigger(gui.context, decorativeIcon.right());
-				return;
-			}
+		// decorative icons (shortcut)
+		Pair<CustomItem, Action<Player>[]> decorativeIcon = this.decorativeIcons.get(element.getSymbol());
+		if (decorativeIcon != null) {
+			event.setCancelled(true);
+			ActionManager.trigger(gui.context, decorativeIcon.right());
+			return;
+		}
 
-			if (element.getSymbol() == backSlot) {
-				event.setCancelled(true);
-				instance.getPartyGUIManager().openPartyGUI(gui.context.holder(),
-						gui.context.holder().getUniqueId().equals(gui.hellblockData.getOwnerUUID()));
-				ActionManager.trigger(gui.context, backActions);
-				return;
-			}
+		// navigation slots
+		if (element.getSymbol() == backSlot) {
+			event.setCancelled(true);
+			// cleanup
+			gui.cancelSearchPolling();
+			gui.returnItems(player);
+			inviteGUICache.remove(player.getUniqueId());
+			instance.getPartyGUIManager().openPartyGUI(gui.context.holder(), gui.isOwner);
+			ActionManager.trigger(gui.context, backActions);
+			return;
+		}
 
-			if (element.getSymbol() == leftSlot) {
-				event.setCancelled(true);
-				gui.refreshPlayerHeads(true);
-				ActionManager.trigger(gui.context, leftActions);
-			}
+		if (element.getSymbol() == leftSlot) {
+			event.setCancelled(true);
+			gui.refreshPlayerHeads(Math.max(0, gui.currentPage - 1));
+			ActionManager.trigger(gui.context, leftActions);
+			return;
+		}
 
-			if (element.getSymbol() == rightSlot) {
-				event.setCancelled(true);
-				gui.refreshPlayerHeads(false);
-				ActionManager.trigger(gui.context, rightActions);
-			}
+		if (element.getSymbol() == rightSlot) {
+			event.setCancelled(true);
+			gui.refreshPlayerHeads(gui.currentPage + 1);
+			ActionManager.trigger(gui.context, rightActions);
+			return;
+		}
 
-			Sender audience = instance.getSenderFactory().wrap(gui.context.holder());
+		// owner checks (only after navigation/decorative)
+		Sender audience = instance.getSenderFactory().wrap(gui.context.holder());
+		if (!gui.hellblockData.getOwnerUUID().equals(gui.context.holder().getUniqueId())) {
+			audience.sendMessage(
+					instance.getTranslationManager().render(MessageConstants.MSG_NOT_OWNER_OF_HELLBLOCK.build()));
+			AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
+					Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
+							net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
+			return;
+		}
 
-			if (!gui.hellblockData.getOwnerUUID().equals(gui.context.holder().getUniqueId())) {
-				audience.sendMessage(
-						instance.getTranslationManager().render(MessageConstants.MSG_NOT_OWNER_OF_HELLBLOCK.build()));
-				AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
-						Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
-								net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
-				return;
-			}
+		if (gui.hellblockData.isAbandoned()) {
+			audience.sendMessage(
+					instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_IS_ABANDONED.build()));
+			AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
+					Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
+							net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
+			return;
+		}
 
-			if (gui.hellblockData.isAbandoned()) {
-				audience.sendMessage(
-						instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_IS_ABANDONED.build()));
-				AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
-						Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
-								net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
-				return;
-			}
+		// If clicking the player's own inventory (hotbar area) - previous code
+		// specially handled this,
+		// but we've already retrieved element by slot so we treat uniformly.
+		event.setCancelled(true); // we always cancel when interacting with the invite GUI UI
 
-			if (element.getSymbol() == playerSlot && element.getUUID() != null) {
-				event.setCancelled(true);
-				Item<ItemStack> searchItem = instance.getItemManager().wrap(searchIcon.build(gui.context));
-				String name = Bukkit.getPlayer(element.getUUID()).getName();
-				searchItem.displayName(AdventureHelper.miniMessageToJson(name));
-				gui.inventory.setItem(0, searchItem.load());
-				Item<ItemStack> playerItem = instance.getItemManager().wrap(playerFoundIcon.build(gui.context));
-				String username = AdventureHelper.miniMessageToJson(playerName.replace("{player}", name));
-				playerItem.displayName(username);
-				gui.inventory.setItem(2, playerItem.load());
-				ActionManager.trigger(gui.context, playerActions);
-			}
+		// If element represents a player head result in the anvil result slot (slot 2)
+		if (element.getSymbol() == playerSlot && element.getUUID() != null) {
+			// set the search & result UI (like original behavior)
+			Item<ItemStack> searchItem = instance.getItemManager().wrap(searchIcon.build(gui.context));
+			String name = Bukkit.getPlayer(element.getUUID()).getName();
+			searchItem.displayName(AdventureHelper.miniMessageToJson(name));
+			gui.inventory.setItem(0, searchItem.load());
 
-		} else {
-			int slot = event.getSlot();
-			InviteGUIElement element = gui.getElement(slot);
-			if (element == null) {
-				event.setCancelled(true);
-				return;
-			}
+			Item<ItemStack> playerItem = instance.getItemManager().wrap(playerFoundIcon.build(gui.context));
+			String username = AdventureHelper.miniMessageToJson(playerName.replace("{player}", name));
+			playerItem.displayName(username);
+			gui.inventory.setItem(2, playerItem.load());
 
-			Optional<UserData> userData = instance.getStorageManager()
-					.getOnlineUser(gui.context.holder().getUniqueId());
+			ActionManager.trigger(gui.context, playerActions);
+			// We don't return here; allow invite flow below if clicking into result to send
+			// invite
+		}
 
-			if (userData.isEmpty() || !gui.hellblockData.hasHellblock() || gui.hellblockData.getOwnerUUID() == null) {
-				event.setCancelled(true);
-				player.closeInventory();
-				return;
-			}
+		// If top result slot exists and has an item (player found case) and the clicked
+		// element maps to that result:
+		if (gui.inventory.getItem(2) != null && gui.inventory.getItem(2).getType() != Material.AIR) {
+			// Ensure valid searchedName (the anvil rename text)
+			if (gui.searchedName != null && gui.searchedName.matches("^[a-zA-Z0-9_]+$")) {
+				// Check online presence
+				boolean present = instance.getStorageManager().getOnlineUsers().stream()
+						.filter(user -> user.isOnline() && !user.getUUID().equals(gui.context.holder().getUniqueId()))
+						.map(UserData::getName).anyMatch(n -> n.equalsIgnoreCase(gui.searchedName));
 
-			Pair<CustomItem, Action<Player>[]> decorativeIcon = this.decorativeIcons.get(element.getSymbol());
-			if (decorativeIcon != null) {
-				ActionManager.trigger(gui.context, decorativeIcon.right());
-				return;
-			}
-
-			Sender audience = instance.getSenderFactory().wrap(gui.context.holder());
-
-			if (!gui.hellblockData.getOwnerUUID().equals(gui.context.holder().getUniqueId())) {
-				audience.sendMessage(
-						instance.getTranslationManager().render(MessageConstants.MSG_NOT_OWNER_OF_HELLBLOCK.build()));
-				AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
-						Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
-								net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
-				return;
-			}
-
-			if (gui.hellblockData.isAbandoned()) {
-				audience.sendMessage(
-						instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_IS_ABANDONED.build()));
-				AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
-						Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
-								net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
-				return;
-			}
-
-			if (gui.inventory.getItem(2) != null) {
-				event.setCancelled(true);
-				if (gui.searchedName != null && gui.searchedName.matches("^[a-zA-Z0-9_]+$")) {
-					if (instance.getStorageManager().getOnlineUsers().stream()
-							.filter(user -> user.isOnline()
-									&& !user.getUUID().equals(gui.context.holder().getUniqueId()))
-							.map(user -> user.getName()).collect(Collectors.toList()).contains(gui.searchedName)) {
-						if (Bukkit.getPlayer(gui.searchedName) == null
-								|| !Bukkit.getPlayer(gui.searchedName).isOnline()) {
-							ActionManager.trigger(gui.context, playerNotFoundActions);
-							return;
-						}
-
-						Optional<UserData> invitingPlayer = instance.getStorageManager()
-								.getOnlineUser(Bukkit.getPlayer(gui.searchedName).getUniqueId());
-						if (invitingPlayer.isEmpty())
-							return;
-						instance.getCoopManager().sendInvite(userData.get(), invitingPlayer.get());
-						ActionManager.trigger(gui.context, playerFoundActions);
-						instance.getPartyGUIManager().openPartyGUI(gui.context.holder(),
-								gui.hellblockData.getOwnerUUID().equals(gui.context.holder().getUniqueId()));
-						return;
-					} else {
-						ActionManager.trigger(gui.context, playerNotFoundActions);
-						return;
-					}
-				} else {
+				if (!present) {
 					ActionManager.trigger(gui.context, playerNotFoundActions);
 					return;
 				}
+
+				// Double-check player object is online
+				Player target = Bukkit.getPlayer(gui.searchedName);
+				if (target == null || !target.isOnline()) {
+					ActionManager.trigger(gui.context, playerNotFoundActions);
+					return;
+				}
+
+				Optional<UserData> invitingPlayer = instance.getStorageManager().getOnlineUser(target.getUniqueId());
+				if (invitingPlayer.isEmpty()) {
+					ActionManager.trigger(gui.context, playerNotFoundActions);
+					return;
+				}
+
+				// send invite
+				instance.getCoopManager().sendInvite(optionalUser.get(), invitingPlayer.get());
+				ActionManager.trigger(gui.context, playerFoundActions);
+
+				// cleanup and go back to party GUI
+				gui.cancelSearchPolling();
+				gui.returnItems(player);
+				inviteGUICache.remove(player.getUniqueId());
+				instance.getPartyGUIManager().openPartyGUI(gui.context.holder(),
+						gui.hellblockData.getOwnerUUID().equals(gui.context.holder().getUniqueId()));
+				return;
+			} else {
+				ActionManager.trigger(gui.context, playerNotFoundActions);
+				return;
 			}
 		}
 
-		// Refresh the GUI
+		// Otherwise if clicking any head in the bottom area (cachedHeads), invite that
+		// player if possible:
+		// Check if this slot is one of the dynamic head slots
+		if (headSlots.contains(slot)) {
+			InviteDynamicGUIElement clicked = gui.cachedHeads.get(slot);
+			if (clicked == null || clicked.getUUID() == null) {
+				// No head or invalid entry
+				return;
+			}
+
+			UUID targetUUID = clicked.getUUID();
+
+			// Ensure target is online & eligible
+			Player target = Bukkit.getPlayer(targetUUID);
+			if (target == null || !target.isOnline()) {
+				ActionManager.trigger(gui.context, playerNotFoundActions);
+				return;
+			}
+
+			Optional<UserData> targetUD = instance.getStorageManager().getOnlineUser(targetUUID);
+			if (targetUD.isEmpty()) {
+				ActionManager.trigger(gui.context, playerNotFoundActions);
+				return;
+			}
+
+			// Prevent double-inviting (shouldn't happen since filtered, but safe-guard)
+			if (targetUD.get().getHellblockData().hasInvite(gui.context.holder().getUniqueId())) {
+				ActionManager.trigger(gui.context, playerNotFoundActions);
+				return;
+			}
+
+			// Perform invite
+			instance.getCoopManager().sendInvite(optionalUser.get(), targetUD.get());
+			ActionManager.trigger(gui.context, playerFoundActions);
+
+			// Close GUI, restore items and return to previous menu
+			gui.cancelSearchPolling();
+			gui.returnItems(player);
+			inviteGUICache.remove(player.getUniqueId());
+			instance.getPartyGUIManager().openPartyGUI(gui.context.holder(), gui.isOwner);
+			return;
+		}
+
+		// default refresh (if any) - keep previous behavior: schedule a refresh next
+		// tick
 		instance.getScheduler().sync().runLater(gui::refresh, 1, player.getLocation());
 	}
 }

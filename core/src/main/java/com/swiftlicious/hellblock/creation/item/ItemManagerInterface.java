@@ -35,11 +35,10 @@ public interface ItemManagerInterface extends Reloadable {
 	 * @param context the {@link Context} in which the item is built
 	 * @param id      the ID of the item to be built
 	 * @return the built {@link ItemStack}
-	 * @throws NullPointerException if the item ID is not found
 	 */
 	@Nullable
 	@ApiStatus.Internal
-	ItemStack buildInternal(@NotNull Context<Player> context, @NotNull String id) throws NullPointerException;
+	ItemStack buildInternal(@NotNull Context<Player> context, @NotNull String id);
 
 	/**
 	 * Builds a custom item using the given context and item definition.

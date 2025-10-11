@@ -61,6 +61,9 @@ public class BlockManager implements BlockManagerInterface, Listener {
 
 	public BlockManager(HellblockPlugin plugin) {
 		this.instance = plugin;
+	}
+
+	public void init() {
 		this.registerBuiltInProperties();
 		this.registerBlockProvider(new BlockProvider() {
 			@Override
@@ -80,9 +83,8 @@ public class BlockManager implements BlockManagerInterface, Listener {
 				if (material == null) {
 					throw new IllegalArgumentException("Material " + id + " is not a valid material");
 				}
-				BlockData blockData = material.createBlockData();
-				for (BlockDataModifier modifier : modifiers)
-					modifier.apply(context, blockData);
+				final BlockData blockData = material.createBlockData();
+				modifiers.forEach(modifier -> modifier.apply(context, blockData));
 				return blockData;
 			}
 
@@ -110,9 +112,8 @@ public class BlockManager implements BlockManagerInterface, Listener {
 	public void load() {
 		Bukkit.getPluginManager().registerEvents(this, instance);
 		this.resetBlockDetectionOrder();
-		for (BlockProvider provider : blockProviders.values()) {
-			instance.debug("Registered BlockProvider: " + provider.identifier());
-		}
+		blockProviders.values()
+				.forEach(provider -> instance.debug("Registered BlockProvider: " + provider.identifier()));
 		instance.debug("Loaded " + blocks.size() + " blocks");
 		instance.debug("Block order: " + Arrays.toString(
 				Arrays.stream(blockDetectArray).map(ExternalProvider::identifier).toList().toArray(new String[0])));
@@ -126,23 +127,26 @@ public class BlockManager implements BlockManagerInterface, Listener {
 
 	@Override
 	public void disable() {
+		unload();
 		this.blockProviders.clear();
 	}
 
 	private void resetBlockDetectionOrder() {
-		List<BlockProvider> list = new ArrayList<>();
+		final List<BlockProvider> list = new ArrayList<>();
 		for (String plugin : instance.getConfigManager().blockDetectOrder()) {
-			BlockProvider library = blockProviders.get(plugin);
-			if (library != null)
+			final BlockProvider library = blockProviders.get(plugin);
+			if (library != null) {
 				list.add(library);
+			}
 		}
 		this.blockDetectArray = list.toArray(new BlockProvider[0]);
 	}
 
 	@Override
 	public boolean registerBlock(@NotNull BlockConfig block) {
-		if (blocks.containsKey(block.id()))
+		if (blocks.containsKey(block.id())) {
 			return false;
+		}
 		blocks.put(block.id(), block);
 		return true;
 	}
@@ -153,60 +157,63 @@ public class BlockManager implements BlockManagerInterface, Listener {
 	 */
 	@EventHandler
 	public void onBlockLands(EntityChangeBlockEvent event) {
-		if (event.isCancelled())
+		if (event.isCancelled()) {
 			return;
+		}
 
 		// Retrieve a custom string value stored in the entity's persistent data
 		// container.
-		String temp = event.getEntity().getPersistentDataContainer()
+		final String temp = event.getEntity().getPersistentDataContainer()
 				.get(requireNonNull(NamespacedKey.fromString("block", instance)), PersistentDataType.STRING);
 
 		// If the custom string value is not present, return without further action.
-		if (temp == null)
+		if (temp == null) {
 			return;
+		}
 
 		// "BLOCK;PLAYER"
-		String[] split = temp.split(";");
+		final String[] split = temp.split(";");
 
 		// If no BlockConfig is found for the specified key, return without further
 		// action.
-		BlockConfig blockConfig = blocks.get(split[0]);
-		if (blockConfig == null)
+		final BlockConfig blockConfig = blocks.get(split[0]);
+		if (blockConfig == null) {
 			return;
+		}
 
 		// If the player is not online or not found, remove the entity and set the block
 		// to air
-		Player player = Bukkit.getPlayer(split[1]);
+		final Player player = Bukkit.getPlayer(split[1]);
 		if (player == null) {
 			event.getEntity().remove();
 			event.getBlock().setType(Material.AIR);
 			return;
 		}
 
-		Context<Player> context = Context.player(player);
-		Location location = event.getBlock().getLocation();
+		final Context<Player> context = Context.player(player);
+		final Location location = event.getBlock().getLocation();
 
 		// Apply block state modifiers from the BlockConfig to the block 1 tick later.
 		instance.getScheduler().sync().runLater(() -> {
-			BlockState state = location.getBlock().getState();
-			for (BlockStateModifier modifier : blockConfig.stateModifiers()) {
-				modifier.apply(context, state);
-			}
+			final BlockState state = location.getBlock().getState();
+			blockConfig.stateModifiers().forEach(modifier -> modifier.apply(context, state));
 		}, 1, location);
 	}
 
 	public boolean registerBlockProvider(BlockProvider blockProvider) {
-		if (this.blockProviders.containsKey(blockProvider.identifier()))
+		if (this.blockProviders.containsKey(blockProvider.identifier())) {
 			return false;
+		}
 		this.blockProviders.put(blockProvider.identifier(), blockProvider);
 		this.resetBlockDetectionOrder();
 		return true;
 	}
 
 	public boolean unregisterBlockProvider(String identification) {
-		boolean success = blockProviders.remove(identification) != null;
-		if (success)
+		final boolean success = blockProviders.remove(identification) != null;
+		if (success) {
 			this.resetBlockDetectionOrder();
+		}
 		return success;
 	}
 
@@ -215,15 +222,17 @@ public class BlockManager implements BlockManagerInterface, Listener {
 	}
 
 	public boolean registerBlockDataModifierBuilder(String type, BlockDataModifierFactory factory) {
-		if (this.dataFactories.containsKey(type))
+		if (this.dataFactories.containsKey(type)) {
 			return false;
+		}
 		this.dataFactories.put(type, factory);
 		return true;
 	}
 
 	public boolean registerBlockStateModifierBuilder(String type, BlockStateModifierFactory factory) {
-		if (stateFactories.containsKey(type))
+		if (stateFactories.containsKey(type)) {
 			return false;
+		}
 		this.stateFactories.put(type, factory);
 		return true;
 	}
@@ -247,30 +256,32 @@ public class BlockManager implements BlockManagerInterface, Listener {
 	@Override
 	@NotNull
 	public FallingBlock summonBlockLoot(@NotNull Context<Player> context) {
-		String id = context.arg(ContextKeys.ID);
-		BlockConfig config = requireNonNull(blocks.get(id), "Block " + id + " not found");
-		String blockID = config.blockID();
-		BlockData blockData;
+		final String id = context.arg(ContextKeys.ID);
+		final BlockConfig config = requireNonNull(blocks.get(id), "Block " + id + " not found");
+		final String blockID = config.blockID();
+		final BlockData blockData;
 		if (blockID.contains(":")) {
-			String[] split = blockID.split(":", 2);
-			BlockProvider provider = requireNonNull(blockProviders.get(split[0]),
+			final String[] split = blockID.split(":", 2);
+			final BlockProvider provider = requireNonNull(blockProviders.get(split[0]),
 					"BlockProvider " + split[0] + " doesn't exist");
 			blockData = requireNonNull(provider.blockData(context, split[1], config.dataModifier()),
 					"Block " + split[1] + " doesn't exist");
 		} else {
 			blockData = blockProviders.get("vanilla").blockData(context, blockID, config.dataModifier());
 		}
-		Location hookLocation = requireNonNull(context.arg(ContextKeys.OTHER_LOCATION));
-		Location playerLocation = requireNonNull(context.holder()).getLocation();
+		final Location hookLocation = requireNonNull(context.arg(ContextKeys.OTHER_LOCATION));
+		final Location playerLocation = requireNonNull(context.holder()).getLocation();
 		FallingBlock fallingBlock = hookLocation.getWorld().spawnFallingBlock(hookLocation, blockData);
+		fallingBlock.setDropItem(false);
+		fallingBlock.setHurtEntities(false);
 		fallingBlock.getPersistentDataContainer().set(requireNonNull(NamespacedKey.fromString("block", instance)),
 				PersistentDataType.STRING, id + ";" + context.holder().getName());
-		double d0 = playerLocation.getX() - hookLocation.getX();
-		double d1 = playerLocation.getY() - hookLocation.getY();
-		double d2 = playerLocation.getZ() - hookLocation.getZ();
-		double d3 = config.horizontalVector().evaluate(context);
-		double d4 = config.verticalVector().evaluate(context);
-		Vector vector = new Vector(d0 * 0.1D * d3,
+		final double d0 = playerLocation.getX() - hookLocation.getX();
+		final double d1 = playerLocation.getY() - hookLocation.getY();
+		final double d2 = playerLocation.getZ() - hookLocation.getZ();
+		final double d3 = config.horizontalVector().evaluate(context);
+		final double d4 = config.verticalVector().evaluate(context);
+		final Vector vector = new Vector(d0 * 0.1D * d3,
 				d1 * 0.1D + Math.sqrt(Math.sqrt(d0 * d0 + d1 * d1 + d2 * d2)) * 0.08D * d4, d2 * 0.1D * d3);
 		fallingBlock.setVelocity(vector);
 		return fallingBlock;
@@ -280,9 +291,10 @@ public class BlockManager implements BlockManagerInterface, Listener {
 	@NotNull
 	public String getBlockID(@NotNull Block block) {
 		for (BlockProvider blockProvider : blockDetectArray) {
-			String id = blockProvider.blockID(block);
-			if (id != null)
+			final String id = blockProvider.blockID(block);
+			if (id != null) {
 				return id;
+			}
 		}
 		// Should not reach this because vanilla library would always work
 		return "AIR";
@@ -290,19 +302,19 @@ public class BlockManager implements BlockManagerInterface, Listener {
 
 	private void registerDirectional() {
 		this.registerBlockDataModifierBuilder("directional", (args) -> (context, blockData) -> {
-			boolean arg = (boolean) args;
+			final boolean arg = (boolean) args;
 			if (arg && blockData instanceof Directional directional) {
 				directional.setFacing(BlockFace.values()[RandomUtils.generateRandomInt(0, 3)]);
 			}
 		});
 		this.registerBlockDataModifierBuilder("directional-4", (args) -> (context, blockData) -> {
-			boolean arg = (boolean) args;
+			final boolean arg = (boolean) args;
 			if (arg && blockData instanceof Directional directional) {
 				directional.setFacing(BlockFace.values()[RandomUtils.generateRandomInt(0, 3)]);
 			}
 		});
 		this.registerBlockDataModifierBuilder("directional-6", (args) -> (context, blockData) -> {
-			boolean arg = (boolean) args;
+			final boolean arg = (boolean) args;
 			if (arg && blockData instanceof Directional directional) {
 				directional.setFacing(BlockFace.values()[RandomUtils.generateRandomInt(0, 5)]);
 			}
@@ -311,7 +323,7 @@ public class BlockManager implements BlockManagerInterface, Listener {
 
 	private void registerRotatable() {
 		this.registerBlockDataModifierBuilder("rotatable", (args) -> {
-			boolean arg = (boolean) args;
+			final boolean arg = (boolean) args;
 			return (context, blockData) -> {
 				if (arg && blockData instanceof Rotatable rotatable) {
 					rotatable.setRotation(
@@ -324,8 +336,8 @@ public class BlockManager implements BlockManagerInterface, Listener {
 	private void registerNoteBlock() {
 		this.registerBlockDataModifierBuilder("noteblock", (args) -> {
 			if (args instanceof Section section) {
-				var instrument = Instrument.valueOf(section.getString("instrument"));
-				var note = new Note(section.getInt("note"));
+				final var instrument = Instrument.valueOf(section.getString("instrument"));
+				final var note = new Note(section.getInt("note"));
 				return (context, blockData) -> {
 					if (blockData instanceof NoteBlock noteBlock) {
 						noteBlock.setNote(note);
@@ -343,15 +355,15 @@ public class BlockManager implements BlockManagerInterface, Listener {
 	private void registerStorage() {
 		this.registerBlockStateModifierBuilder("storage", (args) -> {
 			if (args instanceof Section section) {
-				List<Tuple<MathValue<Player>, String, MathValue<Player>>> contents = new ArrayList<>();
-				for (Map.Entry<String, Object> entry : section.getStringRouteMappedValues(false).entrySet()) {
+				final List<Tuple<MathValue<Player>, String, MathValue<Player>>> contents = new ArrayList<>();
+				section.getStringRouteMappedValues(false).entrySet().forEach(entry -> {
 					if (entry.getValue() instanceof Section inner) {
-						String item = inner.getString("item");
-						MathValue<Player> amount = MathValue.auto(inner.getString("amount", "1~1"), true);
-						MathValue<Player> chance = MathValue.auto(inner.get("chance", 1d));
+						final String item = inner.getString("item");
+						final MathValue<Player> amount = MathValue.auto(inner.getString("amount", "1~1"), true);
+						final MathValue<Player> chance = MathValue.auto(inner.get("chance", 1d));
 						contents.add(Tuple.of(chance, item, amount));
 					}
-				}
+				});
 				return (context, blockState) -> {
 					if (blockState instanceof Container container) {
 						setInventoryItems(contents, context, container.getInventory());
@@ -367,19 +379,17 @@ public class BlockManager implements BlockManagerInterface, Listener {
 
 	private void setInventoryItems(List<Tuple<MathValue<Player>, String, MathValue<Player>>> contents,
 			Context<Player> context, Inventory inventory) {
-		LinkedList<Integer> unused = new LinkedList<>();
+		final LinkedList<Integer> unused = new LinkedList<>();
 		for (int i = 0; i < inventory.getSize(); i++) {
 			unused.add(i);
 		}
 		Collections.shuffle(unused);
-		for (Tuple<MathValue<Player>, String, MathValue<Player>> tuple : contents) {
-			if (tuple.left().evaluate(context) > Math.random()) {
-				ItemStack itemStack = instance.getItemManager().buildAny(context, tuple.mid());
-				if (itemStack != null) {
-					itemStack.setAmount((int) tuple.right().evaluate(context));
-					inventory.setItem(unused.pop(), itemStack);
-				}
+		contents.stream().filter(tuple -> tuple.left().evaluate(context) > Math.random()).forEach(tuple -> {
+			final ItemStack itemStack = instance.getItemManager().buildAny(context, tuple.mid());
+			if (itemStack != null) {
+				itemStack.setAmount((int) tuple.right().evaluate(context));
+				inventory.setItem(unused.pop(), itemStack);
 			}
-		}
+		});
 	}
 }

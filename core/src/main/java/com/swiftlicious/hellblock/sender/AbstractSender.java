@@ -82,10 +82,12 @@ public final class AbstractSender<T> implements Sender {
 
 	@Override
 	public boolean equals(Object o) {
-		if (o == this)
+		if (o == this) {
 			return true;
-		if (!(o instanceof AbstractSender<?> that))
+		}
+		if (!(o instanceof AbstractSender<?> that)) {
 			return false;
+		}
 		return this.getUniqueId().equals(that.getUniqueId());
 	}
 

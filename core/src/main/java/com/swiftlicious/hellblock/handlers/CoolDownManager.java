@@ -16,7 +16,9 @@ import org.bukkit.event.player.PlayerQuitEvent;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.api.Reloadable;
+import com.swiftlicious.hellblock.player.HellblockData;
 import com.swiftlicious.hellblock.player.UserData;
+import com.swiftlicious.hellblock.scheduler.SchedulerTask;
 
 /**
  * Manages cooldowns for various actions or events. Keeps track of cooldown
@@ -24,53 +26,55 @@ import com.swiftlicious.hellblock.player.UserData;
  */
 public class CoolDownManager implements Listener, Reloadable {
 
-	private final ConcurrentMap<UUID, Data> dataMap;
 	protected final HellblockPlugin instance;
 
+	private final ConcurrentMap<UUID, Data> dataMap = new ConcurrentHashMap<>();
+	private SchedulerTask cooldownTask;
+
 	public CoolDownManager(HellblockPlugin plugin) {
-		this.dataMap = new ConcurrentHashMap<>();
 		this.instance = plugin;
-		instance.getScheduler().asyncLater(() -> startCountdowns(), 5, TimeUnit.SECONDS);
+	}
+
+	public void init() {
+		cooldownTask = instance.getScheduler().asyncRepeating(this::startCountdowns, 0, 1, TimeUnit.SECONDS);
 	}
 
 	public void startCountdowns() {
-		instance.getScheduler().asyncRepeating(() -> {
-			for (UUID playerData : instance.getStorageManager().getDataSource().getUniqueUsers()) {
-				instance.getStorageManager().getOfflineUserData(playerData, instance.getConfigManager().lockData())
-						.thenAccept((result) -> {
-							if (result.isEmpty())
-								return;
-							UserData offlineUser = result.get();
-							UUID ownerUUID = offlineUser.getHellblockData().getOwnerUUID();
-							if (ownerUUID != null && playerData.equals(ownerUUID)) {
-								if (offlineUser.getHellblockData().getResetCooldown() > 0) {
-									offlineUser.getHellblockData()
-											.setResetCooldown(offlineUser.getHellblockData().getResetCooldown() - 1);
-								}
-								if (offlineUser.getHellblockData().getBiomeCooldown() > 0) {
-									offlineUser.getHellblockData()
-											.setBiomeCooldown(offlineUser.getHellblockData().getBiomeCooldown() - 1);
-								}
-								if (offlineUser.getHellblockData().getTransferCooldown() > 0) {
-									offlineUser.getHellblockData().setTransferCooldown(
-											offlineUser.getHellblockData().getTransferCooldown() - 1);
-								}
+		for (UUID playerId : instance.getStorageManager().getDataSource().getUniqueUsers()) {
+			instance.getStorageManager().getOfflineUserData(playerId, instance.getConfigManager().lockData())
+					.thenAccept(result -> {
+						if (result.isEmpty())
+							return;
+						final UserData user = result.get();
+
+						// Schedule safely on main thread
+						instance.getScheduler().executeSync(() -> {
+							HellblockData data = user.getHellblockData();
+
+							if (data.getOwnerUUID() != null && data.getOwnerUUID().equals(playerId)) {
+								if (data.getResetCooldown() > 0)
+									data.setResetCooldown(data.getResetCooldown() - 1);
+								if (data.getBiomeCooldown() > 0)
+									data.setBiomeCooldown(data.getBiomeCooldown() - 1);
+								if (data.getTransferCooldown() > 0)
+									data.setTransferCooldown(data.getTransferCooldown() - 1);
 							}
-							if (!offlineUser.getHellblockData().hasHellblock()
-									&& offlineUser.getHellblockData().getInvitations() != null) {
-								for (Map.Entry<UUID, Long> invites : offlineUser.getHellblockData().getInvitations()
-										.entrySet()) {
-									if (invites.getValue() > 0) {
-										offlineUser.getHellblockData().getInvitations().replace(invites.getKey(),
-												invites.getValue() - 1);
-									} else {
-										offlineUser.getHellblockData().getInvitations().remove(invites.getKey());
-									}
-								}
+
+							if (!data.getInvitations().isEmpty()) {
+								Map<UUID, Long> invites = data.getInvitations();
+								invites.replaceAll((key, value) -> value - 1);
+								invites.entrySet().removeIf(e -> e.getValue() <= 0);
 							}
 						});
-			}
-		}, 0, 1, TimeUnit.SECONDS);
+					});
+		}
+	}
+
+	public void stopCooldowns() {
+		if (this.cooldownTask != null && !this.cooldownTask.isCancelled()) {
+			this.cooldownTask.cancel();
+			this.cooldownTask = null;
+		}
 	}
 
 	/**
@@ -82,7 +86,7 @@ public class CoolDownManager implements Listener, Reloadable {
 	 * @return True if the player is in cooldown, false otherwise.
 	 */
 	public boolean isCoolDown(UUID uuid, String key, long time) {
-		Data data = this.dataMap.computeIfAbsent(uuid, k -> new Data());
+		final Data data = this.dataMap.computeIfAbsent(uuid, k -> new Data());
 		return data.isCoolDown(key, time);
 	}
 
@@ -99,6 +103,7 @@ public class CoolDownManager implements Listener, Reloadable {
 	@Override
 	public void disable() {
 		unload();
+		stopCooldowns();
 		this.dataMap.clear();
 	}
 
@@ -128,8 +133,8 @@ public class CoolDownManager implements Listener, Reloadable {
 		 * @return True if the player is in cooldown, false otherwise.
 		 */
 		public boolean isCoolDown(String key, long delay) {
-			long time = System.currentTimeMillis();
-			long last = coolDownMap.getOrDefault(key, time - delay);
+			final long time = System.currentTimeMillis();
+			final long last = coolDownMap.getOrDefault(key, time - delay);
 			if (last + delay > time) {
 				return true; // Player is in cooldown
 			} else {

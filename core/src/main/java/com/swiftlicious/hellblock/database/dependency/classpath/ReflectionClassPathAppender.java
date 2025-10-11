@@ -9,7 +9,7 @@ import com.swiftlicious.hellblock.HellblockPlugin;
 public class ReflectionClassPathAppender implements ClassPathAppender {
 	private final URLClassLoaderAccess classLoaderAccess;
 
-	public ReflectionClassPathAppender(ClassLoader classLoader) throws IllegalStateException {
+	public ReflectionClassPathAppender(ClassLoader classLoader) {
 		if (classLoader instanceof URLClassLoader) {
 			this.classLoaderAccess = URLClassLoaderAccess.create((URLClassLoader) classLoader);
 		} else {
@@ -17,7 +17,7 @@ public class ReflectionClassPathAppender implements ClassPathAppender {
 		}
 	}
 
-	public ReflectionClassPathAppender(HellblockPlugin plugin) throws IllegalStateException {
+	public ReflectionClassPathAppender(HellblockPlugin plugin) {
 		this(plugin.getClass().getClassLoader());
 	}
 

@@ -28,12 +28,12 @@ public class MythicEntityProvider implements EntityProvider {
 		if (this.mythicBukkit == null || mythicBukkit.isClosed()) {
 			this.mythicBukkit = MythicBukkit.inst();
 		}
-		Optional<MythicMob> mythicMob = mythicBukkit.getMobManager().getMythicMob(id);
+		final Optional<MythicMob> mythicMob = mythicBukkit.getMobManager().getMythicMob(id);
 		if (mythicMob.isPresent()) {
-			MythicMob theMob = mythicMob.get();
-			Position position = Position.of(location);
-			AbstractLocation abstractLocation = new AbstractLocation(position);
-			ActiveMob activeMob = theMob.spawn(abstractLocation,
+			final MythicMob theMob = mythicMob.get();
+			final Position position = Position.of(location);
+			final AbstractLocation abstractLocation = new AbstractLocation(position);
+			final ActiveMob activeMob = theMob.spawn(abstractLocation,
 					((Number) propertyMap.getOrDefault("level", 0d)).doubleValue());
 			return activeMob.getEntity().getBukkitEntity();
 		}

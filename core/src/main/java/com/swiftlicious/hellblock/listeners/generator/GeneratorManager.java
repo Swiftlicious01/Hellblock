@@ -7,78 +7,78 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
-import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.block.Block;
+
+import com.swiftlicious.hellblock.listeners.NetherGeneratorHandler.LocationKey;
 
 public class GeneratorManager {
 
-	private final List<Location> knownGenLocations = new ArrayList<>();
-	private final Map<Location, GenBlock> genBreaks = new HashMap<>();
-	private Map<Location, GenPiston> knownGenPistons = new HashMap<>();
+	private final List<LocationKey> knownGenLocations = new ArrayList<>();
+	private final Map<LocationKey, GenBlock> genBreaks = new HashMap<>();
+	private Map<LocationKey, GenPiston> knownGenPistons = new HashMap<>();
 
-	public List<Location> getKnownGenLocations() {
+	public List<LocationKey> getKnownGenLocations() {
 		return knownGenLocations;
 	}
 
-	public boolean isGenLocationKnown(Location l) {
+	public boolean isGenLocationKnown(LocationKey l) {
 		return this.getKnownGenLocations().contains(l);
 	}
 
-	public void addKnownGenLocation(Location l) {
-		if (this.isGenLocationKnown(l))
+	public void addKnownGenLocation(LocationKey lk) {
+		if (this.isGenLocationKnown(lk)) {
 			return;
-		this.getKnownGenLocations().add(l);
+		}
+		this.getKnownGenLocations().add(lk);
 	}
 
-	public void removeKnownGenLocation(Location l) {
-		if (this.isGenLocationKnown(l))
+	public void removeKnownGenLocation(LocationKey l) {
+		if (this.isGenLocationKnown(l)) {
 			this.getKnownGenLocations().remove(l);
+		}
 		this.genBreaks.remove(l);
 	}
 
-	public void setPlayerForLocation(UUID uuid, Location l, boolean pistonPowered) {
+	public void setPlayerForLocation(UUID uuid, LocationKey l, boolean pistonPowered) {
 		this.addKnownGenLocation(l);
 		this.getGenBreaks().remove(l);
 
 		// Create a new GenBlock object to track the player+timestamp and add it to the
 		// genBreaks map
-		GenBlock gb = new GenBlock(l, uuid, pistonPowered);
+		final GenBlock gb = new GenBlock(l, uuid, pistonPowered);
 		this.getGenBreaks().put(l, gb);
 	}
 
-	public Map<Location, GenBlock> getGenBreaks() {
+	public Map<LocationKey, GenBlock> getGenBreaks() {
 		return genBreaks;
 	}
 
 	public void cleanupExpiredLocations() {
 		// Remove all expired GenBlock entries
-		Set<Map.Entry<Location, GenBlock>> entrySet = genBreaks.entrySet();
-		if (entrySet.isEmpty())
+		final Set<Map.Entry<LocationKey, GenBlock>> entrySet = genBreaks.entrySet();
+		if (entrySet.isEmpty()) {
 			return;
-		List<GenBlock> expiredBlocks = new ArrayList<>();
-		for (Map.Entry<Location, GenBlock> entry : entrySet) {
-			GenBlock gb = entry.getValue();
-			if (gb.hasExpired()) {
-				expiredBlocks.add(gb);
-			}
 		}
-		for (GenBlock genBlock : expiredBlocks) {
-			removeKnownGenLocation(genBlock.getLocation());
-		}
+		final List<GenBlock> expiredBlocks = new ArrayList<>();
+		entrySet.stream().map(Map.Entry::getValue).filter(GenBlock::hasExpired).forEach(expiredBlocks::add);
+		expiredBlocks.forEach(genBlock -> removeKnownGenLocation(genBlock.getLocation()));
 	}
 
 	public void cleanupExpiredPistons(UUID uuid) {
 		// Remove all expired GenBlock entries
-		if (knownGenPistons == null)
+		if (knownGenPistons == null) {
 			return;
-		Set<Map.Entry<Location, GenPiston>> entrySet = knownGenPistons.entrySet();
-		if (entrySet.isEmpty())
+		}
+		final Set<Map.Entry<LocationKey, GenPiston>> entrySet = knownGenPistons.entrySet();
+		if (entrySet.isEmpty()) {
 			return;
-		List<GenPiston> expiredPistons = new ArrayList<>();
-		for (Map.Entry<Location, GenPiston> entry : entrySet) {
-			GenPiston piston = entry.getValue();
-			piston.getLoc().getBlock();
-			if (piston.getLoc().getBlock().getType() == Material.PISTON) {
+		}
+		final List<GenPiston> expiredPistons = new ArrayList<>();
+		for (Map.Entry<LocationKey, GenPiston> entry : entrySet) {
+			final GenPiston piston = entry.getValue();
+			final Block block = piston.getLoc().getBlock();
+			if (block != null && block.getType() == Material.PISTON) {
 				expiredPistons.add(piston);
 				continue;
 			}
@@ -86,27 +86,25 @@ public class GeneratorManager {
 				expiredPistons.add(piston);
 			}
 		}
-		for (GenPiston piston : expiredPistons) {
-			this.removeKnownGenPiston(piston);
-		}
+		expiredPistons.forEach(this::removeKnownGenPiston);
 	}
 
-	public Map<Location, GenPiston> getKnownGenPistons() {
+	public Map<LocationKey, GenPiston> getKnownGenPistons() {
 		return knownGenPistons;
 	}
 
-	public void setKnownGenPistons(Map<Location, GenPiston> knownGenPistons) {
+	public void setKnownGenPistons(Map<LocationKey, GenPiston> knownGenPistons) {
 		this.knownGenPistons = knownGenPistons;
 	}
 
 	public void addKnownGenPiston(GenPiston piston) {
-		Location location = piston.getLoc();
+		final LocationKey location = piston.getLoc();
 		this.getKnownGenPistons().remove(location);
 		this.getKnownGenPistons().put(location, piston);
 	}
 
 	public void removeKnownGenPiston(GenPiston piston) {
-		Location location = piston.getLoc();
+		final LocationKey location = piston.getLoc();
 		this.getKnownGenPistons().remove(location);
 	}
 

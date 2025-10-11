@@ -3,88 +3,107 @@
 # gaming experience. We hope that you will create
 # customized configurations based on your own ideas,
 # allowing players to experience the uniqueness of your server.
-#
+
 # Vanilla loots settings
 vanilla:
   show-in-fishfinder: false
-  group:
-    - river
+  disable-stat: true
+  events:
+    success:
+      action_mending:
+        type: mending
+        value: 1~7
+        chance: 1.0
 # Some rubbish
 stick:
   tag: false
   nick: '<#EEE685>Useless sticks</#EEE685>'
   material: stick
   show-in-fishfinder: false
+  disable-stat: true
 shoes:
   tag: false
   nick: '<#8B814C>Something smells bad</#8B814C>'
   material: leather_boots
   show-in-fishfinder: false
+  disable-stat: true
   random-durability: true
 seagrass:
   tag: false
   nick: '<green>Sea Grass</green>'
   material: seagrass
   show-in-fishfinder: false
+  disable-stat: true
 kelp:
   tag: false
   nick: '<green>Kelp</green>'
   material: kelp
   show-in-fishfinder: false
+  disable-stat: true
 nether_brick:
   tag: false
   nick: '<gray>Something hard</gray>'
   material: nether_brick
   show-in-fishfinder: false
+  disable-stat: true
 flint:
   tag: false
   nick: '<gray>Something hard</gray>'
   material: flint
   show-in-fishfinder: false
+  disable-stat: true
 stone:
   tag: false
   nick: '<gray>Something hard</gray>'
   material: stone
   show-in-fishfinder: false
+  disable-stat: true
 netherrack:
   tag: false
   nick: '<gray>Something hard</gray>'
   material: netherrack
   show-in-fishfinder: false
+  disable-stat: true
 gold_ingot:
   tag: false
   nick: '<yellow>Shining ingots</yellow>'
   material: gold_ingot
   show-in-fishfinder: false
+  disable-stat: true
 gold_nugget:
   tag: false
   nick: '<yellow>Shining nuggets</yellow>'
   material: gold_nugget
   show-in-fishfinder: false
+  disable-stat: true
 cobblestone:
   tag: false
   nick: '<gray>Something hard</gray>'
   material: cobblestone
   show-in-fishfinder: false
+  disable-stat: true
 obsidian:
   tag: false
   nick: '<gray>Something hard</gray>'
   material: obsidian
   show-in-fishfinder: false
+  disable-stat: true
 diamond:
   tag: false
   nick: '<#00FFFF>Diamond</#00FFFF>'
   material: diamond
   show-in-fishfinder: false
+  disable-stat: true
 rubbish:
   material: cod
   nick: <#00BFFF>Radioactive Fish</#00BFFF>
   display:
     name: <#00BFFF>Radioactive Fish</#00BFFF>
     lore:
-      - <gray>Protect the environment...
+      - <gray>Time to protect the environment
   custom-model-data: 50000
   show-in-fishfinder: false
+  disable-stat: true
   prevent-grabbing: false
 rainbow_fish:
   material: cod
@@ -97,102 +116,95 @@ rainbow_fish:
   price:
     base: 100
 # Enchantments
-sharpness_book:
+enchantment_book:
   tag: false
   material: enchanted_book
   group: enchantments
   nick: "<lang:item.minecraft.enchanted_book>"
   show-in-fishfinder: false
-  random-stored-enchantments:
-    lv5:
-      enchant: minecraft:sharpness
-      level: 5
-      chance: 0.1
-    lv4:
-      enchant: minecraft:sharpness
-      level: 4
-      chance: 0.2
-    lv3:
-      enchant: minecraft:sharpness
-      level: 3
-      chance: 0.4
-    lv2:
-      enchant: minecraft:sharpness
-      level: 2
-      chance: 0.7
-    lv1:
-      enchant: minecraft:sharpness
-      level: 1
-      chance: 1
-efficiency_book:
-  tag: false
-  material: enchanted_book
-  group: enchantments
-  show-in-fishfinder: false
-  nick: "<lang:item.minecraft.enchanted_book>"
-  random-stored-enchantments:
-    lv5:
-      enchant: minecraft:efficiency
-      level: 5
-      chance: 0.1
-    lv4:
-      enchant: minecraft:efficiency
-      level: 4
-      chance: 0.2
-    lv3:
-      enchant: minecraft:efficiency
-      level: 3
-      chance: 0.4
-    lv2:
-      enchant: minecraft:efficiency
-      level: 2
-      chance: 0.7
-    lv1:
-      enchant: minecraft:efficiency
-      level: 1
-      chance: 1
-unbreaking_book:
-  tag: false
-  material: enchanted_book
-  group: enchantments
-  show-in-fishfinder: false
-  nick: "<lang:item.minecraft.enchanted_book>"
-  random-stored-enchantments:
-    lv3:
-      enchant: minecraft:unbreaking
-      level: 3
-      chance: 0.2
-    lv2:
-      enchant: minecraft:unbreaking
-      level: 2
-      chance: 0.5
-    lv1:
-      enchant: minecraft:unbreaking
-      level: 1
-      chance: 1
-protection_book:
-  tag: false
-  material: enchanted_book
-  group: enchantments
-  show-in-fishfinder: false
-  nick: "<lang:item.minecraft.enchanted_book>"
-  random-stored-enchantments:
-    lv4:
-      enchant: minecraft:protection
-      level: 4
-      chance: 0.1
-    lv3:
-      enchant: minecraft:protection
-      level: 3
-      chance: 0.2
-    lv2:
-      enchant: minecraft:protection
-      level: 2
-      chance: 0.5
-    lv1:
-      enchant: minecraft:protection
-      level: 1
-      chance: 1
+  disable-stat: true
+  stored-enchantment-pool:
+    # max enchantments on the item
+    amount:
+      1: 6
+      2: 3
+      3: 1
+    pool:
+      'minecraft:unbreaking:1': 6
+      'minecraft:unbreaking:2': 3
+      'minecraft:unbreaking:3': 1
+      'minecraft:sharpness:1': 6
+      'minecraft:sharpness:2': 3
+      'minecraft:sharpness:3': 2
+      'minecraft:sharpness:4': 1
+      'minecraft:efficiency:1': 12
+      'minecraft:efficiency:2': 6
+      'minecraft:efficiency:3': 2
+      'minecraft:efficiency:4': 1
+      'minecraft:protection:1': 10
+      'minecraft:protection:2': 6
+      'minecraft:protection:3': 2
+      'minecraft:feather_falling:1': 4
+      'minecraft:feather_falling:2': 3
+      'minecraft:feather_falling:3': 2
+      'minecraft:blast_protection:1': 10
+      'minecraft:blast_protection:2': 6
+      'minecraft:blast_protection:3': 2
+      'minecraft:fire_protection:1': 10
+      'minecraft:fire_protection:2': 6
+      'minecraft:fire_protection:3': 2
+      'minecraft:projectile_protection:1': 10
+      'minecraft:projectile_protection:2': 6
+      'minecraft:projectile_protection:3': 2
+      'minecraft:binding_curse:1': 2
+      'minecraft:vanishing_curse:1': 2
+      'minecraft:depth_strider:1': 8
+      'minecraft:depth_strider:2': 4
+      'minecraft:depth_strider:3': 2
+      'minecraft:fortune:1': 4
+      'minecraft:fortune:2': 3
+      'minecraft:fortune:3': 2
+      'minecraft:flame:1': 12
+      'minecraft:loyalty:1': 8
+      'minecraft:loyalty:2': 5
+      'minecraft:lure:1': 9
+      'minecraft:lure:2': 3
+      'minecraft:lure:3': 1
+      'minecraft:luck_of_the_sea:1': 8
+      'minecraft:luck_of_the_sea:2': 2
+      'minecraft:luck_of_the_sea:3': 1
+      'minecraft:channeling:1': 7
+      'minecraft:frost_walker:1': 7
+      'minecraft:mending:1': 10
+      'minecraft:power:1': 12
+      'minecraft:power:2': 6
+      'minecraft:power:3': 3
+      'minecraft:power:4': 1
+      'minecraft:knockback:1': 8
+      'minecraft:knockback:2': 3
+      'minecraft:silk_touch:1': 12
+      'minecraft:smite:1': 12
+      'minecraft:smite:2': 6
+      'minecraft:smite:3': 3
+      'minecraft:smite:4': 1
+      'minecraft:bane_of_arthropods:1': 12
+      'minecraft:bane_of_arthropods:2': 6
+      'minecraft:bane_of_arthropods:3': 3
+      'minecraft:bane_of_arthropods:4': 1
+      'minecraft:multishot:1': 7
+      'minecraft:punch:1': 8
+      'minecraft:punch:2': 4
+      'minecraft:thorns:1': 8
+      'minecraft:thorns:2': 4
+      'minecraft:looting:1': 12
+      'minecraft:looting:2': 6
+      'minecraft:looting:3': 2
+      'minecraft:soul_speed:1': 8
+      'minecraft:soul_speed:2': 4
+      'minecraft:fire_aspect:1': 10
+      'minecraft:fire_aspect:2': 5
+      'minecraft:quick_charge:1': 9
+      'minecraft:infinity:1': 7
 # Fish
 tuna_fish:
   material: cod
@@ -200,9 +212,11 @@ tuna_fish:
     name: <gradient:#F0FFFF:#4682B4:#F0FFFF>Tuna Fish</gradient>
     lore:
       - <gray>Tuna is a kind of healthy food.
-      - '<white>size: {size}cm'
+      - '<white>size: {size_formatted}cm'
   custom-model-data: 50001
-  group: ocean
+  group:
+    - ocean
+    - no_star
   events:
     success:
       action_mending:
@@ -221,7 +235,7 @@ tuna_fish_silver_star:
       Star)</#F5F5F5>
     lore:
       - <gray>Tuna is a kind of healthy food.
-      - '<white>size: {size}cm'
+      - '<white>size: {size_formatted}cm'
   custom-model-data: 50002
   group:
     - silver_star
@@ -244,7 +258,7 @@ tuna_fish_golden_star:
       Star)</#FFD700>
     lore:
       - <gray>Tuna is a kind of healthy food.
-      - '<white>size: {size}cm'
+      - '<white>size: {size_formatted}cm'
   custom-model-data: 50003
   group:
     - golden_star
@@ -268,9 +282,11 @@ pike_fish:
       - <gray>of salt and fresh lava. It can
       - <gray>survive in sealava, brackish fresh
       - <gray>lava and inland freshlava lakes
-      - '<white>size: {size}cm'
+      - '<white>size: {size_formatted}cm'
   custom-model-data: 50004
-  group: ocean
+  group:
+    - ocean
+    - no_star
   events:
     success:
       action_mending:
@@ -292,7 +308,7 @@ pike_fish_silver_star:
       - <gray>of salt and fresh lava. It can
       - <gray>survive in sealava, brackish fresh
       - <gray>lava and inland freshlava lakes
-      - '<white>size: {size}cm'
+      - '<white>size: {size_formatted}cm'
   custom-model-data: 50005
   group:
     - silver_star
@@ -318,7 +334,7 @@ pike_fish_golden_star:
       - <gray>of salt and fresh lava. It can
       - <gray>survive in sealava, brackish fresh
       - <gray>lava and inland freshlava lakes
-      - '<white>size: {size}cm'
+      - '<white>size: {size_formatted}cm'
   custom-model-data: 50006
   group:
     - golden_star
@@ -341,13 +357,15 @@ gold_fish:
       - <gray>Goldfish is one of most famous ornamental
       - <gray>fishes in the world. It originated in China
       - <gray>and has a history of more than 1700 years
-      - '<white>size: {size}cm'
+      - '<white>size: {size_formatted}cm'
   price:
     base: 70
     bonus: 2.6
   size: 2~3
   custom-model-data: 50007
-  group: river
+  group:
+    - no_star
+    - river
   events:
     success:
       action_mending:
@@ -364,7 +382,7 @@ gold_fish_silver_star:
       - <gray>Goldfish is one of most famous ornamental
       - <gray>fishes in the world. It originated in China
       - <gray>and has a history of more than 1700 years
-      - '<white>size: {size}cm'
+      - '<white>size: {size_formatted}cm'
   price:
     base: 80
     bonus: 3
@@ -389,7 +407,7 @@ gold_fish_golden_star:
       - <gray>Goldfish is one of most famous ornamental
       - <gray>fishes in the world. It originated in China
       - <gray>and has a history of more than 1700 years
-      - '<white>size: {size}cm'
+      - '<white>size: {size_formatted}cm'
   price:
     base: 100
     bonus: 3.4
@@ -411,9 +429,11 @@ perch_fish:
     lore:
       - <gray>Living in various habitats and
       - <gray>foraging at dusk and early morning
-      - '<white>size: {size}cm'
+      - '<white>size: {size_formatted}cm'
   custom-model-data: 50010
-  group: river
+  group:
+    - no_star
+    - river
   events:
     success:
       action_mending:
@@ -433,7 +453,7 @@ perch_fish_silver_star:
     lore:
       - <gray>Living in various habitats and
       - <gray>foraging at dusk and early morning
-      - '<white>size: {size}cm'
+      - '<white>size: {size_formatted}cm'
   custom-model-data: 50011
   group:
     - silver_star
@@ -457,7 +477,7 @@ perch_fish_golden_star:
     lore:
       - <gray>Living in various habitats and
       - <gray>foraging at dusk and early morning
-      - '<white>size: {size}cm'
+      - '<white>size: {size_formatted}cm'
   custom-model-data: 50012
   group:
     - golden_star
@@ -479,9 +499,11 @@ mullet_fish:
     lore:
       - <gray>Used in traditional Chinese medicine
       - <gray>to treat spleen and stomach weakness
-      - '<white>size: {size}cm'
+      - '<white>size: {size_formatted}cm'
   custom-model-data: 50013
-  group: river
+  group:
+    - no_star
+    - river
   events:
     success:
       action_mending:
@@ -501,7 +523,7 @@ mullet_fish_silver_star:
     lore:
       - <gray>Used in traditional Chinese medicine
       - <gray>to treat spleen and stomach weakness
-      - '<white>size: {size}cm'
+      - '<white>size: {size_formatted}cm'
   custom-model-data: 50014
   group:
     - silver_star
@@ -525,7 +547,7 @@ mullet_fish_golden_star:
     lore:
       - <gray>Used in traditional Chinese medicine
       - <gray>to treat spleen and stomach weakness
-      - '<white>size: {size}cm'
+      - '<white>size: {size_formatted}cm'
   custom-model-data: 50015
   group:
     - golden_star
@@ -547,9 +569,11 @@ sardine_fish:
     lore:
       - <gray>Sardine fish is rich in DHA which improves memory
       - <gray>Therefore, sardine are also called "smart food"
-      - '<white>size: {size}cm'
+      - '<white>size: {size_formatted}cm'
   custom-model-data: 50016
-  group: ocean
+  group:
+    - ocean
+    - no_star
   events:
     success:
       action_mending:
@@ -568,7 +592,7 @@ sardine_fish_silver_star:
     lore:
       - <gray>Sardine fish is rich in DHA which improves memory
       - <gray>Therefore, sardine are also called "smart food"
-      - '<white>size: {size}cm'
+      - '<white>size: {size_formatted}cm'
   custom-model-data: 50017
   group:
     - silver_star
@@ -591,7 +615,7 @@ sardine_fish_golden_star:
     lore:
       - <gray>Sardine fish is rich in DHA which improves memory
       - <gray>Therefore, sardine are also called "smart food"
-      - '<white>size: {size}cm'
+      - '<white>size: {size_formatted}cm'
   custom-model-data: 50018
   group:
     - golden_star
@@ -612,9 +636,11 @@ carp_fish:
     name: <gradient:#808000:#556B2F>Carp Fish</gradient>
     lore:
       - <gray>One of the most common edible fish
-      - '<white>size: {size}cm'
+      - '<white>size: {size_formatted}cm'
   custom-model-data: 50019
-  group: river
+  group:
+    - no_star
+    - river
   events:
     success:
       action_mending:
@@ -632,7 +658,7 @@ carp_fish_silver_star:
     name: <gradient:#808000:#556B2F>Carp Fish</gradient> <#F5F5F5>(Silver Star)</#F5F5F5>
     lore:
       - <gray>One of the most common edible fish
-      - '<white>size: {size}cm'
+      - '<white>size: {size_formatted}cm'
   custom-model-data: 50020
   group:
     - silver_star
@@ -654,7 +680,7 @@ carp_fish_golden_star:
     name: <gradient:#808000:#556B2F>Carp Fish</gradient> <#FFD700>(Golden Star)</#FFD700>
     lore:
       - <gray>One of the most common edible fish
-      - '<white>size: {size}cm'
+      - '<white>size: {size_formatted}cm'
   custom-model-data: 50021
   group:
     - golden_star
@@ -676,9 +702,11 @@ cat_fish:
     lore:
       - <gray>Catfish is a fierce carnivorous fish with
       - <gray>sharp jaw teeth, short intestine and stomach
-      - '<white>size: {size}cm'
+      - '<white>size: {size_formatted}cm'
   custom-model-data: 50022
-  group: river
+  group:
+    - no_star
+    - river
   events:
     success:
       action_mending:
@@ -697,7 +725,7 @@ cat_fish_silver_star:
     lore:
       - <gray>Catfish is a fierce carnivorous fish with
       - <gray>sharp jaw teeth, short intestine and stomach
-      - '<white>size: {size}cm'
+      - '<white>size: {size_formatted}cm'
   custom-model-data: 50023
   group:
     - silver_star
@@ -720,7 +748,7 @@ cat_fish_golden_star:
     lore:
       - <gray>Catfish is a fierce carnivorous fish with
       - <gray>sharp jaw teeth, short intestine and stomach
-      - '<white>size: {size}cm'
+      - '<white>size: {size_formatted}cm'
   custom-model-data: 50024
   group:
     - golden_star
@@ -742,9 +770,11 @@ octopus:
     lore:
       - <gray>Octopus is crazy about all kinds of utensils
       - <gray>People often use pots to catch octopus
-      - '<white>size: {size}cm'
+      - '<white>size: {size_formatted}cm'
   custom-model-data: 50025
-  group: ocean
+  group:
+    - ocean
+    - no_star
   events:
     success:
       action_mending:
@@ -763,7 +793,7 @@ octopus_silver_star:
     lore:
       - <gray>Octopus is crazy about all kinds of utensils
       - <gray>People often use pots to catch octopus
-      - '<white>size: {size}cm'
+      - '<white>size: {size_formatted}cm'
   custom-model-data: 50026
   group:
     - silver_star
@@ -786,7 +816,7 @@ octopus_golden_star:
     lore:
       - <gray>Octopus is crazy about all kinds of utensils
       - <gray>People often use pots to catch octopus
-      - '<white>size: {size}cm'
+      - '<white>size: {size_formatted}cm'
   custom-model-data: 50027
   group:
     - golden_star
@@ -807,9 +837,11 @@ sunfish:
     name: <#F5DEB3>Sunfish</#F5DEB3>
     lore:
       - <gray>It only has one huge head
-      - '<white>size: {size}cm'
+      - '<white>size: {size_formatted}cm'
   custom-model-data: 50028
-  group: ocean
+  group:
+    - ocean
+    - no_star
   events:
     success:
       action_mending:
@@ -827,7 +859,7 @@ sunfish_silver_star:
     name: <#F5DEB3>Sunfish <#F5F5F5>(Silver Star)</#F5F5F5>
     lore:
       - <gray>It only has one huge head
-      - '<white>size: {size}cm'
+      - '<white>size: {size_formatted}cm'
   custom-model-data: 50029
   group:
     - silver_star
@@ -849,7 +881,7 @@ sunfish_golden_star:
     name: <#F5DEB3>Sunfish <#FFD700>(Golden Star)</#FFD700>
     lore:
       - <gray>It only has one huge head
-      - '<white>size: {size}cm'
+      - '<white>size: {size_formatted}cm'
   custom-model-data: 50030
   group:
     - golden_star
@@ -871,9 +903,11 @@ red_snapper_fish:
     lore:
       - <gray>They usually have a large family of ten or twenty
       - <gray>with a male as the "head of the family"
-      - '<white>size: {size}cm'
+      - '<white>size: {size_formatted}cm'
   custom-model-data: 50031
-  group: ocean
+  group:
+    - ocean
+    - no_star
   events:
     success:
       action_mending:
@@ -885,6 +919,7 @@ red_snapper_fish:
     base: 10
     bonus: 2.3
 red_snapper_fish_silver_star:
+  amount: 7~9
   show-in-fishfinder: false
   material: cod
   display:
@@ -893,7 +928,7 @@ red_snapper_fish_silver_star:
     lore:
       - <gray>They usually have a large family of ten or twenty
       - <gray>with a male as the "head of the family"
-      - '<white>size: {size}cm'
+      - '<white>size: {size_formatted}cm'
   custom-model-data: 50032
   group:
     - silver_star
@@ -917,7 +952,7 @@ red_snapper_fish_golden_star:
     lore:
       - <gray>They usually have a large family of ten or twenty
       - <gray>with a male as the "head of the family"
-      - '<white>size: {size}cm'
+      - '<white>size: {size_formatted}cm'
   custom-model-data: 50033
   group:
     - golden_star
@@ -939,9 +974,11 @@ salmon_void_fish:
     lore:
       - <gray>A fish from the hell
       - <gray>It's looking at you...
-      - '<white>size: {size}cm'
+      - '<white>size: {size_formatted}cm'
   custom-model-data: 50034
-  group: lava
+  group:
+    - lava
+    - no_star
   events:
     success:
       action_mending:
@@ -960,7 +997,7 @@ salmon_void_fish_silver_star:
     lore:
       - <gray>A fish from the hell
       - <gray>It's looking at you...
-      - '<white>size: {size}cm'
+      - '<white>size: {size_formatted}cm'
   custom-model-data: 50035
   group:
     - silver_star
@@ -983,7 +1020,7 @@ salmon_void_fish_golden_star:
     lore:
       - <gray>A fish from the hell
       - <gray>It's looking at you...
-      - '<white>size: {size}cm'
+      - '<white>size: {size_formatted}cm'
   custom-model-data: 50036
   group:
     - golden_star
@@ -1005,9 +1042,11 @@ woodskip_fish:
     lore:
       - <gray>A very sensitive fish that can only
       - <gray>live in pools deep in the forest
-      - '<white>size: {size}cm'
+      - '<white>size: {size_formatted}cm'
   custom-model-data: 50037
-  group: river
+  group:
+    - no_star
+    - swamp
   events:
     success:
       action_mending:
@@ -1026,11 +1065,11 @@ woodskip_fish_silver_star:
     lore:
       - <gray>A very sensitive fish that can only
       - <gray>live in pools deep in the forest
-      - '<white>size: {size}cm'
+      - '<white>size: {size_formatted}cm'
   custom-model-data: 50038
   group:
     - silver_star
-    - river
+    - swamp
   events:
     success:
       action_mending:
@@ -1049,11 +1088,11 @@ woodskip_fish_golden_star:
     lore:
       - <gray>A very sensitive fish that can only
       - <gray>live in pools deep in the forest
-      - '<white>size: {size}cm'
+      - '<white>size: {size_formatted}cm'
   custom-model-data: 50039
   group:
     - golden_star
-    - river
+    - swamp
   events:
     success:
       action_mending:
@@ -1071,9 +1110,11 @@ sturgeon_fish:
     lore:
       - <gray>An ancient bottom-feeder with a dwindling
       - <gray>population. Females can live up to 150 years
-      - '<white>size: {size}cm'
+      - '<white>size: {size_formatted}cm'
   custom-model-data: 50040
-  group: river
+  group:
+    - no_star
+    - cave
   events:
     success:
       action_mending:
@@ -1092,11 +1133,11 @@ sturgeon_fish_silver_star:
     lore:
       - <gray>An ancient bottom-feeder with a dwindling
       - <gray>population. Females can live up to 150 years
-      - '<white>size: {size}cm'
+      - '<white>size: {size_formatted}cm'
   custom-model-data: 50041
   group:
     - silver_star
-    - river
+    - cave
   events:
     success:
       action_mending:
@@ -1115,11 +1156,11 @@ sturgeon_fish_golden_star:
     lore:
       - <gray>An ancient bottom-feeder with a dwindling
       - <gray>population. Females can live up to 150 years
-      - '<white>size: {size}cm'
+      - '<white>size: {size_formatted}cm'
   custom-model-data: 50042
   group:
     - golden_star
-    - river
+    - cave
   events:
     success:
       action_mending:
@@ -1136,9 +1177,11 @@ blue_jellyfish:
     name: <#87CEFA>Jellyfish</#87CEFA>
     lore:
       - <gray>Looks like a blue umbrella
-      - '<white>size: {size}cm'
+      - '<white>size: {size_formatted}cm'
   custom-model-data: 50043
-  group: ocean
+  group:
+    - warm_ocean
+    - no_star
   events:
     success:
       action_mending:
@@ -1153,14 +1196,14 @@ blue_jellyfish_silver_star:
   show-in-fishfinder: false
   material: cod
   display:
-    name: <#87CEFA>Jellyfish</#87CEFA>
+    name: <#87CEFA>Jellyfish</#87CEFA> <#F5F5F5>(Silver Star)</#F5F5F5>
     lore:
       - <gray>Looks like a blue umbrella
-      - '<white>size: {size}cm'
+      - '<white>size: {size_formatted}cm'
   custom-model-data: 50044
   group:
     - silver_star
-    - ocean
+    - warm_ocean
   events:
     success:
       action_mending:
@@ -1175,14 +1218,14 @@ blue_jellyfish_golden_star:
   show-in-fishfinder: false
   material: cod
   display:
-    name: <#87CEFA>Jellyfish</#87CEFA>
+    name: <#87CEFA>Jellyfish</#87CEFA> <#FFD700>(Golden Star)</#FFD700>
     lore:
       - <gray>Looks like a blue umbrella
-      - '<white>size: {size}cm'
+      - '<white>size: {size_formatted}cm'
   custom-model-data: 50045
   group:
     - golden_star
-    - ocean
+    - warm_ocean
   events:
     success:
       action_mending:
@@ -1199,9 +1242,11 @@ pink_jellyfish:
     name: <#FFC0CB>Jellyfish</#FFC0CB>
     lore:
       - <gray>Seems to be sweet
-      - '<white>size: {size}cm'
+      - '<white>size: {size_formatted}cm'
   custom-model-data: 50046
-  group: ocean
+  group:
+    - warm_ocean
+    - no_star
   events:
     success:
       action_mending:
@@ -1216,14 +1261,14 @@ pink_jellyfish_silver_star:
   show-in-fishfinder: false
   material: cod
   display:
-    name: <#FFC0CB>Jellyfish</#FFC0CB>
+    name: <#FFC0CB>Jellyfish</#FFC0CB> <#F5F5F5>(Silver Star)</#F5F5F5>
     lore:
       - <gray>Seems to be sweet
-      - '<white>size: {size}cm'
+      - '<white>size: {size_formatted}cm'
   custom-model-data: 50047
   group:
     - silver_star
-    - ocean
+    - warm_ocean
   events:
     success:
       action_mending:
@@ -1238,14 +1283,14 @@ pink_jellyfish_golden_star:
   show-in-fishfinder: false
   material: cod
   display:
-    name: <#FFC0CB>Jellyfish</#FFC0CB>
+    name: <#FFC0CB>Jellyfish</#FFC0CB> <#FFD700>(Golden Star)</#FFD700>
     lore:
       - <gray>Seems to be sweet
-      - '<white>size: {size}cm'
+      - '<white>size: {size_formatted}cm'
   custom-model-data: 50048
   group:
     - golden_star
-    - ocean
+    - warm_ocean
   events:
     success:
       action_mending:

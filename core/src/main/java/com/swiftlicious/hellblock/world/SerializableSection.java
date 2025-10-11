@@ -1,10 +1,10 @@
 package com.swiftlicious.hellblock.world;
 
-import com.flowpowered.nbt.CompoundTag;
-
 import java.util.List;
 
-public record SerializableSection(int sectionID, List<CompoundTag> blocks) {
+import net.kyori.adventure.nbt.CompoundBinaryTag;
+
+public record SerializableSection(int sectionID, List<CompoundBinaryTag> blocks) {
 
 	public boolean canPrune() {
 		return blocks.isEmpty();

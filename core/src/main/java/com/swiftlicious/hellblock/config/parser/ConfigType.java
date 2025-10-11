@@ -18,7 +18,7 @@ import dev.dejvokep.boostedyaml.block.implementation.Section;
 public class ConfigType {
 
 	public static final ConfigType ITEM = of("item", () -> {
-		Map<String, Node<ConfigParserFunction>> parsers = new HashMap<>();
+		final Map<String, Node<ConfigParserFunction>> parsers = new HashMap<>();
 		parsers.putAll(HellblockPlugin.getInstance().getConfigManager().getLootFormatFunctions());
 		parsers.putAll(HellblockPlugin.getInstance().getConfigManager().getItemFormatFunctions());
 		parsers.putAll(HellblockPlugin.getInstance().getConfigManager().getEventFormatFunctions());
@@ -26,21 +26,21 @@ public class ConfigType {
 		return parsers;
 	}, (id, section, functions) -> {
 		MechanicType.register(id, MechanicType.LOOT);
-		ItemConfigParser config = new ItemConfigParser(id, section, functions);
+		final ItemConfigParser config = new ItemConfigParser(id, section, functions);
 		HellblockPlugin.getInstance().getItemManager().registerItem(config.getItem());
 		HellblockPlugin.getInstance().getLootManager().registerLoot(config.getLoot());
 		HellblockPlugin.getInstance().getEventManager().registerEventCarrier(config.getEventCarrier());
 	});
 
 	public static final ConfigType EQUIPMENT = of("equipment", () -> {
-		HashMap<String, Node<ConfigParserFunction>> parsers = new HashMap<>();
+		final Map<String, Node<ConfigParserFunction>> parsers = new HashMap<>();
 		parsers.putAll(HellblockPlugin.getInstance().getConfigManager().getItemFormatFunctions());
 		parsers.putAll(HellblockPlugin.getInstance().getConfigManager().getEffectModifierFormatFunctions());
 		parsers.putAll(HellblockPlugin.getInstance().getConfigManager().getEventFormatFunctions());
 		return parsers;
 	}, (id, section, functions) -> {
 		MechanicType.register(id, MechanicType.EQUIPMENT);
-		GearConfigParser config = new GearConfigParser(id, section, functions);
+		final GearConfigParser config = new GearConfigParser(id, section, functions);
 		HellblockPlugin.getInstance().getItemManager().registerItem(config.getItem());
 		HellblockPlugin.getInstance().getEffectManager().registerEffectModifier(config.getEffectModifier(),
 				MechanicType.EQUIPMENT);
@@ -48,7 +48,7 @@ public class ConfigType {
 	});
 
 	public static final ConfigType ENTITY = of("entity", () -> {
-		Map<String, Node<ConfigParserFunction>> parsers = new HashMap<>();
+		final Map<String, Node<ConfigParserFunction>> parsers = new HashMap<>();
 		parsers.putAll(HellblockPlugin.getInstance().getConfigManager().getLootFormatFunctions());
 		parsers.putAll(HellblockPlugin.getInstance().getConfigManager().getEntityFormatFunctions());
 		parsers.putAll(HellblockPlugin.getInstance().getConfigManager().getEventFormatFunctions());
@@ -56,14 +56,14 @@ public class ConfigType {
 		return parsers;
 	}, (id, section, functions) -> {
 		MechanicType.register(id, MechanicType.LOOT);
-		EntityConfigParser config = new EntityConfigParser(id, section, functions);
+		final EntityConfigParser config = new EntityConfigParser(id, section, functions);
 		HellblockPlugin.getInstance().getEntityManager().registerEntity(config.getEntity());
 		HellblockPlugin.getInstance().getLootManager().registerLoot(config.getLoot());
 		HellblockPlugin.getInstance().getEventManager().registerEventCarrier(config.getEventCarrier());
 	});
 
 	public static final ConfigType BLOCK = of("block", () -> {
-		Map<String, Node<ConfigParserFunction>> parsers = new HashMap<>();
+		final Map<String, Node<ConfigParserFunction>> parsers = new HashMap<>();
 		parsers.putAll(HellblockPlugin.getInstance().getConfigManager().getLootFormatFunctions());
 		parsers.putAll(HellblockPlugin.getInstance().getConfigManager().getBlockFormatFunctions());
 		parsers.putAll(HellblockPlugin.getInstance().getConfigManager().getEventFormatFunctions());
@@ -71,21 +71,21 @@ public class ConfigType {
 		return parsers;
 	}, (id, section, functions) -> {
 		MechanicType.register(id, MechanicType.LOOT);
-		BlockConfigParser config = new BlockConfigParser(id, section, functions);
+		final BlockConfigParser config = new BlockConfigParser(id, section, functions);
 		HellblockPlugin.getInstance().getBlockManager().registerBlock(config.getBlock());
 		HellblockPlugin.getInstance().getLootManager().registerLoot(config.getLoot());
 		HellblockPlugin.getInstance().getEventManager().registerEventCarrier(config.getEventCarrier());
 	});
 
 	public static final ConfigType ROD = of("rod", () -> {
-		Map<String, Node<ConfigParserFunction>> parsers = new HashMap<>();
+		final Map<String, Node<ConfigParserFunction>> parsers = new HashMap<>();
 		parsers.putAll(HellblockPlugin.getInstance().getConfigManager().getItemFormatFunctions());
 		parsers.putAll(HellblockPlugin.getInstance().getConfigManager().getEffectModifierFormatFunctions());
 		parsers.putAll(HellblockPlugin.getInstance().getConfigManager().getEventFormatFunctions());
 		return parsers;
 	}, (id, section, functions) -> {
 		MechanicType.register(id, MechanicType.ROD);
-		RodConfigParser config = new RodConfigParser(id, section, functions);
+		final RodConfigParser config = new RodConfigParser(id, section, functions);
 		HellblockPlugin.getInstance().getItemManager().registerItem(config.getItem());
 		// HellblockPlugin.getInstance().getLootManager().registerLoot(config.getLoot());
 		HellblockPlugin.getInstance().getEffectManager().registerEffectModifier(config.getEffectModifier(),
@@ -94,14 +94,14 @@ public class ConfigType {
 	});
 
 	public static final ConfigType BAIT = of("bait", () -> {
-		Map<String, Node<ConfigParserFunction>> parsers = new HashMap<>();
+		final Map<String, Node<ConfigParserFunction>> parsers = new HashMap<>();
 		parsers.putAll(HellblockPlugin.getInstance().getConfigManager().getItemFormatFunctions());
 		parsers.putAll(HellblockPlugin.getInstance().getConfigManager().getEffectModifierFormatFunctions());
 		parsers.putAll(HellblockPlugin.getInstance().getConfigManager().getEventFormatFunctions());
 		return parsers;
 	}, (id, section, functions) -> {
 		MechanicType.register(id, MechanicType.BAIT);
-		BaitConfigParser config = new BaitConfigParser(id, section, functions);
+		final BaitConfigParser config = new BaitConfigParser(id, section, functions);
 		HellblockPlugin.getInstance().getItemManager().registerItem(config.getItem());
 		// HellblockPlugin.getInstance().getLootManager().registerLoot(config.getLoot());
 		HellblockPlugin.getInstance().getEffectManager().registerEffectModifier(config.getEffectModifier(),
@@ -110,7 +110,7 @@ public class ConfigType {
 	});
 
 	public static final ConfigType HOOK = of("hook", () -> {
-		Map<String, Node<ConfigParserFunction>> parsers = new HashMap<>();
+		final Map<String, Node<ConfigParserFunction>> parsers = new HashMap<>();
 		parsers.putAll(HellblockPlugin.getInstance().getConfigManager().getItemFormatFunctions());
 		parsers.putAll(HellblockPlugin.getInstance().getConfigManager().getEffectModifierFormatFunctions());
 		parsers.putAll(HellblockPlugin.getInstance().getConfigManager().getEventFormatFunctions());
@@ -118,7 +118,7 @@ public class ConfigType {
 		return parsers;
 	}, (id, section, functions) -> {
 		MechanicType.register(id, MechanicType.HOOK);
-		HookConfigParser config = new HookConfigParser(id, section, functions);
+		final HookConfigParser config = new HookConfigParser(id, section, functions);
 		HellblockPlugin.getInstance().getItemManager().registerItem(config.getItem());
 		// HellblockPlugin.getInstance().getLootManager().registerLoot(config.getLoot());
 		HellblockPlugin.getInstance().getEffectManager().registerEffectModifier(config.getEffectModifier(),
@@ -128,14 +128,14 @@ public class ConfigType {
 	});
 
 	public static final ConfigType UTIL = of("util", () -> {
-		Map<String, Node<ConfigParserFunction>> parsers = new HashMap<>();
+		final Map<String, Node<ConfigParserFunction>> parsers = new HashMap<>();
 		parsers.putAll(HellblockPlugin.getInstance().getConfigManager().getItemFormatFunctions());
 		parsers.putAll(HellblockPlugin.getInstance().getConfigManager().getEffectModifierFormatFunctions());
 		parsers.putAll(HellblockPlugin.getInstance().getConfigManager().getEventFormatFunctions());
 		return parsers;
 	}, (id, section, functions) -> {
 		MechanicType.register(id, MechanicType.UTIL);
-		UtilConfigParser config = new UtilConfigParser(id, section, functions);
+		final UtilConfigParser config = new UtilConfigParser(id, section, functions);
 		HellblockPlugin.getInstance().getItemManager().registerItem(config.getItem());
 		// HellblockPlugin.getInstance().getLootManager().registerLoot(config.getLoot());
 		HellblockPlugin.getInstance().getEffectManager().registerEffectModifier(config.getEffectModifier(),
@@ -144,12 +144,12 @@ public class ConfigType {
 	});
 
 	public static final ConfigType ENCHANT = of("enchant", () -> {
-		Map<String, Node<ConfigParserFunction>> parsers = new HashMap<>();
+		final Map<String, Node<ConfigParserFunction>> parsers = new HashMap<>();
 		parsers.putAll(HellblockPlugin.getInstance().getConfigManager().getEventFormatFunctions());
 		parsers.putAll(HellblockPlugin.getInstance().getConfigManager().getEffectModifierFormatFunctions());
 		return parsers;
 	}, (id, section, functions) -> {
-		EnchantConfigParser config = new EnchantConfigParser(id, section, functions);
+		final EnchantConfigParser config = new EnchantConfigParser(id, section, functions);
 		HellblockPlugin.getInstance().getEffectManager().registerEffectModifier(config.getEffectModifier(),
 				MechanicType.ENCHANT);
 		HellblockPlugin.getInstance().getEventManager().registerEventCarrier(config.getEventCarrier());
@@ -169,7 +169,7 @@ public class ConfigType {
 
 	private final String path;
 	private TriConsumer<String, Section, Map<String, Node<ConfigParserFunction>>> argumentConsumer;
-	private Supplier<Map<String, Node<ConfigParserFunction>>> parserSupplier;
+	private final Supplier<Map<String, Node<ConfigParserFunction>>> parserSupplier;
 
 	/**
 	 * Creates a new ConfigType with the specified path and argument consumer.

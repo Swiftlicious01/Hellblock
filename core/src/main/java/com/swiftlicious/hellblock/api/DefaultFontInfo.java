@@ -33,15 +33,14 @@ public enum DefaultFontInfo {
 	}
 
 	public int getBoldLength() {
-		if (this == DefaultFontInfo.SPACE)
-			return this.getLength();
-		return this.length + 1;
+		return this == DefaultFontInfo.SPACE ? this.getLength() : this.length + 1;
 	}
 
 	public static DefaultFontInfo getDefaultFontInfo(char c) {
 		for (DefaultFontInfo dFI : DefaultFontInfo.values()) {
-			if (dFI.getCharacter() == c)
+			if (dFI.getCharacter() == c) {
 				return dFI;
+			}
 		}
 		return DefaultFontInfo.DEFAULT;
 	}

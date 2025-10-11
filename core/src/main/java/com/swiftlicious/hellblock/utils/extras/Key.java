@@ -18,9 +18,9 @@ public record Key(String namespace, String value) {
 	}
 
 	public static Key of(String key) {
-		int index = key.indexOf(":");
-		String namespace = index >= 1 ? key.substring(0, index) : "minecraft";
-		String value = index >= 0 ? key.substring(index + 1) : key;
+		final int index = key.indexOf(":");
+		final String namespace = index >= 1 ? key.substring(0, index) : "minecraft";
+		final String value = index >= 0 ? key.substring(index + 1) : key;
 		return of(namespace, value);
 	}
 
@@ -32,7 +32,7 @@ public record Key(String namespace, String value) {
 	 * @return a new {@link Key} instance
 	 */
 	public static Key fromString(String key) {
-		String[] split = key.split(":", 2);
+		final String[] split = key.split(":", 2);
 		return of(split[0], split[1]);
 	}
 
@@ -58,8 +58,9 @@ public record Key(String namespace, String value) {
 		if (obj == null) {
 			return false;
 		}
-		if (!(obj instanceof Key key))
+		if (!(obj instanceof Key key)) {
 			return false;
+		}
 		return this.namespace.equals(key.namespace()) && this.value.equals(key.value());
 	}
 

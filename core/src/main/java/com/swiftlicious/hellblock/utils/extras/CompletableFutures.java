@@ -38,7 +38,7 @@ public class CompletableFutures {
 	 *         complete.
 	 */
 	public static CompletableFuture<Void> allOf(Stream<? extends CompletableFuture<?>> futures) {
-		CompletableFuture<?>[] arr = futures.toArray(CompletableFuture[]::new);
+		final CompletableFuture<?>[] arr = futures.toArray(CompletableFuture[]::new);
 		return CompletableFuture.allOf(arr);
 	}
 
@@ -51,7 +51,7 @@ public class CompletableFutures {
 	 *         complete.
 	 */
 	public static CompletableFuture<Void> allOf(Collection<? extends CompletableFuture<?>> futures) {
-		CompletableFuture<?>[] arr = futures.toArray(new CompletableFuture[0]);
+		final CompletableFuture<?>[] arr = futures.toArray(CompletableFuture[]::new);
 		return CompletableFuture.allOf(arr);
 	}
 }

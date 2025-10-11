@@ -28,14 +28,16 @@ public class HellblockProperties {
 		private static HellblockProperties getInstance() {
 			try (InputStream inputStream = HellblockProperties.class.getClassLoader()
 					.getResourceAsStream("hellblock.properties")) {
-				Map<String, String> versionMap = new HashMap<>();
-				Properties properties = new Properties();
+				final Map<String, String> versionMap = new HashMap<>();
+				final Properties properties = new Properties();
 				properties.load(inputStream);
-				for (Map.Entry<Object, Object> entry : properties.entrySet()) {
-					if (entry.getKey() instanceof String key && entry.getValue() instanceof String value) {
-						versionMap.put(key, value);
-					}
-				}
+				properties.entrySet().stream()
+						.filter(entry -> entry.getKey() instanceof String && entry.getValue() instanceof String)
+						.forEach(entry -> {
+							final String key = (String) entry.getKey();
+							final String value = (String) entry.getValue();
+							versionMap.put(key, value);
+						});
 				return new HellblockProperties(versionMap);
 			} catch (IOException ex) {
 				throw new RuntimeException(ex);

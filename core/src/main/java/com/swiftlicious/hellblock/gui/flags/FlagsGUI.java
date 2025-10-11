@@ -13,17 +13,12 @@ import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.Nullable;
 
 import com.swiftlicious.hellblock.context.Context;
-import com.swiftlicious.hellblock.creation.item.CustomItem;
 import com.swiftlicious.hellblock.creation.item.Item;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.handlers.VersionHelper;
 import com.swiftlicious.hellblock.player.HellblockData;
 import com.swiftlicious.hellblock.protection.HellblockFlag.AccessType;
 import com.swiftlicious.hellblock.protection.HellblockFlag.FlagType;
-import com.swiftlicious.hellblock.utils.extras.Action;
-import com.swiftlicious.hellblock.utils.extras.Tuple;
-
-import dev.dejvokep.boostedyaml.block.implementation.Section;
 
 public class FlagsGUI {
 
@@ -33,11 +28,13 @@ public class FlagsGUI {
 	protected final Inventory inventory;
 	protected final Context<Player> context;
 	protected final HellblockData hellblockData;
+	protected final boolean isOwner;
 
-	public FlagsGUI(FlagsGUIManager manager, Context<Player> context, HellblockData hellblockData) {
+	public FlagsGUI(FlagsGUIManager manager, Context<Player> context, HellblockData hellblockData, boolean isOwner) {
 		this.manager = manager;
 		this.context = context;
 		this.hellblockData = hellblockData;
+		this.isOwner = isOwner;
 		this.itemsCharMap = new HashMap<>();
 		this.itemsSlotMap = new HashMap<>();
 		var holder = new FlagsGUIHolder();
@@ -67,9 +64,8 @@ public class FlagsGUI {
 			}
 			line++;
 		}
-		for (Map.Entry<Integer, FlagsGUIElement> entry : itemsSlotMap.entrySet()) {
-			this.inventory.setItem(entry.getKey(), entry.getValue().getItemStack().clone());
-		}
+		itemsSlotMap.entrySet()
+				.forEach(entry -> this.inventory.setItem(entry.getKey(), entry.getValue().getItemStack().clone()));
 	}
 
 	public FlagsGUI addElement(FlagsGUIElement... elements) {
@@ -86,8 +82,8 @@ public class FlagsGUI {
 
 	public void show() {
 		context.holder().openInventory(inventory);
-		VersionHelper.getNMSManager().updateInventoryTitle(context.holder(),
-				AdventureHelper.componentToJson(AdventureHelper.miniMessage(manager.title.render(context, true))));
+		VersionHelper.getNMSManager().updateInventoryTitle(context.holder(), AdventureHelper
+				.componentToJson(AdventureHelper.parseCenteredTitleMultiline(manager.title.render(context, true))));
 	}
 
 	@Nullable
@@ -110,16 +106,15 @@ public class FlagsGUI {
 		if (backElement != null && !backElement.getSlots().isEmpty()) {
 			backElement.setItemStack(manager.backIcon.build(context));
 		}
-		for (Tuple<Character, Section, Tuple<CustomItem, FlagType, Action<Player>[]>> flag : manager.flagIcons) {
+		manager.flagIcons.forEach(flag -> {
 			FlagsDynamicGUIElement flagElement = (FlagsDynamicGUIElement) getElement(flag.left());
 			if (flagElement != null && !flagElement.getSlots().isEmpty()) {
 				Item<ItemStack> item = manager.instance.getItemManager().wrap(flag.right().left().build(context));
 				FlagType flagType = flag.right().mid();
 				List<String> newLore = new ArrayList<>();
-				for (String lore : flag.mid().getStringList("display.lore")) {
-					newLore.add(AdventureHelper.miniMessageToJson(lore.replace("{flag_value}",
-							String.valueOf(hellblockData.getProtectionValue(flagType).getReturnValue()))));
-				}
+				flag.mid().getStringList("display.lore")
+						.forEach(lore -> newLore.add(AdventureHelper.miniMessageToJson(lore.replace("{flag_value}",
+								String.valueOf(hellblockData.getProtectionValue(flagType).getReturnValue())))));
 				item.lore(newLore);
 				if (hellblockData.getProtectionValue(flagType) == AccessType.ALLOW)
 					if (manager.highlightSelection)
@@ -127,12 +122,12 @@ public class FlagsGUI {
 
 				flagElement.setItemStack(item.load());
 			}
-		}
-		for (Map.Entry<Integer, FlagsGUIElement> entry : itemsSlotMap.entrySet()) {
-			if (entry.getValue() instanceof FlagsDynamicGUIElement dynamicGUIElement) {
-				this.inventory.setItem(entry.getKey(), dynamicGUIElement.getItemStack().clone());
-			}
-		}
+		});
+		itemsSlotMap.entrySet().stream().filter(entry -> entry.getValue() instanceof FlagsDynamicGUIElement)
+				.forEach(entry -> {
+					FlagsDynamicGUIElement dynamicGUIElement = (FlagsDynamicGUIElement) entry.getValue();
+					this.inventory.setItem(entry.getKey(), dynamicGUIElement.getItemStack().clone());
+				});
 		return this;
 	}
 }

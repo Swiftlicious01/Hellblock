@@ -82,8 +82,8 @@ public class MarketGUI {
 
 	public void show() {
 		context.holder().openInventory(inventory);
-		VersionHelper.getNMSManager().updateInventoryTitle(context.holder(),
-				AdventureHelper.componentToJson(AdventureHelper.miniMessage(manager.title.render(context, true))));
+		VersionHelper.getNMSManager().updateInventoryTitle(context.holder(), AdventureHelper
+				.componentToJson(AdventureHelper.parseCenteredTitleMultiline(manager.title.render(context, true))));
 	}
 
 	@Nullable

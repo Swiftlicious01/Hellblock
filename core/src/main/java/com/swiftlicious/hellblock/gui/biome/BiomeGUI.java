@@ -14,17 +14,11 @@ import org.jetbrains.annotations.Nullable;
 
 import com.swiftlicious.hellblock.context.Context;
 import com.swiftlicious.hellblock.context.ContextKeys;
-import com.swiftlicious.hellblock.creation.item.CustomItem;
 import com.swiftlicious.hellblock.creation.item.Item;
 import com.swiftlicious.hellblock.generation.HellBiome;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.handlers.VersionHelper;
 import com.swiftlicious.hellblock.player.HellblockData;
-import com.swiftlicious.hellblock.utils.extras.Action;
-import com.swiftlicious.hellblock.utils.extras.Requirement;
-import com.swiftlicious.hellblock.utils.extras.Tuple;
-
-import dev.dejvokep.boostedyaml.block.implementation.Section;
 
 public class BiomeGUI {
 
@@ -34,11 +28,13 @@ public class BiomeGUI {
 	protected final Inventory inventory;
 	protected final Context<Player> context;
 	protected final HellblockData hellblockData;
+	protected final boolean isOwner;
 
-	public BiomeGUI(BiomeGUIManager manager, Context<Player> context, HellblockData hellblockData) {
+	public BiomeGUI(BiomeGUIManager manager, Context<Player> context, HellblockData hellblockData, boolean isOwner) {
 		this.manager = manager;
 		this.context = context;
 		this.hellblockData = hellblockData;
+		this.isOwner = isOwner;
 		this.itemsCharMap = new HashMap<>();
 		this.itemsSlotMap = new HashMap<>();
 		var holder = new BiomeGUIHolder();
@@ -68,9 +64,8 @@ public class BiomeGUI {
 			}
 			line++;
 		}
-		for (Map.Entry<Integer, BiomeGUIElement> entry : itemsSlotMap.entrySet()) {
-			this.inventory.setItem(entry.getKey(), entry.getValue().getItemStack().clone());
-		}
+		itemsSlotMap.entrySet()
+				.forEach(entry -> this.inventory.setItem(entry.getKey(), entry.getValue().getItemStack().clone()));
 	}
 
 	public BiomeGUI addElement(BiomeGUIElement... elements) {
@@ -87,8 +82,8 @@ public class BiomeGUI {
 
 	public void show() {
 		context.holder().openInventory(inventory);
-		VersionHelper.getNMSManager().updateInventoryTitle(context.holder(),
-				AdventureHelper.componentToJson(AdventureHelper.miniMessage(manager.title.render(context, true))));
+		VersionHelper.getNMSManager().updateInventoryTitle(context.holder(), AdventureHelper
+				.componentToJson(AdventureHelper.parseCenteredTitleMultiline(manager.title.render(context, true))));
 	}
 
 	@Nullable
@@ -116,17 +111,15 @@ public class BiomeGUI {
 		if (backElement != null && !backElement.getSlots().isEmpty()) {
 			backElement.setItemStack(manager.backIcon.build(context));
 		}
-		for (Map.Entry<Character, Tuple<Section, HellBiome, Tuple<CustomItem, Action<Player>[], Requirement<Player>[]>>> biomes : manager.biomeIcons
-				.entrySet()) {
+		manager.biomeIcons.entrySet().forEach(biomes -> {
 			if (biome == biomes.getValue().mid()) {
 				BiomeDynamicGUIElement biomeElement = (BiomeDynamicGUIElement) getElement(biomes.getKey());
 				if (biomeElement != null && !biomeElement.getSlots().isEmpty()) {
 					Item<ItemStack> item = manager.instance.getItemManager()
 							.wrap(biomes.getValue().right().left().build(context));
 					List<String> newLore = new ArrayList<>();
-					for (String lore : biomes.getValue().left().getStringList("display.selected-lore")) {
-						newLore.add(AdventureHelper.miniMessageToJson(lore));
-					}
+					biomes.getValue().left().getStringList("display.selected-lore")
+							.forEach(lore -> newLore.add(AdventureHelper.miniMessageToJson(lore)));
 					item.lore(newLore);
 					if (manager.highlightSelection)
 						item.glint(true);
@@ -138,19 +131,18 @@ public class BiomeGUI {
 					Item<ItemStack> item = manager.instance.getItemManager()
 							.wrap(biomes.getValue().right().left().build(context));
 					List<String> newLore = new ArrayList<>();
-					for (String lore : biomes.getValue().left().getStringList("display.unselected-lore")) {
-						newLore.add(AdventureHelper.miniMessageToJson(lore));
-					}
+					biomes.getValue().left().getStringList("display.unselected-lore")
+							.forEach(lore -> newLore.add(AdventureHelper.miniMessageToJson(lore)));
 					item.lore(newLore);
 					biomeElement.setItemStack(item.load());
 				}
 			}
-		}
-		for (Map.Entry<Integer, BiomeGUIElement> entry : itemsSlotMap.entrySet()) {
-			if (entry.getValue() instanceof BiomeDynamicGUIElement dynamicGUIElement) {
-				this.inventory.setItem(entry.getKey(), dynamicGUIElement.getItemStack().clone());
-			}
-		}
+		});
+		itemsSlotMap.entrySet().stream().filter(entry -> entry.getValue() instanceof BiomeDynamicGUIElement)
+				.forEach(entry -> {
+					BiomeDynamicGUIElement dynamicGUIElement = (BiomeDynamicGUIElement) entry.getValue();
+					this.inventory.setItem(entry.getKey(), dynamicGUIElement.getItemStack().clone());
+				});
 		return this;
 	}
 }

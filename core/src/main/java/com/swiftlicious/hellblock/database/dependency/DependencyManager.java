@@ -14,6 +14,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
+import java.util.function.Supplier;
 
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 
@@ -63,13 +64,11 @@ public class DependencyManager implements DependencyManagerInterface {
 
 	@Override
 	public ClassLoader obtainClassLoaderWith(Set<Dependency> dependencies) {
-		ImmutableSet<Dependency> set = ImmutableSet.copyOf(dependencies);
+		final ImmutableSet<Dependency> set = ImmutableSet.copyOf(dependencies);
 
-		for (Dependency dependency : dependencies) {
-			if (!this.loaded.containsKey(dependency)) {
-				throw new IllegalStateException(String.format("Dependency %s is not loaded.", dependency));
-			}
-		}
+		dependencies.stream().filter(dependency -> !this.loaded.containsKey(dependency)).forEach(dependency -> {
+			throw new IllegalStateException("Dependency %s is not loaded.".formatted(dependency));
+		});
 
 		synchronized (this.loaders) {
 			IsolatedClassLoader classLoader = this.loaders.get(set);
@@ -77,7 +76,7 @@ public class DependencyManager implements DependencyManagerInterface {
 				return classLoader;
 			}
 
-			URL[] urls = set.stream().map(this.loaded::get).map(file -> {
+			final URL[] urls = set.stream().map(this.loaded::get).map(file -> {
 				try {
 					return file.toUri().toURL();
 				} catch (MalformedURLException ex) {
@@ -93,7 +92,7 @@ public class DependencyManager implements DependencyManagerInterface {
 
 	@Override
 	public void loadDependencies(Set<Dependency> dependencies) {
-		CountDownLatch latch = new CountDownLatch(dependencies.size());
+		final CountDownLatch latch = new CountDownLatch(dependencies.size());
 
 		for (Dependency dependency : dependencies) {
 			if (this.loaded.containsKey(dependency)) {
@@ -105,8 +104,7 @@ public class DependencyManager implements DependencyManagerInterface {
 				try {
 					loadDependency(dependency);
 				} catch (Throwable ex) {
-					instance.getPluginLogger().warn(String.format("Unable to load dependency %s", dependency.name()),
-							ex);
+					instance.getPluginLogger().warn("Unable to load dependency %s".formatted(dependency.name()), ex);
 				} finally {
 					latch.countDown();
 				}
@@ -125,7 +123,7 @@ public class DependencyManager implements DependencyManagerInterface {
 			return;
 		}
 
-		Path file = remapDependency(dependency, downloadDependency(dependency));
+		final Path file = remapDependency(dependency, downloadDependency(dependency));
 
 		this.loaded.put(dependency, file);
 
@@ -135,8 +133,8 @@ public class DependencyManager implements DependencyManagerInterface {
 	}
 
 	private Path downloadDependency(Dependency dependency) throws DependencyDownloadException {
-		String fileName = dependency.getFileName(null);
-		Path file = this.cacheDirectory.resolve(fileName);
+		final String fileName = dependency.getFileName(null);
+		final Path file = this.cacheDirectory.resolve(fileName);
 
 		// if the file already exists, don't attempt to re-download it.
 		if (Files.exists(file)) {
@@ -144,16 +142,16 @@ public class DependencyManager implements DependencyManagerInterface {
 		}
 
 		DependencyDownloadException lastError = null;
-		String forceRepo = dependency.getRepo();
-		List<DependencyRepository> repository = DependencyRepository.getByID(forceRepo);
+		final String forceRepo = dependency.getRepo();
+		final List<DependencyRepository> repository = DependencyRepository.getByID(forceRepo);
 		if (!repository.isEmpty()) {
 			int i = 0;
 			while (i < repository.size()) {
 				try {
-					instance.getPluginLogger().info(String.format("Downloading dependency(%s) [%s%s]", fileName,
+					instance.getPluginLogger().info("Downloading dependency(%s) [%s%s]".formatted(fileName,
 							repository.get(i).getUrl(), dependency.getMavenRepoPath()));
 					repository.get(i).download(dependency, file);
-					instance.getPluginLogger().info(String.format("Successfully downloaded %s", fileName));
+					instance.getPluginLogger().info("Successfully downloaded %s".formatted(fileName));
 					return file;
 				} catch (DependencyDownloadException ex) {
 					lastError = ex;
@@ -165,12 +163,12 @@ public class DependencyManager implements DependencyManagerInterface {
 	}
 
 	private Path remapDependency(Dependency dependency, Path normalFile) throws Exception {
-		List<Relocation> rules = new ArrayList<>(dependency.getRelocations());
+		final List<Relocation> rules = new ArrayList<>(dependency.getRelocations());
 		if (rules.isEmpty()) {
 			return normalFile;
 		}
 
-		Path remappedFile = this.cacheDirectory
+		final Path remappedFile = this.cacheDirectory
 				.resolve(dependency.getFileName(DependencyRegistry.isGsonRelocated() ? "remapped-legacy" : "remapped"));
 
 		// if the remapped source exists already, just use that.
@@ -185,7 +183,7 @@ public class DependencyManager implements DependencyManagerInterface {
 	}
 
 	private static Path setupCacheDirectory(HellblockPlugin plugin) {
-		Path cacheDirectory = plugin.getDataFolder().toPath().toAbsolutePath().resolve("libs");
+		final Path cacheDirectory = plugin.getDataFolder().toPath().toAbsolutePath().resolve("libs");
 		try {
 			FileUtils.createDirectoriesIfNotExists(cacheDirectory);
 		} catch (IOException ex) {
@@ -214,5 +212,17 @@ public class DependencyManager implements DependencyManagerInterface {
 		if (firstEx != null) {
 			instance.getPluginLogger().severe(firstEx.getMessage(), firstEx);
 		}
+	}
+	
+	@Override
+	public <T> T runWithLoader(Set<Dependency> deps, Supplier<T> supplier) {
+	    ClassLoader loader = obtainClassLoaderWith(deps);
+	    ClassLoader prev = Thread.currentThread().getContextClassLoader();
+	    try {
+	        Thread.currentThread().setContextClassLoader(loader);
+	        return supplier.get();
+	    } finally {
+	        Thread.currentThread().setContextClassLoader(prev);
+	    }
 	}
 }

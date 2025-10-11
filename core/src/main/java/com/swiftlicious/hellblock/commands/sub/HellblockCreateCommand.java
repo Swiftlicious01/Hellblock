@@ -1,8 +1,10 @@
 package com.swiftlicious.hellblock.commands.sub;
 
 import java.util.Optional;
+import java.util.UUID;
 
 import org.bukkit.Bukkit;
+import org.bukkit.Location;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
@@ -12,6 +14,7 @@ import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.commands.BukkitCommandFeature;
 import com.swiftlicious.hellblock.commands.HellblockCommandManager;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
+import com.swiftlicious.hellblock.player.HellblockData;
 import com.swiftlicious.hellblock.player.UserData;
 
 import net.kyori.adventure.text.Component;
@@ -27,47 +30,66 @@ public class HellblockCreateCommand extends BukkitCommandFeature<CommandSender> 
 			Command.Builder<CommandSender> builder) {
 		return builder.senderType(Player.class).handler(context -> {
 			final Player player = context.sender();
-			Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
+
+			final Optional<UserData> onlineUserOpt = HellblockPlugin.getInstance().getStorageManager()
 					.getOnlineUser(player.getUniqueId());
-			if (onlineUser.isEmpty()) {
+
+			if (onlineUserOpt.isEmpty()) {
 				handleFeedback(context, MessageConstants.COMMAND_DATA_FAILURE_NOT_LOADED);
 				return;
 			}
-			if (!onlineUser.get().getHellblockData().hasHellblock()) {
-				if (onlineUser.get().getHellblockData().getResetCooldown() > 0) {
-					handleFeedback(context, MessageConstants.MSG_HELLBLOCK_RESET_ON_COOLDOWN,
-							Component.text(HellblockPlugin.getInstance()
-									.getFormattedCooldown(onlineUser.get().getHellblockData().getResetCooldown())));
+
+			final UserData user = onlineUserOpt.get();
+			final HellblockData data = user.getHellblockData();
+
+			// Player does not have a hellblock yet → create flow
+			if (!data.hasHellblock()) {
+				if (data.getResetCooldown() > 0) {
+					handleFeedback(context, MessageConstants.MSG_HELLBLOCK_RESET_ON_COOLDOWN, Component
+							.text(HellblockPlugin.getInstance().getFormattedCooldown(data.getResetCooldown())));
 					return;
 				}
-				HellblockPlugin.getInstance().getIslandChoiceGUIManager().openIslandChoiceGUI(player, false);
-			} else {
-				if (onlineUser.get().getHellblockData().getOwnerUUID() == null) {
-					throw new NullPointerException(
-							"Owner reference returned null, please report this to the developer.");
-				}
-				HellblockPlugin.getInstance().getStorageManager()
-						.getOfflineUserData(onlineUser.get().getHellblockData().getOwnerUUID(),
-								HellblockPlugin.getInstance().getConfigManager().lockData())
-						.thenAccept((result) -> {
-							if (result.isEmpty()) {
-								String username = Bukkit
-										.getOfflinePlayer(onlineUser.get().getHellblockData().getOwnerUUID()).getName();
-								handleFeedback(context, MessageConstants.MSG_HELLBLOCK_OWNER_DATA_NOT_LOADED,
-										username != null ? Component.text(username) : Component.empty());
-								return;
-							}
-							UserData offlineUser = result.get();
-							if (offlineUser.getHellblockData().isAbandoned()) {
-								handleFeedback(context, MessageConstants.MSG_HELLBLOCK_IS_ABANDONED);
-								return;
-							}
 
-							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_CREATION_FAILURE_ALREADY_EXISTS,
-									Component.text(offlineUser.getHellblockData().getHellblockLocation().getBlockX()),
-									Component.text(offlineUser.getHellblockData().getHellblockLocation().getBlockZ()));
-						});
+				HellblockPlugin.getInstance().getIslandChoiceGUIManager().openIslandChoiceGUI(player, false);
+				return;
 			}
+
+			// Player has a hellblock already → reset/ownership flow
+			final UUID ownerUUID = data.getOwnerUUID();
+			if (ownerUUID == null) {
+				HellblockPlugin.getInstance().getPluginLogger()
+						.severe("Hellblock owner UUID was null for player " + player.getName() + " ("
+								+ player.getUniqueId() + "). This indicates corrupted data or a serious bug.");
+				throw new IllegalStateException(
+						"Owner reference was null. This should never happen — please report to the developer.");
+			}
+
+			HellblockPlugin.getInstance().getStorageManager()
+					.getOfflineUserData(ownerUUID, HellblockPlugin.getInstance().getConfigManager().lockData())
+					.thenAccept(result -> {
+						if (result.isEmpty()) {
+							final String username = Bukkit.getOfflinePlayer(ownerUUID).getName();
+							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_OWNER_DATA_NOT_LOADED,
+									username != null ? Component.text(username) : Component.empty());
+							return;
+						}
+
+						final UserData offlineUser = result.get();
+						if (offlineUser.getHellblockData().isAbandoned()) {
+							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_IS_ABANDONED);
+							return;
+						}
+
+						// Already has a Hellblock → failure message
+						final Location loc = offlineUser.getHellblockData().getHellblockLocation();
+						handleFeedback(context, MessageConstants.MSG_HELLBLOCK_CREATION_FAILURE_ALREADY_EXISTS,
+								Component.text(loc.getBlockX()), Component.text(loc.getBlockZ()));
+					}).exceptionally(ex -> {
+						HellblockPlugin.getInstance().getPluginLogger()
+								.warn("getOfflineUserData failed for hellblock creation of " + player.getName() + ": "
+										+ ex.getMessage());
+						return null;
+					});
 		});
 	}
 

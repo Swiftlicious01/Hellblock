@@ -25,19 +25,18 @@ public class ActionBroadcast<T> extends AbstractBuiltInAction<T> {
 
 	@Override
 	protected void triggerAction(Context<T> context) {
-		if (context.argOrDefault(ContextKeys.OFFLINE, false))
+		if (context.argOrDefault(ContextKeys.OFFLINE, false)) {
 			return;
+		}
 		OfflinePlayer offlinePlayer = null;
 		if (context.holder() instanceof Player player) {
 			offlinePlayer = player;
 		}
-		List<String> replaced = plugin.getPlaceholderManager().parse(offlinePlayer, messages, context.placeholderMap());
-		for (Player player : Bukkit.getOnlinePlayers()) {
-            Sender audience = plugin.getSenderFactory().wrap(player);
-			for (String text : replaced) {
-				audience.sendMessage(AdventureHelper.miniMessage(text));
-			}
-		}
+		final List<String> replaced = plugin.getPlaceholderManager().parse(offlinePlayer, messages,
+				context.placeholderMap());
+		Bukkit.getOnlinePlayers().stream().map((Player player) -> plugin.getSenderFactory().wrap(player))
+				.forEach((final Sender audience) -> replaced
+						.forEach(text -> audience.sendMessage(AdventureHelper.miniMessage(text))));
 	}
 
 	public List<String> messages() {

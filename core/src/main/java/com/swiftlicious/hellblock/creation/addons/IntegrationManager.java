@@ -20,12 +20,9 @@ import com.swiftlicious.hellblock.creation.addons.level.LevelerProvider;
 import com.swiftlicious.hellblock.creation.addons.papi.HellblockPapi;
 import com.swiftlicious.hellblock.creation.addons.papi.StatisticsPapi;
 import com.swiftlicious.hellblock.creation.addons.shop.ShopGUIHook;
-import com.swiftlicious.hellblock.creation.block.BlockManager;
 import com.swiftlicious.hellblock.creation.block.BlockProvider;
-import com.swiftlicious.hellblock.creation.entity.EntityManager;
 import com.swiftlicious.hellblock.creation.entity.EntityProvider;
 import com.swiftlicious.hellblock.creation.entity.MythicEntityProvider;
-import com.swiftlicious.hellblock.creation.item.ItemManager;
 import com.swiftlicious.hellblock.creation.item.ItemProvider;
 import com.swiftlicious.hellblock.creation.item.MythicMobsItemProvider;
 import com.swiftlicious.hellblock.creation.item.SNBTItemProvider;
@@ -33,7 +30,7 @@ import com.swiftlicious.hellblock.utils.extras.Pair;
 
 public class IntegrationManager implements IntegrationManagerInterface {
 
-	private static IntegrationManager integation;
+	private static IntegrationManager integration;
 	protected final HellblockPlugin instance;
 	private final Map<String, LevelerProvider> levelerProviders = new HashMap<>();
 	private final Map<String, EnchantmentProvider> enchantmentProviders = new HashMap<>();
@@ -43,12 +40,15 @@ public class IntegrationManager implements IntegrationManagerInterface {
 
 	public IntegrationManager(HellblockPlugin plugin) {
 		instance = plugin;
+	}
+
+	public void init() {
 		try {
 			this.load();
 		} catch (Throwable ex) {
-			plugin.getPluginLogger().warn("Failed to load integrations", ex);
+			instance.getPluginLogger().warn("Failed to load integrations", ex);
 		} finally {
-			integation = this;
+			integration = this;
 		}
 	}
 
@@ -64,10 +64,10 @@ public class IntegrationManager implements IntegrationManagerInterface {
 			registerItemProvider(new MythicMobsItemProvider());
 			registerEntityProvider(new MythicEntityProvider());
 		}
-		if (isHooked("Jobs")) {
+		if (isHooked("Jobs") || isHooked("JobsReborn")) {
 			registerLevelerProvider(new JobsRebornLevelerProvider());
 		}
-        registerItemProvider(new SNBTItemProvider());
+		registerItemProvider(new SNBTItemProvider());
 		registerEnchantmentProvider(new VanillaEnchantmentsProvider());
 		if (isHooked("AdvancedEnchantments")) {
 			registerEnchantmentProvider(new AdvancedEnchantmentsProvider());
@@ -90,24 +90,24 @@ public class IntegrationManager implements IntegrationManagerInterface {
 			this.hasFloodGate = true;
 		}
 	}
-	
+
 	public static IntegrationManager getInstance() {
-		return integation;
+		return integration;
 	}
 
 	public boolean isHooked(String hooked) {
-		if (Bukkit.getPluginManager().getPlugin(hooked) != null) {
-			instance.getPluginLogger().info(hooked + " hooked!");
-			return true;
+		if (Bukkit.getPluginManager().getPlugin(hooked) == null) {
+			return false;
 		}
-		return false;
+		instance.getPluginLogger().info(hooked + " hooked!");
+		return true;
 	}
 
 	@SuppressWarnings("deprecation")
 	public boolean isHooked(String hooked, String... versionPrefix) {
-		Plugin p = Bukkit.getPluginManager().getPlugin(hooked);
+		final Plugin p = Bukkit.getPluginManager().getPlugin(hooked);
 		if (p != null) {
-			String ver = p.getDescription().getVersion();
+			final String ver = p.getDescription().getVersion();
 			for (String prefix : versionPrefix) {
 				if (ver.startsWith(prefix)) {
 					instance.getPluginLogger().info(hooked + " hooked!");
@@ -128,8 +128,9 @@ public class IntegrationManager implements IntegrationManagerInterface {
 
 	@Override
 	public boolean registerLevelerProvider(@NotNull LevelerProvider leveler) {
-		if (levelerProviders.containsKey(leveler.identifier()))
+		if (levelerProviders.containsKey(leveler.identifier())) {
 			return false;
+		}
 		levelerProviders.put(leveler.identifier(), leveler);
 		return true;
 	}
@@ -141,8 +142,9 @@ public class IntegrationManager implements IntegrationManagerInterface {
 
 	@Override
 	public boolean registerEnchantmentProvider(@NotNull EnchantmentProvider enchantment) {
-		if (enchantmentProviders.containsKey(enchantment.identifier()))
+		if (enchantmentProviders.containsKey(enchantment.identifier())) {
 			return false;
+		}
 		enchantmentProviders.put(enchantment.identifier(), enchantment);
 		return true;
 	}
@@ -166,55 +168,54 @@ public class IntegrationManager implements IntegrationManagerInterface {
 
 	@Override
 	public List<Pair<String, Short>> getEnchantments(ItemStack itemStack) {
-		List<Pair<String, Short>> list = new ArrayList<>();
-		for (EnchantmentProvider enchantmentProvider : enchantmentProviders.values()) {
-			list.addAll(enchantmentProvider.getEnchants(itemStack));
-		}
+		final List<Pair<String, Short>> list = new ArrayList<>();
+		enchantmentProviders.values()
+				.forEach(enchantmentProvider -> list.addAll(enchantmentProvider.getEnchants(itemStack)));
 		return list;
 	}
 
 	@Override
 	public boolean registerEntityProvider(@NotNull EntityProvider entity) {
-		return ((EntityManager) instance.getEntityManager()).registerEntityProvider(entity);
+		return instance.getEntityManager().registerEntityProvider(entity);
 	}
 
 	@Override
 	public boolean unregisterEntityProvider(@NotNull String id) {
-		return ((EntityManager) instance.getEntityManager()).unregisterEntityProvider(id);
+		return instance.getEntityManager().unregisterEntityProvider(id);
 	}
 
 	@Override
 	public EntityProvider getEntityProvider(@NotNull String id) {
-		return ((EntityManager) instance.getEntityManager()).getEntityProvider(id);
+		return instance.getEntityManager().getEntityProvider(id);
 	}
 
 	@Override
 	public boolean registerItemProvider(@NotNull ItemProvider item) {
-		return ((ItemManager) instance.getItemManager()).registerItemProvider(item);
+		return instance.getItemManager().registerItemProvider(item);
 	}
 
 	@Override
 	public boolean unregisterItemProvider(@NotNull String id) {
-		return ((ItemManager) instance.getItemManager()).unregisterItemProvider(id);
+		return instance.getItemManager().unregisterItemProvider(id);
 	}
 
 	@Override
 	public ItemProvider getItemProvider(@NotNull String id) {
-		return ((ItemManager) instance.getItemManager()).getItemProvider(id);
+		return instance.getItemManager().getItemProvider(id);
 	}
 
 	@Override
 	public boolean registerBlockProvider(@NotNull BlockProvider block) {
-		return ((BlockManager) instance.getBlockManager()).registerBlockProvider(block);
+		return instance.getBlockManager().registerBlockProvider(block);
 	}
 
 	@Override
 	public boolean unregisterBlockProvider(@NotNull String id) {
-		return ((BlockManager) instance.getBlockManager()).unregisterBlockProvider(id);
+		return instance.getBlockManager().unregisterBlockProvider(id);
 	}
 
 	@Override
 	public BlockProvider getBlockProvider(@NotNull String id) {
-		return ((BlockManager) instance.getBlockManager()).getBlockProvider(id);
+		return instance.getBlockManager().getBlockProvider(id);
 	}
 }

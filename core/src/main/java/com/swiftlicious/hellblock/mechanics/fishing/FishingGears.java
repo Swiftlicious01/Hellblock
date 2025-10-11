@@ -1,6 +1,7 @@
 package com.swiftlicious.hellblock.mechanics.fishing;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -41,7 +42,8 @@ import net.kyori.adventure.text.ScoreComponent;
  */
 public class FishingGears {
 
-	private static final Map<ActionTrigger, TriConsumer<GearType, Context<Player>, ItemStack>> triggers = new HashMap<>();
+	private static final Map<ActionTrigger, TriConsumer<GearType, Context<Player>, ItemStack>> triggers = Collections
+			.unmodifiableMap(new HashMap<>());
 
 	static {
 		triggers.put(ActionTrigger.CAST, ((type, context, itemStack) -> type.castFunction.accept(context, itemStack)));
@@ -78,7 +80,7 @@ public class FishingGears {
 	 *
 	 * @param context the context of the player.
 	 */
-	public FishingGears(Context<Player> context) {
+	public void init(Context<Player> context) {
 		fishingGearsConsumers.accept(context, this);
 	}
 
@@ -113,9 +115,8 @@ public class FishingGears {
 		for (Map.Entry<GearType, List<Pair<String, ItemStack>>> entry : gears.entrySet()) {
 			for (Pair<String, ItemStack> itemPair : entry.getValue()) {
 				HellblockPlugin.getInstance().debug(entry.getKey() + " | " + itemPair.left() + " | " + trigger);
-				Optional.ofNullable(triggers.get(trigger)).ifPresent(tri -> {
-					tri.accept(entry.getKey(), context, itemPair.right());
-				});
+				Optional.ofNullable(triggers.get(trigger))
+						.ifPresent(tri -> tri.accept(entry.getKey(), context, itemPair.right()));
 				HellblockPlugin.getInstance().getEventManager().trigger(context, itemPair.left(),
 						entry.getKey().getType(), trigger);
 			}

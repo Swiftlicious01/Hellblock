@@ -43,10 +43,9 @@ public abstract class AbstractActionManager<T> implements ActionManager<T> {
 
 	public AbstractActionManager(HellblockPlugin plugin) {
 		this.instance = plugin;
-		this.registerBuiltInActions();
 	}
 
-	protected void registerBuiltInActions() {
+	public void registerBuiltInActions() {
 		this.registerCommandAction();
 		this.registerBroadcastAction();
 		this.registerNearbyMessage();
@@ -62,8 +61,9 @@ public abstract class AbstractActionManager<T> implements ActionManager<T> {
 	@Override
 	public boolean registerAction(ActionFactory<T> actionFactory, String... types) {
 		for (String type : types) {
-			if (this.actionFactoryMap.containsKey(type))
+			if (this.actionFactoryMap.containsKey(type)) {
 				return false;
+			}
 		}
 		for (String type : types) {
 			this.actionFactoryMap.put(type, actionFactory);
@@ -89,57 +89,62 @@ public abstract class AbstractActionManager<T> implements ActionManager<T> {
 
 	@Override
 	public Action<T> parseAction(Section section) {
-		if (section == null)
-			return Action.empty();
-		ActionFactory<T> factory = getActionFactory(section.getString("type"));
-		if (factory == null) {
-			instance.getPluginLogger().warn("Action type: " + section.getString("type") + " doesn't exist.");
+		if (section == null) {
 			return Action.empty();
 		}
-		return factory.process(section.get("value"),
-				section.contains("chance") ? MathValue.auto(section.get("chance")) : MathValue.plain(1d));
+		final ActionFactory<T> factory = getActionFactory(section.getString("type"));
+		if (factory != null) {
+			return factory.process(section.get("value"),
+					section.contains("chance") ? MathValue.auto(section.get("chance")) : MathValue.plain(1d));
+		}
+		instance.getPluginLogger().warn("Action type: " + section.getString("type") + " doesn't exist.");
+		return Action.empty();
 	}
 
 	@NotNull
 	@Override
 	@SuppressWarnings("unchecked")
 	public Action<T>[] parseActions(Section section) {
-		ArrayList<Action<T>> actionList = new ArrayList<>();
-		if (section != null)
-			for (Map.Entry<String, Object> entry : section.getStringRouteMappedValues(false).entrySet()) {
-				if (entry.getValue() instanceof Section innerSection) {
-					Action<T> action = parseAction(innerSection);
-					if (action != null)
-						actionList.add(action);
-				}
-			}
-		return actionList.toArray(new Action[0]);
+		final List<Action<T>> actionList = new ArrayList<>();
+		if (section != null) {
+			section.getStringRouteMappedValues(false).entrySet().stream()
+					.filter(entry -> entry.getValue() instanceof Section).map(entry -> (Section) entry.getValue())
+					.forEach(innerSection -> {
+						final Action<T> action = parseAction(innerSection);
+						if (action != null) {
+							actionList.add(action);
+						}
+					});
+		}
+		return actionList.toArray(Action[]::new);
 	}
 
 	@Override
 	public Action<T> parseAction(@NotNull String type, @NotNull Object args) {
-		ActionFactory<T> factory = getActionFactory(type);
-		if (factory == null) {
-			instance.getPluginLogger().warn("Action type: " + type + " doesn't exist.");
-			return Action.empty();
+		final ActionFactory<T> factory = getActionFactory(type);
+		if (factory != null) {
+			return factory.process(args, MathValue.plain(1));
 		}
-		return factory.process(args, MathValue.plain(1));
+		instance.getPluginLogger().warn("Action type: " + type + " doesn't exist.");
+		return Action.empty();
 	}
 
 	@SuppressWarnings({ "unchecked" })
 	protected void loadExpansions(Class<T> tClass) {
-		File expansionFolder = new File(instance.getDataFolder(), EXPANSION_FOLDER);
-		if (!expansionFolder.exists())
+		final File expansionFolder = new File(instance.getDataFolder(), EXPANSION_FOLDER);
+		if (!expansionFolder.exists()) {
 			expansionFolder.mkdirs();
+		}
 
-		List<Class<? extends ActionExpansion<T>>> classes = new ArrayList<>();
-		File[] expansionJars = expansionFolder.listFiles();
-		if (expansionJars == null)
+		final List<Class<? extends ActionExpansion<T>>> classes = new ArrayList<>();
+		final File[] expansionJars = expansionFolder.listFiles();
+		if (expansionJars == null) {
 			return;
+		}
 		for (File expansionJar : expansionJars) {
 			if (expansionJar.getName().endsWith(".jar")) {
 				try {
-					Class<? extends ActionExpansion<T>> expansionClass = (Class<? extends ActionExpansion<T>>) ClassUtils
+					final Class<? extends ActionExpansion<T>> expansionClass = (Class<? extends ActionExpansion<T>>) ClassUtils
 							.findClass(expansionJar, ActionExpansion.class, tClass);
 					classes.add(expansionClass);
 				} catch (IOException | ClassNotFoundException e) {
@@ -149,7 +154,7 @@ public abstract class AbstractActionManager<T> implements ActionManager<T> {
 		}
 		try {
 			for (Class<? extends ActionExpansion<T>> expansionClass : classes) {
-				ActionExpansion<T> expansion = expansionClass.getDeclaredConstructor().newInstance();
+				final ActionExpansion<T> expansion = expansionClass.getDeclaredConstructor().newInstance();
 				unregisterAction(expansion.getActionType());
 				registerAction(expansion.getActionFactory(), expansion.getActionType());
 				instance.getPluginLogger().info("Loaded action expansion: " + expansion.getActionType() + "["

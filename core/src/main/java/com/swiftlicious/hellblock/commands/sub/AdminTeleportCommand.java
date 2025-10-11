@@ -1,10 +1,8 @@
 package com.swiftlicious.hellblock.commands.sub;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.stream.Collectors;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -18,20 +16,18 @@ import org.incendo.cloud.context.CommandContext;
 import org.incendo.cloud.context.CommandInput;
 import org.incendo.cloud.parser.standard.StringParser;
 import org.incendo.cloud.suggestion.Suggestion;
-import org.incendo.cloud.suggestion.SuggestionProvider;
+import org.jetbrains.annotations.NotNull;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.commands.BukkitCommandFeature;
 import com.swiftlicious.hellblock.commands.HellblockCommandManager;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
+import com.swiftlicious.hellblock.player.HellblockData;
 import com.swiftlicious.hellblock.player.UUIDFetcher;
 import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.utils.ChunkUtils;
-import com.swiftlicious.hellblock.world.HellblockWorld;
 
 import net.kyori.adventure.text.Component;
-
-import org.jetbrains.annotations.NotNull;
 
 public class AdminTeleportCommand extends BukkitCommandFeature<CommandSender> {
 
@@ -43,91 +39,102 @@ public class AdminTeleportCommand extends BukkitCommandFeature<CommandSender> {
 	public Command.Builder<? extends CommandSender> assembleCommand(CommandManager<CommandSender> manager,
 			Command.Builder<CommandSender> builder) {
 		return builder.senderType(Player.class)
-				.required("player", StringParser.stringComponent().suggestionProvider(new SuggestionProvider<>() {
-					@Override
-					public @NotNull CompletableFuture<? extends @NotNull Iterable<? extends @NotNull Suggestion>> suggestionsFuture(
-							@NotNull CommandContext<Object> context, @NotNull CommandInput input) {
-						List<String> suggestions = HellblockPlugin.getInstance().getStorageManager().getOnlineUsers()
-								.stream()
-								.filter(onlineUser -> onlineUser.isOnline()
-										&& onlineUser.getHellblockData().hasHellblock())
-								.map(onlineUser -> onlineUser.getName()).collect(Collectors.toList());
-						return CompletableFuture
-								.completedFuture(suggestions.stream().map(Suggestion::suggestion).toList());
-					}
-				})).handler(context -> {
-					final Player player = context.sender();
-					String user = context.get("player");
-					UUID id = Bukkit.getPlayer(user) != null ? Bukkit.getPlayer(user).getUniqueId()
-							: UUIDFetcher.getUUID(user);
-					if (id == null) {
+				.required("player",
+						StringParser.stringComponent().suggestionProvider(this::suggestOnlineHellblockPlayers))
+				.handler(context -> {
+					final Player executor = context.sender();
+					final String targetName = context.get("player");
+
+					final UUID targetUUID = Bukkit.getPlayer(targetName) != null
+							? Bukkit.getPlayer(targetName).getUniqueId()
+							: UUIDFetcher.getUUID(targetName);
+
+					if (targetUUID == null || !Bukkit.getOfflinePlayer(targetUUID).hasPlayedBefore()) {
 						handleFeedback(context, MessageConstants.MSG_HELLBLOCK_PLAYER_OFFLINE);
 						return;
 					}
-					if (!Bukkit.getOfflinePlayer(id).hasPlayedBefore()) {
-						handleFeedback(context, MessageConstants.MSG_HELLBLOCK_PLAYER_OFFLINE);
-						return;
-					}
+
 					HellblockPlugin.getInstance().getStorageManager()
-							.getOfflineUserData(id, HellblockPlugin.getInstance().getConfigManager().lockData())
-							.thenAccept((result) -> {
+							.getOfflineUserData(targetUUID, HellblockPlugin.getInstance().getConfigManager().lockData())
+							.thenAccept(result -> {
 								if (result.isEmpty()) {
 									handleFeedback(context, MessageConstants.MSG_HELLBLOCK_PLAYER_DATA_FAILURE_LOAD
-											.arguments(Component.text(user)));
-									return;
-								}
-								UserData offlineUser = result.get();
-								if (offlineUser.getHellblockData().hasHellblock()) {
-									if (offlineUser.getHellblockData().getOwnerUUID() == null) {
-										throw new NullPointerException(
-												"Owner reference returned null, please report this to the developer.");
-									}
-									HellblockPlugin.getInstance().getStorageManager()
-											.getOfflineUserData(offlineUser.getHellblockData().getOwnerUUID(),
-													HellblockPlugin.getInstance().getConfigManager().lockData())
-											.thenAccept((owner) -> {
-												if (owner.isEmpty()) {
-													String username = Bukkit
-															.getOfflinePlayer(
-																	offlineUser.getHellblockData().getOwnerUUID())
-															.getName() != null
-																	? Bukkit.getOfflinePlayer(offlineUser
-																			.getHellblockData().getOwnerUUID())
-																			.getName()
-																	: "???";
-													handleFeedback(context,
-															MessageConstants.MSG_HELLBLOCK_PLAYER_DATA_FAILURE_LOAD
-																	.arguments(Component.text(username)));
-													return;
-												}
-												UserData ownerUser = owner.get();
-												Optional<HellblockWorld<?>> world = HellblockPlugin.getInstance()
-														.getWorldManager()
-														.getWorld(HellblockPlugin.getInstance().getWorldManager()
-																.getHellblockWorldFormat(
-																		ownerUser.getHellblockData().getID()));
-												if (world.isEmpty() || world.get() == null)
-													throw new NullPointerException(
-															"World returned null, please try to regenerate the world before reporting this issue.");
-												World bukkitWorld = world.get().bukkitWorld();
-												int x = ownerUser.getHellblockData().getHellblockLocation().getBlockX();
-												int z = ownerUser.getHellblockData().getHellblockLocation().getBlockZ();
-												Location highest = new Location(bukkitWorld, x,
-														bukkitWorld.getHighestBlockYAt(x, z), z);
-												ChunkUtils.teleportAsync(player, highest, TeleportCause.PLUGIN)
-														.thenRun(() -> handleFeedback(context,
-																MessageConstants.MSG_HELLBLOCK_ADMIN_FORCE_TELEPORT
-																		.arguments(Component
-																				.text(offlineUser.getName()))));
-											});
+											.arguments(Component.text(targetName)));
 									return;
 								}
 
-								handleFeedback(context, MessageConstants.MSG_HELLBLOCK_NOT_FOUND);
-								return;
+								final UserData targetUser = result.get();
+								final HellblockData targetData = targetUser.getHellblockData();
+
+								if (!targetData.hasHellblock()) {
+									handleFeedback(context, MessageConstants.MSG_HELLBLOCK_NOT_FOUND);
+									return;
+								}
+
+								final UUID ownerUUID = targetData.getOwnerUUID();
+								if (ownerUUID == null) {
+									HellblockPlugin.getInstance().getPluginLogger()
+											.severe("Hellblock owner UUID was null for player " + targetUser.getName()
+													+ " (" + targetUser.getUUID()
+													+ "). This indicates corrupted data.");
+									throw new IllegalStateException(
+											"Owner reference was null. This should never happen — please report to the developer.");
+								}
+
+								// Load island owner
+								HellblockPlugin.getInstance().getStorageManager()
+										.getOfflineUserData(ownerUUID,
+												HellblockPlugin.getInstance().getConfigManager().lockData())
+										.thenAccept(ownerOpt -> {
+											if (ownerOpt.isEmpty()) {
+												final String username = Bukkit.getOfflinePlayer(ownerUUID).getName();
+												handleFeedback(context,
+														MessageConstants.MSG_HELLBLOCK_PLAYER_DATA_FAILURE_LOAD
+																.arguments(Component
+																		.text(username != null ? username : "???")));
+												return;
+											}
+
+											final UserData ownerUser = ownerOpt.get();
+											teleportToIslandTop(executor, targetUser, ownerUser, context);
+										});
 							});
-
 				});
+	}
+
+	private void teleportToIslandTop(Player executor, UserData targetUser, UserData ownerUser,
+			CommandContext<Player> context) {
+		final HellblockData ownerData = ownerUser.getHellblockData();
+
+		// Ensure world is loaded (sync or async)
+		HellblockPlugin.getInstance().getWorldManager().ensureHellblockWorldLoaded(ownerData.getID())
+				.thenCompose(loadedWorld -> {
+					World bukkitWorld = loadedWorld.bukkitWorld();
+					if (bukkitWorld == null) {
+						return CompletableFuture.completedFuture(null);
+					}
+
+					int x = ownerData.getHellblockLocation().getBlockX();
+					int z = ownerData.getHellblockLocation().getBlockZ();
+					Location highest = bukkitWorld.getHighestBlockAt(x, z).getLocation().add(0.5, 1, 0.5);
+
+					// Async teleport
+					return ChunkUtils.teleportAsync(executor, highest, TeleportCause.PLUGIN)
+							.thenRun(() -> handleFeedback(context, MessageConstants.MSG_HELLBLOCK_ADMIN_FORCE_TELEPORT
+									.arguments(Component.text(targetUser.getName()))));
+				}).exceptionally(ex -> {
+					ex.printStackTrace();
+					return null;
+				});
+	}
+
+	private @NotNull CompletableFuture<? extends @NotNull Iterable<? extends @NotNull Suggestion>> suggestOnlineHellblockPlayers(
+			@NotNull CommandContext<Object> context, @NotNull CommandInput input) {
+		final List<String> suggestions = HellblockPlugin.getInstance().getStorageManager().getOnlineUsers().stream()
+				.filter(user -> user.isOnline() && user.getHellblockData().hasHellblock()).map(UserData::getName)
+				.toList();
+
+		return CompletableFuture.completedFuture(suggestions.stream().map(Suggestion::suggestion).toList());
 	}
 
 	@Override

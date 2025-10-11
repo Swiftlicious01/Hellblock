@@ -21,6 +21,8 @@ public interface IslandProtection {
 	void updateHellblockMessages(@NotNull World world, @NotNull UUID id);
 
 	void abandonIsland(@NotNull World world, @NotNull UUID id);
+	
+	void restoreFlags(@NotNull World world, @NotNull UUID id);
 
 	default void lockHellblock(@NotNull World world, @NotNull UserData owner) {
 	}

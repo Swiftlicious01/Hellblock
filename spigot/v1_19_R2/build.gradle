@@ -1,0 +1,24 @@
+plugins {
+    id 'java'
+}
+
+dependencies {
+    // Spigot 1.19.3
+    compileOnly 'org.spigotmc:spigot:1.19.3-R0.1-SNAPSHOT:remapped-mojang'
+
+    // Shared internal API module
+    compileOnly project(":api")
+}
+
+java {
+    // Java 17 (required for Spigot 1.19.3)
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+compileJava {
+    // UTF-8 encoding and Java release compatibility
+    options.encoding = 'UTF-8'
+    options.release.set(17)
+}

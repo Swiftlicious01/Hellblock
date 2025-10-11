@@ -10,7 +10,6 @@ import com.google.gson.JsonDeserializer;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
-import com.google.gson.JsonParseException;
 import com.google.gson.JsonSerializationContext;
 import com.google.gson.JsonSerializer;
 import com.swiftlicious.hellblock.HellblockPlugin;
@@ -41,13 +40,13 @@ public class MapSerializer<K, V> implements JsonSerializer<Map<K, V>>, JsonDeser
 	 */
 	@Override
 	public JsonElement serialize(Map<K, V> kvMap, Type type, JsonSerializationContext jsonSerializationContext) {
-		if (kvMap == null || kvMap.isEmpty())
+		if (kvMap == null || kvMap.isEmpty()) {
 			return JsonNull.INSTANCE;
-		JsonObject jsonObject = new JsonObject();
-
-		for (Map.Entry<K, V> entry : kvMap.entrySet()) {
-			jsonObject.add(entry.getKey().toString(), jsonSerializationContext.serialize(entry.getValue()));
 		}
+		final JsonObject jsonObject = new JsonObject();
+
+		kvMap.entrySet().forEach(entry -> jsonObject.add(entry.getKey().toString(),
+				jsonSerializationContext.serialize(entry.getValue())));
 
 		return jsonObject;
 	}
@@ -59,20 +58,17 @@ public class MapSerializer<K, V> implements JsonSerializer<Map<K, V>>, JsonDeser
 	 * @param type                       deserialization type
 	 * @param jsonDeserializationContext deserialization context
 	 * @return deserialized hashmap
-	 * @throws JsonParseException if json is not parsed correctly
 	 */
 	@Override
 	public Map<K, V> deserialize(JsonElement jsonElement, Type type,
-			JsonDeserializationContext jsonDeserializationContext) throws JsonParseException {
-		Gson gson = HellblockPlugin.getInstance().getStorageManager().getGson();
+			JsonDeserializationContext jsonDeserializationContext) {
+		final Gson gson = HellblockPlugin.getInstance().getStorageManager().getGson();
 
-		JsonObject jsonObject = (JsonObject) jsonElement;
+		final JsonObject jsonObject = (JsonObject) jsonElement;
 
-		Map<K, V> reAssembledHashMap = new HashMap<>();
-		for (Map.Entry<String, JsonElement> entry : jsonObject.entrySet()) {
-			reAssembledHashMap.put(gson.fromJson(entry.getKey(), keysClassType),
-					gson.fromJson(entry.getValue(), valuesClassType));
-		}
+		final Map<K, V> reAssembledHashMap = new HashMap<>();
+		jsonObject.entrySet().forEach(entry -> reAssembledHashMap.put(gson.fromJson(entry.getKey(), keysClassType),
+				gson.fromJson(entry.getValue(), valuesClassType)));
 		return reAssembledHashMap;
 	}
 }

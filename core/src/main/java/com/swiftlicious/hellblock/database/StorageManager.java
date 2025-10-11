@@ -6,6 +6,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -33,26 +34,28 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonSyntaxException;
 import com.google.gson.reflect.TypeToken;
-
-import dev.dejvokep.boostedyaml.YamlDocument;
-
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.challenges.ChallengeResult;
 import com.swiftlicious.hellblock.challenges.ChallengeType;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
+import com.swiftlicious.hellblock.handlers.VisitManager.VisitRecord;
 import com.swiftlicious.hellblock.player.PlayerData;
 import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.player.UserDataInterface;
+import com.swiftlicious.hellblock.player.mailbox.MailboxEntry;
 import com.swiftlicious.hellblock.protection.HellblockFlag.AccessType;
 import com.swiftlicious.hellblock.protection.HellblockFlag.FlagType;
 import com.swiftlicious.hellblock.scheduler.SchedulerTask;
 import com.swiftlicious.hellblock.sender.Sender;
-import com.swiftlicious.hellblock.utils.LocationUtils;
 import com.swiftlicious.hellblock.utils.adapters.HellblockTypeAdapterFactory;
 import com.swiftlicious.hellblock.utils.adapters.ListSerializer;
 import com.swiftlicious.hellblock.utils.adapters.MapSerializer;
 import com.swiftlicious.hellblock.utils.adapters.SetSerializer;
+import com.swiftlicious.hellblock.world.HellblockWorld;
+
+import dev.dejvokep.boostedyaml.YamlDocument;
+import net.kyori.adventure.text.Component;
 
 /**
  * This class implements the StorageManager interface and is responsible for
@@ -62,10 +65,10 @@ import com.swiftlicious.hellblock.utils.adapters.SetSerializer;
 public class StorageManager implements StorageManagerInterface, Listener {
 
 	protected final HellblockPlugin instance;
-	private DataStorageInterface dataSource;
+	private DataStorageProvider dataSource;
 	private StorageType previousType;
-	private final ConcurrentMap<UUID, UserData> onlineUserMap;
-	private final Set<UUID> locked;
+	private final ConcurrentMap<UUID, UserData> onlineUserMap = new ConcurrentHashMap<>();
+	private final Set<UUID> locked = new HashSet<>();
 	private boolean hasRedis;
 	private RedisManager redisManager;
 	private String serverID;
@@ -74,14 +77,12 @@ public class StorageManager implements StorageManagerInterface, Listener {
 
 	public StorageManager(HellblockPlugin plugin) {
 		instance = plugin;
-		this.locked = new HashSet<>();
-		this.onlineUserMap = new ConcurrentHashMap<>();
 		// Build the gson
 		// excludeFieldsWithoutExposeAnnotation - this means that every field to be
 		// stored should use @Expose
 		// enableComplexMapKeySerialization - forces GSON to use TypeAdapters even for
 		// Map keys
-		GsonBuilder builder = new GsonBuilder().excludeFieldsWithoutExposeAnnotation()
+		final GsonBuilder builder = new GsonBuilder().excludeFieldsWithoutExposeAnnotation()
 				.enableComplexMapKeySerialization().setPrettyPrinting();
 		// Register map, set & list serializers
 		builder.registerTypeAdapter((new TypeToken<Map<ChallengeType, ChallengeResult>>() {
@@ -94,12 +95,19 @@ public class StorageManager implements StorageManagerInterface, Listener {
 		}).getType(), new SetSerializer<>(UUID.class));
 		builder.registerTypeAdapter((new TypeToken<List<String>>() {
 		}).getType(), new ListSerializer<>(String.class));
+		builder.registerTypeAdapter((new TypeToken<List<MailboxEntry>>() {
+		}).getType(), new ListSerializer<>(MailboxEntry.class));
+		builder.registerTypeAdapter((new TypeToken<List<VisitRecord>>() {
+		}).getType(), new ListSerializer<>(VisitRecord.class));
 		// Register adapter factory
 		builder.registerTypeAdapterFactory(new HellblockTypeAdapterFactory());
 		// Allow characters like < or > without escaping them
 		builder.disableHtmlEscaping();
 		gson = builder.create();
-		Bukkit.getPluginManager().registerEvents(this, plugin);
+	}
+
+	public void init() {
+		Bukkit.getPluginManager().registerEvents(this, instance);
 	}
 
 	/**
@@ -107,7 +115,7 @@ public class StorageManager implements StorageManagerInterface, Listener {
 	 */
 	@Override
 	public void reload() {
-		YamlDocument config = instance.getConfigManager().loadConfig("database.yml");
+		final YamlDocument config = instance.getConfigManager().loadConfig("database.yml");
 		this.serverID = config.getString("unique-server-id", "default");
 		try {
 			config.save(new File(instance.getDataFolder(), "database.yml"));
@@ -116,10 +124,12 @@ public class StorageManager implements StorageManagerInterface, Listener {
 		}
 
 		// Check if storage type has changed and reinitialize if necessary
-		StorageType storageType = StorageType.valueOf(config.getString("data-storage-method", "H2"));
+		final StorageType storageType = StorageType
+				.valueOf(config.getString("data-storage-method", "H2").toUpperCase(Locale.ENGLISH));
 		if (storageType != previousType) {
-			if (this.dataSource != null)
+			if (this.dataSource != null) {
 				this.dataSource.disable();
+			}
 			this.previousType = storageType;
 			switch (storageType) {
 			case H2 -> this.dataSource = new H2Handler(instance);
@@ -136,11 +146,11 @@ public class StorageManager implements StorageManagerInterface, Listener {
 						"Defaulting to H2 because of unexpected value: " + config.getString("data-storage-method"));
 			}
 			}
-			if (this.dataSource != null)
+			if (this.dataSource != null) {
 				this.dataSource.initialize(config);
-			else
+			} else {
 				instance.getPluginLogger().severe("No storage type is set.");
-
+			}
 		}
 
 		// Handle Redis configuration
@@ -158,21 +168,24 @@ public class StorageManager implements StorageManagerInterface, Listener {
 		}
 
 		// Cancel any existing timerSaveTask
-		if (this.timerSaveTask != null) {
+		if (this.timerSaveTask != null && !this.timerSaveTask.isCancelled()) {
 			this.timerSaveTask.cancel();
+			this.timerSaveTask = null;
 		}
 
 		// Schedule periodic data saving if dataSaveInterval is configured
 		if (instance.getConfigManager().dataSaveInterval() > 0) {
 			this.timerSaveTask = instance.getScheduler().asyncRepeating(() -> {
-				if (this.onlineUserMap.values().isEmpty())
+				if (this.onlineUserMap.values().isEmpty()) {
 					return;
-				long finalTime = System.currentTimeMillis();
+				}
+				final long finalTime = System.currentTimeMillis();
 				this.dataSource.updateManyPlayersData(this.onlineUserMap.values(),
 						!instance.getConfigManager().lockData());
-				if (instance.getConfigManager().logDataSaving())
-					instance.getPluginLogger().info(String.format("Data Saved for online players. Took %sms.",
-							(System.currentTimeMillis() - finalTime)));
+				if (instance.getConfigManager().logDataSaving()) {
+					instance.getPluginLogger().info("Data Saved for online players. Took %sms."
+							.formatted((System.currentTimeMillis() - finalTime)));
+				}
 			}, instance.getConfigManager().dataSaveInterval(), instance.getConfigManager().dataSaveInterval(),
 					TimeUnit.SECONDS);
 		}
@@ -184,12 +197,15 @@ public class StorageManager implements StorageManagerInterface, Listener {
 	@Override
 	public void disable() {
 		HandlerList.unregisterAll(this);
-		if (this.dataSource != null && !onlineUserMap.isEmpty())
+		if (this.dataSource != null && !onlineUserMap.isEmpty()) {
 			this.dataSource.updateManyPlayersData(onlineUserMap.values(), true);
-		if (this.dataSource != null)
+		}
+		if (this.dataSource != null) {
 			this.dataSource.disable();
-		if (this.redisManager != null)
+		}
+		if (this.redisManager != null) {
 			this.redisManager.disable();
+		}
 		this.onlineUserMap.clear();
 	}
 
@@ -217,12 +233,12 @@ public class StorageManager implements StorageManagerInterface, Listener {
 
 	@Override
 	public CompletableFuture<Optional<UserData>> getOfflineUserData(UUID uuid, boolean lock) {
-		CompletableFuture<Optional<PlayerData>> optionalDataFuture = dataSource.getPlayerData(uuid, lock, null);
+		final CompletableFuture<Optional<PlayerData>> optionalDataFuture = dataSource.getPlayerData(uuid, lock, null);
 		return optionalDataFuture.thenCompose(optionalUser -> {
 			if (optionalUser.isEmpty()) {
 				return CompletableFuture.completedFuture(Optional.empty());
 			}
-			PlayerData data = optionalUser.get();
+			final PlayerData data = optionalUser.get();
 			return CompletableFuture.completedFuture(Optional.of(UserDataInterface.builder().setData(data).build()));
 		});
 	}
@@ -234,7 +250,7 @@ public class StorageManager implements StorageManagerInterface, Listener {
 
 	@NotNull
 	@Override
-	public DataStorageInterface getDataSource() {
+	public DataStorageProvider getDataSource() {
 		return dataSource;
 	}
 
@@ -245,8 +261,8 @@ public class StorageManager implements StorageManagerInterface, Listener {
 	 */
 	@EventHandler
 	public void onJoin(PlayerJoinEvent event) {
-		Player player = event.getPlayer();
-		UUID uuid = player.getUniqueId();
+		final Player player = event.getPlayer();
+		final UUID uuid = player.getUniqueId();
 		locked.add(uuid);
 		if (player.hasPermission("hellblock.updates") && instance.isUpdateAvailable()) {
 			instance.getSenderFactory().wrap(player).sendMessage(AdventureHelper.miniMessage(
@@ -272,35 +288,52 @@ public class StorageManager implements StorageManagerInterface, Listener {
 	 */
 	@EventHandler
 	public void onQuit(PlayerQuitEvent event) {
-		Player player = event.getPlayer();
-		UUID uuid = player.getUniqueId();
-		if (locked.contains(uuid))
+		final Player player = event.getPlayer();
+		final UUID uuid = player.getUniqueId();
+		if (locked.contains(uuid)) {
 			return;
+		}
+
+		instance.getProtectionManager().cancelBlockScan(uuid);
+
+		instance.getSchematicManager().schematicPaster.cancelPaste(uuid);
 
 		instance.getIslandLevelManager().saveCache(uuid);
 		instance.getNetherrackGeneratorHandler().savePistons(uuid);
 
-		UserData onlineUser = onlineUserMap.remove(uuid);
-		PlayerData data = onlineUser.toPlayerData();
+		final UserData onlineUser = onlineUserMap.remove(uuid);
+		final PlayerData data = onlineUser.toPlayerData();
 
-		onlineUser.hideBorder();
+		instance.getBorderHandler().stopBorderTask(uuid);
 		onlineUser.stopSpawningAnimals();
 		onlineUser.stopSpawningFortressMobs();
 
-		if (onlineUser.hasGlowstoneToolEffect() || onlineUser.hasGlowstoneArmorEffect()) {
-			if (player.hasPotionEffect(PotionEffectType.NIGHT_VISION)) {
-				player.removePotionEffect(PotionEffectType.NIGHT_VISION);
-				onlineUser.isHoldingGlowstoneTool(false);
-				onlineUser.isWearingGlowstoneArmor(false);
+		// Check if this player is an island owner
+		instance.getCoopManager().getIslandOwner(uuid).thenAccept(optionalOwner -> {
+			if (optionalOwner.isPresent()) {
+				final UUID ownerId = optionalOwner.get();
+
+				// Only snapshot for the owner (even if a coop member logs out)
+				// small delay to let logout finish
+				instance.getScheduler().asyncLater(() -> instance.getIslandBackupManager().maybeSnapshot(ownerId), 2,
+						TimeUnit.SECONDS);
 			}
+		});
+
+		if ((onlineUser.hasGlowstoneToolEffect() || onlineUser.hasGlowstoneArmorEffect())
+				&& player.hasPotionEffect(PotionEffectType.NIGHT_VISION)) {
+			player.removePotionEffect(PotionEffectType.NIGHT_VISION);
+			onlineUser.isHoldingGlowstoneTool(false);
+			onlineUser.isWearingGlowstoneArmor(false);
 		}
 		if (instance.getPlayerListener().getCancellablePortalMap().containsKey(uuid)
 				&& instance.getPlayerListener().getCancellablePortalMap().get(uuid) != null) {
 			instance.getPlayerListener().getCancellablePortalMap().get(uuid).cancel();
 			instance.getPlayerListener().getCancellablePortalMap().remove(uuid);
 		}
-		if (instance.getPlayerListener().getLinkPortalCatcherSet().contains(uuid))
+		if (instance.getPlayerListener().getLinkPortalCatcherSet().contains(uuid)) {
 			instance.getPlayerListener().getLinkPortalCatcherSet().remove(uuid);
+		}
 		// Cleanup
 		instance.getNetherrackGeneratorHandler().getGeneratorManager().cleanupExpiredPistons(uuid);
 		instance.getNetherrackGeneratorHandler().getGeneratorManager().cleanupExpiredLocations();
@@ -308,13 +341,15 @@ public class StorageManager implements StorageManagerInterface, Listener {
 		if (hasRedis) {
 			redisManager.setChangeServer(uuid).thenRun(() -> redisManager.updatePlayerData(uuid, data, true)
 					.thenRun(() -> dataSource.updatePlayerData(uuid, data, true).thenAccept(result -> {
-						if (result)
+						if (result) {
 							locked.remove(uuid);
+						}
 					})));
 		} else {
 			dataSource.updatePlayerData(uuid, data, true).thenAccept(result -> {
-				if (result)
+				if (result) {
 					locked.remove(uuid);
+				}
 			});
 		}
 	}
@@ -323,7 +358,7 @@ public class StorageManager implements StorageManagerInterface, Listener {
 	 * Runnable task for asynchronously retrieving data from Redis. Retries up to 6
 	 * times and cancels the task if the player is offline.
 	 */
-	public class RedisGetDataTask implements Runnable {
+	public final class RedisGetDataTask implements Runnable {
 
 		private final UUID uuid;
 		private int triedTimes;
@@ -337,7 +372,7 @@ public class StorageManager implements StorageManagerInterface, Listener {
 		@Override
 		public void run() {
 			triedTimes++;
-			Player player = Bukkit.getPlayer(uuid);
+			final Player player = Bukkit.getPlayer(uuid);
 			if (player == null || !player.isOnline()) {
 				// offline
 				task.cancel();
@@ -366,12 +401,12 @@ public class StorageManager implements StorageManagerInterface, Listener {
 	 */
 	public void waitForDataLockRelease(UUID uuid, int times) {
 		instance.getScheduler().asyncLater(() -> {
-			var player = Bukkit.getPlayer(uuid);
-			if (player == null || !player.isOnline())
+			final var player = Bukkit.getPlayer(uuid);
+			if (player == null || !player.isOnline()) {
 				return;
+			}
 			if (times > 3) {
-				instance.getPluginLogger()
-						.warn(String.format("Tried 3 times when getting data for %s. Giving up.", uuid));
+				instance.getPluginLogger().warn("Tried 3 times when getting data for %s. Giving up.".formatted(uuid));
 				return;
 			}
 			this.dataSource.getPlayerData(uuid, instance.getConfigManager().lockData(), null)
@@ -404,9 +439,11 @@ public class StorageManager implements StorageManagerInterface, Listener {
 	public void putDataInCache(Player player, PlayerData playerData) {
 		locked.remove(player.getUniqueId());
 		// updates the player's name if changed
-		var bukkitUser = UserDataInterface.builder().setData(playerData).setName(player.getName()).build();
+		String storedName = UserDataInterface.builder().setData(playerData).build().getName();
+		final var bukkitUser = UserDataInterface.builder().setData(playerData).setName(player.getName())
+				.updateLastActivity().build();
 		onlineUserMap.put(player.getUniqueId(), bukkitUser);
-		Sender audience = instance.getSenderFactory().wrap(player);
+		final Sender audience = instance.getSenderFactory().wrap(player);
 		if (bukkitUser.getHellblockData().isAbandoned()) {
 			audience.sendMessage(instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_LOGIN_ABANDONED
 					.arguments(
@@ -414,93 +451,95 @@ public class StorageManager implements StorageManagerInterface, Listener {
 					.build()));
 		}
 
-		instance.getIslandLevelManager().loadCache(player.getUniqueId());
-		instance.getNetherrackGeneratorHandler().loadPistons(player.getUniqueId());
+		// If the stored bio, name and entry messages references an old name
+		// placeholder,
+		// regenerate it
+		if (bukkitUser.getHellblockData().getOwnerUUID() != null
+				&& bukkitUser.getHellblockData().getOwnerUUID().equals(bukkitUser.getUUID())) {
+			String bio = bukkitUser.getHellblockData().getDisplaySettings().getIslandBio();
+			if (bukkitUser.getHellblockData().getDisplaySettings().isDefaultIslandBio()
+					&& !bio.contains(player.getName())) {
+				bukkitUser.getHellblockData().getDisplaySettings()
+						.setIslandBio(bukkitUser.getHellblockData().getDefaultIslandBio());
+				bukkitUser.getHellblockData().getDisplaySettings().setAsDefaultIslandBio();
+				instance.debug("Updated island bio for " + player.getName() + " due to name change.");
+			}
+			String name = bukkitUser.getHellblockData().getDisplaySettings().getIslandName();
+			if (bukkitUser.getHellblockData().getDisplaySettings().isDefaultIslandName()
+					&& !name.contains(player.getName())) {
+				bukkitUser.getHellblockData().getDisplaySettings()
+						.setIslandName(bukkitUser.getHellblockData().getDefaultIslandName());
+				bukkitUser.getHellblockData().getDisplaySettings().setAsDefaultIslandName();
+				instance.debug("Updated island name for " + player.getName() + " due to name change.");
+			}
+			if (!bukkitUser.getHellblockData().isAbandoned()) {
+				String currentName = player.getName();
+				if (!currentName.equalsIgnoreCase(storedName)) {
+					Optional<HellblockWorld<?>> world = instance.getWorldManager().getWorld(
+							instance.getWorldManager().getHellblockWorldFormat(bukkitUser.getHellblockData().getID()));
+					world.ifPresent(value -> {
+						instance.getProtectionManager().getIslandProtection()
+								.updateHellblockMessages(value.bukkitWorld(), bukkitUser.getUUID());
+						instance.debug(
+								"Updated island entry messages for " + player.getName() + " due to name change.");
+					});
+				}
+			}
+		}
 
-		bukkitUser.showBorder();
+		if (bukkitUser.toPlayerData().hasHellblockInviteNotifications()
+				&& !bukkitUser.getHellblockData().getInvitations().isEmpty()) {
+			int invitations = bukkitUser.getHellblockData().getInvitations().size();
+			audience.sendMessage(instance.getTranslationManager().render(
+					MessageConstants.MSG_HELLBLOCK_INVITE_REMINDER.arguments(Component.text(invitations)).build()));
+		}
+
+		if (bukkitUser.toPlayerData().hasHellblockJoinNotifications() && bukkitUser.getHellblockData().hasHellblock()) {
+			UUID ownerUUID = bukkitUser.getHellblockData().getOwnerUUID();
+			if (ownerUUID != null) {
+				getOfflineUserData(ownerUUID, instance.getConfigManager().lockData())
+						.thenAccept(ownerOpt -> ownerOpt.ifPresent(ownerData -> {
+							Set<UUID> partyPlusOwner = ownerData.getHellblockData().getPartyPlusOwner();
+							partyPlusOwner.stream().filter(id -> !id.equals(player.getUniqueId()))
+									.map(Bukkit::getPlayer).filter(member -> member != null && member.isOnline())
+									.forEach(member -> {
+										Sender sender = instance.getSenderFactory().wrap(member);
+										sender.sendMessage(instance.getTranslationManager()
+												.render(MessageConstants.MSG_HELLBLOCK_COOP_JOINED_SERVER
+														.arguments(Component.text(bukkitUser.getName())).build()));
+									});
+						}));
+			}
+		}
+
+		instance.getMailboxManager().handleLogin(player);
+
+		if (instance.getHellblockHandler().isInCorrectWorld(player)) {
+			instance.getBorderHandler().startBorderTask(player);
+		}
 		bukkitUser.startSpawningAnimals();
 		bukkitUser.startSpawningFortressMobs();
 		instance.getFarmingManager().updateCrops(player.getWorld(), player);
+		instance.getIslandLevelManager().loadCache(player.getUniqueId());
+		instance.getNetherrackGeneratorHandler().loadPistons(player.getUniqueId());
 
-		if (player.getLocation() != null) {
-			LocationUtils.isSafeLocationAsync(player.getLocation()).thenAccept((playerResult) -> {
-				if (!playerResult.booleanValue()) {
-					if (bukkitUser.getHellblockData().hasHellblock()) {
-						if (bukkitUser.getHellblockData().getOwnerUUID() == null) {
-							throw new NullPointerException(
-									"Owner reference returned null, please report this to the developer.");
-						}
-						instance.getStorageManager()
-								.getOfflineUserData(bukkitUser.getHellblockData().getOwnerUUID(), false)
-								.thenAccept((owner) -> {
-									UserData ownerUser = owner.get();
-									if (ownerUser.getHellblockData().getHomeLocation() != null) {
-										instance.getCoopManager().makeHomeLocationSafe(ownerUser, bukkitUser);
-									} else {
-										instance.getHellblockHandler().teleportToSpawn(player, false);
-									}
-								});
-					} else {
-						instance.getHellblockHandler().teleportToSpawn(player, false);
-					}
-				}
-			});
-		}
+		instance.getHellblockHandler().ensureSafety(player, bukkitUser);
 
-		instance.getCoopManager().getHellblockOwnerOfVisitingIsland(player).thenAccept(ownerUUID -> {
-			if (ownerUUID == null)
-				return;
-			instance.getCoopManager().kickVisitorsIfLocked(ownerUUID);
-			instance.getCoopManager().trackBannedPlayer(ownerUUID, player.getUniqueId()).thenAccept((status) -> {
-				if (status) {
-					if (bukkitUser.getHellblockData().hasHellblock()) {
-						if (bukkitUser.getHellblockData().getOwnerUUID() == null) {
-							throw new NullPointerException(
-									"Owner reference returned null, please report this to the developer.");
-						}
-						instance.getStorageManager()
-								.getOfflineUserData(bukkitUser.getHellblockData().getOwnerUUID(), false)
-								.thenAccept((owner) -> {
-									UserData ownerUser = owner.get();
-									instance.getCoopManager().makeHomeLocationSafe(ownerUser, bukkitUser);
-								});
-					} else {
-						instance.getHellblockHandler().teleportToSpawn(player, true);
-					}
-				}
-			});
-		});
+		instance.getHellblockHandler().handleVisitingIsland(player, bukkitUser);
 
-		if (bukkitUser.isClearingInventory()) {
-			if (instance.getConfigManager().resetInventory()) {
-				player.getInventory().clear();
-				player.getInventory().setArmorContents(null);
-			}
-			if (instance.getConfigManager().resetEnderchest()) {
-				player.getEnderChest().clear();
-			}
-			bukkitUser.toPlayerData().setToClearItems(false);
-			audience.sendMessage(
-					instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_CLEARED_INVENTORY.build()));
-		}
-
-		if (bukkitUser.inUnsafeLocation()) {
-			instance.getHellblockHandler().teleportToSpawn(player, true);
-			bukkitUser.toPlayerData().setInUnsafeLocation(false);
-			audience.sendMessage(
-					instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_UNSAFE_ENVIRONMENT.build()));
-		}
-
-		ItemStack[] armorSet = player.getInventory().getArmorContents();
+		final ItemStack[] armorSet = player.getInventory().getArmorContents();
 		boolean checkArmor = false;
 		if (armorSet != null) {
 			for (ItemStack item : armorSet) {
-				if (item == null || item.getType() == Material.AIR)
+				if (item == null || item.getType() == Material.AIR) {
 					continue;
-				if (!instance.getNetherArmorHandler().isNetherArmorEnabled(item))
+				}
+				if (!instance.getNetherArmorHandler().isNetherArmorEnabled(item)) {
 					continue;
-				if (!instance.getNetherArmorHandler().isNetherArmorNightVisionAllowed(item))
+				}
+				if (!instance.getNetherArmorHandler().isNetherArmorNightVisionAllowed(item)) {
 					continue;
+				}
 				if (instance.getNetherArmorHandler().checkNightVisionArmorStatus(item)
 						&& instance.getNetherArmorHandler().getNightVisionArmorStatus(item)) {
 					checkArmor = true;
@@ -523,12 +562,11 @@ public class StorageManager implements StorageManagerInterface, Listener {
 		}
 
 		if (instance.getNetherToolsHandler().isNetherToolEnabled(tool)
-				&& instance.getNetherToolsHandler().isNetherToolNightVisionAllowed(tool)) {
-			if (instance.getNetherToolsHandler().checkNightVisionToolStatus(tool)
-					&& instance.getNetherToolsHandler().getNightVisionToolStatus(tool)) {
-				player.addPotionEffect(new PotionEffect(PotionEffectType.NIGHT_VISION, Integer.MAX_VALUE, 1));
-				bukkitUser.isHoldingGlowstoneTool(true);
-			}
+				&& instance.getNetherToolsHandler().isNetherToolNightVisionAllowed(tool)
+				&& instance.getNetherToolsHandler().checkNightVisionToolStatus(tool)
+				&& instance.getNetherToolsHandler().getNightVisionToolStatus(tool)) {
+			player.addPotionEffect(new PotionEffect(PotionEffectType.NIGHT_VISION, Integer.MAX_VALUE, 1));
+			bukkitUser.isHoldingGlowstoneTool(true);
 		}
 	}
 
@@ -589,7 +627,7 @@ public class StorageManager implements StorageManagerInterface, Listener {
 			return gson.fromJson(json, PlayerData.class);
 		} catch (JsonSyntaxException ex) {
 			instance.getPluginLogger().severe("Failed to parse PlayerData from json.");
-			instance.getPluginLogger().info(String.format("Json: %s", json));
+			instance.getPluginLogger().info("Json: %s".formatted(json));
 			throw new RuntimeException(ex);
 		}
 	}

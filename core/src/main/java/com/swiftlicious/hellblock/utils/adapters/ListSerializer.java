@@ -10,7 +10,6 @@ import com.google.gson.JsonDeserializationContext;
 import com.google.gson.JsonDeserializer;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonNull;
-import com.google.gson.JsonParseException;
 import com.google.gson.JsonSerializationContext;
 import com.google.gson.JsonSerializer;
 
@@ -39,13 +38,12 @@ public class ListSerializer<T> implements JsonSerializer<List<T>>, JsonDeseriali
 	 */
 	@Override
 	public JsonElement serialize(List<T> list, Type type, JsonSerializationContext jsonSerializationContext) {
-		if (list == null || list.isEmpty())
+		if (list == null || list.isEmpty()) {
 			return JsonNull.INSTANCE;
-		JsonArray jsonArray = new JsonArray();
-		
-		for (T entry : list) {
-			jsonArray.add(jsonSerializationContext.serialize(entry));
 		}
+		final JsonArray jsonArray = new JsonArray();
+
+		list.forEach(entry -> jsonArray.add(jsonSerializationContext.serialize(entry)));
 
 		return jsonArray;
 	}
@@ -57,20 +55,18 @@ public class ListSerializer<T> implements JsonSerializer<List<T>>, JsonDeseriali
 	 * @param type                       deserialization type
 	 * @param jsonDeserializationContext deserialization context
 	 * @return deserialized hashmap
-	 * @throws JsonParseException if json is not parsed correctly
 	 */
 	@Override
 	public List<T> deserialize(JsonElement jsonElement, Type type,
-			JsonDeserializationContext jsonDeserializationContext) throws JsonParseException {
-		Gson gson = HellblockPlugin.getInstance().getStorageManager().getGson();
+			JsonDeserializationContext jsonDeserializationContext) {
+		final Gson gson = HellblockPlugin.getInstance().getStorageManager().getGson();
 
-		JsonArray jsonArray = (JsonArray) jsonElement;
+		final JsonArray jsonArray = (JsonArray) jsonElement;
 
-		JsonArray collection = jsonArray.getAsJsonArray();
+		final JsonArray collection = jsonArray.getAsJsonArray();
 
-		List<T> reAssembledArrayList = new ArrayList<>();
+		final List<T> reAssembledArrayList = new ArrayList<>();
 		for (int i = 0; i < collection.size(); i++) {
-
 			reAssembledArrayList.add(gson.fromJson(collection.get(i), collectionClassType));
 		}
 		return reAssembledArrayList;

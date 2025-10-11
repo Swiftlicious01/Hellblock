@@ -136,10 +136,12 @@ public interface EventManagerInterface extends Reloadable {
 				.flatMap(actionTriggerMap -> Optional.ofNullable(actionTriggerMap.get(trigger)))
 				.ifPresent(integerTreeMap -> {
 					for (Map.Entry<Integer, Action<Player>[]> entry : integerTreeMap.entrySet()) {
-						if (entry.getKey() <= previousTimes)
+						if (entry.getKey() <= previousTimes) {
 							continue;
-						if (entry.getKey() > afterTimes)
+						}
+						if (entry.getKey() > afterTimes) {
 							return;
+						}
 						ActionManager.trigger(context, entry.getValue());
 					}
 				});

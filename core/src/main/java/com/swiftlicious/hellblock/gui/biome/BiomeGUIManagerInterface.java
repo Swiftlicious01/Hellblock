@@ -12,8 +12,9 @@ public interface BiomeGUIManagerInterface extends Reloadable {
 	/**
 	 * Opens the biome GUI for the specified player.
 	 *
-	 * @param player the {@link Player} for whom the biome GUI will be opened
+	 * @param player  the {@link Player} for whom the biome GUI will be opened
+	 * @param isOwner whether the player opening the menu is the owner or not.
 	 * @return true if the biome GUI was successfully opened, false otherwise
 	 */
-	boolean openBiomeGUI(Player player);
+	boolean openBiomeGUI(Player player, boolean isOwner);
 }

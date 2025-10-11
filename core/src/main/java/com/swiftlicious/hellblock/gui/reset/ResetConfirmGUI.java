@@ -57,9 +57,8 @@ public class ResetConfirmGUI {
 			}
 			line++;
 		}
-		for (Map.Entry<Integer, ResetConfirmGUIElement> entry : itemsSlotMap.entrySet()) {
-			this.inventory.setItem(entry.getKey(), entry.getValue().getItemStack().clone());
-		}
+		itemsSlotMap.entrySet()
+				.forEach(entry -> this.inventory.setItem(entry.getKey(), entry.getValue().getItemStack().clone()));
 	}
 
 	public ResetConfirmGUI addElement(ResetConfirmGUIElement... elements) {
@@ -76,8 +75,8 @@ public class ResetConfirmGUI {
 
 	public void show() {
 		context.holder().openInventory(inventory);
-		VersionHelper.getNMSManager().updateInventoryTitle(context.holder(),
-				AdventureHelper.componentToJson(AdventureHelper.miniMessage(manager.title.render(context, true))));
+		VersionHelper.getNMSManager().updateInventoryTitle(context.holder(), AdventureHelper
+				.componentToJson(AdventureHelper.parseCenteredTitleMultiline(manager.title.render(context, true))));
 	}
 
 	@Nullable
@@ -107,11 +106,11 @@ public class ResetConfirmGUI {
 		if (confirmElement != null && !confirmElement.getSlots().isEmpty()) {
 			confirmElement.setItemStack(manager.confirmIcon.build(context));
 		}
-		for (Map.Entry<Integer, ResetConfirmGUIElement> entry : itemsSlotMap.entrySet()) {
-			if (entry.getValue() instanceof ResetConfirmDynamicGUIElement dynamicGUIElement) {
-				this.inventory.setItem(entry.getKey(), dynamicGUIElement.getItemStack().clone());
-			}
-		}
+		itemsSlotMap.entrySet().stream().filter(entry -> entry.getValue() instanceof ResetConfirmDynamicGUIElement)
+				.forEach(entry -> {
+					ResetConfirmDynamicGUIElement dynamicGUIElement = (ResetConfirmDynamicGUIElement) entry.getValue();
+					this.inventory.setItem(entry.getKey(), dynamicGUIElement.getItemStack().clone());
+				});
 		return this;
 	}
 }

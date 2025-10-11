@@ -46,7 +46,7 @@ public class EffectProperties<T> {
 	 * @return a new EffectProperties instance.
 	 */
 	public static <T> EffectProperties<T> of(String key, Class<T> type) {
-		return new EffectProperties<T>(key, type);
+		return new EffectProperties<>(key, type);
 	}
 
 	@Override
@@ -54,7 +54,7 @@ public class EffectProperties<T> {
 		if (this == other) {
 			return true;
 		} else if (other != null && this.getClass() == other.getClass()) {
-			EffectProperties<?> that = (EffectProperties<?>) other;
+			final EffectProperties<?> that = (EffectProperties<?>) other;
 			return Objects.equals(this.key, that.key);
 		} else {
 			return false;

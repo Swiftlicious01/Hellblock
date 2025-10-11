@@ -7,7 +7,6 @@ import net.kyori.adventure.text.ComponentLike;
 import net.kyori.adventure.text.TranslatableComponent;
 import net.kyori.adventure.text.minimessage.Context;
 import net.kyori.adventure.text.minimessage.MiniMessage;
-import net.kyori.adventure.text.minimessage.ParsingException;
 import net.kyori.adventure.text.minimessage.tag.Tag;
 import net.kyori.adventure.text.minimessage.tag.resolver.ArgumentQueue;
 import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
@@ -66,11 +65,11 @@ public class MiniMessageTranslationRegistry implements Examinable, MiniMessageTr
 
 	@Override
 	public @Nullable Component translate(@NotNull TranslatableComponent component, @NotNull Locale locale) {
-		Translation translation = translations.get(component.key());
+		final Translation translation = translations.get(component.key());
 		if (translation == null) {
 			return null;
 		}
-		String miniMessageString = translation.translate(locale);
+		final String miniMessageString = translation.translate(locale);
 		if (miniMessageString == null) {
 			return null;
 		}
@@ -93,7 +92,7 @@ public class MiniMessageTranslationRegistry implements Examinable, MiniMessageTr
 
 	@Override
 	public String miniMessageTranslation(@NotNull String key, @NotNull Locale locale) {
-		Translation translation = translations.get(key);
+		final Translation translation = translations.get(key);
 		if (translation == null) {
 			return null;
 		}
@@ -102,10 +101,7 @@ public class MiniMessageTranslationRegistry implements Examinable, MiniMessageTr
 
 	@Override
 	public @NotNull TriState hasAnyTranslations() {
-		if (!this.translations.isEmpty()) {
-			return TriState.TRUE;
-		}
-		return TriState.FALSE;
+		return !this.translations.isEmpty() ? TriState.TRUE : TriState.FALSE;
 	}
 
 	@Override
@@ -120,10 +116,12 @@ public class MiniMessageTranslationRegistry implements Examinable, MiniMessageTr
 
 	@Override
 	public boolean equals(final Object other) {
-		if (this == other)
+		if (this == other) {
 			return true;
-		if (!(other instanceof MiniMessageTranslationRegistry that))
+		}
+		if (!(other instanceof MiniMessageTranslationRegistry that)) {
 			return false;
+		}
 		return this.name.equals(that.name) && this.translations.equals(that.translations)
 				&& this.defaultLocale.equals(that.defaultLocale);
 	}
@@ -150,7 +148,7 @@ public class MiniMessageTranslationRegistry implements Examinable, MiniMessageTr
 
 		@Override
 		public @Nullable Tag resolve(final @NotNull String name, final @NotNull ArgumentQueue arguments,
-				final @NotNull Context ctx) throws ParsingException {
+				final @NotNull Context ctx) {
 			if (!has(name)) {
 				return null;
 			}
@@ -183,8 +181,7 @@ public class MiniMessageTranslationRegistry implements Examinable, MiniMessageTr
 		void register(final @NotNull Locale locale, final @NotNull String format) {
 			if (this.formats.putIfAbsent(requireNonNull(locale, "locale"),
 					requireNonNull(format, "message format")) != null) {
-				throw new IllegalArgumentException(
-						String.format("Translation already exists: %s for %s", this.key, locale));
+				throw new IllegalArgumentException("Translation already exists: %s for %s".formatted(this.key, locale));
 			}
 		}
 
@@ -209,10 +206,12 @@ public class MiniMessageTranslationRegistry implements Examinable, MiniMessageTr
 
 		@Override
 		public boolean equals(final Object other) {
-			if (this == other)
+			if (this == other) {
 				return true;
-			if (!(other instanceof Translation that))
+			}
+			if (!(other instanceof Translation that)) {
 				return false;
+			}
 			return this.key.equals(that.key) && this.formats.equals(that.formats);
 		}
 

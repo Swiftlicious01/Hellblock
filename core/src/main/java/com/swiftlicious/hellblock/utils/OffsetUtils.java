@@ -40,25 +40,26 @@ public class OffsetUtils {
 	 */
 	@ApiStatus.Internal
 	public static void load(Section section) {
-		if (section != null) {
-			font = section.getString("font", "hellblock:offset_chars");
-			positive_1 = section.getString("1");
-			positive_2 = section.getString("2");
-			positive_4 = section.getString("4");
-			positive_8 = section.getString("8");
-			positive_16 = section.getString("16");
-			positive_32 = section.getString("32");
-			positive_64 = section.getString("64");
-			positive_128 = section.getString("128");
-			negative_1 = section.getString("-1");
-			negative_2 = section.getString("-2");
-			negative_4 = section.getString("-4");
-			negative_8 = section.getString("-8");
-			negative_16 = section.getString("-16");
-			negative_32 = section.getString("-32");
-			negative_64 = section.getString("-64");
-			negative_128 = section.getString("-128");
+		if (section == null) {
+			return;
 		}
+		font = section.getString("font", "hellblock:offset_chars");
+		positive_1 = section.getString("1");
+		positive_2 = section.getString("2");
+		positive_4 = section.getString("4");
+		positive_8 = section.getString("8");
+		positive_16 = section.getString("16");
+		positive_32 = section.getString("32");
+		positive_64 = section.getString("64");
+		positive_128 = section.getString("128");
+		negative_1 = section.getString("-1");
+		negative_2 = section.getString("-2");
+		negative_4 = section.getString("-4");
+		negative_8 = section.getString("-8");
+		negative_16 = section.getString("-16");
+		negative_32 = section.getString("-32");
+		negative_64 = section.getString("-64");
+		negative_128 = section.getString("-128");
 	}
 
 	/**
@@ -68,7 +69,7 @@ public class OffsetUtils {
 	 * @return Offset characters as a string.
 	 */
 	public static String getShortestNegChars(int n) {
-		StringBuilder stringBuilder = new StringBuilder();
+		final StringBuilder stringBuilder = new StringBuilder();
 		while (n >= 128) {
 			stringBuilder.append(negative_128);
 			n -= 128;
@@ -110,7 +111,7 @@ public class OffsetUtils {
 	 * @return Offset characters as a string.
 	 */
 	public static String getShortestPosChars(int n) {
-		StringBuilder stringBuilder = new StringBuilder();
+		final StringBuilder stringBuilder = new StringBuilder();
 		while (n >= 128) {
 			stringBuilder.append(positive_128);
 			n -= 128;

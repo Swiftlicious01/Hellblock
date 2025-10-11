@@ -3,7 +3,7 @@ package com.swiftlicious.hellblock.listeners.generator;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Particle;
-import com.swiftlicious.hellblock.HellblockPlugin;
+
 import com.swiftlicious.hellblock.utils.RandomUtils;
 
 public class GenMode {
@@ -20,8 +20,8 @@ public class GenMode {
 	}
 
 	public GenMode(boolean searchForPlayersNearby, Material fallbackMaterial) {
-		this.setSearchForPlayersNearby(searchForPlayersNearby);
-		this.setFallbackMaterial(fallbackMaterial);
+		this.searchForPlayersNearby = searchForPlayersNearby;
+		this.fallbackMaterial = fallbackMaterial;
 	}
 
 	public boolean isSearchingForPlayersNearby() {
@@ -54,9 +54,7 @@ public class GenMode {
 
 	public void setGenSound(String genSound) {
 		if (genSound == null) {
-			HellblockPlugin.getInstance().getPluginLogger()
-					.warn("Unknown sound variable defined for netherrack generator settings.");
-			return;
+			throw new IllegalArgumentException("Unknown sound variable defined for netherrack generator settings.");
 		}
 		this.genSound = genSound;
 	}
@@ -71,20 +69,20 @@ public class GenMode {
 
 	public void setParticleEffect(Particle particleEffect) {
 		if (particleEffect == null) {
-			HellblockPlugin.getInstance().getPluginLogger()
-					.warn("Unknown particle effect variable defined for netherrack generator settings.");
-			return;
+			throw new IllegalArgumentException(
+					"Unknown particle effect variable defined for netherrack generator settings.");
 		}
 		this.particleEffect = particleEffect;
 	}
 
 	public void displayGenerationParticles(Location loc) {
-		if (loc.getWorld() == null)
+		if (loc.getWorld() == null) {
 			return;
+		}
 		for (int i = 0; i < 10; i++) {
-			Location tempLoc = loc.clone().add(RandomUtils.generateRandomDouble(), 1D,
+			final Location tempLoc = loc.clone().add(RandomUtils.generateRandomDouble(), 1D,
 					RandomUtils.generateRandomDouble());
-			float speed = 1 / (i + 1);
+			final float speed = 1 / (i + 1);
 			loc.getWorld().spawnParticle(this.particleEffect, tempLoc, (int) speed);
 		}
 	}

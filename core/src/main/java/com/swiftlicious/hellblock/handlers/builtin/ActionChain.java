@@ -2,7 +2,6 @@ package com.swiftlicious.hellblock.handlers.builtin;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.context.Context;
@@ -20,19 +19,15 @@ public class ActionChain<T> extends AbstractBuiltInAction<T> {
 		super(plugin, chance);
 		this.actions = new ArrayList<>();
 		if (args instanceof Section section) {
-			for (Map.Entry<String, Object> entry : section.getStringRouteMappedValues(false).entrySet()) {
-				if (entry.getValue() instanceof Section innerSection) {
-					actions.add(manager.parseAction(innerSection));
-				}
-			}
+			section.getStringRouteMappedValues(false).entrySet().stream()
+					.filter(entry -> entry.getValue() instanceof Section).map(entry -> (Section) entry.getValue())
+					.forEach(innerSection -> actions.add(manager.parseAction(innerSection)));
 		}
 	}
 
 	@Override
 	protected void triggerAction(Context<T> context) {
-		for (Action<T> action : actions) {
-			action.trigger(context);
-		}
+		actions.forEach(action -> action.trigger(context));
 	}
 
 	public List<Action<T>> actions() {

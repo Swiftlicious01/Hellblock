@@ -32,7 +32,7 @@ import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.commands.BukkitCommandFeature;
 import com.swiftlicious.hellblock.commands.HellblockCommandManager;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
-import com.swiftlicious.hellblock.database.DataStorageInterface;
+import com.swiftlicious.hellblock.database.DataStorageProvider;
 import com.swiftlicious.hellblock.player.PlayerData;
 import com.swiftlicious.hellblock.utils.extras.CompletableFutures;
 
@@ -77,7 +77,7 @@ public class ImportDataCommand extends BukkitCommandFeature<CommandSender> {
 							throw new RuntimeException("Unexpected issue: ", e);
 						}
 
-						DataStorageInterface storageProvider = plugin.getStorageManager().getDataSource();
+						DataStorageProvider storageProvider = plugin.getStorageManager().getDataSource();
 						var entrySet = data.entrySet();
 						int amount = entrySet.size();
 						AtomicInteger userCount = new AtomicInteger(0);

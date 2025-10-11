@@ -1,20 +1,31 @@
 package com.swiftlicious.hellblock.gui.invite;
 
 import java.io.IOException;
+import java.lang.reflect.Method;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.inventory.AnvilInventory;
+import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.InventoryView;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.PlayerInventory;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import com.mojang.authlib.GameProfile;
 import com.swiftlicious.hellblock.context.Context;
+import com.swiftlicious.hellblock.creation.item.CustomItem;
 import com.swiftlicious.hellblock.creation.item.Item;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.handlers.VersionHelper;
@@ -23,35 +34,51 @@ import com.swiftlicious.hellblock.player.HellblockData;
 import com.swiftlicious.hellblock.player.UUIDFetcher;
 import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.scheduler.SchedulerTask;
+import com.swiftlicious.hellblock.utils.LocationUtils;
+import com.swiftlicious.hellblock.utils.extras.Action;
+import com.swiftlicious.hellblock.utils.extras.Pair;
 
 public class InviteGUI {
 
 	private final Map<Character, InviteGUIElement> itemsCharMap;
 	private final Map<Integer, InviteGUIElement> itemsSlotMap;
 	private final Map<Integer, InviteGUIElement> inviteSlotsMap;
-	private final Map<Integer, InviteGUIElement> cachedHeads;
+
 	private final InviteGUIManager manager;
 	protected final AnvilInventory inventory;
-	protected final Map<Integer, ItemStack> savedItems;
 	protected final Context<Player> context;
 	protected final HellblockData hellblockData;
-	protected String searchedName;
-	protected SchedulerTask searchTask;
+	protected final boolean isOwner;
 
-	public InviteGUI(InviteGUIManager manager, Context<Player> context, HellblockData hellblockData) {
+	protected static final long POLL_INTERVAL_TICKS = 2L; // how often to poll the anvil rename text
+
+	protected final Map<Integer, InviteDynamicGUIElement> cachedHeads;
+
+	// saved items for this player's inventory while GUI is open
+	protected final Map<Integer, ItemStack> savedItems;
+	protected final Map<Integer, ItemStack> savedArmor; // optional: save armor pieces
+	protected ItemStack savedOffHand;
+
+	// UI state
+	protected int currentPage = 0;
+	// polling task handle (using your scheduler)
+	private SchedulerTask searchPollingTask;
+	protected String searchedName = null;
+
+	public InviteGUI(InviteGUIManager manager, Context<Player> context, HellblockData hellblockData, boolean isOwner) {
 		this.manager = manager;
 		this.context = context;
 		this.searchedName = manager.instance.getItemManager().wrap(manager.searchIcon.build(context)).displayName()
 				.orElse("<Type Name Here>");
-		this.searchTask = manager.instance.getScheduler().sync().runRepeating(() -> refreshSearch(), 1 * 20, 1 * 20,
-				context.holder().getLocation());
 		this.hellblockData = hellblockData;
 		this.itemsCharMap = new HashMap<>();
 		this.itemsSlotMap = new HashMap<>();
 		this.inviteSlotsMap = new HashMap<>();
 		this.cachedHeads = new HashMap<>();
 		this.savedItems = new HashMap<>();
-		var holder = new InviteGUIHolder();
+		this.savedArmor = new HashMap<>();
+		this.isOwner = isOwner;
+		final var holder = new InviteGUIHolder();
 		this.inventory = (AnvilInventory) Bukkit.createInventory(holder, InventoryType.ANVIL);
 		holder.setInventory(this.inventory);
 	}
@@ -59,37 +86,34 @@ public class InviteGUI {
 	private void init() {
 		int line = 0;
 		if (manager.layout.length != 4) {
-			manager.instance.getPluginLogger()
-					.warn("Invitation GUI layout must be 4 rows, please fix this before continuing.");
-			return;
+			throw new IllegalArgumentException("Invitation GUI layout must have exactly 4 rows of 9 characters");
 		}
 		for (String content : manager.layout) {
 			for (int index = 0; index < 9; index++) {
-				char symbol;
-				if (index < content.length())
-					symbol = content.charAt(index);
-				else
-					symbol = ' ';
-				InviteGUIElement element = itemsCharMap.get(symbol);
+				final String column = Arrays.asList(manager.layout).get(index);
+				if (column.length() != 9) {
+					throw new IllegalArgumentException("Each layout row must be exactly 9 characters: " + column);
+				}
+				final char symbol = index < content.length() ? content.charAt(index) : ' ';
+				final InviteGUIElement element = this.itemsCharMap.get(symbol);
 				if (element != null) {
 					element.addSlot(index + line * 9);
-					itemsSlotMap.put(index + line * 9, element);
+					this.itemsSlotMap.put(index + line * 9, element);
 				}
 			}
 			line++;
 		}
-		for (Map.Entry<Integer, InviteGUIElement> entry : itemsSlotMap.entrySet()) {
-			context.holder().getInventory().setItem(entry.getKey(), entry.getValue().getItemStack().clone());
-		}
-		inventory.setItem(0, manager.searchIcon.build(context));
-		inventory.setItem(2, manager.playerNotFoundIcon.build(context));
-		inviteSlotsMap.put(0, new InviteDynamicGUIElement('S', inventory.getItem(0)));
-		inviteSlotsMap.put(2, new InviteDynamicGUIElement('R', inventory.getItem(2)));
+		this.itemsSlotMap.entrySet().forEach(entry -> context.holder().getInventory().setItem(entry.getKey(),
+				entry.getValue().getItemStack().clone()));
+		this.inventory.setItem(0, manager.searchIcon.build(context));
+		this.inventory.setItem(2, manager.playerNotFoundIcon.build(context));
+		this.inviteSlotsMap.put(0, new InviteDynamicGUIElement('S', this.inventory.getItem(0)));
+		this.inviteSlotsMap.put(2, new InviteDynamicGUIElement('R', this.inventory.getItem(2)));
 	}
 
 	public InviteGUI addElement(InviteGUIElement... elements) {
 		for (InviteGUIElement element : elements) {
-			itemsCharMap.put(element.getSymbol(), element);
+			this.itemsCharMap.put(element.getSymbol(), element);
 		}
 		return this;
 	}
@@ -100,19 +124,19 @@ public class InviteGUI {
 	}
 
 	public void show() {
-		context.holder().openInventory(inventory);
-		VersionHelper.getNMSManager().updateInventoryTitle(context.holder(),
-				AdventureHelper.componentToJson(AdventureHelper.miniMessage(manager.title.render(context, true))));
+		context.holder().openInventory(this.inventory);
+		VersionHelper.getNMSManager().updateInventoryTitle(context.holder(), AdventureHelper
+				.componentToJson(AdventureHelper.parseCenteredTitleMultiline(manager.title.render(context, true))));
 	}
 
 	@Nullable
 	public InviteGUIElement getElement(int slot) {
-		return itemsSlotMap.get(slot);
+		return this.itemsSlotMap.get(slot);
 	}
 
 	@Nullable
 	public InviteGUIElement getElement(char slot) {
-		return itemsCharMap.get(slot);
+		return this.itemsCharMap.get(slot);
 	}
 
 	/**
@@ -121,160 +145,475 @@ public class InviteGUI {
 	 * @return The InviteGUI instance.
 	 */
 	public InviteGUI refresh() {
-		InviteDynamicGUIElement backElement = (InviteDynamicGUIElement) getElement(manager.backSlot);
+		final InviteDynamicGUIElement backElement = (InviteDynamicGUIElement) getElement(manager.backSlot);
 		if (backElement != null && !backElement.getSlots().isEmpty()) {
 			backElement.setItemStack(manager.backIcon.build(context));
 		}
-		InviteDynamicGUIElement leftElement = (InviteDynamicGUIElement) getElement(manager.leftSlot);
+		final InviteDynamicGUIElement leftElement = (InviteDynamicGUIElement) getElement(manager.leftSlot);
 		if (leftElement != null && !leftElement.getSlots().isEmpty()) {
 			leftElement.setItemStack(manager.leftIcon.build(context));
 		}
-		InviteDynamicGUIElement rightElement = (InviteDynamicGUIElement) getElement(manager.rightSlot);
+		final InviteDynamicGUIElement rightElement = (InviteDynamicGUIElement) getElement(manager.rightSlot);
 		if (rightElement != null && !rightElement.getSlots().isEmpty()) {
 			rightElement.setItemStack(manager.rightIcon.build(context));
 		}
-		for (Map.Entry<Integer, InviteGUIElement> entry : itemsSlotMap.entrySet()) {
-			if (entry.getValue() instanceof InviteDynamicGUIElement dynamicGUIElement) {
-				context.holder().getInventory().setItem(entry.getKey(), dynamicGUIElement.getItemStack().clone());
-			}
-		}
+		this.itemsSlotMap.entrySet().stream().filter(entry -> entry.getValue() instanceof InviteDynamicGUIElement)
+				.forEach(entry -> {
+					InviteDynamicGUIElement dynamicGUIElement = (InviteDynamicGUIElement) entry.getValue();
+					context.holder().getInventory().setItem(entry.getKey(), dynamicGUIElement.getItemStack().clone());
+				});
+		refreshSearch();
+		refreshPlayerHeads(this.currentPage);
 		return this;
 	}
 
-	public InviteGUI refreshSearch() {
-		InviteDynamicGUIElement searchElement = (InviteDynamicGUIElement) inviteSlotsMap.get(0);
-		if (searchElement != null && !searchElement.getSlots().isEmpty()) {
-			Item<ItemStack> search = manager.instance.getItemManager().wrap(manager.searchIcon.build(context));
-			String username = inventory.getRenameText();
-			if (username != null)
-				search.displayName(AdventureHelper.miniMessageToJson(username));
-			searchElement.setItemStack(search.load());
+	/**
+	 * Save player's inventory (clone stacks).
+	 */
+	public void saveItems(@NotNull Player player) {
+		this.savedItems.clear();
+		this.savedArmor.clear();
+		final PlayerInventory inv = player.getInventory();
+		for (int slot = 0; slot < inv.getSize(); slot++) {
+			final ItemStack item = inv.getItem(slot);
+			if (item != null && item.getType() != Material.AIR) {
+				this.savedItems.put(slot, item.clone());
+			}
 		}
-		InviteDynamicGUIElement headElement = (InviteDynamicGUIElement) inviteSlotsMap.get(2);
-		if (headElement != null && !headElement.getSlots().isEmpty()) {
-			boolean playerFound = manager.instance.getStorageManager().getOnlineUsers().stream()
-					.filter(p -> p.getName().equalsIgnoreCase(inventory.getRenameText())).findAny().isPresent();
-			if (playerFound) {
-				Item<ItemStack> head = manager.instance.getItemManager().wrap(manager.playerFoundIcon.build(context));
-				String username = inventory.getRenameText();
-				try {
-					if (username != null) {
-						String name = AdventureHelper
-								.miniMessageToJson(manager.playerFoundName.replace("{player}", username));
-						head.displayName(name);
-						UUID id = UUIDFetcher.getUUID(username);
-						if (id != null) {
-							headElement.setUUID(id);
-							GameProfile profile = GameProfileBuilder.fetch(id);
-							head.skull(profile.getProperties().get("textures").iterator().next().getValue());
-							headElement.setItemStack(head.load());
-						}
-					}
-				} catch (IllegalArgumentException | IOException ex) {
-					// ignored
-				}
+
+		// Save off-hand
+		final ItemStack offHand = inv.getItemInOffHand();
+		if (offHand != null && offHand.getType() != Material.AIR) {
+			this.savedOffHand = offHand.clone();
+		}
+
+		// Save armor contents
+		final ItemStack[] armor = inv.getArmorContents();
+		for (int i = 0; i < armor.length; i++) {
+			final ItemStack is = armor[i];
+			if (is != null && is.getType() != Material.AIR) {
+				this.savedArmor.put(i, is.clone());
+			}
+		}
+	}
+
+	/**
+	 * Clears player's inventory while GUI is open.
+	 */
+	public void clearPlayerInventory(@NotNull Player player) {
+		final Inventory inv = player.getInventory();
+		for (int i = 0; i < inv.getSize(); i++) {
+			inv.setItem(i, new ItemStack(Material.AIR));
+		}
+		// Clear off-hand
+		player.getInventory().setItemInOffHand(new ItemStack(Material.AIR));
+		// clear armor
+		player.getInventory().setArmorContents(new ItemStack[4]);
+		player.updateInventory();
+	}
+
+	/**
+	 * Restore saved items to player and clear the saved maps.
+	 */
+	public void returnItems(@NotNull Player player) {
+		final Inventory inv = player.getInventory();
+		this.savedItems.entrySet().forEach(e -> {
+			final ItemStack is = e.getValue();
+			if (is != null && is.getType() != Material.AIR) {
+				inv.setItem(e.getKey(), is.clone());
+			}
+		});
+		// Restore off-hand
+		if (this.savedOffHand != null && this.savedOffHand.getType() != Material.AIR) {
+			player.getInventory().setItemInOffHand(this.savedOffHand.clone());
+		}
+		if (!this.savedArmor.isEmpty()) {
+			final ItemStack[] armor = new ItemStack[player.getInventory().getArmorContents().length];
+			savedArmor.entrySet().forEach(e -> armor[e.getKey()] = e.getValue().clone());
+			player.getInventory().setArmorContents(armor);
+		}
+		player.updateInventory();
+		this.savedItems.clear();
+		this.savedArmor.clear();
+		this.savedOffHand = null;
+	}
+
+	/**
+	 * Start polling the anvil rename text to update the search and result slots.
+	 */
+	public void startSearchPolling() {
+		cancelSearchPolling(); // safety first
+
+		this.searchPollingTask = manager.instance.getScheduler().sync().runRepeating(() -> {
+			try {
+				refreshSearch();
+			} catch (Exception ex) {
+				manager.instance.getPluginLogger().warn("Error while polling invite search", ex);
+			}
+		}, 0L, POLL_INTERVAL_TICKS, LocationUtils.getAnyLocationInstance());
+	}
+
+	/**
+	 * Cancel search polling if running.
+	 */
+	public void cancelSearchPolling() {
+		if (this.searchPollingTask == null) {
+			return;
+		}
+		try {
+			this.searchPollingTask.cancel();
+		} catch (Throwable t) {
+			manager.instance.getPluginLogger().warn("Error while cancelling search polling task", t);
+		}
+		this.searchPollingTask = null;
+	}
+
+	/**
+	 * Refresh top anvil search UI: slot 0 shows search icon labeled with rename
+	 * text; slot 2 shows either player head (found) or playerNotFoundIcon
+	 * (barrier). Heavy operations (UUID/profile fetch) happen async.
+	 */
+	public InviteGUI refreshSearch() {
+		// update the search icon (slot 0)
+		final InviteDynamicGUIElement searchElement = (InviteDynamicGUIElement) this.inviteSlotsMap.get(0);
+		if (searchElement != null && !searchElement.getSlots().isEmpty()) {
+			final Item<ItemStack> search = manager.instance.getItemManager().wrap(manager.searchIcon.build(context));
+			final String username = getInputText(context.holder());
+			if (username != null) {
+				search.displayName(AdventureHelper.miniMessageToJson(username));
 			} else {
+				search.displayName(AdventureHelper.miniMessageToJson(""));
+			}
+			searchElement.setItemStack(search.load());
+			// Also place into the actual anvil inventory top, if needed:
+			searchElement.getSlots().stream().mapToInt(Integer::valueOf)
+					.forEach(slot -> this.inventory.setItem(slot, searchElement.getItemStack()));
+		}
+
+		// update the result icon (slot 2)
+		final InviteDynamicGUIElement headElement = (InviteDynamicGUIElement) this.inviteSlotsMap.get(2);
+		final String renameText = getInputText(context.holder());
+		if (headElement != null && !headElement.getSlots().isEmpty()) {
+			// Quick check if username is syntactically valid
+			final boolean syntacticallyValid = renameText != null && renameText.matches("^[a-zA-Z0-9_]+$");
+			if (!syntacticallyValid) {
+				// show not found icon immediately
 				headElement.setItemStack(manager.playerNotFoundIcon.build(context));
 				headElement.setUUID(null);
+				headElement.getSlots().stream().mapToInt(Integer::valueOf)
+						.forEach(slot -> this.inventory.setItem(slot, headElement.getItemStack()));
+			} else {
+				// check online user presence (synchronous, cheap)
+				final boolean playerFound = manager.instance.getStorageManager().getOnlineUsers().stream()
+						.anyMatch(u -> u.getName().equalsIgnoreCase(renameText));
+				if (!playerFound) {
+					headElement.setItemStack(manager.playerNotFoundIcon.build(context));
+					headElement.setUUID(null);
+					headElement.getSlots().stream().mapToInt(Integer::valueOf)
+							.forEach(slot -> this.inventory.setItem(slot, headElement.getItemStack()));
+				} else {
+					// fetch UUID & profile async then update slot sync
+					CompletableFuture.runAsync(() -> {
+						try {
+							final UUID id = UUIDFetcher.getUUID(renameText);
+							if (id == null) {
+								// not found fallback
+								manager.instance.getScheduler().sync().run(() -> {
+									headElement.setItemStack(manager.playerNotFoundIcon.build(context));
+									headElement.setUUID(null);
+									headElement.getSlots().stream().mapToInt(Integer::valueOf)
+											.forEach(slot -> this.inventory.setItem(slot, headElement.getItemStack()));
+								});
+								return;
+							}
+							final GameProfile profile = GameProfileBuilder.fetch(id);
+							final String texture = profile.getProperties().get("textures").iterator().next().getValue();
+
+							final Item<ItemStack> head = manager.instance.getItemManager()
+									.wrap(manager.playerFoundIcon.build(context));
+							final String display = AdventureHelper
+									.miniMessageToJson(manager.playerFoundName.replace("{player}", renameText));
+							head.displayName(display);
+							head.skull(texture);
+							final ItemStack loaded = head.loadCopy();
+
+							manager.instance.getScheduler().sync().run(() -> {
+								headElement.setUUID(id);
+								headElement.setItemStack(loaded);
+								headElement.getSlots().stream().mapToInt(Integer::valueOf)
+										.forEach(slot -> this.inventory.setItem(slot, loaded));
+							});
+						} catch (IllegalArgumentException | IOException ex) {
+							manager.instance.getPluginLogger().warn("Error fetching profile for search", ex);
+							manager.instance.getScheduler().sync().run(() -> {
+								headElement.setItemStack(manager.playerNotFoundIcon.build(context));
+								headElement.setUUID(null);
+								headElement.getSlots().stream().mapToInt(Integer::valueOf)
+										.forEach(slot -> this.inventory.setItem(slot, headElement.getItemStack()));
+							});
+						}
+					});
+				}
 			}
 		}
-		for (Map.Entry<Integer, InviteGUIElement> entry : getOnlinePlayerHeads().entrySet()) {
-			if (entry.getValue() instanceof InviteDynamicGUIElement dynamicGUIElement) {
-				context.holder().getInventory().setItem(entry.getKey(), dynamicGUIElement.getItemStack().clone());
-			}
-		}
+
+		// Update cached online heads displayed: this keeps displayed items in-sync with
+		// cachedHeads
+		refreshOnlineHeads();
+
 		return this;
 	}
 
-	public void saveItems() {
-		for (int slot = 0; slot < context.holder().getInventory().getSize(); slot++) {
-			ItemStack itemStack = context.holder().getInventory().getItem(slot);
-			if (itemStack != null && itemStack.getType() != Material.AIR) {
-				savedItems.put(slot, itemStack);
+	public void refreshOnlineHeads() {
+		// clone to avoid mutating the original
+		getOnlinePlayerHeadsAsync(onlineHeads -> onlineHeads.entrySet().forEach(entry -> {
+			if (entry.getValue() instanceof InviteDynamicGUIElement dynamicGUIElement) {
+				final int slot = entry.getKey();
+				final InviteDynamicGUIElement clone = new InviteDynamicGUIElement(manager.playerSlot,
+						dynamicGUIElement.getItemStack().clone());
+				clone.setUUID(dynamicGUIElement.getUUID());
+				context.holder().getInventory().setItem(slot, clone.getItemStack());
+				this.cachedHeads.put(slot, clone);
 			}
-		}
+		}));
 	}
 
-	public void returnItems() {
-		for (Map.Entry<Integer, ItemStack> items : savedItems.entrySet()) {
-			ItemStack itemStack = items.getValue();
-			if (itemStack != null && itemStack.getType() != Material.AIR) {
-				context.holder().getInventory().setItem(items.getKey(), itemStack);
-			}
-		}
-		context.holder().updateInventory();
-		savedItems.clear();
-	}
+	/**
+	 * Build a map of possible online player heads that satisfy the filter (not
+	 * self, online, no hellblock, not in searchedName, not already invited). This
+	 * function does not do heavy network operation; it prepares the template item
+	 * and UUIDs.
+	 */
+	public void getOnlinePlayerHeadsAsync(Consumer<Map<Integer, InviteDynamicGUIElement>> callback) {
+		final Collection<UserData> online = manager.instance.getStorageManager().getOnlineUsers();
 
-	public Map<Integer, InviteGUIElement> getOnlinePlayerHeads() {
-		Map<Integer, InviteGUIElement> heads = new HashMap<>();
-		for (UserData userData : manager.instance.getStorageManager().getOnlineUsers()) {
-			UUID id = userData.getUUID();
-			if (id.equals(context.holder().getUniqueId()))
-				continue;
-			if (!userData.isOnline() || userData.getHellblockData().hasHellblock())
-				continue;
-			if (userData.getName().equals(searchedName))
-				continue;
-			if (userData.getHellblockData().getInvitations() == null
-					|| userData.getHellblockData().hasInvite(context.holder().getUniqueId()))
-				continue;
+		// Run callback sync
+		CompletableFuture.supplyAsync(() -> {
+			final Map<Integer, InviteDynamicGUIElement> heads = new HashMap<>();
+			int slotIndex = 0;
 
-			try {
-				Item<ItemStack> head = manager.instance.getItemManager().wrap(manager.playerIcon.build(context));
-				GameProfile profile = GameProfileBuilder.fetch(id);
-				String username = AdventureHelper
-						.miniMessageToJson(manager.playerName.replace("{player}", userData.getName()));
-				head.displayName(username);
-				head.skull(profile.getProperties().get("textures").iterator().next().getValue());
-				for (int i = 9; i <= 35; i++) {
-					InviteDynamicGUIElement element = new InviteDynamicGUIElement(manager.playerSlot, head.load());
-					element.setUUID(id);
-					cachedHeads.put(i, element);
-					heads.putIfAbsent(i, element);
+			for (UserData userData : online) {
+				final UUID id = userData.getUUID();
+
+				// Filters
+				if (id.equals(context.holder().getUniqueId())) {
+					continue;
 				}
-			} catch (IllegalArgumentException | IOException ex) {
-				// ignored
-			}
-		}
-		return heads;
-	}
-
-	public void refreshPlayerHeads(boolean previous) {
-		for (int i = 9; i <= 35; i++) {
-			if (previous) {
-				context.holder().getInventory().setItem(i, cachedHeads.get(i).getItemStack());
-				cachedHeads.remove(i);
-			}
-			context.holder().getInventory().setItem(i, new ItemStack(Material.AIR));
-			for (UserData userData : manager.instance.getStorageManager().getOnlineUsers()) {
-				UUID id = userData.getUUID();
-				if (id.equals(context.holder().getUniqueId()))
+				if (!userData.isOnline()) {
 					continue;
-				if (!userData.isOnline() || userData.getHellblockData().hasHellblock())
+				}
+				if (userData.getHellblockData().hasHellblock()) {
 					continue;
-				if (userData.getName().equals(searchedName))
+				}
+				if (this.searchedName != null && userData.getName().equalsIgnoreCase(this.searchedName)) {
 					continue;
-				if (userData.getHellblockData().getInvitations() == null
-						|| userData.getHellblockData().hasInvite(context.holder().getUniqueId()))
+				}
+				if (userData.getHellblockData().hasInvite(context.holder().getUniqueId())) {
 					continue;
-				if (cachedHeads.get(i).getUUID().equals(id))
+				}
+				if (hellblockData.isInParty(id)) {
 					continue;
+				}
 
 				try {
-					Item<ItemStack> head = manager.instance.getItemManager().wrap(manager.playerIcon.build(context));
-					GameProfile profile = GameProfileBuilder.fetch(id);
-					String username = AdventureHelper
+					final GameProfile profile = GameProfileBuilder.fetch(id);
+					final String texture = profile.getProperties().get("textures").iterator().next().getValue();
+
+					final Item<ItemStack> head = manager.instance.getItemManager()
+							.wrap(manager.playerIcon.build(context));
+					final String username = AdventureHelper
 							.miniMessageToJson(manager.playerName.replace("{player}", userData.getName()));
 					head.displayName(username);
-					head.skull(profile.getProperties().get("textures").iterator().next().getValue());
-					InviteDynamicGUIElement element = new InviteDynamicGUIElement(manager.playerSlot, head.load());
+					head.skull(texture);
+
+					final InviteDynamicGUIElement element = new InviteDynamicGUIElement(manager.playerSlot,
+							head.load());
 					element.setUUID(id);
-					context.holder().getInventory().setItem(i, element.getItemStack());
-				} catch (IllegalArgumentException | IOException ex) {
-					// ignored
+
+					if (slotIndex < manager.headSlots.size()) {
+						final int slot = manager.headSlots.get(slotIndex++);
+						heads.put(slot, element);
+					} else {
+						break;
+					}
+				} catch (Exception ex) {
+					manager.instance.getPluginLogger().warn("Failed to build head template for " + userData.getName(),
+							ex);
 				}
 			}
+			return heads;
+		}).thenAccept(heads -> manager.instance.getScheduler().sync().run(() -> callback.accept(heads),
+				context.holder().getLocation()));
+	}
+
+	/**
+	 * Refresh the paged player heads for the given page (0-indexed). This method: -
+	 * collects eligible users - selects the page subset - fetches GameProfile
+	 * textures async and updates inventory sync
+	 */
+	public void refreshPlayerHeads(int page) {
+		this.currentPage = Math.max(0, page);
+
+		// Collect eligible users
+		final List<UserData> eligible = manager.instance.getStorageManager().getOnlineUsers().stream()
+				.filter(userData -> {
+					final UUID id = userData.getUUID();
+					if (id.equals(context.holder().getUniqueId())) {
+						return false;
+					}
+					if (!userData.isOnline()) {
+						return false;
+					}
+					if (userData.getHellblockData().hasHellblock()) {
+						return false;
+					}
+					if (this.searchedName != null && userData.getName().equalsIgnoreCase(this.searchedName)) {
+						return false;
+					}
+					if (userData.getHellblockData().hasInvite(context.holder().getUniqueId())) {
+						return false;
+					}
+					if (hellblockData.isInParty(id)) {
+						return false;
+					}
+					return true;
+				}).toList();
+
+		final int pageSize = manager.getPageSize();
+		int start = this.currentPage * pageSize;
+		if (start >= eligible.size()) {
+			// Clamp to last page
+			this.currentPage = Math.max(0, (eligible.size() - 1) / pageSize);
+			start = this.currentPage * pageSize;
 		}
+
+		final List<UserData> pageList = eligible.stream().skip(start).limit(pageSize).toList();
+
+		// Clear head slots sync
+		manager.instance.getScheduler().sync()
+				.run(() -> manager.headSlots.stream().mapToInt(Integer::valueOf).forEach(slot -> {
+					context.holder().getInventory().setItem(slot, new ItemStack(Material.AIR));
+					this.cachedHeads.remove(slot);
+				}));
+
+		// Fetch profiles async
+		CompletableFuture.runAsync(() -> {
+			final Map<Integer, InviteDynamicGUIElement> toPlace = new HashMap<>();
+			int index = 0;
+			for (UserData user : pageList) {
+				try {
+					final UUID id = user.getUUID();
+					final GameProfile profile = GameProfileBuilder.fetch(id);
+					final String texture = profile.getProperties().get("textures").iterator().next().getValue();
+
+					final Item<ItemStack> head = manager.instance.getItemManager()
+							.wrap(manager.playerIcon.build(context));
+					final String username = AdventureHelper
+							.miniMessageToJson(manager.playerName.replace("{player}", user.getName()));
+					head.displayName(username);
+					head.skull(texture);
+
+					final InviteDynamicGUIElement element = new InviteDynamicGUIElement(manager.playerSlot,
+							head.load());
+					element.setUUID(id);
+
+					final int slot = manager.headSlots.get(index++);
+					toPlace.put(slot, element);
+				} catch (Exception ex) {
+					manager.instance.getPluginLogger().warn("Failed to fetch profile for invite head", ex);
+				}
+			}
+
+			// Apply sync
+			manager.instance.getScheduler().sync().run(() -> {
+				toPlace.entrySet().forEach(e -> {
+					context.holder().getInventory().setItem(e.getKey(), e.getValue().getItemStack());
+					this.cachedHeads.put(e.getKey(), e.getValue());
+				});
+				updateNavigationIcons(eligible.size());
+			});
+		});
+	}
+
+	private void updateNavigationIcons(int totalEligible) {
+		int totalPages = (int) Math.ceil((double) totalEligible / manager.getPageSize());
+		if (totalPages <= 0) {
+			totalPages = 1;
+		}
+
+		// LEFT slot
+		if (this.currentPage > 0) {
+			// functional left icon
+			context.holder().getInventory().setItem(manager.leftSlot, manager.leftIcon.build(context));
+		} else {
+			// decorative fallback (doesn't assume the slot symbol is decorative)
+			context.holder().getInventory().setItem(manager.leftSlot,
+					getDecorativePlaceholderForSlot(manager.leftSlot));
+		}
+
+		// RIGHT slot
+		if (this.currentPage < totalPages - 1) {
+			// functional right icon
+			context.holder().getInventory().setItem(manager.rightSlot, manager.rightIcon.build(context));
+		} else {
+			// decorative fallback
+			context.holder().getInventory().setItem(manager.rightSlot,
+					getDecorativePlaceholderForSlot(manager.rightSlot));
+		}
+
+		// BACK always shown
+		context.holder().getInventory().setItem(manager.backSlot, manager.backIcon.build(context));
+	}
+
+	/**
+	 * Returns an ItemStack to use as the decorative placeholder for `slot`.
+	 * Preferred order: 1) decorativeIcons.get(symbolForSlot) if present 2) first
+	 * entry in decorativeIcons 3) hard fallback gray pane
+	 */
+	private ItemStack getDecorativePlaceholderForSlot(int slot) {
+		final InviteGUIElement element = getElement(slot);
+		if (element != null) {
+			final char symbol = element.getSymbol();
+			final Pair<CustomItem, Action<Player>[]> mapped = manager.decorativeIcons.get(symbol);
+			if (mapped != null && mapped.left() != null) {
+				try {
+					return mapped.left().build(context);
+				} catch (Exception ignored) {
+					/* fall through to next option */ }
+			}
+		}
+
+		// fallback: use the first decorative icon configured (if any)
+		for (Pair<CustomItem, Action<Player>[]> pair : manager.decorativeIcons.values()) {
+			if (pair != null && pair.left() != null) {
+				try {
+					return pair.left().build(context);
+				} catch (Exception ignored) {
+					/* try next */ }
+			}
+		}
+
+		// final fallback: a plain black pane so slot isn't empty
+		final ItemStack fallback = new ItemStack(Material.BLACK_STAINED_GLASS_PANE);
+		return fallback;
+	}
+
+	@SuppressWarnings("removal")
+	public String getInputText(Player player) {
+		final InventoryView view = player.getOpenInventory();
+		try {
+			// Only available on Paper 1.20.5+
+			final Method getInputText = view.getClass().getMethod("getInputText");
+			return (String) getInputText.invoke(view);
+		} catch (NoSuchMethodException ignored) {
+			// Use fallback for Spigot or older Paper versions
+			final Inventory top = view.getTopInventory();
+			if (top instanceof AnvilInventory anvilInventory) {
+				return anvilInventory.getRenameText(); // deprecated
+			}
+		} catch (Exception ex) {
+			manager.instance.getPluginLogger().warn("Failed to retrieve input text for anvil: ", ex);
+		}
+		return "";
 	}
 }

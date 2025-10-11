@@ -9,7 +9,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.StringJoiner;
 
-import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.entity.ExperienceOrb;
 import org.bukkit.entity.FishHook;
@@ -39,9 +38,6 @@ import com.swiftlicious.hellblock.utils.extras.Action;
 import com.swiftlicious.hellblock.utils.extras.MathValue;
 import com.swiftlicious.hellblock.utils.extras.Pair;
 import com.swiftlicious.hellblock.utils.extras.TextValue;
-import com.swiftlicious.hellblock.world.HellblockBlock;
-import com.swiftlicious.hellblock.world.HellblockWorld;
-import com.swiftlicious.hellblock.world.Pos3;
 
 import dev.dejvokep.boostedyaml.block.implementation.Section;
 import net.kyori.adventure.audience.Audience;
@@ -60,7 +56,8 @@ public class PlayerActionManager extends AbstractActionManager<Player> {
 		loadExpansions(Player.class);
 	}
 
-	protected void registerBuiltInActions() {
+	@Override
+	public void registerBuiltInActions() {
 		super.registerBuiltInActions();
 		super.registerBundleAction(Player.class);
 		this.registerMessageAction();
@@ -78,35 +75,34 @@ public class PlayerActionManager extends AbstractActionManager<Player> {
 		this.registerSoundAction();
 		this.registerTitleAction();
 		this.registerSwingHandAction();
-		this.registerTickAction();
 		this.registerInsertArgumentAction();
 		this.registerDropRandomLootsAction();
 	}
 
 	private void registerMessageAction() {
 		registerAction((args, chance) -> {
-			List<String> messages = ListUtils.toList(args);
+			final List<String> messages = ListUtils.toList(args);
 			return context -> {
-				if (Math.random() > chance.evaluate(context))
+				if (Math.random() > chance.evaluate(context)) {
 					return;
-				final Player player = context.holder();
-				List<String> replaced = instance.getPlaceholderManager().parse(player, messages,
-						context.placeholderMap());
-				Sender audience = instance.getSenderFactory().wrap(player);
-				for (String text : replaced) {
-					audience.sendMessage(AdventureHelper.miniMessage(text));
 				}
+				final Player player = context.holder();
+				final List<String> replaced = instance.getPlaceholderManager().parse(player, messages,
+						context.placeholderMap());
+				final Sender audience = instance.getSenderFactory().wrap(player);
+				replaced.forEach(text -> audience.sendMessage(AdventureHelper.miniMessage(text)));
 			};
 		}, "message");
 		registerAction((args, chance) -> {
-			List<String> messages = ListUtils.toList(args);
+			final List<String> messages = ListUtils.toList(args);
 			return context -> {
-				if (Math.random() > chance.evaluate(context))
+				if (Math.random() > chance.evaluate(context)) {
 					return;
+				}
 				String random = messages.get(RandomUtils.generateRandomInt(0, messages.size() - 1));
 				final Player player = context.holder();
 				random = instance.getPlaceholderManager().parse(player, random, context.placeholderMap());
-				Sender audience = instance.getSenderFactory().wrap(player);
+				final Sender audience = instance.getSenderFactory().wrap(player);
 				audience.sendMessage(AdventureHelper.miniMessage(random));
 			};
 		}, "random-message");
@@ -114,27 +110,28 @@ public class PlayerActionManager extends AbstractActionManager<Player> {
 
 	private void registerPlayerCommandAction() {
 		registerAction((args, chance) -> {
-			List<String> commands = ListUtils.toList(args);
+			final List<String> commands = ListUtils.toList(args);
 			return context -> {
-				if (context.holder() == null)
+				if (context.holder() == null) {
 					return;
-				if (Math.random() > chance.evaluate(context))
+				}
+				if (Math.random() > chance.evaluate(context)) {
 					return;
-				List<String> replaced = instance.getPlaceholderManager().parse(context.holder(), commands,
+				}
+				final List<String> replaced = instance.getPlaceholderManager().parse(context.holder(), commands,
 						context.placeholderMap());
-				instance.getScheduler().sync().run(() -> {
-					for (String text : replaced) {
-						context.holder().performCommand(text);
-					}
-				}, context.holder().getLocation());
+				instance.getScheduler().sync().run(
+						() -> replaced.forEach(text -> context.holder().performCommand(text)),
+						context.holder().getLocation());
 			};
 		}, "player-command");
 	}
 
 	private void registerCloseInvAction() {
 		registerAction((args, chance) -> context -> {
-			if (Math.random() > chance.evaluate(context))
+			if (Math.random() > chance.evaluate(context)) {
 				return;
+			}
 			context.holder().closeInventory();
 		}, "close-inv");
 	}
@@ -142,19 +139,21 @@ public class PlayerActionManager extends AbstractActionManager<Player> {
 	private void registerToastAction() {
 		registerAction((args, chance) -> {
 			if (args instanceof Section section) {
-				String title = section.getString("title");
-				AdvancementType advancementType = AdvancementType
+				final String title = section.getString("title");
+				final AdvancementType advancementType = AdvancementType
 						.valueOf(Objects.requireNonNull(section.getString("advancement-type")));
-				String material = section.getString("icon");
+				final String material = section.getString("icon");
 				return context -> {
-					if (Math.random() > chance.evaluate(context))
+					if (Math.random() > chance.evaluate(context)) {
 						return;
-					if (Material.getMaterial(material) == null || Material.getMaterial(material) == Material.AIR)
+					}
+					if (Material.getMaterial(material) == null || Material.getMaterial(material) == Material.AIR) {
 						return;
-					Player player = context.holder();
-					ItemStack itemStack = new ItemStack(Material.getMaterial(material));
+					}
+					final Player player = context.holder();
+					final ItemStack itemStack = new ItemStack(Material.getMaterial(material));
 					if (itemStack != null) {
-						String temp;
+						final String temp;
 						temp = instance.getPlaceholderManager().parse(context.holder(), title,
 								context.placeholderMap());
 						VersionHelper.getNMSManager().sendToast(player, itemStack,
@@ -173,16 +172,15 @@ public class PlayerActionManager extends AbstractActionManager<Player> {
 	private void registerInsertArgumentAction() {
 		registerAction((args, chance) -> {
 			if (args instanceof Section section) {
-				List<Pair<String, TextValue<Player>>> argList = new ArrayList<>();
-				for (Map.Entry<String, Object> entry : section.getStringRouteMappedValues(false).entrySet()) {
-					argList.add(Pair.of(entry.getKey(), TextValue.auto(entry.getValue().toString())));
-				}
+				final List<Pair<String, TextValue<Player>>> argList = new ArrayList<>();
+				section.getStringRouteMappedValues(false).entrySet().forEach(
+						entry -> argList.add(Pair.of(entry.getKey(), TextValue.auto(entry.getValue().toString()))));
 				return context -> {
-					if (Math.random() > chance.evaluate(context))
+					if (Math.random() > chance.evaluate(context)) {
 						return;
-					for (Pair<String, TextValue<Player>> pair : argList) {
-						context.arg(ContextKeys.of(pair.left(), String.class), pair.right().render(context));
 					}
+					argList.forEach(pair -> context.arg(ContextKeys.of(pair.left(), String.class),
+							pair.right().render(context)));
 				};
 			} else {
 				instance.getPluginLogger().warn("Invalid value type: " + args.getClass().getSimpleName()
@@ -195,37 +193,43 @@ public class PlayerActionManager extends AbstractActionManager<Player> {
 	private void registerDropRandomLootsAction() {
 		registerAction((args, chance) -> {
 			if (args instanceof Section section) {
-				boolean toInv = section.getBoolean("to-inventory");
-				MathValue<Player> count = MathValue.auto(section.get("amount"));
-				int extraAttempts = section.getInt("extra-attempts", 5);
+				final boolean toInv = section.getBoolean("to-inventory");
+				final MathValue<Player> count = MathValue.auto(section.get("amount"));
+				final int extraAttempts = section.getInt("extra-attempts", 5);
 				return context -> {
-					if (Math.random() > chance.evaluate(context))
+					if (Math.random() > chance.evaluate(context)) {
 						return;
+					}
 					Effect effect = context.arg(ContextKeys.EFFECT);
-					if (effect == null)
+					if (effect == null) {
 						effect = EffectInterface.newInstance();
+					}
 					int triesTimes = 0;
 					int successTimes = 0;
-					int requiredTimes = (int) count.evaluate(context);
-					Player player = context.holder();
+					final int requiredTimes = (int) count.evaluate(context);
+					final Player player = context.holder();
 					ItemStack rod = player.getInventory().getItemInMainHand();
-					if (rod.getType() != Material.FISHING_ROD)
+					if (rod.getType() != Material.FISHING_ROD) {
 						rod = player.getInventory().getItemInOffHand();
-					if (rod.getType() != Material.FISHING_ROD)
+					}
+					if (rod.getType() != Material.FISHING_ROD) {
 						rod = new ItemStack(Material.FISHING_ROD);
-					FishHook fishHook = context.arg(ContextKeys.HOOK_ENTITY);
-					if (fishHook == null)
+					}
+					final FishHook fishHook = context.arg(ContextKeys.HOOK_ENTITY);
+					if (fishHook == null) {
 						return;
+					}
 
 					while (successTimes < requiredTimes && triesTimes < requiredTimes + extraAttempts) {
-						Loot loot = instance.getLootManager().getNextLoot(effect, context);
-						Context<Player> newContext = Context.player(player).combine(context);
+						final Loot loot = instance.getLootManager().getNextLoot(effect, context);
+						final Context<Player> newContext = Context.player(player).combine(context);
 						if (loot != null && loot.type() == LootType.ITEM) {
 							newContext.arg(ContextKeys.ID, loot.id());
 							if (!toInv) {
 								instance.getItemManager().dropItemLoot(newContext, rod, fishHook);
 							} else {
-								ItemStack itemLoot = instance.getItemManager().getItemLoot(newContext, rod, fishHook);
+								final ItemStack itemLoot = instance.getItemManager().getItemLoot(newContext, rod,
+										fishHook);
 								PlayerUtils.giveItem(player, itemLoot, itemLoot.getAmount());
 							}
 							successTimes++;
@@ -243,21 +247,23 @@ public class PlayerActionManager extends AbstractActionManager<Player> {
 
 	private void registerActionBarAction() {
 		registerAction((args, chance) -> {
-			String text = (String) args;
+			final String text = (String) args;
 			return context -> {
-				if (Math.random() > chance.evaluate(context))
+				if (Math.random() > chance.evaluate(context)) {
 					return;
+				}
 				final Player player = context.holder();
-				Component component = AdventureHelper
+				final Component component = AdventureHelper
 						.miniMessage(instance.getPlaceholderManager().parse(player, text, context.placeholderMap()));
 				VersionHelper.getNMSManager().sendActionBar(player, AdventureHelper.componentToJson(component));
 			};
 		}, "actionbar");
 		registerAction((args, chance) -> {
-			List<String> texts = ListUtils.toList(args);
+			final List<String> texts = ListUtils.toList(args);
 			return context -> {
-				if (Math.random() > chance.evaluate(context))
+				if (Math.random() > chance.evaluate(context)) {
 					return;
+				}
 				String random = texts.get(RandomUtils.generateRandomInt(0, texts.size() - 1));
 				final Player player = context.holder();
 				random = instance.getPlaceholderManager().parse(player, random, context.placeholderMap());
@@ -269,21 +275,23 @@ public class PlayerActionManager extends AbstractActionManager<Player> {
 
 	private void registerExpAction() {
 		registerAction((args, chance) -> {
-			MathValue<Player> value = MathValue.auto(args);
+			final MathValue<Player> value = MathValue.auto(args);
 			return context -> {
-				if (Math.random() > chance.evaluate(context))
+				if (Math.random() > chance.evaluate(context)) {
 					return;
+				}
 				final Player player = context.holder();
-				ExperienceOrb entity = player.getLocation().getWorld()
+				final ExperienceOrb entity = player.getLocation().getWorld()
 						.spawn(player.getLocation().clone().add(0, 0.5, 0), ExperienceOrb.class);
 				entity.setExperience((int) value.evaluate(context));
 			};
 		}, "mending");
 		registerAction((args, chance) -> {
-			MathValue<Player> value = MathValue.auto(args);
+			final MathValue<Player> value = MathValue.auto(args);
 			return context -> {
-				if (Math.random() > chance.evaluate(context))
+				if (Math.random() > chance.evaluate(context)) {
 					return;
+				}
 				final Player player = context.holder();
 				player.giveExp((int) Math.round(value.evaluate(context)));
 				AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
@@ -291,10 +299,11 @@ public class PlayerActionManager extends AbstractActionManager<Player> {
 			};
 		}, "exp");
 		registerAction((args, chance) -> {
-			MathValue<Player> value = MathValue.auto(args);
+			final MathValue<Player> value = MathValue.auto(args);
 			return context -> {
-				if (Math.random() > chance.evaluate(context))
+				if (Math.random() > chance.evaluate(context)) {
 					return;
+				}
 				final Player player = context.holder();
 				player.setLevel((int) Math.max(0, player.getLevel() + value.evaluate(context)));
 			};
@@ -303,20 +312,22 @@ public class PlayerActionManager extends AbstractActionManager<Player> {
 
 	private void registerFoodAction() {
 		registerAction((args, chance) -> {
-			MathValue<Player> value = MathValue.auto(args);
+			final MathValue<Player> value = MathValue.auto(args);
 			return context -> {
-				if (Math.random() > chance.evaluate(context))
+				if (Math.random() > chance.evaluate(context)) {
 					return;
-				Player player = context.holder();
+				}
+				final Player player = context.holder();
 				player.setFoodLevel((int) (player.getFoodLevel() + value.evaluate(context)));
 			};
 		}, "food");
 		registerAction((args, chance) -> {
-			MathValue<Player> value = MathValue.auto(args);
+			final MathValue<Player> value = MathValue.auto(args);
 			return context -> {
-				if (Math.random() > chance.evaluate(context))
+				if (Math.random() > chance.evaluate(context)) {
 					return;
-				Player player = context.holder();
+				}
+				final Player player = context.holder();
 				player.setSaturation((float) (player.getSaturation() + value.evaluate(context)));
 			};
 		}, "saturation");
@@ -324,14 +335,14 @@ public class PlayerActionManager extends AbstractActionManager<Player> {
 
 	private void registerItemAction() {
 		registerAction((args, chance) -> {
-			Boolean mainOrOff;
-			int amount;
+			final Boolean mainOrOff;
+			final int amount;
 			if (args instanceof Integer integer) {
 				mainOrOff = null;
 				amount = integer;
 			} else if (args instanceof Section section) {
-				String hand = section.getString("hand");
-				mainOrOff = hand == null ? null : hand.equalsIgnoreCase("main");
+				final String hand = section.getString("hand");
+				mainOrOff = hand == null ? null : "main".equalsIgnoreCase(hand);
 				amount = section.getInt("amount", 1);
 			} else {
 				instance.getPluginLogger().warn("Invalid value type: " + args.getClass().getSimpleName()
@@ -339,17 +350,19 @@ public class PlayerActionManager extends AbstractActionManager<Player> {
 				return Action.empty();
 			}
 			return context -> {
-				if (context.holder() == null)
+				if (context.holder() == null) {
 					return;
-				if (Math.random() > chance.evaluate(context))
+				}
+				if (Math.random() > chance.evaluate(context)) {
 					return;
-				Player player = context.holder();
-				EquipmentSlot hand = context.arg(ContextKeys.SLOT);
+				}
+				final Player player = context.holder();
+				final EquipmentSlot hand = context.arg(ContextKeys.SLOT);
 				if (mainOrOff == null && hand == null) {
 					return;
 				}
-				boolean tempHand = Objects.requireNonNullElseGet(mainOrOff, () -> hand == EquipmentSlot.HAND);
-				ItemStack itemStack = tempHand ? player.getInventory().getItemInMainHand()
+				final boolean tempHand = Objects.requireNonNullElseGet(mainOrOff, () -> hand == EquipmentSlot.HAND);
+				final ItemStack itemStack = tempHand ? player.getInventory().getItemInMainHand()
 						: player.getInventory().getItemInOffHand();
 				if (amount < 0) {
 					itemStack.setAmount(Math.max(0, itemStack.getAmount() + amount));
@@ -359,8 +372,8 @@ public class PlayerActionManager extends AbstractActionManager<Player> {
 			};
 		}, "item-amount");
 		registerAction((args, chance) -> {
-			int amount;
-			EquipmentSlot slot;
+			final int amount;
+			final EquipmentSlot slot;
 			if (args instanceof Integer integer) {
 				slot = null;
 				amount = integer;
@@ -374,24 +387,28 @@ public class PlayerActionManager extends AbstractActionManager<Player> {
 				return Action.empty();
 			}
 			return context -> {
-				if (Math.random() > chance.evaluate(context))
+				if (Math.random() > chance.evaluate(context)) {
 					return;
-				Player player = context.holder();
-				if (player == null)
+				}
+				final Player player = context.holder();
+				if (player == null) {
 					return;
+				}
 				EquipmentSlot tempSlot = slot;
-				EquipmentSlot equipmentSlot = context.arg(ContextKeys.SLOT);
+				final EquipmentSlot equipmentSlot = context.arg(ContextKeys.SLOT);
 				if (tempSlot == null && equipmentSlot != null) {
 					tempSlot = equipmentSlot;
 				}
 				if (tempSlot == null) {
 					return;
 				}
-				ItemStack itemStack = player.getInventory().getItem(tempSlot);
-				if (itemStack.getType() == Material.AIR || itemStack.getAmount() == 0)
+				final ItemStack itemStack = player.getInventory().getItem(tempSlot);
+				if (itemStack.getType() == Material.AIR || itemStack.getAmount() == 0) {
 					return;
-				if (itemStack.getItemMeta() == null)
+				}
+				if (itemStack.getItemMeta() == null) {
 					return;
+				}
 				if (amount > 0) {
 					instance.getItemManager().decreaseDamage(context.holder(), itemStack, amount);
 				} else {
@@ -401,33 +418,33 @@ public class PlayerActionManager extends AbstractActionManager<Player> {
 		}, "durability");
 		registerAction((args, chance) -> {
 			if (args instanceof Section section) {
-				String material = section.getString("material");
-				String displayName = section.getString("display.name");
-				List<String> displayLore = section.getStringList("display.lore");
-				Map<com.swiftlicious.hellblock.utils.extras.Key, Short> enchantments = instance.getConfigManager()
+				final String material = section.getString("material");
+				final String displayName = section.getString("display.name");
+				final List<String> displayLore = section.getStringList("display.lore");
+				final Map<com.swiftlicious.hellblock.utils.extras.Key, Short> enchantments = instance.getConfigManager()
 						.getEnchantments(section);
-				boolean unbreakable = section.getBoolean("unbreakable", false);
-				int damage = section.getInt("damage");
-				int amount = section.getInt("amount", 1);
-				boolean toInventory = section.getBoolean("to-inventory", false);
+				final boolean unbreakable = section.getBoolean("unbreakable", false);
+				final int damage = section.getInt("damage");
+				final int amount = section.getInt("amount", 1);
+				final boolean toInventory = section.getBoolean("to-inventory", false);
 				return context -> {
-					if (Math.random() > chance.evaluate(context))
+					if (Math.random() > chance.evaluate(context)) {
 						return;
-					if (Material.getMaterial(material) == null || Material.getMaterial(material) == Material.AIR)
+					}
+					if (Material.getMaterial(material) == null || Material.getMaterial(material) == Material.AIR) {
 						return;
-					Player player = context.holder();
-					ItemStack itemStack = new ItemStack(Material.getMaterial(material), amount);
+					}
+					final Player player = context.holder();
+					final ItemStack itemStack = new ItemStack(Material.getMaterial(material), amount);
 					if (itemStack != null) {
-						Item<ItemStack> item = instance.getItemManager().wrap(itemStack);
+						final Item<ItemStack> item = instance.getItemManager().wrap(itemStack);
 						if (displayName != null && !displayName.isEmpty()) {
-							TextValue<Player> name = TextValue.auto("<!i><white>" + displayName);
+							final TextValue<Player> name = TextValue.auto("<!i><white>" + displayName);
 							item.displayName(AdventureHelper.miniMessageToJson(name.render(context)));
 						}
 						if (displayLore != null && !displayLore.isEmpty()) {
-							List<TextValue<Player>> lore = new ArrayList<>();
-							for (String text : displayLore) {
-								lore.add(TextValue.auto("<!i><white>" + text));
-							}
+							final List<TextValue<Player>> lore = new ArrayList<>();
+							displayLore.forEach(text -> lore.add(TextValue.auto("<!i><white>" + text)));
 							item.lore(lore.stream().map(it -> AdventureHelper.miniMessageToJson(it.render(context)))
 									.toList());
 						}
@@ -440,12 +457,12 @@ public class PlayerActionManager extends AbstractActionManager<Player> {
 						if (damage > 0) {
 							item.damage(damage);
 						}
-						int maxStack = itemStack.getMaxStackSize();
+						final int maxStack = itemStack.getMaxStackSize();
 						int amountToGive = amount;
 						while (amountToGive > 0) {
-							int perStackSize = Math.min(maxStack, amountToGive);
+							final int perStackSize = Math.min(maxStack, amountToGive);
 							amountToGive -= perStackSize;
-							ItemStack more = item.load().clone();
+							final ItemStack more = item.load().clone();
 							more.setAmount(perStackSize);
 							if (toInventory) {
 								PlayerUtils.giveItem(player, more, more.getAmount());
@@ -463,21 +480,22 @@ public class PlayerActionManager extends AbstractActionManager<Player> {
 		}, "give-vanilla-item");
 		registerAction((args, chance) -> {
 			if (args instanceof Section section) {
-				TextValue<Player> id = TextValue.auto(section.getString("item"));
-				MathValue<Player> amount = MathValue.auto(section.get("amount", 1));
-				boolean toInventory = section.getBoolean("to-inventory", false);
+				final TextValue<Player> id = TextValue.auto(section.getString("item"));
+				final MathValue<Player> amount = MathValue.auto(section.get("amount", 1));
+				final boolean toInventory = section.getBoolean("to-inventory", false);
 				return context -> {
-					if (Math.random() > chance.evaluate(context))
+					if (Math.random() > chance.evaluate(context)) {
 						return;
-					Player player = context.holder();
-					ItemStack itemStack = instance.getItemManager().buildAny(context, id.render(context));
+					}
+					final Player player = context.holder();
+					final ItemStack itemStack = instance.getItemManager().buildAny(context, id.render(context));
 					if (itemStack != null) {
-						int maxStack = itemStack.getMaxStackSize();
+						final int maxStack = itemStack.getMaxStackSize();
 						int amountToGive = (int) amount.evaluate(context);
 						while (amountToGive > 0) {
-							int perStackSize = Math.min(maxStack, amountToGive);
+							final int perStackSize = Math.min(maxStack, amountToGive);
 							amountToGive -= perStackSize;
-							ItemStack more = itemStack.clone();
+							final ItemStack more = itemStack.clone();
 							more.setAmount(perStackSize);
 							if (toInventory) {
 								PlayerUtils.giveItem(player, more, more.getAmount());
@@ -497,39 +515,42 @@ public class PlayerActionManager extends AbstractActionManager<Player> {
 
 	private void registerMoneyAction() {
 		registerAction((args, chance) -> {
-			MathValue<Player> value = MathValue.auto(args);
+			final MathValue<Player> value = MathValue.auto(args);
 			return context -> {
-				if (Math.random() > chance.evaluate(context))
+				if (Math.random() > chance.evaluate(context)) {
 					return;
-				if (!VaultHook.isHooked())
+				}
+				if (!VaultHook.isHooked()) {
 					return;
+				}
 				VaultHook.deposit(context.holder(), value.evaluate(context));
 			};
 		}, "give-money");
 		registerAction((args, chance) -> {
-			MathValue<Player> value = MathValue.auto(args);
+			final MathValue<Player> value = MathValue.auto(args);
 			return context -> {
-				if (Math.random() > chance.evaluate(context))
+				if (Math.random() > chance.evaluate(context)) {
 					return;
-				if (!VaultHook.isHooked())
+				}
+				if (!VaultHook.isHooked()) {
 					return;
+				}
 				VaultHook.withdraw(context.holder(), value.evaluate(context));
 			};
 		}, "take-money");
 	}
 
-	// The registry name changes a lot
-	@SuppressWarnings("deprecation")
 	private void registerPotionAction() {
 		registerAction((args, chance) -> {
 			if (args instanceof Section section) {
-				PotionEffect potionEffect = new PotionEffect(
-						Objects.requireNonNull(PotionEffectType
-								.getByName(section.getString("type", "BLINDNESS").toUpperCase(Locale.ENGLISH))),
-						section.getInt("duration", 20), section.getInt("amplifier", 0));
+				PotionEffectType potionEffectType = PotionEffectResolver
+						.resolve(section.getString("type", "BLINDNESS"));
+				final PotionEffect potionEffect = new PotionEffect(potionEffectType, section.getInt("duration", 20),
+						section.getInt("amplifier", 0));
 				return context -> {
-					if (Math.random() > chance.evaluate(context))
+					if (Math.random() > chance.evaluate(context)) {
 						return;
+					}
 					context.holder().addPotionEffect(potionEffect);
 				};
 			} else {
@@ -543,17 +564,18 @@ public class PlayerActionManager extends AbstractActionManager<Player> {
 	private void registerSoundAction() {
 		registerAction((args, chance) -> {
 			if (args instanceof Section section) {
-				MathValue<Player> volume = MathValue.auto(section.get("volume", 1));
-				MathValue<Player> pitch = MathValue.auto(section.get("pitch", 1));
-				Key key = Key.key(section.getString("key"));
-				Sound.Source source = Sound.Source
+				final MathValue<Player> volume = MathValue.auto(section.get("volume", 1));
+				final MathValue<Player> pitch = MathValue.auto(section.get("pitch", 1));
+				final Key key = Key.key(section.getString("key"));
+				final Sound.Source source = Sound.Source
 						.valueOf(section.getString("source", "PLAYER").toUpperCase(Locale.ENGLISH));
 				return context -> {
-					if (Math.random() > chance.evaluate(context))
+					if (Math.random() > chance.evaluate(context)) {
 						return;
+					}
 					final Player player = context.holder();
-					Audience audience = instance.getSenderFactory().getAudience(player);
-					Sound sound = Sound.sound(key, source, (float) volume.evaluate(context),
+					final Audience audience = instance.getSenderFactory().getAudience(player);
+					final Sound sound = Sound.sound(key, source, (float) volume.evaluate(context),
 							(float) pitch.evaluate(context));
 					AdventureHelper.playSound(audience, sound);
 				};
@@ -568,17 +590,17 @@ public class PlayerActionManager extends AbstractActionManager<Player> {
 	private void registerPluginExpAction() {
 		registerAction((args, chance) -> {
 			if (args instanceof Section section) {
-				String pluginName = section.getString("plugin");
-				MathValue<Player> value = MathValue.auto(section.get("exp"));
-				String target = section.getString("target");
+				final String pluginName = section.getString("plugin");
+				final MathValue<Player> value = MathValue.auto(section.get("exp"));
+				final String target = section.getString("target");
 				return context -> {
-					if (Math.random() > chance.evaluate(context))
+					if (Math.random() > chance.evaluate(context)) {
 						return;
+					}
 					Optional.ofNullable(instance.getIntegrationManager().getLevelerProvider(pluginName))
-							.ifPresentOrElse(it -> {
-								it.addXp(context.holder(), target, value.evaluate(context));
-							}, () -> instance.getPluginLogger().warn("Plugin (" + pluginName
-									+ "'s) level is not compatible. Please double check if it's a problem caused by pronunciation."));
+							.ifPresentOrElse(it -> it.addXp(context.holder(), target, value.evaluate(context)),
+									() -> instance.getPluginLogger().warn("Plugin (" + pluginName
+											+ "'s) level is not compatible. Please double check if it's a problem caused by pronunciation."));
 				};
 			} else {
 				instance.getPluginLogger().warn("Invalid value type: " + args.getClass().getSimpleName()
@@ -591,14 +613,15 @@ public class PlayerActionManager extends AbstractActionManager<Player> {
 	private void registerTitleAction() {
 		registerAction((args, chance) -> {
 			if (args instanceof Section section) {
-				TextValue<Player> title = TextValue.auto(section.getString("title", ""));
-				TextValue<Player> subtitle = TextValue.auto(section.getString("subtitle", ""));
-				int fadeIn = section.getInt("fade-in", 20);
-				int stay = section.getInt("stay", 30);
-				int fadeOut = section.getInt("fade-out", 10);
+				final TextValue<Player> title = TextValue.auto(section.getString("title", ""));
+				final TextValue<Player> subtitle = TextValue.auto(section.getString("subtitle", ""));
+				final int fadeIn = section.getInt("fade-in", 20);
+				final int stay = section.getInt("stay", 30);
+				final int fadeOut = section.getInt("fade-out", 10);
 				return context -> {
-					if (Math.random() > chance.evaluate(context))
+					if (Math.random() > chance.evaluate(context)) {
 						return;
+					}
 					final Player player = context.holder();
 					VersionHelper.getNMSManager().sendTitle(player,
 							AdventureHelper.componentToJson(AdventureHelper.miniMessage(title.render(context))),
@@ -613,21 +636,24 @@ public class PlayerActionManager extends AbstractActionManager<Player> {
 		}, "title");
 		registerAction((args, chance) -> {
 			if (args instanceof Section section) {
-				List<String> titles = section.getStringList("titles");
-				if (titles.isEmpty())
+				final List<String> titles = section.getStringList("titles");
+				if (titles.isEmpty()) {
 					titles.add("");
-				List<String> subtitles = section.getStringList("subtitles");
-				if (subtitles.isEmpty())
+				}
+				final List<String> subtitles = section.getStringList("subtitles");
+				if (subtitles.isEmpty()) {
 					subtitles.add("");
-				int fadeIn = section.getInt("fade-in", 20);
-				int stay = section.getInt("stay", 30);
-				int fadeOut = section.getInt("fade-out", 10);
+				}
+				final int fadeIn = section.getInt("fade-in", 20);
+				final int stay = section.getInt("stay", 30);
+				final int fadeOut = section.getInt("fade-out", 10);
 				return context -> {
-					if (Math.random() > chance.evaluate(context))
+					if (Math.random() > chance.evaluate(context)) {
 						return;
-					TextValue<Player> title = TextValue
+					}
+					final TextValue<Player> title = TextValue
 							.auto(titles.get(RandomUtils.generateRandomInt(0, titles.size() - 1)));
-					TextValue<Player> subtitle = TextValue
+					final TextValue<Player> subtitle = TextValue
 							.auto(subtitles.get(RandomUtils.generateRandomInt(0, subtitles.size() - 1)));
 					final Player player = context.holder();
 					VersionHelper.getNMSManager().sendTitle(player,
@@ -645,20 +671,24 @@ public class PlayerActionManager extends AbstractActionManager<Player> {
 
 	private void registerSwingHandAction() {
 		registerAction((args, chance) -> {
-			boolean arg = (boolean) args;
+			final boolean arg = (boolean) args;
 			return context -> {
-				if (context.holder() == null)
+				if (context.holder() == null) {
 					return;
-				if (Math.random() > chance.evaluate(context))
+				}
+				if (Math.random() > chance.evaluate(context)) {
 					return;
-				EquipmentSlot slot = context.arg(ContextKeys.SLOT);
+				}
+				final EquipmentSlot slot = context.arg(ContextKeys.SLOT);
 				if (slot == null) {
 					VersionHelper.getNMSManager().swingHand(context.holder(), arg ? HandSlot.MAIN : HandSlot.OFF);
 				} else {
-					if (slot == EquipmentSlot.HAND)
+					if (slot == EquipmentSlot.HAND) {
 						VersionHelper.getNMSManager().swingHand(context.holder(), HandSlot.MAIN);
-					if (slot == EquipmentSlot.OFF_HAND)
+					}
+					if (slot == EquipmentSlot.OFF_HAND) {
 						VersionHelper.getNMSManager().swingHand(context.holder(), HandSlot.OFF);
+					}
 				}
 			};
 		}, "swing-hand");
@@ -666,31 +696,30 @@ public class PlayerActionManager extends AbstractActionManager<Player> {
 
 	private void registerFishFindAction() {
 		registerAction((args, chance) -> {
-			String surrounding = (String) args;
+			final String surrounding = (String) args;
 			return context -> {
-				if (Math.random() > chance.evaluate(context))
+				if (Math.random() > chance.evaluate(context)) {
 					return;
-				String previous = context.arg(ContextKeys.SURROUNDING);
-				context.arg(ContextKeys.SURROUNDING, surrounding);
-				Collection<String> loots = instance.getLootManager()
-						.getWeightedLoots(EffectInterface.newInstance(), context).keySet();
-				StringJoiner stringJoiner = new StringJoiner(instance.getTranslationManager()
-						.miniMessageTranslation(MessageConstants.COMMAND_FISH_FINDER_SPLIT_CHAR.build().key()));
-				for (String loot : loots) {
-					instance.getLootManager().getLoot(loot).ifPresent(lootIns -> {
-						if (lootIns.showInFinder()) {
-							if (!lootIns.nick().equals("UNDEFINED")) {
-								stringJoiner.add(lootIns.nick());
-							}
-						}
-					});
 				}
+				final String previous = context.arg(ContextKeys.SURROUNDING);
+				context.arg(ContextKeys.SURROUNDING, surrounding);
+				final Collection<String> loots = instance.getLootManager()
+						.getWeightedLoots(EffectInterface.newInstance(), context).keySet();
+				final StringJoiner stringJoiner = new StringJoiner(instance.getTranslationManager()
+						.miniMessageTranslation(MessageConstants.COMMAND_FISH_FINDER_SPLIT_CHAR.build().key()));
+				loots.forEach(loot -> instance.getLootManager().getLoot(loot).ifPresent(lootIns -> {
+					if (lootIns.showInFinder()) {
+						if (!"UNDEFINED".equals(lootIns.nick())) {
+							stringJoiner.add(lootIns.nick());
+						}
+					}
+				}));
 				if (previous == null) {
 					context.remove(ContextKeys.SURROUNDING);
 				} else {
 					context.arg(ContextKeys.SURROUNDING, previous);
 				}
-				Sender audience = instance.getSenderFactory().wrap(context.holder());
+				final Sender audience = instance.getSenderFactory().wrap(context.holder());
 				if (loots.isEmpty()) {
 					audience.sendMessage(instance.getTranslationManager()
 							.render(MessageConstants.COMMAND_FISH_FINDER_NO_LOOT.build()));
@@ -701,23 +730,5 @@ public class PlayerActionManager extends AbstractActionManager<Player> {
 				}
 			};
 		}, "fish-finder");
-	}
-
-	private void registerTickAction() {
-		registerAction((args, chance) -> context -> {
-			if (context.holder() == null)
-				return;
-			if (Math.random() > chance.evaluate(context))
-				return;
-			Location location = Objects.requireNonNull(context.arg(ContextKeys.LOCATION));
-			Pos3 pos3 = Pos3.from(location);
-			Optional<HellblockWorld<?>> optionalWorld = instance.getWorldManager().getWorld(location.getWorld());
-			optionalWorld.ifPresent(world -> world.getChunk(pos3.toChunkPos())
-					.flatMap(chunk -> chunk.getBlockState(pos3)).ifPresent(state -> {
-						HellblockBlock customBlock = state.type();
-						customBlock.randomTick(state, world, pos3, false);
-						customBlock.scheduledTick(state, world, pos3, false);
-					}));
-		}, "tick");
 	}
 }

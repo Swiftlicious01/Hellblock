@@ -3,12 +3,13 @@ package com.swiftlicious.hellblock.gui.challenges;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
@@ -46,9 +47,9 @@ public class ChallengesGUIManager implements ChallengesGUIManagerInterface, List
 	protected TextValue<Player> title;
 	protected String[] layout;
 	protected boolean highlightCompletion;
-	protected final Map<Character, Pair<CustomItem, Action<Player>[]>> decorativeIcons;
-	protected final List<Tuple<Character, Section, Tuple<CustomItem, ChallengeType, Action<Player>[]>>> challengeIcons;
-	protected final ConcurrentMap<UUID, ChallengesGUI> challengesGUICache;
+	protected final Map<Character, Pair<CustomItem, Action<Player>[]>> decorativeIcons = new HashMap<>();
+	protected final List<Tuple<Character, Section, Tuple<CustomItem, ChallengeType, Action<Player>[]>>> challengeIcons = new ArrayList<>();
+	protected final ConcurrentMap<UUID, ChallengesGUI> challengesGUICache = new ConcurrentHashMap<>();
 
 	protected char backSlot;
 
@@ -57,9 +58,6 @@ public class ChallengesGUIManager implements ChallengesGUIManagerInterface, List
 
 	public ChallengesGUIManager(HellblockPlugin plugin) {
 		this.instance = plugin;
-		this.decorativeIcons = new HashMap<>();
-		this.challengeIcons = new ArrayList<>();
-		this.challengesGUICache = new ConcurrentHashMap<>();
 	}
 
 	@Override
@@ -76,7 +74,7 @@ public class ChallengesGUIManager implements ChallengesGUIManagerInterface, List
 	}
 
 	private void loadConfig() {
-		Section config = instance.getConfigManager().getMainConfig().getSection("challenges.gui");
+		Section config = instance.getConfigManager().getGuiConfig().getSection("challenges.gui");
 
 		this.layout = config.getStringList("layout").toArray(new String[0]);
 		this.title = TextValue.auto(config.getString("title", "challenges.title"));
@@ -94,11 +92,31 @@ public class ChallengesGUIManager implements ChallengesGUIManagerInterface, List
 		Section challengesSection = config.getSection("challenges-icons");
 		if (challengesSection != null) {
 			for (Map.Entry<String, Object> entry : challengesSection.getStringRouteMappedValues(false).entrySet()) {
-				if (entry.getValue() instanceof Section innerSection) {
-					char symbol = Objects.requireNonNull(innerSection.getString("symbol")).charAt(0);
-					ChallengeType challenge = instance.getChallengeManager()
-							.getById(Objects.requireNonNull(innerSection.getString("challenge-type")));
-					if (challenge != null) {
+				try {
+					if (entry.getValue() instanceof Section innerSection) {
+						String symbolStr = innerSection.getString("symbol");
+						if (symbolStr == null || symbolStr.isEmpty()) {
+							instance.getPluginLogger()
+									.severe("Challenge icon missing symbol in entry: " + entry.getKey());
+							continue;
+						}
+						char symbol = symbolStr.charAt(0);
+
+						String challengeStr = innerSection.getString("challenge-type");
+						if (challengeStr == null) {
+							instance.getPluginLogger()
+									.severe("Challenge icon missing challenge-type for symbol: " + symbol);
+							continue;
+						}
+
+						ChallengeType challenge = instance.getChallengeManager()
+								.getById(challengeStr.toUpperCase(Locale.ENGLISH));
+						if (challenge == null) {
+							instance.getPluginLogger()
+									.severe("Invalid challenge-type: " + challengeStr + " for symbol: " + symbol);
+							continue;
+						}
+
 						challengeIcons.add(Tuple.of(symbol, innerSection,
 								Tuple.of(
 										new SingleItemParser("challenge", innerSection,
@@ -106,8 +124,10 @@ public class ChallengesGUIManager implements ChallengesGUIManagerInterface, List
 										challenge, instance.getActionManager(Player.class)
 												.parseActions(innerSection.getSection("action")))));
 					}
+				} catch (Exception e) {
+					instance.getPluginLogger().severe(
+							"Failed to load challenge icon entry: " + entry.getKey() + " due to: " + e.getMessage());
 				}
-
 			}
 		}
 
@@ -116,11 +136,25 @@ public class ChallengesGUIManager implements ChallengesGUIManagerInterface, List
 		if (decorativeSection != null) {
 			for (Map.Entry<String, Object> entry : decorativeSection.getStringRouteMappedValues(false).entrySet()) {
 				if (entry.getValue() instanceof Section innerSection) {
-					char symbol = Objects.requireNonNull(innerSection.getString("symbol")).charAt(0);
-					decorativeIcons.put(symbol, Pair.of(
-							new SingleItemParser("gui", innerSection,
-									instance.getConfigManager().getItemFormatFunctions()).getItem(),
-							instance.getActionManager(Player.class).parseActions(innerSection.getSection("action"))));
+					try {
+						String symbolStr = innerSection.getString("symbol");
+						if (symbolStr == null || symbolStr.isEmpty()) {
+							instance.getPluginLogger()
+									.severe("Decorative icon missing symbol in entry: " + entry.getKey());
+							continue;
+						}
+
+						char symbol = symbolStr.charAt(0);
+
+						decorativeIcons.put(symbol,
+								Pair.of(new SingleItemParser("gui", innerSection,
+										instance.getConfigManager().getItemFormatFunctions()).getItem(),
+										instance.getActionManager(Player.class)
+												.parseActions(innerSection.getSection("action"))));
+					} catch (Exception e) {
+						instance.getPluginLogger().severe("Failed to load decorative icon entry: " + entry.getKey()
+								+ " due to: " + e.getMessage());
+					}
 				}
 			}
 		}
@@ -143,12 +177,10 @@ public class ChallengesGUIManager implements ChallengesGUIManagerInterface, List
 		ChallengesGUI gui = new ChallengesGUI(this, context, optionalUserData.get().getHellblockData(),
 				optionalUserData.get().getChallengeData());
 		gui.addElement(new ChallengesDynamicGUIElement(backSlot, new ItemStack(Material.AIR)));
-		for (Tuple<Character, Section, Tuple<CustomItem, ChallengeType, Action<Player>[]>> challenge : challengeIcons) {
-			gui.addElement(new ChallengesDynamicGUIElement(challenge.left(), new ItemStack(Material.AIR)));
-		}
-		for (Map.Entry<Character, Pair<CustomItem, Action<Player>[]>> entry : decorativeIcons.entrySet()) {
-			gui.addElement(new ChallengesGUIElement(entry.getKey(), entry.getValue().left().build(context)));
-		}
+		challengeIcons.forEach(challenge -> gui
+				.addElement(new ChallengesDynamicGUIElement(challenge.left(), new ItemStack(Material.AIR))));
+		decorativeIcons.entrySet().forEach(entry -> gui
+				.addElement(new ChallengesGUIElement(entry.getKey(), entry.getValue().left().build(context))));
 		gui.build().show();
 		gui.refresh();
 		challengesGUICache.put(player.getUniqueId(), gui);

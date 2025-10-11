@@ -1,9 +1,9 @@
 package com.swiftlicious.hellblock.gui.biome;
 
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -53,9 +53,9 @@ public class BiomeGUIManager implements BiomeGUIManagerInterface, Listener {
 	protected TextValue<Player> title;
 	protected String[] layout;
 	protected boolean highlightSelection;
-	protected final Map<Character, Pair<CustomItem, Action<Player>[]>> decorativeIcons;
-	protected final Map<Character, Tuple<Section, HellBiome, Tuple<CustomItem, Action<Player>[], Requirement<Player>[]>>> biomeIcons;
-	protected final ConcurrentMap<UUID, BiomeGUI> biomeGUICache;
+	protected final Map<Character, Pair<CustomItem, Action<Player>[]>> decorativeIcons = new HashMap<>();
+	protected final Map<Character, Tuple<Section, HellBiome, Tuple<CustomItem, Action<Player>[], Requirement<Player>[]>>> biomeIcons = new HashMap<>();
+	protected final ConcurrentMap<UUID, BiomeGUI> biomeGUICache = new ConcurrentHashMap<>();
 
 	protected char backSlot;
 
@@ -64,9 +64,6 @@ public class BiomeGUIManager implements BiomeGUIManagerInterface, Listener {
 
 	public BiomeGUIManager(HellblockPlugin plugin) {
 		this.instance = plugin;
-		this.decorativeIcons = new HashMap<>();
-		this.biomeIcons = new HashMap<>();
-		this.biomeGUICache = new ConcurrentHashMap<>();
 	}
 
 	@Override
@@ -83,7 +80,7 @@ public class BiomeGUIManager implements BiomeGUIManagerInterface, Listener {
 	}
 
 	private void loadConfig() {
-		Section config = instance.getConfigManager().getMainConfig().getSection("biome.gui");
+		Section config = instance.getConfigManager().getGuiConfig().getSection("biome.gui");
 
 		this.layout = config.getStringList("layout").toArray(new String[0]);
 		this.title = TextValue.auto(config.getString("title", "biome.title"));
@@ -101,17 +98,41 @@ public class BiomeGUIManager implements BiomeGUIManagerInterface, Listener {
 		Section biomesSection = config.getSection("biome-icons");
 		if (biomesSection != null) {
 			for (Map.Entry<String, Object> entry : biomesSection.getStringRouteMappedValues(false).entrySet()) {
-				if (entry.getValue() instanceof Section innerSection) {
-					char symbol = Objects.requireNonNull(innerSection.getString("symbol")).charAt(0);
-					HellBiome biome = HellBiome.valueOf(Objects.requireNonNull(innerSection.getString("biome")));
-					biomeIcons.put(symbol, Tuple.of(innerSection, biome, Tuple.of(
-							new SingleItemParser("biome", innerSection,
-									instance.getConfigManager().getItemFormatFunctions()).getItem(),
-							instance.getActionManager(Player.class).parseActions(innerSection.getSection("action")),
-							instance.getRequirementManager(Player.class)
-									.parseRequirements(innerSection.getSection("requirement"), true))));
-				}
+				try {
+					if (entry.getValue() instanceof Section innerSection) {
+						String symbolStr = innerSection.getString("symbol");
+						if (symbolStr == null || symbolStr.isEmpty()) {
+							instance.getPluginLogger().severe("Biome icon missing symbol in entry: " + entry.getKey());
+							continue;
+						}
+						char symbol = symbolStr.charAt(0);
 
+						String biomeStr = innerSection.getString("biome");
+						if (biomeStr == null) {
+							instance.getPluginLogger().severe("Biome icon missing biome name for symbol: " + symbol);
+							continue;
+						}
+						HellBiome biome;
+						try {
+							biome = HellBiome.valueOf(biomeStr.toUpperCase(Locale.ENGLISH));
+						} catch (IllegalArgumentException e) {
+							instance.getPluginLogger()
+									.severe("Invalid biome name: " + biomeStr + " for symbol: " + symbol);
+							continue;
+						}
+
+						// Only proceed if all above are valid
+						biomeIcons.put(symbol, Tuple.of(innerSection, biome, Tuple.of(
+								new SingleItemParser("biome", innerSection,
+										instance.getConfigManager().getItemFormatFunctions()).getItem(),
+								instance.getActionManager(Player.class).parseActions(innerSection.getSection("action")),
+								instance.getRequirementManager(Player.class)
+										.parseRequirements(innerSection.getSection("requirement"), true))));
+					}
+				} catch (Exception e) {
+					instance.getPluginLogger().severe(
+							"Failed to load biome icon entry: " + entry.getKey() + " due to: " + e.getMessage());
+				}
 			}
 		}
 
@@ -120,11 +141,25 @@ public class BiomeGUIManager implements BiomeGUIManagerInterface, Listener {
 		if (decorativeSection != null) {
 			for (Map.Entry<String, Object> entry : decorativeSection.getStringRouteMappedValues(false).entrySet()) {
 				if (entry.getValue() instanceof Section innerSection) {
-					char symbol = Objects.requireNonNull(innerSection.getString("symbol")).charAt(0);
-					decorativeIcons.put(symbol, Pair.of(
-							new SingleItemParser("gui", innerSection,
-									instance.getConfigManager().getItemFormatFunctions()).getItem(),
-							instance.getActionManager(Player.class).parseActions(innerSection.getSection("action"))));
+					try {
+						String symbolStr = innerSection.getString("symbol");
+						if (symbolStr == null || symbolStr.isEmpty()) {
+							instance.getPluginLogger()
+									.severe("Decorative icon missing symbol in entry: " + entry.getKey());
+							continue;
+						}
+
+						char symbol = symbolStr.charAt(0);
+
+						decorativeIcons.put(symbol,
+								Pair.of(new SingleItemParser("gui", innerSection,
+										instance.getConfigManager().getItemFormatFunctions()).getItem(),
+										instance.getActionManager(Player.class)
+												.parseActions(innerSection.getSection("action"))));
+					} catch (Exception e) {
+						instance.getPluginLogger().severe("Failed to load decorative icon entry: " + entry.getKey()
+								+ " due to: " + e.getMessage());
+					}
 				}
 			}
 		}
@@ -133,10 +168,11 @@ public class BiomeGUIManager implements BiomeGUIManagerInterface, Listener {
 	/**
 	 * Open the Biome GUI for a player
 	 *
-	 * @param player player
+	 * @param player  player
+	 * @param isOwner is owner or not
 	 */
 	@Override
-	public boolean openBiomeGUI(Player player) {
+	public boolean openBiomeGUI(Player player, boolean isOwner) {
 		Optional<UserData> optionalUserData = instance.getStorageManager().getOnlineUser(player.getUniqueId());
 		if (optionalUserData.isEmpty()) {
 			instance.getPluginLogger()
@@ -152,15 +188,12 @@ public class BiomeGUIManager implements BiomeGUIManagerInterface, Listener {
 			return false;
 		}
 		Context<Player> context = Context.player(player);
-		BiomeGUI gui = new BiomeGUI(this, context, optionalUserData.get().getHellblockData());
+		BiomeGUI gui = new BiomeGUI(this, context, optionalUserData.get().getHellblockData(), isOwner);
 		gui.addElement(new BiomeDynamicGUIElement(backSlot, new ItemStack(Material.AIR)));
-		for (Entry<Character, Tuple<Section, HellBiome, Tuple<CustomItem, Action<Player>[], Requirement<Player>[]>>> entry : biomeIcons
-				.entrySet()) {
-			gui.addElement(new BiomeDynamicGUIElement(entry.getKey(), new ItemStack(Material.AIR)));
-		}
-		for (Map.Entry<Character, Pair<CustomItem, Action<Player>[]>> entry : decorativeIcons.entrySet()) {
-			gui.addElement(new BiomeGUIElement(entry.getKey(), entry.getValue().left().build(context)));
-		}
+		biomeIcons.entrySet().forEach(
+				entry -> gui.addElement(new BiomeDynamicGUIElement(entry.getKey(), new ItemStack(Material.AIR))));
+		decorativeIcons.entrySet().forEach(
+				entry -> gui.addElement(new BiomeGUIElement(entry.getKey(), entry.getValue().left().build(context))));
 		gui.build().show();
 		gui.refresh();
 		biomeGUICache.put(player.getUniqueId(), gui);
@@ -266,8 +299,7 @@ public class BiomeGUIManager implements BiomeGUIManagerInterface, Listener {
 
 			if (element.getSymbol() == backSlot) {
 				event.setCancelled(true);
-				instance.getHellblockGUIManager().openHellblockGUI(gui.context.holder(),
-						gui.context.holder().getUniqueId().equals(gui.hellblockData.getOwnerUUID()));
+				instance.getHellblockGUIManager().openHellblockGUI(gui.context.holder(), gui.isOwner);
 				ActionManager.trigger(gui.context, backActions);
 				return;
 			}
@@ -322,7 +354,8 @@ public class BiomeGUIManager implements BiomeGUIManagerInterface, Listener {
 						return;
 					}
 					if (RequirementManager.isSatisfied(gui.context, entry.getValue().right().right())) {
-						instance.getBiomeHandler().changeHellblockBiome(userData.get(), entry.getValue().mid(), true);
+						instance.getBiomeHandler().changeHellblockBiome(userData.get(), entry.getValue().mid(), true,
+								false);
 						gui.context.arg(ContextKeys.HELLBLOCK_BIOME, gui.hellblockData.getBiome());
 						ActionManager.trigger(gui.context, entry.getValue().right().mid());
 						break;
@@ -336,14 +369,9 @@ public class BiomeGUIManager implements BiomeGUIManagerInterface, Listener {
 	}
 
 	public @Nullable Requirement<Player>[] getBiomeRequirements(@NotNull HellBiome biome) {
-		Requirement<Player>[] requirements = null;
-		for (Entry<Character, Tuple<Section, HellBiome, Tuple<CustomItem, Action<Player>[], Requirement<Player>[]>>> entry : biomeIcons
-				.entrySet()) {
-			if (biome == entry.getValue().mid()) {
-				requirements = entry.getValue().right().right();
-				break;
-			}
-		}
+		Requirement<Player>[] requirements = biomeIcons.entrySet().stream()
+				.filter(entry -> biome == entry.getValue().mid()).findFirst()
+				.map(entry -> entry.getValue().right().right()).orElse(null);
 		return requirements;
 	}
 }

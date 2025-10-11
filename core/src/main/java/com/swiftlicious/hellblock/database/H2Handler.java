@@ -29,14 +29,16 @@ public class H2Handler extends AbstractSQLDatabase {
 	 */
 	@Override
 	public void initialize(YamlDocument config) {
-		File databaseFile = new File(plugin.getDataFolder(), config.getString("H2.file", "data.db"));
+		final File databaseFile = new File(plugin.getDataFolder(), config.getString("H2.file", "data.db"));
 		super.tablePrefix = config.getString("H2.table-prefix", "hellblock");
 
-		final String url = String.format("jdbc:h2:%s", databaseFile.getAbsolutePath());
-		ClassLoader classLoader = plugin.getDependencyManager().obtainClassLoaderWith(EnumSet.of(Dependency.H2_DRIVER));
+		final String url = "jdbc:h2:%s".formatted(databaseFile.getAbsolutePath());
+		final ClassLoader classLoader = plugin.getDependencyManager()
+				.obtainClassLoaderWith(EnumSet.of(Dependency.H2_DRIVER));
 		try {
-			Class<?> connectionClass = classLoader.loadClass("org.h2.jdbcx.JdbcConnectionPool");
-			Method createPoolMethod = connectionClass.getMethod("create", String.class, String.class, String.class);
+			final Class<?> connectionClass = classLoader.loadClass("org.h2.jdbcx.JdbcConnectionPool");
+			final Method createPoolMethod = connectionClass.getMethod("create", String.class, String.class,
+					String.class);
 			this.connectionPool = createPoolMethod.invoke(null, url, "sa", "");
 			this.disposeMethod = connectionClass.getMethod("dispose");
 			this.getConnectionMethod = connectionClass.getMethod("getConnection");

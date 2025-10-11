@@ -9,7 +9,7 @@ public class RangedDoubleValue<T> implements MathValue<T> {
 	private final MathValue<T> max;
 
 	public RangedDoubleValue(String value) {
-		String[] split = value.split("~");
+		final String[] split = value.split("~");
 		if (split.length != 2) {
 			throw new IllegalArgumentException("Correct ranged format `a~b`");
 		}

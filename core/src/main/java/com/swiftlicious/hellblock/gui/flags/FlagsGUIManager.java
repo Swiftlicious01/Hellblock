@@ -3,8 +3,8 @@ package com.swiftlicious.hellblock.gui.flags;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -13,10 +13,10 @@ import java.util.concurrent.ConcurrentMap;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
+import org.bukkit.event.Event.Result;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
-import org.bukkit.event.Event.Result;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
@@ -51,9 +51,9 @@ public class FlagsGUIManager implements FlagsGUIManagerInterface, Listener {
 	protected TextValue<Player> title;
 	protected String[] layout;
 	protected boolean highlightSelection;
-	protected final Map<Character, Pair<CustomItem, Action<Player>[]>> decorativeIcons;
-	protected final List<Tuple<Character, Section, Tuple<CustomItem, FlagType, Action<Player>[]>>> flagIcons;
-	protected final ConcurrentMap<UUID, FlagsGUI> flagsGUICache;
+	protected final Map<Character, Pair<CustomItem, Action<Player>[]>> decorativeIcons = new HashMap<>();
+	protected final List<Tuple<Character, Section, Tuple<CustomItem, FlagType, Action<Player>[]>>> flagIcons = new ArrayList<>();
+	protected final ConcurrentMap<UUID, FlagsGUI> flagsGUICache = new ConcurrentHashMap<>();
 
 	protected char backSlot;
 
@@ -62,9 +62,6 @@ public class FlagsGUIManager implements FlagsGUIManagerInterface, Listener {
 
 	public FlagsGUIManager(HellblockPlugin plugin) {
 		this.instance = plugin;
-		this.decorativeIcons = new HashMap<>();
-		this.flagIcons = new ArrayList<>();
-		this.flagsGUICache = new ConcurrentHashMap<>();
 	}
 
 	@Override
@@ -81,7 +78,7 @@ public class FlagsGUIManager implements FlagsGUIManagerInterface, Listener {
 	}
 
 	private void loadConfig() {
-		Section config = instance.getConfigManager().getMainConfig().getSection("flags.gui");
+		Section config = instance.getConfigManager().getGuiConfig().getSection("flags.gui");
 
 		this.layout = config.getStringList("layout").toArray(new String[0]);
 		this.title = TextValue.auto(config.getString("title", "flags.title"));
@@ -99,16 +96,41 @@ public class FlagsGUIManager implements FlagsGUIManagerInterface, Listener {
 		Section flagsSection = config.getSection("flag-icons");
 		if (flagsSection != null) {
 			for (Map.Entry<String, Object> entry : flagsSection.getStringRouteMappedValues(false).entrySet()) {
-				if (entry.getValue() instanceof Section innerSection) {
-					char symbol = Objects.requireNonNull(innerSection.getString("symbol")).charAt(0);
-					FlagType flag = FlagType.valueOf(Objects.requireNonNull(innerSection.getString("flag-type")));
-					flagIcons.add(Tuple.of(symbol, innerSection, Tuple.of(
-							new SingleItemParser("flag", innerSection,
-									instance.getConfigManager().getItemFormatFunctions()).getItem(),
-							flag,
-							instance.getActionManager(Player.class).parseActions(innerSection.getSection("action")))));
-				}
+				try {
+					if (entry.getValue() instanceof Section innerSection) {
+						String symbolStr = innerSection.getString("symbol");
+						if (symbolStr == null || symbolStr.isEmpty()) {
+							instance.getPluginLogger().severe("Flag icon missing symbol in entry: " + entry.getKey());
+							continue;
+						}
+						char symbol = symbolStr.charAt(0);
 
+						String flagStr = innerSection.getString("flag-type");
+						if (flagStr == null) {
+							instance.getPluginLogger().severe("Flag icon missing flag-type for symbol: " + symbol);
+							continue;
+						}
+
+						FlagType flag;
+						try {
+							flag = FlagType.valueOf(flagStr.toUpperCase(Locale.ENGLISH));
+						} catch (IllegalArgumentException e) {
+							instance.getPluginLogger()
+									.severe("Invalid flag-type: " + flagStr + " for symbol: " + symbol);
+							continue;
+						}
+
+						flagIcons.add(Tuple.of(symbol, innerSection,
+								Tuple.of(
+										new SingleItemParser("flag", innerSection,
+												instance.getConfigManager().getItemFormatFunctions()).getItem(),
+										flag, instance.getActionManager(Player.class)
+												.parseActions(innerSection.getSection("action")))));
+					}
+				} catch (Exception e) {
+					instance.getPluginLogger()
+							.severe("Failed to load flag icon entry: " + entry.getKey() + " due to: " + e.getMessage());
+				}
 			}
 		}
 
@@ -117,11 +139,25 @@ public class FlagsGUIManager implements FlagsGUIManagerInterface, Listener {
 		if (decorativeSection != null) {
 			for (Map.Entry<String, Object> entry : decorativeSection.getStringRouteMappedValues(false).entrySet()) {
 				if (entry.getValue() instanceof Section innerSection) {
-					char symbol = Objects.requireNonNull(innerSection.getString("symbol")).charAt(0);
-					decorativeIcons.put(symbol, Pair.of(
-							new SingleItemParser("gui", innerSection,
-									instance.getConfigManager().getItemFormatFunctions()).getItem(),
-							instance.getActionManager(Player.class).parseActions(innerSection.getSection("action"))));
+					try {
+						String symbolStr = innerSection.getString("symbol");
+						if (symbolStr == null || symbolStr.isEmpty()) {
+							instance.getPluginLogger()
+									.severe("Decorative icon missing symbol in entry: " + entry.getKey());
+							continue;
+						}
+
+						char symbol = symbolStr.charAt(0);
+
+						decorativeIcons.put(symbol,
+								Pair.of(new SingleItemParser("gui", innerSection,
+										instance.getConfigManager().getItemFormatFunctions()).getItem(),
+										instance.getActionManager(Player.class)
+												.parseActions(innerSection.getSection("action"))));
+					} catch (Exception e) {
+						instance.getPluginLogger().severe("Failed to load decorative icon entry: " + entry.getKey()
+								+ " due to: " + e.getMessage());
+					}
 				}
 			}
 		}
@@ -130,10 +166,11 @@ public class FlagsGUIManager implements FlagsGUIManagerInterface, Listener {
 	/**
 	 * Open the Flags GUI for a player
 	 *
-	 * @param player player
+	 * @param player  player
+	 * @param isOwner is player owner
 	 */
 	@Override
-	public boolean openFlagsGUI(Player player) {
+	public boolean openFlagsGUI(Player player, boolean isOwner) {
 		Optional<UserData> optionalUserData = instance.getStorageManager().getOnlineUser(player.getUniqueId());
 		if (optionalUserData.isEmpty()) {
 			instance.getPluginLogger()
@@ -141,14 +178,11 @@ public class FlagsGUIManager implements FlagsGUIManagerInterface, Listener {
 			return false;
 		}
 		Context<Player> context = Context.player(player);
-		FlagsGUI gui = new FlagsGUI(this, context, optionalUserData.get().getHellblockData());
+		FlagsGUI gui = new FlagsGUI(this, context, optionalUserData.get().getHellblockData(), isOwner);
 		gui.addElement(new FlagsDynamicGUIElement(backSlot, new ItemStack(Material.AIR)));
-		for (Tuple<Character, Section, Tuple<CustomItem, FlagType, Action<Player>[]>> flag : flagIcons) {
-			gui.addElement(new FlagsDynamicGUIElement(flag.left(), new ItemStack(Material.AIR)));
-		}
-		for (Map.Entry<Character, Pair<CustomItem, Action<Player>[]>> entry : decorativeIcons.entrySet()) {
-			gui.addElement(new FlagsGUIElement(entry.getKey(), entry.getValue().left().build(context)));
-		}
+		flagIcons.forEach(flag -> gui.addElement(new FlagsDynamicGUIElement(flag.left(), new ItemStack(Material.AIR))));
+		decorativeIcons.entrySet().forEach(
+				entry -> gui.addElement(new FlagsGUIElement(entry.getKey(), entry.getValue().left().build(context))));
 		gui.build().show();
 		gui.refresh();
 		flagsGUICache.put(player.getUniqueId(), gui);
@@ -254,8 +288,7 @@ public class FlagsGUIManager implements FlagsGUIManagerInterface, Listener {
 
 			if (element.getSymbol() == backSlot) {
 				event.setCancelled(true);
-				instance.getHellblockGUIManager().openHellblockGUI(gui.context.holder(),
-						gui.context.holder().getUniqueId().equals(gui.hellblockData.getOwnerUUID()));
+				instance.getHellblockGUIManager().openHellblockGUI(gui.context.holder(), gui.isOwner);
 				ActionManager.trigger(gui.context, backActions);
 				return;
 			}

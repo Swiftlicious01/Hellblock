@@ -32,8 +32,9 @@ public abstract class AbstractContext<T> implements Context<T> {
 
 	@Override
 	public <C> AbstractContext<T> arg(ContextKeys<C> key, C value) {
-		if (key == null || value == null)
+		if (key == null || value == null) {
 			return this;
+		}
 		this.args.put(key, value);
 		this.placeholderMap.put("{" + key.key() + "}", value.toString());
 		return this;
@@ -67,7 +68,7 @@ public abstract class AbstractContext<T> implements Context<T> {
 
 	@Override
 	public void clearCustomData() {
-		List<ContextKeys<?>> toRemove = new ArrayList<>();
+		final List<ContextKeys<?>> toRemove = new ArrayList<>();
 		for (Map.Entry<ContextKeys<?>, Object> entry : args.entrySet()) {
 			if (entry.getKey().key().startsWith("data_")) {
 				toRemove.add(entry.getKey());

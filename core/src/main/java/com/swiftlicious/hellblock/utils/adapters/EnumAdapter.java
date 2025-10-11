@@ -23,7 +23,7 @@ public final class EnumAdapter<T extends Enum<T>> extends TypeAdapter<T> {
 
 			String name = value.name();
 			try {
-				SerializedName annotation = enumClass.getField(name).getAnnotation(SerializedName.class);
+				final SerializedName annotation = enumClass.getField(name).getAnnotation(SerializedName.class);
 
 				if (annotation != null) {
 					Arrays.stream(annotation.alternate()).forEach(s -> enumMap.put(s, value));
@@ -41,11 +41,11 @@ public final class EnumAdapter<T extends Enum<T>> extends TypeAdapter<T> {
 
 	@Override
 	public T read(JsonReader input) throws IOException {
-		if (JsonToken.NULL.equals(input.peek())) {
-			input.nextNull();
-			return null;
+		if (JsonToken.NULL != input.peek()) {
+			return enumMap.get(input.nextString());
 		}
-		return enumMap.get(input.nextString());
+		input.nextNull();
+		return null;
 	}
 
 	@Override

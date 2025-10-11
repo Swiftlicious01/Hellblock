@@ -2,6 +2,7 @@ package com.swiftlicious.hellblock.world;
 
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -22,11 +23,11 @@ import com.swiftlicious.hellblock.scheduler.SchedulerAdapter;
 import com.swiftlicious.hellblock.scheduler.SchedulerTask;
 import com.swiftlicious.hellblock.world.adapter.WorldAdapter;
 
-public class HellblockWorld<W> implements HellblockWorldInterface<W> {
+public class HellblockWorld<W> implements CustomWorldInterface<W> {
 
-	private final ConcurrentMap<ChunkPos, HellblockChunk> loadedChunks = new ConcurrentHashMap<>(512);
-	private final ConcurrentMap<ChunkPos, HellblockChunk> lazyChunks = new ConcurrentHashMap<>(128);
-	private final ConcurrentMap<RegionPos, HellblockRegion> loadedRegions = new ConcurrentHashMap<>(128);
+	private final ConcurrentMap<ChunkPos, CustomChunk> loadedChunks = new ConcurrentHashMap<>(512);
+	private final ConcurrentMap<ChunkPos, CustomChunk> lazyChunks = new ConcurrentHashMap<>(128);
+	private final ConcurrentMap<RegionPos, CustomRegion> loadedRegions = new ConcurrentHashMap<>(128);
 	private final WeakReference<W> world;
 	private final WeakReference<World> bukkitWorld;
 	private final String worldName;
@@ -60,13 +61,13 @@ public class HellblockWorld<W> implements HellblockWorldInterface<W> {
 	}
 
 	@Override
-	public boolean testChunkLimitation(Pos3 pos3, Class<? extends HellblockBlock> clazz, int amount) {
-		Optional<HellblockChunk> optional = getChunk(pos3.toChunkPos());
+	public boolean testChunkLimitation(Pos3 pos3, Class<? extends CustomBlock> clazz, int amount) {
+		final Optional<CustomChunk> optional = getChunk(pos3.toChunkPos());
 		if (optional.isPresent()) {
 			int i = 0;
-			HellblockChunk chunk = optional.get();
-			for (HellblockSection section : chunk.sections()) {
-				for (HellblockBlockState state : section.blockMap().values()) {
+			final CustomChunk chunk = optional.get();
+			for (CustomSection section : chunk.sections()) {
+				for (CustomBlockState state : section.blockMap().values()) {
 					if (clazz.isAssignableFrom(state.type().getClass())) {
 						i++;
 						if (i >= amount) {
@@ -80,12 +81,12 @@ public class HellblockWorld<W> implements HellblockWorldInterface<W> {
 	}
 
 	@Override
-	public boolean doesChunkHaveBlock(Pos3 pos3, Class<? extends HellblockBlock> clazz) {
-		Optional<HellblockChunk> optional = getChunk(pos3.toChunkPos());
+	public boolean doesChunkHaveBlock(Pos3 pos3, Class<? extends CustomBlock> clazz) {
+		final Optional<CustomChunk> optional = getChunk(pos3.toChunkPos());
 		if (optional.isPresent()) {
-			HellblockChunk chunk = optional.get();
-			for (HellblockSection section : chunk.sections()) {
-				for (HellblockBlockState state : section.blockMap().values()) {
+			final CustomChunk chunk = optional.get();
+			for (CustomSection section : chunk.sections()) {
+				for (CustomBlockState state : section.blockMap().values()) {
 					if (clazz.isAssignableFrom(state.type().getClass())) {
 						return true;
 					}
@@ -96,60 +97,59 @@ public class HellblockWorld<W> implements HellblockWorldInterface<W> {
 	}
 
 	@Override
-	public int getChunkBlockAmount(Pos3 pos3, Class<? extends HellblockBlock> clazz) {
-		Optional<HellblockChunk> optional = getChunk(pos3.toChunkPos());
-		if (optional.isPresent()) {
-			int i = 0;
-			HellblockChunk chunk = optional.get();
-			for (HellblockSection section : chunk.sections()) {
-				for (HellblockBlockState state : section.blockMap().values()) {
-					if (clazz.isAssignableFrom(state.type().getClass())) {
-						i++;
-					}
-				}
-			}
-			return i;
-		} else {
+	public int getChunkBlockAmount(Pos3 pos3, Class<? extends CustomBlock> clazz) {
+		final Optional<CustomChunk> optional = getChunk(pos3.toChunkPos());
+		if (!optional.isPresent()) {
 			return 0;
 		}
+		int i = 0;
+		final CustomChunk chunk = optional.get();
+		for (CustomSection section : chunk.sections()) {
+			for (CustomBlockState state : section.blockMap().values()) {
+				if (clazz.isAssignableFrom(state.type().getClass())) {
+					i++;
+				}
+			}
+		}
+		return i;
 	}
 
 	@Override
-	public HellblockChunk[] loadedChunks() {
-		return loadedChunks.values().toArray(new HellblockChunk[0]);
+	public CustomChunk[] loadedChunks() {
+		return loadedChunks.values().toArray(new CustomChunk[0]);
 	}
 
 	@Override
-	public HellblockChunk[] lazyChunks() {
-		return lazyChunks.values().toArray(new HellblockChunk[0]);
+	public CustomChunk[] lazyChunks() {
+		return lazyChunks.values().toArray(new CustomChunk[0]);
 	}
 
 	@Override
-	public HellblockRegion[] loadedRegions() {
-		return loadedRegions.values().toArray(new HellblockRegion[0]);
+	public CustomRegion[] loadedRegions() {
+		return loadedRegions.values().toArray(new CustomRegion[0]);
 	}
 
 	@Override
-	public @NotNull Optional<HellblockBlockState> getLoadedBlockState(Pos3 location) {
-		ChunkPos pos = location.toChunkPos();
-		Optional<HellblockChunk> chunk = getLoadedChunk(pos);
+	public @NotNull Optional<CustomBlockState> getLoadedBlockState(Pos3 location) {
+		final ChunkPos pos = location.toChunkPos();
+		final Optional<CustomChunk> chunk = getLoadedChunk(pos);
 		if (chunk.isEmpty()) {
 			return Optional.empty();
 		} else {
-			HellblockChunk customChunk = chunk.get();
+			final CustomChunk customChunk = chunk.get();
 			return customChunk.getBlockState(location);
 		}
 	}
 
 	@NotNull
 	@Override
-	public Optional<HellblockBlockState> getBlockState(Pos3 location) {
-		ChunkPos pos = location.toChunkPos();
-		Optional<HellblockChunk> chunk = getChunk(pos);
+	public Optional<CustomBlockState> getBlockState(Pos3 location) {
+		final ChunkPos pos = location.toChunkPos();
+		final Optional<CustomChunk> chunk = getChunk(pos);
 		if (chunk.isEmpty()) {
 			return Optional.empty();
 		} else {
-			HellblockChunk customChunk = chunk.get();
+			final CustomChunk customChunk = chunk.get();
 			// to let the bukkit system trigger the ChunkUnloadEvent later
 			customChunk.load(true);
 			return customChunk.getBlockState(location);
@@ -158,13 +158,13 @@ public class HellblockWorld<W> implements HellblockWorldInterface<W> {
 
 	@NotNull
 	@Override
-	public Optional<HellblockBlockState> removeBlockState(Pos3 location) {
-		ChunkPos pos = location.toChunkPos();
-		Optional<HellblockChunk> chunk = getChunk(pos);
+	public Optional<CustomBlockState> removeBlockState(Pos3 location) {
+		final ChunkPos pos = location.toChunkPos();
+		final Optional<CustomChunk> chunk = getChunk(pos);
 		if (chunk.isEmpty()) {
 			return Optional.empty();
 		} else {
-			HellblockChunk customChunk = chunk.get();
+			final CustomChunk customChunk = chunk.get();
 			// to let the bukkit system trigger the ChunkUnloadEvent later
 			customChunk.load(true);
 			return customChunk.removeBlockState(location);
@@ -173,9 +173,9 @@ public class HellblockWorld<W> implements HellblockWorldInterface<W> {
 
 	@NotNull
 	@Override
-	public Optional<HellblockBlockState> addBlockState(Pos3 location, HellblockBlockState block) {
-		ChunkPos pos = location.toChunkPos();
-		HellblockChunk chunk = getOrCreateChunk(pos);
+	public Optional<CustomBlockState> addBlockState(Pos3 location, CustomBlockState block) {
+		final ChunkPos pos = location.toChunkPos();
+		final CustomChunk chunk = getOrCreateChunk(pos);
 		return chunk.addBlockState(location, block);
 	}
 
@@ -193,17 +193,11 @@ public class HellblockWorld<W> implements HellblockWorldInterface<W> {
 	}
 
 	private void save() {
-		long time1 = System.currentTimeMillis();
-		for (HellblockChunk chunk : loadedChunks.values()) {
-			this.adapter.saveChunk(this, chunk);
-		}
-		for (HellblockChunk chunk : lazyChunks.values()) {
-			this.adapter.saveChunk(this, chunk);
-		}
-		for (HellblockRegion region : loadedRegions.values()) {
-			this.adapter.saveRegion(this, region);
-		}
-		long time2 = System.currentTimeMillis();
+		final long time1 = System.currentTimeMillis();
+		loadedChunks.values().forEach(chunk -> this.adapter.saveChunk(this, chunk));
+		lazyChunks.values().forEach(chunk -> this.adapter.saveChunk(this, chunk));
+		loadedRegions.values().forEach(region -> this.adapter.saveRegion(this, region));
+		final long time2 = System.currentTimeMillis();
 		HellblockPlugin.getInstance().debug(() -> "Took " + (time2 - time1) + "ms to save world " + worldName
 				+ ". Saved " + (lazyChunks.size() + loadedChunks.size()) + " chunks.");
 	}
@@ -211,11 +205,14 @@ public class HellblockWorld<W> implements HellblockWorldInterface<W> {
 	@Override
 	public void setTicking(boolean tick) {
 		if (tick) {
-			if (this.tickTask == null || this.tickTask.isCancelled())
+			if (this.tickTask == null || this.tickTask.isCancelled()) {
 				this.tickTask = this.scheduler.asyncRepeating(this::timer, 1, 1, TimeUnit.SECONDS);
+			}
 		} else {
-			if (this.tickTask != null && !this.tickTask.isCancelled())
+			if (this.tickTask != null && !this.tickTask.isCancelled()) {
 				this.tickTask.cancel();
+				this.tickTask = null;
+			}
 		}
 	}
 
@@ -229,48 +226,38 @@ public class HellblockWorld<W> implements HellblockWorldInterface<W> {
 
 	private void tickChunks() {
 		if (VersionHelper.isFolia()) {
-			SchedulerAdapter<Location, World> scheduler = HellblockPlugin.getInstance().getScheduler();
-			for (HellblockChunk chunk : loadedChunks.values()) {
-				scheduler.sync().run(chunk::timer, bukkitWorld(), chunk.chunkPos().x(), chunk.chunkPos().z());
-			}
+			final SchedulerAdapter<Location, World> scheduler = HellblockPlugin.getInstance().getScheduler();
+			loadedChunks.values().forEach(chunk -> scheduler.sync().run(chunk::timer, bukkitWorld(),
+					chunk.chunkPos().x(), chunk.chunkPos().z()));
 		} else {
-			for (HellblockChunk chunk : loadedChunks.values()) {
-				chunk.timer();
-			}
+			loadedChunks.values().forEach(CustomChunk::timer);
 		}
 	}
 
 	private void saveLazyRegions() {
 		this.regionTimer++;
 		// To avoid the same timing as saving
-		if (this.regionTimer >= 666) {
-			this.regionTimer = 0;
-			ArrayList<HellblockRegion> removed = new ArrayList<>();
-			for (Map.Entry<RegionPos, HellblockRegion> entry : loadedRegions.entrySet()) {
-				if (shouldUnloadRegion(entry.getKey())) {
-					removed.add(entry.getValue());
-				}
-			}
-			for (HellblockRegion region : removed) {
-				region.unload();
-			}
+		if (this.regionTimer < 666) {
+			return;
 		}
+		this.regionTimer = 0;
+		final List<CustomRegion> removed = new ArrayList<>();
+		loadedRegions.entrySet().stream().filter(entry -> shouldUnloadRegion(entry.getKey()))
+				.forEach(entry -> removed.add(entry.getValue()));
+		removed.forEach(CustomRegion::unload);
 	}
 
 	private void saveLazyChunks() {
-		ArrayList<HellblockChunk> chunksToSave = new ArrayList<>();
-		for (Map.Entry<ChunkPos, HellblockChunk> lazyEntry : this.lazyChunks.entrySet()) {
-			HellblockChunk chunk = lazyEntry.getValue();
-			int sec = chunk.lazySeconds() + 1;
+		final List<CustomChunk> chunksToSave = new ArrayList<>();
+		this.lazyChunks.entrySet().stream().map(Map.Entry::getValue).forEach(chunk -> {
+			final int sec = chunk.lazySeconds() + 1;
 			if (sec >= 30) {
 				chunksToSave.add(chunk);
 			} else {
 				chunk.lazySeconds(sec);
 			}
-		}
-		for (HellblockChunk chunk : chunksToSave) {
-			unloadLazyChunk(chunk.chunkPos());
-		}
+		});
+		chunksToSave.forEach(chunk -> unloadLazyChunk(chunk.chunkPos()));
 	}
 
 	@Override
@@ -299,7 +286,7 @@ public class HellblockWorld<W> implements HellblockWorldInterface<W> {
 	}
 
 	@Nullable
-	public HellblockChunk removeLazyChunk(ChunkPos chunkPos) {
+	public CustomChunk removeLazyChunk(ChunkPos chunkPos) {
 		return this.lazyChunks.remove(chunkPos);
 	}
 
@@ -310,7 +297,7 @@ public class HellblockWorld<W> implements HellblockWorldInterface<W> {
 	}
 
 	@Nullable
-	public HellblockChunk getLazyChunk(ChunkPos chunkPos) {
+	public CustomChunk getLazyChunk(ChunkPos chunkPos) {
 		return this.lazyChunks.get(chunkPos);
 	}
 
@@ -319,8 +306,8 @@ public class HellblockWorld<W> implements HellblockWorldInterface<W> {
 		return this.loadedChunks.containsKey(pos);
 	}
 
-	public boolean loadChunk(HellblockChunk chunk) {
-		Optional<HellblockChunk> previousChunk = getLoadedChunk(chunk.chunkPos());
+	public boolean loadChunk(CustomChunk chunk) {
+		final Optional<CustomChunk> previousChunk = getLoadedChunk(chunk.chunkPos());
 		if (previousChunk.isPresent()) {
 			HellblockPlugin.getInstance().debug(() -> "Chunk " + chunk.chunkPos() + " already loaded.");
 			if (previousChunk.get() != chunk) {
@@ -337,9 +324,9 @@ public class HellblockWorld<W> implements HellblockWorldInterface<W> {
 	}
 
 	@ApiStatus.Internal
-	public boolean unloadChunk(HellblockChunk chunk, boolean lazy) {
-		ChunkPos pos = chunk.chunkPos();
-		Optional<HellblockChunk> previousChunk = getLoadedChunk(chunk.chunkPos());
+	public boolean unloadChunk(CustomChunk chunk, boolean lazy) {
+		final ChunkPos pos = chunk.chunkPos();
+		final Optional<CustomChunk> previousChunk = getLoadedChunk(chunk.chunkPos());
 		if (previousChunk.isPresent()) {
 			if (previousChunk.get() != chunk) {
 				HellblockPlugin.getInstance().getPluginLogger().severe(
@@ -362,40 +349,40 @@ public class HellblockWorld<W> implements HellblockWorldInterface<W> {
 
 	@ApiStatus.Internal
 	public boolean unloadChunk(ChunkPos pos, boolean lazy) {
-		HellblockChunk removed = this.loadedChunks.remove(pos);
-		if (removed != null) {
-			removed.updateLastUnloadTime();
-			if (lazy) {
-				this.lazyChunks.put(pos, removed);
-			} else {
-				this.adapter.saveChunk(this, removed);
-			}
-			return true;
+		final CustomChunk removed = this.loadedChunks.remove(pos);
+		if (removed == null) {
+			return false;
 		}
-		return false;
+		removed.updateLastUnloadTime();
+		if (lazy) {
+			this.lazyChunks.put(pos, removed);
+		} else {
+			this.adapter.saveChunk(this, removed);
+		}
+		return true;
 	}
 
 	@ApiStatus.Internal
 	public boolean unloadLazyChunk(ChunkPos pos) {
-		HellblockChunk removed = this.lazyChunks.remove(pos);
-		if (removed != null) {
-			this.adapter.saveChunk(this, removed);
-			return true;
+		final CustomChunk removed = this.lazyChunks.remove(pos);
+		if (removed == null) {
+			return false;
 		}
-		return false;
+		this.adapter.saveChunk(this, removed);
+		return true;
 	}
 
 	@NotNull
 	@Override
-	public Optional<HellblockChunk> getLoadedChunk(ChunkPos chunkPos) {
+	public Optional<CustomChunk> getLoadedChunk(ChunkPos chunkPos) {
 		return Optional.ofNullable(this.loadedChunks.get(chunkPos));
 	}
 
 	@NotNull
 	@Override
-	public Optional<HellblockChunk> getChunk(ChunkPos chunkPos) {
+	public Optional<CustomChunk> getChunk(ChunkPos chunkPos) {
 		return Optional.ofNullable(getLoadedChunk(chunkPos).orElseGet(() -> {
-			HellblockChunk chunk = getLazyChunk(chunkPos);
+			final CustomChunk chunk = getLazyChunk(chunkPos);
 			if (chunk != null) {
 				return chunk;
 			}
@@ -405,9 +392,9 @@ public class HellblockWorld<W> implements HellblockWorldInterface<W> {
 
 	@NotNull
 	@Override
-	public HellblockChunk getOrCreateChunk(ChunkPos chunkPos) {
+	public CustomChunk getOrCreateChunk(ChunkPos chunkPos) {
 		return Objects.requireNonNull(getLoadedChunk(chunkPos).orElseGet(() -> {
-			HellblockChunk chunk = getLazyChunk(chunkPos);
+			CustomChunk chunk = getLazyChunk(chunkPos);
 			if (chunk != null) {
 				return chunk;
 			}
@@ -427,8 +414,8 @@ public class HellblockWorld<W> implements HellblockWorldInterface<W> {
 	}
 
 	@ApiStatus.Internal
-	public boolean loadRegion(HellblockRegion region) {
-		Optional<HellblockRegion> previousRegion = getLoadedRegion(region.regionPos());
+	public boolean loadRegion(CustomRegion region) {
+		final Optional<CustomRegion> previousRegion = getLoadedRegion(region.regionPos());
 		if (previousRegion.isPresent()) {
 			HellblockPlugin.getInstance().debug(() -> "Region " + region.regionPos() + " already loaded.");
 			if (previousRegion.get() != region) {
@@ -445,28 +432,28 @@ public class HellblockWorld<W> implements HellblockWorldInterface<W> {
 
 	@NotNull
 	@Override
-	public Optional<HellblockRegion> getLoadedRegion(RegionPos regionPos) {
+	public Optional<CustomRegion> getLoadedRegion(RegionPos regionPos) {
 		return Optional.ofNullable(loadedRegions.get(regionPos));
 	}
 
 	@NotNull
 	@Override
-	public Optional<HellblockRegion> getRegion(RegionPos regionPos) {
+	public Optional<CustomRegion> getRegion(RegionPos regionPos) {
 		return Optional.ofNullable(getLoadedRegion(regionPos).orElse(adapter.loadRegion(this, regionPos, false)));
 	}
 
 	@NotNull
 	@Override
-	public HellblockRegion getOrCreateRegion(RegionPos regionPos) {
+	public CustomRegion getOrCreateRegion(RegionPos regionPos) {
 		return Objects.requireNonNull(getLoadedRegion(regionPos).orElse(adapter.loadRegion(this, regionPos, true)));
 	}
 
 	private boolean shouldUnloadRegion(RegionPos regionPos) {
-		World bukkitWorld = bukkitWorld();
+		final World bukkitWorld = bukkitWorld();
 		for (int chunkX = regionPos.x() * 32; chunkX < regionPos.x() * 32 + 32; chunkX++) {
 			for (int chunkZ = regionPos.z() * 32; chunkZ < regionPos.z() * 32 + 32; chunkZ++) {
 				// if a chunk is unloaded, then it should not be in the loaded chunks map
-				ChunkPos pos = ChunkPos.of(chunkX, chunkZ);
+				final ChunkPos pos = ChunkPos.of(chunkX, chunkZ);
 				if (isChunkLoaded(pos) || this.lazyChunks.containsKey(pos)
 						|| bukkitWorld.isChunkLoaded(chunkX, chunkZ)) {
 					return false;
@@ -476,8 +463,8 @@ public class HellblockWorld<W> implements HellblockWorldInterface<W> {
 		return true;
 	}
 
-	public boolean unloadRegion(HellblockRegion region) {
-		Optional<HellblockRegion> previousRegion = getLoadedRegion(region.regionPos());
+	public boolean unloadRegion(CustomRegion region) {
+		final Optional<CustomRegion> previousRegion = getLoadedRegion(region.regionPos());
 		if (previousRegion.isPresent()) {
 			if (previousRegion.get() != region) {
 				HellblockPlugin.getInstance().getPluginLogger().severe(
@@ -488,10 +475,10 @@ public class HellblockWorld<W> implements HellblockWorldInterface<W> {
 		} else {
 			return false;
 		}
-		RegionPos regionPos = region.regionPos();
+		final RegionPos regionPos = region.regionPos();
 		for (int chunkX = regionPos.x() * 32; chunkX < regionPos.x() * 32 + 32; chunkX++) {
 			for (int chunkZ = regionPos.z() * 32; chunkZ < regionPos.z() * 32 + 32; chunkZ++) {
-				ChunkPos pos = ChunkPos.of(chunkX, chunkZ);
+				final ChunkPos pos = ChunkPos.of(chunkX, chunkZ);
 				if (!unloadLazyChunk(pos)) {
 					unloadChunk(pos, false);
 				}

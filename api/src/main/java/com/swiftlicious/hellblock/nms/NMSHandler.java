@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import org.bukkit.Color;
 import org.bukkit.Location;
 import org.bukkit.entity.FishHook;
 import org.bukkit.entity.Player;
@@ -71,6 +72,26 @@ public interface NMSHandler {
 	 * @param borderColor the color of the border.
 	 */
 	abstract void sendWorldBorder(Player player, BoundingBox bounds, BorderColor borderColor);
+
+	/**
+	 * Updates the world border when expanding.
+	 * 
+	 * @param player      the player to update the world border for.
+	 * @param center      the center of the border.
+	 * @param startSize   the starting size of the border.
+	 * @param endSize     the end size the border should be.
+	 * @param durationMs  the duration it will last.
+	 * @param borderColor the color of the border.
+	 */
+	abstract void updateWorldBorder(Player player, Location center, double startSize, double endSize, long durationMs,
+			BorderColor borderColor);
+
+	/**
+	 * Clears the world border by making it huge.
+	 * 
+	 * @param player the player to clear the world border for.
+	 */
+	abstract void clearWorldBorder(Player player);
 
 	/**
 	 * Retrieve the fluid data from the defined location.
@@ -257,7 +278,8 @@ public interface NMSHandler {
 	 * Create a fake firework.
 	 * 
 	 * @param location the location to create the fake firework.
+	 * @param color    the color of the firework effect.
 	 * @return the fake firework instance.
 	 */
-	abstract FakeFirework createFakeFirework(Location location);
+	abstract FakeFirework createFakeFirework(Location location, Color color);
 }

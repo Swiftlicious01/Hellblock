@@ -26,14 +26,15 @@ public class WeightUtils {
 	 *         selected.
 	 */
 	public static <T> T getRandom(List<Pair<T, Double>> pairs) {
-		List<T> available = new ArrayList<>();
-		double[] weights = new double[pairs.size()];
+		final List<T> available = new ArrayList<>();
+		final double[] weights = new double[pairs.size()];
 		int index = 0;
 		for (Pair<T, Double> pair : pairs) {
-			double weight = pair.right();
-			T key = pair.left();
-			if (weight <= 0)
+			final double weight = pair.right();
+			final T key = pair.left();
+			if (weight <= 0) {
 				continue;
+			}
 			available.add(key);
 			weights[index++] = weight;
 		}
@@ -50,14 +51,15 @@ public class WeightUtils {
 	 *         selected.
 	 */
 	public static <T> T getRandom(Map<T, Double> map) {
-		List<T> available = new ArrayList<>();
-		double[] weights = new double[map.size()];
+		final List<T> available = new ArrayList<>();
+		final double[] weights = new double[map.size()];
 		int index = 0;
 		for (Map.Entry<T, Double> entry : map.entrySet()) {
-			double weight = entry.getValue();
-			T key = entry.getKey();
-			if (weight <= 0)
+			final double weight = entry.getValue();
+			final T key = entry.getKey();
+			if (weight <= 0) {
 				continue;
+			}
 			available.add(key);
 			weights[index++] = weight;
 		}
@@ -77,20 +79,21 @@ public class WeightUtils {
 	 *         selected.
 	 */
 	private static <T> T getRandom(double[] weights, List<T> available, int effectiveSize) {
-		if (available.isEmpty())
+		if (available.isEmpty()) {
 			return null;
-		double total = Arrays.stream(weights).sum();
-		double[] weightRatios = new double[effectiveSize];
+		}
+		final double total = Arrays.stream(weights).sum();
+		final double[] weightRatios = new double[effectiveSize];
 		for (int i = 0; i < effectiveSize; i++) {
 			weightRatios[i] = weights[i] / total;
 		}
-		double[] weightRange = new double[effectiveSize];
+		final double[] weightRange = new double[effectiveSize];
 		double startPos = 0;
 		for (int i = 0; i < effectiveSize; i++) {
 			weightRange[i] = startPos + weightRatios[i];
 			startPos += weightRatios[i];
 		}
-		double random = Math.random();
+		final double random = Math.random();
 		int pos = Arrays.binarySearch(weightRange, random);
 
 		if (pos < 0) {

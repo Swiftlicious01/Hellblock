@@ -29,10 +29,10 @@ public record RegionPos(int x, int z) {
 	 * @throws RuntimeException if the coordinate string is invalid.
 	 */
 	public static RegionPos getByString(String coordinate) {
-		String[] split = coordinate.split(",", 2);
+		final String[] split = coordinate.split(",", 2);
 		try {
-			int x = Integer.parseInt(split[0]);
-			int z = Integer.parseInt(split[1]);
+			final int x = Integer.parseInt(split[0]);
+			final int z = Integer.parseInt(split[1]);
 			return new RegionPos(x, z);
 		} catch (NumberFormatException e) {
 			throw new RuntimeException("Invalid coordinate: " + coordinate);
@@ -46,7 +46,7 @@ public record RegionPos(int x, int z) {
 	 */
 	@Override
 	public int hashCode() {
-		long combined = (long) x << 32 | z;
+		final long combined = (long) x << 32 | z;
 		return Long.hashCode(combined);
 	}
 
@@ -69,10 +69,7 @@ public record RegionPos(int x, int z) {
 		if (this.x != other.x) {
 			return false;
 		}
-		if (this.z != other.z) {
-			return false;
-		}
-		return true;
+		return this.z != other.z ? false : true;
 	}
 
 	/**
@@ -84,8 +81,8 @@ public record RegionPos(int x, int z) {
 	 */
 	@NotNull
 	public static RegionPos getByBukkitChunk(@NotNull Chunk chunk) {
-		int regionX = (int) Math.floor((double) chunk.getX() / 32.0);
-		int regionZ = (int) Math.floor((double) chunk.getZ() / 32.0);
+		final int regionX = (int) Math.floor((double) chunk.getX() / 32.0);
+		final int regionZ = (int) Math.floor((double) chunk.getZ() / 32.0);
 		return new RegionPos(regionX, regionZ);
 	}
 
@@ -99,8 +96,8 @@ public record RegionPos(int x, int z) {
 	 */
 	@NotNull
 	public static RegionPos getByChunkPos(@NotNull ChunkPos chunk) {
-		int regionX = (int) Math.floor((double) chunk.x() / 32.0);
-		int regionZ = (int) Math.floor((double) chunk.z() / 32.0);
+		final int regionX = (int) Math.floor((double) chunk.x() / 32.0);
+		final int regionZ = (int) Math.floor((double) chunk.z() / 32.0);
 		return new RegionPos(regionX, regionZ);
 	}
 

@@ -51,7 +51,7 @@ public interface MiniMessageTranslationRegistryInterface extends Translator {
 			if (errorCount == 1) {
 				throw firstError;
 			} else if (errorCount > 1) {
-				throw new IllegalArgumentException(String.format("Invalid key (and %d more)", errorCount - 1),
+				throw new IllegalArgumentException("Invalid key (and %d more)".formatted(errorCount - 1),
 						firstError);
 			}
 		}

@@ -1,14 +1,19 @@
 package com.swiftlicious.hellblock.schematic;
 
 import java.io.File;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 import org.bukkit.Location;
 
 public interface SchematicPaster {
 
-	void pasteHellblock(File file, Location location, boolean ignoreAirBlock,
-			CompletableFuture<Void> completableFuture);
+	CompletableFuture<Location> pasteHellblock(UUID playerId, File file, Location location, boolean ignoreAirBlock,
+			SchematicMetadata metadata, boolean animated);
+
+	boolean cancelPaste(UUID playerId);
+
+	int getPasteProgress(UUID playerId);
 
 	void clearCache();
 }

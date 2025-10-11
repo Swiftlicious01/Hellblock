@@ -1,5 +1,7 @@
 package com.swiftlicious.hellblock.player;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -9,10 +11,9 @@ import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import com.swiftlicious.hellblock.HellblockPlugin;
-import com.swiftlicious.hellblock.generation.BorderHandler;
 import com.swiftlicious.hellblock.listeners.AnimalHandler;
 import com.swiftlicious.hellblock.listeners.FortressHandler;
+import com.swiftlicious.hellblock.player.mailbox.MailboxEntry;
 
 public class UserData implements UserDataInterface {
 
@@ -24,17 +25,20 @@ public class UserData implements UserDataInterface {
 	private final HellblockData hellblockData;
 	private final LocationCacheData locationCacheData;
 	private final boolean isLocked;
-	private final boolean unsafeLocation;
-	private final boolean clearItems;
+	private final List<MailboxEntry> mailbox;
+	private final long lastActivity;
+	private final boolean joinNotifications;
+	private final boolean inviteNotifications;
 
-	protected transient BorderHandler borderTask;
 	protected transient AnimalHandler animalSpawningTask;
 	protected transient FortressHandler fortressSpawningTask;
-	protected transient boolean wearingGlowstoneArmor, holdingGlowstoneTool;
+	protected transient boolean wearingGlowstoneArmor;
+	protected transient boolean holdingGlowstoneTool;
 
 	public UserData(String name, UUID uuid, EarningData earningData, FishingStatistics statisticData,
 			ChallengeData challengeData, HellblockData hellblockData, LocationCacheData locationCacheData,
-			boolean isLocked, boolean unsafeLocation, boolean clearItems) {
+			boolean isLocked, List<MailboxEntry> mailbox, boolean joinNotifications, boolean inviteNotifications,
+			long lastActivity) {
 		this.name = name;
 		this.uuid = uuid;
 		this.earningData = earningData;
@@ -43,8 +47,10 @@ public class UserData implements UserDataInterface {
 		this.hellblockData = hellblockData;
 		this.locationCacheData = locationCacheData;
 		this.isLocked = isLocked;
-		this.unsafeLocation = unsafeLocation;
-		this.clearItems = clearItems;
+		this.mailbox = mailbox != null ? mailbox : new ArrayList<>();
+		this.joinNotifications = joinNotifications;
+		this.inviteNotifications = inviteNotifications;
+		this.lastActivity = lastActivity;
 	}
 
 	public static class Builder implements BuilderInterface {
@@ -56,8 +62,10 @@ public class UserData implements UserDataInterface {
 		private HellblockData hellblockData;
 		private LocationCacheData locationCacheData;
 		private boolean isLocked;
-		private boolean unsafeLocation;
-		private boolean clearItems;
+		private List<MailboxEntry> mailbox = new ArrayList<>();
+		private boolean joinNotifications;
+		private boolean inviteNotifications;
+		private long lastActivity;
 
 		@Override
 		public Builder setName(String name) {
@@ -108,22 +116,36 @@ public class UserData implements UserDataInterface {
 		}
 
 		@Override
-		public Builder setUnsafeLocation(boolean unsafeLocation) {
-			this.unsafeLocation = unsafeLocation;
+		public Builder setMailbox(List<MailboxEntry> mailbox) {
+			this.mailbox = mailbox;
 			return this;
 		}
 
 		@Override
-		public Builder setClearInventory(boolean clearItems) {
-			this.clearItems = clearItems;
+		public Builder setHellblockJoinNotifications(boolean joinNotifications) {
+			this.joinNotifications = joinNotifications;
+			return this;
+		}
+
+		@Override
+		public Builder setHellblockInviteNotifications(boolean inviteNotifications) {
+			this.inviteNotifications = inviteNotifications;
+			return this;
+		}
+
+		@Override
+		public Builder updateLastActivity() {
+			this.lastActivity = System.currentTimeMillis();
 			return this;
 		}
 
 		@Override
 		public Builder setData(PlayerData playerData) {
 			this.isLocked = playerData.isLocked();
-			this.unsafeLocation = playerData.inUnsafeLocation();
-			this.clearItems = playerData.isClearingItems();
+			this.mailbox = new ArrayList<>(playerData.getMailbox());
+			this.lastActivity = playerData.getLastActivity();
+			this.joinNotifications = playerData.hasHellblockJoinNotifications();
+			this.inviteNotifications = playerData.hasHellblockInviteNotifications();
 			this.uuid = playerData.getUUID();
 			this.name = playerData.getName();
 			this.earningData = playerData.getEarningData().copy();
@@ -139,7 +161,8 @@ public class UserData implements UserDataInterface {
 		@Override
 		public UserData build() {
 			return new UserData(this.name, this.uuid, this.earningData, this.statisticData, this.challengeData,
-					this.hellblockData, this.locationCacheData, this.isLocked, this.unsafeLocation, this.clearItems);
+					this.hellblockData, this.locationCacheData, this.isLocked, this.mailbox, this.joinNotifications,
+					this.inviteNotifications, this.lastActivity);
 		}
 	}
 
@@ -201,47 +224,49 @@ public class UserData implements UserDataInterface {
 		return this.isLocked;
 	}
 
+	@NotNull
 	@Override
-	public boolean inUnsafeLocation() {
-		return this.unsafeLocation;
+	public List<MailboxEntry> getMailbox() {
+		return this.mailbox;
 	}
 
 	@Override
-	public boolean isClearingInventory() {
-		return this.clearItems;
+	public boolean hasHellblockJoinNotifications() {
+		return this.joinNotifications;
 	}
 
-	public void showBorder() {
-		this.borderTask = new BorderHandler(HellblockPlugin.getInstance(), this.uuid);
+	@Override
+	public boolean hasHellblockInviteNotifications() {
+		return this.inviteNotifications;
 	}
 
-	public void hideBorder() {
-		if (this.borderTask != null) {
-			this.borderTask.cancelBorderShowcase();
-			this.borderTask = null;
-		}
+	@Override
+	public long getLastActivity() {
+		return this.lastActivity;
 	}
 
 	public void startSpawningAnimals() {
-		this.animalSpawningTask = new AnimalHandler(HellblockPlugin.getInstance(), this.uuid);
+		this.animalSpawningTask = new AnimalHandler(this.uuid);
 	}
 
 	public void stopSpawningAnimals() {
-		if (this.animalSpawningTask != null) {
-			this.animalSpawningTask.stopAnimalSpawning();
-			this.animalSpawningTask = null;
+		if (this.animalSpawningTask == null) {
+			return;
 		}
+		this.animalSpawningTask.stopAnimalSpawning();
+		this.animalSpawningTask = null;
 	}
 
 	public void startSpawningFortressMobs() {
-		this.fortressSpawningTask = new FortressHandler(HellblockPlugin.getInstance(), this.uuid);
+		this.fortressSpawningTask = new FortressHandler(this.uuid);
 	}
 
 	public void stopSpawningFortressMobs() {
-		if (this.fortressSpawningTask != null) {
-			this.fortressSpawningTask.stopFortressSpawning();
-			this.fortressSpawningTask = null;
+		if (this.fortressSpawningTask == null) {
+			return;
 		}
+		this.fortressSpawningTask.stopFortressSpawning();
+		this.fortressSpawningTask = null;
 	}
 
 	public boolean hasGlowstoneArmorEffect() {
@@ -266,6 +291,8 @@ public class UserData implements UserDataInterface {
 		return PlayerData.builder().setUUID(this.uuid).setEarningData(this.earningData)
 				.setStatisticData(new StatisticData(this.statisticData.amountMap(), this.statisticData.sizeMap()))
 				.setChallengeData(this.challengeData).setHellblockData(this.hellblockData)
-				.setLocationCacheData(this.locationCacheData).setName(this.name).build();
+				.setLocationCacheData(this.locationCacheData).setMailbox(this.mailbox)
+				.setHellblockJoinNotifications(this.joinNotifications)
+				.setHellblockInviteNotifications(this.inviteNotifications).setName(this.name).build();
 	}
 }

@@ -27,7 +27,7 @@ public abstract class BukkitCommandFeature<C extends CommandSender> extends Abst
 
 	public Pair<TranslatableComponent.Builder, Component> resolveSelector(Selector<? extends Entity> selector,
 			TranslatableComponent.Builder single, TranslatableComponent.Builder multiple) {
-		Collection<? extends Entity> entities = selector.values();
+		final Collection<? extends Entity> entities = selector.values();
 		if (entities.size() == 1) {
 			return Pair.of(single, Component.text(entities.iterator().next().getName()));
 		} else {

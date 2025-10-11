@@ -1,6 +1,7 @@
 package com.swiftlicious.hellblock.database.dependency;
 
 import java.util.Set;
+import java.util.function.Supplier;
 
 /**
  * Loads and manages runtime dependencies for the plugin.
@@ -24,4 +25,6 @@ public interface DependencyManagerInterface extends AutoCloseable {
 
 	@Override
 	void close();
+
+	<T> T runWithLoader(Set<Dependency> deps, Supplier<T> supplier);
 }

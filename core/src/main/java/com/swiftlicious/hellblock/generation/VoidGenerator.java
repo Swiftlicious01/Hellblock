@@ -14,7 +14,6 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
-import com.swiftlicious.hellblock.utils.RandomUtils;
 
 public class VoidGenerator extends ChunkGenerator {
 
@@ -67,13 +66,12 @@ public class VoidGenerator extends ChunkGenerator {
 
 		@Override
 		public @NotNull Biome getBiome(@NotNull WorldInfo worldInfo, int x, int y, int z) {
-			return RandomUtils.generateRandomBiome();
+			return Biome.NETHER_WASTES;
 		}
 
 		@Override
 		public @NotNull List<Biome> getBiomes(@NotNull WorldInfo worldInfo) {
-			return List.of(Biome.NETHER_WASTES, Biome.CRIMSON_FOREST, Biome.WARPED_FOREST, Biome.SOUL_SAND_VALLEY,
-					Biome.BASALT_DELTAS);
+			return List.of(Biome.NETHER_WASTES);
 		}
 	}
 }

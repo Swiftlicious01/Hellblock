@@ -54,7 +54,7 @@ public class MarketManager implements MarketManagerInterface, Listener {
 
 	protected final HellblockPlugin instance;
 
-	private final Map<String, MathValue<Player>> priceMap;
+	private final Map<String, MathValue<Player>> priceMap = new HashMap<>();
 	private String formula;
 	private MathValue<Player> earningsLimit;
 	private MathValue<Player> earningsMultiplier;
@@ -65,8 +65,8 @@ public class MarketManager implements MarketManagerInterface, Listener {
 	protected TextValue<Player> allowTitle;
 	protected TextValue<Player> limitTitle;
 	protected String[] layout;
-	protected final Map<Character, Pair<CustomItem, Action<Player>[]>> decorativeIcons;
-	protected final ConcurrentMap<UUID, MarketGUI> marketGUICache;
+	protected final Map<Character, Pair<CustomItem, Action<Player>[]>> decorativeIcons = new HashMap<>();
+	protected final ConcurrentMap<UUID, MarketGUI> marketGUICache = new ConcurrentHashMap<>();
 
 	protected char itemSlot;
 	protected char sellSlot;
@@ -96,9 +96,6 @@ public class MarketManager implements MarketManagerInterface, Listener {
 
 	public MarketManager(HellblockPlugin plugin) {
 		this.instance = plugin;
-		this.priceMap = new HashMap<>();
-		this.decorativeIcons = new HashMap<>();
-		this.marketGUICache = new ConcurrentHashMap<>();
 		this.cachedDate = getRealTimeDate();
 	}
 
@@ -127,8 +124,10 @@ public class MarketManager implements MarketManagerInterface, Listener {
 		HandlerList.unregisterAll(this);
 		this.priceMap.clear();
 		this.decorativeIcons.clear();
-		if (this.resetEarningsTask.isCancelled())
+		if (this.resetEarningsTask != null && !this.resetEarningsTask.isCancelled()) {
 			this.resetEarningsTask.cancel();
+			this.resetEarningsTask = null;
+		}
 	}
 
 	private void loadConfig() {
@@ -214,11 +213,25 @@ public class MarketManager implements MarketManagerInterface, Listener {
 		if (decorativeSection != null) {
 			for (Map.Entry<String, Object> entry : decorativeSection.getStringRouteMappedValues(false).entrySet()) {
 				if (entry.getValue() instanceof Section innerSection) {
-					char symbol = Objects.requireNonNull(innerSection.getString("symbol")).charAt(0);
-					decorativeIcons.put(symbol, Pair.of(
-							new SingleItemParser("gui", innerSection,
-									instance.getConfigManager().getItemFormatFunctions()).getItem(),
-							instance.getActionManager(Player.class).parseActions(innerSection.getSection("action"))));
+					try {
+						String symbolStr = innerSection.getString("symbol");
+						if (symbolStr == null || symbolStr.isEmpty()) {
+							instance.getPluginLogger()
+									.severe("Decorative icon missing symbol in entry: " + entry.getKey());
+							continue;
+						}
+
+						char symbol = symbolStr.charAt(0);
+
+						decorativeIcons.put(symbol,
+								Pair.of(new SingleItemParser("gui", innerSection,
+										instance.getConfigManager().getItemFormatFunctions()).getItem(),
+										instance.getActionManager(Player.class)
+												.parseActions(innerSection.getSection("action"))));
+					} catch (Exception e) {
+						instance.getPluginLogger().severe("Failed to load decorative icon entry: " + entry.getKey()
+								+ " due to: " + e.getMessage());
+					}
 				}
 			}
 		}

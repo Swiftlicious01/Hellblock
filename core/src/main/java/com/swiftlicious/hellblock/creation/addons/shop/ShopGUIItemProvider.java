@@ -17,32 +17,34 @@ import net.brcdev.shopgui.provider.item.ItemProvider;
 
 public class ShopGUIItemProvider extends ItemProvider implements Listener {
 
-    private final HellblockPlugin plugin;
+	private final HellblockPlugin plugin;
 
-    public ShopGUIItemProvider(HellblockPlugin plugin) {
-        super("Hellblock");
-        this.plugin = plugin;
-    }
+	public ShopGUIItemProvider(HellblockPlugin plugin) {
+		super("Hellblock");
+		this.plugin = plugin;
+	}
 
-    @Override
-    public boolean isValidItem(ItemStack itemStack) {
-        return plugin.getItemManager().getCustomItemID(itemStack) != null;
-    }
+	@Override
+	public boolean isValidItem(ItemStack itemStack) {
+		return plugin.getItemManager().getCustomItemID(itemStack) != null;
+	}
 
-    @Override
-    public ItemStack loadItem(ConfigurationSection configurationSection) {
-        String id = configurationSection.getString("hellblock");
-        if (id == null) return null;
-        return plugin.getItemManager().buildInternal(Context.player(null).arg(ContextKeys.ID, id), id);
-    }
+	@Override
+	public ItemStack loadItem(ConfigurationSection configurationSection) {
+		final String id = configurationSection.getString("hellblock");
+		if (id == null) {
+			return null;
+		}
+		return plugin.getItemManager().buildInternal(Context.player(null).arg(ContextKeys.ID, id), id);
+	}
 
-    @Override
-    public boolean compare(ItemStack i1, ItemStack i2) {
-        return Objects.equals(plugin.getItemManager().getCustomItemID(i1), plugin.getItemManager().getCustomItemID(i2));
-    }
+	@Override
+	public boolean compare(ItemStack i1, ItemStack i2) {
+		return Objects.equals(plugin.getItemManager().getCustomItemID(i1), plugin.getItemManager().getCustomItemID(i2));
+	}
 
-    @EventHandler
-    public void onShopGUIPlusPostEnable(ShopGUIPlusPostEnableEvent event) {
-        ShopGuiPlusApi.registerItemProvider(this);
-    }
+	@EventHandler
+	public void onShopGUIPlusPostEnable(ShopGUIPlusPostEnableEvent event) {
+		ShopGuiPlusApi.registerItemProvider(this);
+	}
 }

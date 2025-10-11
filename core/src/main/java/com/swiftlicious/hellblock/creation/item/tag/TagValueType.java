@@ -4,5 +4,5 @@ import org.jetbrains.annotations.ApiStatus;
 
 @ApiStatus.Internal
 public enum TagValueType {
-	BYTE, INT, DOUBLE, LONG, FLOAT, SHORT, STRING, BYTEARRAY, INTARRAY
+	STRING, BYTE, SHORT, INT, LONG, FLOAT, DOUBLE, BYTE_ARRAY, INT_ARRAY, LONG_ARRAY, LIST, COMPOUND
 }

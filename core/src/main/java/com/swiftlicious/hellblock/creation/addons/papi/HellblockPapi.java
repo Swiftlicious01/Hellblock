@@ -54,90 +54,145 @@ public class HellblockPapi extends PlaceholderExpansion {
 
 	@Override
 	public @Nullable String onRequest(OfflinePlayer offlinePlayer, @NotNull String params) {
-		String[] split = params.split("_");
-		Player player = offlinePlayer.getPlayer();
-		if (player == null)
+		final String[] split = params.split("_");
+		final Player player = offlinePlayer.getPlayer();
+		if (player == null) {
 			return "";
+		}
 		switch (split[0]) {
 		case "random" -> {
 			return String.valueOf(RandomUtils.generateRandomDouble(0, 1));
 		}
 		case "level" -> {
-			UserData user;
+			final UserData user;
 			if (split.length < 3) {
 				user = plugin.getStorageManager().getOnlineUser(player.getUniqueId()).orElse(null);
 			} else {
-				Player another = Bukkit.getPlayer(split[2]);
+				final Player another = Bukkit.getPlayer(split[2]);
 				if (another == null) {
 					return "";
 				}
 				user = plugin.getStorageManager().getOnlineUser(another.getUniqueId()).orElse(null);
 			}
-			if (user == null)
+			if (user == null) {
 				return "";
-			return String.format("%s", user.getHellblockData().getLevel());
+			}
+			return "%s".formatted(user.getHellblockData().getLevel());
 		}
-		case "visits" -> {
-			UserData user;
+		case "overall_visits" -> {
+			final UserData user;
 			if (split.length < 3) {
 				user = plugin.getStorageManager().getOnlineUser(player.getUniqueId()).orElse(null);
 			} else {
-				Player another = Bukkit.getPlayer(split[2]);
+				final Player another = Bukkit.getPlayer(split[2]);
 				if (another == null) {
 					return "";
 				}
 				user = plugin.getStorageManager().getOnlineUser(another.getUniqueId()).orElse(null);
 			}
-			if (user == null)
+			if (user == null) {
 				return "";
-			return String.format("%s", user.getHellblockData().getTotalVisits());
+			}
+			return "%s".formatted(user.getHellblockData().getVisitData().getTotalVisits());
+		}
+		case "daily_visits" -> {
+			final UserData user;
+			if (split.length < 3) {
+				user = plugin.getStorageManager().getOnlineUser(player.getUniqueId()).orElse(null);
+			} else {
+				final Player another = Bukkit.getPlayer(split[2]);
+				if (another == null) {
+					return "";
+				}
+				user = plugin.getStorageManager().getOnlineUser(another.getUniqueId()).orElse(null);
+			}
+			if (user == null) {
+				return "";
+			}
+			return "%s".formatted(user.getHellblockData().getVisitData().getDailyVisits());
+		}
+		case "weekly_visits" -> {
+			final UserData user;
+			if (split.length < 3) {
+				user = plugin.getStorageManager().getOnlineUser(player.getUniqueId()).orElse(null);
+			} else {
+				final Player another = Bukkit.getPlayer(split[2]);
+				if (another == null) {
+					return "";
+				}
+				user = plugin.getStorageManager().getOnlineUser(another.getUniqueId()).orElse(null);
+			}
+			if (user == null) {
+				return "";
+			}
+			return "%s".formatted(user.getHellblockData().getVisitData().getWeeklyVisits());
+		}
+		case "monthly_visits" -> {
+			final UserData user;
+			if (split.length < 3) {
+				user = plugin.getStorageManager().getOnlineUser(player.getUniqueId()).orElse(null);
+			} else {
+				final Player another = Bukkit.getPlayer(split[2]);
+				if (another == null) {
+					return "";
+				}
+				user = plugin.getStorageManager().getOnlineUser(another.getUniqueId()).orElse(null);
+			}
+			if (user == null) {
+				return "";
+			}
+			return "%s".formatted(user.getHellblockData().getVisitData().getMonthlyVisits());
 		}
 		case "market" -> {
-			if (split.length < 2)
+			if (split.length < 2) {
 				return null;
+			}
 			switch (split[1]) {
 			case "limit" -> {
 				if (split.length < 3) {
-					return String.format("%.2f", plugin.getMarketManager().earningLimit(Context.player(player)));
+					return "%.2f".formatted(plugin.getMarketManager().earningLimit(Context.player(player)));
 				} else {
-					Player another = Bukkit.getPlayer(split[2]);
+					final Player another = Bukkit.getPlayer(split[2]);
 					if (another == null) {
 						return "";
 					}
-					return String.format("%.2f", plugin.getMarketManager().earningLimit(Context.player(another)));
+					return "%.2f".formatted(plugin.getMarketManager().earningLimit(Context.player(another)));
 				}
 			}
 			case "earnings" -> {
-				UserData user;
+				final UserData user;
 				if (split.length < 3) {
 					user = plugin.getStorageManager().getOnlineUser(player.getUniqueId()).orElse(null);
 				} else {
-					Player another = Bukkit.getPlayer(split[2]);
+					final Player another = Bukkit.getPlayer(split[2]);
 					if (another == null) {
 						return "";
 					}
 					user = plugin.getStorageManager().getOnlineUser(another.getUniqueId()).orElse(null);
 				}
-				if (user == null)
+				if (user == null) {
 					return "";
-				return String.format("%.2f", user.getEarningData().getEarnings());
+				}
+				return "%.2f".formatted(user.getEarningData().getEarnings());
 			}
 			case "canearn" -> {
 				if (split.length < 3) {
-					UserData user = plugin.getStorageManager().getOnlineUser(player.getUniqueId()).orElse(null);
-					if (user == null)
+					final UserData user = plugin.getStorageManager().getOnlineUser(player.getUniqueId()).orElse(null);
+					if (user == null) {
 						return "";
-					return String.format("%.2f", plugin.getMarketManager().earningLimit(Context.player(player))
+					}
+					return "%.2f".formatted(plugin.getMarketManager().earningLimit(Context.player(player))
 							- user.getEarningData().getEarnings());
 				} else {
-					Player another = Bukkit.getPlayer(split[2]);
+					final Player another = Bukkit.getPlayer(split[2]);
 					if (another == null) {
 						return "";
 					}
-					UserData user = plugin.getStorageManager().getOnlineUser(another.getUniqueId()).orElse(null);
-					if (user == null)
+					final UserData user = plugin.getStorageManager().getOnlineUser(another.getUniqueId()).orElse(null);
+					if (user == null) {
 						return "";
-					return String.format("%.2f", plugin.getMarketManager().earningLimit(Context.player(another))
+					}
+					return "%.2f".formatted(plugin.getMarketManager().earningLimit(Context.player(another))
 							- user.getEarningData().getEarnings());
 				}
 			}

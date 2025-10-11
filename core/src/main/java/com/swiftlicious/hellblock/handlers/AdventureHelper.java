@@ -2,10 +2,19 @@ package com.swiftlicious.hellblock.handlers;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.TimeUnit;
+
+import org.bukkit.Location;
+import org.bukkit.NamespacedKey;
+import org.bukkit.Registry;
+import org.bukkit.SoundCategory;
+import org.bukkit.World;
+import org.jetbrains.annotations.NotNull;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.api.DefaultFontInfo;
 import com.swiftlicious.hellblock.sender.Sender;
 
@@ -18,25 +27,30 @@ import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
 import net.kyori.adventure.text.serializer.json.JSONOptions;
 import net.kyori.adventure.text.serializer.json.legacyimpl.NBTLegacyHoverEventSerializer;
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 
 /**
  * Helper class for handling Adventure components and related functionalities.
  */
 public class AdventureHelper {
 
-	private final static int CENTER_PX = 154;
+	private static final int CENTER_PX = 154;
 
 	private final MiniMessage miniMessage;
 	private final MiniMessage miniMessageStrict;
 	private final GsonComponentSerializer gsonComponentSerializer;
+	private final PlainTextComponentSerializer plainTextComponentSerializer;
 	private final Cache<String, String> miniMessageToJsonCache = Caffeine.newBuilder()
 			.expireAfterWrite(5, TimeUnit.MINUTES).build();
 	public static boolean legacySupport = false;
 
+	private static final int MAX_PIXEL_WIDTH = 154; // GUI title line width (in pixels)
+
 	public AdventureHelper() {
 		this.miniMessage = MiniMessage.builder().build();
 		this.miniMessageStrict = MiniMessage.builder().strict(true).build();
-		GsonComponentSerializer.Builder builder = GsonComponentSerializer.builder();
+		this.plainTextComponentSerializer = PlainTextComponentSerializer.plainText();
+		final GsonComponentSerializer.Builder builder = GsonComponentSerializer.builder();
 		if (!VersionHelper.isVersionNewerThan1_20_5()) {
 			builder.legacyHoverEventSerializer(NBTLegacyHoverEventSerializer.get());
 			builder.editOptions((b) -> b.value(JSONOptions.EMIT_HOVER_SHOW_ENTITY_ID_AS_INT_ARRAY, false));
@@ -103,7 +117,7 @@ public class AdventureHelper {
 	 * @return the JSON string representation
 	 */
 	public static String miniMessageToJson(String miniMessage) {
-		AdventureHelper instance = getInstance();
+		final AdventureHelper instance = getInstance();
 		return instance.miniMessageToJsonCache.get(miniMessage,
 				(text) -> instance.gsonComponentSerializer.serialize(miniMessage(text)));
 	}
@@ -116,12 +130,12 @@ public class AdventureHelper {
 	 */
 	public static void sendCenteredMessage(Sender audience, Component message) {
 		if (message.children().contains(Component.newline())) {
-			Style parentStyle = message.style();
-			List<Component> children = new ArrayList<>(message.children());
+			final Style parentStyle = message.style();
+			final List<Component> children = new ArrayList<>(message.children());
 			children.add(0, message.children(new ArrayList<>()));
 			Component toSend = Component.empty().style(parentStyle);
 			for (int i = 0; i < children.size(); i++) {
-				Component child = children.get(i);
+				final Component child = children.get(i);
 				if (child.equals(Component.newline())) {
 					sendCenteredMessage(audience, toSend);
 					if (i == children.size() - 1) {
@@ -136,7 +150,7 @@ public class AdventureHelper {
 			sendCenteredMessage(audience, toSend);
 			return;
 		}
-		String msg = getGson().serialize(message);
+		final String msg = getGson().serialize(message);
 		int messagePxSize = 0;
 		boolean previousCode = false;
 		boolean isBold = false;
@@ -147,16 +161,16 @@ public class AdventureHelper {
 				previousCode = false;
 				isBold = c == 'l' || c == 'L';
 			} else {
-				DefaultFontInfo dFI = DefaultFontInfo.getDefaultFontInfo(c);
+				final DefaultFontInfo dFI = DefaultFontInfo.getDefaultFontInfo(c);
 				messagePxSize += isBold ? dFI.getBoldLength() : dFI.getLength();
 				messagePxSize++;
 			}
 		}
-		int halvedMessageSize = messagePxSize / 2;
-		int toCompensate = CENTER_PX - halvedMessageSize;
-		int spaceLength = DefaultFontInfo.SPACE.getLength() + 1;
+		final int halvedMessageSize = messagePxSize / 2;
+		final int toCompensate = CENTER_PX - halvedMessageSize;
+		final int spaceLength = DefaultFontInfo.SPACE.getLength() + 1;
 		int compensated = 0;
-		StringBuilder sb = new StringBuilder();
+		final StringBuilder sb = new StringBuilder();
 		while (compensated < toCompensate) {
 			sb.append(" ");
 			compensated += spaceLength;
@@ -185,6 +199,32 @@ public class AdventureHelper {
 	 */
 	public static void playSound(Audience audience, Sound sound, double x, double y, double z) {
 		audience.playSound(sound, x, y, z);
+	}
+
+	/**
+	 * Plays a positional sound in a world at a specific location.
+	 *
+	 * @param world    the world to play the sound in
+	 * @param location the location to play the sound at
+	 * @param soundKey the namespaced key of the sound
+	 * @param volume   the volume of the sound
+	 * @param pitch    the pitch of the sound
+	 */
+	public static void playPositionalSound(@NotNull World world, @NotNull Location location, @NotNull String soundKey,
+			float volume, float pitch) {
+		NamespacedKey key = NamespacedKey.fromString(soundKey);
+		if (key == null) {
+			HellblockPlugin.getInstance().getPluginLogger().warn("Invalid sound key: " + soundKey);
+			return;
+		}
+
+		org.bukkit.Sound sound = Registry.SOUNDS.get(key);
+		if (sound == null) {
+			HellblockPlugin.getInstance().getPluginLogger().warn("Unknown sound in registry: " + soundKey);
+			return;
+		}
+
+		world.playSound(location, sound, SoundCategory.BLOCKS, volume, pitch);
 	}
 
 	/**
@@ -239,6 +279,74 @@ public class AdventureHelper {
 		return getGson().serialize(component);
 	}
 
+	public static @NotNull Component parseCenteredTitleMultiline(@NotNull String raw) {
+		String[] lines = raw.split("\n");
+
+		List<Component> components = new ArrayList<>();
+
+		for (String line : lines) {
+			String trimmedLine = line.trim();
+
+			if (trimmedLine.toLowerCase(Locale.ROOT).startsWith("<center>")
+					&& trimmedLine.toLowerCase(Locale.ROOT).contains("</center>")) {
+
+				// Extract content between <center>...</center>
+				int start = trimmedLine.indexOf("<center>") + "<center>".length();
+				int end = trimmedLine.indexOf("</center>");
+				String inner = trimmedLine.substring(start, end).trim();
+
+				// Deserialize inner content to preserve formatting
+				Component innerComponent = getInstance().miniMessage.deserialize(inner);
+				String plain = getInstance().plainTextComponentSerializer.serialize(innerComponent);
+
+				// Compute left-padding in pixels
+				int pixelWidth = getStringPixelWidth(plain);
+				int spacePixelWidth = getCharPixelWidth(' ');
+				int paddingPixels = (MAX_PIXEL_WIDTH - pixelWidth) / 2;
+				int spaceCount = Math.max(0, paddingPixels / spacePixelWidth);
+
+				String spaces = " ".repeat(spaceCount);
+				Component padded = getInstance().miniMessage.deserialize(spaces + inner);
+				components.add(padded);
+
+			} else {
+				// Non-centered line, parse as-is
+				components.add(getInstance().miniMessage.deserialize(trimmedLine));
+			}
+		}
+
+		// Combine lines with newline separator
+		Component result = Component.empty();
+		for (int i = 0; i < components.size(); i++) {
+			result = result.append(components.get(i));
+			if (i != components.size() - 1) {
+				result = result.append(Component.newline());
+			}
+		}
+
+		return result;
+	}
+
+	// Estimate string width in Minecraft pixels
+	private static int getStringPixelWidth(String text) {
+		int width = 0;
+		for (char c : text.toCharArray()) {
+			width += getCharPixelWidth(c);
+		}
+		return width;
+	}
+
+	private static int getCharPixelWidth(char c) {
+		return switch (c) {
+		case 'i', '.', ',', ':', ';', '!', '|', ' ' -> 2;
+		case '\'', 'l' -> 3;
+		case '`', '(', ')', '[', ']', '{', '}' -> 4;
+		case '<', '>', 't', 'f' -> 5;
+		case '@', '~', '=', '-' -> 6;
+		default -> 6;
+		};
+	}
+
 	/**
 	 * Checks if a character is a legacy color code.
 	 *
@@ -256,8 +364,8 @@ public class AdventureHelper {
 	 * @return the MiniMessage string representation
 	 */
 	public static String legacyToMiniMessage(String legacy) {
-		StringBuilder stringBuilder = new StringBuilder();
-		char[] chars = legacy.toCharArray();
+		final StringBuilder stringBuilder = new StringBuilder();
+		final char[] chars = legacy.toCharArray();
 		for (int i = 0; i < chars.length; i++) {
 			if (!isLegacyColorCode(chars[i])) {
 				stringBuilder.append(chars[i]);

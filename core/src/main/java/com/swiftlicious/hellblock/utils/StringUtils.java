@@ -13,7 +13,7 @@ public class StringUtils {
 	}
 
 	public static boolean isCapitalLetter(String item) {
-		char[] chars = item.toCharArray();
+		final char[] chars = item.toCharArray();
 		for (char character : chars) {
 			if ((character < 65 || character > 90) && character != 95) {
 				return false;
@@ -23,9 +23,9 @@ public class StringUtils {
 	}
 
 	public static String toLowerCase(String input) {
-		char[] chars = input.toCharArray();
+		final char[] chars = input.toCharArray();
 		for (int i = 0; i < chars.length; i++) {
-			char c = chars[i];
+			final char c = chars[i];
 			if (c >= 'A' && c <= 'Z') {
 				chars[i] = (char) (c + 32);
 			}
@@ -34,8 +34,8 @@ public class StringUtils {
 	}
 
 	public static String toCamelCase(String s) {
-		String[] parts = s.split("_");
-		StringBuilder camelCaseString = new StringBuilder();
+		final String[] parts = s.split("_");
+		final StringBuilder camelCaseString = new StringBuilder();
 		for (String part : parts) {
 			camelCaseString.append(toProperCase(part));
 		}
@@ -51,10 +51,10 @@ public class StringUtils {
 	 *         Credits to mikenon on GitHub!
 	 */
 	public static String prettifyText(ItemStack ugly) {
-		StringBuilder fin = new StringBuilder();
-		String pretty = ugly.getType().toString().toLowerCase(java.util.Locale.ENGLISH);
+		final StringBuilder fin = new StringBuilder();
+		final String pretty = ugly.getType().toString().toLowerCase(java.util.Locale.ENGLISH);
 		if (pretty.contains("_")) {
-			String[] splt = pretty.split("_");
+			final String[] splt = pretty.split("_");
 			int i = 0;
 			for (String s : splt) {
 				i += 1;
@@ -78,37 +78,43 @@ public class StringUtils {
 	}
 
 	public static boolean isInteger(String s, int radix) {
-		if (s.isEmpty())
+		if (s.isEmpty()) {
 			return false;
+		}
 		for (int i = 0; i < s.length(); i++) {
 			if (i == 0 && s.charAt(i) == '-') {
-				if (s.length() == 1)
+				if (s.length() == 1) {
 					return false;
-				else
+				} else {
 					continue;
+				}
 			}
-			if (Character.digit(s.charAt(i), radix) < 0)
+			if (Character.digit(s.charAt(i), radix) < 0) {
 				return false;
+			}
 		}
 		return true;
 	}
 
 	public static String serializeLoc(@NotNull Location loc) {
-		if (loc.getWorld() == null)
+		if (loc.getWorld() == null) {
 			return null;
+		}
 		return loc.getWorld().getName() + ":" + loc.getX() + ":" + loc.getY() + ":" + loc.getZ();
 	}
 
 	public static Location deserializeLoc(String serializedLoc) {
-		if (serializedLoc == null || serializedLoc.trim().equals(""))
+		if (serializedLoc == null || "".equals(serializedLoc.trim())) {
 			return null;
-		String[] locParts = serializedLoc.split(":");
-		if (locParts.length != 4)
+		}
+		final String[] locParts = serializedLoc.split(":");
+		if (locParts.length != 4) {
 			return null;
-		World world = Bukkit.getWorld(locParts[0]);
-		double x = Double.parseDouble(locParts[1]);
-		double y = Double.parseDouble(locParts[2]);
-		double z = Double.parseDouble(locParts[3]);
+		}
+		final World world = Bukkit.getWorld(locParts[0]);
+		final double x = Double.parseDouble(locParts[1]);
+		final double y = Double.parseDouble(locParts[2]);
+		final double z = Double.parseDouble(locParts[3]);
 		return new Location(world, x, y, z);
 	}
 }

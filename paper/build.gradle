@@ -1,0 +1,17 @@
+/*
+ * Paper Aggregator Project
+ * ------------------------
+ * This project doesn't produce code — it simply groups versioned Paper NMS modules
+ * (v1_17_R1 → v1_21_R6) under one logical umbrella.
+ */
+
+plugins {
+    id 'base' // Marks as a valid Gradle project (non-Java)
+}
+
+description = "Paper versioned NMS aggregator for Hellblock"
+
+// Optional: define all version submodules for clarity (Gradle auto-detects them anyway)
+subprojects {
+    group = "com.swiftlicious.hellblock.paper"
+}

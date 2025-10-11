@@ -22,7 +22,7 @@ public class ReloadCommand extends BukkitCommandFeature<CommandSender> {
 			Command.Builder<CommandSender> builder) {
 		return builder.flag(manager.flagBuilder("silent").withAliases("s")).handler(context -> {
 			if (!HellblockPlugin.getInstance().isReloading()) {
-				long time = System.currentTimeMillis();
+				final long time = System.currentTimeMillis();
 				HellblockPlugin.getInstance().reload();
 				handleFeedback(context, MessageConstants.COMMAND_RELOAD_SUCCESS,
 						Component.text(System.currentTimeMillis() - time));

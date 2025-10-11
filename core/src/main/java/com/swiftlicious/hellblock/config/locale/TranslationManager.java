@@ -17,7 +17,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class TranslationManager {
@@ -46,7 +45,7 @@ public class TranslationManager {
 			this.installed.clear();
 		}
 
-		String supportedLocales = HellblockProperties.getValue("lang");
+		final String supportedLocales = HellblockProperties.getValue("lang");
 		for (String lang : supportedLocales.split(",")) {
 			this.plugin.getConfigManager().saveResource("messages/" + lang + ".yml");
 		}
@@ -95,7 +94,7 @@ public class TranslationManager {
 	public void loadFromFileSystem(Path directory, boolean suppressDuplicatesError) {
 		List<Path> translationFiles;
 		try (Stream<Path> stream = Files.list(directory)) {
-			translationFiles = stream.filter(path -> isTranslationFile(path)).collect(Collectors.toList());
+			translationFiles = stream.filter(this::isTranslationFile).toList();
 		} catch (IOException e) {
 			translationFiles = Collections.emptyList();
 		}
@@ -104,22 +103,22 @@ public class TranslationManager {
 			return;
 		}
 
-		Map<Locale, Map<String, String>> loaded = new HashMap<>();
-		for (Path translationFile : translationFiles) {
+		final Map<Locale, Map<String, String>> loaded = new HashMap<>();
+		translationFiles.forEach(translationFile -> {
 			try {
-				Pair<Locale, Map<String, String>> result = loadTranslationFile(translationFile);
+				final Pair<Locale, Map<String, String>> result = loadTranslationFile(translationFile);
 				loaded.put(result.left(), result.right());
 			} catch (Exception e) {
 				if (!suppressDuplicatesError || !isAdventureDuplicatesException(e)) {
 					plugin.getPluginLogger().warn("Error loading locale file: " + translationFile.getFileName(), e);
 				}
 			}
-		}
+		});
 
 		// try registering the locale without a country code - if we don't already have
 		// a registration for that
 		loaded.forEach((locale, bundle) -> {
-			Locale localeWithoutCountry = Locale.of(locale.getLanguage());
+			final Locale localeWithoutCountry = Locale.of(locale.getLanguage());
 			if (!locale.equals(localeWithoutCountry) && !localeWithoutCountry.equals(DEFAULT_LOCALE)
 					&& this.installed.add(localeWithoutCountry)) {
 				try {
@@ -130,9 +129,9 @@ public class TranslationManager {
 			}
 		});
 
-		Locale localLocale = Locale.getDefault();
+		final Locale localLocale = Locale.getDefault();
 		if (!this.installed.contains(localLocale) && FORCE_LOCALE == null) {
-			plugin.getPluginLogger().warn(localLocale.toString().toLowerCase(Locale.ENGLISH) + ".yml not exists, using "
+			plugin.getPluginLogger().warn(localLocale.toString().toLowerCase(Locale.ENGLISH) + ".yml doesn't exist, using "
 					+ DEFAULT_LOCALE.toString().toLowerCase(Locale.ENGLISH) + ".yml as default locale.");
 		}
 	}
@@ -148,16 +147,16 @@ public class TranslationManager {
 
 	@SuppressWarnings("unchecked")
 	private Pair<Locale, Map<String, String>> loadTranslationFile(Path translationFile) {
-		String fileName = translationFile.getFileName().toString();
-		String localeString = fileName.substring(0, fileName.length() - ".yml".length());
-		Locale locale = parseLocale(localeString);
+		final String fileName = translationFile.getFileName().toString();
+		final String localeString = fileName.substring(0, fileName.length() - ".yml".length());
+		final Locale locale = parseLocale(localeString);
 
 		if (locale == null) {
 			throw new IllegalStateException("Unknown locale '" + localeString + "' - unable to register.");
 		}
 
-		Map<String, String> bundle = new HashMap<>();
-		YamlDocument document = plugin.getConfigManager()
+		final Map<String, String> bundle = new HashMap<>();
+		final YamlDocument document = plugin.getConfigManager()
 				.loadConfig("messages" + File.separator + translationFile.getFileName(), '@');
 		try {
 			document.save(new File(plugin.getDataFolder().toPath().toAbsolutePath().toFile(),
@@ -165,20 +164,18 @@ public class TranslationManager {
 		} catch (IOException e) {
 			throw new IllegalStateException("Could not update translation file: " + translationFile.getFileName(), e);
 		}
-		Map<String, Object> map = document.getStringRouteMappedValues(false);
+		final Map<String, Object> map = document.getStringRouteMappedValues(false);
 		map.remove("config-version");
-		for (Map.Entry<String, Object> entry : map.entrySet()) {
+		map.entrySet().forEach(entry -> {
 			if (entry.getValue() instanceof List<?> list) {
-				List<String> strList = (List<String>) list;
-				StringJoiner stringJoiner = new StringJoiner("<reset><newline>");
-				for (String str : strList) {
-					stringJoiner.add(str);
-				}
+				final List<String> strList = (List<String>) list;
+				final StringJoiner stringJoiner = new StringJoiner("<reset><newline>");
+				strList.forEach(stringJoiner::add);
 				bundle.put(entry.getKey(), stringJoiner.toString());
 			} else if (entry.getValue() instanceof String str) {
 				bundle.put(entry.getKey(), str);
 			}
-		}
+		});
 
 		this.registry.registerAll(locale, bundle);
 		this.installed.add(locale);

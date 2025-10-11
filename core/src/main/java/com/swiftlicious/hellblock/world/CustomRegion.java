@@ -1,0 +1,85 @@
+package com.swiftlicious.hellblock.world;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+
+import org.jetbrains.annotations.NotNull;
+
+public class CustomRegion implements CustomRegionInterface {
+
+	private final HellblockWorld<?> world;
+	private final RegionPos regionPos;
+	private final ConcurrentMap<ChunkPos, byte[]> cachedChunks;
+	private boolean isLoaded = false;
+
+	protected CustomRegion(HellblockWorld<?> world, RegionPos regionPos) {
+		this.world = world;
+		this.cachedChunks = new ConcurrentHashMap<>();
+		this.regionPos = regionPos;
+	}
+
+	protected CustomRegion(HellblockWorld<?> world, RegionPos regionPos, ConcurrentMap<ChunkPos, byte[]> cachedChunks) {
+		this.world = world;
+		this.regionPos = regionPos;
+		this.cachedChunks = cachedChunks;
+	}
+
+	@Override
+	public boolean isLoaded() {
+		return isLoaded;
+	}
+
+	@Override
+	public void unload() {
+		if (this.isLoaded && ((HellblockWorld<?>) world).unloadRegion(this)) {
+			this.isLoaded = false;
+		}
+	}
+
+	@Override
+	public void load() {
+		final boolean loadCondition = !this.isLoaded && ((HellblockWorld<?>) world).loadRegion(this);
+		if (loadCondition) {
+			this.isLoaded = true;
+		}
+	}
+
+	@NotNull
+	@Override
+	public HellblockWorld<?> getWorld() {
+		return this.world;
+	}
+
+	@Override
+	public byte[] getCachedChunkBytes(ChunkPos pos) {
+		return this.cachedChunks.get(pos);
+	}
+
+	@NotNull
+	@Override
+	public RegionPos regionPos() {
+		return this.regionPos;
+	}
+
+	@Override
+	public boolean removeCachedChunk(ChunkPos pos) {
+		return cachedChunks.remove(pos) != null;
+	}
+
+	@Override
+	public void setCachedChunk(ChunkPos pos, byte[] data) {
+		this.cachedChunks.put(pos, data);
+	}
+
+	@Override
+	public Map<ChunkPos, byte[]> dataToSave() {
+		return new HashMap<>(cachedChunks);
+	}
+
+	@Override
+	public boolean canPrune() {
+		return cachedChunks.isEmpty();
+	}
+}

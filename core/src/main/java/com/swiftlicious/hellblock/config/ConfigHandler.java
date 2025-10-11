@@ -97,6 +97,9 @@ public abstract class ConfigHandler implements ConfigLoader, Reloadable {
 	protected int multipleLootSpawnDelay;
 	protected boolean restrictedSizeRange;
 	protected List<String> durabilityLore;
+	protected String magmaWalkerBookName;
+	protected List<String> magmaWalkerBookLore;
+	protected List<String> magmaWalkerBootsLore;
 	protected EventPriority eventPriority;
 	protected Requirement<Player>[] fishingRequirements;
 	protected Requirement<Player>[] autoFishingRequirements;
@@ -105,6 +108,7 @@ public abstract class ConfigHandler implements ConfigLoader, Reloadable {
 	protected List<TriConsumer<Effect, Context<Player>, Integer>> globalEffects;
 
 	protected boolean worldguardProtect;
+	protected boolean disableGenerationAnimation;
 	protected boolean perPlayerWorlds;
 	protected boolean transferIslands;
 	protected boolean linkHellblocks;
@@ -116,24 +120,28 @@ public abstract class ConfigHandler implements ConfigLoader, Reloadable {
 	protected boolean growNaturalTrees;
 	protected boolean useParticleBorder;
 	protected boolean voidTeleport;
+	protected boolean lightningDeath;
 	protected boolean asyncWorldSaving;
 	protected String schematicPaster;
 	protected String worldName;
 	protected String chestInventoryName;
 	protected String spawnCommand;
 	protected String absoluteWorldPath;
-	protected int partySize;
-	protected int distance;
 	protected int height;
-	protected int protectionRange;
 	protected int abandonTime;
+	protected int maxBioCharLength;
+	protected int maxNameCharLength;
+	protected int maxColorCodes;
+	protected int maxNewLines;
+	protected int wrapLength;
+	protected List<String> bannedWords;
 	protected Set<IslandOptions> islandOptions = new HashSet<>();
 	protected Map<Integer, Pair<Integer, CustomItem>> chestItems = new HashMap<>();
 
-	protected Map<Integer, Tuple<Material, EntityType, Float>> levelSystem = new HashMap<>();
+	protected Map<Integer, Tuple<Material, EntityType, MathValue<Player>>> levelSystem = new HashMap<>();
 
 	protected boolean clearDefaultOutcome;
-	protected Set<CustomItem> barteringItems = new HashSet<>();
+	protected Map<CustomItem, MathValue<Player>> barteringItems = new HashMap<>();
 
 	protected boolean randomStats;
 	protected int randomMinHealth;
@@ -204,13 +212,21 @@ public abstract class ConfigHandler implements ConfigLoader, Reloadable {
 	public boolean growNaturalTrees() {
 		return growNaturalTrees;
 	}
-	
+
 	public boolean useParticleBorder() {
 		return useParticleBorder;
 	}
 
+	public boolean disableGenerationAnimation() {
+		return disableGenerationAnimation;
+	}
+
 	public boolean voidTeleport() {
 		return voidTeleport;
+	}
+
+	public boolean lightningOnDeath() {
+		return lightningDeath;
 	}
 
 	public boolean asyncWorldSaving() {
@@ -241,31 +257,43 @@ public abstract class ConfigHandler implements ConfigLoader, Reloadable {
 		return chestItems;
 	}
 
-	public int partySize() {
-		return partySize;
-	}
-
-	public int protectionRange() {
-		return protectionRange;
-	}
-
 	public int height() {
 		return height;
-	}
-
-	public int distance() {
-		return distance;
 	}
 
 	public int abandonAfterDays() {
 		return abandonTime;
 	}
 
+	public int maxBioCharLength() {
+		return maxBioCharLength;
+	}
+
+	public int maxNameCharLength() {
+		return maxNameCharLength;
+	}
+
+	public int maxColorCodes() {
+		return maxColorCodes;
+	}
+
+	public int maxNewLines() {
+		return maxNewLines;
+	}
+
+	public int wrapLength() {
+		return wrapLength;
+	}
+
+	public List<String> bannedWords() {
+		return bannedWords;
+	}
+
 	public Set<IslandOptions> islandOptions() {
 		return islandOptions;
 	}
 
-	public Map<Integer, Tuple<Material, EntityType, Float>> levelSystem() {
+	public Map<Integer, Tuple<Material, EntityType, MathValue<Player>>> levelSystem() {
 		return levelSystem;
 	}
 
@@ -273,7 +301,7 @@ public abstract class ConfigHandler implements ConfigLoader, Reloadable {
 		return clearDefaultOutcome;
 	}
 
-	public Set<CustomItem> barteringItems() {
+	public Map<CustomItem, MathValue<Player>> barteringItems() {
 		return barteringItems;
 	}
 
@@ -445,6 +473,18 @@ public abstract class ConfigHandler implements ConfigLoader, Reloadable {
 		return durabilityLore;
 	}
 
+	public String bookName() {
+		return magmaWalkerBookName;
+	}
+
+	public List<String> bookLore() {
+		return magmaWalkerBookLore;
+	}
+
+	public List<String> bootsLore() {
+		return magmaWalkerBootsLore;
+	}
+
 	public EventPriority eventPriority() {
 		return eventPriority;
 	}
@@ -498,7 +538,7 @@ public abstract class ConfigHandler implements ConfigLoader, Reloadable {
 	public void unregisterNodeFunction(Map<String, Node<ConfigParserFunction>> functionMap, String... nodes) {
 		for (int i = 0; i < nodes.length; i++) {
 			if (functionMap.containsKey(nodes[i])) {
-				Node<ConfigParserFunction> functionNode = functionMap.get(nodes[i]);
+				final Node<ConfigParserFunction> functionNode = functionMap.get(nodes[i]);
 				if (i != nodes.length - 1) {
 					if (functionNode.nodeValue() != null) {
 						return;
@@ -518,14 +558,14 @@ public abstract class ConfigHandler implements ConfigLoader, Reloadable {
 			Map<String, Node<ConfigParserFunction>> functionMap) {
 		for (int i = 0; i < nodes.length; i++) {
 			if (functionMap.containsKey(nodes[i])) {
-				Node<ConfigParserFunction> functionNode = functionMap.get(nodes[i]);
+				final Node<ConfigParserFunction> functionNode = functionMap.get(nodes[i]);
 				if (functionNode.nodeValue() != null) {
 					throw new IllegalArgumentException("Format function '" + nodes[i] + "' already exists");
 				}
 				functionMap = functionNode.getChildTree();
 			} else {
 				if (i != nodes.length - 1) {
-					Node<ConfigParserFunction> newNode = new Node<>();
+					final Node<ConfigParserFunction> newNode = new Node<>();
 					functionMap.put(nodes[i], newNode);
 					functionMap = newNode.getChildTree();
 				} else {
@@ -540,7 +580,7 @@ public abstract class ConfigHandler implements ConfigLoader, Reloadable {
 			throw new IllegalArgumentException("ResourcePath cannot be null or empty");
 		}
 		filePath = filePath.replace('\\', '/');
-		Path configFile = instance.getDataFolder().toPath().toAbsolutePath().resolve(filePath);
+		final Path configFile = instance.getDataFolder().toPath().toAbsolutePath().resolve(filePath);
 		// if the config doesn't exist, create it based on the template in the resources
 		// dir
 		if (!Files.exists(configFile)) {
@@ -552,7 +592,7 @@ public abstract class ConfigHandler implements ConfigLoader, Reloadable {
 			try (InputStream is = instance.getResource(filePath.replace("\\", "/"))) {
 				if (is == null) {
 					throw new IllegalArgumentException(
-							String.format("The embedded resource '%s' cannot be found", filePath));
+							"The embedded resource '%s' cannot be found".formatted(filePath));
 				}
 				Files.copy(is, configFile);
 			} catch (IOException ex) {
@@ -581,7 +621,7 @@ public abstract class ConfigHandler implements ConfigLoader, Reloadable {
 						}
 					}).build(), UpdaterSettings.builder().setVersioning(new BasicVersioning("config-version")).build());
 		} catch (IOException ex) {
-			instance.getPluginLogger().severe(String.format("Failed to load config %s", filePath), ex);
+			instance.getPluginLogger().severe("Failed to load config %s".formatted(filePath), ex);
 			throw new RuntimeException(ex);
 		}
 	}
@@ -591,7 +631,7 @@ public abstract class ConfigHandler implements ConfigLoader, Reloadable {
 		try (InputStream inputStream = new FileInputStream(file)) {
 			return YamlDocument.create(inputStream);
 		} catch (IOException ex) {
-			instance.getPluginLogger().severe(String.format("Failed to load config %s", file), ex);
+			instance.getPluginLogger().severe("Failed to load config %s".formatted(file), ex);
 			throw new RuntimeException(ex);
 		}
 	}
@@ -602,7 +642,7 @@ public abstract class ConfigHandler implements ConfigLoader, Reloadable {
 			return YamlDocument.create(inputStream,
 					GeneralSettings.builder().setRouteSeparator(routeSeparator).build());
 		} catch (IOException ex) {
-			instance.getPluginLogger().severe(String.format("Failed to load config %s", file), ex);
+			instance.getPluginLogger().severe("Failed to load config %s".formatted(file), ex);
 			throw new RuntimeException(ex);
 		}
 	}

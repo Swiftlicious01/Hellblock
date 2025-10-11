@@ -1,7 +1,6 @@
 package com.swiftlicious.hellblock.listeners.rain;
 
 import java.util.Collection;
-import java.util.Iterator;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
@@ -39,21 +38,24 @@ import net.kyori.adventure.sound.Sound;
  * A task responsible for animating lava rain on a completely random timer
  * sequence.
  */
-public class LavaRainTask implements Runnable {
+public final class LavaRainTask implements Runnable {
 
-	protected final HellblockPlugin instance;
-
+	private final HellblockPlugin instance;
 	private final HellblockWorld<?> world;
 	private final SchedulerTask cancellableTask;
+
 	private boolean isRaining;
 	private long howLongRainLasts;
 	private boolean hasRainedRecently;
-	private boolean waitCache;
-	private boolean warnCache;
 
-	protected final Set<EntityType> immuneMobs = Set.of(EntityType.PLAYER, EntityType.STRIDER, EntityType.BLAZE,
+	private boolean waitCache;
+
+	// according to me all nether mobs would be immune to the effects of lava +
+	// warden obviously and vex is like a ghost so it makes sense?
+	private static final Set<EntityType> IMMUNE_MOBS = Set.of(EntityType.PLAYER, EntityType.STRIDER, EntityType.BLAZE,
 			EntityType.WITHER_SKELETON, EntityType.ZOMBIFIED_PIGLIN, EntityType.ZOGLIN, EntityType.VEX,
-			EntityType.WITHER, EntityType.WARDEN);
+			EntityType.WITHER, EntityType.WARDEN, EntityType.PIGLIN, EntityType.PIGLIN_BRUTE, EntityType.HOGLIN,
+			EntityType.MAGMA_CUBE, EntityType.GHAST);
 
 	/**
 	 * Constructs a new LavaRainTask.
@@ -66,202 +68,255 @@ public class LavaRainTask implements Runnable {
 	 */
 	public LavaRainTask(HellblockPlugin plugin, HellblockWorld<?> world, boolean isRaining, boolean hasRainedRecently,
 			long howLongRainLasts) {
-		instance = plugin;
+		this.instance = plugin;
 		this.world = world;
 		this.isRaining = isRaining;
 		this.hasRainedRecently = hasRainedRecently;
 		this.howLongRainLasts = howLongRainLasts;
-		this.cancellableTask = plugin.getScheduler().sync().runRepeating(this, 0, instance.getConfigManager().delay(),
-				LocationUtils.getAnyLocationInstance());
+		this.cancellableTask = plugin.getScheduler().sync().runRepeating(this::run, 0,
+				instance.getConfigManager().delay(), LocationUtils.getAnyLocationInstance());
+
+		// Bootstrap the cycle if not starting with rain
+		if (!isRaining) {
+			// This schedules cooldown + warning + first rain
+			handleRainEnd();
+		}
 	}
 
 	@Override
 	public void run() {
-		if (!instance.getConfigManager().lavaRainEnabled())
+		if (!instance.getConfigManager().lavaRainEnabled()) {
 			return;
+		}
 
-		Iterator<Player> players = instance.getStorageManager().getOnlineUsers().stream()
-				.filter(user -> user != null && user.isOnline()
-						&& user.getPlayer().getWorld().getName().equalsIgnoreCase(this.world.worldName()))
-				.map(UserData::getPlayer).iterator();
+		tickRainCycle();
 
-		while (true) {
+		instance.getStorageManager().getOnlineUsers().stream().map(UserData::getPlayer).filter(this::isInTargetWorld)
+				.forEach(this::processPlayer);
+	}
 
-			if (getHowLongItWillLavaRainFor() <= 0) {
-				if (!this.waitCache) {
-					setLavaRainStatus(false);
-					setHasLavaRainedRecently(true);
-					instance.getScheduler().asyncLater(() -> setHasLavaRainedRecently(false), 5, TimeUnit.MINUTES);
-					instance.getScheduler().asyncLater(() -> {
-						setHowLongItWillLavaRainFor(RandomUtils.generateRandomInt(150, 300));
-						setLavaRainStatus(true);
-						this.waitCache = false;
-					}, RandomUtils.generateRandomInt(10, 25), TimeUnit.MINUTES);
-					this.waitCache = true;
-				}
+	private void tickRainCycle() {
+		if (howLongRainLasts <= 0) {
+			if (!waitCache && isRaining) {
+				handleRainEnd(); // handles cooldown, warning, and next rain scheduling
+			}
+		} else if (isRaining) {
+			howLongRainLasts--;
+		}
+	}
+
+	private void processPlayer(Player player) {
+		if (!isRaining) {
+			return;
+		}
+
+		handlePlayerEffects(player);
+		handleMobEffects(player);
+		spawnParticlesAndFire(player);
+		if (instance.getLavaRainHandler().willTNTExplode()) {
+			triggerTNTEvents(player.getWorld(), player.getLocation());
+		}
+	}
+
+	private void broadcastWarning() {
+		if (!instance.getLavaRainHandler().willSendWarning()) {
+			return;
+		}
+		instance.getStorageManager().getOnlineUsers().stream().map(UserData::getPlayer).filter(this::isInTargetWorld)
+				.forEach(player -> instance.getSenderFactory().wrap(player).sendMessage(instance.getTranslationManager()
+						.render(MessageConstants.MSG_HELLBLOCK_LAVARAIN_WARNING.build())));
+	}
+
+	private void handlePlayerEffects(Player player) {
+		final Block highest = instance.getLavaRainHandler().getHighestBlock(player.getLocation());
+		if (highest == null) {
+			return;
+		}
+
+		final boolean hasHelmet = hasValidNetherHelmet(player.getInventory().getHelmet());
+		if (!hasHelmet && !player.hasPotionEffect(PotionEffectType.FIRE_RESISTANCE) && player.getFireTicks() <= 10) {
+			player.setFireTicks(120);
+		}
+	}
+
+	private boolean hasValidNetherHelmet(ItemStack helmet) {
+		return helmet != null && helmet.getType() != Material.AIR
+				&& instance.getNetherArmorHandler().isNetherArmorEnabled(helmet)
+				&& instance.getNetherArmorHandler().checkArmorData(helmet)
+				&& instance.getNetherArmorHandler().getArmorData(helmet);
+	}
+
+	private void handleMobEffects(Player player) {
+		if (!instance.getLavaRainHandler().canHurtLivingCreatures()) {
+			return;
+		}
+
+		final World w = world.bukkitWorld();
+		final Collection<Entity> entities = w.getNearbyEntities(player.getLocation(), 20.0D, 20.0D, 20.0D,
+				e -> !IMMUNE_MOBS.contains(e.getType()) && e instanceof LivingEntity);
+
+		entities.stream().map(e -> (LivingEntity) e).filter(living -> {
+			final Block above = instance.getLavaRainHandler().getHighestBlock(living.getLocation());
+			return above != null && (above.isPassable() || above.isEmpty() || above.isLiquid())
+					&& !living.hasPotionEffect(PotionEffectType.FIRE_RESISTANCE) && living.getFireTicks() <= 10;
+		}).forEach(living -> living.setFireTicks(120));
+	}
+
+	private void spawnParticlesAndFire(Player player) {
+		final World w = world.bukkitWorld();
+		final LavaRainLocation rainArea = getRainArea(player.getLocation());
+
+		rainArea.getBlocks().forEachRemaining(block -> {
+			if (RandomUtils.generateRandomInt(8) != 1) {
 				return;
 			}
 
-			labelLavaRain: while (true) {
-				Player player;
-				do {
-					if (!players.hasNext()) {
-						setHowLongItWillLavaRainFor(
-								getHowLongItWillLavaRainFor() > 0 ? getHowLongItWillLavaRainFor() - 1 : 0);
-						return;
-					}
-
-					player = players.next();
-				} while (!player.isOp() && !player.hasPermission("hellblock.admin"));
-
-				int warnTime = RandomUtils.generateRandomInt(3, 5);
-
-				if (instance.getLavaRainHandler().willSendWarning() && !this.warnCache && !isLavaRaining()) {
-					instance.getSenderFactory().wrap(player).sendMessage(instance.getTranslationManager()
-							.render(MessageConstants.MSG_HELLBLOCK_LAVARAIN_WARNING.build()));
-					this.warnCache = true;
-					instance.getScheduler().asyncLater(() -> this.warnCache = false, warnTime++, TimeUnit.SECONDS);
-				}
-
-				if (this.warnCache) {
+			final Block particleBlock = findAirBelow(block);
+			if (particleBlock != null) {
+				Block highest = instance.getLavaRainHandler().getHighestBlock(particleBlock.getLocation());
+				if (highest != null && highest.getY() > particleBlock.getY())
 					return;
-				}
 
-				Location location = player.getLocation();
-				if (location == null)
-					return;
-				World world = this.world.bukkitWorld();
-				if (world.getEnvironment() != Environment.NETHER)
-					return;
-				Location add = location.clone().add((double) instance.getConfigManager().radius(), 20.0D,
-						(double) instance.getConfigManager().radius());
-				Location sub = location.clone().subtract((double) instance.getConfigManager().radius(), 0.0D,
-						(double) instance.getConfigManager().radius()).add(0.0D, 20.0D, 0.0D);
-				LavaRainLocation lavaRainLocation = instance.getLavaRainHandler().new LavaRainLocation(add, sub);
-				Iterator<Block> blocks = lavaRainLocation.getBlocks();
-				Block block;
-				Block particleSpawn;
-				if (instance.getHellblockHandler().isInCorrectWorld(player)) {
-					while (true) {
-						while (true) {
-							do {
-								do {
-									if (!blocks.hasNext()) {
-										block = instance.getLavaRainHandler().getHighestBlock(location);
-										if (block != null && (block.isPassable() || block.isEmpty() || block.isLiquid()
-												|| !block.getType().isSolid() || block.getType().isOccluding())) {
-											ItemStack helmet = player.getInventory().getHelmet();
-											boolean checkHelmet = false;
-											if (helmet != null && helmet.getType() != Material.AIR) {
-												if (instance.getNetherArmorHandler().isNetherArmorEnabled(helmet)) {
-													if (instance.getNetherArmorHandler().checkArmorData(helmet)
-															&& instance.getNetherArmorHandler().getArmorData(helmet)) {
-														checkHelmet = true;
-													}
-												}
-											}
-											if (!checkHelmet
-													&& !player.hasPotionEffect(PotionEffectType.FIRE_RESISTANCE)
-													&& player.getFireTicks() <= 10) {
-												player.setFireTicks(120);
-											}
-										}
-										if (instance.getLavaRainHandler().canHurtLivingCreatures()) {
-											Collection<Entity> entities = world.getNearbyEntities(location, 20.0D,
-													20.0D, 20.0D, (e) -> !immuneMobs.contains(e.getType()));
-											for (Entity entity : entities) {
-												if (entity instanceof LivingEntity living) {
-													Block above = instance.getLavaRainHandler()
-															.getHighestBlock(living.getLocation());
-													if (above != null && (above.isPassable() || above.isEmpty()
-															|| above.isLiquid() || !above.getType().isSolid()
-															|| above.getType().isOccluding())) {
-														if (!living.hasPotionEffect(PotionEffectType.FIRE_RESISTANCE)
-																&& living.getFireTicks() <= 10)
-															living.setFireTicks(120);
-													}
-												}
-											}
-										}
-										continue labelLavaRain;
-									}
+				w.spawnParticle(Particle.DRIPPING_LAVA, particleBlock.getLocation(), 1);
+				AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
+						Sound.sound(net.kyori.adventure.key.Key.key("minecraft:block.pointed_dripstone.drip_lava"),
+								Sound.Source.WEATHER, 1F, 1F),
+						player.getLocation().getX(), player.getLocation().getY(), player.getLocation().getZ());
+			}
 
-									block = blocks.next();
-								} while (RandomUtils.generateRandomInt(8) != 1);
+			if (Math.random() < instance.getConfigManager().fireChance() / 1000.0D) {
+				tryPlaceFire(rainArea);
+			}
+		});
 
-								BlockIterator iterator = new BlockIterator(world, block.getLocation().toVector(),
-										new Vector(0, -1, 0), 0.0D, 30);
-								particleSpawn = null;
+		// Fill cauldrons with lava during lava rain
+		fillNearbyCauldronsWithLava(player.getLocation());
+	}
 
-								while (iterator.hasNext()) {
-									Block air = iterator.next();
-									if (air.isEmpty()) {
-										particleSpawn = air;
-										break;
-									}
-								}
+	private void fillNearbyCauldronsWithLava(Location center) {
+		final World world = center.getWorld();
+		if (world == null)
+			return;
 
-								if (particleSpawn != null) {
-									world.spawnParticle(Particle.DRIPPING_LAVA, particleSpawn.getLocation(), 1, 0.0D,
-											0.0D, 0.0D, 0.0D);
-									AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
-											Sound.sound(
-													net.kyori.adventure.key.Key
-															.key("minecraft:block.pointed_dripstone.drip_lava"),
-													net.kyori.adventure.sound.Sound.Source.WEATHER, 1F, 1F),
-											player.getLocation().getX(), player.getLocation().getY(),
-											player.getLocation().getZ());
-								}
-							} while (Math.random() >= (double) (instance.getConfigManager().fireChance() / 1000.0D));
+		// Define search radius (similar to lava rain radius)
+		final int radius = instance.getConfigManager().radius();
 
-							if (Math.random() < (double) (instance.getConfigManager().fireChance() / 1000.0D)) {
-								for (Iterator<Block> fireIterator = lavaRainLocation.getBlocks(); fireIterator
-										.hasNext();) {
-									Block fire = fireIterator.next();
-									if (fire.isEmpty()) {
-										fire.setType(fire.getRelative(BlockFace.DOWN).getType() == Material.SOUL_SAND
-												|| fire.getRelative(BlockFace.DOWN).getType() == Material.SOUL_SOIL
-														? Material.SOUL_FIRE
-														: Material.FIRE);
-										break;
-									}
-								}
-							}
+		for (int x = -radius; x <= radius; x++) {
+			for (int y = -2; y <= 2; y++) { // Vertical search - limited
+				for (int z = -radius; z <= radius; z++) {
+					Block block = world.getBlockAt(center.getBlockX() + x, center.getBlockY() + y,
+							center.getBlockZ() + z);
 
-							if (instance.getLavaRainHandler().willTNTExplode()) {
-								for (Iterator<Block> tntIterator = lavaRainLocation.getBlocks(); tntIterator
-										.hasNext();) {
-									Block tnt = tntIterator.next();
-									Block aboveTnt = world.getHighestBlockAt(tnt.getLocation());
-									if (aboveTnt.getType() == Material.TNT) {
-										aboveTnt.setType(Material.AIR);
-										world.spawn(aboveTnt.getLocation(), TNTPrimed.class, (primed) -> {
-											primed.setFuseTicks(RandomUtils.generateRandomInt(3, 5) * 20);
-										});
-									}
-								}
-								Collection<Entity> entities = world.getNearbyEntities(location, 15.0D, 15.0D, 15.0D,
-										(e) -> e.getType() == EntityType.TNT_MINECART);
-								for (Entity entity : entities) {
-									Block aboveMinecart = instance.getLavaRainHandler()
-											.getHighestBlock(entity.getLocation());
-									if (aboveMinecart != null && (aboveMinecart.isPassable() || aboveMinecart.isEmpty()
-											|| aboveMinecart.isLiquid() || !aboveMinecart.getType().isSolid()
-											|| aboveMinecart.getType().isOccluding())) {
-										ExplosiveMinecart tntMinecart = (ExplosiveMinecart) entity;
-										if (!tntMinecart.isIgnited())
-											tntMinecart.ignite();
-									}
-								}
-							}
+					if (block.getType() == Material.CAULDRON || block.getType() == Material.LAVA_CAULDRON) {
+						// Optional: check if exposed to sky/lava rain (not covered)
+						Block above = block.getRelative(BlockFace.UP);
+						if (!above.isPassable())
+							continue;
 
-							setHowLongItWillLavaRainFor(
-									getHowLongItWillLavaRainFor() > 0 ? getHowLongItWillLavaRainFor() - 1 : 0);
+						// Small random chance (like water cauldrons in vanilla rain)
+						if (Math.random() < 0.005) { // 0.5% chance per tick
+							block.setType(Material.LAVA_CAULDRON);
+							block.getState().update(true, true);
 						}
 					}
 				}
 			}
 		}
+	}
+
+	private Block findAirBelow(Block start) {
+		final BlockIterator it = new BlockIterator(world.bukkitWorld(), start.getLocation().toVector(),
+				new Vector(0, -1, 0), 0.0D, 30);
+		while (it.hasNext()) {
+			final Block b = it.next();
+			if (b.isEmpty()) {
+				return b;
+			}
+		}
+		return null;
+	}
+
+	private void tryPlaceFire(LavaRainLocation area) {
+		area.getBlocks().forEachRemaining(block -> {
+			if (!block.isEmpty())
+				return;
+
+			// Prevent placing fire under cover
+			Block highest = instance.getLavaRainHandler().getHighestBlock(block.getLocation());
+			if (highest != null && highest.getY() > block.getY())
+				return;
+
+			final Block below = block.getRelative(BlockFace.DOWN);
+			final Material fireType = (below.getType() == Material.SOUL_SAND || below.getType() == Material.SOUL_SOIL)
+					? Material.SOUL_FIRE
+					: Material.FIRE;
+
+			block.setType(fireType);
+			block.getState().update(true, false);
+		});
+	}
+
+	private void triggerTNTEvents(World w, Location location) {
+		// TNT blocks
+		getRainArea(location).getBlocks().forEachRemaining(block -> {
+			final Block top = w.getHighestBlockAt(block.getLocation());
+			if (top.getType() == Material.TNT) {
+				top.setType(Material.AIR);
+				w.spawn(top.getLocation(), TNTPrimed.class,
+						primed -> primed.setFuseTicks(RandomUtils.generateRandomInt(3, 5) * 20));
+			}
+		});
+
+		// TNT minecarts
+		w.getNearbyEntities(location, 15, 15, 15, e -> e.getType() == EntityType.TNT_MINECART).forEach(entity -> {
+			final Block top = instance.getLavaRainHandler().getHighestBlock(entity.getLocation());
+			if (top != null && (top.isPassable() || top.isEmpty() || top.isLiquid())) {
+				((ExplosiveMinecart) entity).ignite();
+			}
+		});
+	}
+
+	private void handleRainEnd() {
+		setLavaRainStatus(false);
+		setHasLavaRainedRecently(true);
+
+		// reset "recently rained" after 5 minutes
+		instance.getScheduler().asyncLater(() -> setHasLavaRainedRecently(false), 5, TimeUnit.MINUTES);
+
+		// instead of scheduling next rain right away, just mark waiting
+		this.waitCache = true;
+
+		// schedule the start of next rain directly (cooldown happens before start)
+		final long cooldownMinutes = RandomUtils.generateRandomInt(10, 25);
+		final long cooldownTicks = TimeUnit.MINUTES.toSeconds(cooldownMinutes) * 20;
+
+		// schedule the warning 5 seconds before rain
+		final long warnDelayTicks = Math.max(cooldownTicks - 100, 0);
+		instance.getScheduler().sync().runLater(this::broadcastWarning, warnDelayTicks,
+				LocationUtils.getAnyLocationInstance());
+
+		// schedule the actual rain start after cooldown
+		instance.getScheduler().asyncLater(this::startNextRain, cooldownMinutes, TimeUnit.MINUTES);
+	}
+
+	private void startNextRain() {
+		setHowLongItWillLavaRainFor(RandomUtils.generateRandomInt(150, 300));
+		setLavaRainStatus(true);
+		this.waitCache = false; // ready for next cycle
+	}
+
+	private LavaRainLocation getRainArea(Location center) {
+		final Location add = center.clone().add(instance.getConfigManager().radius(), 20,
+				instance.getConfigManager().radius());
+		final Location sub = center.clone()
+				.subtract(instance.getConfigManager().radius(), 0, instance.getConfigManager().radius()).add(0, 20, 0);
+		return instance.getLavaRainHandler().new LavaRainLocation(add, sub);
+	}
+
+	private boolean isInTargetWorld(Player player) {
+		return player != null && player.isOnline() && player.getWorld().getName().equalsIgnoreCase(world.worldName())
+				&& instance.getHellblockHandler().isInCorrectWorld(player)
+				&& world.bukkitWorld().getEnvironment() == Environment.NETHER;
 	}
 
 	public HellblockWorld<?> getWorld() {
@@ -296,8 +351,9 @@ public class LavaRainTask implements Runnable {
 	 * Cancels the rain animation and cleans up resources.
 	 */
 	public void cancelAnimation() {
-		if (!this.cancellableTask.isCancelled())
+		if (!this.cancellableTask.isCancelled()) {
 			this.cancellableTask.cancel();
+		}
 		this.isRaining = false;
 		this.howLongRainLasts = 0L;
 	}

@@ -34,8 +34,9 @@ public class UniversalItemFactory extends BukkitItemFactory {
 
 	@Override
 	protected Optional<String> displayName(RtagItem item) {
-		if (!item.hasTag("display", "Name"))
+		if (!item.hasTag("display", "Name")) {
 			return Optional.empty();
+		}
 		return Optional.of(item.get("display", "Name"));
 	}
 
@@ -50,8 +51,9 @@ public class UniversalItemFactory extends BukkitItemFactory {
 
 	@Override
 	protected Optional<Integer> customModelData(RtagItem item) {
-		if (!item.hasTag("CustomModelData"))
+		if (!item.hasTag("CustomModelData")) {
 			return Optional.empty();
+		}
 		return Optional.of(item.get("CustomModelData"));
 	}
 
@@ -69,8 +71,9 @@ public class UniversalItemFactory extends BukkitItemFactory {
 
 	@Override
 	protected Optional<List<String>> lore(RtagItem item) {
-		if (!item.hasTag("display", "Lore"))
+		if (!item.hasTag("display", "Lore")) {
 			return Optional.empty();
+		}
 		return Optional.of(item.get("display", "Lore"));
 	}
 
@@ -105,8 +108,9 @@ public class UniversalItemFactory extends BukkitItemFactory {
 
 	@Override
 	protected Optional<Integer> damage(RtagItem item) {
-		if (!item.hasTag("Damage"))
+		if (!item.hasTag("Damage")) {
 			return Optional.empty();
+		}
 		return Optional.of(item.get("Damage"));
 	}
 
@@ -134,25 +138,21 @@ public class UniversalItemFactory extends BukkitItemFactory {
 
 	@Override
 	protected void enchantments(RtagItem item, Map<Key, Short> enchantments) {
-		List<Object> tags = new ArrayList<>();
-		for (Map.Entry<Key, Short> entry : enchantments.entrySet()) {
-			tags.add((Map.of("id", entry.getKey().toString(), "lvl", entry.getValue())));
-		}
+		final List<Object> tags = new ArrayList<>();
+		enchantments.entrySet().forEach(entry -> tags.add((Map.of("id", entry.getKey().toString(), "lvl", entry.getValue()))));
 		item.set(tags, "Enchantments");
 	}
 
 	@Override
 	protected void storedEnchantments(RtagItem item, Map<Key, Short> enchantments) {
-		List<Object> tags = new ArrayList<>();
-		for (Map.Entry<Key, Short> entry : enchantments.entrySet()) {
-			tags.add((Map.of("id", entry.getKey().toString(), "lvl", entry.getValue())));
-		}
+		final List<Object> tags = new ArrayList<>();
+		enchantments.entrySet().forEach(entry -> tags.add((Map.of("id", entry.getKey().toString(), "lvl", entry.getValue()))));
 		item.set(tags, "StoredEnchantments");
 	}
 
 	@Override
 	protected void addEnchantment(RtagItem item, Key enchantment, int level) {
-		Object enchantments = item.getExact("Enchantments");
+		final Object enchantments = item.getExact("Enchantments");
 		if (enchantments != null) {
 			for (Object enchant : TagList.getValue(enchantments)) {
 				if (TagBase.getValue(TagCompound.get(enchant, "id")).equals(enchant.toString())) {
@@ -168,7 +168,7 @@ public class UniversalItemFactory extends BukkitItemFactory {
 
 	@Override
 	protected void addStoredEnchantment(RtagItem item, Key enchantment, int level) {
-		Object enchantments = item.getExact("StoredEnchantments");
+		final Object enchantments = item.getExact("StoredEnchantments");
 		if (enchantments != null) {
 			for (Object enchant : TagList.getValue(enchantments)) {
 				if (TagBase.getValue(TagCompound.get(enchant, "id")).equals(enchant.toString())) {
@@ -190,7 +190,7 @@ public class UniversalItemFactory extends BukkitItemFactory {
 		}
 		int f = 0;
 		for (String flag : flags) {
-			ItemFlag itemFlag = ItemFlag.valueOf(flag);
+			final ItemFlag itemFlag = ItemFlag.valueOf(flag);
 			f = f | 1 << itemFlag.ordinal();
 		}
 		item.set(f, "HideFlags");

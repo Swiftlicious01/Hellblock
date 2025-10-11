@@ -34,17 +34,18 @@ public class ActionDropItem<T> extends AbstractBuiltInAction<T> {
 
 	@Override
 	protected void triggerAction(Context<T> context) {
-		Location location = requireNonNull(context.arg(ContextKeys.LOCATION));
-		Player player;
+		final Location location = requireNonNull(context.arg(ContextKeys.LOCATION));
+		final Player player;
 		if (context.holder() instanceof Player p) {
 			player = p;
 		} else {
 			player = null;
 		}
-		int random = RandomUtils.generateRandomInt((int) min.evaluate(context), (int) max.evaluate(context));
-		if (random <= 0)
+		final int random = RandomUtils.generateRandomInt((int) min.evaluate(context), (int) max.evaluate(context));
+		if (random <= 0) {
 			return;
-		ItemStack itemStack = generateItem(player, random);
+		}
+		final ItemStack itemStack = generateItem(player, random);
 		plugin.getScheduler().sync().run(() -> {
 			if (itemStack != null && itemStack.getType() != Material.AIR && itemStack.getAmount() > 0) {
 				if (toInv && player != null) {
@@ -58,7 +59,7 @@ public class ActionDropItem<T> extends AbstractBuiltInAction<T> {
 
 	@Nullable
 	public ItemStack generateItem(@Nullable Player player, int amount) {
-		ItemStack itemStack = plugin.getItemManager().buildAny(Context.player(player), item);
+		final ItemStack itemStack = plugin.getItemManager().buildAny(Context.player(player), item);
 		if (itemStack != null) {
 			itemStack.setAmount(amount);
 		} else {

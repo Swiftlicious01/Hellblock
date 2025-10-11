@@ -3,6 +3,8 @@ package com.swiftlicious.hellblock.database.dependency.classloader;
 import java.net.URL;
 import java.net.URLClassLoader;
 
+import com.swiftlicious.hellblock.HellblockPlugin;
+
 /**
  * A classloader "isolated" from the rest of the Minecraft server.
  *
@@ -25,6 +27,6 @@ public class IsolatedClassLoader extends URLClassLoader {
 		 * from the Minecraft server (the app), we set the parent to be the platform
 		 * class loader.
 		 */
-		super(urls, ClassLoader.getSystemClassLoader().getParent());
+		super(urls, HellblockPlugin.class.getClassLoader());
 	}
 }

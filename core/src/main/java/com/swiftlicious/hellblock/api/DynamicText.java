@@ -24,7 +24,7 @@ public class DynamicText {
 	private void analyze(String value) {
 		// Analyze the provided text to find and replace placeholders with '%s'.
 		// Store the original value, placeholders, and the initial latest value.
-		List<String> placeholdersOwner = new ArrayList<>(
+		final List<String> placeholdersOwner = new ArrayList<>(
 				HellblockPlugin.getInstance().getPlaceholderManager().resolvePlaceholders(value));
 		String origin = value;
 		for (String placeholder : placeholdersOwner) {
@@ -42,21 +42,21 @@ public class DynamicText {
 	public boolean update(Map<String, String> placeholders) {
 		String string = originalValue;
 		if (this.placeholders.length != 0) {
-			PlaceholderManager placeholderManager = HellblockPlugin.getInstance().getPlaceholderManager();
+			final PlaceholderManager placeholderManager = HellblockPlugin.getInstance().getPlaceholderManager();
 			if ("%s".equals(originalValue)) {
 				string = placeholderManager.parseSingle(owner, this.placeholders[0], placeholders);
 			} else {
-				Object[] values = new String[this.placeholders.length];
+				final Object[] values = new String[this.placeholders.length];
 				for (int i = 0; i < this.placeholders.length; i++) {
 					values[i] = placeholderManager.parseSingle(owner, this.placeholders[i], placeholders);
 				}
-				string = String.format(originalValue, values);
+				string = originalValue.formatted(values);
 			}
 		}
-		if (!latestValue.equals(string)) {
-			latestValue = string;
-			return true;
+		if (latestValue.equals(string)) {
+			return false;
 		}
-		return false;
+		latestValue = string;
+		return true;
 	}
 }

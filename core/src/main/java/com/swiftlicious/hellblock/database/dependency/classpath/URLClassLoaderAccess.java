@@ -49,7 +49,7 @@ public abstract class URLClassLoaderAccess {
 	 */
 	public abstract void addURL(@NotNull URL url);
 
-	private static void throwError(Throwable cause) throws UnsupportedOperationException {
+	private static void throwError(Throwable cause) {
 		throw new UnsupportedOperationException("Unable to inject into the plugin URLClassLoader.\n"
 				+ "You may be able to fix this problem by adding the following command-line argument "
 				+ "directly after the 'java' command in your start script: \n'--add-opens java.base/java.lang=ALL-UNNAMED'",
@@ -102,7 +102,7 @@ public abstract class URLClassLoaderAccess {
 		static {
 			Object unsafe;
 			try {
-				Field unsafeField = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe");
+				final Field unsafeField = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe");
 				unsafeField.setAccessible(true);
 				unsafe = unsafeField.get(null);
 			} catch (Throwable ignored) {
@@ -125,7 +125,7 @@ public abstract class URLClassLoaderAccess {
 			Collection<URL> unopenedURLs;
 			Collection<URL> pathURLs;
 			try {
-				Object ucp = fetchField(URLClassLoader.class, classLoader, "ucp");
+				final Object ucp = fetchField(URLClassLoader.class, classLoader, "ucp");
 				unopenedURLs = (Collection<URL>) fetchField(ucp.getClass(), ucp, "unopenedUrls");
 				pathURLs = (Collection<URL>) fetchField(ucp.getClass(), ucp, "path");
 			} catch (Throwable e) {
@@ -139,9 +139,9 @@ public abstract class URLClassLoaderAccess {
 
 		private static Object fetchField(final Class<?> clazz, final Object object, final String name)
 				throws NoSuchFieldException {
-			Field field = clazz.getDeclaredField(name);
+			final Field field = clazz.getDeclaredField(name);
 			try {
-				long ucpOffset = (Long) UNSAFE.getClass().getDeclaredMethod("objectFieldOffset", Field.class)
+				final long ucpOffset = (Long) UNSAFE.getClass().getDeclaredMethod("objectFieldOffset", Field.class)
 						.invoke(UNSAFE, field);
 				return UNSAFE.getClass().getDeclaredMethod("getObject", Object.class, Long.TYPE).invoke(UNSAFE, object,
 						ucpOffset);
@@ -172,13 +172,13 @@ public abstract class URLClassLoaderAccess {
 			MethodHandles.Lookup lookup;
 			Object unsafe;
 			try {
-				Field unsafeField = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe");
+				final Field unsafeField = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe");
 				unsafeField.setAccessible(true);
 				unsafe = unsafeField.get(null);
-				Field lookupField = MethodHandles.Lookup.class.getDeclaredField("IMPL_LOOKUP");
-				Object lookupBase = unsafe.getClass().getDeclaredMethod("staticFieldBase", Field.class).invoke(unsafe,
-						lookupField);
-				long lookupOffset = (Long) unsafe.getClass().getDeclaredMethod("staticFieldOffset", Field.class)
+				final Field lookupField = MethodHandles.Lookup.class.getDeclaredField("IMPL_LOOKUP");
+				final Object lookupBase = unsafe.getClass().getDeclaredMethod("staticFieldBase", Field.class)
+						.invoke(unsafe, lookupField);
+				final long lookupOffset = (Long) unsafe.getClass().getDeclaredMethod("staticFieldOffset", Field.class)
 						.invoke(unsafe, lookupField);
 				lookup = (MethodHandles.Lookup) unsafe.getClass()
 						.getDeclaredMethod("getObject", Object.class, Long.TYPE)
@@ -202,9 +202,9 @@ public abstract class URLClassLoaderAccess {
 		@Override
 		public void addURL(URL url) {
 			try {
-				ClassLoader loader = Bukkit.class.getClassLoader();
-				if (loader.getClass().getSimpleName().equals("LaunchClassLoader")) {
-					MethodHandle methodHandle = LOOKUP.findVirtual(loader.getClass(), "addURL",
+				final ClassLoader loader = Bukkit.class.getClassLoader();
+				if ("LaunchClassLoader".equals(loader.getClass().getSimpleName())) {
+					final MethodHandle methodHandle = LOOKUP.findVirtual(loader.getClass(), "addURL",
 							MethodType.methodType(Void.TYPE, URL.class));
 					methodHandle.invoke(loader, url.toURI().toURL());
 				} else {
@@ -215,11 +215,11 @@ public abstract class URLClassLoaderAccess {
 						ucpField = loader.getClass().getSuperclass().getDeclaredField("ucp");
 					}
 
-					long ucpOffset = (Long) UNSAFE.getClass().getDeclaredMethod("objectFieldOffset", Field.class)
+					final long ucpOffset = (Long) UNSAFE.getClass().getDeclaredMethod("objectFieldOffset", Field.class)
 							.invoke(UNSAFE, ucpField);
-					Object ucp = UNSAFE.getClass().getDeclaredMethod("getObject", Object.class, Long.TYPE)
+					final Object ucp = UNSAFE.getClass().getDeclaredMethod("getObject", Object.class, Long.TYPE)
 							.invoke(UNSAFE, loader, ucpOffset);
-					MethodHandle methodHandle = LOOKUP.findVirtual(ucp.getClass(), "addURL",
+					final MethodHandle methodHandle = LOOKUP.findVirtual(ucp.getClass(), "addURL",
 							MethodType.methodType(Void.TYPE, URL.class));
 					methodHandle.invoke(ucp, url.toURI().toURL());
 				}

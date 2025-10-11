@@ -1,11 +1,10 @@
 package com.swiftlicious.hellblock.player;
 
-import java.util.Map;
 import java.util.HashMap;
+import java.util.Map;
 
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import com.google.gson.annotations.Expose;
 import com.google.gson.annotations.SerializedName;
@@ -13,13 +12,15 @@ import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.challenges.ChallengeResult;
 import com.swiftlicious.hellblock.challenges.ChallengeType;
 import com.swiftlicious.hellblock.challenges.HellblockChallenge;
+import com.swiftlicious.hellblock.challenges.HellblockChallenge.CompletionStatus;
 import com.swiftlicious.hellblock.challenges.ProgressBar;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.handlers.VersionHelper;
-import com.swiftlicious.hellblock.challenges.HellblockChallenge.CompletionStatus;
 
 public class ChallengeData {
+
+	private static final int PROGRESS_BAR_WIDTH = 25;
 
 	@Expose
 	@SerializedName("progression")
@@ -29,142 +30,100 @@ public class ChallengeData {
 		this.challenges = challenges;
 	}
 
-	public @Nullable Map<ChallengeType, ChallengeResult> getChallenges() {
+	public @NotNull Map<ChallengeType, ChallengeResult> getChallenges() {
 		return this.challenges;
 	}
 
+	private ChallengeResult getResult(@NotNull ChallengeType challenge) {
+		return challenges.get(challenge);
+	}
+
 	public int getChallengeProgress(@NotNull ChallengeType challenge) {
-		int progress = 0;
-		if (!this.challenges.isEmpty()) {
-			for (Map.Entry<ChallengeType, ChallengeResult> challenges : this.challenges.entrySet()) {
-				if (challenges.getKey().getId().equalsIgnoreCase(challenge.getId())) {
-					if (challenges.getValue().getStatus() == CompletionStatus.IN_PROGRESS) {
-						progress = challenges.getValue().getProgress();
-						break;
-					}
-				}
-			}
-		}
-		return progress;
+		final ChallengeResult result = getResult(challenge);
+		return (result != null && result.getStatus() == CompletionStatus.IN_PROGRESS) ? result.getProgress() : 0;
 	}
 
 	public boolean isChallengeActive(@NotNull ChallengeType challenge) {
-		boolean active = false;
-		if (!this.challenges.isEmpty()) {
-			for (Map.Entry<ChallengeType, ChallengeResult> challenges : this.challenges.entrySet()) {
-				if (challenges.getKey().getId().equalsIgnoreCase(challenge.getId())) {
-					active = challenges.getValue().getStatus() == CompletionStatus.IN_PROGRESS;
-					break;
-				}
-			}
-		}
-		return active;
+		final ChallengeResult result = getResult(challenge);
+		return result != null && result.getStatus() == CompletionStatus.IN_PROGRESS;
 	}
 
 	public boolean isChallengeCompleted(@NotNull ChallengeType challenge) {
-		boolean completed = false;
-		if (!this.challenges.isEmpty()) {
-			for (Map.Entry<ChallengeType, ChallengeResult> challenges : this.challenges.entrySet()) {
-				if (challenges.getKey().getId().equalsIgnoreCase(challenge.getId())) {
-					completed = challenges.getValue().getProgress() >= challenge.getNeededAmount();
-					break;
-				}
-			}
-		}
-		return completed;
+		final ChallengeResult result = getResult(challenge);
+		return result != null && result.getProgress() >= challenge.getNeededAmount();
 	}
 
 	public boolean isChallengeRewardClaimed(@NotNull ChallengeType challenge) {
-		boolean claimed = false;
-		if (!this.challenges.isEmpty()) {
-			for (Map.Entry<ChallengeType, ChallengeResult> challenges : this.challenges.entrySet()) {
-				if (challenges.getKey().getId().equalsIgnoreCase(challenge.getId())) {
-					if (challenges.getValue().getStatus() == CompletionStatus.COMPLETED) {
-						if (challenges.getValue().getProgress() == challenge.getNeededAmount()) {
-							claimed = challenges.getValue().isRewardClaimed();
-							break;
-						}
-					}
-				}
-			}
-		}
-		return claimed;
+		final ChallengeResult result = getResult(challenge);
+		return result != null && result.getStatus() == CompletionStatus.COMPLETED
+				&& result.getProgress() == challenge.getNeededAmount() && result.isRewardClaimed();
 	}
 
-	public void setChallenges(@Nullable Map<ChallengeType, ChallengeResult> challenges) {
+	public void setChallenges(@NotNull Map<ChallengeType, ChallengeResult> challenges) {
 		this.challenges = challenges;
 	}
 
 	public void setChallengeRewardAsClaimed(@NotNull ChallengeType challenge, boolean claimedReward) {
-		if (this.challenges.containsKey(challenge)
-				&& this.challenges.get(challenge).getStatus() == CompletionStatus.COMPLETED) {
-			this.challenges.get(challenge).setProgress(challenge.getNeededAmount());
-			this.challenges.get(challenge).setRewardClaimed(true);
+		final ChallengeResult result = getResult(challenge);
+		if (result == null || result.getStatus() != CompletionStatus.COMPLETED) {
+			return;
 		}
+		result.setProgress(challenge.getNeededAmount());
+		result.setRewardClaimed(true);
 	}
 
 	public void beginChallengeProgression(@NotNull Player player, @NotNull ChallengeType challenge) {
-		HellblockChallenge newChallenge = new HellblockChallenge(challenge, CompletionStatus.IN_PROGRESS, 1);
-		this.challenges.putIfAbsent(newChallenge.getChallengeType(),
+		final HellblockChallenge newChallenge = new HellblockChallenge(challenge, CompletionStatus.IN_PROGRESS, 1);
+		challenges.putIfAbsent(newChallenge.getChallengeType(),
 				new ChallengeResult(newChallenge.getCompletionStatus(), newChallenge.getProgress(), false));
-		VersionHelper.getNMSManager()
-				.sendActionBar(player,
-						AdventureHelper
-								.componentToJson(
-										HellblockPlugin.getInstance().getTranslationManager()
-												.render(MessageConstants.MSG_HELLBLOCK_CHALLENGE_PROGRESS_BAR
-														.arguments(
-																AdventureHelper.miniMessage(
-																		String.valueOf(this.challenges.get(challenge)
-																				.getProgress())),
-																AdventureHelper.miniMessage(
-																		String.valueOf(challenge.getNeededAmount())),
-																AdventureHelper.miniMessage(ProgressBar.getProgressBar(
-																		new ProgressBar(challenge.getNeededAmount(),
-																				this.challenges.get(challenge)
-																						.getProgress()),
-																		25)))
-														.build())));
+
+		sendProgressBar(player, challenge);
 	}
 
 	public void updateChallengeProgression(@NotNull Player player, @NotNull ChallengeType challenge,
 			int progressToAdd) {
-		if (this.challenges.containsKey(challenge)
-				&& this.challenges.get(challenge).getStatus() == CompletionStatus.IN_PROGRESS) {
-			this.challenges.get(challenge).setProgress(this.challenges.get(challenge).getProgress() + progressToAdd);
-			VersionHelper.getNMSManager()
-					.sendActionBar(player,
-							AdventureHelper
-									.componentToJson(
-											HellblockPlugin.getInstance().getTranslationManager()
-													.render(MessageConstants.MSG_HELLBLOCK_CHALLENGE_PROGRESS_BAR
-															.arguments(
-																	AdventureHelper.miniMessage(
-																			String.valueOf(this.challenges
-																					.get(challenge).getProgress())),
-																	AdventureHelper
-																			.miniMessage(String.valueOf(
-																					challenge.getNeededAmount())),
-																	AdventureHelper.miniMessage(
-																			ProgressBar.getProgressBar(new ProgressBar(
-																					challenge.getNeededAmount(),
-																					this.challenges.get(challenge)
-																							.getProgress()),
-																					25)))
-															.build())));
+		final ChallengeResult result = getResult(challenge);
+		if (result == null || result.getStatus() != CompletionStatus.IN_PROGRESS) {
+			return;
 		}
+		result.setProgress(result.getProgress() + progressToAdd);
+
+		sendProgressBar(player, challenge);
 	}
 
 	public void completeChallenge(@NotNull Player player, @NotNull ChallengeType challenge) {
-		if (this.challenges.containsKey(challenge)
-				&& this.challenges.get(challenge).getStatus() == CompletionStatus.IN_PROGRESS) {
-			this.challenges.remove(challenge);
-			HellblockChallenge completedChallenge = new HellblockChallenge(challenge, CompletionStatus.COMPLETED,
-					challenge.getNeededAmount());
-			this.challenges.putIfAbsent(completedChallenge.getChallengeType(),
-					new ChallengeResult(completedChallenge.getCompletionStatus(), challenge.getNeededAmount(), false));
-			HellblockPlugin.getInstance().getChallengeManager().performChallengeCompletionActions(player, challenge);
+		final ChallengeResult result = getResult(challenge);
+		if (result == null || result.getStatus() != CompletionStatus.IN_PROGRESS) {
+			return;
 		}
+
+		challenges.remove(challenge);
+
+		final HellblockChallenge completedChallenge = new HellblockChallenge(challenge, CompletionStatus.COMPLETED,
+				challenge.getNeededAmount());
+
+		challenges.putIfAbsent(completedChallenge.getChallengeType(),
+				new ChallengeResult(completedChallenge.getCompletionStatus(), challenge.getNeededAmount(), false));
+
+		HellblockPlugin.getInstance().getChallengeManager().performChallengeCompletionActions(player, challenge);
+	}
+
+	private void sendProgressBar(@NotNull Player player, @NotNull ChallengeType challenge) {
+		final ChallengeResult result = getResult(challenge);
+		if (result == null) {
+			return;
+		}
+
+		VersionHelper.getNMSManager()
+				.sendActionBar(player,
+						AdventureHelper.componentToJson(HellblockPlugin.getInstance().getTranslationManager()
+								.render(MessageConstants.MSG_HELLBLOCK_CHALLENGE_PROGRESS_BAR.arguments(
+										AdventureHelper.miniMessage(String.valueOf(result.getProgress())),
+										AdventureHelper.miniMessage(String.valueOf(challenge.getNeededAmount())),
+										AdventureHelper.miniMessage(ProgressBar.getProgressBar(
+												new ProgressBar(challenge.getNeededAmount(), result.getProgress()),
+												PROGRESS_BAR_WIDTH)))
+										.build())));
 	}
 
 	/**
@@ -177,6 +136,9 @@ public class ChallengeData {
 	}
 
 	public @NotNull ChallengeData copy() {
-		return new ChallengeData(challenges);
+		final Map<ChallengeType, ChallengeResult> copy = new HashMap<>();
+		// Ensure ChallengeResult has copy()
+		challenges.entrySet().forEach(entry -> copy.put(entry.getKey(), entry.getValue().copy()));
+		return new ChallengeData(copy);
 	}
 }

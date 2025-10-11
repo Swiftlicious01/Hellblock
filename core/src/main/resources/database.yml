@@ -1,19 +1,21 @@
 # Don't change this
-config-version: '1'
+config-version: '${config_version}'
 
 # file:
 #   JSON
 #   YAML
 #
-# local database
+# local database:
 #   SQLite
 #   H2 (preferred over SQLite)
 #
-# remote database
-#   MySQL
-#   MariaDB (preferred over MySQL)
-#   PostgreSQL
+# remote document database:
 #   MongoDB
+#
+# remote database:
+#   MySQL
+#   MariaDB
+#   PostgreSQL
 #
 data-storage-method: H2
 
@@ -39,7 +41,7 @@ MySQL:
     keep-alive-time: 60000
     time-out: 20000
   table-prefix: hellblock
- 
+
 PostgreSQL:
   host: 'localhost'
   port: '3306'

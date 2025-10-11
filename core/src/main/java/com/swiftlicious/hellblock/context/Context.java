@@ -3,11 +3,10 @@ package com.swiftlicious.hellblock.context;
 import java.util.Map;
 
 import org.bukkit.Location;
+import org.bukkit.block.data.BlockData;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-
-import com.swiftlicious.hellblock.world.HellblockBlockState;
 
 /**
  * The Context interface represents a generic context for custom mechanics. It
@@ -76,7 +75,7 @@ public interface Context<T> {
 	 *         not exist.
 	 */
 	default <C> C argOrDefault(ContextKeys<C> key, C value) {
-		C result = arg(key);
+		final C result = arg(key);
 		return result == null ? value : result;
 	}
 
@@ -103,6 +102,15 @@ public interface Context<T> {
 	void clearCustomData();
 
 	/**
+	 * Creates an empty player-specific context.
+	 *
+	 * @return a new empty Context instance.
+	 */
+	static Context<Player> empty() {
+		return new PlayerContext(null, false);
+	}
+
+	/**
 	 * Creates a player-specific context.
 	 *
 	 * @param player the player to be used as the holder of the context.
@@ -112,16 +120,16 @@ public interface Context<T> {
 		return new PlayerContext(player, false);
 	}
 
-    /**
-     * Creates a block-specific context.
-     *
-     * @param block the block to be used as the holder of the context.
-     * @param location the location of the block
-     * @return a new Context instance with the specified block as the holder.
-     */
-    static Context<HellblockBlockState> block(@NotNull HellblockBlockState block, @NotNull Location location) {
-        return new BlockContext(block, location, false);
-    }
+	/**
+	 * Creates a block-specific context.
+	 *
+	 * @param block    the block to be used as the holder of the context.
+	 * @param location the location of the block
+	 * @return a new Context instance with the specified block as the holder.
+	 */
+	static Context<BlockData> block(@NotNull BlockData block, @NotNull Location location) {
+		return new BlockContext(block, location, false);
+	}
 
 	/**
 	 * Creates a player-specific context.
@@ -134,17 +142,17 @@ public interface Context<T> {
 		return new PlayerContext(player, threadSafe);
 	}
 
-    /**
-     * Creates a block-specific context.
-     *
-     * @param block the block to be used as the holder of the context.
-     * @param location the location of the block
-     * @param threadSafe is the created map thread safe
-     * @return a new Context instance with the specified block as the holder.
-     */
-    static Context<HellblockBlockState> block(@NotNull HellblockBlockState block, @NotNull Location location, boolean threadSafe) {
-        return new BlockContext(block, location, threadSafe);
-    }
+	/**
+	 * Creates a block-specific context.
+	 *
+	 * @param block      the block to be used as the holder of the context.
+	 * @param location   the location of the block
+	 * @param threadSafe is the created map thread safe
+	 * @return a new Context instance with the specified block as the holder.
+	 */
+	static Context<BlockData> block(@NotNull BlockData block, @NotNull Location location, boolean threadSafe) {
+		return new BlockContext(block, location, threadSafe);
+	}
 
 	/**
 	 * Updates location for the context

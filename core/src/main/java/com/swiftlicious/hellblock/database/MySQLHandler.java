@@ -5,11 +5,6 @@ import com.swiftlicious.hellblock.HellblockPlugin;
 public class MySQLHandler extends AbstractHikariDatabase {
 
 	public MySQLHandler(HellblockPlugin plugin) {
-		super(plugin);
-	}
-
-	@Override
-	public StorageType getStorageType() {
-		return StorageType.MySQL;
+		super(plugin, StorageType.MySQL);
 	}
 }

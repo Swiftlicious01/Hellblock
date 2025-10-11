@@ -13,13 +13,9 @@ import org.jetbrains.annotations.Nullable;
 
 import com.swiftlicious.hellblock.context.Context;
 import com.swiftlicious.hellblock.context.ContextKeys;
-import com.swiftlicious.hellblock.creation.item.CustomItem;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.handlers.VersionHelper;
 import com.swiftlicious.hellblock.player.HellblockData;
-import com.swiftlicious.hellblock.utils.extras.Action;
-import com.swiftlicious.hellblock.utils.extras.Requirement;
-import com.swiftlicious.hellblock.utils.extras.Tuple;
 
 public class SchematicGUI {
 
@@ -66,9 +62,8 @@ public class SchematicGUI {
 			}
 			line++;
 		}
-		for (Map.Entry<Integer, SchematicGUIElement> entry : itemsSlotMap.entrySet()) {
-			this.inventory.setItem(entry.getKey(), entry.getValue().getItemStack().clone());
-		}
+		itemsSlotMap.entrySet()
+				.forEach(entry -> this.inventory.setItem(entry.getKey(), entry.getValue().getItemStack().clone()));
 	}
 
 	public SchematicGUI addElement(SchematicGUIElement... elements) {
@@ -85,8 +80,8 @@ public class SchematicGUI {
 
 	public void show() {
 		context.holder().openInventory(inventory);
-		VersionHelper.getNMSManager().updateInventoryTitle(context.holder(),
-				AdventureHelper.componentToJson(AdventureHelper.miniMessage(manager.title.render(context, true))));
+		VersionHelper.getNMSManager().updateInventoryTitle(context.holder(), AdventureHelper
+				.componentToJson(AdventureHelper.parseCenteredTitleMultiline(manager.title.render(context, true))));
 	}
 
 	@Nullable
@@ -113,25 +108,22 @@ public class SchematicGUI {
 			backElement.setItemStack(manager.backIcon.build(context));
 		}
 		if (manager.checkForSchematics()) {
-			for (Tuple<Character, String, Tuple<CustomItem, Action<Player>[], Requirement<Player>[]>> schematic : manager.schematicIcons) {
+			manager.schematicIcons.forEach(schematic -> {
 				SchematicDynamicGUIElement schematicElement = (SchematicDynamicGUIElement) getElement(schematic.left());
 				if (schematicElement != null && !schematicElement.getSlots().isEmpty()) {
 					schematicElement.setItemStack(schematic.right().left().build(context));
 				}
-			}
+			});
 		} else {
-			for (Tuple<Character, String, Tuple<CustomItem, Action<Player>[], Requirement<Player>[]>> schematic : manager.schematicIcons) {
-				SchematicDynamicGUIElement schematicElement = (SchematicDynamicGUIElement) getElement(schematic.left());
-				if (schematicElement != null && !schematicElement.getSlots().isEmpty()) {
-					schematicElement.setItemStack(new ItemStack(Material.AIR));
-				}
-			}
+			manager.schematicIcons.stream().map(schematic -> (SchematicDynamicGUIElement) getElement(schematic.left()))
+					.filter(schematicElement -> schematicElement != null && !schematicElement.getSlots().isEmpty())
+					.forEach(schematicElement -> schematicElement.setItemStack(new ItemStack(Material.AIR)));
 		}
-		for (Map.Entry<Integer, SchematicGUIElement> entry : itemsSlotMap.entrySet()) {
-			if (entry.getValue() instanceof SchematicDynamicGUIElement dynamicGUIElement) {
-				this.inventory.setItem(entry.getKey(), dynamicGUIElement.getItemStack().clone());
-			}
-		}
+		itemsSlotMap.entrySet().stream().filter(entry -> entry.getValue() instanceof SchematicDynamicGUIElement)
+				.forEach(entry -> {
+					SchematicDynamicGUIElement dynamicGUIElement = (SchematicDynamicGUIElement) entry.getValue();
+					this.inventory.setItem(entry.getKey(), dynamicGUIElement.getItemStack().clone());
+				});
 		return this;
 	}
 }

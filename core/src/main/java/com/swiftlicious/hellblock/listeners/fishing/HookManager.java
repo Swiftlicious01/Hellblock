@@ -68,8 +68,9 @@ public class HookManager implements Listener, HookManagerInterface {
 
 	@Override
 	public boolean registerHook(HookConfig hook) {
-		if (hooks.containsKey(hook.id()))
+		if (hooks.containsKey(hook.id())) {
 			return false;
+		}
 		hooks.put(hook.id(), hook);
 		return true;
 	}
@@ -82,41 +83,47 @@ public class HookManager implements Listener, HookManagerInterface {
 
 	@Override
 	public Optional<String> getHookID(ItemStack rod) {
-		if (rod == null || rod.getType() != Material.FISHING_ROD || rod.getAmount() == 0)
+		if (rod == null || rod.getType() != Material.FISHING_ROD || rod.getAmount() == 0) {
 			return Optional.empty();
+		}
 
-		Item<ItemStack> wrapped = instance.getItemManager().wrap(rod);
+		final Item<ItemStack> wrapped = instance.getItemManager().wrap(rod);
 		return wrapped.getTag("HellblockItem", "hook_id").map(o -> (String) o);
 	}
 
 	@EventHandler(ignoreCancelled = true)
 	public void onDragDrop(InventoryClickEvent event) {
 		final Player player = (Player) event.getWhoClicked();
-		if (!instance.getHellblockHandler().isInCorrectWorld(player.getWorld()))
+		if (!instance.getHellblockHandler().isInCorrectWorld(player.getWorld())) {
 			return;
-		if (event.getClickedInventory() != player.getInventory())
+		}
+		if (event.getClickedInventory() != player.getInventory()) {
 			return;
-		if (player.getGameMode() != GameMode.SURVIVAL)
+		}
+		if (player.getGameMode() != GameMode.SURVIVAL) {
 			return;
-		ItemStack clicked = event.getCurrentItem();
-		if (clicked == null || clicked.getType() != Material.FISHING_ROD)
+		}
+		final ItemStack clicked = event.getCurrentItem();
+		if (clicked == null || clicked.getType() != Material.FISHING_ROD) {
 			return;
-		if (instance.getFishingManager().getFishHook(player).isPresent())
+		}
+		if (instance.getFishingManager().getFishHook(player).isPresent()) {
 			return;
-		ItemStack cursor = event.getCursor();
+		}
+		final ItemStack cursor = event.getCursor();
 		if (cursor.getType() == Material.AIR) {
 			if (event.getClick() != ClickType.RIGHT) {
 				return;
 			}
-			Item<ItemStack> wrapped = instance.getItemManager().wrap(clicked);
+			final Item<ItemStack> wrapped = instance.getItemManager().wrap(clicked);
 			if (!wrapped.hasTag("HellblockItem", "hook_id")) {
 				return;
 			}
 			event.setCancelled(true);
-			String id = (String) wrapped.getTag("HellblockItem", "hook_id").orElseThrow();
-			byte[] hookItemBase64 = (byte[]) wrapped.getTag("HellblockItem", "hook_stack").orElse(null);
-			int damage = (int) wrapped.getTag("HellblockItem", "hook_damage").orElse(0);
-			ItemStack itemStack;
+			final String id = (String) wrapped.getTag("HellblockItem", "hook_id").orElseThrow();
+			final byte[] hookItemBase64 = (byte[]) wrapped.getTag("HellblockItem", "hook_stack").orElse(null);
+			final int damage = (int) wrapped.getTag("HellblockItem", "hook_damage").orElse(0);
+			final ItemStack itemStack;
 			if (hookItemBase64 != null) {
 				itemStack = bytesToHook(hookItemBase64);
 			} else {
@@ -132,12 +139,12 @@ public class HookManager implements Listener, HookManagerInterface {
 			// unsafe but have to use this
 			player.setItemOnCursor(itemStack);
 
-			List<String> previousLore = wrapped.lore().orElse(new ArrayList<>());
-			List<String> newLore = new ArrayList<>();
+			final List<String> previousLore = wrapped.lore().orElse(new ArrayList<>());
+			final List<String> newLore = new ArrayList<>();
 			for (String previous : previousLore) {
-				Component component = AdventureHelper.jsonToComponent(previous);
-				if (component instanceof ScoreComponent scoreComponent && scoreComponent.name().equals("hb")
-						&& scoreComponent.objective().equals("hook")) {
+				final Component component = AdventureHelper.jsonToComponent(previous);
+				if (component instanceof ScoreComponent scoreComponent && "hb".equals(scoreComponent.name())
+						&& "hook".equals(scoreComponent.objective())) {
 					continue;
 				}
 				newLore.add(previous);
@@ -147,32 +154,33 @@ public class HookManager implements Listener, HookManagerInterface {
 			return;
 		}
 
-		String hookID = instance.getItemManager().getItemID(cursor);
-		Optional<HookConfig> setting = getHook(hookID);
+		final String hookID = instance.getItemManager().getItemID(cursor);
+		final Optional<HookConfig> setting = getHook(hookID);
 		if (setting.isEmpty()) {
 			return;
 		}
 
-		Context<Player> context = Context.player(player);
-		HookConfig hookConfig = setting.get();
-		Optional<EffectModifier> modifier = instance.getEffectManager().getEffectModifier(hookID, MechanicType.HOOK);
-		if (modifier.isPresent()) {
-			if (!RequirementManager.isSatisfied(context, modifier.get().requirements())) {
-				return;
-			}
+		final Context<Player> context = Context.player(player);
+		final HookConfig hookConfig = setting.get();
+		final Optional<EffectModifier> modifier = instance.getEffectManager().getEffectModifier(hookID,
+				MechanicType.HOOK);
+		final boolean modifierCondition = modifier.isPresent()
+				&& !RequirementManager.isSatisfied(context, modifier.get().requirements());
+		if (modifierCondition) {
+			return;
 		}
 		event.setCancelled(true);
 
-		ItemStack clonedHook = cursor.clone();
+		final ItemStack clonedHook = cursor.clone();
 		clonedHook.setAmount(1);
 		cursor.setAmount(cursor.getAmount() - 1);
 
-		Item<ItemStack> wrapped = instance.getItemManager().wrap(clicked);
-		String previousHookID = (String) wrapped.getTag("HellblockItem", "hook_id").orElse(null);
+		final Item<ItemStack> wrapped = instance.getItemManager().wrap(clicked);
+		final String previousHookID = (String) wrapped.getTag("HellblockItem", "hook_id").orElse(null);
 		if (previousHookID != null) {
-			int previousHookDamage = (int) wrapped.getTag("HellblockItem", "hook_damage").orElse(0);
-			ItemStack previousItemStack;
-			byte[] stackBytes = (byte[]) wrapped.getTag("HellblockItem", "hook_stack").orElse(null);
+			final int previousHookDamage = (int) wrapped.getTag("HellblockItem", "hook_damage").orElse(0);
+			final ItemStack previousItemStack;
+			final byte[] stackBytes = (byte[]) wrapped.getTag("HellblockItem", "hook_stack").orElse(null);
 			if (stackBytes != null) {
 				previousItemStack = bytesToHook(stackBytes);
 			} else {
@@ -188,8 +196,8 @@ public class HookManager implements Listener, HookManagerInterface {
 			}
 		}
 
-		Item<ItemStack> wrappedHook = instance.getItemManager().wrap(clonedHook);
-		DurabilityItem durabilityItem;
+		final Item<ItemStack> wrappedHook = instance.getItemManager().wrap(clonedHook);
+		final DurabilityItem durabilityItem;
 		if (wrappedHook.hasTag("HellblockItem", "max_dur")) {
 			durabilityItem = new CustomDurabilityItem(wrappedHook);
 		} else if (hookConfig.maxUsages() > 0) {
@@ -204,28 +212,28 @@ public class HookManager implements Listener, HookManagerInterface {
 		wrapped.setTag(durabilityItem.damage(), "HellblockItem", "hook_damage");
 		wrapped.setTag(durabilityItem.maxDamage(), "HellblockItem", "hook_max_damage");
 
-		List<String> previousLore = wrapped.lore().orElse(new ArrayList<>());
-		List<String> newLore = new ArrayList<>();
-		List<String> durabilityLore = new ArrayList<>();
+		final List<String> previousLore = wrapped.lore().orElse(new ArrayList<>());
+		final List<String> newLore = new ArrayList<>();
+		final List<String> durabilityLore = new ArrayList<>();
 		for (String previous : previousLore) {
-			Component component = AdventureHelper.jsonToComponent(previous);
-			if (component instanceof ScoreComponent scoreComponent && scoreComponent.name().equals("hb")) {
-				if (scoreComponent.objective().equals("hook")) {
+			final Component component = AdventureHelper.jsonToComponent(previous);
+			if (component instanceof ScoreComponent scoreComponent && "hb".equals(scoreComponent.name())) {
+				if ("hook".equals(scoreComponent.objective())) {
 					continue;
-				} else if (scoreComponent.objective().equals("durability")) {
+				} else if ("durability".equals(scoreComponent.objective())) {
 					durabilityLore.add(previous);
 					continue;
 				}
 			}
 			newLore.add(previous);
 		}
-		for (String lore : hookConfig.lore()) {
-			ScoreComponent.Builder builder = Component.score().name("hb").objective("hook");
+		hookConfig.lore().forEach(lore -> {
+			final ScoreComponent.Builder builder = Component.score().name("hb").objective("hook");
 			builder.append(AdventureHelper.miniMessage(
 					lore.replace("{dur}", String.valueOf(durabilityItem.maxDamage() - durabilityItem.damage()))
 							.replace("{max}", String.valueOf(durabilityItem.maxDamage()))));
 			newLore.add(AdventureHelper.componentToJson(builder.build()));
-		}
+		});
 		newLore.addAll(durabilityLore);
 		wrapped.lore(newLore);
 		wrapped.load();
@@ -233,15 +241,16 @@ public class HookManager implements Listener, HookManagerInterface {
 
 	private byte[] hookToBytes(ItemStack hook) {
 		try {
-			byte[] data = ItemTagStream.INSTANCE.toBytes(hook);
-			int decompressedLength = data.length;
-			LZ4Compressor compressor = factory.fastCompressor();
-			int maxCompressedLength = compressor.maxCompressedLength(decompressedLength);
-			byte[] compressed = new byte[maxCompressedLength];
-			int compressedLength = compressor.compress(data, 0, decompressedLength, compressed, 0, maxCompressedLength);
+			final byte[] data = ItemTagStream.INSTANCE.toBytes(hook);
+			final int decompressedLength = data.length;
+			final LZ4Compressor compressor = factory.fastCompressor();
+			final int maxCompressedLength = compressor.maxCompressedLength(decompressedLength);
+			final byte[] compressed = new byte[maxCompressedLength];
+			final int compressedLength = compressor.compress(data, 0, decompressedLength, compressed, 0,
+					maxCompressedLength);
 
-			ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-			DataOutputStream outputStream = new DataOutputStream(byteArrayOutputStream);
+			final ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+			final DataOutputStream outputStream = new DataOutputStream(byteArrayOutputStream);
 			outputStream.writeInt(decompressedLength);
 			outputStream.write(compressed, 0, compressedLength);
 			outputStream.close();
@@ -254,13 +263,13 @@ public class HookManager implements Listener, HookManagerInterface {
 
 	private ItemStack bytesToHook(byte[] bytes) {
 		try {
-			DataInputStream inputStream = new DataInputStream(new ByteArrayInputStream(bytes));
-			int decompressedLength = inputStream.readInt();
-			byte[] compressed = new byte[inputStream.available()];
+			final DataInputStream inputStream = new DataInputStream(new ByteArrayInputStream(bytes));
+			final int decompressedLength = inputStream.readInt();
+			final byte[] compressed = new byte[inputStream.available()];
 			inputStream.readFully(compressed);
 
-			LZ4FastDecompressor decompressor = factory.fastDecompressor();
-			byte[] restored = new byte[decompressedLength];
+			final LZ4FastDecompressor decompressor = factory.fastDecompressor();
+			final byte[] restored = new byte[decompressedLength];
 			decompressor.decompress(compressed, 0, restored, 0, decompressedLength);
 
 			return ItemTagStream.INSTANCE.fromBytes(restored);

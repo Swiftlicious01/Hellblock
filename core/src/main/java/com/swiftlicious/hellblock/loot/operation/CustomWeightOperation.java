@@ -40,18 +40,16 @@ public class CustomWeightOperation implements WeightOperation {
 			context.arg(ContextKeys.TOTAL_WEIGHT, getValidTotalWeight(weights.values()));
 		}
 		if (!otherEntries.isEmpty()) {
-			for (String otherWeight : otherEntries) {
-				context.arg(ContextKeys.of("entry_" + otherWeight, Double.class), weights.get(otherWeight));
-			}
+			otherEntries.forEach(otherWeight -> context.arg(ContextKeys.of("entry_" + otherWeight, Double.class), weights.get(otherWeight)));
 		}
 		if (!otherGroups.isEmpty()) {
-			for (Pair<String, String[]> otherGroup : otherGroups) {
+			otherGroups.forEach(otherGroup -> {
 				double totalWeight = 0;
 				for (String id : otherGroup.right()) {
 					totalWeight += weights.getOrDefault(id, 0d);
 				}
 				context.arg(ContextKeys.of("group_" + otherGroup.left(), Double.class), totalWeight);
-			}
+			});
 		}
 		return arg.evaluate(context) / sharedMembers;
 	}

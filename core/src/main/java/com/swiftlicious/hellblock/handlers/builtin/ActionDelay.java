@@ -2,7 +2,6 @@ package com.swiftlicious.hellblock.handlers.builtin;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import org.bukkit.Location;
@@ -28,11 +27,12 @@ public class ActionDelay<T> extends AbstractBuiltInAction<T> {
 		if (args instanceof Section section) {
 			delay = section.getInt("delay", 1);
 			async = section.getBoolean("async", false);
-			Section actionSection = section.getSection("actions");
-			if (actionSection != null)
-				for (Map.Entry<String, Object> entry : actionSection.getStringRouteMappedValues(false).entrySet())
-					if (entry.getValue() instanceof Section innerSection)
-						actions.add(manager.parseAction(innerSection));
+			final Section actionSection = section.getSection("actions");
+			if (actionSection != null) {
+				actionSection.getStringRouteMappedValues(false).entrySet().stream()
+						.filter(entry -> entry.getValue() instanceof Section).map(entry -> (Section) entry.getValue())
+						.forEach(innerSection -> actions.add(manager.parseAction(innerSection)));
+			}
 		} else {
 			delay = 1;
 			async = false;
@@ -41,17 +41,13 @@ public class ActionDelay<T> extends AbstractBuiltInAction<T> {
 
 	@Override
 	protected void triggerAction(Context<T> context) {
-		Location location = context.arg(ContextKeys.LOCATION);
+		final Location location = context.arg(ContextKeys.LOCATION);
 		if (async) {
-			plugin.getScheduler().asyncLater(() -> {
-				for (Action<T> action : actions)
-					action.trigger(context);
-			}, delay * 50L, TimeUnit.MILLISECONDS);
+			plugin.getScheduler().asyncLater(() -> actions.forEach(action -> action.trigger(context)), delay * 50L,
+					TimeUnit.MILLISECONDS);
 		} else {
-			plugin.getScheduler().sync().runLater(() -> {
-				for (Action<T> action : actions)
-					action.trigger(context);
-			}, delay, location);
+			plugin.getScheduler().sync().runLater(() -> actions.forEach(action -> action.trigger(context)), delay,
+					location);
 		}
 	}
 

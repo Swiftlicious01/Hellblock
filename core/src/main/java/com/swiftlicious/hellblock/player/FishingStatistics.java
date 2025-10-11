@@ -35,9 +35,10 @@ public class FishingStatistics implements FishingStatisticsInterface {
 
 	@Override
 	public Pair<Integer, Integer> addAmount(String id, int amount) {
-		if (amount <= 0)
+		if (amount <= 0) {
 			return Pair.of(-1, -1);
-		int previous = amountMap.getOrDefault(id, 0);
+		}
+		final int previous = amountMap.getOrDefault(id, 0);
 		amountMap.put(id, previous + amount);
 		amountOfFishCaught += amount;
 		return Pair.of(previous, previous + amount);
@@ -45,10 +46,11 @@ public class FishingStatistics implements FishingStatisticsInterface {
 
 	@Override
 	public void setAmount(String id, int amount) {
-		if (amount < 0)
+		if (amount < 0) {
 			amount = 0;
-		int previous = amountMap.getOrDefault(id, 0);
-		int delta = amount - previous;
+		}
+		final int previous = amountMap.getOrDefault(id, 0);
+		final int delta = amount - previous;
 		this.amountOfFishCaught += delta;
 		amountMap.put(id, amount);
 	}
@@ -60,18 +62,21 @@ public class FishingStatistics implements FishingStatisticsInterface {
 
 	@Override
 	public void setMaxSize(String id, float maxSize) {
-		if (maxSize < 0)
+		if (maxSize < 0) {
 			return;
+		}
 		sizeMap.put(id, maxSize);
 	}
 
 	@Override
 	public boolean updateSize(String id, float newSize) {
-		if (newSize <= 0)
+		if (newSize <= 0) {
 			return false;
-		float previous = sizeMap.getOrDefault(id, 0f);
-		if (previous >= newSize)
+		}
+		final float previous = sizeMap.getOrDefault(id, 0f);
+		if (previous >= newSize) {
 			return false;
+		}
 		sizeMap.put(id, newSize);
 		return true;
 	}

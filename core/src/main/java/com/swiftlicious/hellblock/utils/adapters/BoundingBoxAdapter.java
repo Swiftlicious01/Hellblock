@@ -12,19 +12,20 @@ import com.google.gson.stream.JsonWriter;
 public class BoundingBoxAdapter extends TypeAdapter<BoundingBox> {
 
 	@Override
-	public void write(JsonWriter out, BoundingBox boundingBox) throws IOException {
-		if (boundingBox == null) {
+	public void write(JsonWriter out, BoundingBox box) throws IOException {
+		if (box == null) {
 			out.nullValue();
 			return;
 		}
-		out.beginArray();
-		out.value(boundingBox.getMinX());
-		out.value(boundingBox.getMinY());
-		out.value(boundingBox.getMinZ());
-		out.value(boundingBox.getMaxX());
-		out.value(boundingBox.getMaxY());
-		out.value(boundingBox.getMaxZ());
-		out.endArray();
+
+		out.beginObject();
+		out.name("minX").value(box.getMinX());
+		out.name("minY").value(box.getMinY());
+		out.name("minZ").value(box.getMinZ());
+		out.name("maxX").value(box.getMaxX());
+		out.name("maxY").value(box.getMaxY());
+		out.name("maxZ").value(box.getMaxZ());
+		out.endObject();
 	}
 
 	@Override
@@ -33,14 +34,22 @@ public class BoundingBoxAdapter extends TypeAdapter<BoundingBox> {
 			in.nextNull();
 			return null;
 		}
-		in.beginArray();
-		double minX = in.nextDouble();
-		double minY = in.nextDouble();
-		double minZ = in.nextDouble();
-		double maxX = in.nextDouble();
-		double maxY = in.nextDouble();
-		double maxZ = in.nextDouble();
-		in.endArray();
+
+		double minX = 0, minY = 0, minZ = 0, maxX = 0, maxY = 0, maxZ = 0;
+
+		in.beginObject();
+		while (in.hasNext()) {
+			switch (in.nextName()) {
+			case "minX" -> minX = in.nextDouble();
+			case "minY" -> minY = in.nextDouble();
+			case "minZ" -> minZ = in.nextDouble();
+			case "maxX" -> maxX = in.nextDouble();
+			case "maxY" -> maxY = in.nextDouble();
+			case "maxZ" -> maxZ = in.nextDouble();
+			}
+		}
+		in.endObject();
+
 		return new BoundingBox(minX, minY, minZ, maxX, maxY, maxZ);
 	}
 }

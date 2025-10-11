@@ -55,9 +55,6 @@ magnetic_bait:
     effect_1:
       type: wait-time-multiplier
       value: 0.9
-    effect_2:
-      type: group-mod
-      value: 2
 
 wild_bait:
   material: paper
@@ -79,6 +76,3 @@ wild_bait:
     effect_1:
       type: size-multiplier
       value: 1.5
-    effect_2:
-      type: group-mod
-      value: -2

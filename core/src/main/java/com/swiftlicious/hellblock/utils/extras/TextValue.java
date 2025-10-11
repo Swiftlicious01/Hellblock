@@ -86,9 +86,10 @@ public interface TextValue<T> {
 	 *         placeholder or plain text
 	 */
 	static <T> TextValue<T> auto(String arg) {
-		if (pattern.matcher(arg).find())
+		if (pattern.matcher(arg).find()) {
 			return placeholder(arg);
-		else
+		} else {
 			return plain(arg);
+		}
 	}
 }

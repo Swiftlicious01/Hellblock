@@ -29,7 +29,7 @@ public class LootBaseEffect implements LootBaseEffectInterface {
 
 	@Override
 	public Effect toEffect(Context<Player> context) {
-		Effect effect = EffectInterface.newInstance();
+		final Effect effect = EffectInterface.newInstance();
 		effect.waitTimeAdder(waitTimeAdder.evaluate(context));
 		effect.waitTimeMultiplier(waitTimeMultiplier.evaluate(context));
 		return effect;

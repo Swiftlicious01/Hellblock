@@ -15,6 +15,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import org.bukkit.Bukkit;
 import org.jetbrains.annotations.Nullable;
@@ -47,10 +48,10 @@ public class SQLiteHandler extends AbstractSQLDatabase {
 	 */
 	@Override
 	public void initialize(YamlDocument config) {
-		ClassLoader classLoader = plugin.getDependencyManager().obtainClassLoaderWith(
+		final ClassLoader classLoader = plugin.getDependencyManager().obtainClassLoaderWith(
 				EnumSet.of(Dependency.SQLITE_DRIVER, Dependency.SLF4J_SIMPLE, Dependency.SLF4J_API));
 		try {
-			Class<?> connectionClass = classLoader.loadClass("org.sqlite.jdbc4.JDBC4Connection");
+			final Class<?> connectionClass = classLoader.loadClass("org.sqlite.jdbc4.JDBC4Connection");
 			connectionConstructor = connectionClass.getConstructor(String.class, String.class, Properties.class);
 		} catch (ReflectiveOperationException ex) {
 			throw new RuntimeException(ex);
@@ -71,12 +72,26 @@ public class SQLiteHandler extends AbstractSQLDatabase {
 	public void disable() {
 		if (executor != null) {
 			executor.shutdown();
+			try {
+				if (!executor.awaitTermination(5, TimeUnit.SECONDS)) {
+					executor.shutdownNow();
+				}
+			} catch (InterruptedException e) {
+				executor.shutdownNow();
+				Thread.currentThread().interrupt(); // restore interrupt flag
+			}
 		}
-		try {
-			if (connection != null && !connection.isClosed())
-				connection.close();
-		} catch (SQLException e) {
-			throw new RuntimeException(e);
+
+		if (connection != null) {
+			try {
+				if (!connection.isClosed()) {
+					connection.close();
+				}
+			} catch (SQLException e) {
+				// Prefer logging over throwing during shutdown
+				HellblockPlugin.getInstance().getPluginLogger()
+						.severe("Failed to close database connection during shutdown", e);
+			}
 		}
 	}
 
@@ -97,7 +112,7 @@ public class SQLiteHandler extends AbstractSQLDatabase {
 			return connection;
 		}
 		try {
-			var properties = new Properties();
+			final var properties = new Properties();
 			properties.setProperty("foreign_keys", Boolean.toString(true));
 			properties.setProperty("encoding", "'UTF-8'");
 			properties.setProperty("synchronous", "FULL");
@@ -121,31 +136,32 @@ public class SQLiteHandler extends AbstractSQLDatabase {
 	 */
 	@Override
 	public CompletableFuture<Optional<PlayerData>> getPlayerData(UUID uuid, boolean lock, Executor executor) {
-		var future = new CompletableFuture<Optional<PlayerData>>();
-		if (executor == null)
+		final var future = new CompletableFuture<Optional<PlayerData>>();
+		if (executor == null) {
 			executor = this.executor;
+		}
 		executor.execute(() -> {
 			try (Connection connection = getConnection();
 					PreparedStatement statement = connection
-							.prepareStatement(String.format(SqlConstants.SQL_SELECT_BY_UUID, getTableName("data")))) {
+							.prepareStatement(SqlConstants.SQL_SELECT_BY_UUID.formatted(getTableName("data")))) {
 				statement.setString(1, uuid.toString());
-				ResultSet rs = statement.executeQuery();
+				final ResultSet rs = statement.executeQuery();
 				if (rs.next()) {
 					final byte[] dataByteArray = rs.getBytes("data");
-					PlayerData data = plugin.getStorageManager().fromBytes(dataByteArray);
+					final PlayerData data = plugin.getStorageManager().fromBytes(dataByteArray);
 					data.setUUID(uuid);
-					int lockValue = rs.getInt(2);
+					final int lockValue = rs.getInt(2);
 					if (lockValue != 0 && getCurrentSeconds() - 30 <= lockValue) {
-						connection.close();
 						data.setLocked(true);
 						future.complete(Optional.of(data));
 						return;
 					}
-					if (lock)
+					if (lock) {
 						lockOrUnlockPlayerData(uuid, true);
+					}
 					future.complete(Optional.of(data));
 				} else if (Bukkit.getPlayer(uuid) != null) {
-					var data = PlayerData.empty();
+					final var data = PlayerData.empty();
 					data.setUUID(uuid);
 					insertPlayerData(uuid, data, lock, connection);
 					future.complete(Optional.of(data));
@@ -153,7 +169,7 @@ public class SQLiteHandler extends AbstractSQLDatabase {
 					future.complete(Optional.empty());
 				}
 			} catch (SQLException ex) {
-				plugin.getPluginLogger().warn(String.format("Failed to get %s's data.", uuid), ex);
+				plugin.getPluginLogger().warn("Failed to get %s's data.".formatted(uuid), ex);
 				future.completeExceptionally(ex);
 			}
 		});
@@ -162,22 +178,22 @@ public class SQLiteHandler extends AbstractSQLDatabase {
 
 	@Override
 	public CompletableFuture<Boolean> updateOrInsertPlayerData(UUID uuid, PlayerData playerData, boolean unlock) {
-		var future = new CompletableFuture<Boolean>();
+		final var future = new CompletableFuture<Boolean>();
 		executor.execute(() -> {
 			try (Connection connection = getConnection();
 					PreparedStatement statement = connection
-							.prepareStatement(String.format(SqlConstants.SQL_SELECT_BY_UUID, getTableName("data")))) {
+							.prepareStatement(SqlConstants.SQL_SELECT_BY_UUID.formatted(getTableName("data")))) {
 				statement.setString(1, uuid.toString());
-				ResultSet rs = statement.executeQuery();
+				final ResultSet rs = statement.executeQuery();
 				if (rs.next()) {
 					try (PreparedStatement statement2 = connection
-							.prepareStatement(String.format(SqlConstants.SQL_UPDATE_BY_UUID, getTableName("data")))) {
+							.prepareStatement(SqlConstants.SQL_UPDATE_BY_UUID.formatted(getTableName("data")))) {
 						statement2.setInt(1, unlock ? 0 : getCurrentSeconds());
 						statement2.setBytes(2, plugin.getStorageManager().toBytes(playerData));
 						statement2.setString(3, uuid.toString());
 						statement2.executeUpdate();
 					} catch (SQLException ex) {
-						plugin.getPluginLogger().warn(String.format("Failed to update %s's data.", uuid), ex);
+						plugin.getPluginLogger().warn("Failed to update %s's data.".formatted(uuid), ex);
 					}
 					future.complete(true);
 				} else {
@@ -185,7 +201,7 @@ public class SQLiteHandler extends AbstractSQLDatabase {
 					future.complete(true);
 				}
 			} catch (SQLException ex) {
-				plugin.getPluginLogger().warn(String.format("Failed to get %s's data.", uuid), ex);
+				plugin.getPluginLogger().warn("Failed to get %s's data.".formatted(uuid), ex);
 				future.completeExceptionally(ex);
 			}
 		});
@@ -202,18 +218,18 @@ public class SQLiteHandler extends AbstractSQLDatabase {
 	 */
 	@Override
 	public CompletableFuture<Boolean> updatePlayerData(UUID uuid, PlayerData playerData, boolean unlock) {
-		var future = new CompletableFuture<Boolean>();
+		final var future = new CompletableFuture<Boolean>();
 		executor.execute(() -> {
 			try (Connection connection = getConnection();
 					PreparedStatement statement = connection
-							.prepareStatement(String.format(SqlConstants.SQL_UPDATE_BY_UUID, getTableName("data")))) {
+							.prepareStatement(SqlConstants.SQL_UPDATE_BY_UUID.formatted(getTableName("data")))) {
 				statement.setInt(1, unlock ? 0 : getCurrentSeconds());
 				statement.setBytes(2, playerData.toBytes());
 				statement.setString(3, uuid.toString());
 				statement.executeUpdate();
 				future.complete(true);
 			} catch (SQLException ex) {
-				plugin.getPluginLogger().warn(String.format("Failed to update %s's data.", uuid), ex);
+				plugin.getPluginLogger().warn("Failed to update %s's data.".formatted(uuid), ex);
 				future.completeExceptionally(ex);
 			}
 		});
@@ -228,7 +244,7 @@ public class SQLiteHandler extends AbstractSQLDatabase {
 	 */
 	@Override
 	public void updateManyPlayersData(Collection<? extends UserData> users, boolean unlock) {
-		String sql = String.format(SqlConstants.SQL_UPDATE_BY_UUID, getTableName("data"));
+		final String sql = SqlConstants.SQL_UPDATE_BY_UUID.formatted(getTableName("data"));
 		try (Connection connection = getConnection()) {
 			connection.setAutoCommit(false);
 			try (PreparedStatement statement = connection.prepareStatement(sql)) {
@@ -260,13 +276,13 @@ public class SQLiteHandler extends AbstractSQLDatabase {
 	protected void insertPlayerData(UUID uuid, PlayerData playerData, boolean lock, @Nullable Connection previous) {
 		try (Connection connection = previous == null ? getConnection() : previous;
 				PreparedStatement statement = connection
-						.prepareStatement(String.format(SqlConstants.SQL_INSERT_DATA_BY_UUID, getTableName("data")))) {
+						.prepareStatement(SqlConstants.SQL_INSERT_DATA_BY_UUID.formatted(getTableName("data")))) {
 			statement.setString(1, uuid.toString());
 			statement.setInt(2, lock ? getCurrentSeconds() : 0);
 			statement.setBytes(3, plugin.getStorageManager().toBytes(playerData));
 			statement.execute();
 		} catch (SQLException ex) {
-			plugin.getPluginLogger().warn(String.format("Failed to insert %s's data.", uuid), ex);
+			plugin.getPluginLogger().warn("Failed to insert %s's data.".formatted(uuid), ex);
 		}
 	}
 }

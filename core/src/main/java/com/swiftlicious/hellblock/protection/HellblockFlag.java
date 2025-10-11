@@ -18,6 +18,15 @@ public class HellblockFlag {
 		return this.status;
 	}
 
+	// Enum for all possible flags
+	// Each flag has a name, a default value, and optional data
+	// The default value is used when a region does not have a specific value set for that
+	// flag (eg. a new region) - this is usually false for most flags, but true for some (eg. mob spawning)
+	// The data is used for flags that require additional information (eg. greeting and farewell messages)
+	// The data can be null for flags that do not require additional information
+	// The data can be set and retrieved using the getData and setData methods
+	// The name is used for serialization and deserialization of the flag (eg. saving to
+	// a file or database)
 	public enum FlagType {
 		BLOCK_BREAK("block-break", false), BLOCK_PLACE("block-place", false), DAMAGE_ANIMALS("damage-animals", false),
 		MOB_DAMAGE("mob-damage", true), MOB_SPAWNING("mob-spawning", true), PVP("pvp", false), TNT("tnt", false),

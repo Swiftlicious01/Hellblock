@@ -12,10 +12,10 @@ import com.swiftlicious.hellblock.player.UserData;
 import dev.dejvokep.boostedyaml.YamlDocument;
 
 /**
- * An abstract class that implements the DataStorageInterface and provides
+ * An abstract class that implements the {@link DataStorageProvider} and provides
  * common functionality for data storage.
  */
-public abstract class AbstractStorage implements DataStorageInterface {
+public abstract class AbstractStorage implements DataStorageProvider {
 
 	protected HellblockPlugin plugin;
 
@@ -46,11 +46,10 @@ public abstract class AbstractStorage implements DataStorageInterface {
 
 	@Override
 	public void updateManyPlayersData(Collection<? extends UserData> users, boolean unlock) {
-		for (UserData user : users) {
-			this.updatePlayerData(user.getUUID(), user.toPlayerData(), unlock);
-		}
+		users.forEach((UserData user) -> this.updatePlayerData(user.getUUID(), user.toPlayerData(), unlock));
 	}
 
+	@Override
 	public void lockOrUnlockPlayerData(UUID uuid, boolean lock) {
 		// Note: Only remote database would override this method
 	}

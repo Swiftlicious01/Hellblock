@@ -104,11 +104,13 @@ public interface RequirementManager<T> extends Reloadable {
 	 * @return True if all requirements are satisfied, otherwise false.
 	 */
 	static <T> boolean isSatisfied(Context<T> context, @Nullable Requirement<T>[] requirements) {
-		if (requirements == null)
+		if (requirements == null) {
 			return true;
+		}
 		for (Requirement<T> requirement : requirements) {
-			if (requirement == null)
+			if (requirement == null) {
 				continue;
+			}
 			if (!requirement.isSatisfied(context)) {
 				return false;
 			}
@@ -125,11 +127,13 @@ public interface RequirementManager<T> extends Reloadable {
 	 * @return True if all requirements are satisfied, otherwise false.
 	 */
 	static <T> boolean isSatisfied(Context<T> context, @Nullable List<Requirement<T>> requirements) {
-		if (requirements == null)
+		if (requirements == null) {
 			return true;
+		}
 		for (Requirement<T> requirement : requirements) {
-			if (requirement == null)
+			if (requirement == null) {
 				continue;
+			}
 			if (!requirement.isSatisfied(context)) {
 				return false;
 			}

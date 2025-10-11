@@ -32,10 +32,7 @@ public class MiniMessageTranslator implements MiniMessageTranslatorInterface {
 
 	@Override
 	public @NotNull TriState hasAnyTranslations() {
-		if (!this.sources.isEmpty()) {
-			return TriState.TRUE;
-		}
-		return TriState.FALSE;
+		return !this.sources.isEmpty() ? TriState.TRUE : TriState.FALSE;
 	}
 
 	@Override
@@ -48,8 +45,9 @@ public class MiniMessageTranslator implements MiniMessageTranslatorInterface {
 	public @Nullable Component translate(@NotNull TranslatableComponent component, @NotNull Locale locale) {
 		for (final Translator source : this.sources) {
 			final Component translation = source.translate(component, locale);
-			if (translation != null)
+			if (translation != null) {
 				return translation;
+			}
 		}
 		return null;
 	}
@@ -61,8 +59,9 @@ public class MiniMessageTranslator implements MiniMessageTranslatorInterface {
 
 	@Override
 	public boolean addSource(final @NotNull Translator source) {
-		if (source == this)
+		if (source == this) {
 			throw new IllegalArgumentException("MiniMessageTranslationSource");
+		}
 		return this.sources.add(source);
 	}
 

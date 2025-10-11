@@ -38,12 +38,13 @@ public class ActionFakeItem<T> extends AbstractBuiltInAction<T> {
 	public ActionFakeItem(HellblockPlugin plugin, Section section, MathValue<T> chance) {
 		super(plugin, chance);
 		String itemID = section.getString("item", "");
-		String[] split = itemID.split(":");
-		if (split.length >= 2)
+		final String[] split = itemID.split(":");
+		if (split.length >= 2) {
 			itemID = split[split.length - 1];
+		}
 		this.itemID = itemID;
 		this.duration = MathValue.auto(section.get("duration", 20));
-		this.other = section.getString("position", "other").equals("other");
+		this.other = "other".equals(section.getString("position", "other"));
 		this.x = MathValue.auto(section.get("x", 0));
 		this.y = MathValue.auto(section.get("y", 0));
 		this.z = MathValue.auto(section.get("z", 0));
@@ -55,54 +56,50 @@ public class ActionFakeItem<T> extends AbstractBuiltInAction<T> {
 
 	@Override
 	protected void triggerAction(Context<T> context) {
-		if (context.argOrDefault(ContextKeys.OFFLINE, false))
+		if (context.argOrDefault(ContextKeys.OFFLINE, false)) {
 			return;
+		}
 		Player owner = null;
 		if (context.holder() instanceof Player p) {
 			owner = p;
 		}
-		Location location = other ? requireNonNull(context.arg(ContextKeys.LOCATION)).clone()
+		final Location location = other ? requireNonNull(context.arg(ContextKeys.LOCATION)).clone()
 				: requireNonNull(owner).getLocation().clone();
 		location.add(x.evaluate(context), y.evaluate(context), z.evaluate(context));
 		location.setPitch(0);
 		location.setYaw((float) yaw.evaluate(context));
-		FakeEntity fakeEntity;
+		final FakeEntity fakeEntity;
 		if (useItemDisplay && VersionHelper.isVersionNewerThan1_19_4()) {
 			location.add(0, 1.5, 0);
-			FakeItemDisplay itemDisplay = VersionHelper.getNMSManager().createFakeItemDisplay(location);
+			final FakeItemDisplay itemDisplay = VersionHelper.getNMSManager().createFakeItemDisplay(location);
 			itemDisplay.item(plugin.getItemManager().buildInternal(Context.player(requireNonNull(owner)), itemID));
 			fakeEntity = itemDisplay;
 		} else {
-			FakeArmorStand armorStand = VersionHelper.getNMSManager().createFakeArmorStand(location);
+			final FakeArmorStand armorStand = VersionHelper.getNMSManager().createFakeArmorStand(location);
 			armorStand.invisible(true);
 			armorStand.equipment(EquipmentSlot.HEAD,
 					plugin.getItemManager().buildInternal(Context.player(requireNonNull(owner)), itemID));
 			fakeEntity = armorStand;
 		}
-		List<Player> viewers = new ArrayList<>();
+		final List<Player> viewers = new ArrayList<>();
 		if (range > 0 && visibleToAll) {
-			for (Player player : location.getWorld().getPlayers()) {
-				if (LocationUtils.getDistance(player.getLocation(), location) <= range) {
-					viewers.add(player);
-				}
-			}
+			location.getWorld().getPlayers().stream()
+					.filter(player -> LocationUtils.getDistance(player.getLocation(), location) <= range)
+					.forEach(viewers::add);
 		} else {
 			if (owner != null) {
 				viewers.add(owner);
 			}
 		}
-		if (viewers.isEmpty())
+		if (viewers.isEmpty()) {
 			return;
-		for (Player player : viewers) {
-			fakeEntity.spawn(player);
 		}
-		plugin.getScheduler().asyncLater(() -> {
-			for (Player player : viewers) {
-				if (player.isOnline() && player.isValid()) {
-					fakeEntity.destroy(player);
-				}
+		viewers.forEach(fakeEntity::spawn);
+		plugin.getScheduler().asyncLater(() -> viewers.forEach(player -> {
+			if (player.isOnline() && player.isValid()) {
+				fakeEntity.destroy(player);
 			}
-		}, (long) (duration.evaluate(context) * 50), TimeUnit.MILLISECONDS);
+		}), (long) (duration.evaluate(context) * 50), TimeUnit.MILLISECONDS);
 	}
 
 	public String itemID() {

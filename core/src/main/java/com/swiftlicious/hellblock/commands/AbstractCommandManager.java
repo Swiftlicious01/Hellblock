@@ -42,7 +42,7 @@ public abstract class AbstractCommandManager<C> implements HellblockCommandManag
 	protected final Set<CommandFeature<C>> registeredFeatures = new HashSet<>();
 	protected final CommandManager<C> commandManager;
 	protected final HellblockPlugin plugin;
-	private final HellblockCaptionFormatter<C> captionFormatter = new HellblockCaptionFormatter<C>();
+	private final HellblockCaptionFormatter<C> captionFormatter = new HellblockCaptionFormatter<>();
 	private final MinecraftExceptionHandler.Decorator<C> decorator = (formatter, ctx, msg) -> msg;
 
 	private TriConsumer<C, String, Component> feedbackConsumer;
@@ -50,6 +50,9 @@ public abstract class AbstractCommandManager<C> implements HellblockCommandManag
 	public AbstractCommandManager(HellblockPlugin plugin, CommandManager<C> commandManager) {
 		this.commandManager = commandManager;
 		this.plugin = plugin;
+	}
+
+	public void init() {
 		this.inject();
 		this.feedbackConsumer = defaultFeedbackConsumer();
 	}
@@ -99,22 +102,24 @@ public abstract class AbstractCommandManager<C> implements HellblockCommandManag
 
 	@Override
 	public CommandConfig<C> getCommandConfig(YamlDocument document, String featureID) {
-		Section section = document.getSection(featureID);
-		if (section == null)
+		final Section section = document.getSection(featureID);
+		if (section == null) {
 			return null;
+		}
 		return new CommandConfig.Builder<C>().permission(section.getString("permission"))
 				.usages(section.getStringList("usage")).enable(section.getBoolean("enable", false)).build();
 	}
 
 	@Override
 	public Collection<Command.Builder<C>> buildCommandBuilders(CommandConfig<C> config) {
-		List<Command.Builder<C>> list = new ArrayList<>();
+		final List<Command.Builder<C>> list = new ArrayList<>();
 		for (String usage : config.getUsages()) {
-			if (!usage.startsWith("/"))
+			if (!usage.startsWith("/")) {
 				continue;
-			String command = usage.substring(1).trim();
-			String[] split = command.split(" ");
-			Command.Builder<C> builder = new CommandBuilder.BasicCommandBuilder<>(getCommandManager(), split[0])
+			}
+			final String command = usage.substring(1).trim();
+			final String[] split = command.split(" ");
+			final Command.Builder<C> builder = new CommandBuilder.BasicCommandBuilder<>(getCommandManager(), split[0])
 					.setCommandNode(ArrayUtils.subArray(split, 1)).setPermission(config.getPermission())
 					.getBuiltCommandBuilder();
 			list.add(builder);
@@ -124,12 +129,13 @@ public abstract class AbstractCommandManager<C> implements HellblockCommandManag
 
 	@Override
 	public void registerFeature(CommandFeature<C> feature, CommandConfig<C> config) {
-		if (!config.isEnabled())
+		if (!config.isEnabled()) {
 			throw new RuntimeException("Registering a disabled command feature is not allowed");
-		for (Command.Builder<C> builder : buildCommandBuilders(config)) {
-			Command<C> command = feature.registerCommand(commandManager, builder);
-			this.registeredRootCommandComponents.add(command.rootComponent());
 		}
+		buildCommandBuilders(config).forEach(builder -> {
+			final Command<C> command = feature.registerCommand(commandManager, builder);
+			this.registeredRootCommandComponents.add(command.rootComponent());
+		});
 		feature.registerRelatedFunctions();
 		this.registeredFeatures.add(feature);
 		((AbstractCommandFeature<C>) feature).setCommandConfig(config);
@@ -137,16 +143,18 @@ public abstract class AbstractCommandManager<C> implements HellblockCommandManag
 
 	@Override
 	public void registerDefaultFeatures() {
-		YamlDocument document = plugin.getConfigManager().loadConfig(commandsFile);
+		final YamlDocument document = plugin.getConfigManager().loadConfig(commandsFile);
 		try {
 			document.save(new File(plugin.getDataFolder().toPath().toAbsolutePath().toFile(), "commands.yml"));
 		} catch (IOException e) {
 			throw new RuntimeException(e);
 		}
 		this.getFeatures().values().forEach(feature -> {
-			CommandConfig<C> config = getCommandConfig(document, feature.getFeatureID());
-			if (config.isEnabled()) {
-				registerFeature(feature, config);
+			final CommandConfig<C> config = getCommandConfig(document, feature.getFeatureID());
+			if (config != null && config.isEnabled()) {
+			    registerFeature(feature, config);
+			} else if (config == null) {
+			    plugin.getPluginLogger().warn("[Cloud Debug] Missing command section for: " + feature.getFeatureID());
 			}
 		});
 	}
@@ -167,7 +175,7 @@ public abstract class AbstractCommandManager<C> implements HellblockCommandManag
 
 	@Override
 	public void handleCommandFeedback(C sender, TranslatableComponent.Builder key, Component... args) {
-		TranslatableComponent component = key.arguments(args).build();
+		final TranslatableComponent component = key.arguments(args).build();
 		this.feedbackConsumer.accept(sender, component.key(), plugin.getTranslationManager().render(component));
 	}
 

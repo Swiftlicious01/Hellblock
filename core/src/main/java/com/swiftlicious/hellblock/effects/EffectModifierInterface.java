@@ -65,9 +65,7 @@ public interface EffectModifierInterface {
 	 * @param context context
 	 */
 	default void apply(Effect effect, FishingEffectApplyEvent.Stage stage, Context<Player> context) {
-		for (TriConsumer<Effect, Context<Player>, Integer> consumer : modifiers()) {
-			consumer.accept(effect, context, stage.getId());
-		}
+		modifiers().forEach(consumer -> consumer.accept(effect, context, stage.getId()));
 	}
 
 	/**

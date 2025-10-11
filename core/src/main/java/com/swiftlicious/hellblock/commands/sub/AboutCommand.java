@@ -24,18 +24,27 @@ public class AboutCommand extends BukkitCommandFeature<CommandSender> {
 			Command.Builder<CommandSender> builder) {
 		return builder.senderType(Player.class).handler(context -> {
 			final Player player = context.sender();
-			Sender audience = HellblockPlugin.getInstance().getSenderFactory().wrap(player);
-			String version = VersionHelper.getPluginVersion();
-			String desc = HellblockPlugin.getInstance().getDescription().getDescription();
-			String author = HellblockPlugin.getInstance().getDescription().getAuthors().getFirst();
-			String link = HellblockPlugin.getInstance().getDescription().getWebsite();
+			final HellblockPlugin plugin = HellblockPlugin.getInstance();
+			final Sender audience = plugin.getSenderFactory().wrap(player);
+
+			// Gather plugin metadata
+			final String version = VersionHelper.getPluginVersion();
+			final String description = plugin.getDescription().getDescription();
+			final String author = plugin.getDescription().getAuthors().isEmpty() ? "Unknown"
+					: plugin.getDescription().getAuthors().getFirst();
+			final String website = plugin.getDescription().getWebsite();
+
+			// Messages
 			audience.sendMessage(AdventureHelper
-					.miniMessage(String.format("<#00BFFF>\uD83C\uDFDD Hellblock <gray>- <#87CEEB> %s", version)));
-			audience.sendMessage(AdventureHelper.miniMessage(String.format("<#B0C4DE> %s", desc)));
+					.miniMessage("<#00BFFF>\uD83C\uDFDD Hellblock <gray>- <#87CEEB>%s".formatted(version)));
+			audience.sendMessage(AdventureHelper.miniMessage("<#B0C4DE>%s".formatted(description)));
 			audience.sendMessage(
-					AdventureHelper.miniMessage(String.format("<#DA70D6>\uD83E\uDDEA Author: <#FFC0CB> %s", author)));
-			audience.sendMessage(
-					AdventureHelper.miniMessage(String.format("<#FAFAD2>⛏ <click:open_url:%s>Github</click>", link)));
+					AdventureHelper.miniMessage("<#DA70D6>\uD83E\uDDEA Author: <#FFC0CB>%s".formatted(author)));
+
+			if (website != null && !website.isBlank()) {
+				audience.sendMessage(
+						AdventureHelper.miniMessage("<#FAFAD2>⛏ <click:open_url:%s>Github</click>".formatted(website)));
+			}
 		});
 	}
 

@@ -24,18 +24,17 @@ public class ActionRandomCommand<T> extends AbstractBuiltInAction<T> {
 
 	@Override
 	protected void triggerAction(Context<T> context) {
-		if (context.argOrDefault(ContextKeys.OFFLINE, false))
+		if (context.argOrDefault(ContextKeys.OFFLINE, false)) {
 			return;
+		}
 		OfflinePlayer owner = null;
 		if (context.holder() instanceof Player player) {
 			owner = player;
 		}
 		String random = commands.get(ThreadLocalRandom.current().nextInt(commands.size()));
 		random = plugin.getPlaceholderManager().parse(owner, random, context.placeholderMap());
-		String finalRandom = random;
-		plugin.getScheduler().sync().run(() -> {
-			Bukkit.getServer().dispatchCommand(Bukkit.getConsoleSender(), finalRandom);
-		}, null);
+		final String finalRandom = random;
+		plugin.getScheduler().sync().run(() -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), finalRandom), null);
 	}
 
 	public List<String> commands() {

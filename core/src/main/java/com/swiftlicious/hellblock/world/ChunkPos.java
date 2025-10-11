@@ -29,10 +29,10 @@ public record ChunkPos(int x, int z) {
 	 *                          coordinates.
 	 */
 	public static ChunkPos fromString(String coordinate) {
-		String[] split = coordinate.split(",", 2);
+		final String[] split = coordinate.split(",", 2);
 		try {
-			int x = Integer.parseInt(split[0]);
-			int z = Integer.parseInt(split[1]);
+			final int x = Integer.parseInt(split[0]);
+			final int z = Integer.parseInt(split[1]);
 			return new ChunkPos(x, z);
 		} catch (NumberFormatException e) {
 			throw new RuntimeException(e);
@@ -47,8 +47,8 @@ public record ChunkPos(int x, int z) {
 	 * @return A ChunkPos representing the chunk containing the provided position.
 	 */
 	public static ChunkPos fromPos3(Pos3 pos3) {
-		int chunkX = (int) Math.floor((double) pos3.x() / 16.0);
-		int chunkZ = (int) Math.floor((double) pos3.z() / 16.0);
+		final int chunkX = (int) Math.floor((double) pos3.x() / 16.0);
+		final int chunkZ = (int) Math.floor((double) pos3.z() / 16.0);
 		return ChunkPos.of(chunkX, chunkZ);
 	}
 
@@ -59,7 +59,7 @@ public record ChunkPos(int x, int z) {
 	 */
 	@Override
 	public int hashCode() {
-		long combined = (long) x << 32 | z;
+		final long combined = (long) x << 32 | z;
 		return Long.hashCode(combined);
 	}
 
@@ -82,10 +82,7 @@ public record ChunkPos(int x, int z) {
 		if (this.x != other.x) {
 			return false;
 		}
-		if (this.z != other.z) {
-			return false;
-		}
-		return true;
+		return this.z != other.z ? false : true;
 	}
 
 	/**

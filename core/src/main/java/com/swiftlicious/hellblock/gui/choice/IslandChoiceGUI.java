@@ -61,9 +61,8 @@ public class IslandChoiceGUI {
 			}
 			line++;
 		}
-		for (Map.Entry<Integer, IslandChoiceGUIElement> entry : itemsSlotMap.entrySet()) {
-			this.inventory.setItem(entry.getKey(), entry.getValue().getItemStack().clone());
-		}
+		itemsSlotMap.entrySet()
+				.forEach(entry -> this.inventory.setItem(entry.getKey(), entry.getValue().getItemStack().clone()));
 	}
 
 	public IslandChoiceGUI addElement(IslandChoiceGUIElement... elements) {
@@ -80,8 +79,8 @@ public class IslandChoiceGUI {
 
 	public void show() {
 		context.holder().openInventory(inventory);
-		VersionHelper.getNMSManager().updateInventoryTitle(context.holder(),
-				AdventureHelper.componentToJson(AdventureHelper.miniMessage(manager.title.render(context, true))));
+		VersionHelper.getNMSManager().updateInventoryTitle(context.holder(), AdventureHelper
+				.componentToJson(AdventureHelper.parseCenteredTitleMultiline(manager.title.render(context, true))));
 	}
 
 	@Nullable
@@ -124,11 +123,11 @@ public class IslandChoiceGUI {
 				schematicElement.setItemStack(manager.schematicIcon.build(context));
 			}
 		}
-		for (Map.Entry<Integer, IslandChoiceGUIElement> entry : itemsSlotMap.entrySet()) {
-			if (entry.getValue() instanceof IslandChoiceDynamicGUIElement dynamicGUIElement) {
-				this.inventory.setItem(entry.getKey(), dynamicGUIElement.getItemStack().clone());
-			}
-		}
+		itemsSlotMap.entrySet().stream().filter(entry -> entry.getValue() instanceof IslandChoiceDynamicGUIElement)
+				.forEach(entry -> {
+					IslandChoiceDynamicGUIElement dynamicGUIElement = (IslandChoiceDynamicGUIElement) entry.getValue();
+					this.inventory.setItem(entry.getKey(), dynamicGUIElement.getItemStack().clone());
+				});
 		return this;
 	}
 }

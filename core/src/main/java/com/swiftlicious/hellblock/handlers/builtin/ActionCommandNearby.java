@@ -31,21 +31,21 @@ public class ActionCommandNearby<T> extends AbstractBuiltInAction<T> {
 
 	@Override
 	protected void triggerAction(Context<T> context) {
-		if (context.argOrDefault(ContextKeys.OFFLINE, false))
+		if (context.argOrDefault(ContextKeys.OFFLINE, false)) {
 			return;
+		}
 		OfflinePlayer owner = null;
 		if (context.holder() instanceof Player player) {
 			owner = player;
 		}
-		double realRange = range.evaluate(context);
-		Location location = requireNonNull(context.arg(ContextKeys.LOCATION));
+		final double realRange = range.evaluate(context);
+		final Location location = requireNonNull(context.arg(ContextKeys.LOCATION));
 		for (Player player : location.getWorld().getPlayers()) {
 			if (LocationUtils.getDistance(player.getLocation(), location) <= realRange) {
 				context.arg(ContextKeys.TEMP_NEAR_PLAYER, player.getName());
-				List<String> replaced = plugin.getPlaceholderManager().parse(owner, cmd, context.placeholderMap());
-				for (String text : replaced) {
-					Bukkit.getServer().dispatchCommand(Bukkit.getConsoleSender(), text);
-				}
+				final List<String> replaced = plugin.getPlaceholderManager().parse(owner, cmd,
+						context.placeholderMap());
+				replaced.forEach(text -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), text));
 			}
 		}
 	}

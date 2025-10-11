@@ -29,6 +29,9 @@ permissions:
   hellblock.admin:
     description: Admin permission
     default: op
+  hellblock.bypass.interact:
+    description: Able to interact with any hellblock island regardless of being part of their party
+    default: op
   hellblock.bypass.lock:
     description: Bypass locked hellblock islands whether or not they are locked
     default: op

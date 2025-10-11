@@ -2,7 +2,6 @@ package com.swiftlicious.hellblock.handlers.builtin;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import org.bukkit.Location;
@@ -20,7 +19,9 @@ import dev.dejvokep.boostedyaml.block.implementation.Section;
 public class ActionTimer<T> extends AbstractBuiltInAction<T> {
 
 	private final List<Action<T>> actions;
-	private final int delay, duration, period;
+	private final int delay;
+	private final int duration;
+	private final int period;
 	private final boolean async;
 
 	public ActionTimer(HellblockPlugin plugin, AbstractActionManager<T> manager, Object args, MathValue<T> chance) {
@@ -31,11 +32,12 @@ public class ActionTimer<T> extends AbstractBuiltInAction<T> {
 			duration = section.getInt("duration", 20);
 			period = section.getInt("period", 2);
 			async = section.getBoolean("async", false);
-			Section actionSection = section.getSection("actions");
-			if (actionSection != null)
-				for (Map.Entry<String, Object> entry : actionSection.getStringRouteMappedValues(false).entrySet())
-					if (entry.getValue() instanceof Section innerSection)
-						actions.add(manager.parseAction(innerSection));
+			final Section actionSection = section.getSection("actions");
+			if (actionSection != null) {
+				actionSection.getStringRouteMappedValues(false).entrySet().stream()
+						.filter(entry -> entry.getValue() instanceof Section).map(entry -> (Section) entry.getValue())
+						.forEach(innerSection -> actions.add(manager.parseAction(innerSection)));
+			}
 		} else {
 			delay = 1;
 			period = 1;
@@ -46,20 +48,14 @@ public class ActionTimer<T> extends AbstractBuiltInAction<T> {
 
 	@Override
 	protected void triggerAction(Context<T> context) {
-		Location location = context.arg(ContextKeys.LOCATION);
-		SchedulerTask task;
+		final Location location = context.arg(ContextKeys.LOCATION);
+		final SchedulerTask task;
 		if (async) {
-			task = plugin.getScheduler().asyncRepeating(() -> {
-				for (Action<T> action : actions) {
-					action.trigger(context);
-				}
-			}, delay * 50L, period * 50L, TimeUnit.MILLISECONDS);
+			task = plugin.getScheduler().asyncRepeating(() -> actions.forEach(action -> action.trigger(context)),
+					delay * 50L, period * 50L, TimeUnit.MILLISECONDS);
 		} else {
-			task = plugin.getScheduler().sync().runRepeating(() -> {
-				for (Action<T> action : actions) {
-					action.trigger(context);
-				}
-			}, delay, period, location);
+			task = plugin.getScheduler().sync().runRepeating(() -> actions.forEach(action -> action.trigger(context)),
+					delay, period, location);
 		}
 		plugin.getScheduler().asyncLater(task::cancel, duration * 50L, TimeUnit.MILLISECONDS);
 	}

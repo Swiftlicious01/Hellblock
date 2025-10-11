@@ -26,10 +26,7 @@ public class BukkitSenderFactory extends SenderFactory<HellblockPlugin, CommandS
 
 	@Override
 	protected String getName(CommandSender sender) {
-		if (sender instanceof Player) {
-			return sender.getName();
-		}
-		return Sender.CONSOLE_NAME;
+		return sender instanceof Player ? sender.getName() : Sender.CONSOLE_NAME;
 	}
 
 	@Override
