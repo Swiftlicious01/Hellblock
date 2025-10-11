@@ -1,6 +1,64 @@
-/.gradle/
-/bin/
-/build/
-/target/
-/metadata/
+# === macOS system files ===
 .DS_Store
+
+# === Gradle files ===
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# === Java build output ===
+bin/
+target/
+out/
+
+# === Eclipse ===
+.metadata/
+*.log
+*.tmp
+*.bak
+*.swp
+*~.nib
+*.class
+.settings/
+.project
+.classpath
+
+# === IntelliJ IDEA ===
+.idea/
+*.iml
+*.iws
+out/
+
+# === VS Code ===
+.vscode/
+
+# === Logs ===
+*.log
+
+# === Environment files ===
+.env
+.env.*
+
+# === OS generated files ===
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# === Package distributions ===
+*.jar
+*.war
+*.ear
+
+# === Test coverage reports ===
+jacoco.exec
+coverage/
+*.ec
+
+# === Temporary files ===
+*.tmp
+*.bak
+*.swp
+*~
+
+# === Cache ===
+.cache/
