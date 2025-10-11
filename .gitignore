@@ -2,4 +2,5 @@
 /bin/
 /build/
 /target/
-/.metadata/
+/metadata/
+/.DS_Store
