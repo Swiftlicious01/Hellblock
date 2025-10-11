@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -17,7 +18,9 @@ import org.bukkit.Tag;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.block.BlockState;
+import org.bukkit.block.Sign;
 import org.bukkit.block.data.Directional;
+import org.bukkit.block.sign.Side;
 import org.bukkit.entity.Animals;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
@@ -45,6 +48,7 @@ import org.bukkit.event.block.BlockPistonExtendEvent;
 import org.bukkit.event.block.BlockPistonRetractEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.block.BlockSpreadEvent;
+import org.bukkit.event.block.SignChangeEvent;
 import org.bukkit.event.entity.CreatureSpawnEvent;
 import org.bukkit.event.entity.EntityChangeBlockEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
@@ -91,9 +95,11 @@ import com.swiftlicious.hellblock.api.Reloadable;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
 import com.swiftlicious.hellblock.handlers.VersionHelper;
 import com.swiftlicious.hellblock.player.UserData;
+import com.swiftlicious.hellblock.schematic.AdventureMetadata;
 import com.swiftlicious.hellblock.sender.Sender;
 
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 
 public class ProtectionEvents implements Listener, Reloadable {
 
@@ -172,6 +178,11 @@ public class ProtectionEvents implements Listener, Reloadable {
 		final Block block = event.getClickedBlock();
 		final Location loc = block.getLocation();
 
+		// Allow right-click on shop signs (ChestShop/QuickShop)
+		if (isShopSign(block)) {
+			return; // Don't cancel — allow interaction
+		}
+
 		// Check USE master flag first
 		denyIfNotAllowed(player, loc, event, MessageConstants.MSG_HELLBLOCK_PROTECTION_USE_DENY.build(),
 				HellblockFlag.FlagType.USE).thenAccept(denied -> {
@@ -215,6 +226,10 @@ public class ProtectionEvents implements Listener, Reloadable {
 						final ItemStack hand = event.getItem();
 						if (hand != null) {
 							final Material mat = hand.getType();
+							if (type.name().contains("SIGN")) {
+								return;
+							}
+
 							if (mat == Material.FLINT_AND_STEEL || mat == Material.FIRE_CHARGE) {
 								checkFlag(player, loc, event,
 										MessageConstants.MSG_HELLBLOCK_PROTECTION_LIGHTER_DENY.build(),
@@ -250,6 +265,80 @@ public class ProtectionEvents implements Listener, Reloadable {
 		}
 	}
 
+	private boolean isShopSign(Block block) {
+		if (!(block.getState() instanceof Sign sign)) {
+			return false;
+		}
+
+		Location loc = sign.getLocation();
+
+		// === Check QuickShop API ===
+		if (instance.getIntegrationManager().isHooked("QuickShop")) {
+			try {
+				Class<?> apiClass = Class.forName("org.maxgamer.quickshop.api.QuickShopAPI");
+				Object api = apiClass.getMethod("getAPI").invoke(null);
+				Object shop = apiClass.getMethod("getShop", Location.class).invoke(api, loc);
+				if (shop != null) {
+					return true;
+				}
+			} catch (Exception ignored) {
+				// Fallback continues below
+			}
+		}
+
+		// === Check ChestShop API ===
+		if (instance.getIntegrationManager().isHooked("ChestShop")) {
+			try {
+				Class<?> utilsClass = Class.forName("com.Acrobot.ChestShop.Shop.ShopUtils");
+				Object shop = utilsClass.getMethod("getShop", Location.class).invoke(null, loc);
+				if (shop != null) {
+					return true;
+				}
+			} catch (Exception ignored) {
+				// Fallback continues below
+			}
+		}
+
+		// === Check TradeShop API ==
+		if (instance.getIntegrationManager().isHooked("TradeShop")) {
+			try {
+				Class<?> shopUtilsClass = Class.forName("org.shanerx.tradeshop.utils.ShopUtils");
+				// ShopUtils is a singleton: ShopUtils.getInstance().isShop(loc)
+				Object instance = shopUtilsClass.getMethod("getInstance").invoke(null);
+				boolean isShop = (boolean) shopUtilsClass.getMethod("isShop", Location.class).invoke(instance,
+						block.getLocation());
+				if (isShop) {
+					return true;
+				}
+			} catch (Exception ex) {
+				// Fallback continues below
+			}
+		}
+
+		// === Fallback: Heuristic based on Adventure sign lines ===
+		try {
+			List<Component> lines = AdventureMetadata.getSignLines(sign.getSide(Side.FRONT));
+			for (Component line : lines) {
+				if (line == null)
+					continue;
+
+				// Convert Adventure Component to plain text without formatting
+				String plain = PlainTextComponentSerializer.plainText().serialize(line).toLowerCase(Locale.ROOT);
+
+				// Very common shop patterns
+				if (plain.contains("[shop]") || plain.contains("[buy]") || plain.contains("[sell]")
+						|| plain.contains("[trade]") || plain.contains("quickshop") || plain.contains("[tradeshop]")
+						|| plain.contains("[ultimateshop]")) {
+					return true;
+				}
+			}
+		} catch (Exception ex) {
+			instance.getPluginLogger().warn("Failed to read sign lines for shop detection: " + ex.getMessage());
+		}
+
+		return false;
+	}
+
 	@EventHandler(ignoreCancelled = true)
 	public void onEntityTame(EntityTameEvent event) {
 		if (!(event.getOwner() instanceof Player player)) {
@@ -259,6 +348,17 @@ public class ProtectionEvents implements Listener, Reloadable {
 		Location loc = event.getEntity().getLocation();
 
 		checkFlag(player, loc, event, MessageConstants.MSG_HELLBLOCK_PROTECTION_INTERACT_DENY.build(),
+				HellblockFlag.FlagType.INTERACT);
+	}
+
+	@EventHandler(ignoreCancelled = true)
+	public void onSignChange(SignChangeEvent event) {
+		final Player player = event.getPlayer();
+		final Block block = event.getBlock();
+		final Location loc = block.getLocation();
+
+		// Block unauthorized editing of signs (both new and existing ones)
+		denyIfNotAllowed(player, loc, event, MessageConstants.MSG_HELLBLOCK_PROTECTION_INTERACT_DENY.build(),
 				HellblockFlag.FlagType.INTERACT);
 	}
 
