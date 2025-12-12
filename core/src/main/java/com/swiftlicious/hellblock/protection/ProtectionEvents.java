@@ -1,46 +1,73 @@
 package com.swiftlicious.hellblock.protection;
 
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.function.Function;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.OfflinePlayer;
 import org.bukkit.Tag;
+import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.block.BlockState;
 import org.bukkit.block.Sign;
 import org.bukkit.block.data.Directional;
-import org.bukkit.block.sign.Side;
+import org.bukkit.entity.AbstractHorse;
 import org.bukkit.entity.Animals;
+import org.bukkit.entity.ArmorStand;
+import org.bukkit.entity.Boat;
+import org.bukkit.entity.Creeper;
+import org.bukkit.entity.EnderCrystal;
+import org.bukkit.entity.Enderman;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Fireball;
 import org.bukkit.entity.Firework;
 import org.bukkit.entity.Ghast;
 import org.bukkit.entity.HumanEntity;
+import org.bukkit.entity.Item;
 import org.bukkit.entity.ItemFrame;
+import org.bukkit.entity.LivingEntity;
+import org.bukkit.entity.Llama;
+import org.bukkit.entity.Minecart;
+import org.bukkit.entity.Painting;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Projectile;
 import org.bukkit.entity.TNTPrimed;
 import org.bukkit.entity.ThrownPotion;
+import org.bukkit.entity.Trident;
+import org.bukkit.entity.minecart.ExplosiveMinecart;
 import org.bukkit.event.Cancellable;
+import org.bukkit.event.Event;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.block.BlockDispenseArmorEvent;
 import org.bukkit.event.block.BlockDispenseEvent;
+import org.bukkit.event.block.BlockExpEvent;
 import org.bukkit.event.block.BlockExplodeEvent;
+import org.bukkit.event.block.BlockFormEvent;
 import org.bukkit.event.block.BlockFromToEvent;
 import org.bukkit.event.block.BlockGrowEvent;
 import org.bukkit.event.block.BlockIgniteEvent;
@@ -48,33 +75,47 @@ import org.bukkit.event.block.BlockPistonExtendEvent;
 import org.bukkit.event.block.BlockPistonRetractEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.block.BlockSpreadEvent;
+import org.bukkit.event.block.EntityBlockFormEvent;
 import org.bukkit.event.block.SignChangeEvent;
 import org.bukkit.event.entity.CreatureSpawnEvent;
 import org.bukkit.event.entity.EntityChangeBlockEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
-import org.bukkit.event.entity.EntityDismountEvent;
+import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
-import org.bukkit.event.entity.EntityMountEvent;
+import org.bukkit.event.entity.EntityPickupItemEvent;
+import org.bukkit.event.entity.EntityPlaceEvent;
+import org.bukkit.event.entity.EntityPortalEvent;
 import org.bukkit.event.entity.EntityRegainHealthEvent;
 import org.bukkit.event.entity.EntitySpawnEvent;
 import org.bukkit.event.entity.EntityTameEvent;
+import org.bukkit.event.entity.EntityTargetEvent;
+import org.bukkit.event.entity.EntityTeleportEvent;
 import org.bukkit.event.entity.EntityUnleashEvent;
 import org.bukkit.event.entity.EntityUnleashEvent.UnleashReason;
+import org.bukkit.event.entity.ExplosionPrimeEvent;
 import org.bukkit.event.entity.FoodLevelChangeEvent;
+import org.bukkit.event.entity.ItemMergeEvent;
 import org.bukkit.event.entity.PlayerLeashEntityEvent;
 import org.bukkit.event.entity.PotionSplashEvent;
 import org.bukkit.event.entity.ProjectileHitEvent;
 import org.bukkit.event.hanging.HangingBreakByEntityEvent;
 import org.bukkit.event.hanging.HangingBreakEvent;
 import org.bukkit.event.hanging.HangingPlaceEvent;
+import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.inventory.InventoryOpenEvent;
+import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.event.player.PlayerArmorStandManipulateEvent;
 import org.bukkit.event.player.PlayerBedEnterEvent;
 import org.bukkit.event.player.PlayerBucketEmptyEvent;
+import org.bukkit.event.player.PlayerBucketEntityEvent;
 import org.bukkit.event.player.PlayerBucketFillEvent;
+import org.bukkit.event.player.PlayerChangedWorldEvent;
 import org.bukkit.event.player.PlayerCommandPreprocessEvent;
+import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerEditBookEvent;
+import org.bukkit.event.player.PlayerFishEvent;
 import org.bukkit.event.player.PlayerInteractAtEntityEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
@@ -86,8 +127,13 @@ import org.bukkit.event.player.PlayerTeleportEvent.TeleportCause;
 import org.bukkit.event.vehicle.VehicleCreateEvent;
 import org.bukkit.event.vehicle.VehicleDestroyEvent;
 import org.bukkit.event.vehicle.VehicleEnterEvent;
+import org.bukkit.event.vehicle.VehicleExitEvent;
 import org.bukkit.event.world.StructureGrowEvent;
+import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.metadata.FixedMetadataValue;
+import org.bukkit.plugin.EventExecutor;
 import org.bukkit.projectiles.ProjectileSource;
 import org.bukkit.util.BoundingBox;
 import org.jetbrains.annotations.Nullable;
@@ -95,39 +141,197 @@ import org.jetbrains.annotations.Nullable;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.api.Reloadable;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
+import com.swiftlicious.hellblock.creation.addons.pet.PetProvider;
+import com.swiftlicious.hellblock.creation.addons.shop.sign.ShopSignProvider;
+import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.handlers.VersionHelper;
+import com.swiftlicious.hellblock.player.HellblockData;
 import com.swiftlicious.hellblock.player.UserData;
-import com.swiftlicious.hellblock.schematic.AdventureMetadata;
+import com.swiftlicious.hellblock.scheduler.SchedulerTask;
+import com.swiftlicious.hellblock.schematic.SignReflectionHelper;
 import com.swiftlicious.hellblock.sender.Sender;
+import com.swiftlicious.hellblock.utils.EntityTypeUtils;
+import com.swiftlicious.hellblock.utils.LocationUtils;
 
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 
+/**
+ * Manages in-game protection events for islands using the internal protection
+ * system.
+ * <p>
+ * Handles entity interactions, block placement/breaking, item pickups, and
+ * explosion tracking within island boundaries. Only active when internal
+ * protection is in use.
+ * <p>
+ * Implements {@link Reloadable} for dynamic registration and cleanup.
+ */
 public class ProtectionEvents implements Listener, Reloadable {
 
 	protected final HellblockPlugin instance;
 	private final ExplosionTracker explosionTracker;
+	private final CollisionManager collisionManager;
+
+	private final Map<UUID, Integer> endermanIslandCache = new ConcurrentHashMap<>();
 
 	private final Map<UUID, BoundingBox> hellblockCache = new ConcurrentHashMap<>();
 
 	// Keeps track of whether the player was inside the island bounds last time
 	private final Map<UUID, Boolean> playerInBoundsState = new ConcurrentHashMap<>();
 
+	private static final String METADATA_DROPPED_BY = "hellblock:droppedBy";
+	private static final String METADATA_DROP_TIME = "hellblock:dropTime";
+	private static final long ITEM_PICKUP_GRACE_PERIOD_MS = 10_000;
+
+	private Listener dynamicMountListener;
+
 	public ProtectionEvents(HellblockPlugin plugin) {
 		instance = plugin;
+		this.collisionManager = new CollisionManager();
 		this.explosionTracker = new ExplosionTracker(instance);
 	}
 
 	@Override
 	public void load() {
 		Bukkit.getPluginManager().registerEvents(this, instance);
+		registerMountListeners();
 	}
 
 	@Override
 	public void unload() {
 		HandlerList.unregisterAll(this);
+		unregisterMountListeners();
 		this.hellblockCache.clear();
 		this.playerInBoundsState.clear();
+	}
+
+	@Override
+	public void disable() {
+		unload();
+		collisionManager.resetAll();
+	}
+
+	public void registerMountListeners() {
+		try {
+			@SuppressWarnings("unchecked")
+			Class<? extends Event> mountEventClass = (Class<? extends Event>) Class
+					.forName("org.bukkit.event.entity.EntityMountEvent");
+			@SuppressWarnings("unchecked")
+			Class<? extends Event> dismountEventClass = (Class<? extends Event>) Class
+					.forName("org.bukkit.event.entity.EntityDismountEvent");
+
+			Method getEntityMethod = mountEventClass.getMethod("getEntity"); // same for dismount
+			Method getMountMethod = mountEventClass.getMethod("getMount");
+			Method getDismountedMethod = dismountEventClass.getMethod("getDismounted");
+
+			dynamicMountListener = new Listener() {
+			}; // dummy listener for Bukkit bookkeeping
+
+			// One executor handles both events
+			EventExecutor executor = (listener, event) -> {
+				try {
+					if (mountEventClass.isInstance(event)) {
+						Player player = asPlayer(getEntityMethod.invoke(event));
+						if (player == null)
+							return;
+
+						Entity mount = (Entity) getMountMethod.invoke(event);
+
+						// Pet logic
+						for (PetProvider petProvider : instance.getIntegrationManager().getPetProviders()) {
+							if (petProvider != null && petProvider.getOwnerUUID(player) != null
+									&& player.getUniqueId().equals(petProvider.getOwnerUUID(player))
+									&& petProvider.isPet(mount)) {
+								return;
+							}
+						}
+
+						if (event instanceof Cancellable cancellable) {
+							denyIfNotAllowed(player, mount.getLocation(), cancellable,
+									MessageConstants.MSG_HELLBLOCK_PROTECTION_RIDE_DENY.build(),
+									HellblockFlag.FlagType.RIDE).thenAccept(denied -> {
+										if (denied) {
+											cancellable.setCancelled(true);
+
+											// Fallback dismount if event cancellation doesn't prevent it
+											instance.getScheduler().executeSync(() -> {
+												if (mount.getPassengers().contains(player)) {
+													mount.removePassenger(player);
+												}
+												if (player.isInsideVehicle()) {
+													player.leaveVehicle();
+												}
+											});
+										}
+									});
+						}
+
+					} else if (dismountEventClass.isInstance(event)) {
+						Player player = asPlayer(getEntityMethod.invoke(event));
+						if (player == null)
+							return;
+
+						Location loc = ((Entity) getDismountedMethod.invoke(event)).getLocation();
+
+						if (event instanceof Cancellable cancellable) {
+							denyIfNotAllowed(player, loc, cancellable,
+									MessageConstants.MSG_HELLBLOCK_PROTECTION_ENTRY_DENY.build(),
+									HellblockFlag.FlagType.ENTRY).thenAccept(denied -> {
+										if (!denied) {
+											checkFlag(player, loc, cancellable,
+													MessageConstants.MSG_HELLBLOCK_PROTECTION_RIDE_DENY.build(),
+													HellblockFlag.FlagType.RIDE);
+										}
+									});
+						}
+
+						if (!player.hasPermission("hellblock.bypass.lock")) {
+							if (event instanceof Cancellable cancellable) {
+								denyIfNotAllowed(player, loc, cancellable,
+										MessageConstants.MSG_HELLBLOCK_PROTECTION_ENTRY_DENY.build(),
+										HellblockFlag.FlagType.ENTRY);
+							}
+						}
+
+						handleHellblockMessage(player);
+					}
+				} catch (Throwable t) {
+					t.printStackTrace();
+				}
+			};
+
+			// Register both dynamically
+			Bukkit.getPluginManager().registerEvent(mountEventClass, dynamicMountListener, EventPriority.NORMAL,
+					executor, instance, true);
+			Bukkit.getPluginManager().registerEvent(dismountEventClass, dynamicMountListener, EventPriority.NORMAL,
+					executor, instance, true);
+
+			instance.debug("Registered dynamic EntityMount/Dismount listener.");
+
+		} catch (ClassNotFoundException ignored) {
+			// Fallback to legacy implementation
+			LegacyMountListener legacy = new LegacyMountListener();
+			legacy.startDismountCheckTask();
+			dynamicMountListener = legacy;
+			Bukkit.getPluginManager().registerEvents(dynamicMountListener, instance);
+			instance.debug("Registered legacy mount listener.");
+		} catch (Throwable t) {
+			t.printStackTrace();
+		}
+	}
+
+	private Player asPlayer(Object entity) {
+		return (entity instanceof Player p) ? p : null;
+	}
+
+	public void unregisterMountListeners() {
+		if (dynamicMountListener != null) {
+			HandlerList.unregisterAll(dynamicMountListener);
+			if (dynamicMountListener instanceof LegacyMountListener legacy) {
+				legacy.stopDismountCheckTask();
+			}
+			dynamicMountListener = null;
+			instance.debug("Unregistered mount listener.");
+		}
 	}
 
 	// Block break: BUILD master -> fallback to BLOCK_BREAK
@@ -189,13 +393,17 @@ public class ProtectionEvents implements Listener, Reloadable {
 		denyIfNotAllowed(player, loc, event, MessageConstants.MSG_HELLBLOCK_PROTECTION_USE_DENY.build(),
 				HellblockFlag.FlagType.USE).thenAccept(denied -> {
 					if (!denied) {
-						if (event.getClickedBlock().getType() == Material.LECTERN) {
-							UUID playerId = event.getPlayer().getUniqueId();
-							// Store this temporarily for the player
-							lecternEditMap.put(playerId, loc);
+						final Material type = block.getType();
+						if (type == Material.LECTERN) {
+							lecternEditMap.put(player.getUniqueId(), loc);
 						}
 
-						final Material type = block.getType();
+						// Campfire retrieval protection
+						if ((type == Material.CAMPFIRE || type == Material.SOUL_CAMPFIRE)
+								&& event.getAction() == Action.RIGHT_CLICK_BLOCK && event.getItem() == null) {
+							checkFlag(player, loc, event, MessageConstants.MSG_HELLBLOCK_PROTECTION_USE_DENY.build(),
+									HellblockFlag.FlagType.USE);
+						}
 
 						// Beds / respawn anchors
 						if (Tag.BEDS.isTagged(type) || type == Material.RESPAWN_ANCHOR) {
@@ -245,7 +453,7 @@ public class ProtectionEvents implements Listener, Reloadable {
 							}
 
 							if (mat.name().endsWith("_BOAT") || mat.name().endsWith("_MINECART")
-									|| mat == Material.MINECART || mat == Material.BAMBOO_RAFT) {
+									|| mat == Material.MINECART || mat.name().endsWith("_RAFT")) {
 								checkFlag(player, loc, event,
 										MessageConstants.MSG_HELLBLOCK_PROTECTION_VEHICLE_PLACE_DENY.build(),
 										HellblockFlag.FlagType.PLACE_VEHICLE);
@@ -253,7 +461,7 @@ public class ProtectionEvents implements Listener, Reloadable {
 						}
 
 						// Physical trample check
-						if (event.getAction() == Action.PHYSICAL && block.getType() == Material.FARMLAND) {
+						if (event.getAction() == Action.PHYSICAL && type == Material.FARMLAND) {
 							checkFlag(player, loc, event,
 									MessageConstants.MSG_HELLBLOCK_PROTECTION_TRAMPLE_DENY.build(),
 									HellblockFlag.FlagType.TRAMPLE_BLOCKS);
@@ -261,9 +469,122 @@ public class ProtectionEvents implements Listener, Reloadable {
 					}
 				});
 
-		// Track TNT for later explosion attribution
+		// Track TNT block placements
 		if (block.getType() == Material.TNT) {
 			explosionTracker.track(block, player);
+		}
+
+		// Detect TNT minecart use
+		if (event.getMaterial() == Material.TNT_MINECART) {
+			checkFlag(player, loc, event, MessageConstants.MSG_HELLBLOCK_PROTECTION_EXPLOSION_DENY.build(),
+					HellblockFlag.FlagType.TNT);
+		}
+	}
+
+	@EventHandler(ignoreCancelled = true)
+	public void onEntityPlace(EntityPlaceEvent event) {
+		Player player = event.getPlayer();
+
+		Entity placed = event.getEntity();
+		Location loc = placed.getLocation();
+		if (placed instanceof Boat || placed instanceof Minecart) {
+			checkFlag(player, loc, event, MessageConstants.MSG_HELLBLOCK_PROTECTION_VEHICLE_PLACE_DENY.build(),
+					HellblockFlag.FlagType.PLACE_VEHICLE);
+		}
+
+		if (placed instanceof ArmorStand || placed instanceof EnderCrystal) {
+			denyIfNotAllowed(player, loc, event, MessageConstants.MSG_HELLBLOCK_PROTECTION_BUILD_DENY.build(),
+					HellblockFlag.FlagType.BUILD).thenAccept(denied -> {
+						if (!denied) {
+							checkFlag(player, loc, event, MessageConstants.MSG_HELLBLOCK_PROTECTION_PLACE_DENY.build(),
+									HellblockFlag.FlagType.BLOCK_PLACE);
+						}
+					});
+		}
+	}
+
+	@EventHandler(ignoreCancelled = true)
+	public void onItemDrop(PlayerDropItemEvent event) {
+		Player player = event.getPlayer();
+		Location loc = player.getLocation();
+
+		denyIfNotAllowed(player, loc, event, MessageConstants.MSG_HELLBLOCK_PROTECTION_ITEM_DROP_DENY.build(),
+				HellblockFlag.FlagType.ITEM_DROP).thenAccept(denied -> {
+					if (!denied) {
+						// Tag the item with dropper info
+						Item droppedItem = event.getItemDrop();
+						droppedItem.setMetadata(METADATA_DROPPED_BY,
+								new FixedMetadataValue(instance, player.getUniqueId().toString()));
+						droppedItem.setMetadata(METADATA_DROP_TIME,
+								new FixedMetadataValue(instance, System.currentTimeMillis()));
+					}
+				});
+	}
+
+	@EventHandler(ignoreCancelled = true)
+	public void onItemPickup(EntityPickupItemEvent event) {
+		if (!(event.getEntity() instanceof Player player))
+			return;
+
+		Item item = event.getItem();
+		Location loc = item.getLocation();
+
+		denyIfNotAllowed(player, loc, event, MessageConstants.MSG_HELLBLOCK_PROTECTION_ITEM_PICKUP_DENY.build(),
+				HellblockFlag.FlagType.ITEM_PICKUP).thenAccept(denied -> {
+					if (denied)
+						return;
+
+					// Handle recently dropped item pickup protection
+					if (item.hasMetadata(METADATA_DROPPED_BY) && item.hasMetadata(METADATA_DROP_TIME)) {
+						String dropperUUID = item.getMetadata(METADATA_DROPPED_BY).get(0).asString();
+						long dropTime = item.getMetadata(METADATA_DROP_TIME).get(0).asLong();
+						long now = System.currentTimeMillis();
+
+						if (!player.getUniqueId().toString().equals(dropperUUID)) {
+							long age = now - dropTime;
+
+							if (age < ITEM_PICKUP_GRACE_PERIOD_MS) {
+								// Block pickup by anyone except original dropper
+								event.setCancelled(true);
+
+								// Optional: send action bar message
+								OfflinePlayer dropper = Bukkit.getOfflinePlayer(UUID.fromString(dropperUUID));
+								Component title = instance.getTranslationManager()
+										.render(MessageConstants.MSG_ITEM_RECENTLY_DROPPED_PICKUP_DENY
+												.arguments(AdventureHelper.miniMessageToComponent(
+														dropper.hasPlayedBefore() && dropper.getName() != null
+																? dropper.getName()
+																: MessageConstants.FORMAT_UNKNOWN.build().key()))
+												.build());
+								VersionHelper.getNMSManager().sendActionBar(player,
+										AdventureHelper.componentToJson(title));
+								return;
+							} else {
+								// Grace period expired → cleanup metadata
+								item.removeMetadata(METADATA_DROPPED_BY, instance);
+								item.removeMetadata(METADATA_DROP_TIME, instance);
+							}
+						}
+					}
+				});
+	}
+
+	@EventHandler(ignoreCancelled = true)
+	public void onItemMerge(ItemMergeEvent event) {
+		Item source = event.getEntity();
+		Item target = event.getTarget();
+
+		// If either doesn't have metadata, skip
+		if (!source.hasMetadata(METADATA_DROPPED_BY) || !source.hasMetadata(METADATA_DROP_TIME)) {
+			return;
+		}
+
+		// Only apply metadata if the target doesn't already have it
+		if (!target.hasMetadata(METADATA_DROPPED_BY)) {
+			target.setMetadata(METADATA_DROPPED_BY, source.getMetadata(METADATA_DROPPED_BY).get(0));
+		}
+		if (!target.hasMetadata(METADATA_DROP_TIME)) {
+			target.setMetadata(METADATA_DROP_TIME, source.getMetadata(METADATA_DROP_TIME).get(0));
 		}
 	}
 
@@ -339,14 +660,36 @@ public class ProtectionEvents implements Listener, Reloadable {
 	}
 
 	@EventHandler(ignoreCancelled = true)
+	public void onEntityTeleport(EntityTeleportEvent event) {
+		if (!(event.getEntity() instanceof Player)) {
+			Location to = event.getTo();
+
+			// Prevent mobs from being pulled or teleported across protected areas
+			checkOwnerFlag(to, HellblockFlag.FlagType.INTERACT,
+					() -> instance.getScheduler().executeSync(() -> event.setCancelled(true)));
+		}
+	}
+
+	@EventHandler(ignoreCancelled = true)
+	public void onEntityPortal(EntityPortalEvent event) {
+		if (!(event.getEntity() instanceof Player)) {
+			Location to = event.getTo();
+
+			checkOwnerFlag(to, HellblockFlag.FlagType.INTERACT,
+					() -> instance.getScheduler().executeSync(() -> event.setCancelled(true)));
+		}
+	}
+
+	@EventHandler(ignoreCancelled = true)
 	public void onEntityUnleash(EntityUnleashEvent event) {
-		// Optional: only care about player-unleashing (if possible to detect)
 		if (event.getReason() == UnleashReason.PLAYER_UNLEASH) {
 			final Location loc = event.getEntity().getLocation();
 
-			// Use checkOwnerFlag since no Player involved in the event
-			checkOwnerFlag(loc, HellblockFlag.FlagType.INTERACT,
-					() -> instance.getScheduler().executeSync(() -> event.setCancelled(true)));
+			checkOwnerFlag(loc, HellblockFlag.FlagType.INTERACT, () -> instance.getScheduler().executeSync(() -> {
+				if (event instanceof Cancellable cancellable) {
+					cancellable.setCancelled(true);
+				} // else: event cannot be cancelled on this platform
+			}));
 		}
 	}
 
@@ -371,6 +714,18 @@ public class ProtectionEvents implements Listener, Reloadable {
 
 		final Location loc = event.getEntity().getLocation();
 
+		if (entityBreak.getEntity() instanceof ItemFrame) {
+			checkFlag(player, loc, event, MessageConstants.MSG_HELLBLOCK_PROTECTION_ITEM_FRAME_DESTROY_DENY.build(),
+					HellblockFlag.FlagType.ENTITY_ITEM_FRAME_DESTROY);
+			return;
+		}
+
+		if (entityBreak.getEntity() instanceof Painting) {
+			checkFlag(player, loc, event, MessageConstants.MSG_HELLBLOCK_PROTECTION_PAINTING_DESTROY_DENY.build(),
+					HellblockFlag.FlagType.ENTITY_PAINTING_DESTROY);
+			return;
+		}
+
 		checkFlag(player, loc, event, MessageConstants.MSG_HELLBLOCK_PROTECTION_INTERACT_DENY.build(),
 				HellblockFlag.FlagType.INTERACT);
 	}
@@ -381,6 +736,17 @@ public class ProtectionEvents implements Listener, Reloadable {
 	public void onEntityInteract(PlayerInteractEntityEvent event) {
 		final Player player = event.getPlayer();
 		final Location loc = event.getRightClicked().getLocation();
+		if (event.getRightClicked().hasMetadata("NPC")) {
+			return;
+		}
+
+		Set<PetProvider> petProviders = instance.getIntegrationManager().getPetProviders();
+		for (PetProvider petProvider : petProviders) {
+			if (petProvider != null && petProvider.getOwnerUUID(player) != null
+					&& petProvider.getOwnerUUID(player).equals(player.getUniqueId())
+					&& petProvider.isPet(event.getRightClicked()))
+				return;
+		}
 
 		// Item frame rotation / editing
 		if (event.getRightClicked() instanceof ItemFrame) {
@@ -389,10 +755,39 @@ public class ProtectionEvents implements Listener, Reloadable {
 			return;
 		}
 
-		checkFlag(player, loc, event, MessageConstants.MSG_HELLBLOCK_PROTECTION_INTERACT_DENY.build(),
-				HellblockFlag.FlagType.INTERACT);
+		if (event.getRightClicked() instanceof InventoryHolder holder && !(holder instanceof Player)) {
+			checkFlag(player, loc, event, MessageConstants.MSG_HELLBLOCK_PROTECTION_USE_DENY.build(),
+					HellblockFlag.FlagType.USE);
+		}
+
+		checkFlag(player, loc, event, MessageConstants.MSG_HELLBLOCK_PROTECTION_USE_DENY.build(),
+				HellblockFlag.FlagType.USE);
 
 		// Vehicle mount attempt is handled below via mount/dismount events
+	}
+
+	@EventHandler(ignoreCancelled = true)
+	public void onEquipEntityWithArmor(PlayerInteractAtEntityEvent event) {
+		if (event.getRightClicked().hasMetadata("NPC")) {
+			return;
+		}
+
+		Set<PetProvider> petProviders = instance.getIntegrationManager().getPetProviders();
+		for (PetProvider petProvider : petProviders) {
+			if (petProvider != null && petProvider.getOwnerUUID(event.getPlayer()) != null
+					&& petProvider.getOwnerUUID(event.getPlayer()).equals(event.getPlayer().getUniqueId())
+					&& petProvider.isPet(event.getRightClicked()))
+				return;
+		}
+
+		if (event.getRightClicked() instanceof LivingEntity living && living.getEquipment() != null) {
+			// Prevent right-click armor equip (horse, armor stand)
+			final Player player = event.getPlayer();
+			final Location loc = living.getLocation();
+
+			checkFlag(player, loc, event, MessageConstants.MSG_HELLBLOCK_PROTECTION_INTERACT_DENY.build(),
+					HellblockFlag.FlagType.INTERACT);
+		}
 	}
 
 	// Bucket events (treated as interaction)
@@ -408,6 +803,12 @@ public class ProtectionEvents implements Listener, Reloadable {
 				MessageConstants.MSG_HELLBLOCK_PROTECTION_BUCKET_EMPTY_DENY.build(), HellblockFlag.FlagType.INTERACT);
 	}
 
+	@EventHandler(ignoreCancelled = true)
+	public void onBucketEntity(PlayerBucketEntityEvent event) {
+		checkFlag(event.getPlayer(), event.getEntity().getLocation(), event,
+				MessageConstants.MSG_HELLBLOCK_PROTECTION_INTERACT_DENY.build(), HellblockFlag.FlagType.INTERACT);
+	}
+
 	// Inventory open -> chest access
 	@EventHandler(ignoreCancelled = true)
 	public void onInventoryOpen(InventoryOpenEvent event) {
@@ -415,13 +816,120 @@ public class ProtectionEvents implements Listener, Reloadable {
 		if (!(human instanceof Player player)) {
 			return;
 		}
-		Location loc = event.getView().getTopInventory().getLocation();
-		if (loc == null) {
-			loc = player.getLocation();
+
+		Inventory topInv = event.getView().getTopInventory();
+		InventoryHolder holder = topInv.getHolder();
+
+		// Only proceed if the top inventory is a physical block container
+		if (!(holder instanceof BlockState blockState)) {
+			// This is likely a virtual inventory (plugin GUI), skip protection
+			return;
+		}
+
+		Location loc = blockState.getLocation();
+
+		final InventoryType type = event.getView().getTopInventory().getType();
+
+		switch (type) {
+		case CHEST, BARREL, ENDER_CHEST, SHULKER_BOX:
+			checkFlag(player, loc, event, MessageConstants.MSG_HELLBLOCK_PROTECTION_CHEST_ACCESS_DENY.build(),
+					HellblockFlag.FlagType.CHEST_ACCESS);
+			break;
+
+		case FURNACE, BLAST_FURNACE, SMOKER:
+			checkFlag(player, loc, event, MessageConstants.MSG_HELLBLOCK_PROTECTION_USE_DENY.build(),
+					HellblockFlag.FlagType.USE);
+			break;
+
+		case BREWING:
+			checkFlag(player, loc, event, MessageConstants.MSG_HELLBLOCK_PROTECTION_USE_DENY.build(),
+					HellblockFlag.FlagType.USE);
+			break;
+
+		case HOPPER, DROPPER, DISPENSER:
+			checkFlag(player, loc, event, MessageConstants.MSG_HELLBLOCK_PROTECTION_USE_DENY.build(),
+					HellblockFlag.FlagType.USE);
+			break;
+
+		case ANVIL, SMITHING:
+			checkFlag(player, loc, event, MessageConstants.MSG_HELLBLOCK_PROTECTION_USE_ANVIL_DENY.build(),
+					HellblockFlag.FlagType.USE_ANVIL);
+			break;
+
+		case ENCHANTING:
+			checkFlag(player, loc, event, MessageConstants.MSG_HELLBLOCK_PROTECTION_USE_DENY.build(),
+					HellblockFlag.FlagType.USE);
+			break;
+
+		default:
+			// Fallback: general USE for any other inventories
+			checkFlag(player, loc, event, MessageConstants.MSG_HELLBLOCK_PROTECTION_USE_DENY.build(),
+					HellblockFlag.FlagType.USE);
+			break;
+		}
+	}
+
+	@EventHandler(ignoreCancelled = true)
+	public void onHorseInventoryOpen(InventoryOpenEvent event) {
+		// Already implemented, just ensure it handles entity holders like horses
+		InventoryHolder holder = event.getInventory().getHolder();
+		if (holder == null)
+			return;
+
+		if (holder instanceof AbstractHorse || holder instanceof Llama) {
+			checkFlag((Player) event.getPlayer(), event.getPlayer().getLocation(), event,
+					MessageConstants.MSG_HELLBLOCK_PROTECTION_USE_DENY.build(), HellblockFlag.FlagType.USE);
+		}
+	}
+
+	@EventHandler(ignoreCancelled = true)
+	public void onInventoryClick(InventoryClickEvent event) {
+		if (!(event.getWhoClicked() instanceof Player player))
+			return;
+
+		Inventory clickedInventory = event.getClickedInventory();
+		if (clickedInventory == null)
+			return;
+
+		InventoryHolder holder = clickedInventory.getHolder();
+		if (!(holder instanceof BlockState blockState))
+			return;
+
+		Location loc = blockState.getLocation();
+
+		InventoryType type = event.getView().getTopInventory().getType();
+		if (type == InventoryType.BEACON) {
+			checkFlag(player, loc, event, MessageConstants.MSG_HELLBLOCK_PROTECTION_USE_DENY.build(),
+					HellblockFlag.FlagType.USE);
 		}
 
 		checkFlag(player, loc, event, MessageConstants.MSG_HELLBLOCK_PROTECTION_CHEST_ACCESS_DENY.build(),
 				HellblockFlag.FlagType.CHEST_ACCESS);
+	}
+
+	@EventHandler(ignoreCancelled = true)
+	public void onInventoryDrag(InventoryDragEvent event) {
+		if (!(event.getWhoClicked() instanceof Player player))
+			return;
+
+		Inventory inventory = event.getInventory();
+		InventoryHolder holder = inventory.getHolder();
+		if (!(holder instanceof BlockState blockState))
+			return;
+
+		Location loc = blockState.getLocation();
+
+		checkFlag(player, loc, event, MessageConstants.MSG_HELLBLOCK_PROTECTION_CHEST_ACCESS_DENY.build(),
+				HellblockFlag.FlagType.CHEST_ACCESS);
+	}
+
+	@EventHandler(ignoreCancelled = true)
+	public void onBlockDispenseArmor(BlockDispenseArmorEvent event) {
+		Block block = event.getBlock();
+		Location loc = block.getLocation();
+
+		checkOwnerFlag(loc, HellblockFlag.FlagType.INTERACT,
+				() -> instance.getScheduler().executeSync(() -> event.setCancelled(true)));
 	}
 
 	@EventHandler(ignoreCancelled = true)
@@ -478,35 +986,71 @@ public class ProtectionEvents implements Listener, Reloadable {
 		final Location loc = (event.getHitBlock() != null) ? event.getHitBlock().getLocation()
 				: event.getHitEntity().getLocation();
 
-		if (event.getHitEntity() instanceof Player) {
+		if (proj instanceof Trident && event.getHitEntity() instanceof Player) {
 			checkFlag(shooter, loc, event, MessageConstants.MSG_HELLBLOCK_PROTECTION_PROJECTILE_DENY.build(),
 					HellblockFlag.FlagType.PVP);
 		} else {
-			checkFlag(shooter, loc, event, MessageConstants.MSG_HELLBLOCK_PROTECTION_PROJECTILE_DENY.build(),
-					HellblockFlag.FlagType.INTERACT);
+			if (event.getHitEntity() instanceof Player) {
+				checkFlag(shooter, loc, event, MessageConstants.MSG_HELLBLOCK_PROTECTION_PROJECTILE_DENY.build(),
+						HellblockFlag.FlagType.PVP);
+			} else {
+				// Expanded: deny if projectile hits armor stand, item frame, etc.
+				if (event.getHitEntity() instanceof ArmorStand || event.getHitEntity() instanceof ItemFrame
+						|| event.getHitEntity() instanceof Painting) {
+					checkFlag(shooter, loc, event, MessageConstants.MSG_HELLBLOCK_PROTECTION_PROJECTILE_DENY.build(),
+							HellblockFlag.FlagType.INTERACT);
+				} else {
+					checkFlag(shooter, loc, event, MessageConstants.MSG_HELLBLOCK_PROTECTION_PROJECTILE_DENY.build(),
+							HellblockFlag.FlagType.INTERACT);
+				}
+			}
 		}
 	}
 
 	// Explosion handling using ExplosionTracker to find responsible player where
 	// possible
+
 	@EventHandler(ignoreCancelled = true)
 	public void onEntityExplode(EntityExplodeEvent event) {
 		final Entity exploder = event.getEntity();
-		final Player sourcePlayer = (exploder instanceof Player) ? (Player) exploder : null;
+		final List<Block> blocks = new ArrayList<>(event.blockList());
 
-		if (sourcePlayer == null) {
-			// No player involved -> protect all blocks in islands
-			event.blockList().clear();
+		if (exploder instanceof Player player) {
+			CompletableFuture.allOf(blocks.stream().map(
+					block -> canInteract(player, block.getLocation(), HellblockFlag.FlagType.TNT).thenAccept(can -> {
+						if (!can && !bypass(player)) {
+							instance.getScheduler().executeSync(() -> event.blockList().remove(block));
+						}
+					})).toArray(CompletableFuture[]::new));
 			return;
 		}
 
-		final List<Block> blocks = new ArrayList<>(event.blockList());
-		CompletableFuture.allOf(blocks.stream().map(
-				block -> canInteract(sourcePlayer, block.getLocation(), HellblockFlag.FlagType.TNT).thenAccept(can -> {
-					if (!can && !bypass(sourcePlayer)) {
-						instance.getScheduler().executeSync(() -> event.blockList().remove(block));
-					}
-				})).toArray(CompletableFuture[]::new));
+		if (exploder instanceof ExplosiveMinecart tntMinecart) {
+			final Player owner = explosionTracker.getResponsiblePlayer(tntMinecart);
+			if (owner != null) {
+				blocks.forEach(
+						block -> canInteract(owner, block.getLocation(), HellblockFlag.FlagType.TNT).thenAccept(can -> {
+							if (!can && !bypass(owner)) {
+								instance.getScheduler().executeSync(() -> event.blockList().remove(block));
+							}
+						}));
+				return;
+			}
+
+			// No owner -> fallback to check island owner
+			blocks.forEach(block -> checkOwnerFlag(block.getLocation(), HellblockFlag.FlagType.TNT,
+					() -> instance.getScheduler().executeSync(() -> event.blockList().remove(block))));
+			return;
+		}
+
+		if (exploder instanceof Creeper) {
+			blocks.forEach(block -> checkOwnerFlag(block.getLocation(), HellblockFlag.FlagType.CREEPER_EXPLOSION,
+					() -> instance.getScheduler().executeSync(() -> event.blockList().remove(block))));
+			return;
+		}
+
+		// Catch other entities (e.g., primed TNT not player-owned, or unknown sources)
+		event.blockList().clear();
 	}
 
 	@EventHandler(ignoreCancelled = true)
@@ -534,6 +1078,20 @@ public class ProtectionEvents implements Listener, Reloadable {
 					instance.getScheduler().executeSync(() -> event.blockList().remove(block));
 				}
 			});
+		}
+	}
+
+	@EventHandler(ignoreCancelled = true)
+	public void onTntMinecartSpawn(EntitySpawnEvent event) {
+		if (event.getEntity().getType() != EntityTypeUtils.getCompatibleEntityType("TNT_MINECART", "MINECART_TNT"))
+			return;
+
+		final Player player = event.getEntity().getWorld()
+				.getNearbyEntities(event.getLocation(), 1.5, 1.5, 1.5, e -> e instanceof Player).stream()
+				.map(e -> (Player) e).findFirst().orElse(null);
+
+		if (player != null) {
+			explosionTracker.track(event.getEntity(), player);
 		}
 	}
 
@@ -581,6 +1139,12 @@ public class ProtectionEvents implements Listener, Reloadable {
 		final EntityType type = event.getEntityType();
 		final CreatureSpawnEvent.SpawnReason reason = event.getSpawnReason();
 
+		Set<PetProvider> petProviders = instance.getIntegrationManager().getPetProviders();
+		for (PetProvider petProvider : petProviders) {
+			if (petProvider != null && petProvider.isPet(event.getEntity()))
+				return;
+		}
+
 		instance.getCoopManager().getHellblockOwnerOfBlock(loc.getBlock()).thenAccept(ownerUUID -> {
 			if (ownerUUID == null)
 				return;
@@ -601,7 +1165,8 @@ public class ProtectionEvents implements Listener, Reloadable {
 			}
 
 			// Check MOB_SPAWNING flag
-			instance.getStorageManager().getOfflineUserData(ownerUUID, instance.getConfigManager().lockData())
+			instance.getStorageManager()
+					.getCachedUserDataWithFallback(ownerUUID, instance.getConfigManager().lockData())
 					.thenAccept(result -> {
 						if (result.isEmpty())
 							return;
@@ -647,46 +1212,92 @@ public class ProtectionEvents implements Listener, Reloadable {
 				}));
 	}
 
-	// Ride (mount/dismount) checks
 	@EventHandler(ignoreCancelled = true)
-	public void onEntityMount(EntityMountEvent event) {
-		if (event.getEntity() instanceof Player player) {
-			checkFlag(player, event.getMount().getLocation(), event,
-					MessageConstants.MSG_HELLBLOCK_PROTECTION_RIDE_DENY.build(), HellblockFlag.FlagType.RIDE);
-		}
-	}
-
-	@EventHandler(ignoreCancelled = true)
-	public void onEntityDismount(EntityDismountEvent event) {
-		if (!(event.getEntity() instanceof Player player)) {
+	public void onEntityTarget(EntityTargetEvent event) {
+		if (!(event.getTarget() instanceof Player target))
 			return;
-		}
 
-		// Check ENTRY flag first (covers dismounting into island area)
-		denyIfNotAllowed(player, event.getDismounted().getLocation(), event,
-				MessageConstants.MSG_HELLBLOCK_PROTECTION_ENTRY_DENY.build(), HellblockFlag.FlagType.ENTRY);
-
-		// Then check RIDE flag
-		checkFlag(player, event.getDismounted().getLocation(), event,
-				MessageConstants.MSG_HELLBLOCK_PROTECTION_RIDE_DENY.build(), HellblockFlag.FlagType.RIDE);
+		Location loc = target.getLocation();
+		checkFlag(target, loc, event, MessageConstants.MSG_HELLBLOCK_PROTECTION_MOB_DAMAGE_DENY.build(),
+				HellblockFlag.FlagType.MOB_DAMAGE);
 	}
 
-	// Snowman trails -> owner flag
 	@EventHandler(ignoreCancelled = true)
-	public void onSnowmanTrails(EntityChangeBlockEvent event) {
-		if (event.getEntityType() == EntityType.SNOW_GOLEM) {
-			checkOwnerFlag(event.getBlock().getLocation(), HellblockFlag.FlagType.SNOWMAN_TRAILS,
-					() -> instance.getScheduler().executeSync(() -> event.setCancelled(true)));
+	public void onEntityChangeBlock(EntityChangeBlockEvent event) {
+		final Entity entity = event.getEntity();
+		final EntityType type = event.getEntityType();
+		final Location loc = event.getBlock().getLocation();
+
+		Map<EntityType, HellblockFlag.FlagType> flagMap = new HashMap<>();
+		flagMap.put(EntityTypeUtils.getCompatibleEntityType("SNOW_GOLEM", "SNOWMAN"),
+				HellblockFlag.FlagType.SNOWMAN_TRAILS);
+		flagMap.put(EntityType.ENDERMAN, HellblockFlag.FlagType.ENDER_BUILD);
+		flagMap.put(EntityType.RAVAGER, HellblockFlag.FlagType.RAVAGER_RAVAGE);
+
+		HellblockFlag.FlagType flag = flagMap.getOrDefault(type, null);
+
+		if (flag == null)
+			return;
+
+		// Special handling for Enderman placement rules
+		if (type == EntityType.ENDERMAN) {
+			Integer islandId = instance.getPlacementDetector().getIslandIdAt(loc);
+
+			if (event.getTo() == Material.AIR) {
+				// Picking up block → record the island
+				if (islandId != null) {
+					endermanIslandCache.put(entity.getUniqueId(), islandId);
+				}
+			} else {
+				// Placing block → ensure same island
+				Integer cachedIslandId = endermanIslandCache.get(entity.getUniqueId());
+				if (cachedIslandId != null && islandId != null && !cachedIslandId.equals(islandId)) {
+					instance.getScheduler().executeSync(() -> event.setCancelled(true));
+					instance.debug("Enderman prevented from placing block in islandID=" + islandId
+							+ " across island boundaries that originally belonged to islandID=" + cachedIslandId + ".");
+					return;
+				}
+			}
+		}
+
+		checkOwnerFlag(loc, flag, () -> instance.getScheduler().executeSync(() -> event.setCancelled(true)));
+	}
+
+	@EventHandler
+	public void onEndermanDeath(EntityDeathEvent event) {
+		final Entity entity = event.getEntity();
+		if (entity instanceof Enderman enderman && endermanIslandCache.containsKey(enderman.getUniqueId())) {
+			endermanIslandCache.remove(enderman.getUniqueId());
 		}
 	}
 
-	// Enderman griefing -> owner flag
+	// Handles all experience gain sources controlled by EXP_DROPS flag
 	@EventHandler(ignoreCancelled = true)
-	public void onEndermanGrief(EntityChangeBlockEvent event) {
-		if (event.getEntityType() == EntityType.ENDERMAN) {
-			checkOwnerFlag(event.getBlock().getLocation(), HellblockFlag.FlagType.ENDER_BUILD,
-					() -> instance.getScheduler().executeSync(() -> event.setCancelled(true)));
-		}
+	public void onExpDrops(EntityDeathEvent event) {
+		final Location loc = event.getEntity().getLocation();
+
+		checkOwnerFlag(loc, HellblockFlag.FlagType.EXP_DROPS,
+				() -> instance.getScheduler().executeSync(() -> event.setDroppedExp(0)));
+	}
+
+	@EventHandler(ignoreCancelled = true)
+	public void onBlockExp(BlockExpEvent event) {
+		final Location loc = event.getBlock().getLocation();
+
+		checkOwnerFlag(loc, HellblockFlag.FlagType.EXP_DROPS,
+				() -> instance.getScheduler().executeSync(() -> event.setExpToDrop(0)));
+	}
+
+	@EventHandler(ignoreCancelled = true)
+	public void onFishExp(PlayerFishEvent event) {
+		if (event.getExpToDrop() <= 0)
+			return; // no exp reward
+
+		final Player player = event.getPlayer();
+		final Location loc = player.getLocation();
+
+		checkFlag(player, loc, event, MessageConstants.MSG_HELLBLOCK_PROTECTION_EXP_DROP_DENY.build(),
+				HellblockFlag.FlagType.EXP_DROPS);
 	}
 
 	// Ghast fireball impact -> owner flag
@@ -758,16 +1369,58 @@ public class ProtectionEvents implements Listener, Reloadable {
 	// Wind charge burst (1.20+) -> owner flag
 	@EventHandler(ignoreCancelled = true)
 	public void onWindChargeBurst(ProjectileHitEvent event) {
-		// best-effort detection by type name; adapt if you have a direct class
 		if (!VersionHelper.isVersionNewerThan1_20_6()) {
 			return;
 		}
-		final boolean windChargeCondition = event.getEntity().getType() == EntityType.BREEZE_WIND_CHARGE
-				&& event.getHitBlock() != null;
-		if (windChargeCondition) {
+
+		try {
+			if (event.getEntityType() != EntityType.valueOf("BREEZE_WIND_CHARGE"))
+				return;
+		} catch (NoSuchFieldError | IllegalArgumentException ignored) {
+			return;
+		}
+
+		if (event.getHitBlock() != null) {
 			checkOwnerFlag(event.getHitBlock().getLocation(), HellblockFlag.FlagType.WIND_CHARGE_BURST,
 					() -> instance.getScheduler().executeSync(() -> event.getEntity().remove()));
 		}
+	}
+
+	@EventHandler(ignoreCancelled = true)
+	public void onBreezeWindChargeExplode(ExplosionPrimeEvent event) {
+		if (!VersionHelper.isVersionNewerThan1_20_6()) {
+			return;
+		}
+
+		try {
+			if (event.getEntityType() != EntityType.valueOf("WIND_CHARGE"))
+				return;
+		} catch (NoSuchFieldError | IllegalArgumentException ignored) {
+			return;
+		}
+
+		final Location loc = event.getEntity().getLocation();
+
+		checkOwnerFlag(loc, HellblockFlag.FlagType.BREEZE_WIND_CHARGE,
+				() -> instance.getScheduler().executeSync(() -> event.setCancelled(true)));
+	}
+
+	@EventHandler(ignoreCancelled = true)
+	public void onBreezeWindChargeBlockExplosion(EntityExplodeEvent event) {
+		if (!VersionHelper.isVersionNewerThan1_20_6()) {
+			return;
+		}
+
+		try {
+			if (event.getEntityType() != EntityType.valueOf("WIND_CHARGE"))
+				return;
+		} catch (NoSuchFieldError | IllegalArgumentException ignored) {
+			return;
+		}
+
+		final Location loc = event.getEntity().getLocation();
+
+		checkOwnerFlag(loc, HellblockFlag.FlagType.BREEZE_WIND_CHARGE, () -> event.blockList().clear());
 	}
 
 	// Potion splash -> flag
@@ -859,20 +1512,6 @@ public class ProtectionEvents implements Listener, Reloadable {
 	}
 
 	@EventHandler(ignoreCancelled = true)
-	public void onPlayerDismount(EntityDismountEvent event) {
-		if (!(event.getEntity() instanceof Player player)) {
-			return;
-		}
-
-		if (!player.hasPermission("hellblock.bypass.lock")) {
-			denyIfNotAllowed(player, event.getDismounted().getLocation(), event,
-					MessageConstants.MSG_HELLBLOCK_PROTECTION_ENTRY_DENY.build(), HellblockFlag.FlagType.ENTRY);
-		}
-
-		handleHellblockMessage(player);
-	}
-
-	@EventHandler(ignoreCancelled = true)
 	public void onVehicleEnter(VehicleEnterEvent event) {
 		if (!(event.getEntered() instanceof Player player))
 			return;
@@ -904,6 +1543,43 @@ public class ProtectionEvents implements Listener, Reloadable {
 		}
 
 		handleHellblockMessage(player);
+	}
+
+	@EventHandler(ignoreCancelled = true)
+	public void onPlayerMove(PlayerMoveEvent event) {
+		Player player = event.getPlayer();
+		if (!instance.getHellblockHandler().isInCorrectWorld(player))
+			return;
+
+		if (movedWithinBlock(event))
+			return;
+
+		Location to = event.getTo();
+		instance.getCoopManager().getHellblockOwnerOfBlock(to.getBlock()).thenAccept(ownerUUID -> {
+			boolean shouldCollide;
+
+			if (ownerUUID == null) {
+				// Not on any island → always allow collision
+				shouldCollide = true;
+			} else if (ownerUUID.equals(player.getUniqueId())) {
+				// Player is owner
+				shouldCollide = true;
+			} else if (instance.getCoopManager().isIslandMember(ownerUUID, player.getUniqueId())) {
+				// Player is trusted or in the same party
+				shouldCollide = true;
+			} else {
+				// Visitor — no collision
+				shouldCollide = false;
+			}
+
+			boolean currentlyNonCollidable = collisionManager.isNonCollidable(player);
+
+			if (!shouldCollide && !currentlyNonCollidable) {
+				instance.getScheduler().executeSync(() -> collisionManager.setNonCollidable(player, true));
+			} else if (shouldCollide && currentlyNonCollidable) {
+				instance.getScheduler().executeSync(() -> collisionManager.setNonCollidable(player, false));
+			}
+		});
 	}
 
 	@EventHandler(ignoreCancelled = true)
@@ -951,9 +1627,25 @@ public class ProtectionEvents implements Listener, Reloadable {
 	}
 
 	@EventHandler(ignoreCancelled = true)
+	public void onBlockForm(BlockFormEvent event) {
+		Block to = event.getBlock();
+		Block from = to.getRelative(BlockFace.DOWN);
+
+		cancelIfLeavingIsland(from, to, event);
+	}
+
+	@EventHandler(ignoreCancelled = true)
+	public void onChangeBlock(EntityChangeBlockEvent event) {
+		Block to = event.getBlock();
+		Block from = to.getRelative(BlockFace.UP); // falling blocks come from above
+
+		cancelIfLeavingIsland(from, to, event);
+	}
+
+	@EventHandler(ignoreCancelled = true)
 	public void onBlockGrow(BlockGrowEvent event) {
 		Block to = event.getBlock();
-		Block from = to.getRelative(BlockFace.DOWN); // Assumes block below is source
+		Block from = getGrowthSource(to); // Assumes block below is source
 
 		cancelIfLeavingIsland(from, to, event);
 	}
@@ -962,6 +1654,30 @@ public class ProtectionEvents implements Listener, Reloadable {
 	public void onBlockSpread(BlockSpreadEvent event) {
 		Block from = event.getSource();
 		Block to = event.getBlock();
+
+		cancelIfLeavingIsland(from, to, event);
+	}
+
+	@EventHandler(ignoreCancelled = true)
+	public void onLivingEntityExplode(EntityExplodeEvent event) {
+		Block origin = event.getLocation().getBlock();
+		List<Block> toRemove = new ArrayList<>();
+
+		event.blockList().forEach(block -> {
+			instance.getCoopManager().getHellblockOwnerOfBlock(origin).thenCombine(
+					instance.getCoopManager().getHellblockOwnerOfBlock(block), (originOwner, blockOwner) -> {
+						if (originOwner != null && blockOwner != null && !originOwner.equals(blockOwner)) {
+							toRemove.add(block);
+						}
+						return null;
+					}).thenRun(() -> instance.getScheduler().executeSync(() -> event.blockList().removeAll(toRemove)));
+		});
+	}
+
+	@EventHandler(ignoreCancelled = true)
+	public void onEntityBlockForm(EntityBlockFormEvent event) {
+		Block to = event.getBlock();
+		Block from = to.getRelative(BlockFace.DOWN);
 
 		cancelIfLeavingIsland(from, to, event);
 	}
@@ -993,25 +1709,112 @@ public class ProtectionEvents implements Listener, Reloadable {
 			// Once all futures complete, update the event
 			CompletableFuture.allOf(checks.toArray(CompletableFuture[]::new))
 					.thenRun(() -> instance.getScheduler().executeSync(() -> {
-						event.getBlocks().clear();
-						event.getBlocks().addAll(allowedStates);
+						if (!event.isCancelled()) {
+							event.getBlocks().clear();
+							event.getBlocks().addAll(allowedStates);
+						}
 					}));
 		});
 	}
 
+	private Block getGrowthSource(Block to) {
+		Material type = to.getType();
+
+		// Handle based on known growth behaviors
+		return switch (type) {
+		// Vertical “stacking” growths (grow upwards)
+		case CACTUS, SUGAR_CANE, KELP, BAMBOO, CHORUS_PLANT -> to.getRelative(BlockFace.DOWN);
+
+		// Horizontal spreads (vines, lichen)
+		case VINE, GLOW_LICHEN -> {
+			// Use any attached face if possible
+			for (BlockFace face : BlockFace.values()) {
+				if (to.getRelative(face).getType() == type)
+					yield to.getRelative(face);
+			}
+			yield to; // fallback
+		}
+
+		// Mushroom and grass-type spreads (handled in BlockSpreadEvent anyway)
+		case RED_MUSHROOM, BROWN_MUSHROOM, GRASS_BLOCK, MYCELIUM -> to;
+
+		// Everything else grows in-place (crop maturity, etc.)
+		default -> to;
+		};
+	}
+
 	private void cancelIfLeavingIsland(Block from, Block to, Cancellable event) {
-		instance.getCoopManager().getHellblockOwnerOfBlock(from)
-				.thenCombine(instance.getCoopManager().getHellblockOwnerOfBlock(to), (fromOwner, toOwner) -> {
-					if (fromOwner != null && !fromOwner.equals(toOwner)) {
-						instance.debug("Cancelled event " + event.getClass().getSimpleName()
-								+ " due to island boundary: from=" + blockInfo(from) + ", to=" + blockInfo(to));
-						instance.getScheduler().executeSync(() -> event.setCancelled(true));
-					}
-					return null;
-				}).exceptionally(ex -> {
-					instance.getPluginLogger().warn("cancelIfLeavingIsland failed: " + ex.getMessage());
-					return null;
-				});
+		// ---- Basic sanity checks ----
+		if (from == null || to == null)
+			return;
+		World worldFrom = from.getWorld();
+		World worldTo = to.getWorld();
+		if (worldFrom == null || worldTo == null || !worldFrom.equals(worldTo))
+			return;
+		if (!instance.getHellblockHandler().isInCorrectWorld(worldFrom))
+			return;
+
+		// ---- Fast synchronous pre-check (cached ownership or island ID) ----
+		try {
+			// Attempt to resolve cached island IDs (cheap synchronous check)
+			Integer fromIslandId = instance.getPlacementDetector().getIslandIdAt(from.getLocation());
+			Integer toIslandId = instance.getPlacementDetector().getIslandIdAt(to.getLocation());
+
+			if (fromIslandId != null && toIslandId != null && !fromIslandId.equals(toIslandId)) {
+				instance.debug("Immediate cancel (cached check) for " + event.getClass().getSimpleName() + " from="
+						+ blockInfo(from) + ", to=" + blockInfo(to));
+				event.setCancelled(true);
+				return; // Already determined; no need for async resolution
+			}
+		} catch (Exception e) {
+			instance.getPluginLogger().warn("Fast island check failed: " + e.getMessage(), e);
+		}
+
+		// ---- Async ownership resolution fallback ----
+		CompletableFuture<UUID> fromFuture = withTimeout(instance.getCoopManager().getHellblockOwnerOfBlock(from), 3,
+				TimeUnit.SECONDS);
+		CompletableFuture<UUID> toFuture = withTimeout(instance.getCoopManager().getHellblockOwnerOfBlock(to), 3,
+				TimeUnit.SECONDS);
+
+		fromFuture.thenCombine(toFuture, (fromOwner, toOwner) -> {
+			// Only cancel if both are known and belong to different owners
+			if (fromOwner != null && toOwner != null && !fromOwner.equals(toOwner)) {
+				instance.debug("Async cancel " + event.getClass().getSimpleName() + " due to island boundary: from="
+						+ blockInfo(from) + ", to=" + blockInfo(to));
+				instance.getScheduler().executeSync(() -> event.setCancelled(true));
+			}
+			return null;
+		}).exceptionally(ex -> {
+			if (ex instanceof CancellationException) {
+				instance.debug("cancelIfLeavingIsland timed out normally (future aborted).");
+			} else {
+				instance.getPluginLogger().warn("cancelIfLeavingIsland failed: " + ex.getMessage(), ex);
+			}
+			return null;
+		});
+	}
+
+	private <T> CompletableFuture<T> withTimeout(CompletableFuture<T> original, long timeout, TimeUnit unit) {
+		CompletableFuture<T> timeoutFuture = new CompletableFuture<>();
+
+		// Schedule an async timeout completion — use async scheduler, not sync.
+		long delay = unit.toSeconds(timeout);
+		instance.getScheduler().asyncLater(() -> {
+			if (!timeoutFuture.isDone()) {
+				timeoutFuture.completeExceptionally(new TimeoutException(
+						"Owner lookup timed out after " + timeout + " " + unit.toString().toLowerCase()));
+			}
+		}, delay, TimeUnit.SECONDS);
+
+		// Return whichever completes first: original or timeout
+		return original.applyToEither(timeoutFuture, Function.identity()).exceptionally(ex -> {
+			if (ex instanceof TimeoutException) {
+				instance.debug("withTimeout: async lookup exceeded " + timeout + " " + unit);
+			} else if (!(ex instanceof CancellationException)) {
+				instance.getPluginLogger().warn("withTimeout: async failure - " + ex.getMessage(), ex);
+			}
+			return null;
+		});
 	}
 
 	private String blockInfo(Block block) {
@@ -1035,7 +1838,8 @@ public class ProtectionEvents implements Listener, Reloadable {
 			if (ownerUUID == null) {
 				return;
 			}
-			instance.getStorageManager().getOfflineUserData(ownerUUID, instance.getConfigManager().lockData())
+			instance.getStorageManager()
+					.getCachedUserDataWithFallback(ownerUUID, instance.getConfigManager().lockData())
 					.thenAccept(result -> {
 						if (result.isEmpty()) {
 							return;
@@ -1051,22 +1855,39 @@ public class ProtectionEvents implements Listener, Reloadable {
 
 	private CompletableFuture<Boolean> canInteract(Player player, Location location, HellblockFlag.FlagType flag) {
 		// Always check against the island owner's flag settings
+		if (location.getWorld() == null || !instance.getHellblockHandler().isInCorrectWorld(location.getWorld())) {
+			return CompletableFuture.completedFuture(false);
+		}
+
 		return instance.getCoopManager().getHellblockOwnerOfBlock(location.getBlock()).thenCompose(ownerUUID -> {
 			if (ownerUUID == null) {
 				instance.debug("Protection: Skipped non-island location at " + location.getWorld().getName() + " ("
-						+ location.getBlockX() + "," + location.getBlockY() + "," + location.getBlockZ() + ")");
+						+ location.getBlockX() + "," + location.getBlockY() + "," + location.getBlockZ() + ") by "
+						+ (player != null ? player.getName() : "unknown"));
 				return CompletableFuture.completedFuture(false);
 			}
 
-			return instance.getStorageManager().getOfflineUserData(ownerUUID, instance.getConfigManager().lockData())
+			return instance.getStorageManager()
+					.getCachedUserDataWithFallback(ownerUUID, instance.getConfigManager().lockData())
 					.thenApply(result -> {
 						if (result.isEmpty()) {
 							return false;
 						}
 						final UserData data = result.get();
+						final HellblockData hellblockData = data.getHellblockData();
+
+						// Handle abandoned island flag rules
+						if (hellblockData.isAbandoned()) {
+							return switch (flag) {
+							case PVP, ENTRY, BUILD -> true; // Always allow
+							case MOB_SPAWNING -> false; // Always deny
+							default -> false; // Deny all other flags
+							};
+						}
+
 						// Co-op/owner access OR explicit ALLOW by owner
-						return player != null && (data.getHellblockData().canAccess(player.getUniqueId())
-								|| data.getHellblockData().getProtectionValue(flag) == HellblockFlag.AccessType.ALLOW);
+						return player != null && (hellblockData.canAccess(player.getUniqueId())
+								|| hellblockData.getProtectionValue(flag) == HellblockFlag.AccessType.ALLOW);
 					});
 		}).orTimeout(3, TimeUnit.SECONDS).exceptionally(ex -> {
 			instance.getPluginLogger().warn("canInteract failed: " + ex.getMessage());
@@ -1087,7 +1908,7 @@ public class ProtectionEvents implements Listener, Reloadable {
 				}
 
 				final CompletableFuture<Boolean> bannedFuture = instance.getCoopManager()
-						.trackBannedPlayer(player.getUniqueId(), islandOwnerUUID);
+						.isPlayerBannedInLocation(player.getUniqueId(), islandOwnerUUID, loc);
 
 				final CompletableFuture<Boolean> welcomeFuture = instance.getCoopManager()
 						.checkIfVisitorsAreWelcome(player, islandOwnerUUID);
@@ -1177,7 +1998,8 @@ public class ProtectionEvents implements Listener, Reloadable {
 			}
 
 			// Asynchronously fetch the bounding box from offline user data
-			instance.getStorageManager().getOfflineUserData(ownerUUID, instance.getConfigManager().lockData())
+			instance.getStorageManager()
+					.getCachedUserDataWithFallback(ownerUUID, instance.getConfigManager().lockData())
 					.thenAccept(result -> {
 						if (result.isEmpty()) {
 							return;
@@ -1215,20 +2037,21 @@ public class ProtectionEvents implements Listener, Reloadable {
 		playerInBoundsState.put(playerId, isInside);
 
 		// Fetch the appropriate message from owner data asynchronously
-		instance.getStorageManager().getOfflineUserData(ownerUUID, instance.getConfigManager().lockData())
+		instance.getStorageManager().getCachedUserDataWithFallback(ownerUUID, instance.getConfigManager().lockData())
 				.thenAccept(optData -> {
 					if (optData.isEmpty()) {
 						return;
 					}
 
-					final UserData userData = optData.get();
+					final UserData ownerData = optData.get();
 					final HellblockFlag.FlagType flagType = isInside ? HellblockFlag.FlagType.GREET_MESSAGE
 							: HellblockFlag.FlagType.FAREWELL_MESSAGE;
 
-					final String messageText = userData.getHellblockData().getProtectionData(flagType);
+					String messageText = ownerData.getHellblockData().getProtectionData(flagType);
 
 					if (messageText != null && !messageText.isEmpty()) {
-						final Component message = Component.text(messageText);
+						messageText = messageText.replace("<arg:0>", ownerData.getName());
+						final Component message = AdventureHelper.miniMessageToComponent(messageText);
 
 						// Schedule sending the message on the main thread
 						instance.getScheduler().executeSync(() -> {
@@ -1247,6 +2070,16 @@ public class ProtectionEvents implements Listener, Reloadable {
 	public void onPlayerQuit(PlayerQuitEvent event) {
 		UUID playerId = event.getPlayer().getUniqueId();
 		playerInBoundsState.remove(playerId);
+		collisionManager.setNonCollidable(event.getPlayer(), false);
+	}
+
+	@EventHandler
+	public void onWorldChange(PlayerChangedWorldEvent event) {
+		UUID playerId = event.getPlayer().getUniqueId();
+		if (instance.getHellblockHandler().isInCorrectWorld(event.getFrom())) {
+			playerInBoundsState.remove(playerId);
+			collisionManager.setNonCollidable(event.getPlayer(), false);
+		}
 	}
 
 	private boolean isShopSign(Block block) {
@@ -1254,62 +2087,28 @@ public class ProtectionEvents implements Listener, Reloadable {
 			return false;
 		}
 
-		Location loc = sign.getLocation();
-
-		// === Check QuickShop API ===
-		if (instance.getIntegrationManager().isHooked("QuickShop")) {
-			try {
-				Class<?> apiClass = Class.forName("org.maxgamer.quickshop.api.QuickShopAPI");
-				Object api = apiClass.getMethod("getAPI").invoke(null);
-				Object shop = apiClass.getMethod("getShop", Location.class).invoke(api, loc);
-				if (shop != null) {
-					return true;
-				}
-			} catch (Exception ignored) {
-				// Fallback continues below
-			}
-		}
-
-		// === Check ChestShop API ===
-		if (instance.getIntegrationManager().isHooked("ChestShop")) {
-			try {
-				Class<?> utilsClass = Class.forName("com.Acrobot.ChestShop.Shop.ShopUtils");
-				Object shop = utilsClass.getMethod("getShop", Location.class).invoke(null, loc);
-				if (shop != null) {
-					return true;
-				}
-			} catch (Exception ignored) {
-				// Fallback continues below
-			}
-		}
-
-		// === Check TradeShop API ==
-		if (instance.getIntegrationManager().isHooked("TradeShop")) {
-			try {
-				Class<?> shopUtilsClass = Class.forName("org.shanerx.tradeshop.utils.ShopUtils");
-				// ShopUtils is a singleton: ShopUtils.getInstance().isShop(loc)
-				Object instance = shopUtilsClass.getMethod("getInstance").invoke(null);
-				boolean isShop = (boolean) shopUtilsClass.getMethod("isShop", Location.class).invoke(instance,
-						block.getLocation());
-				if (isShop) {
-					return true;
-				}
-			} catch (Exception ex) {
-				// Fallback continues below
+		Set<ShopSignProvider> shopSignProviders = instance.getIntegrationManager().getShopSignProviders();
+		for (ShopSignProvider shopSignProvider : shopSignProviders) {
+			if (shopSignProvider != null) {
+				return shopSignProvider.isShopSign(sign);
 			}
 		}
 
 		// === Fallback: Heuristic based on Adventure sign lines ===
 		try {
-			List<Component> lines = AdventureMetadata.getSignLines(sign.getSide(Side.FRONT));
+			// Retrieves all sign lines, dual-sided if supported (1.20+), or 4 lines
+			// otherwise
+			List<Component> lines = SignReflectionHelper.getSignLines(sign);
+
 			for (Component line : lines) {
 				if (line == null)
 					continue;
 
-				// Convert Adventure Component to plain text without formatting
-				String plain = PlainTextComponentSerializer.plainText().serialize(line).toLowerCase(Locale.ROOT);
+				// Convert Adventure Component to plain text (no formatting or colors)
+				// Normalize case for comparison
+				String plain = AdventureHelper.componentToPlainText(line).toLowerCase(Locale.ROOT);
 
-				// Very common shop patterns
+				// Check for common shop sign patterns
 				if (plain.contains("[shop]") || plain.contains("[buy]") || plain.contains("[sell]")
 						|| plain.contains("[trade]") || plain.contains("quickshop") || plain.contains("[tradeshop]")
 						|| plain.contains("[ultimateshop]")) {
@@ -1317,7 +2116,8 @@ public class ProtectionEvents implements Listener, Reloadable {
 				}
 			}
 		} catch (Exception ex) {
-			instance.getPluginLogger().warn("Failed to read sign lines for shop detection: " + ex.getMessage());
+			Location loc = sign.getLocation();
+			instance.getPluginLogger().warn("Failed to read sign lines at " + loc + ": " + ex.getMessage());
 		}
 
 		return false;
@@ -1325,6 +2125,7 @@ public class ProtectionEvents implements Listener, Reloadable {
 
 	public class ExplosionTracker {
 		private final Map<Block, UUID> blockOwnerMap = new ConcurrentHashMap<>();
+		private final Map<Entity, UUID> entityOwnerMap = new ConcurrentHashMap<>();
 		private final Map<UUID, Long> expiryMap = new ConcurrentHashMap<>();
 		private final HellblockPlugin instance;
 		private static final long EXPIRY_TICKS = 20L * 60; // 1 minute
@@ -1342,6 +2143,15 @@ public class ProtectionEvents implements Listener, Reloadable {
 					block.getLocation());
 		}
 
+		public void track(Entity entity, Player player) {
+			final UUID uuid = player.getUniqueId();
+			entityOwnerMap.put(entity, uuid);
+			expiryMap.put(uuid, System.currentTimeMillis() + (EXPIRY_TICKS * 50));
+
+			instance.getScheduler().sync().runLater(() -> entityOwnerMap.remove(entity), EXPIRY_TICKS,
+					entity.getLocation());
+		}
+
 		@Nullable
 		public Player getResponsiblePlayer(Block block) {
 			final UUID uuid = blockOwnerMap.get(block);
@@ -1350,12 +2160,30 @@ public class ProtectionEvents implements Listener, Reloadable {
 			}
 
 			final Long expiry = expiryMap.get(uuid);
-			if (!(expiry != null && System.currentTimeMillis() > expiry)) {
-				return Bukkit.getPlayer(uuid);
+			if (expiry == null || System.currentTimeMillis() > expiry) {
+				blockOwnerMap.remove(block);
+				expiryMap.remove(uuid);
+				return null;
 			}
-			blockOwnerMap.remove(block);
-			expiryMap.remove(uuid);
-			return null;
+
+			return Bukkit.getPlayer(uuid);
+		}
+
+		@Nullable
+		public Player getResponsiblePlayer(Entity entity) {
+			final UUID uuid = entityOwnerMap.get(entity);
+			if (uuid == null) {
+				return null;
+			}
+
+			final Long expiry = expiryMap.get(uuid);
+			if (expiry == null || System.currentTimeMillis() > expiry) {
+				entityOwnerMap.remove(entity);
+				expiryMap.remove(uuid);
+				return null;
+			}
+
+			return Bukkit.getPlayer(uuid);
 		}
 	}
 
@@ -1380,6 +2208,201 @@ public class ProtectionEvents implements Listener, Reloadable {
 			if (!canInteract)
 				return "no permission";
 			return "unknown";
+		}
+	}
+
+	public class LegacyMountListener implements Listener {
+
+		private final Map<UUID, Long> recentMounts = new ConcurrentHashMap<>();
+		private static final long MOUNT_TRACK_DURATION_MS = 10_000; // 10 seconds
+
+		private SchedulerTask dismountTask;
+
+		// Approximate mounting attempt by player interacting with mountable entity
+		@EventHandler(ignoreCancelled = true)
+		public void onPlayerInteractEntity(PlayerInteractEntityEvent event) {
+			Player player = event.getPlayer();
+			Entity clicked = event.getRightClicked();
+
+			// Check if the entity is likely mountable
+			if (!isLikelyMountable(clicked))
+				return;
+
+			Set<PetProvider> petProviders = instance.getIntegrationManager().getPetProviders();
+			for (PetProvider petProvider : petProviders) {
+				if (petProvider != null && player.getUniqueId().equals(petProvider.getOwnerUUID(player))
+						&& petProvider.isPet(clicked)) {
+					return;
+				}
+			}
+
+			denyIfNotAllowed(player, clicked.getLocation(), event,
+					MessageConstants.MSG_HELLBLOCK_PROTECTION_RIDE_DENY.build(), HellblockFlag.FlagType.RIDE)
+					.thenAccept(denied -> {
+						if (!denied) {
+							instance.getScheduler().sync().runLater(() -> {
+								// Track mount attempt time
+								if (player.isInsideVehicle()) {
+									recentMounts.put(player.getUniqueId(), System.currentTimeMillis());
+								}
+							}, 2L, clicked.getLocation());
+						}
+					});
+		}
+
+		// Approximate dismount using VehicleExitEvent (only for vehicles, not animals)
+		@EventHandler(ignoreCancelled = true)
+		public void onVehicleExit(VehicleExitEvent event) {
+			if (!(event.getExited() instanceof Player player)) {
+				return;
+			}
+
+			final Location loc = event.getVehicle().getLocation();
+
+			denyIfNotAllowed(player, loc, event, MessageConstants.MSG_HELLBLOCK_PROTECTION_ENTRY_DENY.build(),
+					HellblockFlag.FlagType.ENTRY).thenAccept(denied -> {
+						if (!denied) {
+							checkFlag(player, loc, event, MessageConstants.MSG_HELLBLOCK_PROTECTION_RIDE_DENY.build(),
+									HellblockFlag.FlagType.RIDE);
+						}
+					});
+		}
+
+		@EventHandler
+		public void onPlayerQuit(PlayerQuitEvent event) {
+			recentMounts.remove(event.getPlayer().getUniqueId());
+		}
+
+		// Fallback for other dismounts (e.g., from horses, pigs, etc.)
+		// Run a periodic check for dismounted players
+		public void startDismountCheckTask() {
+			dismountTask = instance.getScheduler().sync().runRepeating(() -> {
+				recentMounts.entrySet()
+						.removeIf(entry -> System.currentTimeMillis() - entry.getValue() > MOUNT_TRACK_DURATION_MS);
+
+				instance.getStorageManager().getOnlineUsers().stream().map(UserData::getPlayer).filter(Objects::nonNull)
+						.forEach(player -> {
+							if (!player.isInsideVehicle() && shouldCheckDismount(player)) {
+								Location loc = player.getLocation();
+								if (!player.hasPermission("hellblock.bypass.lock")) {
+									denyIfNotAllowed(player, loc, null,
+											MessageConstants.MSG_HELLBLOCK_PROTECTION_ENTRY_DENY.build(),
+											HellblockFlag.FlagType.ENTRY);
+								}
+								handleHellblockMessage(player);
+							}
+						});
+			}, 20L, 40L, LocationUtils.getAnyLocationInstance()); // every 2 seconds
+		}
+
+		public void stopDismountCheckTask() {
+			if (dismountTask != null && !dismountTask.isCancelled()) {
+				dismountTask.cancel();
+				dismountTask = null;
+			}
+		}
+
+		// Heuristic: only run checks on players who recently mounted
+		private boolean shouldCheckDismount(Player player) {
+			Long mountTime = recentMounts.get(player.getUniqueId());
+			if (mountTime == null) {
+				return false;
+			}
+
+			long elapsed = System.currentTimeMillis() - mountTime;
+			if (elapsed > MOUNT_TRACK_DURATION_MS) {
+				recentMounts.remove(player.getUniqueId()); // Cleanup
+				return false;
+			}
+			return true;
+		}
+
+		private boolean isLikelyMountable(Entity entity) {
+			return MOUNTABLE_TYPES.contains(entity.getType());
+		}
+
+		private static final Set<EntityType> MOUNTABLE_TYPES = buildMountableTypes();
+
+		private static Set<EntityType> buildMountableTypes() {
+			Set<EntityType> types = EnumSet.noneOf(EntityType.class);
+
+			// Always present
+			Collections.addAll(types, EntityType.HORSE, EntityType.DONKEY, EntityType.MULE, EntityType.PIG,
+					EntityType.STRIDER, EntityType.LLAMA, EntityType.TRADER_LLAMA, EntityType.MINECART);
+
+			// Camel (Present in 1.19.3+ only)
+			try {
+				types.add(EntityType.valueOf("CAMEL"));
+			} catch (NoSuchFieldError | IllegalArgumentException ignored) {
+			}
+
+			// BOAT (legacy)
+			try {
+				types.add(EntityType.valueOf("CHEST_BOAT"));
+				types.add(EntityType.valueOf("BOAT"));
+			} catch (NoSuchFieldError | IllegalArgumentException ignored) {
+			}
+
+			// New boat types
+			addEntityIfPresent(types, "OAK_BOAT");
+			addEntityIfPresent(types, "SPRUCE_BOAT");
+			addEntityIfPresent(types, "BIRCH_BOAT");
+			addEntityIfPresent(types, "JUNGLE_BOAT");
+			addEntityIfPresent(types, "ACACIA_BOAT");
+			addEntityIfPresent(types, "DARK_OAK_BOAT");
+			addEntityIfPresent(types, "MANGROVE_BOAT");
+			addEntityIfPresent(types, "CHERRY_BOAT");
+			addEntityIfPresent(types, "PALE_OAK_BOAT");
+			addEntityIfPresent(types, "BAMBOO_RAFT");
+
+			// Chest variants
+			addEntityIfPresent(types, "OAK_CHEST_BOAT");
+			addEntityIfPresent(types, "SPRUCE_CHEST_BOAT");
+			addEntityIfPresent(types, "BIRCH_CHEST_BOAT");
+			addEntityIfPresent(types, "JUNGLE_CHEST_BOAT");
+			addEntityIfPresent(types, "ACACIA_CHEST_BOAT");
+			addEntityIfPresent(types, "DARK_OAK_CHEST_BOAT");
+			addEntityIfPresent(types, "MANGROVE_CHEST_BOAT");
+			addEntityIfPresent(types, "CHERRY_CHEST_BOAT");
+			addEntityIfPresent(types, "PALE_OAK_CHEST_BOAT");
+			addEntityIfPresent(types, "BAMBOO_CHEST_RAFT");
+
+			return Collections.unmodifiableSet(types);
+		}
+
+		private static void addEntityIfPresent(Set<EntityType> set, String name) {
+			try {
+				EntityType type = EntityType.valueOf(name);
+				set.add(type);
+			} catch (NoSuchFieldError | IllegalArgumentException ignored) {
+			}
+		}
+	}
+
+	public class CollisionManager {
+		private final Set<UUID> nonCollidablePlayers = Collections.synchronizedSet(new HashSet<>());
+
+		public void setNonCollidable(Player player, boolean value) {
+			player.setCollidable(!value);
+			if (value) {
+				nonCollidablePlayers.add(player.getUniqueId());
+			} else {
+				nonCollidablePlayers.remove(player.getUniqueId());
+			}
+		}
+
+		public boolean isNonCollidable(Player player) {
+			return nonCollidablePlayers.contains(player.getUniqueId());
+		}
+
+		public void resetAll() {
+			for (UUID uuid : new HashSet<>(nonCollidablePlayers)) {
+				Player player = Bukkit.getPlayer(uuid);
+				if (player != null) {
+					player.setCollidable(true);
+				}
+			}
+			nonCollidablePlayers.clear();
 		}
 	}
 }

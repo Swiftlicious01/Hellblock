@@ -1,20 +1,21 @@
 package com.swiftlicious.hellblock.commands.sub;
 
-import com.saicone.rtag.item.ItemTagStream;
-import com.swiftlicious.hellblock.HellblockPlugin;
-import com.swiftlicious.hellblock.commands.BukkitCommandFeature;
-import com.swiftlicious.hellblock.commands.HellblockCommandManager;
-
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.event.ClickEvent;
-import net.kyori.adventure.text.event.HoverEvent;
-import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Material;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.incendo.cloud.Command;
 import org.incendo.cloud.CommandManager;
+
+import com.saicone.rtag.item.ItemTagStream;
+import com.swiftlicious.hellblock.commands.BukkitCommandFeature;
+import com.swiftlicious.hellblock.commands.HellblockCommandManager;
+import com.swiftlicious.hellblock.config.locale.MessageConstants;
+import com.swiftlicious.hellblock.handlers.AdventureHelper;
+
+import net.kyori.adventure.text.event.ClickEvent;
+import net.kyori.adventure.text.event.HoverEvent;
+import net.kyori.adventure.text.format.NamedTextColor;
 
 public class DebugSNBTCommand extends BukkitCommandFeature<CommandSender> {
 
@@ -26,14 +27,16 @@ public class DebugSNBTCommand extends BukkitCommandFeature<CommandSender> {
 	public Command.Builder<? extends CommandSender> assembleCommand(CommandManager<CommandSender> manager,
 			Command.Builder<CommandSender> builder) {
 		return builder.senderType(Player.class).handler(context -> {
-			ItemStack itemStack = context.sender().getInventory().getItemInMainHand();
-			if (itemStack == null || itemStack.getType() == Material.AIR)
+			final Player player = context.sender();
+			ItemStack item = player.getInventory().getItemInMainHand();
+			if (item.getType() == Material.AIR) {
+				handleFeedback(context, MessageConstants.COMMAND_DEBUG_NBT_NO_ITEM_IN_HAND);
 				return;
-			String snbt = ItemTagStream.INSTANCE.toString(itemStack);
-			HellblockPlugin.getInstance().getSenderFactory().wrap(context.sender())
-					.sendMessage(Component.text(snbt)
-							.hoverEvent(HoverEvent.showText(Component.text("Copy").color(NamedTextColor.GREEN)))
-							.clickEvent(ClickEvent.copyToClipboard(snbt)));
+			}
+			String snbt = ItemTagStream.INSTANCE.toString(item);
+			plugin.getSenderFactory().wrap(context.sender()).sendMessage(AdventureHelper.miniMessageToComponent(snbt)
+					.hoverEvent(HoverEvent.showText(AdventureHelper.miniMessageToComponent("Copy").color(NamedTextColor.GREEN)))
+					.clickEvent(ClickEvent.copyToClipboard(snbt)));
 		});
 	}
 

@@ -2,26 +2,55 @@ package com.swiftlicious.hellblock.generation;
 
 import org.bukkit.block.Biome;
 
+import com.google.gson.annotations.SerializedName;
 import com.swiftlicious.hellblock.utils.RandomUtils;
 
+/**
+ * Represents the set of custom Nether biomes available for Hellblock islands.
+ *
+ * <p>
+ * Each enum constant maps to a corresponding {@link Biome} from the Minecraft
+ * API, except for {@code NETHER_FORTRESS}, which dynamically selects a random
+ * biome using {@link RandomUtils#generateRandomBiome()} when accessed.
+ * </p>
+ *
+ * <p>
+ * This enum allows abstraction over raw Minecraft biomes while enabling custom
+ * logic for biome assignment in island generation, visual theming, or gameplay
+ * effects.
+ * </p>
+ */
 public enum HellBiome {
+	@SerializedName("netherWastes")
+	NETHER_WASTES(Biome.NETHER_WASTES),
 
-	SOUL_SAND_VALLEY("Soul Sand Valley", Biome.SOUL_SAND_VALLEY), NETHER_WASTES("Nether Wastes", Biome.NETHER_WASTES),
-	WARPED_FOREST("Warped Forest", Biome.WARPED_FOREST), CRIMSON_FOREST("Crimson Forest", Biome.CRIMSON_FOREST),
-	BASALT_DELTAS("Basalt Deltas", Biome.BASALT_DELTAS), NETHER_FORTRESS("Nether Fortress", null);
+	@SerializedName("soulSandValley")
+	SOUL_SAND_VALLEY(Biome.SOUL_SAND_VALLEY),
 
-	protected final String name;
+	@SerializedName("warpedForest")
+	WARPED_FOREST(Biome.WARPED_FOREST),
+
+	@SerializedName("crimsonForest")
+	CRIMSON_FOREST(Biome.CRIMSON_FOREST),
+
+	@SerializedName("basaltDeltras")
+	BASALT_DELTAS(Biome.BASALT_DELTAS),
+
+	@SerializedName("netherFortress")
+	NETHER_FORTRESS(null);
+
 	protected final Biome converted;
 
-	private HellBiome(String name, Biome converted) {
-		this.name = name;
+	private HellBiome(Biome converted) {
 		this.converted = converted;
 	}
 
-	public String getName() {
-		return this.name;
-	}
-
+	/**
+	 * Returns the mapped {@link Biome} for this HellBiome. For
+	 * {@code NETHER_FORTRESS}, a random biome is returned at call time.
+	 *
+	 * @return the corresponding Minecraft Biome
+	 */
 	public Biome getConvertedBiome() {
 		if (this == NETHER_FORTRESS) {
 			return RandomUtils.generateRandomBiome();

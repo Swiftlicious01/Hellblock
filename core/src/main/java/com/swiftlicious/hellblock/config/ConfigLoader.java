@@ -1,6 +1,8 @@
 package com.swiftlicious.hellblock.config;
 
 import java.io.File;
+import java.io.InputStream;
+import java.nio.file.Path;
 
 import dev.dejvokep.boostedyaml.YamlDocument;
 
@@ -8,6 +10,22 @@ import dev.dejvokep.boostedyaml.YamlDocument;
  * Interface for loading and managing configuration files.
  */
 public interface ConfigLoader {
+
+	/**
+	 * Resolves the config path for the specified file path.
+	 * 
+	 * @param filePath the path to the configuration file
+	 * @return the {@link Path} to the file
+	 */
+	Path resolveConfig(String filePath);
+
+	/**
+	 * Gets the resource in the case if it's gzip.
+	 * 
+	 * @param filePath the path to the configuration file
+	 * @return the {@link InputStream} for the gzip file
+	 */
+	InputStream getResourceMaybeGz(String filePath);
 
 	/**
 	 * Loads a YAML configuration file from the specified file path.
@@ -48,6 +66,7 @@ public interface ConfigLoader {
 	 * Saves a resource file from the plugin's jar to the specified file path.
 	 *
 	 * @param filePath the path where the resource file will be saved
+	 * @return the loaded {@link File}
 	 */
-	void saveResource(String filePath);
+	File saveResource(String filePath);
 }

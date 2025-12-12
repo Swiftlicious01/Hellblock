@@ -46,14 +46,21 @@ public class LootManager implements LootManagerInterface {
 
 	@Override
 	public void load() {
-		instance.debug("Loaded " + lootMap.size() + " loots");
+		instance.debug(
+				lootMap.size() > 0 ? "Loaded " + lootMap.size() + " loot entr" + (lootMap.size() == 1 ? "y" : "ies")
+						: "No loot entries found to load");
 		groupMembersMap.entrySet()
 				.forEach(entry -> instance.debug("Group: {" + entry.getKey() + "} Members: " + entry.getValue()));
-		final File file = new File(instance.getDataFolder(), "loot-conditions.yml");
-		if (!file.exists()) {
-			instance.saveResource("loot-conditions.yml", false);
+
+		File lootFile = instance.getConfigManager().saveResource("loot-conditions.yml");
+
+		if (lootFile == null || !lootFile.exists()) {
+			instance.getPluginLogger().severe("Failed to find or extract loot-conditions.yml");
+			return;
 		}
-		final YamlDocument lootConditionsConfig = instance.getConfigManager().loadData(file);
+
+		YamlDocument lootConditionsConfig = instance.getConfigManager().loadData(lootFile);
+
 		lootConditionsConfig.getStringRouteMappedValues(false).entrySet().stream()
 				.filter(entry -> entry.getValue() instanceof Section).forEach(entry -> {
 					final Section section = (Section) entry.getValue();

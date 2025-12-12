@@ -9,7 +9,6 @@ import java.util.function.BiFunction;
 import java.util.regex.Matcher;
 import java.util.stream.Collectors;
 
-import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
 import org.jetbrains.annotations.Nullable;
 
@@ -33,7 +32,7 @@ public class PlaceholderManager implements PlaceholderManagerInterface {
 	 */
 	@Override
 	public void load() {
-		this.hasPapi = Bukkit.getPluginManager().isPluginEnabled("PlaceholderAPI");
+		this.hasPapi = instance.isHookedPluginEnabled("PlaceholderAPI");
 		this.customPlaceholderMap.put("{random}", (p, map) -> String.valueOf(RandomUtils.generateRandomDouble(0, 1)));
 	}
 

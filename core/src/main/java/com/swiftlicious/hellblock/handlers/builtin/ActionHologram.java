@@ -74,7 +74,7 @@ public class ActionHologram<T> extends AbstractBuiltInAction<T> {
 		if (viewers.isEmpty()) {
 			return;
 		}
-		final String json = AdventureHelper.componentToJson(AdventureHelper.miniMessage(text.render(context)));
+		final String json = AdventureHelper.componentToJson(AdventureHelper.miniMessageToComponent(text.render(context)));
 		final int durationInMillis = (int) (duration.evaluate(context) * 50);
 		viewers.forEach(viewer -> plugin.getHologramManager().showHologram(viewer, location, json, durationInMillis));
 	}

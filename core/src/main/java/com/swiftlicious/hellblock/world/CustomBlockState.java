@@ -2,6 +2,8 @@ package com.swiftlicious.hellblock.world;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.Locale;
+import java.util.Set;
 
 import org.jetbrains.annotations.NotNull;
 
@@ -12,6 +14,8 @@ import net.kyori.adventure.nbt.BinaryTagIO;
 import net.kyori.adventure.nbt.CompoundBinaryTag;
 
 public class CustomBlockState implements CustomBlockStateInterface {
+
+	private static final Set<String> AIR_KEYS = Set.of("minecraft:air", "hellblock:air", "custom:air", "void");
 
 	private final SynchronizedNBTCompound compound;
 	private final CustomBlock owner;
@@ -25,6 +29,23 @@ public class CustomBlockState implements CustomBlockStateInterface {
 	@Override
 	public CustomBlock type() {
 		return owner;
+	}
+
+	@Override
+	public boolean isAir() {
+		String keyStr = this.owner.type().value(); // access the Key directly
+		return AIR_KEYS.contains(keyStr.toLowerCase(Locale.ROOT));
+	}
+
+	@Override
+	public boolean hasInventory() {
+		// Check for "Items" tag existence
+		return compound().get("Items") != null;
+	}
+
+	@Override
+	public void clearInventory() {
+		compound().remove("Items");
 	}
 
 	@Override
@@ -72,7 +93,7 @@ public class CustomBlockState implements CustomBlockStateInterface {
 			return false;
 		}
 		final CustomBlockState that = (CustomBlockState) o;
-		return compound.equals(that.compound);
+		return this.owner.type().equals(that.owner.type()) && compound.equals(that.compound);
 	}
 
 	@Override

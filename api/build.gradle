@@ -15,3 +15,8 @@ tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
     options.release.set(17)
 }
+
+sourceSets.all {
+    allSource.exclude("**/.DS_Store")
+    resources.exclude("**/.DS_Store")
+}

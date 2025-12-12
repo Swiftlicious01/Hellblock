@@ -121,6 +121,39 @@ public class ItemStackUtils {
 						Map.of("hide_tooltip", true)));
 				continue;
 			}
+			if (VersionHelper.isVersionNewerThan1_21_5() && "minecraft:hide_additional_tooltip".equals(component)) {
+				itemEditors.add((item, context) -> {
+					List<String> hiddenComponents = new ArrayList<>(List.of("minecraft:attribute_modifiers",
+							"minecraft:banner_patterns", "minecraft:base_color", "minecraft:bees",
+							"minecraft:block_entity_data", "minecraft:block_state", "minecraft:blocks_attacks",
+							"minecraft:break_sound", "minecraft:bucket_entity_data", "minecraft:bundle_contents",
+							"minecraft:can_break", "minecraft:can_place_on", "minecraft:charged_projectiles",
+							"minecraft:consumable", "minecraft:container", "minecraft:container_loot",
+							"minecraft:damage", "minecraft:damage_resistant", "minecraft:debug_stick_state",
+							"minecraft:death_protection", "minecraft:dyed_color", "minecraft:enchantable",
+							"minecraft:enchantment_glint_override", "minecraft:enchantments", "minecraft:entity_data",
+							"minecraft:equippable", "minecraft:firework_explosion", "minecraft:fireworks",
+							"minecraft:food", "minecraft:glider", "minecraft:instrument",
+							"minecraft:intangible_projectile", "minecraft:jukebox_playable", "minecraft:lock",
+							"minecraft:lodestone_tracker", "minecraft:map_color", "minecraft:map_decorations",
+							"minecraft:map_id", "minecraft:max_damage", "minecraft:max_stack_size",
+							"minecraft:note_block_sound", "minecraft:ominous_bottle_amplifier",
+							"minecraft:pot_decorations", "minecraft:provides_banner_patterns",
+							"minecraft:provides_trim_material", "minecraft:rarity", "minecraft:recipes",
+							"minecraft:repair_cost", "minecraft:repairable", "minecraft:stored_enchantments",
+							"minecraft:suspicious_stew_effects", "minecraft:tool", "minecraft:trim",
+							"minecraft:unbreakable", "minecraft:use_cooldown", "minecraft:use_remainder",
+							"minecraft:weapon", "minecraft:writable_book_content", "minecraft:written_book_content"));
+					// 1.21.11+ components
+					if (VersionHelper.isVersionNewerThan1_21_11()) {
+						hiddenComponents.addAll(List.of("minecraft:damage_type", "minecraft:kinetic_weapon",
+								"minecraft:minimum_attack_charge", "minecraft:use_effects", "minecraft:piercing_weapon",
+								"minecraft:swing_animation"));
+					}
+					item.setComponent("minecraft:tooltip_display", Map.of("hidden_components", hiddenComponents));
+				});
+				continue;
+			}
 			final Object value = entry.getValue();
 			if (value instanceof Section inner) {
 				final Map<String, Object> innerMap = new HashMap<>();

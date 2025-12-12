@@ -4,6 +4,7 @@ import org.incendo.cloud.Command;
 import org.incendo.cloud.CommandManager;
 import org.incendo.cloud.context.CommandContext;
 
+import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.sender.SenderFactory;
 
 import net.kyori.adventure.text.Component;
@@ -12,10 +13,12 @@ import net.kyori.adventure.text.TranslatableComponent;
 public abstract class AbstractCommandFeature<C> implements CommandFeature<C> {
 
 	protected final HellblockCommandManager<C> commandManager;
+	protected final HellblockPlugin plugin;
 	protected CommandConfig<C> commandConfig;
 
 	public AbstractCommandFeature(HellblockCommandManager<C> commandManager) {
 		this.commandManager = commandManager;
+		this.plugin = commandManager.getPlugin();
 	}
 
 	protected abstract SenderFactory<?, C> getSenderFactory();

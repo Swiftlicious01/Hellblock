@@ -21,6 +21,38 @@ public record ChunkPos(int x, int z) {
 	}
 
 	/**
+	 * Adds another {@link ChunkPos} to this one, component-wise.
+	 *
+	 * <p>
+	 * This is used when applying a chunk-based offset to migrate positions between
+	 * different world layouts (e.g., shifting per-player world chunks into a shared
+	 * world).
+	 * </p>
+	 *
+	 * @param other the chunk offset to apply
+	 * @return a new {@link ChunkPos} representing the summed coordinates
+	 */
+	public ChunkPos add(@NotNull ChunkPos other) {
+		return ChunkPos.of(this.x() + other.x(), this.z() + other.z());
+	}
+
+	/**
+	 * Converts this chunk position to a block-space offset by multiplying the chunk
+	 * coordinates by 16 (chunk size).
+	 *
+	 * <p>
+	 * This is useful when determining the base block coordinate of a chunk, such as
+	 * the origin of a region being copied.
+	 * </p>
+	 *
+	 * @return a {@link BlockPos} representing the base (min) block coordinate of
+	 *         this chunk
+	 */
+	public BlockPos toBlockOffset() {
+		return new BlockPos(this.x() << 4, 0, this.z() << 4); // y defaults to 0
+	}
+
+	/**
 	 * Parses a ChunkPos from a string representation in the format "x,z".
 	 *
 	 * @param coordinate The string representation of the chunk coordinates.

@@ -10,6 +10,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.Queue;
 import java.util.Set;
@@ -18,6 +19,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.bukkit.Bukkit;
@@ -29,7 +31,12 @@ import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.util.Vector;
+import org.enginehub.linbus.tree.LinCompoundTag;
+import org.enginehub.linbus.tree.LinListTag;
+import org.enginehub.linbus.tree.LinStringTag;
+import org.enginehub.linbus.tree.LinTagType;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import com.sk89q.worldedit.EditSession;
 import com.sk89q.worldedit.WorldEdit;
@@ -38,23 +45,31 @@ import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldedit.bukkit.BukkitWorld;
 import com.sk89q.worldedit.extension.platform.Capability;
 import com.sk89q.worldedit.extension.platform.Platform;
+import com.sk89q.worldedit.extent.clipboard.BlockArrayClipboard;
 import com.sk89q.worldedit.extent.clipboard.Clipboard;
 import com.sk89q.worldedit.extent.clipboard.io.ClipboardFormat;
 import com.sk89q.worldedit.extent.clipboard.io.ClipboardFormats;
 import com.sk89q.worldedit.extent.clipboard.io.ClipboardReader;
+import com.sk89q.worldedit.function.operation.ForwardExtentCopy;
 import com.sk89q.worldedit.function.operation.Operation;
 import com.sk89q.worldedit.function.operation.Operations;
 import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.regions.Region;
 import com.sk89q.worldedit.session.ClipboardHolder;
 import com.sk89q.worldedit.world.block.BaseBlock;
+import com.sk89q.worldedit.world.block.BlockState;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.handlers.VersionHelper;
-import com.swiftlicious.hellblock.player.mailbox.MailboxFlag;
 import com.swiftlicious.hellblock.scheduler.SchedulerTask;
 import com.swiftlicious.hellblock.schematic.SchematicManager.SpawnSearchMode;
+import com.swiftlicious.hellblock.utils.ParticleUtils;
+
+import net.kyori.adventure.key.Key;
+import net.kyori.adventure.sound.Sound;
+import net.kyori.adventure.sound.Sound.Source;
+import net.kyori.adventure.text.Component;
 
 public class WorldEditHook implements SchematicPaster {
 
@@ -90,15 +105,29 @@ public class WorldEditHook implements SchematicPaster {
 	@Override
 	public CompletableFuture<Location> pasteHellblock(UUID playerId, File file, Location location,
 			boolean ignoreAirBlock, SchematicMetadata metadata, boolean animated) {
-
 		CompletableFuture<Location> future = new CompletableFuture<>();
 
 		try {
 			final ClipboardFormat format = cachedClipboardFormat.getOrDefault(file,
 					ClipboardFormats.findByPath(file.toPath()));
-			final Clipboard clipboard;
+
+			Clipboard original;
+			Clipboard clipboard;
+
 			try (ClipboardReader reader = format.getReader(new FileInputStream(file))) {
-				clipboard = reader.read();
+				original = reader.read();
+				clipboard = cloneClipboard(original); // This may throw WorldEditException
+
+				// Run replacements *inside* the try block so clipboard is valid
+				replacePlaceholdersInClipboard(clipboard,
+						Optional.ofNullable(Bukkit.getPlayer(playerId)).map(Player::getName)
+								.orElse(instance.getTranslationManager()
+										.miniMessageTranslation(MessageConstants.FORMAT_UNKNOWN.build().key())));
+
+			} catch (WorldEditException e) {
+				// Handle either file read or clone failure
+				instance.getPluginLogger().severe("Failed to load and clone clipboard: " + file.getName(), e);
+				throw new RuntimeException("Failed to prepare schematic", e); // or handle differently
 			}
 
 			int width = getSchematicWidth(file);
@@ -135,9 +164,10 @@ public class WorldEditHook implements SchematicPaster {
 						long durationTicks = (blockCount / 10L) + 20L;
 
 						Player player = Bukkit.getPlayer(playerId);
-						if (player != null) {
-							instance.getIslandGenerator().startSchematicCameraAnimation(player, pasteLocation,
-									durationTicks, true);
+						if (player != null && player.isOnline()) {
+							instance.getStorageManager().getOnlineUser(playerId).ifPresent(
+									userData -> instance.getIslandGenerator().startSchematicCameraAnimation(userData,
+											pasteLocation, durationTicks, true));
 						}
 
 						pasteProgress.put(playerId, 0);
@@ -176,12 +206,12 @@ public class WorldEditHook implements SchematicPaster {
 						progressTaskRef[0] = instance.getScheduler().sync().runRepeating(() -> {
 							int percent = pasteProgress.getOrDefault(playerId, 0);
 							if (!future.isDone()) {
-								if (player != null) {
+								if (player != null && player.isOnline()) {
 									VersionHelper.getNMSManager().sendActionBar(player,
 											AdventureHelper.componentToJson(instance.getTranslationManager().render(
 													MessageConstants.MSG_HELLBLOCK_SCHEMATIC_PROGRESS_BAR.arguments(
-															AdventureHelper.miniMessage(String.valueOf(percent)),
-															AdventureHelper.miniMessage(String.valueOf(elapsed[0])))
+															AdventureHelper.miniMessageToComponent(String.format("%d%%", percent)),
+															AdventureHelper.miniMessageToComponent(String.valueOf(elapsed[0])))
 															.build())));
 								}
 							}
@@ -207,23 +237,20 @@ public class WorldEditHook implements SchematicPaster {
 					future.completeExceptionally(ex);
 				} finally {
 					SchedulerTask timeout = pasteTimeouts.remove(playerId);
-					if (timeout != null)
+					if (timeout != null && !timeout.isCancelled())
 						timeout.cancel();
 
 					SchedulerTask timer = pasteTimers.remove(playerId);
-					if (timer != null)
+					if (timer != null && !timer.isCancelled())
 						timer.cancel();
 
 					SchedulerTask progress = progressTaskRef[0];
-					if (progress != null)
+					if (progress != null && !progress.isCancelled())
 						progress.cancel();
 
 					if (animated) {
-						Player player = Bukkit.getPlayer(playerId);
-						if (player != null)
-							instance.getIslandGenerator().cleanupAnimation(player);
-						else
-							instance.getMailboxManager().queueMailbox(playerId, MailboxFlag.RESET_ANIMATION);
+						instance.getStorageManager().getCachedUserData(playerId)
+								.ifPresent(userData -> instance.getIslandGenerator().cleanupAnimation(userData));
 					}
 				}
 			}, location);
@@ -260,6 +287,226 @@ public class WorldEditHook implements SchematicPaster {
 		return future;
 	}
 
+	private Clipboard cloneClipboard(Clipboard original) throws WorldEditException {
+		// Create a new clipboard with the same region and origin
+		BlockArrayClipboard copy = new BlockArrayClipboard(original.getRegion());
+		copy.setOrigin(original.getOrigin());
+
+		// Perform a forward copy from original to the new clipboard
+		ForwardExtentCopy copier = new ForwardExtentCopy(original, original.getRegion(), original.getOrigin(), copy,
+				original.getOrigin());
+
+		copier.setCopyingEntities(true); // optional: copy entities too
+		copier.setCopyingBiomes(true); // optional: copy biomes too
+
+		Operations.complete(copier);
+
+		return copy;
+	}
+
+	private void replacePlaceholdersInClipboard(@NotNull Clipboard clipboard, @NotNull String ownerName) {
+		Region region = clipboard.getRegion();
+
+		for (BlockVector3 pos : region) {
+			BlockState original = clipboard.getBlock(pos).toImmutableState();
+			BaseBlock updated = null;
+
+			// Try sign replacement
+			BaseBlock signResult = replaceSignPlaceholders(original.toBaseBlock(), ownerName);
+			if (signResult != null) {
+				updated = signResult;
+			} else {
+				// Try lectern replacement
+				BaseBlock lecternResult = replaceLecternPlaceholders(original.toBaseBlock(), ownerName);
+				if (lecternResult != null) {
+					updated = lecternResult;
+				}
+			}
+
+			if (updated != null) {
+				try {
+					clipboard.setBlock(pos, updated);
+				} catch (WorldEditException e) {
+					// Log or handle the failure to apply changes
+					instance.getPluginLogger().warn(
+							"Failed to update block at " + pos + " with placeholder replacements: " + e.getMessage());
+				}
+			}
+		}
+	}
+
+	@Nullable
+	private BaseBlock replaceSignPlaceholders(@NotNull BaseBlock block, @NotNull String ownerName) {
+		LinCompoundTag tag = block.getNbt();
+		if (tag == null)
+			return null;
+
+		boolean changed = false;
+		LinCompoundTag.Builder newTag = LinCompoundTag.builder();
+
+		// 1.20+ support: dual-side sign format
+		for (String sideKey : List.of("front_text", "back_text")) {
+			LinCompoundTag sideText;
+			try {
+				sideText = tag.getTag(sideKey, LinTagType.compoundTag());
+			} catch (NoSuchElementException e) {
+				continue;
+			}
+
+			LinListTag<LinStringTag> messages;
+			try {
+				messages = sideText.getListTag("messages", LinTagType.stringTag());
+			} catch (NoSuchElementException e) {
+				newTag.put(sideKey, sideText);
+				continue;
+			}
+
+			AtomicBoolean sideChanged = new AtomicBoolean(false);
+			List<LinStringTag> updated = new ArrayList<>();
+
+			messages.value().stream().map(LinStringTag::value).forEach(original -> {
+				Component component = AdventureHelper.getGsonComponentSerializer().deserializeOr(original,
+						Component.empty());
+				Component replaced = component.replaceText(b -> b.matchLiteral("{player}").replacement(ownerName));
+				String updatedJson = AdventureHelper.componentToJson(replaced);
+				if (!updatedJson.equals(original))
+					sideChanged.set(true);
+				updated.add(LinStringTag.of(updatedJson));
+			});
+
+			if (sideChanged.get()) {
+				changed = true;
+				LinCompoundTag updatedSide = LinCompoundTag.builder()
+						.put("messages", LinListTag.of(LinTagType.stringTag(), updated)).build();
+
+				newTag.put(sideKey, updatedSide);
+			} else {
+				newTag.put(sideKey, sideText);
+			}
+		}
+
+		// Legacy support (≤ 1.19.4): Text1 to Text4 format
+		boolean legacyChanged = false;
+		List<String> legacyLines = new ArrayList<>();
+
+		for (int i = 1; i <= 4; i++) {
+			String key = "Text" + i;
+			String original;
+
+			try {
+				original = tag.getTag(key, LinTagType.stringTag()).value();
+			} catch (NoSuchElementException e) {
+				original = "";
+			}
+
+			Component component = AdventureHelper.getGsonComponentSerializer().deserializeOr(original,
+					Component.empty());
+			Component replaced = component.replaceText(b -> b.matchLiteral("{player}").replacement(ownerName));
+			String updatedJson = AdventureHelper.componentToJson(replaced);
+
+			if (!updatedJson.equals(original)) {
+				legacyChanged = true;
+			}
+
+			legacyLines.add(updatedJson);
+		}
+
+		if (legacyChanged) {
+			changed = true;
+			for (int i = 1; i <= 4; i++) {
+				newTag.put("Text" + i, LinStringTag.of(legacyLines.get(i - 1)));
+			}
+		} else {
+			// Copy original legacy lines as-is
+			for (int i = 1; i <= 4; i++) {
+				String key = "Text" + i;
+				try {
+					LinStringTag originalLine = tag.getTag(key, LinTagType.stringTag());
+					newTag.put(key, originalLine);
+				} catch (NoSuchElementException ignored) {
+					// Line doesn't exist — skip
+				}
+			}
+		}
+
+		if (!changed)
+			return null;
+
+		return block.getBlockType().getDefaultState().toBaseBlock(newTag.build());
+	}
+
+	@Nullable
+	private BaseBlock replaceLecternPlaceholders(@NotNull BaseBlock block, @NotNull String ownerName) {
+		LinCompoundTag tag = block.getNbt();
+		if (tag == null)
+			return null;
+
+		LinCompoundTag bookTag;
+		try {
+			bookTag = tag.getTag("Book", LinTagType.compoundTag());
+		} catch (NoSuchElementException e) {
+			return null;
+		}
+
+		boolean changed = false;
+		LinCompoundTag.Builder newBook = LinCompoundTag.builder();
+
+		// Replace title
+		try {
+			LinStringTag titleTag = bookTag.getTag("title", LinTagType.stringTag());
+			String original = titleTag.value();
+			String updated = original.replace("{player}", ownerName);
+			if (!updated.equals(original))
+				changed = true;
+			newBook.put("title", LinStringTag.of(updated));
+		} catch (NoSuchElementException e) {
+			// Skip if title is missing
+		}
+
+		// Replace author
+		try {
+			LinStringTag authorTag = bookTag.getTag("author", LinTagType.stringTag());
+			String original = authorTag.value();
+			String updated = original.replace("{player}", ownerName);
+			if (!updated.equals(original))
+				changed = true;
+			newBook.put("author", LinStringTag.of(updated));
+		} catch (NoSuchElementException e) {
+			// Skip if author is missing
+		}
+
+		// Replace pages
+		try {
+			LinListTag<LinStringTag> pages = bookTag.getListTag("pages", LinTagType.stringTag());
+			List<LinStringTag> updatedPages = new ArrayList<>();
+
+			for (LinStringTag page : pages.value()) {
+				String original = page.value();
+				Component component = AdventureHelper.getGsonComponentSerializer().deserializeOr(original,
+						Component.empty());
+				Component replaced = component.replaceText(b -> b.matchLiteral("{player}").replacement(ownerName));
+				String updatedJson = AdventureHelper.componentToJson(replaced);
+
+				if (!updatedJson.equals(original))
+					changed = true;
+
+				updatedPages.add(LinStringTag.of(updatedJson));
+			}
+
+			newBook.put("pages", LinListTag.of(LinTagType.stringTag(), updatedPages));
+		} catch (NoSuchElementException e) {
+			// Skip if pages are missing
+		}
+
+		if (!changed)
+			return null;
+
+		// Build the final NBT tag
+		LinCompoundTag updatedTag = LinCompoundTag.builder().put("Book", newBook.build()).build();
+
+		return block.getBlockType().getDefaultState().toBaseBlock(updatedTag);
+	}
+
 	private void pasteBlocksProgressively(UUID playerId, List<BaseBlockWithLocation> blocks, EditSession editSession,
 			Location pasteLocation, CompletableFuture<Location> future, Runnable onComplete) {
 
@@ -284,13 +531,13 @@ public class WorldEditHook implements SchematicPaster {
 					instance.getPluginLogger().warn("Failed to paste block during WorldEdit animation.", e);
 				}
 
-				if (player != null) {
+				if (player != null && player.isOnline()) {
 					Location worldLoc = new Location(pasteLocation.getWorld(), abs.x(), abs.y(), abs.z());
 
-					player.spawnParticle(Particle.BLOCK_CRUMBLE, worldLoc, 5,
+					player.spawnParticle(ParticleUtils.getParticle("BLOCK_DUST"), worldLoc, 5,
 							entry.block.toBaseBlock().getBlockType().getMaterial());
-					AdventureHelper.playPositionalSound(player.getWorld(), worldLoc, "minecraft:block.stone.place",
-							0.5f, 1.2f);
+					AdventureHelper.playPositionalSound(player.getWorld(), worldLoc,
+							Sound.sound(Key.key("minecraft:block.stone.place"), Source.BLOCK, 0.5f, 1.2f));
 				}
 
 				placed[0]++;
@@ -308,7 +555,8 @@ public class WorldEditHook implements SchematicPaster {
 					return;
 				}
 
-				taskRef[0].cancel();
+				if (taskRef[0] != null && !taskRef[0].isCancelled())
+					taskRef[0].cancel();
 				runningPastes.remove(playerId);
 
 				onComplete.run();
@@ -360,7 +608,7 @@ public class WorldEditHook implements SchematicPaster {
 			List<List<BlockVector3>> stages = new ArrayList<>(treeData.getStagedBlocks().values());
 			AtomicInteger step = new AtomicInteger();
 
-			Location topLocation = BukkitAdapter.adapt(world, treeData.getTopBlock()).add(0.5, 0.5, 0.5);
+			Location topLocation = BukkitAdapter.adapt(world, treeData.getTopBlock()).clone().add(0.5, 0.5, 0.5);
 
 			BukkitRunnable animationTask = new BukkitRunnable() {
 				@Override
@@ -371,9 +619,11 @@ public class WorldEditHook implements SchematicPaster {
 						world.spawnParticle(Particle.CLOUD, topLocation, 30, 0.4, 0.3, 0.4, 0.02);
 						world.spawnParticle(Particle.END_ROD, topLocation, 20, 0.2, 0.3, 0.2, 0.01);
 						world.strikeLightningEffect(topLocation);
-						AdventureHelper.playPositionalSound(world, topLocation,
-								"minecraft:entity.lightning_bolt.thunder", 0.8f, 1.0f);
-						cancel();
+						AdventureHelper.playPositionalSound(world, topLocation, Sound
+								.sound(Key.key("minecraft:entity.lightning_bolt.thunder"), Source.BLOCK, 0.8f, 1.0f));
+
+						if (!isCancelled())
+							cancel();
 						return;
 					}
 
@@ -387,10 +637,10 @@ public class WorldEditHook implements SchematicPaster {
 							instance.getPluginLogger().warn("Failed to set tree block", e);
 						}
 
-						Location loc = block.getLocation().add(0.5, 0.5, 0.5);
+						Location loc = block.getLocation().clone().add(0.5, 0.5, 0.5);
 						world.spawnParticle(Particle.END_ROD, loc, 8, 0.1, 0.1, 0.1, 0.01);
-						AdventureHelper.playPositionalSound(world, loc, "minecraft:block.amethyst_block.hit", 0.6f,
-								1.4f);
+						AdventureHelper.playPositionalSound(world, loc,
+								Sound.sound(Key.key("minecraft:block.amethyst_block.hit"), Source.BLOCK, 0.6f, 1.4f));
 					});
 
 					pasteProgress.compute(playerId, (k, v) -> {
@@ -476,9 +726,9 @@ public class WorldEditHook implements SchematicPaster {
 		pasteProgress.remove(playerId);
 		totalBlocks.remove(playerId);
 
-		if (timeout != null)
+		if (timeout != null && !timeout.isCancelled())
 			timeout.cancel();
-		if (task != null) {
+		if (task != null && !task.isCancelled()) {
 			task.cancel();
 			return true;
 		}
@@ -523,7 +773,7 @@ public class WorldEditHook implements SchematicPaster {
 		}
 	}
 
-	private static class BaseBlockWithLocation {
+	private class BaseBlockWithLocation {
 		final BaseBlock block;
 		final BlockVector3 relative;
 

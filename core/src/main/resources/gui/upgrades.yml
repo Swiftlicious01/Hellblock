@@ -1,0 +1,203 @@
+upgrade:
+  gui:
+    # The title for the upgrade menu
+    title: '<center><gradient:#A52A2A:#800000:#A52A2A>Hellblock Upgrades</gradient>'
+    # The layout for the upgrade menu
+    layout:
+      - 'AAAAAAAAA'
+      - 'ARCPMHBGA'
+      - 'AAAAAAAAX'
+    # Glow maxed out upgrades?
+    hightlight-max-tier-upgrades: true
+    # Back icon to return to main menu
+    back-icon:
+      symbol: 'X'
+      material: RED_STAINED_GLASS_PANE
+      display:
+        name: '<red>Return to Main Menu'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_additional_tooltip: {}
+    # Upgrade icons
+    upgrade-icons:
+      # Protection range upgrade item
+      protection-range-icon:
+        symbol: 'R'
+        material: SHIELD
+        upgrade-type: PROTECTION_RANGE
+        display:
+          name: '<yellow>Protection Range Upgrade'
+          lore:
+            - '<gold>You''re on tier <yellow>{current_tier} <gold>out of <yellow>{max_tier}'
+            - '<gold>You currently have a protection range of <yellow>{current_value}<gold>x<yellow>{current_value}'
+            - ' '
+            - '<gold>The next upgrade costs the following:'
+            - '<gold>- <yellow>{requirement_costs}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1 
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      # Party size upgrade item
+      party-size-icon:
+        symbol: 'P'
+        material: EYE_OF_ENDER
+        upgrade-type: PARTY_SIZE
+        display:
+          name: '<yellow>Party Size Upgrade'
+          lore:
+            - '<gold>You''re on tier <yellow>{current_tier} <gold>out of <yellow>{max_tier}'
+            - '<gold>You currently have a party size of <yellow>{current_value}'
+            - ' '
+            - '<gold>The next upgrade costs the following:'
+            - '<gold>- <yellow>{requirement_costs}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      # Hopper limit upgrade item
+      hopper-limit-icon:
+        symbol: 'H'
+        material: HOPPER
+        upgrade-type: HOPPER_LIMIT
+        display:
+          name: '<yellow>Hopper Limit Upgrade'
+          lore:
+            - '<gold>You''re on tier <yellow>{current_tier} <gold>out of <yellow>{max_tier}'
+            - '<gold>You currently have a hopper limit of <yellow>{current_value}'
+            - ' '
+            - '<gold>The next upgrade costs the following:'
+            - '<gold>- <yellow>{requirement_costs}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      # Generator chance upgrade item
+      generator-chance-icon:
+        symbol: 'G'
+        material: NETHER_GOLD_ORE
+        upgrade-type: GENERATOR_CHANCE
+        display:
+          name: '<yellow>Generator Ore Chance Upgrade'
+          lore:
+            - '<gold>You''re on tier <yellow>{current_tier} <gold>out of <yellow>{max_tier}'
+            - '<gold>You currently have a generator ore chance of <yellow>+{current_value}%'
+            - '<gold><bold>OVERALL PERCENTAGE: <yellow><bold>{overall_value}%'
+            - ' '
+            - '<gold>The next upgrade costs the following:'
+            - '<gold>- <yellow>{requirement_costs}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      # Piglin bartering upgrade item
+      piglin-bartering-icon:
+        symbol: 'B'
+        material: GOLD_INGOT
+        upgrade-type: PIGLIN_BARTERING
+        display:
+          name: '<yellow>Piglin Bartering Rarity Upgrade'
+          lore:
+            - '<gold>You''re on tier <yellow>{current_tier} <gold>out of <yellow>{max_tier}'
+            - '<gold>You currently have a piglin bartering rarity chance of <yellow>+{current_value}%'
+            - '<gold><bold>OVERALL PERCENTAGE: <yellow><bold>{overall_value}%'
+            - ' '
+            - '<gold>The next upgrade costs the following:'
+            - '<gold>- <yellow>{requirement_costs}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      # Crop growth rate item
+      crop-growth-icon:
+        symbol: 'C'
+        material: NETHER_WART
+        upgrade-type: CROP_GROWTH
+        display:
+          name: '<yellow>Crop Growth Rate Upgrade'
+          lore:
+            - '<gold>You''re on tier <yellow>{current_tier} <gold>out of <yellow>{max_tier}'
+            - '<gold>You currently have a boosted crop growth rate of <yellow>+{current_value}%'
+            - '<gold><bold>OVERALL PERCENTAGE: <yellow><bold>{overall_value}%'
+            - ' '
+            - '<gold>The next upgrade costs the following:'
+            - '<gold>- <yellow>{requirement_costs}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      # Mob spawn rate item
+      mob-spawn-icon:
+        symbol: 'M'
+        material: ZOMBIE_HEAD
+        upgrade-type: MOB_SPAWN_RATE
+        display:
+          name: '<yelow>Mob Spawn Rate Upgrade'
+          lore:
+            - '<gold>You''re on tier <yellow>{current_tier} <gold>out of <yellow>{max_tier}'
+            - '<gold>You currently have a boosted mob spawn rate of <yellow>+{current_value}%'
+            - '<gold><bold>OVERALL PERCENTAGE: <yellow><bold>{overall_value}%'
+            - ' '
+            - '<gold>The next upgrade costs the following:'
+            - '<gold>- <yellow>{requirement_costs}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+    # Decorative icons for visual enhancement
+    decorative-icons:
+      glass-pane:
+        symbol: 'A'
+        material: BLACK_STAINED_GLASS_PANE
+        display:
+          name: ' '
+        components:
+          minecraft:hide_tooltip: {}

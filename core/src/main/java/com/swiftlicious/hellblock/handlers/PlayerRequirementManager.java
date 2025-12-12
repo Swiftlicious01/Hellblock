@@ -49,6 +49,7 @@ public class PlayerRequirementManager extends AbstractRequirementManager<Player>
 		this.registerInLavaRequirement();
 		this.registerItemInHandRequirement();
 		this.registerPermissionRequirement();
+		this.registerFirstCaptureRequirement();
 		this.registerPluginLevelRequirement();
 		this.registerCoolDownRequirement();
 		this.registerLevelRequirement();
@@ -240,6 +241,19 @@ public class PlayerRequirementManager extends AbstractRequirementManager<Player>
 			}
 		}, "material-in-hand");
 	}
+	
+    private void registerFirstCaptureRequirement() {
+        registerRequirement((args, actions, runActions) -> {
+            boolean required = (boolean) args;
+            return context -> {
+                Boolean arg = context.arg(ContextKeys.FIRST_CAPTURE);
+                boolean first = arg != null && arg;
+                if (first == required) return true;
+                if (runActions) ActionManager.trigger(context, actions);
+                return false;
+            };
+        }, "first-capture");
+    }
 
 	private void registerPluginLevelRequirement() {
 		registerRequirement((args, actions, runActions) -> {

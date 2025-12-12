@@ -1,0 +1,350 @@
+hellblock: 
+  gui:
+    # Title for the hellblock menu
+    title: '<center><gradient:#A52A2A:#800000:#A52A2A>Hellblock Menu</gradient>'
+    # Layout for the hellblock menu
+    owner-layout:
+      - 'IAAAAAAAN'
+      - 'AATEPUDAA'
+      - 'AACBLFRAA'
+      - 'VAAAAAAAX'
+    member-layout:
+      - 'AAAAAAAAN'
+      - 'AATEPICAA'
+      - 'VAAAAAAAX'
+    # Teleport icon to teleport to hellblock
+    teleport-icon:
+      symbol: 'T'
+      material: ENDER_PEARL
+      display:
+        name: '<green>Teleport to your Hellblock!'
+        lore:
+          - '<aqua>Click to go to your home island!'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:entity.enderman.teleport'
+            source: 'player'
+            volume: 1
+            pitch: 1
+        particle_action:
+          type: particle
+          value:
+            key: 'ENDER_SIGNAL'
+            count: 5
+        message_action:
+          type: message
+          value: '<red>Teleporting you to your hellblock!'
+      components:
+        minecraft:hide_additional_tooltip: {}
+    # Notifications icon to change notifications
+    notifications-icon:
+      symbol: 'N'
+      material: BOOK
+      display:
+        name: '<green>Change Notifications!'
+        lore:
+          - '<aqua>Click to update your personal notifications!'
+      action: 
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_additional_tooltip: {}
+    # Challenge icon to view hellblock challenges
+    challenge-icon:
+      symbol: 'C'
+      material: KNOWLEDGE_BOOK
+      display:
+        name: '<green>View all Hellblock Challenges!'
+        lore:
+          - '<aqua>Click to view a list of challenges for you to complete!'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_additional_tooltip: {}
+    # Display settings icon to change bio/island name
+    display-icon:
+      symbol: 'D'
+      material: NAME_TAG
+      display:
+        name: '<green>Change your Display Settings!'
+        lore:
+          - '<aqua>Click to change your island bio or name for visiting purposes!'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_additional_tooltip: {}
+    # Upgrade icon to view hellblock upgrades
+    upgrade-icon:
+      symbol: 'U'
+      material: EMERALD_ORE
+      display:
+        name: '<green>View all Hellblock Upgrades!'
+        lore:
+          - '<aqua>Click to view all of the available upgrades to purchase!'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_additional_tooltip: {}
+    # Level icon to view hellblock level
+    level-icon:
+      symbol: 'E'
+      material: EXPERIENCE_BOTTLE
+      display:
+        name: '<green>View your Hellblock Level!'
+        lore:
+          - '<gold>Level: <yellow>{hellblock_level}'
+          - ' '
+          - '<gold>Your overall rank is <yellow><bold>{hellblock_rank}'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:entity.player.levelup'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_additional_tooltip: {}
+    # Party icon to view party members 
+    party-icon:
+      symbol: 'P'
+      material: BEACON
+      display:
+        name: '<green>View your Party Members!'
+        lore:
+          - '<aqua>Click to see a list of your party members!'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_additional_tooltip: {}
+    # Biome icon to change hellblock biome
+    biome-icon:
+      symbol: 'B'
+      material: WARPED_FUNGUS
+      display:
+        name: '<green>Change your Hellblock Biome!'
+        lore:
+          - '<aqua>Click to view all of the biome options!'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_additional_tooltip: {}
+    # Flag icon to change hellblock protection flags
+    flag-icon:
+      symbol: 'F'
+      material: REPEATER
+      display:
+        name: '<green>Change your Hellblock Protection Flags!'
+        lore:
+          - '<aqua>Click to change your hellblock protection flags!'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_additional_tooltip: {}
+    # Lock icon to change visitor status
+    lock-icon:
+      symbol: 'L'
+      material: ENDER_CHEST
+      display:
+        name: '<green>Lock your Hellblock!'
+        lore:
+          - '<aqua>Click to change the visitor status of your hellblock!'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+        message_action:
+          type: message
+          value: "<red>You've just <dark_red>locked <red>your hellblock island!"
+      components:
+        minecraft:hide_additional_tooltip: {}
+    # Unlock icon to change visitor status
+    unlock-icon:
+      symbol: 'L'
+      material: CHEST
+      display:
+        name: '<green>Unlock your Hellblock!'
+        lore:
+          - '<aqua>Click to change the visitor status of your hellblock!'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+        message_action:
+          type: message
+          value: "<red>You've just <dark_red>unlocked <red>your hellblock island!"
+      components:
+        minecraft:hide_additional_tooltip: {}
+    # Reset icon to restart hellblock
+    reset-icon:
+      symbol: 'R'
+      material: NETHER_BRICKS
+      display:
+        name: '<green>Reset your Hellblock'
+        lore:
+          - '<aqua>Click to reset your hellblock island!'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_additional_tooltip: {}
+    # Cooldown icon for reset
+    reset-cooldown-icon:
+      material: BARRIER
+      display:
+        name: '<red>Reset is on cooldown!'
+        lore:
+          - '<dark_red>Your ability to reset is on cooldown for:'
+          - '<red>{reset_cooldown_formatted}'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:entity.villager.no'
+            source: 'player'
+            volume: 1
+            pitch: 1
+        message_action:
+          type: message
+          value: "<red>You've recently reset your hellblock already, you must wait for <dark_red>{reset_cooldown_formatted}<red>!"
+      components:
+        minecraft:hide_additional_tooltip: {}
+    # Cooldown icon for biome
+    biome-cooldown-icon:
+      material: BARRIER
+      display:
+        name: '<red>Biome Change is on cooldown!'
+        lore:
+          - '<dark_red>Your ability to change the biome is on cooldown for:'
+          - '<red>{biome_cooldown_formatted}'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:entity.villager.no'
+            source: 'player'
+            volume: 1
+            pitch: 1
+        message_action:
+          type: message
+          value: "<red>You've recently changed your biome already, you must wait for <dark_red>{biome_cooldown_formatted}<red>!"
+      components:
+        minecraft:hide_additional_tooltip: {}
+    # Island event icon
+    event-icon:
+      symbol: 'I'
+      material: NETHER_STAR
+      display:
+        name: '<green>View Island Event Data'
+        lore:
+          - '<aqua>Click to view your island event data!'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_additional_tooltip: {}
+    # Visit other hellblocks icon
+    visit-icon:
+      symbol: 'V'
+      material: OAK_SIGN
+      display:
+        name: '<green>View other Hellblock Islands to Visit!'
+        lore:
+          - '<aqua>Click to view other publicly advertised hellblocks!'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_additional_tooltip: {}
+    # Decorative icons for visual enhancement
+    decorative-icons:
+      glass-pane:
+        symbol: 'A'
+        material: BLACK_STAINED_GLASS_PANE
+        display:
+          name: ' '  
+        components:
+          minecraft:hide_tooltip: {}
+      close-icon:
+        symbol: 'X'
+        material: RED_STAINED_GLASS_PANE
+        display:
+          name: '<red>Close Menu'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+          close_action:
+            type: close-inv
+        components:
+          minecraft:hide_additional_tooltip: {}

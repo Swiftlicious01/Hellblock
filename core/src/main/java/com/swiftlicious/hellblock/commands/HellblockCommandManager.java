@@ -6,6 +6,7 @@ import org.incendo.cloud.Command;
 import org.incendo.cloud.CommandManager;
 import org.jetbrains.annotations.NotNull;
 
+import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.utils.extras.TriConsumer;
 
 import dev.dejvokep.boostedyaml.YamlDocument;
@@ -16,6 +17,8 @@ import net.kyori.adventure.util.Index;
 public interface HellblockCommandManager<C> {
 
 	String commandsFile = "commands.yml";
+
+	HellblockPlugin getPlugin();
 
 	void unregisterFeatures();
 

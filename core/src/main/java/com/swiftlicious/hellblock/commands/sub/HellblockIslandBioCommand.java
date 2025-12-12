@@ -16,17 +16,15 @@ import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
 import org.incendo.cloud.CommandManager;
 import org.incendo.cloud.parser.standard.StringParser;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
-import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.commands.BukkitCommandFeature;
 import com.swiftlicious.hellblock.commands.HellblockCommandManager;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.player.HellblockData;
 import com.swiftlicious.hellblock.player.UserData;
-
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 
 public class HellblockIslandBioCommand extends BukkitCommandFeature<CommandSender> {
 
@@ -42,8 +40,7 @@ public class HellblockIslandBioCommand extends BukkitCommandFeature<CommandSende
 		return builder.senderType(Player.class).optional("bio", StringParser.greedyStringParser()).handler(context -> {
 			final Player player = context.sender();
 
-			final Optional<UserData> onlineUserOpt = HellblockPlugin.getInstance().getStorageManager()
-					.getOnlineUser(player.getUniqueId());
+			final Optional<UserData> onlineUserOpt = plugin.getStorageManager().getOnlineUser(player.getUniqueId());
 
 			if (onlineUserOpt.isEmpty()) {
 				handleFeedback(context, MessageConstants.COMMAND_DATA_FAILURE_NOT_LOADED);
@@ -61,9 +58,8 @@ public class HellblockIslandBioCommand extends BukkitCommandFeature<CommandSende
 			// Must be the owner
 			final UUID ownerUUID = hellblockData.getOwnerUUID();
 			if (ownerUUID == null) {
-				HellblockPlugin.getInstance().getPluginLogger()
-						.severe("Hellblock owner UUID was null for player " + player.getName() + " ("
-								+ player.getUniqueId() + "). This indicates corrupted data or a serious bug.");
+				plugin.getPluginLogger().severe("Hellblock owner UUID was null for player " + player.getName() + " ("
+						+ player.getUniqueId() + "). This indicates corrupted data or a serious bug.");
 				throw new IllegalStateException(
 						"Owner reference was null. This should never happen — please report to the developer.");
 			}
@@ -87,8 +83,8 @@ public class HellblockIslandBioCommand extends BukkitCommandFeature<CommandSende
 				if (currentBio.isBlank()) {
 					handleFeedback(context, MessageConstants.COMMAND_HELLBLOCK_BIO_EMPTY);
 				} else {
-					handleFeedback(context,
-							MessageConstants.COMMAND_HELLBLOCK_BIO_SHOW.arguments(Component.text(currentBio)));
+					handleFeedback(context, MessageConstants.COMMAND_HELLBLOCK_BIO_SHOW,
+							AdventureHelper.miniMessageToComponent(currentBio));
 				}
 				return;
 			}
@@ -99,30 +95,29 @@ public class HellblockIslandBioCommand extends BukkitCommandFeature<CommandSende
 			if ("clear".equalsIgnoreCase(rawBio) || "reset".equalsIgnoreCase(rawBio)) {
 				hellblockData.getDisplaySettings().setIslandBio(hellblockData.getDefaultIslandBio());
 				hellblockData.getDisplaySettings().setAsDefaultIslandBio();
-				handleFeedback(context, MessageConstants.COMMAND_HELLBLOCK_BIO_RESET_DEFAULT
-						.arguments(hellblockData.displayIslandBioWithContext()));
+				handleFeedback(context, MessageConstants.COMMAND_HELLBLOCK_BIO_RESET_DEFAULT,
+						hellblockData.displayIslandBioWithContext());
 				return;
 			}
 
 			// Validation
-			final int maxLength = HellblockPlugin.getInstance().getConfigManager().maxBioCharLength();
-			final List<String> bannedWords = HellblockPlugin.getInstance().getConfigManager().bannedWords();
+			final int maxLength = plugin.getConfigManager().maxBioCharLength();
+			final List<String> bannedWords = plugin.getConfigManager().bannedWords();
 
 			// Convert literal "\n" into real newlines before formatting
 			String preProcessed = rawBio.replace("\\n", "\n").trim();
 
 			// Convert legacy color codes (&) to MiniMessage safely
-			String formattedBio = AdventureHelper.getMiniMessage()
-					.serialize(LegacyComponentSerializer.legacyAmpersand().deserialize(preProcessed));
+			String formattedBio = AdventureHelper
+					.componentToMiniMessage(AdventureHelper.legacyToComponent(preProcessed));
 
 			// Plain text version for validation
-			final String plain = net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText()
-					.serialize(AdventureHelper.getMiniMessage().deserialize(preProcessed));
+			final String plain = AdventureHelper.componentToPlainText(AdventureHelper.miniMessageToComponent(preProcessed));
 
-			int maxLines = HellblockPlugin.getInstance().getConfigManager().maxNewLines();
+			int maxLines = plugin.getConfigManager().maxNewLines();
 			if (preProcessed.split("\n").length > maxLines) {
-				handleFeedback(context,
-						MessageConstants.COMMAND_HELLBLOCK_BIO_TOO_MANY_LINES.arguments(Component.text(maxLines)));
+				handleFeedback(context, MessageConstants.COMMAND_HELLBLOCK_BIO_TOO_MANY_LINES,
+						AdventureHelper.miniMessageToComponent(String.valueOf(maxLines)));
 				return;
 			}
 
@@ -142,7 +137,7 @@ public class HellblockIslandBioCommand extends BukkitCommandFeature<CommandSende
 
 			// Detect color code spam (e.g. more than 10 color codes in a short string)
 			int colorCodeCount = countColorCodes(rawBio);
-			int maxColorCode = HellblockPlugin.getInstance().getConfigManager().maxColorCodes();
+			int maxColorCode = plugin.getConfigManager().maxColorCodes();
 			boolean excessiveColorFormatting = colorCodeCount > maxColorCode && plain.length() < maxColorCode;
 
 			if (emptyAfterTrim || hasNoVisibleChars || hasNoAlphanumeric || onlyFormatting
@@ -152,16 +147,16 @@ public class HellblockIslandBioCommand extends BukkitCommandFeature<CommandSende
 			}
 
 			if (plain.length() > maxLength) {
-				handleFeedback(context,
-						MessageConstants.COMMAND_HELLBLOCK_BIO_TOO_LONG.arguments(Component.text(maxLength)));
+				handleFeedback(context, MessageConstants.COMMAND_HELLBLOCK_BIO_TOO_LONG,
+						AdventureHelper.miniMessageToComponent(String.valueOf(maxLength)));
 				return;
 			}
 
 			// Detect banned words (advanced)
 			final Set<String> detected = findBannedWords(plain, bannedWords);
 			if (!detected.isEmpty()) {
-				handleFeedback(context, MessageConstants.COMMAND_HELLBLOCK_BIO_BANNED_WORDS
-						.arguments(Component.text(String.join(", ", detected))));
+				handleFeedback(context, MessageConstants.COMMAND_HELLBLOCK_BIO_BANNED_WORDS,
+						AdventureHelper.miniMessageToComponent(String.join(", ", detected)));
 				return;
 			}
 
@@ -176,15 +171,16 @@ public class HellblockIslandBioCommand extends BukkitCommandFeature<CommandSende
 			hellblockData.getDisplaySettings().setIslandBio(formattedBio);
 			hellblockData.getDisplaySettings().isNotDefaultIslandBio();
 
-			handleFeedback(context, MessageConstants.COMMAND_HELLBLOCK_BIO_SET_SUCCESS
-					.arguments(hellblockData.displayIslandBioWithContext()));
+			handleFeedback(context, MessageConstants.COMMAND_HELLBLOCK_BIO_SET_SUCCESS,
+					hellblockData.displayIslandBioWithContext());
 		});
 	}
 
 	/**
 	 * Advanced banned word detection — handles leetspeak, symbols, and spacing.
 	 */
-	public static Set<String> findBannedWords(String input, List<String> bannedWords) {
+	@NotNull
+	public Set<String> findBannedWords(@Nullable String input, @Nullable List<String> bannedWords) {
 		Set<String> found = new LinkedHashSet<>();
 
 		if (bannedWords == null || bannedWords.isEmpty() || input == null) {
@@ -234,9 +230,9 @@ public class HellblockIslandBioCommand extends BukkitCommandFeature<CommandSende
 	 * Precompiles all banned word regex patterns at startup for performance.
 	 * Invalid or empty entries are skipped, but errors are logged clearly.
 	 */
-	public static void precompileBannedWordPatterns(List<String> bannedWords) {
+	public void precompileBannedWordPatterns(@Nullable List<String> bannedWords) {
 		if (bannedWords == null || bannedWords.isEmpty()) {
-			HellblockPlugin.getInstance().getPluginLogger().info("No banned words defined to precompile.");
+			plugin.debug("No banned words defined to precompile.");
 			return;
 		}
 
@@ -250,14 +246,14 @@ public class HellblockIslandBioCommand extends BukkitCommandFeature<CommandSende
 			}
 
 			try {
-				String cleanedBanned = banned.toLowerCase(Locale.ROOT).replaceAll("[^a-z]", ""); // Strip symbols and
-																									// spaces
+				// Strip symbols and spaces
+				String cleanedBanned = banned.toLowerCase(Locale.ROOT).replaceAll("[^a-z]", "");
 
 				if (BANNED_WORD_PATTERN_CACHE.containsKey(cleanedBanned))
 					continue;
 
 				if (cleanedBanned.isEmpty()) {
-					HellblockPlugin.getInstance().getPluginLogger()
+					plugin.getPluginLogger()
 							.warn("Skipped banned word entry '" + banned + "' (no valid letters after cleanup).");
 					failed++;
 					continue;
@@ -273,20 +269,27 @@ public class HellblockIslandBioCommand extends BukkitCommandFeature<CommandSende
 
 			} catch (Exception e) {
 				failed++;
-				HellblockPlugin.getInstance().getPluginLogger()
-						.severe("Failed to compile banned word '" + banned + "': " + e.getMessage());
+				plugin.getPluginLogger().severe("Failed to compile banned word '" + banned + "': " + e.getMessage());
 			}
 		}
 
-		HellblockPlugin.getInstance().getPluginLogger()
-				.info("Precompiled " + compiled + " banned word patterns (" + failed + " skipped or invalid).");
+		if (compiled == 0 && failed == 0) {
+			plugin.debug("No banned word patterns were compiled.");
+		} else if (compiled > 0 && failed == 0) {
+			plugin.debug("Precompiled " + compiled + " banned word pattern" + (compiled == 1 ? "" : "s") + ".");
+		} else if (compiled == 0) {
+			plugin.debug("No banned word patterns compiled (" + failed + " skipped or invalid).");
+		} else {
+			plugin.debug("Precompiled " + compiled + " banned word pattern" + (compiled == 1 ? "" : "s") + " (" + failed
+					+ " skipped or invalid).");
+		}
 	}
 
 	/**
 	 * Counts the total number of color or format codes in the given input. Supports
 	 * both legacy '&' codes and MiniMessage tags.
 	 */
-	private int countColorCodes(String input) {
+	private int countColorCodes(@Nullable String input) {
 		if (input == null || input.isEmpty())
 			return 0;
 

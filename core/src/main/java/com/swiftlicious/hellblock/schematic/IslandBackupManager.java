@@ -16,9 +16,12 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.block.Block;
@@ -27,8 +30,11 @@ import org.bukkit.entity.Entity;
 import org.bukkit.entity.Hanging;
 import org.bukkit.entity.Shulker;
 import org.bukkit.util.BoundingBox;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.api.Reloadable;
 import com.swiftlicious.hellblock.player.HellblockData;
 import com.swiftlicious.hellblock.scheduler.SchedulerTask;
 import com.swiftlicious.hellblock.utils.LocationUtils;
@@ -38,19 +44,65 @@ import com.swiftlicious.hellblock.world.HellblockWorld;
  * Manages island backups and snapshots for players. Allows creating, saving,
  * loading, listing, and restoring snapshots.
  */
-public class IslandBackupManager {
+public class IslandBackupManager implements Reloadable {
 
 	protected final HellblockPlugin instance;
-	private final File backupFolder;
+	private File backupFolder;
+
+	private SchedulerTask snapshotTask = null;
 
 	private final Map<UUID, Long> lastSnapshotTime = new ConcurrentHashMap<>();
 	private static final long SNAPSHOT_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
 
-	public IslandBackupManager(HellblockPlugin plugin, File dataFolder) {
+	public IslandBackupManager(HellblockPlugin plugin) {
 		this.instance = plugin;
-		this.backupFolder = new File(dataFolder, "island_backups");
-		if (!backupFolder.exists()) {
-			backupFolder.mkdirs();
+	}
+
+	@Override
+	public void load() {
+		this.backupFolder = new File(instance.getDataFolder(), "island_backups");
+		if (!this.backupFolder.exists()) {
+			this.backupFolder.mkdirs();
+		}
+
+		this.snapshotTask = instance.getScheduler()
+				.asyncRepeating(() -> instance.getCoopManager().getAllIslandOwners().thenAccept(ownerIds -> {
+					if (ownerIds.isEmpty()) {
+						return;
+					}
+					final int total = ownerIds.size();
+					final long intervalSeconds = (15 * 60) / total;
+					final AtomicInteger index = new AtomicInteger(0);
+					for (UUID ownerId : ownerIds) {
+						final long delay = intervalSeconds * index.getAndIncrement();
+						if (Bukkit.getPlayer(ownerId) != null) {
+							instance.getScheduler().asyncLater(() -> {
+								instance.debug("Scheduled snapshot for island owner " + ownerId + " (owner online)");
+								maybeSnapshot(ownerId);
+							}, delay, TimeUnit.SECONDS);
+							continue;
+						}
+						instance.getCoopManager().getAllCoopMembers(ownerId).thenAccept(members -> {
+							for (UUID memberId : members) {
+								if (Bukkit.getPlayer(memberId) != null) {
+									instance.getScheduler().asyncLater(() -> {
+										instance.debug("Scheduled snapshot for island owner " + ownerId
+												+ " (coop member online: " + memberId + ")");
+										maybeSnapshot(ownerId);
+									}, delay, TimeUnit.SECONDS);
+									break;
+								}
+							}
+						});
+					}
+				}), 15, 15, TimeUnit.MINUTES);
+	}
+
+	@Override
+	public void unload() {
+		if (this.snapshotTask != null && !this.snapshotTask.isCancelled()) {
+			this.snapshotTask.cancel();
+			this.snapshotTask = null;
 		}
 	}
 
@@ -66,7 +118,7 @@ public class IslandBackupManager {
 	 * @return A CompletableFuture that resolves to the timestamp of the snapshot,
 	 *         or null if failed.
 	 */
-	public CompletableFuture<Long> createPreResetSnapshot(UUID ownerId) {
+	public CompletableFuture<Long> createPreResetSnapshot(@NotNull UUID ownerId) {
 		final long timestamp = System.currentTimeMillis();
 
 		return captureIslandSnapshot(ownerId).thenApply(snapshot -> {
@@ -89,7 +141,7 @@ public class IslandBackupManager {
 	 * @param timestamp   the timestamp of the snapshot
 	 * @param snapshot    the snapshot to save
 	 */
-	public void saveSnapshot(UUID islandOwner, long timestamp, IslandSnapshot snapshot) {
+	public void saveSnapshot(@NotNull UUID islandOwner, long timestamp, @NotNull IslandSnapshot snapshot) {
 		final File file = new File(backupFolder, islandOwner.toString() + "_" + timestamp + ".dat");
 
 		try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(file))) {
@@ -106,7 +158,7 @@ public class IslandBackupManager {
 	 * @param timestamp   the timestamp of the snapshot
 	 * @return the loaded snapshot, or null if not found or failed
 	 */
-	public SerializableIslandSnapshot loadSnapshot(UUID islandOwner, long timestamp) {
+	public SerializableIslandSnapshot loadSnapshot(@NotNull UUID islandOwner, long timestamp) {
 		final File file = new File(backupFolder, islandOwner.toString() + "_" + timestamp + ".dat");
 		if (!file.exists()) {
 			return null;
@@ -127,7 +179,7 @@ public class IslandBackupManager {
 	 * @return A CompletableFuture that completes when the snapshot is taken or
 	 *         skipped.
 	 */
-	public CompletableFuture<Void> maybeSnapshot(UUID ownerId) {
+	public CompletableFuture<Void> maybeSnapshot(@NotNull UUID ownerId) {
 		final long now = System.currentTimeMillis();
 		final long last = lastSnapshotTime.getOrDefault(ownerId, 0L);
 
@@ -159,7 +211,7 @@ public class IslandBackupManager {
 	 * @param islandOwner the island owner's UUID
 	 * @return list of snapshot timestamps (sorted ascending)
 	 */
-	public List<Long> listSnapshots(UUID islandOwner) {
+	public List<Long> listSnapshots(@NotNull UUID islandOwner) {
 		final File[] files = backupFolder
 				.listFiles((dir, name) -> name.startsWith(islandOwner.toString() + "_") && name.endsWith(".dat"));
 		if (files == null) {
@@ -179,7 +231,7 @@ public class IslandBackupManager {
 	 * @param islandOwner the island owner's UUID
 	 * @param keepLast    number of most recent snapshots to keep
 	 */
-	public void purgeOldSnapshots(UUID islandOwner, int keepLast) {
+	public void purgeOldSnapshots(@NotNull UUID islandOwner, int keepLast) {
 		final List<Long> snapshots = listSnapshots(islandOwner);
 		if (snapshots.size() <= keepLast) {
 			return;
@@ -191,6 +243,33 @@ public class IslandBackupManager {
 	}
 
 	/**
+	 * Deletes all stored island snapshots for the given owner, both in memory and
+	 * on disk. This will remove all snapshot files associated with the owner's UUID
+	 * and clear any cached metadata like last snapshot time.
+	 *
+	 * @param ownerId The UUID of the island owner whose snapshots should be
+	 *                deleted.
+	 */
+	public void deleteAllSnapshots(@NotNull UUID ownerId) {
+		// Delete from memory
+		lastSnapshotTime.remove(ownerId);
+
+		// Delete snapshot files from disk
+		final File[] files = backupFolder
+				.listFiles((dir, name) -> name.startsWith(ownerId.toString() + "_") && name.endsWith(".dat"));
+
+		if (files != null) {
+			for (File file : files) {
+				if (!file.delete()) {
+					instance.getPluginLogger().warn("Failed to delete snapshot file: " + file.getName());
+				}
+			}
+		}
+
+		instance.getPluginLogger().info("Deleted all island snapshots for " + ownerId);
+	}
+
+	/**
 	 * Captures the current state of the island owned by the given player. This
 	 * includes all blocks and entities within the island's bounding box.
 	 * 
@@ -198,10 +277,11 @@ public class IslandBackupManager {
 	 * @return A CompletableFuture that resolves to the captured IslandSnapshot, or
 	 *         null if the island data or world is not found.
 	 */
-	private CompletableFuture<IslandSnapshot> captureIslandSnapshot(UUID ownerId) {
+	@Nullable
+	private CompletableFuture<IslandSnapshot> captureIslandSnapshot(@NotNull UUID ownerId) {
 		final CompletableFuture<IslandSnapshot> future = new CompletableFuture<>();
 
-		instance.getStorageManager().getOfflineUserData(ownerId, instance.getConfigManager().lockData())
+		instance.getStorageManager().getCachedUserDataWithFallback(ownerId, instance.getConfigManager().lockData())
 				.thenAccept(optionalUserData -> {
 					if (optionalUserData.isEmpty()) {
 						future.complete(null);
@@ -210,7 +290,7 @@ public class IslandBackupManager {
 
 					final HellblockData hb = optionalUserData.get().getHellblockData();
 					final Optional<HellblockWorld<?>> optWorld = instance.getWorldManager()
-							.getWorld(instance.getWorldManager().getHellblockWorldFormat(hb.getID()));
+							.getWorld(instance.getWorldManager().getHellblockWorldFormat(hb.getIslandId()));
 
 					if (optWorld.isEmpty() || optWorld.get().bukkitWorld() == null) {
 						future.complete(null);
@@ -219,6 +299,11 @@ public class IslandBackupManager {
 
 					final World world = optWorld.get().bukkitWorld();
 					final BoundingBox box = hb.getBoundingBox();
+
+					if (box == null) {
+						future.complete(null);
+						return;
+					}
 
 					final List<IslandSnapshotBlock> blocks = Collections.synchronizedList(new ArrayList<>());
 					final List<EntitySnapshot> entities = Collections.synchronizedList(new ArrayList<>());
@@ -260,9 +345,9 @@ public class IslandBackupManager {
 						}
 
 						if (!it.hasNext()) {
-							final SchedulerTask t = taskRef.get();
-							if (t != null) {
-								t.cancel();
+							final SchedulerTask scheduled = taskRef.get();
+							if (scheduled != null && !scheduled.isCancelled()) {
+								scheduled.cancel();
 							}
 							future.complete(new IslandSnapshot(blocks, entities));
 						}
@@ -287,8 +372,8 @@ public class IslandBackupManager {
 	 * @param onProgress A consumer to receive progress updates (0.0 to 1.0), can be
 	 *                   null.
 	 */
-	public void restoreSnapshot(UUID ownerId, long timestamp, World world, Runnable whenDone,
-			Consumer<Double> onProgress) {
+	public void restoreSnapshot(@NotNull UUID ownerId, long timestamp, @NotNull World world,
+			@Nullable Runnable whenDone, Consumer<Double> onProgress) {
 		final SerializableIslandSnapshot snapshot = loadSnapshot(ownerId, timestamp);
 		if (snapshot == null) {
 			instance.getPluginLogger().warn("No snapshot found for " + ownerId + " at " + timestamp);
@@ -296,7 +381,7 @@ public class IslandBackupManager {
 		}
 
 		// Get bounding box from island data
-		instance.getStorageManager().getOfflineUserData(ownerId, instance.getConfigManager().lockData())
+		instance.getStorageManager().getCachedUserDataWithFallback(ownerId, instance.getConfigManager().lockData())
 				.thenAccept(optionalUserData -> {
 					if (optionalUserData.isEmpty()) {
 						instance.getPluginLogger()
@@ -306,6 +391,12 @@ public class IslandBackupManager {
 
 					final HellblockData hb = optionalUserData.get().getHellblockData();
 					final BoundingBox box = hb.getBoundingBox();
+
+					if (box == null) {
+						instance.getPluginLogger()
+								.warn("Bounding box returned null for " + ownerId + " when restoring snapshot");
+						return;
+					}
 
 					// Run batched restore
 					snapshot.restoreIntoWorldBatched(world, box, instance, () -> {
@@ -325,7 +416,7 @@ public class IslandBackupManager {
 	 * @param loc The location of the block.
 	 * @return A list of EntitySnapshot representing the attached entities.
 	 */
-	private List<EntitySnapshot> findAttachedEntities(Location loc) {
+	private List<EntitySnapshot> findAttachedEntities(@NotNull Location loc) {
 		final World world = loc.getWorld();
 		if (world == null) {
 			return List.of();
@@ -346,7 +437,7 @@ public class IslandBackupManager {
 	 * @param entity The entity to check.
 	 * @return True if the entity is block-attached, false otherwise.
 	 */
-	private boolean isBlockAttachedEntity(Entity entity) {
+	private boolean isBlockAttachedEntity(@NotNull Entity entity) {
 		// Hanging = item frames, paintings
 		// Shulker = mob that acts like a block
 		// ArmorStand = small decorative stands

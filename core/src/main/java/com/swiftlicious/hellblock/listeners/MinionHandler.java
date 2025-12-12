@@ -2,6 +2,7 @@ package com.swiftlicious.hellblock.listeners;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -49,22 +50,23 @@ public class MinionHandler implements Listener, Reloadable {
 	public void unload() {
 		HandlerList.unregisterAll(this);
 		// cancel all minion target tasks
-		minionTargetTasks.values().stream().filter(task -> task != null).forEach(SchedulerTask::cancel);
+		minionTargetTasks.values().stream().filter(Objects::nonNull).filter(task -> !task.isCancelled())
+				.forEach(SchedulerTask::cancel);
 		minionTargetTasks.clear();
 	}
 
 	/**
 	 * Marks an entity as a Wither Minion
 	 */
-	public void tagAsMinion(@NotNull LivingEntity entity) {
-		entity.getPersistentDataContainer().set(minionKey, PersistentDataType.STRING, MINION_KEY);
+	public void tagAsMinion(@NotNull Mob mob) {
+		mob.getPersistentDataContainer().set(minionKey, PersistentDataType.STRING, MINION_KEY);
 	}
 
 	/**
 	 * Checks if an entity is a Wither Minion
 	 */
-	public boolean isMinion(@NotNull Entity entity) {
-		return entity.getPersistentDataContainer().has(minionKey, PersistentDataType.STRING);
+	public boolean isMinion(@NotNull Mob mob) {
+		return mob.getPersistentDataContainer().has(minionKey, PersistentDataType.STRING);
 	}
 
 	/**
@@ -178,7 +180,7 @@ public class MinionHandler implements Listener, Reloadable {
 
 	public void stopMinionTargeting(@NotNull UUID minionId) {
 		final SchedulerTask task = minionTargetTasks.remove(minionId);
-		if (task != null) {
+		if (task != null && !task.isCancelled()) {
 			task.cancel();
 		}
 	}
@@ -222,7 +224,7 @@ public class MinionHandler implements Listener, Reloadable {
 		if (!instance.getHellblockHandler().isInCorrectWorld(event.getEntity().getWorld())) {
 			return;
 		}
-		if (isMinion(event.getEntity())) {
+		if (event.getEntity() instanceof Mob mob && isMinion(mob)) {
 			stopMinionTargeting(event.getEntity().getUniqueId());
 		}
 	}

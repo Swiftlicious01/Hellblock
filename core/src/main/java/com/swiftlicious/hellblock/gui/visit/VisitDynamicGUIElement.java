@@ -8,6 +8,7 @@ import org.jetbrains.annotations.Nullable;
 public class VisitDynamicGUIElement extends VisitGUIElement {
 
 	private @Nullable String skullTexture;
+	private long featuredUntil;
 
 	public VisitDynamicGUIElement(char symbol, ItemStack itemStack, UUID uuid) {
 		super(symbol, itemStack, uuid);
@@ -23,6 +24,14 @@ public class VisitDynamicGUIElement extends VisitGUIElement {
 
 	public void setUUID(UUID uuid) {
 		super.uuid = uuid;
+	}
+
+	public long getFeaturedUntil() {
+		return featuredUntil;
+	}
+
+	public void setFeaturedUntil(long until) {
+		this.featuredUntil = until;
 	}
 
 	public void setSkullTexture(@Nullable String texture) {

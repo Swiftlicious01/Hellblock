@@ -25,6 +25,8 @@ hellblock_help:
   usage:
     - /hellblock help
     - /hb help
+    - /hellblock ?
+    - /hb ?
 
 # See the information about a certain hellblock
 # Usage: [COMMAND]
@@ -86,6 +88,10 @@ hellblock_top:
     - /islandtop
     - /hellblocktop
     - /hbtop
+    - /hellblock leaderboard
+    - /hb leaderboard
+    - /islandleaderboard
+    - /hbleaderboard
 
 # Change hellblock biome 
 # Usage: [COMMAND] [biome]
@@ -141,6 +147,18 @@ hellblock_warps:
     - /hellblock visitmenu
     - /hb visitmenu
 
+# Open challenges menu
+# Usage: [COMMAND]
+hellblock_challenges:
+  enable: true
+  permission: hellblock.user
+  usage:
+    - /hellblock challenges
+    - /hb challenges
+    - /hellblock challenge
+    - /hb challenge
+    - /challenges
+
 # Sets the warp location for visiting usage
 # Usage: [COMMAND]
 hellblock_setwarp:
@@ -182,6 +200,8 @@ hellblock_home:
     - /hb tp
     - /hellblock teleport
     - /hb teleport
+    - /hellblock go
+    - /hb go
 
 # Set home location to standing location
 # Usage: [COMMAND]
@@ -251,10 +271,31 @@ hellblock_upgrade:
   usage:
     - /hellblock upgrades
     - /hellblock upgrade
+    - /hellblock purchaseupgrade
     - /hb upgrades
     - /hb upgrade
+    - /hb purchaseupgrade
     - /upgrades
     - /upgrade
+    - /purchaseupgrade
+
+# Set a protection flag setting
+# Usage: [COMMAND] [type]
+hellblock_flag:
+  enable: true
+  permission: hellblock.user
+  usage:
+    - /hellblock setflag
+    - /hellblock changeflag
+    - /hellblock flag
+    - /hellblock updateflag
+    - /hb setflag
+    - /hb changeflag
+    - /hb flag
+    - /hb updateflag
+    - /setflag
+    - /changeflag
+    - /updateflag
 
 # View the amount of hoppers you have placed and the max allowed
 # Usage: [COMMAND]
@@ -337,8 +378,10 @@ coop_kick:
   usage:
     - /hellcoop kick
     - /hellcoop remove
+    - /hellcoop expel
     - /coop kick
     - /coop remove
+    - /coop expel
 
 # Accept an invite from a player
 # Usage: [COMMAND] [username]
@@ -368,8 +411,10 @@ coop_reject:
   usage:
     - /hellcoop reject
     - /hellcoop decline 
+    - /hellcoop deny
     - /coop reject
     - /coop decline
+    - /coop deny
 
 # Invite a player to join a hellblock
 # Usage: [COMMAND] [username]
@@ -409,6 +454,7 @@ coop_owner:
     - /hellcoop newleader
     - /hellcoop setleader
     - /hellcoop transferleader
+    - /hellcoop makeleader
     - /coop setowner
     - /coop transferowner
     - /coop changeowner
@@ -417,10 +463,12 @@ coop_owner:
     - /coop newleader
     - /coop setleader
     - /coop transferleader
+    - /coop makeleader
     - /changeleader
     - /newleader
     - /setleader
     - /transferleader
+    - /makeleader
 
 # Trusts a player on hellblocks
 # Usage: [COMMAND] [username]
@@ -449,8 +497,21 @@ coop_help:
   permission: hellblock.coop
   usage:
     - /hellcoop help
+    - /hellcoop
     - /coop
     - /coop help
+    - /hellcoop ?
+    - /coop ?
+
+# Change your chat settings to talk to certain players
+# Usage: [COMMAND] [setting]
+coop_chat:
+  enable: true
+  permission: hellblock.coop
+  usage:
+    - /hellcoop chat
+    - /coop chat
+    - /chat
 
 # Cancel an invitation to a player
 # Usage: [COMMAND] [username]
@@ -578,6 +639,17 @@ admin_forcebiome:
     - /hellblock admin setbiome
     - /hb admin setbiome
 
+# Force sets the player's flag to the reverse setting
+# Usage: [COMMAND] [username] [flag]
+admin_forceflag:
+  enable: true
+  permission: hellblock.admin
+  usage:
+    - /hellblock admin forceflag
+    - /hb admin forceflag
+    - /hellblock admin setflag
+    - /hb admin setflag
+
 # Force unlocks or locks the player's island
 # Usage: [COMMAND] [username]
 admin_unlock:
@@ -643,6 +715,23 @@ admin_transfer:
     - /hellblock admin transfer
     - /hb admin transfer
 
+# Recalculate a player's island level in the case it's corrupted
+# Usage: [COMMAND] [username]
+admin_recalculatelevel:
+  enable: true
+  permission: hellblock.admin
+  usage:
+    - /hellblock admin recalculatelevel
+    - /hb admin recalculatelevel
+    - /hellblock admin recalclevel
+    - /hb admin recalclevel
+    - /hellblock admin recalclvl
+    - /hb admin recalclvl
+    - /hellblock admin recalculatelvl
+    - /hb admin recalculatelvl
+    - /hellblock admin recalculate
+    - /hb admin recalculate
+
 # Help page for admin commands
 # Usage: [COMMAND]
 admin_help:
@@ -651,6 +740,8 @@ admin_help:
   usage:
     - /hellblock admin help
     - /hb admin help
+    - /hellblock admin ?
+    - /hb admin ?
 
 # A command to reload the plugin
 # Usage: [COMMAND]
@@ -794,6 +885,7 @@ debug_loot:
   usage:
     - /hellblock debug loot
     - /hb debug loot
+    - /debugloot
 
 # A command to debug nbt data
 # Usage: [COMMAND]
@@ -803,6 +895,7 @@ debug_nbt:
   usage:
     - /hellblock debug nbt
     - /hb debug nbt
+    - /debugnbt
 
 # A command to debug biome locations
 # Usage: [COMMAND]
@@ -812,6 +905,7 @@ debug_biome:
   usage:
     - /hellblock debug biome
     - /hb debug biome
+    - /debugbiome
 
 # A command to debug the snbt
 # Usage: [COMMAND]
@@ -821,6 +915,7 @@ debug_snbt:
   usage:
     - /hellblock debug snbt
     - /hb debug snbt
+    - /debugsnbt
 
 # A command to debug worlds
 # Usage: [COMMAND]
@@ -830,3 +925,4 @@ debug_worlds:
   usage:
     - /hellblock debug worlds
     - /hb debug worlds
+    - /debugworlds

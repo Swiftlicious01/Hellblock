@@ -11,6 +11,7 @@ import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -26,6 +27,8 @@ import org.bukkit.event.player.PlayerTeleportEvent.TeleportCause;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import com.google.gson.annotations.Expose;
+import com.google.gson.annotations.SerializedName;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.api.Reloadable;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
@@ -41,6 +44,16 @@ import com.swiftlicious.hellblock.utils.extras.Requirement;
 
 import net.kyori.adventure.sound.Sound;
 
+/**
+ * Manages all aspects of player visit tracking within the Hellblock world.
+ *
+ * Tracks visit cooldowns, recent activity, abuse detection (spamming, mutual
+ * visit boosting, alt usage), and maintains visit statistics like featured
+ * islands and recent visit logs.
+ *
+ * Responsible for scheduling periodic tasks related to visit data cleanup,
+ * abuse detection, and featured island expiration.
+ */
 public class VisitManager implements Reloadable {
 
 	protected final HellblockPlugin instance;
@@ -51,7 +64,7 @@ public class VisitManager implements Reloadable {
 	private final Map<UUID, Deque<UUID>> visitHistory = new ConcurrentHashMap<>();
 	private final Map<UUID, Integer> reciprocalVisitCount = new ConcurrentHashMap<>();
 	private final Map<UUID, Set<String>> playerIPs = new ConcurrentHashMap<>();
-	private final Map<UUID, List<VisitLogEntry>> visitLogs = new ConcurrentHashMap<>();
+	private final Map<Integer, List<VisitLogEntry>> visitLogs = new ConcurrentHashMap<>();
 
 	// blacklisted players (bots, abusers, etc.)
 	private final Set<UUID> blacklisted = ConcurrentHashMap.newKeySet();
@@ -105,6 +118,10 @@ public class VisitManager implements Reloadable {
 		}
 	}
 
+	/**
+	 * Starts the scheduled task that resets player visit counters periodically
+	 * based on visit data expiration rules.
+	 */
 	public void startVisitResetTask() {
 		visitResetTask = instance.getScheduler().asyncRepeating(() -> {
 			long now = System.currentTimeMillis();
@@ -117,22 +134,32 @@ public class VisitManager implements Reloadable {
 		}, 0L, 5, TimeUnit.MINUTES); // every 5 minutes
 	}
 
+	/**
+	 * Starts a scheduled task to monitor for abnormally high visit frequencies and
+	 * auto-blacklist players if thresholds are exceeded.
+	 */
 	private void startOutlierMonitorTask() {
 		outlierMonitorTask = instance.getScheduler().asyncRepeating(() -> {
 			long cutoff = System.currentTimeMillis() - OUTLIER_MONITOR_INTERVAL;
 			visitTimestamps.entrySet().forEach(entry -> {
-				UUID player = entry.getKey();
+				UUID visitorId = entry.getKey();
 				Deque<Long> times = entry.getValue();
 				times.removeIf(t -> t < cutoff);
 
 				if (times.size() >= OUTLIER_THRESHOLD) {
-					autoBlacklist(player, "Abnormal visit frequency (> " + OUTLIER_THRESHOLD + " in 10 minutes)");
+					instance.getIslandManager().getLastTrackedIsland(visitorId).filter(Objects::nonNull)
+							.ifPresent(islandId -> autoBlacklist(islandId, visitorId,
+									"Abnormal visit frequency (> " + OUTLIER_THRESHOLD + " in 10 minutes)"));
 					times.clear();
 				}
 			});
 		}, 0L, 5, TimeUnit.MINUTES); // run every 5 minutes
 	}
 
+	/**
+	 * Starts the scheduled task that performs cleanup of old visit records from
+	 * player data (older than 7 days).
+	 */
 	public void startVisitCleanupTask() {
 		visitCleanupTask = instance.getScheduler().asyncRepeating(() -> {
 			long cutoff = System.currentTimeMillis() - VISIT_EXPIRY_MS;
@@ -145,6 +172,10 @@ public class VisitManager implements Reloadable {
 		}, 0L, 5, TimeUnit.MINUTES); // every 5 minutes
 	}
 
+	/**
+	 * Starts a scheduled task that removes expired "featured" status from islands
+	 * once their display time ends.
+	 */
 	public void startFeaturedCleanupTask() {
 		featuredCleanupTask = instance.getScheduler()
 				.asyncRepeating(() -> instance.getCoopManager().getCachedIslandOwnerData().thenAccept(users -> {
@@ -161,33 +192,39 @@ public class VisitManager implements Reloadable {
 	}
 
 	/**
-	 * Checks if a player can visit a specific island (owner UUID).
+	 * Determines whether the given visitor can visit the specified island, based on
+	 * cooldowns and blacklist status.
+	 *
+	 * @param visitorId the UUID of the visiting player
+	 * @param ownerId   the UUID of the island owner
+	 * @return true if the player can visit, false otherwise
 	 */
-	public boolean canVisit(@NotNull UUID visitor, @NotNull UUID islandOwner) {
-		if (blacklisted.contains(visitor)) {
+	public boolean canVisit(@NotNull UUID visitorId, @NotNull UUID ownerId) {
+		if (blacklisted.contains(visitorId)) {
 			return false;
 		}
 
-		Map<UUID, Long> cooldowns = visitCooldowns.get(visitor);
+		Map<UUID, Long> cooldowns = visitCooldowns.get(visitorId);
 		if (cooldowns == null)
 			return true;
 
-		Long lastVisit = cooldowns.get(islandOwner);
+		Long lastVisit = cooldowns.get(ownerId);
 		return lastVisit == null || System.currentTimeMillis() - lastVisit >= VISIT_COOLDOWN_MS;
 	}
 
-	public void handleVisit(@NotNull Player visitor, @Nullable UUID ownerUUID) {
-		if (ownerUUID == null) {
-			throw new IllegalStateException("OwnerUUID was null on handleVisit.");
-		}
-
-		HellblockPlugin instance = HellblockPlugin.getInstance();
-
+	/**
+	 * Handles the logic for teleporting a visitor to an island, checking for bans,
+	 * cooldowns, and safety, and optionally recording the visit.
+	 *
+	 * @param visitor the player attempting to visit
+	 * @param ownerId the UUID of the island owner
+	 */
+	public void handleVisit(@NotNull Player visitor, @NotNull UUID ownerId) {
 		CompletableFuture<Optional<UserData>> visitorFuture = instance.getStorageManager()
-				.getOfflineUserData(visitor.getUniqueId(), instance.getConfigManager().lockData());
+				.getCachedUserDataWithFallback(visitor.getUniqueId(), instance.getConfigManager().lockData());
 
-		CompletableFuture<Optional<UserData>> ownerFuture = instance.getStorageManager().getOfflineUserData(ownerUUID,
-				instance.getConfigManager().lockData());
+		CompletableFuture<Optional<UserData>> ownerFuture = instance.getStorageManager()
+				.getCachedUserDataWithFallback(ownerId, instance.getConfigManager().lockData());
 
 		CompletableFuture<Optional<Pair<UserData, UserData>>> combinedFuture = visitorFuture
 				.thenCombineAsync(ownerFuture, (visitorOpt, ownerOpt) -> {
@@ -198,38 +235,47 @@ public class VisitManager implements Reloadable {
 				});
 
 		combinedFuture.thenAcceptAsync(optionalPair -> optionalPair.ifPresent(pair -> {
-			UserData visitorUser = pair.left();
-			UserData ownerUser = pair.right();
-			HellblockData ownerData = ownerUser.getHellblockData();
+			UserData visitorUserData = pair.left();
+			UserData ownerUserData = pair.right();
+			HellblockData ownerData = ownerUserData.getHellblockData();
+
 			if (ownerData.isLocked()) {
 				instance.getSenderFactory().wrap(visitor).sendMessage(
 						instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_LOCKED_FROM_VISITORS
-								.arguments(AdventureHelper.miniMessage(ownerUser.getName())).build()));
+								.arguments(AdventureHelper.miniMessageToComponent(ownerUserData.getName())).build()));
 				return;
 			}
-			if (ownerData.getBanned().contains(visitorUser.getUUID())) {
+
+			if (ownerData.getBannedMembers().contains(visitorUserData.getUUID())
+					&& (!(visitor.isOp() || visitor.hasPermission("hellblock.admin")
+							|| visitor.hasPermission("hellblock.bypass.interact")))) {
 				instance.getSenderFactory().wrap(visitor)
 						.sendMessage(instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_BANNED_ENTRY
-								.arguments(AdventureHelper.miniMessage(ownerUser.getName())).build()));
+								.arguments(AdventureHelper.miniMessageToComponent(ownerUserData.getName())).build()));
 				return;
 			}
-			boolean associated = ownerUUID.equals(visitorUser.getUUID())
-					|| ownerData.getParty().contains(visitorUser.getUUID())
-					|| ownerData.getTrusted().contains(visitorUser.getUUID());
-			boolean eligibleToRecord = !associated && !isBlacklisted(visitorUser.getUUID())
-					&& canVisit(visitorUser.getUUID(), ownerUUID);
+
+			boolean associated = ownerId.equals(visitorUserData.getUUID())
+					|| ownerData.getPartyMembers().contains(visitorUserData.getUUID())
+					|| ownerData.getTrustedMembers().contains(visitorUserData.getUUID());
+			boolean eligibleToRecord = !associated && !isBlacklisted(visitorUserData.getUUID())
+					&& canVisit(visitorUserData.getUUID(), ownerId);
+
 			Location warp = ownerData.getVisitData().getWarpLocation();
+
 			if (warp == null)
 				warp = ownerData.getHomeLocation();
+
 			if (warp == null) {
-				instance.getPluginLogger().severe("Null home location in handleVisit for " + ownerUser.getName() + " ("
-						+ ownerUser.getUUID() + ")");
+				instance.getPluginLogger().severe("Null home location in handleVisit for " + ownerUserData.getName()
+						+ " (" + ownerUserData.getUUID() + ")");
 				instance.getSenderFactory().wrap(visitor).sendMessage(instance.getTranslationManager()
 						.render(MessageConstants.MSG_HELLBLOCK_ERROR_HOME_LOCATION.build()));
 				return;
 			}
+
 			final Location finalWarp = warp;
-			instance.getWorldManager().ensureHellblockWorldLoaded(ownerData.getID()).thenAcceptAsync(world -> {
+			instance.getWorldManager().ensureHellblockWorldLoaded(ownerData.getIslandId()).thenAcceptAsync(world -> {
 				Location corrected = new Location(world.bukkitWorld(), finalWarp.getX(), finalWarp.getY(),
 						finalWarp.getZ(), finalWarp.getYaw(), finalWarp.getPitch());
 				LocationUtils.isSafeLocationAsync(corrected).thenAcceptAsync(isSafe -> {
@@ -238,53 +284,63 @@ public class VisitManager implements Reloadable {
 								.render(MessageConstants.MSG_HELLBLOCK_UNSAFE_TO_VISIT.build()));
 						return;
 					}
+
 					ChunkUtils.teleportAsync(visitor, corrected, TeleportCause.PLUGIN).thenRun(() -> {
 						instance.debug(visitor.getName() + " (" + visitor.getUniqueId() + ") visited "
-								+ ownerUser.getName() + " (" + ownerUser.getUUID() + ")");
+								+ ownerUserData.getName() + " (" + ownerUserData.getUUID() + ")");
 						if (eligibleToRecord) {
-							recordVisit(visitor, ownerUUID);
+							recordVisit(ownerData.getIslandId(), visitor, ownerId);
 						}
 						ownerData.sendDisplayTextTo(visitor);
-						instance.getSenderFactory().wrap(visitor).sendMessage(
-								instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_VISIT_ENTRY
-										.arguments(AdventureHelper.miniMessage(ownerUser.getName())).build()));
+						instance.getSenderFactory().wrap(visitor).sendMessage(instance.getTranslationManager()
+								.render(MessageConstants.MSG_HELLBLOCK_VISIT_ENTRY
+										.arguments(AdventureHelper.miniMessageToComponent(ownerUserData.getName()))
+										.build()));
 					});
 				});
 			});
 		}));
 	}
 
-	public void recordVisit(@NotNull Player visitor, @NotNull UUID islandOwner) {
+	/**
+	 * Records a visit to an island, applies anti-abuse checks, and updates
+	 * visit-related counters and cooldowns.
+	 *
+	 * @param islandId the ID of the island
+	 * @param visitor  the player who visited
+	 * @param ownerId  the UUID of the island owner
+	 */
+	private void recordVisit(int islandId, @NotNull Player visitor, @NotNull UUID ownerId) {
 		final UUID visitorId = visitor.getUniqueId();
 
 		if (isBlacklisted(visitorId))
 			return;
-		if (!canVisit(visitorId, islandOwner))
+		if (!canVisit(visitorId, ownerId))
 			return;
 
 		long now = System.currentTimeMillis();
 
 		// 1. Detect visit spam
-		checkVisitSpam(visitorId, now);
+		checkVisitSpam(islandId, visitorId, now);
 
 		// 2. Detect mutual visit boosting
-		checkMutualVisitBoosting(visitorId, islandOwner);
+		checkMutualVisitBoosting(islandId, visitorId, ownerId);
 
 		// 3. Detect mass alt visiting (many IPs to same island)
-		checkMassAltVisiting(visitor, islandOwner);
+		checkMassAltVisiting(islandId, visitor, ownerId);
 
 		// 4. Detect night-hour repetitive activity
-		checkNightActivity(visitorId, now);
+		checkNightActivity(islandId, visitorId, now);
 
 		// Normal cooldown tracking
-		visitCooldowns.computeIfAbsent(visitorId, __ -> new HashMap<>()).put(islandOwner, now);
+		visitCooldowns.computeIfAbsent(visitorId, __ -> new HashMap<>()).put(ownerId, now);
 
 		// Track visit for statistical data
 		visitTimestamps.computeIfAbsent(visitorId, __ -> new ArrayDeque<>()).addLast(now);
-		visitHistory.computeIfAbsent(visitorId, __ -> new ArrayDeque<>()).addLast(islandOwner);
+		visitHistory.computeIfAbsent(visitorId, __ -> new ArrayDeque<>()).addLast(ownerId);
 
 		// Normal visit progression
-		instance.getStorageManager().getOfflineUserData(islandOwner, instance.getConfigManager().lockData())
+		instance.getStorageManager().getCachedUserDataWithFallback(ownerId, instance.getConfigManager().lockData())
 				.thenAccept(optUser -> {
 					if (optUser.isEmpty()) {
 						return;
@@ -300,9 +356,15 @@ public class VisitManager implements Reloadable {
 	}
 
 	/**
-	 * Returns top islands by a selected metric (daily, weekly, total, etc.)
+	 * Retrieves a ranked list of islands based on the specified visit metric (e.g.,
+	 * total, daily, weekly) and passes it to the given callback.
+	 *
+	 * @param visitType function to extract the visit count metric from VisitData
+	 * @param limit     max number of top islands to include
+	 * @param callback  consumer to receive the sorted result
 	 */
-	public void getTopIslands(Function<VisitData, Integer> visitType, int limit, Consumer<List<VisitEntry>> callback) {
+	public void getTopIslands(@NotNull Function<VisitData, Integer> visitType, int limit,
+			@NotNull Consumer<List<VisitEntry>> callback) {
 		instance.getCoopManager().getCachedIslandOwnerData().thenAcceptAsync(userDataSet -> {
 			List<VisitEntry> list = new ArrayList<>();
 
@@ -322,24 +384,48 @@ public class VisitManager implements Reloadable {
 		});
 	}
 
+	/**
+	 * Asynchronously retrieves the list of currently featured islands, sorted by
+	 * the newest expiration time.
+	 *
+	 * @param limit max number of featured islands to return
+	 * @return a future containing the list of featured island entries
+	 */
+	@NotNull
 	public CompletableFuture<List<VisitEntry>> getFeaturedIslands(int limit) {
-		return instance.getCoopManager().getCachedIslandOwnerData().thenApply(users -> users.stream().filter(user -> {
-			VisitData visitData = user.getHellblockData().getVisitData();
-			if (visitData.isFeatured()) {
-				return true;
-			}
+		return instance.getCoopManager().getCachedIslandOwnerData()
+				.thenApplyAsync(users -> users.stream().filter(user -> {
+					VisitData visitData = user.getHellblockData().getVisitData();
+					long until = visitData.getFeaturedUntil();
 
-			// Lazy cleanup of expired slots
-			if (visitData.getFeaturedUntil() > 0) {
-				visitData.removeFeatured();
-			}
+					if (until <= System.currentTimeMillis()) {
+						visitData.removeFeatured(); // Lazy cleanup of expired entries
+						return false; // Exclude from featured list
+					}
 
-			return false;
-		}).sorted(Comparator.comparingLong(user -> -user.getHellblockData().getVisitData().getFeaturedUntil()))
-				.limit(limit).map(user -> new VisitEntry(user.getUUID(), 0)).toList());
+					return true; // Still active — include
+				})
+						// Sort by newest expiry
+						.sorted(Comparator
+								.comparingLong(user -> -user.getHellblockData().getVisitData().getFeaturedUntil()))
+						.limit(limit) // Apply limit AFTER cleanup
+						.map(user -> new VisitEntry(user.getUUID(), 0)) // Map to display entry
+						.toList());
 	}
 
-	public CompletableFuture<Boolean> attemptFeaturedSlotPurchase(Player player, Requirement<Player>[] requirements) {
+	/**
+	 * Attempts to purchase a featured island slot for the given player. Performs
+	 * all validation checks (ownership, featured status, requirements, etc.) and
+	 * updates island status if successful.
+	 *
+	 * @param player       the player attempting the purchase
+	 * @param requirements optional array of requirements to check before purchase
+	 * @return a future resolving to true if the purchase was successful, false
+	 *         otherwise
+	 */
+	@NotNull
+	public CompletableFuture<Boolean> attemptFeaturedSlotPurchase(@NotNull Player player,
+			@Nullable Requirement<Player>[] requirements) {
 		UUID uuid = player.getUniqueId();
 
 		CompletableFuture<Boolean> result = new CompletableFuture<>();
@@ -370,7 +456,10 @@ public class VisitManager implements Reloadable {
 			// Ownership check
 			final UUID ownerId = data.getOwnerUUID();
 			if (ownerId == null) {
-				throw new IllegalStateException("Hellblock owner UUID is missing.");
+				instance.getPluginLogger().severe("Hellblock owner UUID was null for player " + player.getName() + " ("
+						+ player.getUniqueId() + "). This indicates corrupted data or a serious bug.");
+				throw new IllegalStateException(
+						"Owner reference was null. This should never happen — please report to the developer.");
 			}
 
 			if (!ownerId.equals(player.getUniqueId())) {
@@ -388,10 +477,10 @@ public class VisitManager implements Reloadable {
 			// Already featured — notify and fail
 			if (visitData.isFeatured()) {
 				long secondsRemaining = (visitData.getFeaturedUntil() - System.currentTimeMillis()) / 1000;
-				String expiresAt = instance.getFormattedCooldown(secondsRemaining);
+				String expiresAt = instance.getCooldownManager().getFormattedCooldown(secondsRemaining);
 				instance.getSenderFactory().wrap(player)
 						.sendMessage(instance.getTranslationManager().render(MessageConstants.MSG_FEATURED_EXISTS
-								.arguments(AdventureHelper.miniMessage(expiresAt)).build()));
+								.arguments(AdventureHelper.miniMessageToComponent(expiresAt)).build()));
 				AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
 						Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
 								net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
@@ -433,9 +522,11 @@ public class VisitManager implements Reloadable {
 				visitData.setFeaturedUntil(expiresAt);
 
 				instance.getSenderFactory().wrap(player)
-						.sendMessage(instance.getTranslationManager().render(MessageConstants.MSG_FEATURED_SUCCESS
-								.arguments(AdventureHelper.miniMessage(instance.getFormattedCooldown(duration / 1000L)))
-								.build()));
+						.sendMessage(instance.getTranslationManager()
+								.render(MessageConstants.MSG_FEATURED_SUCCESS
+										.arguments(AdventureHelper.miniMessageToComponent(
+												instance.getCooldownManager().getFormattedCooldown(duration / 1000L)))
+										.build()));
 				AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
 						Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.yes"),
 								net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
@@ -455,136 +546,297 @@ public class VisitManager implements Reloadable {
 		return result;
 	}
 
-	private void checkNightActivity(UUID visitor, long now) {
+	/**
+	 * Checks if a player is visiting during night hours and blacklists them if such
+	 * behavior is detected as suspicious.
+	 *
+	 * @param islandId  the ID of the island being visited
+	 * @param visitorId the UUID of the visiting player
+	 * @param now       the current timestamp in milliseconds
+	 */
+	private void checkNightActivity(int islandId, @NotNull UUID visitorId, long now) {
 		LocalTime time = Instant.ofEpochMilli(now).atZone(ZoneId.systemDefault()).toLocalTime();
 		int hour = time.getHour();
 		if (hour >= NIGHT_START && hour <= NIGHT_END) {
-			autoBlacklist(visitor, "Suspicious night-hour activity (" + hour + ":00)");
+			autoBlacklist(islandId, visitorId, "Suspicious night-hour activity (" + hour + ":00)");
 		}
 	}
 
-	private void checkMassAltVisiting(Player visitor, UUID islandOwner) {
+	/**
+	 * Checks if a player is attempting to boost visits using multiple IPs (likely
+	 * alt accounts) and blacklists them if the threshold is exceeded.
+	 *
+	 * @param islandId the ID of the island being visited
+	 * @param visitor  the visiting player
+	 * @param ownerId  the UUID of the island owner
+	 */
+	private void checkMassAltVisiting(int islandId, Player visitor, @NotNull UUID ownerId) {
 		String ip = visitor.getAddress() != null ? visitor.getAddress().getAddress().getHostAddress() : "unknown";
-		playerIPs.computeIfAbsent(islandOwner, __ -> ConcurrentHashMap.newKeySet()).add(ip);
+		playerIPs.computeIfAbsent(ownerId, __ -> ConcurrentHashMap.newKeySet()).add(ip);
 
-		int unique = playerIPs.get(islandOwner).size();
+		int unique = playerIPs.get(ownerId).size();
 		if (unique >= ALT_THRESHOLD) {
-			autoBlacklist(visitor.getUniqueId(), "Potential alt visit farming (" + unique + " unique IPs)");
-			playerIPs.get(islandOwner).clear();
+			autoBlacklist(islandId, visitor.getUniqueId(), "Potential alt visit farming (" + unique + " unique IPs)");
+			playerIPs.get(ownerId).clear();
 		}
 	}
 
-	private void checkMutualVisitBoosting(UUID visitor, UUID islandOwner) {
-		Deque<UUID> history = visitHistory.computeIfAbsent(visitor, __ -> new ArrayDeque<>());
-		history.addLast(islandOwner);
+	/**
+	 * Detects mutual visit boosting between two players (e.g., collusion for
+	 * rewards) and blacklists if suspicious reciprocal visits exceed a configured
+	 * threshold.
+	 *
+	 * @param islandId  the ID of the island involved
+	 * @param visitorId the visiting player's UUID
+	 * @param ownerId   the island owner's UUID
+	 */
+	private void checkMutualVisitBoosting(int islandId, @NotNull UUID visitorId, @NotNull UUID ownerId) {
+		Deque<UUID> history = visitHistory.computeIfAbsent(visitorId, __ -> new ArrayDeque<>());
+		history.addLast(ownerId);
 
-		Deque<UUID> ownerHistory = visitHistory.computeIfAbsent(islandOwner, __ -> new ArrayDeque<>());
+		Deque<UUID> ownerHistory = visitHistory.computeIfAbsent(ownerId, __ -> new ArrayDeque<>());
 
-		// if owner has recently visited visitor’s island too
-		if (ownerHistory.contains(visitor)) {
-			int count = reciprocalVisitCount.merge(visitor, 1, Integer::sum);
+		// Check if the owner has recently visited the visitor’s island
+		if (ownerHistory.contains(visitorId)) {
+			int count = reciprocalVisitCount.merge(visitorId, 1, Integer::sum);
 			if (count >= MUTUAL_VISIT_THRESHOLD) {
-				autoBlacklist(visitor, "Mutual visit boosting detected with " + islandOwner);
-				reciprocalVisitCount.put(visitor, 0);
+				autoBlacklist(islandId, visitorId, "Mutual visit boosting detected with " + ownerId);
+				reciprocalVisitCount.put(visitorId, 0);
 			}
 		}
 	}
 
-	private void checkVisitSpam(UUID visitor, long now) {
-		Deque<Long> timestamps = visitTimestamps.computeIfAbsent(visitor, __ -> new ArrayDeque<>());
+	/**
+	 * Detects rapid, repeated visits from the same player in a short time window,
+	 * and blacklists them if the spam threshold is exceeded.
+	 *
+	 * @param islandId  the ID of the island being visited
+	 * @param visitorId the UUID of the visiting player
+	 * @param now       the current timestamp in milliseconds
+	 */
+	private void checkVisitSpam(int islandId, @NotNull UUID visitorId, long now) {
+		Deque<Long> timestamps = visitTimestamps.computeIfAbsent(visitorId, __ -> new ArrayDeque<>());
 		timestamps.addLast(now);
 		while (!timestamps.isEmpty() && now - timestamps.peekFirst() > SPAM_WINDOW_MS) {
 			timestamps.pollFirst();
 		}
 		if (timestamps.size() > SPAM_THRESHOLD) {
-			autoBlacklist(visitor, "Visit spam detected (> " + SPAM_THRESHOLD + " per minute)");
+			autoBlacklist(islandId, visitorId, "Visit spam detected (> " + SPAM_THRESHOLD + " per minute)");
 		}
 	}
 
-	public void autoBlacklist(UUID playerId, String reason) {
-		if (blacklisted.contains(playerId))
+	/**
+	 * Automatically blacklists a player from visiting due to detected abuse, and
+	 * logs the event for audit purposes.
+	 *
+	 * @param islandId  the ID of the island where abuse was detected
+	 * @param visitorId the UUID of the player to blacklist
+	 * @param reason    the reason for blacklisting
+	 */
+	public void autoBlacklist(int islandId, @NotNull UUID visitorId, @NotNull String reason) {
+		if (blacklisted.contains(visitorId))
 			return;
 
-		blacklisted.add(playerId);
-		logVisitAbuse(playerId, reason);
+		blacklisted.add(visitorId);
+		logVisitAbuse(islandId, visitorId, reason);
 
-		instance.getPluginLogger().warn("Auto-blacklisted " + playerId + ": " + reason);
+		instance.getPluginLogger().warn("Auto-blacklisted " + visitorId + ": " + reason);
 	}
 
-	public boolean isBlacklisted(UUID playerId) {
-		return blacklisted.contains(playerId);
+	/**
+	 * Checks if the specified player is currently blacklisted from visiting
+	 * islands.
+	 *
+	 * @param visitorId the player's UUID
+	 * @return true if the player is blacklisted, false otherwise
+	 */
+	public boolean isBlacklisted(@NotNull UUID visitorId) {
+		return blacklisted.contains(visitorId);
 	}
 
-	public void unblacklist(UUID playerId) {
-		blacklisted.remove(playerId);
+	/**
+	 * Removes the specified player from the visit blacklist.
+	 *
+	 * @param visitorId the player's UUID
+	 */
+	public void unblacklist(@NotNull UUID visitorId) {
+		blacklisted.remove(visitorId);
 	}
 
-	private void logVisitAbuse(UUID playerId, String reason) {
-		visitLogs.computeIfAbsent(playerId, __ -> new ArrayList<>()).add(new VisitLogEntry(playerId, reason));
+	/**
+	 * Records a visit abuse event in the audit log for a specific island.
+	 *
+	 * @param islandId  the ID of the island where the abuse occurred
+	 * @param visitorId the UUID of the player flagged
+	 * @param reason    the reason for flagging the player
+	 */
+	private void logVisitAbuse(int islandId, @NotNull UUID visitorId, @NotNull String reason) {
+		visitLogs.computeIfAbsent(islandId, __ -> new ArrayList<>()).add(new VisitLogEntry(visitorId, reason));
 	}
 
-	public boolean wasAutoFlagged(UUID playerId) {
-		return visitLogs.containsKey(playerId);
+	/**
+	 * Checks whether a specific island has any historical visit abuse logs.
+	 *
+	 * @param islandId the ID of the island to check
+	 * @return true if abuse logs exist for the island, false otherwise
+	 */
+	public boolean wasAutoFlagged(int islandId) {
+		return visitLogs.containsKey(islandId);
 	}
 
-	public CompletableFuture<List<VisitRecord>> getIslandVisitLog(UUID islandOwner) {
-		return instance.getStorageManager().getOfflineUserData(islandOwner, instance.getConfigManager().lockData())
+	/**
+	 * Retrieves the list of recent visit records for a specific island, potentially
+	 * for UI display or moderation purposes.
+	 *
+	 * @param ownerId the UUID of the island owner
+	 * @return a CompletableFuture with the list of visit records
+	 */
+	@NotNull
+	public CompletableFuture<List<VisitRecord>> getIslandVisitLog(@NotNull UUID ownerId) {
+		return instance.getStorageManager()
+				.getCachedUserDataWithFallback(ownerId, instance.getConfigManager().lockData())
 				.thenApply(userOpt -> userOpt.map(user -> user.getHellblockData().getRecentVisitors())
 						.orElse(Collections.emptyList()));
 	}
 
-	public List<VisitLogEntry> getIslandLogsForPlayer(UUID target) {
-		return visitLogs.getOrDefault(target, Collections.emptyList());
+	/**
+	 * Returns the list of visit abuse log entries associated with a specific
+	 * island.
+	 *
+	 * @param islandId the ID of the island
+	 * @return list of visit log entries, or an empty list if none exist
+	 */
+	@NotNull
+	public List<VisitLogEntry> getVisitLogsForIslandId(int islandId) {
+		return visitLogs.getOrDefault(islandId, Collections.emptyList());
 	}
 
-	public record VisitEntry(UUID islandOwner, int visits) {
+	/**
+	 * Represents a summary entry for an island in a visit leaderboard.
+	 *
+	 * @param ownerId the UUID of the island owner
+	 * @param visits  the number of visits recorded by the selected metric
+	 */
+	public record VisitEntry(@NotNull UUID ownerId, int visits) {
 	}
 
-	public static class VisitLogEntry {
+	/**
+	 * Stores metadata about an auto-blacklist or abuse detection event related to
+	 * player visits.
+	 */
+	public class VisitLogEntry {
 		private final long timestamp;
-		private final UUID playerId;
+		private final UUID visitorId;
 		private final String reason;
 
-		public VisitLogEntry(UUID playerId, String reason) {
+		/**
+		 * Creates a new visit log entry for the specified visitor and reason.
+		 *
+		 * @param visitorId the UUID of the visitor involved
+		 * @param reason    the reason for flagging
+		 */
+		public VisitLogEntry(@NotNull UUID visitorId, @NotNull String reason) {
 			this.timestamp = System.currentTimeMillis();
-			this.playerId = playerId;
+			this.visitorId = visitorId;
 			this.reason = reason;
 		}
 
+		/**
+		 * Returns the timestamp of the visit log.
+		 * 
+		 * @return the timestamp when the log entry was created (in ms)
+		 */
 		public long getTimestamp() {
 			return timestamp;
 		}
 
-		public UUID getPlayerId() {
-			return playerId;
+		/**
+		 * Returns the UUID of the visitor.
+		 * 
+		 * @return the UUID of the visitor who was flagged
+		 */
+		@NotNull
+		public UUID getVisitorId() {
+			return visitorId;
 		}
 
+		/**
+		 * Returns the reason of the visit log.
+		 * 
+		 * @return the reason for the visit log entry (e.g., type of abuse)
+		 */
+		@NotNull
 		public String getReason() {
 			return reason;
 		}
 	}
 
+	/**
+	 * Represents a single visit record to an island.
+	 * <p>
+	 * Stores the visitor's UUID and the timestamp (in epoch millis) of their visit.
+	 * Used for logging recent visits and displaying visit history in GUIs.
+	 */
 	public class VisitRecord {
+
+		@Expose
+		@SerializedName("visitorId")
 		private final UUID visitorId;
+
+		@Expose
+		@SerializedName("timestamp")
 		private final long timestamp;
 
-		// Required for Gson to deserialize
-		public VisitRecord(UUID visitorId, long timestamp) {
+		/**
+		 * Constructs a new {@link VisitRecord} with the given visitor and timestamp.
+		 * Used primarily for deserialization.
+		 *
+		 * @param visitorId the UUID of the visiting player
+		 * @param timestamp the time the visit occurred, in epoch milliseconds
+		 */
+		public VisitRecord(@NotNull UUID visitorId, long timestamp) {
 			this.visitorId = visitorId;
 			this.timestamp = timestamp;
 		}
 
-		// Constructor for new visits
-		public VisitRecord(UUID visitorId) {
+		/**
+		 * Constructs a new {@link VisitRecord} using the current system time as the
+		 * timestamp. Used when logging a fresh visit.
+		 *
+		 * @param visitorId the UUID of the visiting player
+		 */
+		public VisitRecord(@NotNull UUID visitorId) {
 			this(visitorId, System.currentTimeMillis());
 		}
 
+		/**
+		 * Returns the UUID of the visiting player.
+		 *
+		 * @return the visitor's UUID
+		 */
+		@NotNull
 		public UUID getVisitorId() {
 			return visitorId;
 		}
 
+		/**
+		 * Returns the timestamp of this visit in epoch milliseconds.
+		 *
+		 * @return the time the visit occurred
+		 */
 		public long getTimestamp() {
 			return timestamp;
+		}
+
+		/**
+		 * Creates a copy of this {@link VisitRecord}. Since fields are immutable, this
+		 * is effectively a new instance with the same values.
+		 *
+		 * @return a new VisitRecord with identical visitor ID and timestamp
+		 */
+		@NotNull
+		public final VisitRecord copy() {
+			return new VisitRecord(visitorId, timestamp);
 		}
 	}
 }

@@ -75,9 +75,9 @@ public record IslandSnapshot(List<IslandSnapshotBlock> blocks, List<EntitySnapsh
 
 			// Finish when no more blocks
 			if (!it.hasNext()) {
-				final SchedulerTask t = taskRef.get();
-				if (t != null) {
-					t.cancel();
+				final SchedulerTask scheduled = taskRef.get();
+				if (scheduled != null && !scheduled.isCancelled()) {
+					scheduled.cancel();
 				}
 				future.complete(new IslandSnapshot(blocks, entities));
 			}
@@ -117,9 +117,9 @@ public record IslandSnapshot(List<IslandSnapshotBlock> blocks, List<EntitySnapsh
 			}
 
 			if (!blockIt.hasNext() && !entityIt.hasNext()) {
-				final SchedulerTask t = taskRef.get();
-				if (t != null) {
-					t.cancel();
+				final SchedulerTask scheduled = taskRef.get();
+				if (scheduled != null && !scheduled.isCancelled()) {
+					scheduled.cancel();
 				}
 				future.complete(null);
 			}

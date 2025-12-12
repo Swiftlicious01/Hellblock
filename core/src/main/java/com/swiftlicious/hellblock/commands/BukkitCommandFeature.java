@@ -6,7 +6,7 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Entity;
 import org.incendo.cloud.bukkit.data.Selector;
 
-import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.sender.SenderFactory;
 import com.swiftlicious.hellblock.utils.extras.Pair;
 
@@ -22,25 +22,25 @@ public abstract class BukkitCommandFeature<C extends CommandSender> extends Abst
 	@Override
 	@SuppressWarnings("unchecked")
 	protected SenderFactory<?, C> getSenderFactory() {
-		return (SenderFactory<?, C>) HellblockPlugin.getInstance().getSenderFactory();
+		return (SenderFactory<?, C>) plugin.getSenderFactory();
 	}
 
 	public Pair<TranslatableComponent.Builder, Component> resolveSelector(Selector<? extends Entity> selector,
 			TranslatableComponent.Builder single, TranslatableComponent.Builder multiple) {
 		final Collection<? extends Entity> entities = selector.values();
 		if (entities.size() == 1) {
-			return Pair.of(single, Component.text(entities.iterator().next().getName()));
+			return Pair.of(single, AdventureHelper.miniMessageToComponent(entities.iterator().next().getName()));
 		} else {
-			return Pair.of(multiple, Component.text(entities.size()));
+			return Pair.of(multiple, AdventureHelper.miniMessageToComponent(String.valueOf(entities.size())));
 		}
 	}
 
 	public Pair<TranslatableComponent.Builder, Component> resolveSelector(Collection<? extends Entity> selector,
 			TranslatableComponent.Builder single, TranslatableComponent.Builder multiple) {
 		if (selector.size() == 1) {
-			return Pair.of(single, Component.text(selector.iterator().next().getName()));
+			return Pair.of(single, AdventureHelper.miniMessageToComponent(selector.iterator().next().getName()));
 		} else {
-			return Pair.of(multiple, Component.text(selector.size()));
+			return Pair.of(multiple, AdventureHelper.miniMessageToComponent(String.valueOf(selector.size())));
 		}
 	}
 }

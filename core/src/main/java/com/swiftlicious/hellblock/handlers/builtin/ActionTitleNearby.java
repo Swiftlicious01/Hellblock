@@ -45,8 +45,8 @@ public class ActionTitleNearby<T> extends AbstractBuiltInAction<T> {
 				.forEach(player -> {
 					context.arg(ContextKeys.TEMP_NEAR_PLAYER, player.getName());
 					VersionHelper.getNMSManager().sendTitle(player,
-							AdventureHelper.componentToJson(AdventureHelper.miniMessage(title.render(context))),
-							AdventureHelper.componentToJson(AdventureHelper.miniMessage(subtitle.render(context))),
+							AdventureHelper.componentToJson(AdventureHelper.miniMessageToComponent(title.render(context))),
+							AdventureHelper.componentToJson(AdventureHelper.miniMessageToComponent(subtitle.render(context))),
 							fadeIn, stay, fadeOut);
 				});
 	}

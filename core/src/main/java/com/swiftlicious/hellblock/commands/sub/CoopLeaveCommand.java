@@ -8,7 +8,6 @@ import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
 import org.incendo.cloud.CommandManager;
 
-import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.commands.BukkitCommandFeature;
 import com.swiftlicious.hellblock.commands.HellblockCommandManager;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
@@ -26,8 +25,7 @@ public class CoopLeaveCommand extends BukkitCommandFeature<CommandSender> {
 			Command.Builder<CommandSender> builder) {
 		return builder.senderType(Player.class).handler(context -> {
 			final Player player = context.sender();
-			final Optional<UserData> leavingPlayerOpt = HellblockPlugin.getInstance().getStorageManager()
-					.getOnlineUser(player.getUniqueId());
+			final Optional<UserData> leavingPlayerOpt = plugin.getStorageManager().getOnlineUser(player.getUniqueId());
 
 			if (leavingPlayerOpt.isEmpty()) {
 				handleFeedback(context, MessageConstants.COMMAND_DATA_FAILURE_NOT_LOADED);
@@ -46,9 +44,8 @@ public class CoopLeaveCommand extends BukkitCommandFeature<CommandSender> {
 			// Must be the owner
 			final UUID ownerUUID = data.getOwnerUUID();
 			if (ownerUUID == null) {
-				HellblockPlugin.getInstance().getPluginLogger()
-						.severe("Hellblock owner UUID was null for player " + player.getName() + " ("
-								+ player.getUniqueId() + "). This indicates corrupted data or a serious bug.");
+				plugin.getPluginLogger().severe("Hellblock owner UUID was null for player " + player.getName() + " ("
+						+ player.getUniqueId() + "). This indicates corrupted data or a serious bug.");
 				throw new IllegalStateException(
 						"Owner reference was null. This should never happen — please report to the developer.");
 			}
@@ -64,7 +61,7 @@ public class CoopLeaveCommand extends BukkitCommandFeature<CommandSender> {
 			}
 
 			// Perform leave
-			HellblockPlugin.getInstance().getCoopManager().leaveHellblockParty(leavingPlayer);
+			plugin.getCoopManager().leaveHellblockParty(leavingPlayer);
 
 			// Feedback
 			handleFeedback(context, MessageConstants.MSG_HELLBLOCK_COOP_LEFT_PARTY);

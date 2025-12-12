@@ -1,5 +1,10 @@
 package com.swiftlicious.hellblock.handlers;
 
+import static java.util.Objects.requireNonNull;
+
+import java.io.File;
+import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.HashMap;
@@ -7,11 +12,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 
 import org.bukkit.Location;
-import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.data.type.Farmland;
 import org.jetbrains.annotations.NotNull;
@@ -19,10 +22,8 @@ import org.jetbrains.annotations.Nullable;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.context.ContextKeys;
-import com.swiftlicious.hellblock.listeners.rain.LavaRainTask;
 import com.swiftlicious.hellblock.utils.ClassUtils;
 import com.swiftlicious.hellblock.utils.ListUtils;
-
 import com.swiftlicious.hellblock.utils.extras.Action;
 import com.swiftlicious.hellblock.utils.extras.MathValue;
 import com.swiftlicious.hellblock.utils.extras.Pair;
@@ -32,12 +33,6 @@ import com.swiftlicious.hellblock.utils.factory.RequirementExpansion;
 import com.swiftlicious.hellblock.utils.factory.RequirementFactory;
 
 import dev.dejvokep.boostedyaml.block.implementation.Section;
-
-import static java.util.Objects.requireNonNull;
-
-import java.io.File;
-import java.io.IOException;
-import java.lang.reflect.InvocationTargetException;
 
 public abstract class AbstractRequirementManager<T> implements RequirementManager<T> {
 
@@ -58,7 +53,6 @@ public abstract class AbstractRequirementManager<T> implements RequirementManage
 		this.registerOrRequirement();
 		this.registerPAPIRequirement();
 		this.registerDateRequirement();
-		this.registerWeatherRequirement();
 		this.registerRandomRequirement();
 		this.registerBiomeRequirement();
 		this.registerTimeRequirement();
@@ -401,53 +395,6 @@ public abstract class AbstractRequirementManager<T> implements RequirementManage
 				return false;
 			};
 		}, "!world");
-	}
-
-	protected void registerWeatherRequirement() {
-		registerRequirement((args, actions, runActions) -> {
-			final Set<String> weathers = new HashSet<>(ListUtils.toList(args));
-			return context -> {
-				final String currentWeather;
-				final Location location = requireNonNull(context.arg(ContextKeys.LOCATION));
-				final World world = location.getWorld();
-				final Optional<LavaRainTask> lavaRain = instance.getLavaRainHandler().getLavaRainingWorlds().stream()
-						.filter(task -> world.getName().equalsIgnoreCase(task.getWorld().worldName())).findAny();
-				if (lavaRain.isPresent() && lavaRain.get().isLavaRaining()) {
-					currentWeather = "lavarain";
-				} else {
-					currentWeather = "clear";
-				}
-				if (weathers.contains(currentWeather)) {
-					return true;
-				}
-				if (runActions) {
-					ActionManager.trigger(context, actions);
-				}
-				return false;
-			};
-		}, "weather");
-		registerRequirement((args, actions, runActions) -> {
-			final Set<String> weathers = new HashSet<>(ListUtils.toList(args));
-			return context -> {
-				final String currentWeather;
-				final Location location = requireNonNull(context.arg(ContextKeys.LOCATION));
-				final World world = location.getWorld();
-				final Optional<LavaRainTask> lavaRain = instance.getLavaRainHandler().getLavaRainingWorlds().stream()
-						.filter(task -> world.getName().equalsIgnoreCase(task.getWorld().worldName())).findAny();
-				if (!lavaRain.isPresent() && !lavaRain.get().isLavaRaining()) {
-					currentWeather = "lavarain";
-				} else {
-					currentWeather = "clear";
-				}
-				if (weathers.contains(currentWeather)) {
-					return true;
-				}
-				if (runActions) {
-					ActionManager.trigger(context, actions);
-				}
-				return false;
-			};
-		}, "!weather");
 	}
 
 	protected void registerLiquidDepthRequirement() {

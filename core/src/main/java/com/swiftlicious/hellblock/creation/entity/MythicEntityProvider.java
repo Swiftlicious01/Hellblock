@@ -17,11 +17,6 @@ public class MythicEntityProvider implements EntityProvider {
 
 	private MythicBukkit mythicBukkit;
 
-	@Override
-	public String identifier() {
-		return "MythicMobs";
-	}
-
 	@NotNull
 	@Override
 	public Entity spawn(@NotNull Location location, @NotNull String id, @NotNull Map<String, Object> propertyMap) {
@@ -38,5 +33,28 @@ public class MythicEntityProvider implements EntityProvider {
 			return activeMob.getEntity().getBukkitEntity();
 		}
 		throw new NullPointerException("MythicMobs: " + id + " doesn't exist.");
+	}
+
+	/**
+	 * Checks whether an entity corresponds to a specific MythicMob ID.
+	 */
+	public boolean isMythicMob(@NotNull Entity entity, @NotNull String targetId) {
+		if (this.mythicBukkit == null || mythicBukkit.isClosed()) {
+			this.mythicBukkit = MythicBukkit.inst();
+		}
+
+		final Optional<ActiveMob> activeMobOpt = mythicBukkit.getMobManager().getActiveMob(entity.getUniqueId());
+		if (activeMobOpt.isPresent()) {
+			ActiveMob activeMob = activeMobOpt.get();
+			MythicMob mythicMob = activeMob.getType();
+			String internalName = mythicMob.getInternalName();
+			return internalName.equalsIgnoreCase(targetId);
+		}
+		return false;
+	}
+
+	@Override
+	public String identifier() {
+		return "MythicMobs";
 	}
 }

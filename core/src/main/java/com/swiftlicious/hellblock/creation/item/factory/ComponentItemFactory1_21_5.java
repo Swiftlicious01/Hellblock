@@ -36,7 +36,7 @@ public class ComponentItemFactory1_21_5 extends ComponentItemFactory {
 			return Optional.empty();
 		}
 		return ComponentType.encodeJson(ComponentKeys.CUSTOM_NAME, item.getComponent(ComponentKeys.CUSTOM_NAME))
-				.map(jsonElement -> AdventureHelper.getGson().serializer().toJson(jsonElement));
+				.map(jsonElement -> AdventureHelper.getGsonComponentSerializer().serializer().toJson(jsonElement));
 	}
 
 	@Override
@@ -47,7 +47,7 @@ public class ComponentItemFactory1_21_5 extends ComponentItemFactory {
 		return ComponentType.encodeJson(ComponentKeys.LORE, item.getComponent(ComponentKeys.LORE)).map(list -> {
 			final List<String> lore = new ArrayList<>();
 			for (JsonElement jsonElement : (JsonArray) list) {
-				lore.add(AdventureHelper.getGson().serializer().toJson(jsonElement));
+				lore.add(AdventureHelper.getGsonComponentSerializer().serializer().toJson(jsonElement));
 			}
 			return lore;
 		});

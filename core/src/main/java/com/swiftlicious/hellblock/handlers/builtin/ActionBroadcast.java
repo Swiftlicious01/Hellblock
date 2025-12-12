@@ -36,7 +36,7 @@ public class ActionBroadcast<T> extends AbstractBuiltInAction<T> {
 				context.placeholderMap());
 		Bukkit.getOnlinePlayers().stream().map((Player player) -> plugin.getSenderFactory().wrap(player))
 				.forEach((final Sender audience) -> replaced
-						.forEach(text -> audience.sendMessage(AdventureHelper.miniMessage(text))));
+						.forEach(text -> audience.sendMessage(AdventureHelper.miniMessageToComponent(text))));
 	}
 
 	public List<String> messages() {

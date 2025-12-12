@@ -1,5 +1,14 @@
 package com.swiftlicious.hellblock.api;
 
+/**
+ * The {@code DefaultFontInfo} enum represents character width information for
+ * rendering monospace-style fonts, typically used in Minecraft-style chat
+ * rendering.
+ * 
+ * <p>
+ * Each enum constant holds a character and its default display width in pixels.
+ * It also supports bold width calculation and a lookup utility method.
+ */
 public enum DefaultFontInfo {
 
 	A('A', 5), a('a', 5), B('B', 5), b('b', 5), C('C', 5), c('c', 5), D('D', 5), d('d', 5), E('E', 5), e('e', 5),
@@ -16,26 +25,58 @@ public enum DefaultFontInfo {
 	RIGHT_ARROW('>', 4), QUESTION_MARK('?', 5), SLASH('/', 5), BACK_SLASH('\\', 5), LINE('|', 1), TILDE('~', 5),
 	TICK('`', 2), PERIOD('.', 1), COMMA(',', 1), SPACE(' ', 3), DEFAULT('a', 4);
 
-	private char character;
-	private int length;
+	private final char character;
+	private final int length;
 
+	/**
+	 * Constructs a new {@code DefaultFontInfo} constant with the specified
+	 * character and its associated display width.
+	 *
+	 * @param character the character this enum represents
+	 * @param length    the pixel width of the character
+	 */
 	DefaultFontInfo(char character, int length) {
 		this.character = character;
 		this.length = length;
 	}
 
+	/**
+	 * Gets the character associated with this font info entry.
+	 *
+	 * @return the character represented by this enum constant
+	 */
 	public char getCharacter() {
 		return this.character;
 	}
 
+	/**
+	 * Gets the default display width (in pixels) of the character.
+	 *
+	 * @return the width of the character
+	 */
 	public int getLength() {
 		return this.length;
 	}
 
+	/**
+	 * Gets the display width of the character when rendered in bold. Adds 1 pixel
+	 * to the normal length, except for spaces which remain the same.
+	 *
+	 * @return the bold width of the character
+	 */
 	public int getBoldLength() {
 		return this == DefaultFontInfo.SPACE ? this.getLength() : this.length + 1;
 	}
 
+	/**
+	 * Retrieves the {@code DefaultFontInfo} enum constant associated with the given
+	 * character. If the character is not explicitly defined, returns
+	 * {@code DEFAULT}.
+	 *
+	 * @param c the character to look up
+	 * @return the corresponding {@code DefaultFontInfo} constant, or
+	 *         {@code DEFAULT} if not found
+	 */
 	public static DefaultFontInfo getDefaultFontInfo(char c) {
 		for (DefaultFontInfo dFI : DefaultFontInfo.values()) {
 			if (dFI.getCharacter() == c) {

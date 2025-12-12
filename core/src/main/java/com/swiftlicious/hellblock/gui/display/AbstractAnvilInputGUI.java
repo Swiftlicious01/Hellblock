@@ -10,6 +10,7 @@ import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryType;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.AnvilInventory;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
@@ -33,12 +34,12 @@ public abstract class AbstractAnvilInputGUI implements Listener {
 	protected final String initialText;
 	protected final String title;
 
-	private SchedulerTask pollingTask;
-	private static final long POLL_INTERVAL_TICKS = 2L;
-	private static final long DEFAULT_TIMEOUT_TICKS = 200L; // ~10 seconds
+	protected SchedulerTask pollingTask;
+	protected static final long POLL_INTERVAL_TICKS = 2L;
+	protected static final long DEFAULT_TIMEOUT_TICKS = 200L; // ~10 seconds
 
-	private long idleTicks = 0;
-	private final long timeoutTicks;
+	protected long idleTicks = 0;
+	protected final long timeoutTicks;
 
 	public AbstractAnvilInputGUI(HellblockPlugin plugin, Player player, String title, String initialText) {
 		this(plugin, player, title, initialText, DEFAULT_TIMEOUT_TICKS);
@@ -73,7 +74,7 @@ public abstract class AbstractAnvilInputGUI implements Listener {
 		player.openInventory(anvil);
 
 		VersionHelper.getNMSManager().updateInventoryTitle(player,
-				AdventureHelper.componentToJson(Component.text(title)));
+				AdventureHelper.componentToJson(AdventureHelper.parseCenteredTitleMultiline(title)));
 
 		startPolling();
 	}
@@ -81,30 +82,35 @@ public abstract class AbstractAnvilInputGUI implements Listener {
 	/**
 	 * Starts polling rename text every few ticks.
 	 */
-	private void startPolling() {
+	protected void startPolling() {
 		cancel();
 
 		pollingTask = plugin.getScheduler().sync().runRepeating(() -> {
-			String input = getInputText(player);
+			Component input = getInputText(player);
 
-			if (input != null && !input.isEmpty()) {
-
-				// Handle cancel keyword
-				if ("cancel".equalsIgnoreCase(input)) {
-					cancel();
-					onCancel();
-					return;
-				}
-
-				// If player typed a new value different from initial
-				if (!input.equals(initialText)) {
-					cancel();
-					onInput(input);
-					return;
-				}
+			// Skip if empty input
+			if (AdventureHelper.isEmpty(input)) {
+				return;
 			}
 
-			// Idle timeout reached
+			// Get plain text form (actual text player typed)
+			String plainInput = AdventureHelper.componentToPlainText(input);
+
+			// Handle cancel keyword
+			if ("cancel".equalsIgnoreCase(plainInput)) {
+				cancel();
+				onCancel();
+				return;
+			}
+
+			// If player typed a new value different from initial
+			if (!plainInput.equals(initialText)) {
+				cancel();
+				onInput(plainInput);
+				return;
+			}
+
+			// Idle timeout check
 			idleTicks += POLL_INTERVAL_TICKS;
 			if (idleTicks >= timeoutTicks) {
 				cancel();
@@ -116,7 +122,7 @@ public abstract class AbstractAnvilInputGUI implements Listener {
 
 	protected void updateInputDisplay(String error) {
 		Item<ItemStack> inputItem = plugin.getItemManager().wrap(new ItemStack(Material.PAPER));
-		inputItem.displayName(AdventureHelper.componentToJson(AdventureHelper.miniMessage(error)));
+		inputItem.displayName(AdventureHelper.componentToJson(AdventureHelper.miniMessageToComponent(error)));
 		player.getOpenInventory().setItem(0, inputItem.loadCopy());
 	}
 
@@ -146,23 +152,68 @@ public abstract class AbstractAnvilInputGUI implements Listener {
 	}
 
 	/**
+	 * Cleanup event listener on player quit.
+	 */
+	@EventHandler
+	public void onPlayerQuit(PlayerQuitEvent event) {
+		Player quitPlayer = event.getPlayer();
+		if (!quitPlayer.getUniqueId().equals(player.getUniqueId()))
+			return;
+
+		InventoryView view = quitPlayer.getOpenInventory();
+		Inventory topInv = view.getTopInventory();
+		if (!(topInv.getHolder() instanceof AnvilGUIHolder))
+			return;
+
+		cancel();
+		HandlerList.unregisterAll(this);
+		onCancel();
+	}
+
+	/**
 	 * Gets current rename text from Paper or Spigot.
 	 */
 	@SuppressWarnings("removal")
-	protected String getInputText(Player player) {
-		final InventoryView view = player.getOpenInventory();
-		try {
-			Method getInputText = view.getClass().getMethod("getInputText");
-			return (String) getInputText.invoke(view);
-		} catch (NoSuchMethodException ignored) {
-			Inventory top = view.getTopInventory();
-			if (top instanceof AnvilInventory anvilInventory) {
-				return anvilInventory.getRenameText();
+	@NotNull
+	public Component getInputText(@NotNull Player player) {
+		InventoryView view = player.getOpenInventory();
+		Inventory top = view.getTopInventory();
+		if (!(top instanceof AnvilInventory anvilInventory))
+			return Component.empty();
+
+		String raw = null;
+
+		if (VersionHelper.isVersionNewerThan1_21()) {
+			// Try using org.bukkit.inventory.view.AnvilView#getRenameText (1.21+)
+			try {
+				Class<?> anvilViewClass = Class.forName("org.bukkit.inventory.view.AnvilView");
+				if (anvilViewClass.isInstance(view)) {
+					Method getRenameText = anvilViewClass.getMethod("getRenameText");
+					Object result = getRenameText.invoke(view);
+					if (result instanceof String str) {
+						raw = str;
+					}
+				}
+			} catch (ClassNotFoundException e) {
+				// <1.21 — class doesn’t exist, ignore
+			} catch (Throwable t) {
+				plugin.getPluginLogger().warn("Failed to access AnvilView#getRenameText", t);
 			}
-		} catch (Exception ex) {
-			plugin.getPluginLogger().warn("Failed to get input text for Anvil GUI: ", ex);
+		} else {
+			// Fallback to older API (1.20 and below)
+			if (raw == null) {
+				try {
+					raw = anvilInventory.getRenameText();
+				} catch (Throwable ignored) {
+				}
+			}
 		}
-		return "";
+
+		if (raw == null || raw.isEmpty())
+			return Component.empty();
+
+		// Deserialize into a Component (plain text or MiniMessage)
+		return AdventureHelper.miniMessageToComponent(raw);
 	}
 
 	/**

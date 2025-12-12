@@ -77,13 +77,33 @@ public class Metrics {
 			config.addDefault("logSentData", false);
 			config.addDefault("logResponseStatusText", false);
 			// Inform the server owners about bStats
-			config.options().setHeader(List.of("""
-					bStats (https://bStats.org) collects some basic information for plugin authors, like how
-					many people use their plugin and their total player count. It's recommended to keep bStats
-					enabled, but if you're not comfortable with this, you can turn this setting off. There is no
-					performance penalty associated with having metrics enabled, and data sent to bStats is fully
-					anonymous.\
-					""")).copyDefaults(true);
+			Object options = config.options();
+			try {
+				Method setHeaderMethod = options.getClass().getMethod("setHeader", List.class);
+				setHeaderMethod.invoke(options, List.of("""
+						    bStats (https://bStats.org) collects some basic information for plugin authors, like how
+						    many people use their plugin and their total player count. It's recommended to keep bStats
+						    enabled, but if you're not comfortable with this, you can turn this setting off. There is no
+						    performance penalty associated with having metrics enabled, and data sent to bStats is fully
+						    anonymous.
+						"""));
+			} catch (NoSuchMethodException e) {
+				// Fall back to older method if setHeader doesn't exist
+				try {
+					Method headerMethod = options.getClass().getMethod("header", String.class);
+					headerMethod.invoke(options, String.join("\n", List.of(
+							"bStats (https://bStats.org) collects some basic information for plugin authors, like how",
+							"many people use their plugin and their total player count. It's recommended to keep bStats",
+							"enabled, but if you're not comfortable with this, you can turn this setting off. There is no",
+							"performance penalty associated with having metrics enabled, and data sent to bStats is fully",
+							"anonymous.")));
+				} catch (ReflectiveOperationException ex) {
+					ex.printStackTrace();
+				}
+			} catch (ReflectiveOperationException e) {
+				e.printStackTrace();
+			}
+			config.options().copyDefaults(true);
 			try {
 				config.save(configFile);
 			} catch (IOException ignored) {
@@ -109,8 +129,8 @@ public class Metrics {
 		// See https://github.com/Bastian/bstats-metrics/pull/126
 		MetricsBase("bukkit", serverUUID, serviceId, enabled, this::appendPlatformData, this::appendServiceData,
 				isFolia ? null
-						: submitDataTask -> this.plugin.getScheduler().sync().run(submitDataTask,
-								LocationUtils.getAnyLocationInstance()),
+						: submitDataTask -> this.plugin.getScheduler().sync().run(submitDataTask, LocationUtils
+								.getAnyLocationInstance()),
 				this.plugin::isEnabled, (message, error) -> this.plugin.getPluginLogger().warn(message, error),
 				(message) -> this.plugin.getPluginLogger().info(message), logErrors, logSentData, logResponseStatusText,
 				false);

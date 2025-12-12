@@ -23,6 +23,40 @@ public interface CustomBlockStateInterface {
 	CustomBlock type();
 
 	/**
+	 * Determines whether this block state represents an air-like block.
+	 * <p>
+	 * This checks the internal {@link CustomBlock}'s {@link Key} value against
+	 * known identifiers for air or empty blocks.
+	 *
+	 * @return {@code true} if this block state represents air, {@code false}
+	 *         otherwise.
+	 */
+	boolean isAir();
+
+	/**
+	 * Determines whether this block state has an inventory associated with it.
+	 * <p>
+	 * For example, chests, barrels, hoppers, and furnaces would typically contain
+	 * an inventory, while most other blocks would not.
+	 *
+	 * @return {@code true} if this block state represents a block that contains an
+	 *         inventory, {@code false} otherwise.
+	 */
+	default boolean hasInventory() {
+		return false; // default: no inventory
+	}
+
+	/**
+	 * Clears the inventory data associated with this block state, if any.
+	 * <p>
+	 * Implementations should remove all stored item data (usually from the "Items"
+	 * NBT tag or a similar compound) while preserving other block state data.
+	 * <p>
+	 * Calling this on a non-inventory block should have no effect.
+	 */
+	void clearInventory();
+
+	/**
 	 * Creates a new instance of {@link CustomBlockState} with the given block type
 	 * and NBT data.
 	 *

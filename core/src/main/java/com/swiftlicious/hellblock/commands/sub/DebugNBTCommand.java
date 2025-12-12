@@ -2,6 +2,7 @@ package com.swiftlicious.hellblock.commands.sub;
 
 import java.util.ArrayList;
 import java.util.List;
+
 import org.bukkit.Material;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
@@ -10,14 +11,11 @@ import org.incendo.cloud.Command;
 import org.incendo.cloud.CommandManager;
 
 import com.saicone.rtag.RtagItem;
-
-import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.commands.BukkitCommandFeature;
 import com.swiftlicious.hellblock.commands.HellblockCommandManager;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
+import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.utils.ItemStackUtils;
-
-import net.kyori.adventure.text.Component;
 
 public class DebugNBTCommand extends BukkitCommandFeature<CommandSender> {
 
@@ -37,9 +35,7 @@ public class DebugNBTCommand extends BukkitCommandFeature<CommandSender> {
 			}
 			List<String> list = new ArrayList<>();
 			ItemStackUtils.mapToReadableStringList(new RtagItem(item).get(), list, true);
-			for (String line : list) {
-				HellblockPlugin.getInstance().getSenderFactory().wrap(player).sendMessage(Component.text(line));
-			}
+			list.forEach(line -> plugin.getSenderFactory().wrap(player).sendMessage(AdventureHelper.miniMessageToComponent(line)));
 		});
 	}
 

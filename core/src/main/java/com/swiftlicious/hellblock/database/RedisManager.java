@@ -13,10 +13,14 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 
 import org.jetbrains.annotations.NotNull;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.database.dependency.Dependency;
 import com.swiftlicious.hellblock.player.PlayerData;
@@ -27,8 +31,8 @@ import redis.clients.jedis.DefaultJedisClientConfig;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPool;
 import redis.clients.jedis.JedisPoolConfig;
+import redis.clients.jedis.JedisPubSub;
 import redis.clients.jedis.StreamEntryID;
-import redis.clients.jedis.*;
 import redis.clients.jedis.exceptions.JedisException;
 import redis.clients.jedis.params.XReadParams;
 
@@ -47,6 +51,15 @@ public class RedisManager extends AbstractStorage {
 	private boolean useSSL;
 	private BlockingThreadTask threadTask;
 	private boolean isNewerThan5;
+
+	private final ConcurrentHashMap<UUID, CompletableFuture<Optional<PlayerData>>> loadingCache = new ConcurrentHashMap<>();
+	private final ConcurrentHashMap<UUID, CompletableFuture<Boolean>> updatingCache = new ConcurrentHashMap<>();
+
+	private final Cache<Integer, UUID> islandIdToUUIDCache = Caffeine.newBuilder()
+			.expireAfterWrite(30, TimeUnit.MINUTES).maximumSize(10_000).build();
+
+	private final Cache<UUID, PlayerData> memoryCache = Caffeine.newBuilder().maximumSize(500)
+			.expireAfterWrite(10, TimeUnit.SECONDS).build();
 
 	public RedisManager(HellblockPlugin plugin) {
 		super(plugin);
@@ -109,15 +122,22 @@ public class RedisManager extends AbstractStorage {
 
 			try (Jedis jedis = jedisPool.getResource()) {
 				final String info = jedis.info();
+				if (info == null || info.isBlank()) {
+					plugin.getPluginLogger().warn("Failed to retrieve Redis INFO data.");
+					return null;
+				}
 				plugin.getPluginLogger().info("Redis server connected.");
 
 				final String version = parseRedisVersion(info);
+				plugin.getPluginLogger().info("Redis server version: " + version);
 				if (isRedisNewerThan5(version)) {
 					this.threadTask = new BlockingThreadTask();
 					this.isNewerThan5 = true;
+					plugin.getPluginLogger().info("Using Redis stream (XREAD) mode.");
 				} else {
 					this.subscribe();
 					this.isNewerThan5 = false;
+					plugin.getPluginLogger().info("Using Redis Pub/Sub mode.");
 				}
 			} catch (JedisException ex) {
 				plugin.getPluginLogger().warn("Failed to connect to Redis.", ex);
@@ -259,29 +279,75 @@ public class RedisManager extends AbstractStorage {
 	 */
 	@Override
 	public CompletableFuture<Optional<PlayerData>> getPlayerData(UUID uuid, boolean lock, Executor executor) {
-		final var future = new CompletableFuture<Optional<PlayerData>>();
-		if (executor == null) {
-			executor = plugin.getScheduler().async();
-		}
-		executor.execute(() -> {
-			try (Jedis jedis = jedisPool.getResource()) {
-				final byte[] key = getRedisKey("hb_data", uuid);
-				final byte[] data = jedis.get(key);
-				jedis.del(key);
-				if (data != null) {
-					final PlayerData playerData = plugin.getStorageManager().fromBytes(data);
-					playerData.setUUID(uuid);
-					plugin.debug("Redis data retrieved for %s; normal data".formatted(uuid));
-				} else {
-					future.complete(Optional.empty());
-					plugin.debug("Redis data retrieved for %s; empty data".formatted(uuid));
+		final Executor finalExecutor = executor != null ? executor : plugin.getScheduler().async();
+
+		return loadingCache.computeIfAbsent(uuid, id -> {
+			plugin.debug("getPlayerData: starting new load for " + id);
+			final CompletableFuture<Optional<PlayerData>> future = new CompletableFuture<>();
+
+			// Ensure the entry is only removed after the future completes (success or
+			// failure)
+			future.whenComplete((result, throwable) -> loadingCache.remove(uuid));
+
+			finalExecutor.execute(() -> {
+				try {
+					// Fast path: check in-memory cache
+					PlayerData cached = memoryCache.getIfPresent(uuid);
+					if (cached != null) {
+						plugin.debug("Redis cache hit for " + uuid);
+						future.complete(Optional.of(cached));
+						return;
+					}
+
+					plugin.debug("Redis cache miss for " + uuid);
+
+					try (Jedis jedis = jedisPool.getResource()) {
+						final byte[] key = getRedisKey("hb_data", uuid);
+						final byte[] data = jedis.get(key);
+
+						// Optionally delete after read
+						jedis.del(key);
+
+						if (data != null) {
+							PlayerData playerData = plugin.getStorageManager().fromBytes(data);
+							playerData.setUUID(uuid);
+
+							// Cache in memory
+							memoryCache.put(uuid, playerData);
+
+							// Opportunistically cache islandId to UUID mapping
+							int islandId = playerData.getHellblockData().getIslandId();
+							if (islandId > 0) {
+								islandIdToUUIDCache.put(islandId, uuid);
+							}
+
+							plugin.debug("Redis data retrieved for %s; player loaded".formatted(uuid));
+							future.complete(Optional.of(playerData));
+						} else {
+							plugin.debug("Redis data retrieved for %s; no data found".formatted(uuid));
+							future.complete(Optional.empty());
+						}
+					}
+
+				} catch (Exception ex) {
+					plugin.getPluginLogger().warn("Failed to get Redis data for %s".formatted(uuid), ex);
+					future.completeExceptionally(ex);
 				}
-			} catch (Exception ex) {
-				future.complete(Optional.empty());
-				plugin.getPluginLogger().warn("Failed to get redis data for %s".formatted(uuid), ex);
-			}
+			});
+
+			return future;
+		}).orTimeout(3, TimeUnit.SECONDS).exceptionally(ex -> {
+			plugin.getPluginLogger().warn("Timeout while retrieving Redis data for %s".formatted(uuid), ex);
+			return Optional.empty();
 		});
-		return future;
+	}
+
+	@Override
+	public CompletableFuture<Optional<PlayerData>> getPlayerDataByIslandId(int islandId, boolean lock,
+			Executor executor) {
+		plugin.getPluginLogger().warn(
+				"Redis does not support getPlayerDataByIslandId; returning empty result for islandId=" + islandId);
+		return CompletableFuture.completedFuture(Optional.empty());
 	}
 
 	/**
@@ -294,18 +360,28 @@ public class RedisManager extends AbstractStorage {
 	 */
 	@Override
 	public CompletableFuture<Boolean> updatePlayerData(UUID uuid, PlayerData playerData, boolean ignore) {
-		final var future = new CompletableFuture<Boolean>();
-		plugin.getScheduler().async().execute(() -> {
-			try (Jedis jedis = jedisPool.getResource()) {
-				jedis.setex(getRedisKey("hb_data", uuid), 10, playerData.toBytes());
-				future.complete(true);
-				plugin.debug("Redis data set for %s".formatted(uuid));
-			} catch (Exception e) {
-				future.complete(false);
-				plugin.getPluginLogger().warn("Failed to set redis data for player %s".formatted(uuid), e);
-			}
+		return updatingCache.computeIfAbsent(uuid, id -> {
+			final CompletableFuture<Boolean> future = new CompletableFuture<>();
+
+			// Ensure cleanup happens only once after complete
+			future.whenComplete((result, throwable) -> updatingCache.remove(uuid));
+
+			plugin.getScheduler().async().execute(() -> {
+				try (Jedis jedis = jedisPool.getResource()) {
+					jedis.setex(getRedisKey("hb_data", uuid), 10, playerData.toBytes());
+					memoryCache.put(uuid, playerData);
+					plugin.debug("Redis data set for %s".formatted(uuid));
+					future.complete(true);
+				} catch (Exception e) {
+					plugin.getPluginLogger().warn("Failed to set redis data for player %s".formatted(uuid), e);
+					future.completeExceptionally(e);
+				}
+			});
+			return future;
+		}).orTimeout(3, TimeUnit.SECONDS).exceptionally(ex -> {
+			plugin.getPluginLogger().warn("Timeout while saving Redis data for %s".formatted(uuid), ex);
+			return false;
 		});
-		return future;
 	}
 
 	/**
@@ -335,6 +411,41 @@ public class RedisManager extends AbstractStorage {
 		return STREAM;
 	}
 
+	@Override
+	public void invalidateCache(UUID uuid) {
+		memoryCache.invalidate(uuid);
+	}
+
+	@Override
+	public void clearCache() {
+		memoryCache.invalidateAll();
+	}
+
+	@Override
+	public void invalidateIslandCache(int islandId) {
+		islandIdToUUIDCache.invalidate(islandId);
+	}
+
+	@Override
+	public boolean isPendingInsert(UUID uuid) {
+		return false;
+	}
+
+	@Override
+	public boolean isInsertStillRecent(UUID uuid) {
+		return false;
+	}
+
+	@Override
+	public CompletableFuture<Void> getInsertFuture(UUID uuid) {
+		return CompletableFuture.completedFuture(null);
+	}
+
+	@Override
+	public Long getInsertAge(UUID uuid) {
+		return null;
+	}
+
 	private boolean isRedisNewerThan5(String version) {
 		final String[] split = version.split("\\.");
 		final int major = Integer.parseInt(split[0]);
@@ -349,7 +460,7 @@ public class RedisManager extends AbstractStorage {
 	private String parseRedisVersion(String info) {
 		for (String line : info.split("\n")) {
 			if (line.startsWith("redis_version:")) {
-				return line.split(":")[1];
+				return line.split(":")[1].trim();
 			}
 		}
 		return "Unknown";

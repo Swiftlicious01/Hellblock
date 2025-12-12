@@ -1,0 +1,190 @@
+market:
+  gui:
+    # Title for the market GUI
+    title: '<gradient:#A52A2A:#800000:#A52A2A>Fish Market</gradient>'
+    # Enable limitations
+    limitation:
+      enable: true
+      earnings: '10000' # Expressions can be used here
+    # You can use expressions here if you want some players to earn more from selling fish
+    earnings-multiplier: 1
+    # Layout for the market menu
+    layout:
+      - 'AAAAAAAAC'
+      - 'AIIIIIIIA'
+      - 'AIIIIIIIA'
+      - 'AIIIIIIIA'
+      - 'AAAABAAAA'
+    # Price formula for custom fishing loot
+    price-formula: '{base} + {bonus} * {size}'
+    # Requirements for players to sell fish in bundles
+    allow-bundle-requirements:
+      impossible_requirement:
+        type: 'impossible'
+    # Requirements for players to sell fish in shulker boxes
+    allow-shulker-box-requirements:
+      impossible_requirement:
+        type: 'impossible'
+    # Prices for vanilla and other plugin items with CustomModelData
+    item-price:
+      # Vanilla items
+      COD: 10
+      PUFFERFISH: 10
+      SALMON: 10
+      TROPICAL_FISH: 10
+      # PAPER (CustomModelData: 999)
+      PAPER:999: 5
+    # Slots to place items in
+    item-slot:
+      symbol: 'I'
+      allow-items-with-no-price: true
+    # Icon allowing players to sell all fish from their inventory
+    # Enable it by placing the symbol in the layout
+    sell-all-icons:
+      symbol: 'S'
+      allow-icon:
+        material: IRON_BLOCK
+        display:
+          name: '<#00CED1><b>● <!b>Sell the fish'
+          lore:
+            - '<font:uniform><gradient:#E6E6FA:#48D1CC:#E6E6FA>You will earn <green>{money_formatted} coins</green> from the fish in your inventory</gradient></font>'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:block.amethyst_block.place'
+              source: 'player'
+              volume: 1
+              pitch: 1
+          message_action:
+            type: message
+            value: 'You earned {money_formatted} coins from the fish! You can still earn {rest_formatted} more coins from the market today.'
+          # Requires Vault and an economy plugin
+          money_action:
+            type: give-money
+            value: '{money}'
+          # Uncomment the command_action if needed
+          # command_action:
+          #   type: command
+          #   value: 'money give {player} {money}'
+        components:
+          minecraft:hide_additional_tooltip: {}
+    deny-icon:
+      material: REDSTONE_BLOCK
+      display:
+        name: '<red><b>● <!b>Trade Denied'
+        lore:
+          - '<font:uniform><gradient:#E6E6FA:red:#E6E6FA>No items available to sell!</gradient></font>'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:entity.villager.no'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_additional_tooltip: {}
+    limit-icon:
+      material: REDSTONE_BLOCK
+      display:
+        name: '<red><b>● <!b>Trade Denied'
+        lore:
+          - '<font:uniform><gradient:#E6E6FA:red:#E6E6FA>The total value exceeds the daily limit for earnings!</gradient></font>'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:block.anvil.land'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_additional_tooltip: {}
+    # Sell icon for individual transactions
+    sell-icons:
+      symbol: 'B'
+      allow-icon:
+        material: IRON_BLOCK
+        display:
+          name: '<#00CED1><b>● <!b>Sell the fish'
+          lore:
+            - '<font:uniform><gradient:#E6E6FA:#48D1CC:#E6E6FA>You will earn <green>{money_formatted} coins</green> from the fish</gradient></font>'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:block.amethyst_block.place'
+              source: 'player'
+              volume: 1
+              pitch: 1
+          message_action:
+            type: message
+            value: 'You earned {money_formatted} coins from the fish! You can still earn {rest_formatted} more coins from the market today.'
+          money_action:
+            type: give-money
+            value: '{money}'
+          # Uncomment the command_action if needed
+          # command_action:
+          #   type: command
+          #   value: 'money give {player} {money}'
+        components:
+          minecraft:hide_additional_tooltip: {}
+      deny-icon:
+        material: REDSTONE_BLOCK
+        display:
+          name: '<red><b>● <!b>Trade Denied'
+          lore:
+            - '<font:uniform><gradient:#E6E6FA:red:#E6E6FA>No items available to sell!</gradient></font>'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:entity.villager.no'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      limit-icon:
+        material: REDSTONE_BLOCK
+        display:
+          name: '<red><b>● <!b>Trade Denied'
+          lore:
+            - '<font:uniform><gradient:#E6E6FA:red:#E6E6FA>The total value exceeds the daily limit for earnings!</gradient></font>'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:block.anvil.land'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+    # Decorative icons for visual enhancement
+    decorative-icons:
+      glass-pane:
+        symbol: 'A'
+        material: BLACK_STAINED_GLASS_PANE
+        display:
+          name: ' '
+        components:
+          minecraft:hide_tooltip: {}
+      close-icon:
+        symbol: 'C'
+        material: RED_STAINED_GLASS_PANE
+        display:
+          name: '<red>Close Menu'
+        action:
+          sound_action: 
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+          close_action:
+            type: close-inv
+        components:
+          minecraft:hide_additional_tooltip: {}

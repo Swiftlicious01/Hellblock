@@ -1,6 +1,10 @@
 package com.swiftlicious.hellblock.commands.sub;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -10,23 +14,18 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
 import org.incendo.cloud.CommandManager;
-import org.incendo.cloud.context.CommandContext;
-import org.incendo.cloud.context.CommandInput;
 import org.incendo.cloud.parser.standard.StringParser;
 import org.incendo.cloud.suggestion.Suggestion;
-import org.jetbrains.annotations.NotNull;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
-import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.commands.BukkitCommandFeature;
 import com.swiftlicious.hellblock.commands.HellblockCommandManager;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
+import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.player.HellblockData;
 import com.swiftlicious.hellblock.player.UUIDFetcher;
 import com.swiftlicious.hellblock.player.UserData;
-
-import net.kyori.adventure.text.Component;
 
 public class AdminDeleteCommand extends BukkitCommandFeature<CommandSender> {
 
@@ -42,82 +41,91 @@ public class AdminDeleteCommand extends BukkitCommandFeature<CommandSender> {
 	public Command.Builder<? extends CommandSender> assembleCommand(CommandManager<CommandSender> manager,
 			Command.Builder<CommandSender> builder) {
 		return builder.senderType(Player.class)
-				.required("player",
-						StringParser.stringComponent().suggestionProvider(this::suggestOnlineHellblockPlayers))
-				.handler(context -> {
+				.required("player", StringParser.stringComponent().suggestionProvider((context, input) -> {
+					if (!(context.sender() instanceof Player)) {
+						return CompletableFuture.completedFuture(Collections.emptyList());
+					}
+
+					final Set<UUID> allKnownUUIDs = plugin.getStorageManager().getDataSource().getUniqueUsers();
+
+					final List<String> suggestions = allKnownUUIDs.stream()
+							.map(uuid -> plugin.getStorageManager().getCachedUserData(uuid)).filter(Optional::isPresent)
+							.map(Optional::get).filter(user -> user.getHellblockData().hasHellblock())
+							.map(UserData::getName).filter(Objects::nonNull).toList();
+
+					return CompletableFuture.completedFuture(suggestions.stream().map(Suggestion::suggestion).toList());
+				})).handler(context -> {
 					final Player executor = context.sender();
 					final String targetName = context.get("player");
 
-					final UUID targetUUID = Bukkit.getPlayer(targetName) != null
-							? Bukkit.getPlayer(targetName).getUniqueId()
-							: UUIDFetcher.getUUID(targetName);
+					UUID targetId;
 
-					if (targetUUID == null || !Bukkit.getOfflinePlayer(targetUUID).hasPlayedBefore()) {
+					Player onlinePlayer = Bukkit.getPlayer(targetName);
+					if (onlinePlayer != null) {
+						targetId = onlinePlayer.getUniqueId();
+					} else {
+						Optional<UUID> fetchedId = UUIDFetcher.getUUID(targetName);
+						if (fetchedId.isEmpty()) {
+							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_PLAYER_OFFLINE);
+							return;
+						}
+						targetId = fetchedId.get();
+					}
+
+					if (!Bukkit.getOfflinePlayer(targetId).hasPlayedBefore()) {
 						handleFeedback(context, MessageConstants.MSG_HELLBLOCK_PLAYER_OFFLINE);
 						return;
 					}
 
 					// First run → ask for confirmation
 					final UUID cachedTarget = deleteConfirmCache.getIfPresent(executor.getUniqueId());
-					if (cachedTarget == null || !cachedTarget.equals(targetUUID)) {
-						deleteConfirmCache.put(executor.getUniqueId(), targetUUID);
-						handleFeedback(context, MessageConstants.MSG_HELLBLOCK_ADMIN_DELETE_CONFIRM
-								.arguments(Component.text(targetName)));
+					if (cachedTarget == null || !cachedTarget.equals(targetId)) {
+						deleteConfirmCache.put(executor.getUniqueId(), targetId);
+						handleFeedback(context, MessageConstants.MSG_HELLBLOCK_ADMIN_DELETE_CONFIRM,
+								AdventureHelper.miniMessageToComponent(targetName));
 						return;
 					}
 
 					// Confirmed → delete
-					HellblockPlugin.getInstance().getStorageManager()
-							.getOfflineUserData(targetUUID, HellblockPlugin.getInstance().getConfigManager().lockData())
-							.thenAccept(result -> {
-								if (result.isEmpty()) {
-									handleFeedback(context, MessageConstants.MSG_HELLBLOCK_PLAYER_DATA_FAILURE_LOAD
-											.arguments(Component.text(targetName)));
-									return;
-								}
+					plugin.getStorageManager().getCachedUserDataWithFallback(targetId, false).thenAccept(result -> {
+						if (result.isEmpty()) {
+							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_PLAYER_DATA_FAILURE_LOAD,
+									AdventureHelper.miniMessageToComponent(targetName));
+							return;
+						}
 
-								final UserData targetUser = result.get();
-								final HellblockData targetData = targetUser.getHellblockData();
+						final UserData targetUserData = result.get();
+						final HellblockData targetData = targetUserData.getHellblockData();
 
-								if (!targetData.hasHellblock()) {
-									handleFeedback(context, MessageConstants.MSG_HELLBLOCK_NO_ISLAND_FOUND);
-									return;
-								}
+						if (!targetData.hasHellblock()) {
+							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_NO_ISLAND_FOUND);
+							return;
+						}
 
-								final UUID ownerUUID = targetData.getOwnerUUID();
-								if (ownerUUID == null) {
-									HellblockPlugin.getInstance().getPluginLogger()
-											.severe("Hellblock owner UUID was null for player " + targetUser.getName()
-													+ " (" + targetUser.getUUID()
-													+ "). This indicates corrupted data.");
-									throw new IllegalStateException(
-											"Owner reference was null. This should never happen — please report to the developer.");
-								}
+						final UUID ownerUUID = targetData.getOwnerUUID();
+						if (ownerUUID == null) {
+							plugin.getPluginLogger()
+									.severe("Hellblock owner UUID was null for player " + targetUserData.getName()
+											+ " (" + targetUserData.getUUID() + "). This indicates corrupted data.");
+							throw new IllegalStateException(
+									"Owner reference was null. This should never happen — please report to the developer.");
+						}
 
-								HellblockPlugin.getInstance().getHellblockHandler().resetHellblock(ownerUUID, true, executor.getName())
-										.thenRun(() -> {
-											HellblockPlugin.getInstance()
-													.debug("%s's hellblock has been forcefully deleted by %s."
-															.formatted(targetName, executor.getName()));
-											handleFeedback(context, MessageConstants.MSG_HELLBLOCK_ADMIN_ISLAND_DELETED
-													.arguments(Component.text(targetName)));
-										}).exceptionally(ex -> {
-											HellblockPlugin.getInstance().getPluginLogger()
-													.warn("resetHellblock failed for " + targetUser.getName() + ": "
-															+ ex.getMessage());
-											return null;
-										});
-							});
+						plugin.getHellblockHandler().resetHellblock(ownerUUID, true, executor.getName()).thenRun(() -> {
+							// Save changes
+							plugin.getStorageManager().saveUserData(targetUserData,
+									plugin.getConfigManager().lockData());
+							plugin.debug("%s's hellblock has been forcefully deleted by %s.".formatted(targetName,
+									executor.getName()));
+							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_ADMIN_ISLAND_DELETED,
+									AdventureHelper.miniMessageToComponent(targetName));
+						}).exceptionally(ex -> {
+							plugin.getPluginLogger().warn(
+									"resetHellblock failed for " + targetUserData.getName() + ": " + ex.getMessage());
+							return null;
+						});
+					});
 				});
-	}
-
-	private @NotNull CompletableFuture<? extends @NotNull Iterable<? extends @NotNull Suggestion>> suggestOnlineHellblockPlayers(
-			@NotNull CommandContext<Object> context, @NotNull CommandInput input) {
-		final List<String> suggestions = HellblockPlugin.getInstance().getStorageManager().getOnlineUsers().stream()
-				.filter(user -> user.isOnline() && user.getHellblockData().hasHellblock()).map(UserData::getName)
-				.toList();
-
-		return CompletableFuture.completedFuture(suggestions.stream().map(Suggestion::suggestion).toList());
 	}
 
 	@Override

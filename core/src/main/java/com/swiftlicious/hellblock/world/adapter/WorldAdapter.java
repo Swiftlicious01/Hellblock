@@ -34,6 +34,16 @@ public interface WorldAdapter<W> extends Comparable<WorldAdapter<W>> {
 	CompletableFuture<HellblockWorld<W>> createWorld(String world);
 
 	/**
+	 * Retrieves or loads a Hellblock world based on the specified world name.
+	 * 
+	 * @param worldName The name of the island whose world is to be retrieved or
+	 *                  loaded.
+	 * @return a CompletableFuture that will complete with the HellblockWorld
+	 *         instance.
+	 */
+	CompletableFuture<HellblockWorld<W>> getOrLoadIslandWorld(String worldName);
+
+	/**
 	 * Retrieves or loads a Hellblock world based on the specified island ID.
 	 * 
 	 * @param islandId The ID of the island whose world is to be retrieved or
@@ -58,6 +68,28 @@ public interface WorldAdapter<W> extends Comparable<WorldAdapter<W>> {
 	 *         information.
 	 */
 	WorldExtraData loadExtraData(W world);
+
+	/**
+	 * Performs version-based migration for a world that was saved using an outdated
+	 * format.
+	 *
+	 * <p>
+	 * This method is called automatically during world loading when the stored
+	 * world version is older than the plugin's {@code CURRENT_WORLD_VERSION}. It
+	 * applies any necessary transformations to bring the world data up to date,
+	 * including updates to settings, metadata, or format-specific patches.
+	 * </p>
+	 *
+	 * <p>
+	 * Implementers should ensure that the stored version number is updated after a
+	 * successful migration to avoid repeated migration attempts on future loads.
+	 * </p>
+	 *
+	 * @param world      the world being migrated (Bukkit or Slime, depending on
+	 *                   context)
+	 * @param oldVersion the saved version of the world before migration
+	 */
+	void migrateWorld(W world, int oldVersion);
 
 	/**
 	 * Saves extra data for the given Hellblock world instance.

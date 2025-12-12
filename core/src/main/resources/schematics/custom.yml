@@ -1,0 +1,6 @@
+# Schematics will always be pasted at the default starter height defined in the config so keep that in mind when putting values in here.
+home: [0.5,0.0,0.5]
+tree: [2.0,1.0,2.0]
+container: [5.0,1.0,0.0]
+yaw: -90.0
+biome: NETHER_WASTES

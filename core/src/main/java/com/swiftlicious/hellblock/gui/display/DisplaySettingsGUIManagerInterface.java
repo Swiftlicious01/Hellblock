@@ -12,11 +12,12 @@ public interface DisplaySettingsGUIManagerInterface extends Reloadable {
 	/**
 	 * Opens the display settings GUI for the specified player.
 	 *
-	 * @param player  the {@link Player} for whom the display settings GUI will be
-	 *                opened
-	 * @param isOwner whether or not they're the owner of the hellblock
+	 * @param player   the {@link Player} for whom the display settings GUI will be
+	 *                 opened.
+	 * @param islandId the islandId of the island owner.
+	 * @param isOwner  whether or not they're the owner of the hellblock.
 	 * @return true if the display settings GUI was successfully opened, false
 	 *         otherwise
 	 */
-	boolean openDisplaySettingsGUI(Player player, boolean isOwner);
+	boolean openDisplaySettingsGUI(Player player, int islandId, boolean isOwner);
 }

@@ -71,41 +71,54 @@ public class ContextKeys<T> {
 	public static final ContextKeys<Double> BASE = of("base", Double.class);
 	public static final ContextKeys<Integer> LOOT_ORDER = of("loot_order", Integer.class);
 	public static final ContextKeys<Effect> EFFECT = of("effect", Effect.class);
+	public static final ContextKeys<Boolean> FIRST_CAPTURE = of("first_capture", Boolean.class);
 
 	public static final ContextKeys<Boolean> HELLBLOCK_GENERATION = of("hellblock_generation", Boolean.class);
-	public static final ContextKeys<Float> HELLBLOCK_LEVEL = of("hellblock_level", Float.class);
-	public static final ContextKeys<String> HELLBLOCK_RANK = of("hellblock_rank", String.class);
-	public static final ContextKeys<String> HELLBLOCK_NAME = of("hellblock_name", String.class);
-	public static final ContextKeys<String> HELLBLOCK_BIO = of("hellblock_bio", String.class);
-	public static final ContextKeys<Integer> HELLBLOCK_ID = of("hellblock_id", Integer.class);
-	public static final ContextKeys<Integer> HELLBLOCK_PARTY_COUNT = of("hellblock_party_count", Integer.class);
-	public static final ContextKeys<Integer> HELLBLOCK_OVERALL_VISITORS = of("hellblock_total_visits", Integer.class);
-	public static final ContextKeys<Integer> HELLBLOCK_DAILY_VISITORS = of("hellblock_daily_visits", Integer.class);
-	public static final ContextKeys<Integer> HELLBLOCK_WEEKLY_VISITORS = of("hellblock_weekly_visits", Integer.class);
-	public static final ContextKeys<Integer> HELLBLOCK_MONTHLY_VISITORS = of("hellblock_monthly_visits", Integer.class);
-	public static final ContextKeys<Integer> HELLBLOCK_HOPPER_TIER = of("hellblock_hopper_tier", Integer.class);
-	public static final ContextKeys<Integer> HELLBLOCK_PARTY_TIER = of("hellblock_party_tier", Integer.class);
-	public static final ContextKeys<Integer> HELLBLOCK_RANGE_TIER = of("hellblock_range_tier", Integer.class);
-	public static final ContextKeys<Integer> HELLBLOCK_GENERATOR_TIER = of("hellblock_generator_tier", Integer.class);
-	public static final ContextKeys<Integer> HELLBLOCK_BARTERING_TIER = of("hellblock_bartering_tier", Integer.class);
-	public static final ContextKeys<Integer> HELLBLOCK_CROP_TIER = of("hellblock_crop_tier", Integer.class);
-	public static final ContextKeys<Integer> HELLBLOCK_MOB_TIER = of("hellblock_mob_tier", Integer.class);
-	public static final ContextKeys<Boolean> HELLBLOCK_STATUS = of("hellblock_status", Boolean.class);
-	public static final ContextKeys<Location> HELLBLOCK_LOCATION = of("hellblock_location", Location.class);
-	public static final ContextKeys<Location> HELLBLOCK_HOME_LOCATION = of("hellblock_home_location", Location.class);
+	public static final ContextKeys<Boolean> HELLBLOCK_GUI_SWITCHING = of("hellblock_gui_switch", Boolean.class);
+
+	// These are more specific to the player rather than the island
 	public static final ContextKeys<Long> RESET_COOLDOWN = of("reset_cooldown", Long.class);
+	public static final ContextKeys<String> RESET_COOLDOWN_FORMATTED = of("reset_cooldown_formatted", String.class);
+
+	// The following below are specific to island context
+	public static final ContextKeys<Integer> ISLAND_ID = of("island_id", Integer.class);
+	public static final ContextKeys<Boolean> LAVA_RAIN = of("lava_rain", Boolean.class);
+	public static final ContextKeys<Boolean> ASH_STORM = of("ash_storm", Boolean.class);
+	public static final ContextKeys<Boolean> EMBER_FOG = of("ember_fog", Boolean.class);
+	public static final ContextKeys<Boolean> MAGMA_WIND = of("magma_wind", Boolean.class);
+
+	public static final ContextKeys<Float> ISLAND_LEVEL = of("island_level", Float.class);
+	public static final ContextKeys<String> ISLAND_RANK = of("island_rank", String.class);
+	public static final ContextKeys<String> ISLAND_NAME = of("island_name", String.class);
+	public static final ContextKeys<String> ISLAND_BIO = of("island_bio", String.class);
+	public static final ContextKeys<Integer> ISLAND_PARTY_COUNT = of("party_count", Integer.class);
+	public static final ContextKeys<Integer> ISLAND_OVERALL_VISITORS = of("total_visits", Integer.class);
+	public static final ContextKeys<Integer> ISLAND_DAILY_VISITORS = of("daily_visits", Integer.class);
+	public static final ContextKeys<Integer> ISLAND_WEEKLY_VISITORS = of("weekly_visits", Integer.class);
+	public static final ContextKeys<Integer> ISLAND_MONTHLY_VISITORS = of("monthly_visits", Integer.class);
+	public static final ContextKeys<Integer> ISLAND_HOPPER_TIER = of("upgrade_hopper_tier", Integer.class);
+	public static final ContextKeys<Integer> ISLAND_PARTY_TIER = of("upgrade_party_tier", Integer.class);
+	public static final ContextKeys<Integer> ISLAND_RANGE_TIER = of("upgrade_range_tier", Integer.class);
+	public static final ContextKeys<Integer> ISLAND_GENERATOR_TIER = of("upgrade_generator_tier", Integer.class);
+	public static final ContextKeys<Integer> ISLAND_BARTERING_TIER = of("upgrade_bartering_tier", Integer.class);
+	public static final ContextKeys<Integer> ISLAND_CROP_TIER = of("upgrade_crop_tier", Integer.class);
+	public static final ContextKeys<Integer> ISLAND_MOB_TIER = of("upgrade_mob_tier", Integer.class);
+	public static final ContextKeys<Boolean> ISLAND_STATUS = of("island_status", Boolean.class);
+	public static final ContextKeys<Location> ISLAND_LOCATION = of("hellblock_location", Location.class);
+	public static final ContextKeys<Location> ISLAND_HOME_LOCATION = of("home_location", Location.class);
+	public static final ContextKeys<Long> CREATION_TIME = of("creation_time", Long.class);
+	public static final ContextKeys<String> CREATION_TIME_FORMATTED = of("creation_time_formatted", String.class);
+	public static final ContextKeys<DisplayChoice> ISLAND_DISPLAY_CHOICE = of("display_choice", DisplayChoice.class);
+	public static final ContextKeys<HellBiome> ISLAND_BIOME = of("island_biome", HellBiome.class);
+	public static final ContextKeys<IslandOptions> ISLAND_CHOICE = of("island_choice", IslandOptions.class);
 	public static final ContextKeys<Long> BIOME_COOLDOWN = of("biome_cooldown", Long.class);
 	public static final ContextKeys<Long> TRANSFER_COOLDOWN = of("transfer_cooldown", Long.class);
-	public static final ContextKeys<String> RESET_COOLDOWN_FORMATTED = of("reset_cooldown_formatted", String.class);
 	public static final ContextKeys<String> BIOME_COOLDOWN_FORMATTED = of("biome_cooldown_formatted", String.class);
 	public static final ContextKeys<String> TRANSFER_COOLDOWN_FORMATTED = of("transfer_cooldown_formatted",
 			String.class);
-	public static final ContextKeys<Long> CREATION_TIME = of("creation_time", Long.class);
-	public static final ContextKeys<String> CREATION_TIME_FORMATTED = of("creation_time_formatted", String.class);
-	public static final ContextKeys<DisplayChoice> HELLBLOCK_DISPLAY_CHOICE = of("hellblock_display_choice",
-			DisplayChoice.class);
-	public static final ContextKeys<HellBiome> HELLBLOCK_BIOME = of("hellblock_biome", HellBiome.class);
-	public static final ContextKeys<IslandOptions> HELLBLOCK_CHOICE = of("hellblock_choice", IslandOptions.class);
+
+	public static final ContextKeys<Float> REQUIRED_LEVEL = of("required_level", Float.class);
+
 	public static final ContextKeys<String> VISIT_NAME = of("visit_name", String.class);
 	public static final ContextKeys<String> VISIT_ISLAND_NAME = of("visit_island_name", String.class);
 	public static final ContextKeys<String> VISIT_ISLAND_BIO = of("visit_island_bio", String.class);

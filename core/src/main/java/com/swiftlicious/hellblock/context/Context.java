@@ -3,10 +3,11 @@ package com.swiftlicious.hellblock.context;
 import java.util.Map;
 
 import org.bukkit.Location;
-import org.bukkit.block.data.BlockData;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+
+import com.swiftlicious.hellblock.world.CustomBlockState;
 
 /**
  * The Context interface represents a generic context for custom mechanics. It
@@ -52,6 +53,14 @@ public interface Context<T> {
 	 * @return this context
 	 */
 	Context<T> combine(Context<T> other);
+
+	/**
+	 * Merges one context with another
+	 *
+	 * @param other other
+	 * @return this context
+	 */
+	Context<T> merge(Context<?> other);
 
 	/**
 	 * Retrieves the value of a specific argument from the context. This method
@@ -102,11 +111,20 @@ public interface Context<T> {
 	void clearCustomData();
 
 	/**
+	 * Creates an empty non-specific context.
+	 *
+	 * @return a new empty Context instance.
+	 */
+	static Context<?> empty() {
+		return new SimpleContext<>(null, false);
+	}
+
+	/**
 	 * Creates an empty player-specific context.
 	 *
 	 * @return a new empty Context instance.
 	 */
-	static Context<Player> empty() {
+	static Context<Player> playerEmpty() {
 		return new PlayerContext(null, false);
 	}
 
@@ -127,8 +145,18 @@ public interface Context<T> {
 	 * @param location the location of the block
 	 * @return a new Context instance with the specified block as the holder.
 	 */
-	static Context<BlockData> block(@NotNull BlockData block, @NotNull Location location) {
+	static Context<CustomBlockState> block(@NotNull CustomBlockState block, @NotNull Location location) {
 		return new BlockContext(block, location, false);
+	}
+
+	/**
+	 * Creates a island-specific context.
+	 *
+	 * @param islandId the island ID to be used as the holder of the context.
+	 * @return a new Context instance with the specified island ID as the holder.
+	 */
+	static Context<Integer> island(int islandId) {
+		return new IslandContext(islandId, false);
 	}
 
 	/**
@@ -150,8 +178,20 @@ public interface Context<T> {
 	 * @param threadSafe is the created map thread safe
 	 * @return a new Context instance with the specified block as the holder.
 	 */
-	static Context<BlockData> block(@NotNull BlockData block, @NotNull Location location, boolean threadSafe) {
+	static Context<CustomBlockState> block(@NotNull CustomBlockState block, @NotNull Location location,
+			boolean threadSafe) {
 		return new BlockContext(block, location, threadSafe);
+	}
+
+	/**
+	 * Creates a island-specific context.
+	 *
+	 * @param islandId   the island ID to be used as the holder of the context.
+	 * @param threadSafe is the created map thread safe
+	 * @return a new Context instance with the specified island ID as the holder.
+	 */
+	static Context<Integer> island(int islandId, boolean threadSafe) {
+		return new IslandContext(islandId, threadSafe);
 	}
 
 	/**

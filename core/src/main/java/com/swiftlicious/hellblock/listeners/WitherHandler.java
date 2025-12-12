@@ -1,14 +1,13 @@
 package com.swiftlicious.hellblock.listeners;
 
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -60,13 +59,23 @@ import com.saicone.rtag.RtagEntity;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.api.Reloadable;
 import com.swiftlicious.hellblock.challenges.HellblockChallenge.ActionType;
+import com.swiftlicious.hellblock.config.ConfigManager.IslandEventData;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
+import com.swiftlicious.hellblock.events.wither.WitherDefeatEvent;
+import com.swiftlicious.hellblock.events.wither.WitherDespawnEvent;
+import com.swiftlicious.hellblock.events.wither.WitherLowHealthEvent;
+import com.swiftlicious.hellblock.events.wither.WitherSpawnEvent;
+import com.swiftlicious.hellblock.events.wither.WitherSummonMinionsEvent;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.handlers.VersionHelper;
+import com.swiftlicious.hellblock.nms.beam.BeamAnimation;
 import com.swiftlicious.hellblock.nms.entity.firework.FakeFirework;
 import com.swiftlicious.hellblock.player.HellblockData;
 import com.swiftlicious.hellblock.player.UserData;
+import com.swiftlicious.hellblock.player.WitherData;
 import com.swiftlicious.hellblock.scheduler.SchedulerTask;
+import com.swiftlicious.hellblock.schematic.AdventureMetadata;
+import com.swiftlicious.hellblock.utils.EventUtils;
 import com.swiftlicious.hellblock.utils.ParticleUtils;
 import com.swiftlicious.hellblock.utils.RandomUtils;
 import com.swiftlicious.hellblock.world.HellblockWorld;
@@ -100,7 +109,7 @@ public class WitherHandler implements Listener, Reloadable {
 	@Override
 	public void load() {
 		Bukkit.getPluginManager().registerEvents(this, instance);
-		startSpawnTask();
+		startSpawnWitherTask();
 	}
 
 	@Override
@@ -111,31 +120,48 @@ public class WitherHandler implements Listener, Reloadable {
 			witherSpawnTask = null;
 		}
 		// cancel all wither target tasks
-		witherTargetTasks.values().stream().filter(task -> task != null).forEach(SchedulerTask::cancel);
+		witherTargetTasks.values().stream().filter(Objects::nonNull).filter(task -> !task.isCancelled())
+				.forEach(SchedulerTask::cancel);
 		witherTargetTasks.clear();
 		mobSummonCount.clear();
 		healedWithers.clear();
 		witherBounceCounts.clear();
-		witherBounceResetTasks.values().stream().filter(task -> task != null).forEach(SchedulerTask::cancel);
+		witherBounceResetTasks.values().stream().filter(Objects::nonNull).filter(task -> !task.isCancelled())
+				.forEach(SchedulerTask::cancel);
 		witherBounceResetTasks.clear();
-		getCustomWither().activeIslandWithers.values().stream().filter(wither -> wither.isValid() && !wither.isDead())
-				.forEach(Entity::remove);
+		getCustomWither().activeIslandWithers.values().stream().filter(Objects::nonNull)
+				.filter(wither -> wither.isValid() && !wither.isDead()).forEach(Entity::remove);
 		getCustomWither().activeIslandWithers.clear();
 		getCustomWither().witherStats.clear();
-		getCustomWither().spawnCooldowns.clear();
 	}
 
 	public CustomWither getCustomWither() {
 		return this.customWither;
 	}
 
-	private void startSpawnTask() {
-		this.witherSpawnTask = instance.getScheduler().asyncRepeating(
-				() -> instance.getStorageManager().getDataSource().getUniqueUsers()
-						.forEach(uuid -> instance.getStorageManager()
-								.getOfflineUserData(uuid, instance.getConfigManager().lockData())
-								.thenAccept(optUser -> optUser.ifPresent(this::trySpawnEnhancedWither))),
-				5, 5, TimeUnit.MINUTES);
+	public Optional<UserData> getUserDataByIslandId(int islandId) {
+		// Step 1: Get the Wither for this island
+		Wither wither = getCustomWither().activeIslandWithers.get(islandId);
+		if (wither == null) {
+			return Optional.empty();
+		}
+
+		// Step 2: Lookup the owner UUID for this island ID
+		Optional<UserData> ownerDataOpt = instance.getCoopManager().getIslandOwnerAt(wither.getLocation());
+		if (ownerDataOpt.isEmpty()) {
+			return Optional.empty();
+		}
+
+		return ownerDataOpt;
+	}
+
+	private void startSpawnWitherTask() {
+		if (!instance.getConfigManager().witherEventSettings().enabled())
+			return;
+		this.witherSpawnTask = instance.getScheduler()
+				.asyncRepeating(() -> instance.getCoopManager().getCachedIslandOwnerData().thenAccept(
+						allOwners -> allOwners.stream().filter(Objects::nonNull).forEach(this::trySpawnEnhancedWither)),
+						5, 5, TimeUnit.MINUTES);
 	}
 
 	@EventHandler(ignoreCancelled = true, priority = EventPriority.HIGHEST)
@@ -355,8 +381,8 @@ public class WitherHandler implements Listener, Reloadable {
 		if (projectile instanceof Fireball || projectile instanceof WitherSkull
 				|| projectile instanceof DragonFireball) {
 			// Explosive projectiles: cancel immediately
-			projectile.getWorld().spawnParticle(Particle.LARGE_SMOKE, projectile.getLocation(), 16, 0.5, 0.5, 0.5,
-					0.02);
+			projectile.getWorld().spawnParticle(ParticleUtils.getParticle("SMOKE_LARGE"), projectile.getLocation(), 16,
+					0.5, 0.5, 0.5, 0.02);
 			projectile.getWorld().spawnParticle(Particle.FLAME, projectile.getLocation(), 12, 0.3, 0.3, 0.3, 0.02);
 
 			projectile.getWorld().getNearbyEntities(projectile.getLocation(), 16, 16, 16, e -> e instanceof Player)
@@ -372,8 +398,8 @@ public class WitherHandler implements Listener, Reloadable {
 		if (projectile instanceof Firework) {
 			// Cancel its normal explosion
 			projectile.getWorld().spawnParticle(Particle.CRIT, projectile.getLocation(), 20, 0.6, 0.6, 0.6, 0.25);
-			projectile.getWorld().spawnParticle(Particle.LARGE_SMOKE, projectile.getLocation(), 12, 0.4, 0.4, 0.4,
-					0.05);
+			projectile.getWorld().spawnParticle(ParticleUtils.getParticle("SMOKE_LARGE"), projectile.getLocation(), 12,
+					0.4, 0.4, 0.4, 0.05);
 
 			projectile.getWorld().getNearbyEntities(projectile.getLocation(), 16, 16, 16, e -> e instanceof Player)
 					.stream().map(e -> (Player) e)
@@ -386,7 +412,7 @@ public class WitherHandler implements Listener, Reloadable {
 		}
 
 		// Default case: arrow-like projectiles
-		final Vector velocity = projectile.getVelocity().multiply(-0.4).add(new Vector(0, 0.3, 0));
+		final Vector velocity = projectile.getVelocity().clone().multiply(-0.4).add(new Vector(0, 0.3, 0));
 		projectile.setVelocity(velocity);
 
 		projectile.getWorld().spawnParticle(Particle.CRIT, projectile.getLocation(), 12, 0.3, 0.3, 0.3, 0.15);
@@ -406,7 +432,8 @@ public class WitherHandler implements Listener, Reloadable {
 		// Remove after 10s
 		instance.getScheduler().sync().runLater(() -> {
 			if (!projectile.isDead() && projectile.isValid()) {
-				projectile.getWorld().spawnParticle(Particle.SMOKE, projectile.getLocation(), 8, 0.2, 0.2, 0.2, 0.01);
+				projectile.getWorld().spawnParticle(ParticleUtils.getParticle("SMOKE_NORMAL"), projectile.getLocation(),
+						8, 0.2, 0.2, 0.2, 0.01);
 				projectile.remove();
 			}
 		}, 20L * 10, projectile.getLocation());
@@ -439,15 +466,22 @@ public class WitherHandler implements Listener, Reloadable {
 		final double maxHealth = taggedWither.getAttributeBase("generic.max_health");
 
 		if (newHealth <= maxHealth * 0.25 && !healedWithers.contains(wither.getUniqueId())) {
-			if (RandomUtils.generateRandomInt(1, 100) <= 30) { // 30% chance
-				healedWithers.add(wither.getUniqueId());
+			if (RandomUtils.generateRandomInt(1, 100) <= 30) {
+				final double healAmount = maxHealth * 0.35;
 
-				final double healAmount = maxHealth * 0.35; // heal ~35%
-				wither.setHealth(Math.min(maxHealth, wither.getHealth() + healAmount));
+				// Fire WitherLowHealthEvent
+				WitherLowHealthEvent healEvent = new WitherLowHealthEvent(wither, newHealth, maxHealth, healAmount);
+				if (EventUtils.fireAndCheckCancel(healEvent)) {
+					return;
+				}
+
+				healedWithers.add(wither.getUniqueId());
+				wither.setHealth(Math.min(maxHealth, wither.getHealth() + healEvent.getHealAmount()));
 
 				// FX
 				wither.getWorld().spawnParticle(Particle.HEART, wither.getLocation(), 40, 2, 2, 2, 0.1);
-				wither.getWorld().spawnParticle(Particle.WITCH, wither.getLocation(), 100, 2, 2, 2, 0.2);
+				wither.getWorld().spawnParticle(ParticleUtils.getParticle("SPELL_WITCH"), wither.getLocation(), 100, 2,
+						2, 2, 0.2);
 
 				final Sound ambientSound = Sound.sound(Key.key("minecraft:entity.wither.ambient"), Sound.Source.HOSTILE,
 						2f, 0.5f);
@@ -458,8 +492,10 @@ public class WitherHandler implements Listener, Reloadable {
 								return;
 							}
 
+							islandData.getWitherData().recordHeal();
+
 							instance.getScheduler().executeSync(() -> islandData.getPartyPlusOwner().stream()
-									.map(Bukkit::getPlayer).filter(p -> p != null && p.isOnline())
+									.map(Bukkit::getPlayer).filter(Objects::nonNull).filter(Player::isOnline)
 									.forEach(p -> AdventureHelper.playSound(instance.getSenderFactory().getAudience(p),
 											ambientSound)));
 						});
@@ -484,6 +520,10 @@ public class WitherHandler implements Listener, Reloadable {
 
 		final Location deathLoc = wither.getLocation();
 
+		if (deathLoc.getWorld() == null) {
+			return;
+		}
+
 		getCustomWither().removeWither(wither);
 		stopWitherTargeting(wither.getUniqueId());
 		stopWitherTasks(wither.getUniqueId());
@@ -496,8 +536,8 @@ public class WitherHandler implements Listener, Reloadable {
 			// schedule sync to safely modify world/entities
 			instance.getScheduler().executeSync(() -> {
 				// Notify island members
-				islandData.getPartyPlusOwner().stream().map(Bukkit::getPlayer).filter(p -> p != null && p.isOnline())
-						.forEach(member -> {
+				islandData.getPartyPlusOwner().stream().map(Bukkit::getPlayer).filter(Objects::nonNull)
+						.filter(Player::isOnline).forEach(member -> {
 							instance.getSenderFactory().wrap(member).sendMessage(instance.getTranslationManager()
 									.render(MessageConstants.MSG_HELLBLOCK_WITHER_DEFEATED.build()));
 
@@ -527,13 +567,13 @@ public class WitherHandler implements Listener, Reloadable {
 						if (ticks++ > 60 || wither.isDead() || !wither.isValid()) {
 							wither.remove();
 							final SchedulerTask task = spinTaskRef.get();
-							if (task != null) {
+							if (task != null && !task.isCancelled()) {
 								task.cancel();
 							}
 							return;
 						}
-						wither.teleport(wither.getLocation().add(0, 0.05, 0));
-						wither.setRotation(wither.getLocation().getYaw() + 15, wither.getLocation().getPitch());
+						wither.teleport(wither.getLocation().clone().add(0, 0.05, 0));
+						wither.setRotation(wither.getLocation().clone().getYaw() + 15, wither.getLocation().getPitch());
 					}
 				}, 0L, 2L, deathLoc));
 
@@ -553,26 +593,44 @@ public class WitherHandler implements Listener, Reloadable {
 					final long elapsed = System.currentTimeMillis() - startTime;
 					if (drops.isEmpty() || elapsed > TimeUnit.MINUTES.toMillis(5)) {
 						final SchedulerTask task = beamTaskRef.get();
-						if (task != null) {
+						if (task != null && !task.isCancelled()) {
 							task.cancel();
 						}
 						return;
 					}
 
 					final List<Player> coopPlayers = islandData.getPartyPlusOwner().stream().map(Bukkit::getPlayer)
-							.filter(p -> p != null && p.isOnline()).toList();
+							.filter(Objects::nonNull).filter(Player::isOnline).toList();
 
 					if (!coopPlayers.isEmpty()) {
-						sendBlackBeaconBeam(coopPlayers, deathLoc, 20);
+						BeamAnimation task = VersionHelper.createNewBeamAnimation(coopPlayers, deathLoc, 20);
+						instance.getScheduler().sync().runRepeating(() -> {
+							if (task.isFinished()) {
+								return; // Or stop scheduling
+							}
+							task.run();
+						}, 0L, 10L, deathLoc);
 					}
 				}, 0L, 20L, deathLoc));
 
 				// Challenge progression
 				final Player killer = wither.getKiller();
 				if (killer != null) {
-					instance.getStorageManager().getOnlineUser(killer.getUniqueId()).ifPresent(user -> instance
-							.getChallengeManager().handleChallengeProgression(killer, ActionType.SLAY, wither));
+					instance.getStorageManager().getOnlineUser(killer.getUniqueId()).ifPresent(userData -> {
+						if (instance.getCooldownManager().shouldUpdateActivity(killer.getUniqueId(), 5000)) {
+							userData.getHellblockData().updateLastIslandActivity();
+						}
+						instance.getChallengeManager().handleChallengeProgression(userData, ActionType.SLAY, wither);
+					});
 				}
+
+				// Fire WitherDefeatEvent
+				long spawnTime = getCustomWither().getSpawnTime(wither);
+				long aliveDuration = System.currentTimeMillis() - spawnTime;
+				EventUtils
+						.fireAndForget(new WitherDefeatEvent(islandData.getIslandId(), wither, killer, aliveDuration));
+
+				islandData.getWitherData().recordKill(aliveDuration);
 			});
 		});
 	}
@@ -599,19 +657,42 @@ public class WitherHandler implements Listener, Reloadable {
 
 	public void trySpawnEnhancedWither(@NotNull UserData user) {
 		final HellblockData data = user.getHellblockData();
+		IslandEventData eventData = instance.getConfigManager().witherEventSettings();
 
-		// must be level 50+
-		if (data.getLevel() < 50) {
+		if (!data.hasHellblock()) {
 			return;
 		}
 
-		final int islandId = data.getID();
+		if (data.isAbandoned()) {
+			return;
+		}
+
+		// must be required level
+		if (data.getIslandLevel() < eventData.levelRequired()) {
+			return;
+		}
+
+		final int islandId = data.getIslandId();
+
+		boolean hasWeatherEvent = instance.getNetherWeatherManager().isWeatherActive(islandId);
+		if (hasWeatherEvent) {
+			return;
+		}
+
+		if (instance.getInvasionHandler().isInvasionRunning(islandId)) {
+			return;
+		}
+
+		if (instance.getSkysiegeHandler().isSkysiegeRunning(islandId)) {
+			return;
+		}
+
 		if (getCustomWither().hasActiveWither(islandId)) {
 			return;
 		}
 
-		// enforce cooldown (e.g., 30 minutes)
-		if (!getCustomWither().canSpawn(islandId, TimeUnit.MINUTES.toMillis(30))) {
+		// enforce cooldown
+		if (!getCustomWither().canSpawn(islandId, TimeUnit.MINUTES.toMillis(eventData.cooldown()))) {
 			return;
 		}
 
@@ -622,7 +703,8 @@ public class WitherHandler implements Listener, Reloadable {
 		}
 
 		final boolean hasOnlineInside = data.getPartyPlusOwner().stream().map(Bukkit::getPlayer)
-				.filter(p -> p != null && p.isOnline()).anyMatch(p -> box.contains(p.getLocation().toVector()));
+				.filter(Objects::nonNull).filter(Player::isOnline)
+				.anyMatch(p -> box.contains(p.getLocation().toVector()));
 
 		if (!hasOnlineInside) {
 			return;
@@ -636,7 +718,7 @@ public class WitherHandler implements Listener, Reloadable {
 		// get world
 		final Optional<HellblockWorld<?>> worldOpt = instance.getWorldManager()
 				.getWorld(instance.getWorldManager().getHellblockWorldFormat(islandId));
-		if (worldOpt.isEmpty()) {
+		if (worldOpt.isEmpty() || worldOpt.get().bukkitWorld() == null) {
 			return;
 		}
 
@@ -646,12 +728,10 @@ public class WitherHandler implements Listener, Reloadable {
 		final Location center = findSafeSpawn(world, box);
 
 		final WitherStats stats = getWitherStats();
-		Wither rawWither = (Wither) world.spawnEntity(center, EntityType.WITHER, false);
+		Wither rawWither = (Wither) world.spawnEntity(center, EntityType.WITHER);
 
 		CreatureSpawnEvent event = new CreatureSpawnEvent(rawWither, CreatureSpawnEvent.SpawnReason.CUSTOM);
-		Bukkit.getPluginManager().callEvent(event);
-
-		if (event.isCancelled()) {
+		if (EventUtils.fireAndCheckCancel(event)) {
 			rawWither.remove(); // Respect event cancellation
 		}
 
@@ -664,6 +744,8 @@ public class WitherHandler implements Listener, Reloadable {
 		final Wither enhancedWither = (Wither) taggedWither.load(); // effectively final
 
 		enhancedWither.getPersistentDataContainer().set(witherKey, PersistentDataType.STRING, WITHER_KEY);
+		AdventureMetadata.setEntityCustomName(enhancedWither,
+				instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_WITHER_NAME.build()));
 		enhancedWither.setAware(true);
 
 		// Strip block-targeting AI
@@ -673,8 +755,16 @@ public class WitherHandler implements Listener, Reloadable {
 
 		// Only target players (no block targeting)
 		enhancedWither.setTarget(null);
+		if (VersionHelper.isPaperFork()) {
+			try {
+				Method setAggressive = enhancedWither.getClass().getMethod("setAggressive", boolean.class);
+				setAggressive.invoke(enhancedWither, true);
+			} catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException e) {
+				instance.getPluginLogger().warn("Could not set wither aggressive: " + e.getMessage());
+			}
+		}
 
-		restrictWitherAI(enhancedWither);
+		VersionHelper.getNMSManager().restrictWitherAI(enhancedWither);
 
 		// After a short delay (5 seconds), re-enable normal behavior
 		instance.getScheduler().sync().runLater(() -> {
@@ -685,8 +775,12 @@ public class WitherHandler implements Listener, Reloadable {
 
 		getCustomWither().addWither(islandId, enhancedWither, stats);
 
+		EventUtils.fireAndForget(new WitherSpawnEvent(islandId, enhancedWither, stats.health(), stats.strength()));
+
+		data.getWitherData().recordSpawn();
+
 		// notify island members (spawned)
-		data.getPartyPlusOwner().stream().map(Bukkit::getPlayer).filter(member -> member != null && member.isOnline())
+		data.getPartyPlusOwner().stream().map(Bukkit::getPlayer).filter(Objects::nonNull).filter(Player::isOnline)
 				.forEach(member -> {
 					instance.getSenderFactory().wrap(member).sendMessage(instance.getTranslationManager()
 							.render(MessageConstants.MSG_HELLBLOCK_WITHER_SPAWNED.build()));
@@ -720,9 +814,11 @@ public class WitherHandler implements Listener, Reloadable {
 					return;
 				}
 
-				// stop after 5 minutes regardless
-				if (System.currentTimeMillis() - spawnTime >= TimeUnit.MINUTES.toMillis(5)) {
+				// stop after the max duration of minutes regardless
+				if (System.currentTimeMillis() - spawnTime >= TimeUnit.MINUTES.toMillis(eventData.maxDuration())) {
 					finished = true;
+					handleWitherDespawn(data.getIslandId(), enhancedWither, WitherDespawnEvent.DespawnReason.TIMEOUT,
+							data);
 					return;
 				}
 
@@ -743,40 +839,46 @@ public class WitherHandler implements Listener, Reloadable {
 				startWitherTargeting(enhancedWither);
 
 				final boolean stillOnline = data.getPartyPlusOwner().stream().map(Bukkit::getPlayer)
-						.filter(p -> p != null && p.isOnline())
+						.filter(Objects::nonNull).filter(Player::isOnline)
 						.anyMatch(p -> islandBox.contains(p.getLocation().toVector()));
 
 				if (!stillOnline) {
 					// remove wither silently
-					final Location despawnLoc = enhancedWither.getLocation();
-					enhancedWither.remove();
-					getCustomWither().removeWither(enhancedWither);
-					stopWitherTargeting(enhancedWither.getUniqueId());
-					stopWitherTasks(enhancedWither.getUniqueId());
-
-					// Notify island members + play vanish sound + particle effect
-					data.getPartyPlusOwner().stream().map(Bukkit::getPlayer).filter(p -> p != null && p.isOnline())
-							.forEach(p -> {
-								instance.getSenderFactory().wrap(p).sendMessage(instance.getTranslationManager()
-										.render(MessageConstants.MSG_HELLBLOCK_WITHER_DESPAWNED.build()));
-
-								// play vanish sound (enderman teleport)
-								AdventureHelper.playSound(instance.getSenderFactory().getAudience(p),
-										Sound.sound(
-												net.kyori.adventure.key.Key.key("minecraft:entity.enderman.teleport"),
-												net.kyori.adventure.sound.Sound.Source.PLAYER, 1f, 1f));
-							});
-
-					// black dust puff at despawn location
-					despawnLoc.getWorld().spawnParticle(ParticleUtils.getParticle(Particle.DUST.name()),
-							despawnLoc.add(0, 1, 0), 80, // particle count
-							0.6, 1.0, 0.6, // spread
-							new Particle.DustOptions(Color.fromRGB(0, 0, 0), 2.0f));
-
+					handleWitherDespawn(data.getIslandId(), enhancedWither,
+							WitherDespawnEvent.DespawnReason.NO_PLAYERS_ONLINE, data);
 					finished = true;
 				}
 			}
 		}, 20L, 20L, center); // check every second
+	}
+
+	private void handleWitherDespawn(int islandId, Wither wither, WitherDespawnEvent.DespawnReason reason,
+			HellblockData data) {
+		wither.remove();
+		getCustomWither().removeWither(wither);
+
+		EventUtils.fireAndForget(new WitherDespawnEvent(islandId, wither, reason));
+		data.getWitherData().recordDespawn();
+
+		stopWitherTargeting(wither.getUniqueId());
+		stopWitherTasks(wither.getUniqueId());
+
+		// Notify island members + play vanish sound + particle effect
+		data.getPartyPlusOwner().stream().map(Bukkit::getPlayer).filter(Objects::nonNull).filter(Player::isOnline)
+				.forEach(p -> {
+					instance.getSenderFactory().wrap(p).sendMessage(instance.getTranslationManager()
+							.render(MessageConstants.MSG_HELLBLOCK_WITHER_DESPAWNED.build()));
+
+					// play vanish sound (enderman teleport)
+					AdventureHelper.playSound(instance.getSenderFactory().getAudience(p),
+							Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.enderman.teleport"),
+									net.kyori.adventure.sound.Sound.Source.PLAYER, 1f, 1f));
+				});
+
+		final Location despawnLoc = wither.getLocation();
+		// black dust puff at despawn location
+		despawnLoc.getWorld().spawnParticle(ParticleUtils.getParticle("REDSTONE"), despawnLoc.clone().add(0, 1, 0), 80,
+				0.6, 1.0, 0.6, new Particle.DustOptions(Color.fromRGB(0, 0, 0), 2.0f));
 	}
 
 	private Location findSafeSpawn(@NotNull World world, @NotNull BoundingBox box) {
@@ -814,6 +916,11 @@ public class WitherHandler implements Listener, Reloadable {
 			return;
 		}
 
+		WitherSummonMinionsEvent summonEvent = new WitherSummonMinionsEvent(islandData.getIslandId(), wither, used + 1);
+		if (EventUtils.fireAndCheckCancel(summonEvent)) {
+			return;
+		}
+
 		mobSummonCount.put(wither.getUniqueId(), used + 1);
 
 		final Location spawnBase = wither.getLocation();
@@ -840,12 +947,15 @@ public class WitherHandler implements Listener, Reloadable {
 		}
 
 		// FX: smoke + summon sound
-		spawnBase.getWorld().spawnParticle(Particle.LARGE_SMOKE, spawnBase, 50, 1.5, 1.5, 1.5, 0.05);
+		spawnBase.getWorld().spawnParticle(ParticleUtils.getParticle("SMOKE_LARGE"), spawnBase, 50, 1.5, 1.5, 1.5,
+				0.05);
 
 		final Sound summonSound = Sound.sound(Key.key("minecraft:entity.zombie_villager.converted"),
 				Sound.Source.HOSTILE, 1.5f, 0.6f);
 
-		islandData.getPartyPlusOwner().stream().map(Bukkit::getPlayer).filter(p -> p != null && p.isOnline())
+		islandData.getWitherData().recordMinionWave();
+
+		islandData.getPartyPlusOwner().stream().map(Bukkit::getPlayer).filter(Objects::nonNull).filter(Player::isOnline)
 				.forEach(p -> AdventureHelper.playSound(instance.getSenderFactory().getAudience(p), summonSound));
 	}
 
@@ -953,9 +1063,9 @@ public class WitherHandler implements Listener, Reloadable {
 	}
 
 	private void stopWitherTargeting(@NotNull UUID witherId) {
-		final SchedulerTask t = witherTargetTasks.remove(witherId);
-		if (t != null) {
-			t.cancel();
+		final SchedulerTask task = witherTargetTasks.remove(witherId);
+		if (task != null && !task.isCancelled()) {
+			task.cancel();
 		}
 	}
 
@@ -971,8 +1081,8 @@ public class WitherHandler implements Listener, Reloadable {
 			final Location center = islandBox.getCenter().toLocation(world);
 
 			if (loc.distance(center) > 50) {
-				wither.remove();
-				getCustomWither().removeWither(wither);
+				handleWitherDespawn(islandData.getIslandId(), wither, WitherDespawnEvent.DespawnReason.OUT_OF_BOUNDS,
+						islandData);
 				witherBounceCounts.remove(wither.getUniqueId());
 				return;
 			}
@@ -982,25 +1092,27 @@ public class WitherHandler implements Listener, Reloadable {
 
 			if (bounces <= 5) {
 				// bounce back
-				final Vector toCenter = center.toVector().subtract(loc.toVector()).normalize();
+				final Vector toCenter = center.toVector().clone().subtract(loc.toVector()).normalize();
 				final Vector bounce = toCenter.multiply(2.0).add(new Vector(0, 1.0, 0));
 				wither.setVelocity(bounce);
 
-				world.spawnParticle(Particle.LARGE_SMOKE, loc, 25, 1.0, 1.0, 1.0, 0.1);
+				world.spawnParticle(ParticleUtils.getParticle("SMOKE_LARGE"), loc, 25, 1.0, 1.0, 1.0, 0.1);
 				world.spawnParticle(Particle.CLOUD, loc, 15, 0.8, 0.8, 0.8, 0.05);
 
-				islandData.getPartyPlusOwner().stream().map(Bukkit::getPlayer).filter(p -> p != null && p.isOnline())
+				islandData.getPartyPlusOwner().stream().map(Bukkit::getPlayer).filter(Objects::nonNull)
+						.filter(Player::isOnline)
 						.forEach(p -> AdventureHelper.playSound(instance.getSenderFactory().getAudience(p),
 								Sound.sound(Key.key("minecraft:block.anvil.land"), Sound.Source.HOSTILE, 1f, 0.8f)));
 			} else {
 				// teleport safely
-				final Location safeLoc = findSafeLocation(world, center.add(0, 10, 0), 20);
+				final Location safeLoc = findSafeLocation(world, center.clone().add(0, 10, 0), 20);
 				wither.teleport(safeLoc);
 
 				world.spawnParticle(Particle.PORTAL, safeLoc, 40, 0.8, 1.2, 0.8, 0.2);
-				world.spawnParticle(Particle.LARGE_SMOKE, safeLoc, 20, 0.6, 1.0, 0.6, 0.05);
+				world.spawnParticle(ParticleUtils.getParticle("SMOKE_LARGE"), safeLoc, 20, 0.6, 1.0, 0.6, 0.05);
 
-				islandData.getPartyPlusOwner().stream().map(Bukkit::getPlayer).filter(p -> p != null && p.isOnline())
+				islandData.getPartyPlusOwner().stream().map(Bukkit::getPlayer).filter(Objects::nonNull)
+						.filter(Player::isOnline)
 						.forEach(p -> AdventureHelper.playSound(instance.getSenderFactory().getAudience(p), Sound
 								.sound(Key.key("minecraft:entity.enderman.teleport"), Sound.Source.HOSTILE, 1f, 1f)));
 
@@ -1037,13 +1149,15 @@ public class WitherHandler implements Listener, Reloadable {
 		final boolean trapped = totalBlocks > 0 && solidBlocks > totalBlocks * 0.6;
 
 		if (loc.getBlock().getType().isSolid() || trapped) {
-			final Location safeLoc = findSafeLocation(world, islandBox.getCenter().toLocation(world).add(0, 8, 0), 20);
+			final Location safeLoc = findSafeLocation(world,
+					islandBox.getCenter().toLocation(world).clone().add(0, 8, 0), 20);
 			wither.teleport(safeLoc);
 
 			world.spawnParticle(Particle.PORTAL, safeLoc, 40, 0.8, 1.2, 0.8, 0.2);
-			world.spawnParticle(Particle.LARGE_SMOKE, safeLoc, 20, 0.6, 1.0, 0.6, 0.05);
+			world.spawnParticle(ParticleUtils.getParticle("SMOKE_LARGE"), safeLoc, 20, 0.6, 1.0, 0.6, 0.05);
 
-			islandData.getPartyPlusOwner().stream().map(Bukkit::getPlayer).filter(p -> p != null && p.isOnline())
+			islandData.getPartyPlusOwner().stream().map(Bukkit::getPlayer).filter(Objects::nonNull)
+					.filter(Player::isOnline)
 					.forEach(p -> AdventureHelper.playSound(instance.getSenderFactory().getAudience(p),
 							Sound.sound(Key.key("minecraft:entity.enderman.teleport"), Sound.Source.HOSTILE, 1f, 1f)));
 		}
@@ -1053,13 +1167,14 @@ public class WitherHandler implements Listener, Reloadable {
 		stopWitherTargeting(witherId);
 
 		final SchedulerTask reset = witherBounceResetTasks.remove(witherId);
-		if (reset != null) {
+		if (reset != null && !reset.isCancelled()) {
 			reset.cancel();
 		}
 
 		witherBounceCounts.remove(witherId);
 		healedWithers.remove(witherId);
 		mobSummonCount.remove(witherId);
+		getCustomWither().witherSpawnTimes.remove(witherId);
 	}
 
 	/**
@@ -1116,241 +1231,49 @@ public class WitherHandler implements Listener, Reloadable {
 		return totalBlocks > 0 && solidBlocks < totalBlocks * 0.3;
 	}
 
-	@SuppressWarnings({ "unchecked", "rawtypes" })
-	public void sendBlackBeaconBeam(@NotNull Collection<Player> viewers, @NotNull Location location,
-			int durationTicks) {
-		try {
-			// --- NMS Setup ---
-			final Class<?> packetPlayOutSpawnEntity = getNMSClass("network.protocol.game.PacketPlayOutSpawnEntity");
-			final Class<?> packetPlayOutEntityMetadata = getNMSClass(
-					"network.protocol.game.PacketPlayOutEntityMetadata");
-			final Class<?> packetPlayOutEntityDestroy = getNMSClass("network.protocol.game.PacketPlayOutEntityDestroy");
-			final Class<?> dataWatcherClass = getNMSClass("network.syncher.DataWatcher");
-			final Class<?> entityTypeClass = getNMSClass("world.entity.EntityType");
-			final Class<?> vec3DClass = getNMSClass("world.phys.Vec3D");
-
-			final int entityId = RandomUtils.generateRandomInt(Integer.MAX_VALUE);
-			final double x = location.getX(), y = location.getY(), z = location.getZ();
-			final Object vec3D = vec3DClass.getConstructor(double.class, double.class, double.class).newInstance(0d, 0d,
-					0d);
-
-			// --- Create Entity Spawn ---
-			final Object spawnPacket = packetPlayOutSpawnEntity
-					.getConstructor(int.class, UUID.class, double.class, double.class, double.class, float.class,
-							float.class, entityTypeClass, int.class, vec3DClass, double.class)
-					.newInstance(entityId, UUID.randomUUID(), x, y, z, 0f, 0f,
-							Enum.valueOf((Class<Enum>) entityTypeClass, "ENDER_CRYSTAL"), 0, vec3D, 0d);
-
-			final Object dataWatcher = dataWatcherClass.getConstructor().newInstance();
-			final Object metaPacket = packetPlayOutEntityMetadata
-					.getConstructor(int.class, dataWatcherClass, boolean.class)
-					.newInstance(entityId, dataWatcher, true);
-
-			viewers.forEach(viewer -> {
-				sendPacket(viewer, spawnPacket);
-				sendPacket(viewer, metaPacket);
-			});
-
-			final int worldMax = location.getWorld().getMaxHeight();
-			final AtomicReference<SchedulerTask> taskRef = new AtomicReference<>();
-
-			// --- Scheduler Animation Task ---
-			final SchedulerTask task = instance.getScheduler().sync().runRepeating(new Runnable() {
-				int ticks = 0;
-
-				@Override
-				public void run() {
-					ticks++;
-
-					// Stop condition
-					if (ticks > durationTicks) {
-						try {
-							final Object destroyPacket = createDestroyPacket(packetPlayOutEntityDestroy, entityId);
-
-							viewers.forEach(viewer -> sendPacket(viewer, destroyPacket));
-
-						} catch (Exception ex) {
-							ex.printStackTrace();
-						} finally {
-							SchedulerTask t = taskRef.get();
-							if (t != null)
-								t.cancel();
-						}
-						return;
-					}
-
-					// --- Beam Animation ---
-					double pulseStrength = (Math.sin(ticks / 6.0) + 1) / 2.0;
-					float size = 1.5f + (float) pulseStrength * 1.2f;
-
-					for (int yOffset = 0; y + yOffset <= worldMax; yOffset += 3) {
-						Location loc = location.clone().add(0, yOffset, 0);
-						location.getWorld().spawnParticle(Particle.DUST, loc,
-								Math.max(1, (int) (4 + pulseStrength * 8)), 0.15, 0.4, 0.15,
-								new Particle.DustOptions(Color.fromRGB(0, 0, 0), size));
-					}
-
-					location.getWorld().spawnParticle(Particle.LARGE_SMOKE, location.clone().add(0, 0.2, 0),
-							10 + (int) (pulseStrength * 20), 1.0, 0.1, 1.0, 0.02);
-
-					location.getWorld().spawnParticle(Particle.DUST, location.clone().add(0, 0.5, 0),
-							8 + (int) (pulseStrength * 20), 0.7, 0.2, 0.7,
-							new Particle.DustOptions(Color.fromRGB(30, 30, 30), size));
-				}
-			}, 0L, 10L, location);
-
-			taskRef.set(task);
-
-		} catch (Exception ex) {
-			ex.printStackTrace();
-		}
-	}
-
-	private Object createDestroyPacket(Class<?> packetDestroyClass, int entityId) throws Exception {
-		try {
-			Constructor<?> oldCtor = packetDestroyClass.getConstructor(int[].class);
-			return oldCtor.newInstance((Object) new int[] { entityId });
-		} catch (NoSuchMethodException ex) {
-			// 1.20.2+ switched to int constructor
-			Constructor<?> newCtor = packetDestroyClass.getConstructor(int.class);
-			return newCtor.newInstance(entityId);
-		}
-	}
-
-	// --- Shared Utilities ---
-	private static Class<?> getNMSClass(String path) throws ClassNotFoundException {
-		return Class.forName("net.minecraft." + path);
-	}
-
-	private static Object findFieldByType(Object instance, String simpleTypeName) throws Exception {
-		for (Field f : instance.getClass().getFields()) {
-			if (f.getType().getSimpleName().equalsIgnoreCase(simpleTypeName)) {
-				return f.get(instance);
-			}
-		}
-		return null;
-	}
-
-	private static void sendPacket(Player player, Object packet) {
-		try {
-			Object craftPlayer = player.getClass().getMethod("getHandle").invoke(player);
-
-			// Dynamically locate the connection field (changes between versions)
-			Object connection = null;
-			for (Field f : craftPlayer.getClass().getFields()) {
-				if (f.getType().getSimpleName().toLowerCase().contains("servergamepacketlistener")) {
-					connection = f.get(craftPlayer);
-					break;
-				}
-			}
-
-			if (connection == null) {
-				throw new IllegalStateException(
-						"Could not find PlayerConnection / ServerGamePacketListenerImpl field!");
-			}
-
-			Method sendPacket = connection.getClass().getMethod("sendPacket", getNMSClass("network.protocol.Packet"));
-			sendPacket.invoke(connection, packet);
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
-	}
-
-	private void restrictWitherAI(@NotNull Wither wither) {
-		try {
-			Object craftWither = wither; // CraftWither
-			Method getHandle = craftWither.getClass().getMethod("getHandle");
-			Object nmsWither = getHandle.invoke(craftWither);
-
-			// Reflectively locate goal + target selectors
-			Object goalSelector = findFieldByType(nmsWither, "GoalSelector");
-			Object targetSelector = findFieldByType(nmsWither, "GoalSelector");
-
-			if (goalSelector == null || targetSelector == null)
-				throw new IllegalStateException("Could not find goal/target selector fields");
-
-			// Get available goals set
-			Set<?> goals;
-			try {
-				Method getAvailableGoals = goalSelector.getClass().getMethod("getAvailableGoals");
-				goals = (Set<?>) getAvailableGoals.invoke(goalSelector);
-			} catch (NoSuchMethodException e) {
-				Field goalsField = goalSelector.getClass().getDeclaredField("availableGoals");
-				goalsField.setAccessible(true);
-				goals = (Set<?>) goalsField.get(goalSelector);
-			}
-			goals.clear();
-
-			Set<?> targets;
-			try {
-				Method getAvailableGoals = targetSelector.getClass().getMethod("getAvailableGoals");
-				targets = (Set<?>) getAvailableGoals.invoke(targetSelector);
-			} catch (NoSuchMethodException e) {
-				Field goalsField = targetSelector.getClass().getDeclaredField("availableGoals");
-				goalsField.setAccessible(true);
-				targets = (Set<?>) goalsField.get(targetSelector);
-			}
-			targets.clear();
-
-			// Player class changes depending on version
-			Class<?> playerClass;
-			try {
-				playerClass = Class.forName("net.minecraft.server.level.ServerPlayer");
-			} catch (ClassNotFoundException e) {
-				playerClass = Class.forName("net.minecraft.world.entity.player.EntityHuman");
-			}
-
-			Class<?> pathfinderGoalClass = Class
-					.forName("net.minecraft.world.entity.ai.goal.PathfinderGoalNearestAttackableTarget");
-			Class<?> mobClass = Class.forName("net.minecraft.world.entity.Mob");
-
-			Constructor<?> ctor = null;
-			for (Constructor<?> c : pathfinderGoalClass.getConstructors()) {
-				Class<?>[] params = c.getParameterTypes();
-				if (params.length == 3 && params[0].isAssignableFrom(mobClass) && params[1].equals(Class.class)
-						&& params[2] == boolean.class) {
-					ctor = c;
-					break;
-				}
-			}
-
-			if (ctor == null)
-				throw new RuntimeException("Could not find PathfinderGoalNearestAttackableTarget constructor!");
-
-			Object goal = ctor.newInstance(nmsWither, playerClass, true);
-
-			Method addGoal = targetSelector.getClass().getMethod("addGoal", int.class,
-					Class.forName("net.minecraft.world.entity.ai.goal.PathfinderGoal"));
-			addGoal.invoke(targetSelector, 2, goal);
-
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
-	}
-
-	private class CustomWither {
+	public class CustomWither {
 		private final Map<Entity, WitherStats> witherStats = new HashMap<>();
+		private final Map<UUID, Long> witherSpawnTimes = new HashMap<>();
 		private final Map<Integer, Wither> activeIslandWithers = new HashMap<>(); // islandId → Wither
-		private final Map<Integer, Long> spawnCooldowns = new HashMap<>(); // islandId → timestamp
 
-		public void addWither(@NotNull int islandId, @NotNull Wither wither, @NotNull WitherStats stats) {
+		public void addWither(int islandId, @NotNull Wither wither, @NotNull WitherStats stats) {
 			witherStats.put(wither, stats);
 			activeIslandWithers.put(islandId, wither);
-			spawnCooldowns.put(islandId, System.currentTimeMillis());
+			witherSpawnTimes.put(wither.getUniqueId(), System.currentTimeMillis());
+
+			// Persist last spawn time to WitherData
+			getUserDataByIslandId(islandId).ifPresent(user -> {
+				WitherData wd = user.getHellblockData().getWitherData();
+				wd.setLastSpawnTime(System.currentTimeMillis());
+			});
 		}
 
 		public void removeWither(@NotNull Wither wither) {
 			witherStats.remove(wither);
 			activeIslandWithers.values().remove(wither);
+			witherSpawnTimes.remove(wither.getUniqueId());
 		}
 
-		public boolean hasActiveWither(@NotNull int islandId) {
+		public boolean hasActiveWither(int islandId) {
 			return activeIslandWithers.containsKey(islandId);
 		}
 
-		public boolean canSpawn(@NotNull int islandId, long cooldownMillis) {
-			final long last = spawnCooldowns.getOrDefault(islandId, 0L);
-			return System.currentTimeMillis() - last >= cooldownMillis;
+		public Wither getEnhancedWither(int islandId) {
+			return activeIslandWithers.get(islandId);
+		}
+
+		public boolean canSpawn(int islandId, long cooldownMillis) {
+			Optional<UserData> userOpt = getUserDataByIslandId(islandId);
+			if (userOpt.isEmpty())
+				return false;
+
+			WitherData data = userOpt.get().getHellblockData().getWitherData();
+			long lastSpawn = data.getLastSpawnTime();
+			return System.currentTimeMillis() - lastSpawn >= cooldownMillis;
+		}
+
+		public long getSpawnTime(@NotNull Wither wither) {
+			return witherSpawnTimes.getOrDefault(wither.getUniqueId(), System.currentTimeMillis());
 		}
 
 		public @Nullable WitherStats getWitherStats(@NotNull Wither wither) {

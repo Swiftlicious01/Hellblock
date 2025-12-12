@@ -1,7 +1,9 @@
 package com.swiftlicious.hellblock.world;
 
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.PriorityBlockingQueue;
 
@@ -161,7 +163,7 @@ public interface CustomWorldInterface<W> {
 	 *         empty.
 	 */
 	@NotNull
-	Optional<CustomBlockState> getBlockState(Pos3 location);
+	CompletableFuture<Optional<CustomBlockState>> getBlockState(Pos3 location);
 
 	/**
 	 * Removes the block state at a specific location.
@@ -171,7 +173,7 @@ public interface CustomWorldInterface<W> {
 	 *         otherwise empty.
 	 */
 	@NotNull
-	Optional<CustomBlockState> removeBlockState(Pos3 location);
+	CompletableFuture<Optional<CustomBlockState>> removeBlockState(Pos3 location);
 
 	/**
 	 * Adds a block state at a specific location.
@@ -182,7 +184,84 @@ public interface CustomWorldInterface<W> {
 	 *         otherwise empty.
 	 */
 	@NotNull
-	Optional<CustomBlockState> addBlockState(Pos3 location, CustomBlockState block);
+	CompletableFuture<Optional<CustomBlockState>> addBlockState(Pos3 location, CustomBlockState block);
+
+	/**
+	 * Updates the internal custom block state at the specified position and
+	 * schedules a synchronous visual update in the Bukkit world.
+	 *
+	 * <p>
+	 * This method is intended to be called from asynchronous contexts, such as crop
+	 * growth or farmland hydration, where logical world state can be updated safely
+	 * without blocking the main thread.
+	 * </p>
+	 *
+	 * <p>
+	 * The actual visual rendering (e.g., updating the Bukkit {@link Block}) is
+	 * deferred to the main server thread using a scheduled task.
+	 * </p>
+	 *
+	 * @param location the position of the block to update
+	 * @param block    the new custom block state to apply at that position
+	 */
+	CompletableFuture<Void> updateBlockState(Pos3 location, CustomBlockState block);
+
+	/**
+	 * Updates the block state at the specified position if the provided
+	 * {@link Optional} contains a non-null {@link CustomBlockState}.
+	 *
+	 * <p>
+	 * This is a convenience method that delegates to
+	 * {@link #updateBlockState(Pos3, CustomBlockState)} only if a valid block state
+	 * is present. It is commonly used when retrieving block states using
+	 * {@code world.getBlockState(...)} and wanting to safely apply updates only if
+	 * the block exists.
+	 * </p>
+	 *
+	 * @param location the position of the block to update
+	 * @param blockOpt an optional containing the block state to update, or empty if
+	 *                 none
+	 */
+	default void updateBlockStateIfPresent(Pos3 location, Optional<CustomBlockState> blockOpt) {
+		blockOpt.ifPresent(block -> updateBlockState(location, block));
+	}
+
+	/**
+	 * Performs a bulk update of multiple custom block states in this world and
+	 * schedules a single synchronous batch render on the main server thread.
+	 *
+	 * <p>
+	 * This method is intended for use when many block states must be updated at
+	 * once (for example: island-wide crop ticks, mass hydration, or a chunk/region
+	 * operation). It applies the logical updates to the world data structures
+	 * immediately (async-safe) by storing each state in its chunk, and then queues
+	 * a single synchronous task that iterates the same updates and calls
+	 * {@link CustomBlockRenderer#render(CustomBlockState, Pos3, World)} for each
+	 * entry to update the visible Bukkit world. Doing so reduces the number of
+	 * scheduled sync task invocations compared to updating each block individually.
+	 * </p>
+	 *
+	 * <p>
+	 * <strong>Behavioral notes:</strong>
+	 * </p>
+	 * <ul>
+	 * <li>If {@code updates} is {@code null} or empty, this method returns
+	 * immediately.</li>
+	 * <li>Logical updates are applied before the synchronous render task is
+	 * scheduled. The render task will reflect the logical state at the time of
+	 * scheduling, so callers should avoid mutating the provided {@code Map} after
+	 * calling this method.</li>
+	 * <li>Rendering is performed on the main thread via the plugin scheduler; the
+	 * method itself is safe to call from asynchronous contexts.</li>
+	 * <li>Any {@code null} keys or values in the map are ignored.</li>
+	 * </ul>
+	 *
+	 * @param updates a map of positions to {@link CustomBlockState} instances
+	 *                representing the desired state for each position. Keys or
+	 *                values that are {@code null} will be skipped. The method does
+	 *                not mutate this map.
+	 */
+	CompletableFuture<Void> updateBlockStates(Map<Pos3, CustomBlockState> updates);
 
 	/**
 	 * Saves the world data to a file.
@@ -270,7 +349,7 @@ public interface CustomWorldInterface<W> {
 	 * @return The {@link CustomChunk}.
 	 */
 	@NotNull
-	CustomChunk getOrCreateChunk(ChunkPos chunkPos);
+	CompletableFuture<CustomChunk> getOrCreateChunk(ChunkPos chunkPos);
 
 	/**
 	 * Checks if a region is loaded in this world.

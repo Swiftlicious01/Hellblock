@@ -34,11 +34,25 @@ public class StringUtils {
 	}
 
 	public static String toCamelCase(String s) {
-		final String[] parts = s.split("_");
+		if (s == null || s.isEmpty()) {
+			return s;
+		}
+
+		// Split on both underscore and dash
+		final String[] parts = s.split("[-_]+");
 		final StringBuilder camelCaseString = new StringBuilder();
-		for (String part : parts) {
+
+		for (int i = 0; i < parts.length; i++) {
+			String part = parts[i];
+			if (part.isEmpty())
+				continue;
+
+			if (i > 0) {
+				camelCaseString.append(' '); // insert space between words
+			}
 			camelCaseString.append(toProperCase(part));
 		}
+
 		return camelCaseString.toString();
 	}
 

@@ -23,7 +23,9 @@ public class EffectManager implements EffectManagerInterface {
 
 	@Override
 	public void load() {
-		instance.debug("Loaded " + effectModifiers.size() + " effects");
+		instance.debug(effectModifiers.size() > 0
+				? "Loaded " + effectModifiers.size() + " effect" + (effectModifiers.size() == 1 ? "" : "s")
+				: "No effects found to load");
 	}
 
 	@Override

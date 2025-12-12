@@ -5,11 +5,13 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
 
 import org.bukkit.Bukkit;
+import org.bukkit.Color;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
@@ -17,11 +19,13 @@ import org.bukkit.Particle;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
-import org.bukkit.damage.DamageType;
+import org.bukkit.block.data.type.Dispenser;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.LivingEntity;
+import org.bukkit.entity.Mob;
 import org.bukkit.entity.Monster;
+import org.bukkit.entity.PiglinBrute;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Snowball;
 import org.bukkit.entity.Snowman;
@@ -30,12 +34,15 @@ import org.bukkit.entity.WitherSkeleton;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
+import org.bukkit.event.block.Action;
+import org.bukkit.event.block.BlockDispenseEvent;
 import org.bukkit.event.block.BlockPistonExtendEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityCombustEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
+import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.persistence.PersistentDataType;
 import org.jetbrains.annotations.NotNull;
 
@@ -47,6 +54,9 @@ import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.protection.HellblockFlag;
 import com.swiftlicious.hellblock.protection.HellblockFlag.AccessType;
 import com.swiftlicious.hellblock.scheduler.SchedulerTask;
+import com.swiftlicious.hellblock.utils.DamageUtil;
+import com.swiftlicious.hellblock.utils.EntityTypeUtils;
+import com.swiftlicious.hellblock.utils.ParticleUtils;
 import com.swiftlicious.hellblock.utils.RandomUtils;
 
 /**
@@ -79,9 +89,11 @@ public class GolemHandler implements Listener, Reloadable {
 	public void unload() {
 		HandlerList.unregisterAll(this);
 		// cancel all golem tasks
-		golemTargetTasks.values().stream().filter(task -> task != null).forEach(SchedulerTask::cancel);
+		golemTargetTasks.values().stream().filter(Objects::nonNull).filter(task -> !task.isCancelled())
+				.forEach(SchedulerTask::cancel);
 		golemTargetTasks.clear();
-		golemAuraTasks.values().stream().filter(task -> task != null).forEach(SchedulerTask::cancel);
+		golemAuraTasks.values().stream().filter(Objects::nonNull).filter(task -> !task.isCancelled())
+				.forEach(SchedulerTask::cancel);
 		golemAuraTasks.clear();
 	}
 
@@ -94,55 +106,43 @@ public class GolemHandler implements Listener, Reloadable {
 		final Block base = location.getBlock();
 		final List<Block> result = new ArrayList<>();
 
-		// Helper: force normal fire into soul fire with FX
 		final BiConsumer<Block, Block> forceSoulFire = (fireBlock, jackOLantern) -> {
 			if (fireBlock.getType() == Material.FIRE) {
 				fireBlock.setType(Material.SOUL_FIRE);
 			}
 
-			final Location fxLoc = fireBlock.getLocation().add(0.5, 0.5, 0.5);
-
-			// Particles: soul flames + campfire smoke
+			final Location fxLoc = fireBlock.getLocation().clone().add(0.5, 0.5, 0.5);
 			world.spawnParticle(Particle.SOUL_FIRE_FLAME, fxLoc, 12, 0.35, 0.35, 0.35, 0.01);
 			world.spawnParticle(Particle.CAMPFIRE_COSY_SMOKE, fxLoc, 6, 0.25, 0.4, 0.25, 0.01);
 
-			// Jack o’ Lantern flash (glow + light pulse)
-			// Jack o’ Lantern flash (glow + light pulse with fade)
 			if (jackOLantern != null && jackOLantern.getType() == Material.JACK_O_LANTERN) {
-				final Location jackLoc = jackOLantern.getLocation().add(0.5, 0.5, 0.5);
-
-				// Glow particles
+				final Location jackLoc = jackOLantern.getLocation().clone().add(0.5, 0.5, 0.5);
 				world.spawnParticle(Particle.GLOW, jackLoc, 16, 0.4, 0.4, 0.4, 0.05);
 				world.spawnParticle(Particle.END_ROD, jackLoc, 8, 0.25, 0.25, 0.25, 0.02);
 
-				// Temporary fading light pulse (requires LIGHT block support, 1.17+)
-				final Block block = jackOLantern.getLocation().getBlock();
-				final Material original = block.getType();
+				final Block jackBlock = jackOLantern.getLocation().getBlock();
+				final Material original = jackBlock.getType();
 
-				// Replace with LIGHT at max brightness
-				block.setBlockData(Bukkit.createBlockData("minecraft:light[level=15]"), false);
-
-				// Fade steps: 15 → 10 → 5 → original
+				jackBlock.setBlockData(Bukkit.createBlockData("minecraft:light[level=15]"), false);
 				instance.getScheduler().sync().runLater(() -> {
-					if (block.getType() == Material.LIGHT) {
-						block.setBlockData(Bukkit.createBlockData("minecraft:light[level=10]"), false);
+					if (jackBlock.getType() == Material.LIGHT) {
+						jackBlock.setBlockData(Bukkit.createBlockData("minecraft:light[level=10]"), false);
 					}
 				}, 4L, jackLoc);
 
 				instance.getScheduler().sync().runLater(() -> {
-					if (block.getType() == Material.LIGHT) {
-						block.setBlockData(Bukkit.createBlockData("minecraft:light[level=5]"), false);
+					if (jackBlock.getType() == Material.LIGHT) {
+						jackBlock.setBlockData(Bukkit.createBlockData("minecraft:light[level=5]"), false);
 					}
 				}, 8L, jackLoc);
 
 				instance.getScheduler().sync().runLater(() -> {
-					if (block.getType() == Material.LIGHT) {
-						block.setType(original, false); // restore Jack O Lantern
+					if (jackBlock.getType() == Material.LIGHT) {
+						jackBlock.setType(original, false); // restore original block
 					}
 				}, 12L, jackLoc);
 			}
 
-			// Sound with randomized pitch
 			final float pitch = 1.0f
 					+ (RandomUtils.generateRandomFloat(0, 1) - RandomUtils.generateRandomFloat(0, 1)) * 0.4f;
 
@@ -153,52 +153,87 @@ public class GolemHandler implements Listener, Reloadable {
 									net.kyori.adventure.sound.Sound.Source.BLOCK, 0.6f, pitch)));
 		};
 
-		// Pattern 1: Jack O Lantern + 2x Soul Soil + Soul Fire
-		if (base.getType() == Material.JACK_O_LANTERN
-				&& base.getRelative(BlockFace.DOWN).getType() == Material.SOUL_SOIL
-				&& base.getRelative(BlockFace.DOWN, 2).getType() == Material.SOUL_SOIL
-				&& (base.getRelative(BlockFace.UP).getType() == Material.FIRE
-						|| base.getRelative(BlockFace.UP).getType() == Material.SOUL_FIRE)) {
-			final Block jack = base;
-			final Block top = base.getRelative(BlockFace.UP);
-			forceSoulFire.accept(top, jack);
-			result.addAll(List.of(jack, base.getRelative(BlockFace.DOWN), base.getRelative(BlockFace.DOWN, 2), top));
+		// Pattern 1:
+		// [Fire]
+		// [Jack O Lantern]
+		// [Soul Soil]
+		// [Soul Soil]
+		if (matchesPattern1(base)) {
+			Block top = base.getRelative(BlockFace.UP);
+			forceSoulFire.accept(top, base);
+			result.addAll(List.of(base, base.getRelative(BlockFace.DOWN), base.getRelative(BlockFace.DOWN, 2), top));
+			return result;
 		}
 
-		// Pattern 2: Soul Fire + Jack O Lantern + 2x Soul Soil
-		if ((base.getType() == Material.FIRE || base.getType() == Material.SOUL_FIRE)
-				&& base.getRelative(BlockFace.DOWN).getType() == Material.JACK_O_LANTERN
-				&& base.getRelative(BlockFace.DOWN, 2).getType() == Material.SOUL_SOIL
-				&& base.getRelative(BlockFace.DOWN, 3).getType() == Material.SOUL_SOIL) {
-			final Block jack = base.getRelative(BlockFace.DOWN);
+		// Pattern 2:
+		// [Soul Fire]
+		// [Jack O Lantern]
+		// [Soul Soil]
+		// [Soul Soil]
+		if (matchesPattern2(base)) {
+			Block jack = base.getRelative(BlockFace.DOWN);
 			forceSoulFire.accept(base, jack);
 			result.addAll(
 					List.of(base, jack, base.getRelative(BlockFace.DOWN, 2), base.getRelative(BlockFace.DOWN, 3)));
+			return result;
 		}
 
-		// Pattern 3: 2 Soul Soil + Jack O Lantern + Soul Fire
-		if (base.getType() == Material.SOUL_SOIL && base.getRelative(BlockFace.DOWN).getType() == Material.SOUL_SOIL
-				&& base.getRelative(BlockFace.UP).getType() == Material.JACK_O_LANTERN
-				&& (base.getRelative(BlockFace.UP, 2).getType() == Material.FIRE
-						|| base.getRelative(BlockFace.UP, 2).getType() == Material.SOUL_FIRE)) {
-			final Block jack = base.getRelative(BlockFace.UP);
-			final Block top = base.getRelative(BlockFace.UP, 2);
+		// Pattern 3:
+		// [Soul Fire]
+		// [Jack O Lantern]
+		// [Soul Soil]
+		// [Soul Soil]
+		if (matchesPattern3(base)) {
+			Block jack = base.getRelative(BlockFace.UP);
+			Block top = base.getRelative(BlockFace.UP, 2);
 			forceSoulFire.accept(top, jack);
 			result.addAll(List.of(base, base.getRelative(BlockFace.DOWN), jack, top));
+			return result;
 		}
 
-		// Pattern 4: 2 Soul Soil + Jack O Lantern + Soul Fire on top
-		if (base.getType() == Material.SOUL_SOIL && base.getRelative(BlockFace.UP).getType() == Material.SOUL_SOIL
-				&& base.getRelative(BlockFace.UP, 2).getType() == Material.JACK_O_LANTERN
-				&& (base.getRelative(BlockFace.UP, 3).getType() == Material.FIRE
-						|| base.getRelative(BlockFace.UP, 3).getType() == Material.SOUL_FIRE)) {
-			final Block jack = base.getRelative(BlockFace.UP, 2);
-			final Block top = base.getRelative(BlockFace.UP, 3);
+		// Pattern 4:
+		// [Soul Fire]
+		// [Jack O Lantern]
+		// [Soul Soil]
+		// [Soul Soil]
+		if (matchesPattern4(base)) {
+			Block jack = base.getRelative(BlockFace.UP, 2);
+			Block top = base.getRelative(BlockFace.UP, 3);
 			forceSoulFire.accept(top, jack);
 			result.addAll(List.of(base, base.getRelative(BlockFace.UP), jack, top));
+			return result;
 		}
 
 		return result;
+	}
+
+	private boolean isFire(Material type) {
+		return type == Material.FIRE || type == Material.SOUL_FIRE;
+	}
+
+	private boolean matchesPattern1(Block base) {
+		return base.getType() == Material.JACK_O_LANTERN
+				&& base.getRelative(BlockFace.DOWN).getType() == Material.SOUL_SOIL
+				&& base.getRelative(BlockFace.DOWN, 2).getType() == Material.SOUL_SOIL
+				&& isFire(base.getRelative(BlockFace.UP).getType());
+	}
+
+	private boolean matchesPattern2(Block base) {
+		return isFire(base.getType()) && base.getRelative(BlockFace.DOWN).getType() == Material.JACK_O_LANTERN
+				&& base.getRelative(BlockFace.DOWN, 2).getType() == Material.SOUL_SOIL
+				&& base.getRelative(BlockFace.DOWN, 3).getType() == Material.SOUL_SOIL;
+	}
+
+	private boolean matchesPattern3(Block base) {
+		return base.getType() == Material.SOUL_SOIL && base.getRelative(BlockFace.DOWN).getType() == Material.SOUL_SOIL
+				&& base.getRelative(BlockFace.UP).getType() == Material.JACK_O_LANTERN
+				&& isFire(base.getRelative(BlockFace.UP, 2).getType());
+	}
+
+	private boolean matchesPattern4(Block base) {
+		return base.getType() == Material.SOUL_SOIL && base.getRelative(BlockFace.UP).getType() == Material.SOUL_SOIL
+				&& base.getRelative(BlockFace.UP, 2).getType() == Material.JACK_O_LANTERN
+				&& isFire(base.getRelative(BlockFace.UP, 3).getType());
 	}
 
 	@SuppressWarnings("deprecation")
@@ -213,7 +248,7 @@ public class GolemHandler implements Listener, Reloadable {
 			return;
 		}
 
-		instance.getStorageManager().getOfflineUserData(islandOwner, instance.getConfigManager().lockData())
+		instance.getStorageManager().getCachedUserDataWithFallback(islandOwner, instance.getConfigManager().lockData())
 				.thenAccept(optionalUser -> {
 					if (optionalUser.isEmpty()) {
 						return;
@@ -252,7 +287,8 @@ public class GolemHandler implements Listener, Reloadable {
 												net.kyori.adventure.sound.Sound.Source.BLOCK, 0.8f, 0.9f)));
 
 						// spawn hell golem
-						final Snowman hellGolem = (Snowman) world.spawnEntity(location, EntityType.SNOW_GOLEM);
+						final Snowman hellGolem = (Snowman) world.spawnEntity(location,
+								EntityTypeUtils.getCompatibleEntityType("SNOW_GOLEM", "SNOWMAN"));
 						hellGolem.setAware(true);
 						hellGolem.setDerp(false);
 						hellGolem.setVisualFire(true);
@@ -265,20 +301,22 @@ public class GolemHandler implements Listener, Reloadable {
 								stopHellGolemAura(hellGolem.getUniqueId());
 								return;
 							}
-							final Location auraLoc = hellGolem.getLocation().add(0, 1, 0);
+							final Location auraLoc = hellGolem.getLocation().clone().add(0, 1, 0);
 							world.spawnParticle(Particle.SOUL_FIRE_FLAME, auraLoc, 2, 0.2, 0.3, 0.2, 0.01);
-							world.spawnParticle(Particle.SCULK_SOUL, auraLoc, 1, 0.2, 0.3, 0.2, 0.01);
+							world.spawnParticle(ParticleUtils.getParticle("SCULK_SOUL"), auraLoc, 1, 0.2, 0.3, 0.2,
+									0.01);
 						}, 0L, 10L, hellGolem.getLocation()); // every 0.5s
 
 						golemAuraTasks.put(hellGolem.getUniqueId(), auraTask);
 
 						// --- Aura FX on spawn ---
-						final Location golemLoc = hellGolem.getLocation().add(0, 1, 0);
+						final Location golemLoc = hellGolem.getLocation().clone().add(0, 1, 0);
 
 						// Initial flash
 						world.spawnParticle(Particle.SOUL_FIRE_FLAME, golemLoc, 30, 0.6, 1.0, 0.6, 0.05);
-						world.spawnParticle(Particle.SCULK_SOUL, golemLoc, 12, 0.4, 0.8, 0.4, 0.05);
-						world.spawnParticle(Particle.LARGE_SMOKE, golemLoc, 15, 0.6, 0.8, 0.6, 0.02);
+						world.spawnParticle(ParticleUtils.getParticle("SCULK_SOUL"), golemLoc, 12, 0.4, 0.8, 0.4, 0.05);
+						world.spawnParticle(ParticleUtils.getParticle("SMOKE_LARGE"), golemLoc, 15, 0.6, 0.8, 0.6,
+								0.02);
 
 						// Summoning hum sound
 						world.getNearbyEntities(golemLoc, 32, 32, 32, e -> e instanceof Player).stream()
@@ -297,7 +335,7 @@ public class GolemHandler implements Listener, Reloadable {
 								if (hellGolem.isDead() || !hellGolem.isValid() || ticks > 40) {
 									return; // stop aura after 2s
 								}
-								final Location auraLoc = hellGolem.getLocation().add(0, 1, 0);
+								final Location auraLoc = hellGolem.getLocation().clone().add(0, 1, 0);
 								world.spawnParticle(Particle.SOUL_FIRE_FLAME, auraLoc, 6, 0.3, 0.5, 0.3, 0.01);
 								ticks += 5;
 							}
@@ -353,7 +391,7 @@ public class GolemHandler implements Listener, Reloadable {
 						return; // stick with old target
 					}
 
-					if (newTarget != currentTarget) {
+					if (!newTarget.equals(currentTarget)) {
 						golem.setTarget(newTarget);
 					}
 				} else {
@@ -367,14 +405,14 @@ public class GolemHandler implements Listener, Reloadable {
 
 	private void stopHellGolemTargeting(@NotNull UUID golemId) {
 		final SchedulerTask task = golemTargetTasks.remove(golemId);
-		if (task != null) {
+		if (task != null && !task.isCancelled()) {
 			task.cancel();
 		}
 	}
 
 	private void stopHellGolemAura(@NotNull UUID golemId) {
 		final SchedulerTask task = golemAuraTasks.remove(golemId);
-		if (task != null) {
+		if (task != null && !task.isCancelled()) {
 			task.cancel();
 		}
 	}
@@ -389,16 +427,22 @@ public class GolemHandler implements Listener, Reloadable {
 			return Integer.MAX_VALUE; // never target Hell Golems
 		}
 		if (entity instanceof WitherSkeleton ws && instance.getWraithHandler().isWraith(ws)
-				&& instance.getMinionHandler().isMinion(entity)) {
+				&& instance.getMinionHandler().isMinion(ws)) {
 			return 1;
 		}
-		if (instance.getMinionHandler().isMinion(entity)) {
+		if (entity instanceof Mob m && instance.getMinionHandler().isMinion(m)) {
 			return 2;
 		}
-		if (entity instanceof Wither w && instance.getWitherHandler().isEnhancedWither(w)) {
+		if (entity instanceof Mob m && instance.getInvasionHandler().isInvasionMob(m)) {
 			return 3;
 		}
-		return entity instanceof Monster ? 4 : Integer.MAX_VALUE;
+		if (entity instanceof Wither w && instance.getWitherHandler().isEnhancedWither(w)) {
+			return 4;
+		}
+		if (entity instanceof PiglinBrute pg && instance.getInvasionHandler().isBossMob(pg)) {
+			return 5;
+		}
+		return entity instanceof Monster ? 6 : Integer.MAX_VALUE;
 	}
 
 	private LivingEntity pickRandomBestTarget(@NotNull List<LivingEntity> nearby) {
@@ -439,11 +483,14 @@ public class GolemHandler implements Listener, Reloadable {
 		}
 
 		final Block block = event.getBlockPlaced();
-		instance.getCoopManager().getHellblockOwnerOfVisitingIsland(player).thenAccept(ownerUUID -> {
-			if (ownerUUID != null) {
-				spawnHellGolem(player, ownerUUID, block.getLocation());
-			}
-		});
+
+		if (!checkHellGolemBuild(block.getLocation()).isEmpty()) {
+			instance.getCoopManager().getHellblockOwnerOfVisitingIsland(player).thenAccept(ownerUUID -> {
+				if (ownerUUID != null) {
+					spawnHellGolem(player, ownerUUID, block.getLocation());
+				}
+			});
+		}
 	}
 
 	@EventHandler
@@ -457,15 +504,72 @@ public class GolemHandler implements Listener, Reloadable {
 				continue;
 			}
 
-			final Collection<Entity> playersNearby = block.getWorld().getNearbyEntities(block.getLocation(), 25, 25, 25,
-					e -> e.getType() == EntityType.PLAYER);
+			if (!checkHellGolemBuild(block.getLocation()).isEmpty()) {
+				final Collection<Entity> playersNearby = block.getWorld().getNearbyEntities(block.getLocation(), 25, 25,
+						25, e -> e.getType() == EntityType.PLAYER);
 
-			final Player closest = instance.getNetherrackGeneratorHandler().getClosestPlayer(block.getLocation(),
-					playersNearby);
+				final Player closest = instance.getNetherrackGeneratorHandler().getClosestPlayer(block.getLocation(),
+						playersNearby);
+				if (closest != null) {
+					instance.getCoopManager().getHellblockOwnerOfVisitingIsland(closest).thenAccept(ownerUUID -> {
+						if (ownerUUID != null) {
+							spawnHellGolem(closest, ownerUUID, block.getLocation());
+						}
+					});
+				}
+			}
+		}
+	}
+
+	@EventHandler
+	public void onDispenserUse(BlockDispenseEvent event) {
+		if (event.getItem().getType() != Material.FLINT_AND_STEEL)
+			return;
+
+		Block dispenser = event.getBlock();
+		if (!instance.getHellblockHandler().isInCorrectWorld(dispenser.getWorld()))
+			return;
+
+		BlockFace facing = ((Dispenser) dispenser.getState().getBlockData()).getFacing();
+		Block targetBlock = dispenser.getRelative(facing);
+
+		if (!checkHellGolemBuild(targetBlock.getLocation()).isEmpty()) {
+			// Find the nearest player to attribute the spawn
+			Collection<Entity> nearby = targetBlock.getWorld().getNearbyEntities(targetBlock.getLocation(), 25, 25, 25,
+					e -> e instanceof Player);
+			Player closest = instance.getNetherrackGeneratorHandler().getClosestPlayer(targetBlock.getLocation(),
+					nearby);
 			if (closest != null) {
 				instance.getCoopManager().getHellblockOwnerOfVisitingIsland(closest).thenAccept(ownerUUID -> {
 					if (ownerUUID != null) {
-						spawnHellGolem(closest, ownerUUID, block.getLocation());
+						spawnHellGolem(closest, ownerUUID, targetBlock.getLocation());
+					}
+				});
+			}
+		}
+	}
+
+	@EventHandler
+	public void onPlayerIgnite(PlayerInteractEvent event) {
+		if (event.getItem() == null || event.getItem().getType() != Material.FLINT_AND_STEEL)
+			return;
+		if (event.getAction() != Action.RIGHT_CLICK_BLOCK)
+			return;
+		if (event.getClickedBlock() == null)
+			return;
+
+		Block clicked = event.getClickedBlock();
+		Block above = clicked.getRelative(BlockFace.UP);
+
+		if (!instance.getHellblockHandler().isInCorrectWorld(clicked.getWorld()))
+			return;
+
+		if (above.getType() == Material.FIRE) {
+			if (!checkHellGolemBuild(clicked.getLocation()).isEmpty()) {
+				Player player = event.getPlayer();
+				instance.getCoopManager().getHellblockOwnerOfVisitingIsland(player).thenAccept(ownerUUID -> {
+					if (ownerUUID != null) {
+						spawnHellGolem(player, ownerUUID, clicked.getLocation());
 					}
 				});
 			}
@@ -489,9 +593,10 @@ public class GolemHandler implements Listener, Reloadable {
 		if (!instance.getHellblockHandler().isInCorrectWorld(entity.getWorld())) {
 			return;
 		}
-		if (entity instanceof Snowman snowman && isHellGolem(snowman)
-				&& event.getDamageSource().getDamageType() == DamageType.ON_FIRE) {
-			event.setCancelled(true);
+		if (entity instanceof Snowman snowman && isHellGolem(snowman)) {
+			if (DamageUtil.isFireDamage(event)) {
+				event.setCancelled(true);
+			}
 		}
 	}
 
@@ -524,13 +629,13 @@ public class GolemHandler implements Listener, Reloadable {
 		}
 
 		// enhanced damage and FX
-		if (instance.getMinionHandler().isMinion(living)) {
+		if (living instanceof Mob mob && instance.getMinionHandler().isMinion(mob)) {
 			final double newDamage = baseDamage * 1.5;
 			event.setDamage(newDamage);
 
 			// FX
-			living.getWorld().spawnParticle(Particle.LARGE_SMOKE, living.getLocation().add(0, 0.5, 0), 8, 0.25, 0.25,
-					0.25, 0.02);
+			living.getWorld().spawnParticle(ParticleUtils.getParticle("SMOKE_LARGE"),
+					living.getLocation().clone().add(0, 0.5, 0), 8, 0.25, 0.25, 0.25, 0.02);
 			living.getWorld().getNearbyEntities(living.getLocation(), 16, 16, 16, e -> e instanceof Player).stream()
 					.map(e -> (Player) e)
 					.forEach(player -> AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
@@ -538,12 +643,74 @@ public class GolemHandler implements Listener, Reloadable {
 									net.kyori.adventure.key.Key.key("minecraft:entity.blaze.hurt"),
 									net.kyori.adventure.sound.Sound.Source.HOSTILE, 0.8f, 1.1f)));
 
+		} else if (living instanceof Mob mob && instance.getInvasionHandler().isInvasionMob(mob)) {
+			final double newDamage = baseDamage * 1.15;
+			event.setDamage(newDamage);
+
+			World world = living.getWorld();
+			Location center = living.getLocation().clone().add(0, 1, 0);
+
+			// Particles: ash + angry villager + portal shimmer
+			world.spawnParticle(Particle.ASH, center, 10, 0.3, 0.4, 0.3, 0.02);
+			world.spawnParticle(ParticleUtils.getParticle("VILLAGER_ANGRY"), center, 2, 0.1, 0.2, 0.1, 0.0);
+			world.spawnParticle(Particle.PORTAL, center, 6, 0.25, 0.25, 0.25, 0.05);
+
+			// Sounds: piglin ambient + enderman teleport (chaotic vibe) + ghast moan
+			// (quiet)
+			world.getNearbyEntities(center, 24, 24, 24, e -> e instanceof Player).stream().map(e -> (Player) e)
+					.map(player -> instance.getSenderFactory().getAudience(player)).forEach(audience -> {
+						AdventureHelper.playSound(audience,
+								net.kyori.adventure.sound.Sound.sound(
+										net.kyori.adventure.key.Key.key("minecraft:entity.piglin.ambient"),
+										net.kyori.adventure.sound.Sound.Source.HOSTILE, 1.0f, 1.2f));
+						AdventureHelper.playSound(audience,
+								net.kyori.adventure.sound.Sound.sound(
+										net.kyori.adventure.key.Key.key("minecraft:entity.enderman.teleport"),
+										net.kyori.adventure.sound.Sound.Source.HOSTILE, 0.5f, 1.4f));
+						AdventureHelper.playSound(audience,
+								net.kyori.adventure.sound.Sound.sound(
+										net.kyori.adventure.key.Key.key("minecraft:entity.ghast.moan"),
+										net.kyori.adventure.sound.Sound.Source.HOSTILE, 0.3f, 0.6f));
+					});
+
+		} else if (living instanceof PiglinBrute brute && instance.getInvasionHandler().isBossMob(brute)) {
+			final double newDamage = baseDamage * 1.05;
+			event.setDamage(newDamage);
+
+			// Particles: lava + redstone + block crack for brute brutality
+			World world = living.getWorld();
+			Location center = living.getLocation().clone().add(0, 1, 0);
+
+			world.spawnParticle(Particle.LAVA, center, 6, 0.25, 0.4, 0.25, 0.01);
+			world.spawnParticle(ParticleUtils.getParticle("BLOCK_DUST"), center, 10, 0.3, 0.5, 0.3, 0.02,
+					Bukkit.createBlockData(Material.NETHERRACK));
+			world.spawnParticle(ParticleUtils.getParticle("REDSTONE"), center, 12, 0.3, 0.3, 0.3, 1.0,
+					new Particle.DustOptions(Color.fromRGB(255, 85, 0), 1.2f)); // fiery red-orange
+
+			// Sound: piglin brute step + anvil land for weight + blaze shoot (layered)
+			world.getNearbyEntities(center, 32, 32, 32, e -> e instanceof Player).stream().map(e -> (Player) e)
+					.map(player -> instance.getSenderFactory().getAudience(player)).forEach(audience -> {
+						AdventureHelper.playSound(audience,
+								net.kyori.adventure.sound.Sound.sound(
+										net.kyori.adventure.key.Key.key("minecraft:entity.piglin_brute.angry"),
+										net.kyori.adventure.sound.Sound.Source.HOSTILE, 1.1f, 0.85f));
+						AdventureHelper.playSound(audience,
+								net.kyori.adventure.sound.Sound.sound(
+										net.kyori.adventure.key.Key.key("minecraft:block.anvil.land"),
+										net.kyori.adventure.sound.Sound.Source.HOSTILE, 0.6f, 0.6f));
+						AdventureHelper.playSound(audience,
+								net.kyori.adventure.sound.Sound.sound(
+										net.kyori.adventure.key.Key.key("minecraft:entity.blaze.shoot"),
+										net.kyori.adventure.sound.Sound.Source.HOSTILE, 0.8f, 1.6f));
+					});
+
 		} else if (living instanceof Wither wither && instance.getWitherHandler().isEnhancedWither(wither)) {
 			final double newDamage = baseDamage * 1.25;
 			event.setDamage(newDamage);
 
 			// FX
-			living.getWorld().spawnParticle(Particle.FLAME, living.getLocation().add(0, 1, 0), 8, 0.3, 0.3, 0.3, 0.05);
+			living.getWorld().spawnParticle(Particle.FLAME, living.getLocation().clone().add(0, 1, 0), 8, 0.3, 0.3, 0.3,
+					0.05);
 
 			living.getWorld().getNearbyEntities(living.getLocation(), 32, 32, 32, e -> e instanceof Player).stream()
 					.map(e -> (Player) e)
@@ -563,7 +730,7 @@ public class GolemHandler implements Listener, Reloadable {
 		if (!instance.getHellblockHandler().isInCorrectWorld(event.getEntity().getWorld())) {
 			return;
 		}
-		if (event.getEntityType() != EntityType.SNOW_GOLEM) {
+		if (event.getEntityType() != EntityTypeUtils.getCompatibleEntityType("SNOW_GOLEM", "SNOWMAN")) {
 			return;
 		}
 
@@ -581,7 +748,11 @@ public class GolemHandler implements Listener, Reloadable {
 			return;
 		}
 
-		instance.getStorageManager().getOnlineUser(killer.getUniqueId()).ifPresent(
-				user -> instance.getChallengeManager().handleChallengeProgression(killer, ActionType.SLAY, snowman));
+		instance.getStorageManager().getOnlineUser(killer.getUniqueId()).ifPresent(userData -> {
+			if (instance.getCooldownManager().shouldUpdateActivity(killer.getUniqueId(), 5000)) {
+				userData.getHellblockData().updateLastIslandActivity();
+			}
+			instance.getChallengeManager().handleChallengeProgression(userData, ActionType.SLAY, snowman);
+		});
 	}
 }

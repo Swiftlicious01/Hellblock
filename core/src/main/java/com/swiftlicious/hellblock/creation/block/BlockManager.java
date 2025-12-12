@@ -1,5 +1,7 @@
 package com.swiftlicious.hellblock.creation.block;
 
+import static java.util.Objects.requireNonNull;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -8,7 +10,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.ThreadLocalRandom;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Instrument;
@@ -48,8 +49,6 @@ import com.swiftlicious.hellblock.utils.extras.Tuple;
 
 import dev.dejvokep.boostedyaml.block.implementation.Section;
 
-import static java.util.Objects.requireNonNull;
-
 public class BlockManager implements BlockManagerInterface, Listener {
 
 	protected final HellblockPlugin instance;
@@ -63,7 +62,7 @@ public class BlockManager implements BlockManagerInterface, Listener {
 		this.instance = plugin;
 	}
 
-	public void init() {
+	public void registerProviders() {
 		this.registerBuiltInProperties();
 		this.registerBlockProvider(new BlockProvider() {
 			@Override
@@ -114,9 +113,12 @@ public class BlockManager implements BlockManagerInterface, Listener {
 		this.resetBlockDetectionOrder();
 		blockProviders.values()
 				.forEach(provider -> instance.debug("Registered BlockProvider: " + provider.identifier()));
-		instance.debug("Loaded " + blocks.size() + " blocks");
-		instance.debug("Block order: " + Arrays.toString(
-				Arrays.stream(blockDetectArray).map(ExternalProvider::identifier).toList().toArray(new String[0])));
+		instance.debug(blocks.size() > 0 ? "Loaded " + blocks.size() + " block" + (blocks.size() == 1 ? "" : "s")
+				: "No blocks found to load");
+		if (blockDetectArray.length > 0) {
+			instance.debug("Block order: " + Arrays.toString(
+					Arrays.stream(blockDetectArray).map(ExternalProvider::identifier).toList().toArray(new String[0])));
+		}
 	}
 
 	@Override
@@ -326,8 +328,7 @@ public class BlockManager implements BlockManagerInterface, Listener {
 			final boolean arg = (boolean) args;
 			return (context, blockData) -> {
 				if (arg && blockData instanceof Rotatable rotatable) {
-					rotatable.setRotation(
-							BlockFace.values()[ThreadLocalRandom.current().nextInt(BlockFace.values().length)]);
+					rotatable.setRotation(BlockFace.values()[RandomUtils.generateRandomInt(BlockFace.values().length)]);
 				}
 			};
 		});

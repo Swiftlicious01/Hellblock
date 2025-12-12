@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -13,7 +14,6 @@ import java.util.concurrent.ConcurrentMap;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
-import org.bukkit.event.Event.Result;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
@@ -78,9 +78,18 @@ public class FlagsGUIManager implements FlagsGUIManagerInterface, Listener {
 	}
 
 	private void loadConfig() {
-		Section config = instance.getConfigManager().getGuiConfig().getSection("flags.gui");
+		Section configFile = instance.getConfigManager().getGUIConfig("flags.yml");
+		if (configFile == null) {
+			instance.getPluginLogger().severe("GUI for flags.yml was unable to load correctly!");
+			return;
+		}
+		Section config = configFile.getSection("flags.gui");
+		if (config == null) {
+			instance.getPluginLogger().severe("flags.gui returned null, please regenerate your flags.yml GUI file.");
+			return;
+		}
 
-		this.layout = config.getStringList("layout").toArray(new String[0]);
+		this.layout = config.getStringList("layout", new ArrayList<>()).toArray(new String[0]);
 		this.title = TextValue.auto(config.getString("title", "flags.title"));
 		this.highlightSelection = config.getBoolean("highlight-selected-flags", true);
 
@@ -122,7 +131,7 @@ public class FlagsGUIManager implements FlagsGUIManagerInterface, Listener {
 
 						flagIcons.add(Tuple.of(symbol, innerSection,
 								Tuple.of(
-										new SingleItemParser("flag", innerSection,
+										new SingleItemParser(flag.toString().toLowerCase(), innerSection,
 												instance.getConfigManager().getItemFormatFunctions()).getItem(),
 										flag, instance.getActionManager(Player.class)
 												.parseActions(innerSection.getSection("action")))));
@@ -163,14 +172,8 @@ public class FlagsGUIManager implements FlagsGUIManagerInterface, Listener {
 		}
 	}
 
-	/**
-	 * Open the Flags GUI for a player
-	 *
-	 * @param player  player
-	 * @param isOwner is player owner
-	 */
 	@Override
-	public boolean openFlagsGUI(Player player, boolean isOwner) {
+	public boolean openFlagsGUI(Player player, int islandId, boolean isOwner) {
 		Optional<UserData> optionalUserData = instance.getStorageManager().getOnlineUser(player.getUniqueId());
 		if (optionalUserData.isEmpty()) {
 			instance.getPluginLogger()
@@ -178,7 +181,8 @@ public class FlagsGUIManager implements FlagsGUIManagerInterface, Listener {
 			return false;
 		}
 		Context<Player> context = Context.player(player);
-		FlagsGUI gui = new FlagsGUI(this, context, optionalUserData.get().getHellblockData(), isOwner);
+		Context<Integer> islandContext = Context.island(islandId);
+		FlagsGUI gui = new FlagsGUI(this, context, islandContext, optionalUserData.get().getHellblockData(), isOwner);
 		gui.addElement(new FlagsDynamicGUIElement(backSlot, new ItemStack(Material.AIR)));
 		flagIcons.forEach(flag -> gui.addElement(new FlagsDynamicGUIElement(flag.left(), new ItemStack(Material.AIR))));
 		decorativeIcons.entrySet().forEach(
@@ -233,7 +237,17 @@ public class FlagsGUIManager implements FlagsGUIManagerInterface, Listener {
 			return;
 		}
 
-		event.setResult(Result.DENY);
+		// Check if any dragged slot is in the GUI (top inventory)
+		for (int slot : event.getRawSlots()) {
+			if (slot < event.getInventory().getSize()) {
+				event.setCancelled(true);
+				return;
+			}
+		}
+
+		// If the drag is only in the player inventory, do nothing special
+		// but still make sure no ghost items appear
+		event.setCancelled(true);
 
 		// Refresh the GUI
 		instance.getScheduler().sync().runLater(gui::refresh, 1, player.getLocation());
@@ -263,7 +277,13 @@ public class FlagsGUIManager implements FlagsGUIManagerInterface, Listener {
 			return;
 		}
 
-		if (clickedInv != player.getInventory()) {
+		// Handle shift-clicks, number keys, or clicking outside GUI
+		if (event.getClick().isShiftClick() || event.getClick().isKeyboardClick()) {
+			event.setCancelled(true);
+			return;
+		}
+
+		if (!Objects.equals(clickedInv, player.getInventory())) {
 			int slot = event.getSlot();
 			FlagsGUIElement element = gui.getElement(slot);
 			if (element == null) {
@@ -282,13 +302,15 @@ public class FlagsGUIManager implements FlagsGUIManagerInterface, Listener {
 
 			Pair<CustomItem, Action<Player>[]> decorativeIcon = this.decorativeIcons.get(element.getSymbol());
 			if (decorativeIcon != null) {
+				event.setCancelled(true);
 				ActionManager.trigger(gui.context, decorativeIcon.right());
 				return;
 			}
 
 			if (element.getSymbol() == backSlot) {
 				event.setCancelled(true);
-				instance.getHellblockGUIManager().openHellblockGUI(gui.context.holder(), gui.isOwner);
+				instance.getHellblockGUIManager().openHellblockGUI(gui.context.holder(), gui.islandContext.holder(),
+						gui.isOwner);
 				ActionManager.trigger(gui.context, backActions);
 				return;
 			}
@@ -317,19 +339,23 @@ public class FlagsGUIManager implements FlagsGUIManagerInterface, Listener {
 				if (element.getSymbol() == flag.left()) {
 					event.setCancelled(true);
 					FlagType flagType = flag.right().mid();
-					instance.getProtectionManager().changeProtectionFlag(gui.context.holder().getWorld(),
-							gui.context.holder().getUniqueId(),
-							new HellblockFlag(flagType,
-									(gui.hellblockData.getProtectionValue(flagType) == AccessType.ALLOW
-											? AccessType.DENY
-											: AccessType.ALLOW)));
-					ActionManager.trigger(gui.context, flag.right().right());
+					instance.getWorldManager().getWorld(gui.context.holder().getWorld()).ifPresent(world -> {
+						instance.getProtectionManager().changeProtectionFlag(world, gui.context.holder().getUniqueId(),
+								new HellblockFlag(flagType,
+										(gui.hellblockData.getProtectionValue(flagType) == AccessType.ALLOW
+												? AccessType.DENY
+												: AccessType.ALLOW)));
+						ActionManager.trigger(gui.context, flag.right().right());
+					});
 					break;
 				}
 			}
 		}
 
 		// Refresh the GUI
+		if (instance.getCooldownManager().shouldUpdateActivity(player.getUniqueId(), 15000)) {
+			gui.hellblockData.updateLastIslandActivity();
+		}
 		instance.getScheduler().sync().runLater(gui::refresh, 1, player.getLocation());
 	}
 }

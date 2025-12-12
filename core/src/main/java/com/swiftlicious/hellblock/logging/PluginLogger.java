@@ -19,5 +19,4 @@ public interface PluginLogger {
 	void severe(String s);
 
 	void severe(String s, Throwable t);
-
 }

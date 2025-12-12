@@ -1,0 +1,459 @@
+# =========================================================
+#                     ⚒️ Tools Configuration ⚒️
+# =========================================================
+# This file defines all custom tool sets for the Hellblock plugin.
+# Each tool set (e.g., netherrack, glowstone, quartz, netherstar)
+# contains 5 tool types: pickaxe, axe, shovel, hoe, and sword.
+#
+# ───────────────
+# 🔧 Structure
+# ───────────────
+# tools:
+#   <set-name>:                    # Example: netherrack, glowstone, etc.
+#     <tool-type>:                 # One of: pickaxe, axe, shovel, hoe, sword
+#       enable: true|false         # Whether this tool is active
+#       night-vision: true|false   # (Optional) Grants Night Vision when held
+#       material: <MATERIAL>       # Base Bukkit material for the tool
+#
+#       crafting:
+#         ingredients:               # Symbol-to-material mapping
+#           <MATERIAL>: '<CHAR>'
+#           AIR: 'A'
+#         recipe:                  # 3x3 crafting grid
+#           - 'XYZ'
+#           - 'XYZ'
+#           - 'XYZ'
+#
+#       display:
+#         name: '<color>Tool Name' # Supports MiniMessage-style color tags
+#         lore:
+#           - '<gray>Description line'
+#
+#       enchantments:              # Vanilla enchantments on creation
+#         minecraft:<enchant>: <level>
+#
+# ───────────────
+# 🧱 Example
+# ───────────────
+# tools:
+#   quartz:
+#     pickaxe:
+#       enable: true
+#       material: IRON_PICKAXE
+#       crafting:
+#         ingredients:
+#           QUARTZ: 'Q'
+#           BONE: 'B'
+#           AIR: 'A'
+#         recipe:
+#           - 'QQQ'
+#           - 'ABA'
+#           - 'ABA'
+#       display:
+#         name: '<gray>Quartz Pickaxe'
+#         lore:
+#           - '<dark_red>Pickaxe but Nethery'
+#       enchantments:
+#         minecraft:efficiency: 1
+#         minecraft:unbreaking: 1
+#
+# ───────────────
+# 💡 Notes
+# ───────────────
+# • MiniMessage color tags are supported (<red>, <bold>, etc.).
+# • Ensure recipes form valid 3x3 grids using 'A' for air slots.
+# • Set "enable: false" to temporarily disable a tool.
+# • "night-vision: true" makes Glowstone tools apply Night Vision when held.
+# • Recipes register automatically at startup and can reload dynamically.
+# =========================================================
+
+tools:
+  netherrack:
+    pickaxe:
+      enable: true
+      material: STONE_PICKAXE
+      crafting:
+        ingredients:
+          NETHERRACK: 'N'
+          BONE: 'B'
+          AIR: 'A'
+        recipe:
+          - 'NNN'
+          - 'ABA'
+          - 'ABA'
+      display:
+        name: '<red>Nether Pickaxe'
+        lore:
+          - '<dark_red>Pickaxe but Nethery'
+      enchantments:
+        minecraft:efficiency: 1
+        minecraft:unbreaking: 1
+    axe:
+      enable: true
+      material: STONE_AXE
+      crafting:
+        ingredients:
+          NETHERRACK: 'N'
+          BONE: 'B'
+          AIR: 'A'
+        recipe:
+          - 'NNA'
+          - 'NBA'
+          - 'ABA'
+      display:
+        name: '<red>Nether Axe'
+        lore:
+          - '<dark_red>Axe but Nethery'
+      enchantments:
+        minecraft:efficiency: 1
+        minecraft:unbreaking: 1
+    shovel:
+      enable: true
+      material: STONE_SHOVEL
+      crafting: 
+        ingredients:
+          NETHERRACK: 'N'
+          BONE: 'B'
+          AIR: 'A' 
+        recipe:
+          - 'ANA'
+          - 'ABA'
+          - 'ABA'
+      display:
+        name: '<red>Nether Shovel'
+        lore:
+          - '<dark_red>Shovel but Nethery'
+      enchantments:
+        minecraft:efficiency: 1
+        minecraft:unbreaking: 1
+    hoe:
+      enable: true
+      material: STONE_HOE
+      crafting:
+        ingredients:
+          NETHERRACK: 'N'
+          BONE: 'B'
+          AIR: 'A'
+        recipe:
+          - 'NNA'
+          - 'ABA'
+          - 'ABA'
+      display:
+        name: '<red>Nether Hoe'
+        lore:
+          - '<dark_red>Hoe but Nethery'
+      enchantments:
+        minecraft:efficiency: 1
+        minecraft:unbreaking: 1
+    sword:
+      enable: true
+      material: STONE_SWORD
+      crafting:
+        ingredients:
+          NETHERRACK: 'N'
+          BONE: 'B'
+          AIR: 'A'
+        recipe:
+          - 'ANA'
+          - 'ANA'
+          - 'ABA'
+      display:
+        name: '<red>Nether Sword'
+        lore:
+          - '<dark_red>Sword but Nethery'
+      enchantments:
+        minecraft:sharpness: 1
+        minecraft:unbreaking: 1
+  glowstone:
+    pickaxe: 
+      enable: true
+      night-vision: true
+      material: GOLDEN_PICKAXE
+      crafting: 
+        ingredients:
+          GLOWSTONE: 'G' 
+          BONE: 'B'
+          AIR: 'A'
+        recipe:
+          - 'GGG'
+          - 'ABA'
+          - 'ABA'
+      display:
+        name: '<yellow>Glowstone Pickaxe'
+        lore:
+          - '<dark_red>Pickaxe but Nethery'
+      enchantments:
+        minecraft:efficiency: 1
+        minecraft:unbreaking: 1
+    axe:
+      enable: true
+      night-vision: true 
+      material: GOLDEN_AXE
+      crafting:
+        ingredients: 
+          GLOWSTONE: 'G'
+          BONE: 'B'
+          AIR: 'A'
+        recipe:
+          - 'GGA'
+          - 'GBA'
+          - 'ABA'
+      display:
+        name: '<yellow>Glowstone Axe'
+        lore:
+          - '<dark_red>Axe but Nethery'
+      enchantments:
+        minecraft:efficiency: 1
+        minecraft:unbreaking: 1
+    shovel:
+      enable: true 
+      night-vision: true
+      material: GOLDEN_SHOVEL
+      crafting:
+        ingredients:
+          GLOWSTONE: 'G'
+          BONE: 'B'
+          AIR: 'A'
+        recipe:
+          - 'AGA'
+          - 'ABA'
+          - 'ABA'
+      display:
+        name: '<yellow>Glowstone Shovel'
+        lore:
+          - '<dark_red>Shovel but Nethery'
+      enchantments:
+        minecraft:efficiency: 1
+        minecraft:unbreaking: 1
+    hoe:
+      enable: true
+      night-vision: true
+      material: GOLDEN_HOE
+      crafting:
+        ingredients:
+          GLOWSTONE: 'G'
+          BONE: 'B'
+          AIR: 'A'
+        recipe:
+          - 'GGA'
+          - 'ABA'
+          - 'ABA'
+      display:
+        name: '<yellow>Glowstone Hoe'
+        lore:
+          - '<dark_red>Hoe but Nethery'
+      enchantments:
+        minecraft:efficiency: 1
+        minecraft:unbreaking: 1
+    sword:
+      enable: true
+      night-vision: true
+      material: GOLDEN_SWORD
+      crafting:
+        ingredients:
+          GLOWSTONE: 'G'
+          BONE: 'B'
+          AIR: 'A'
+        recipe:
+          - 'AGA'
+          - 'AGA'
+          - 'ABA'
+      display:
+        name: '<yellow>Glowstone Sword'
+        lore:
+          - '<dark_red>Sword but Nethery'
+      enchantments:
+        minecraft:sharpness: 1
+        minecraft:unbreaking: 1
+  quartz:
+    pickaxe:
+      enable: true
+      material: IRON_PICKAXE
+      crafting:
+        ingredients:
+          QUARTZ: 'Q'
+          BONE: 'B'
+          AIR: 'A'
+        recipe:
+          - 'QQQ'
+          - 'ABA'
+          - 'ABA'
+      display:
+        name: '<gray>Quartz Pickaxe'
+        lore:
+          - '<dark_red>Pickaxe but Nethery'
+      enchantments:
+        minecraft:efficiency: 1
+        minecraft:unbreaking: 1
+    axe:
+      enable: true
+      material: IRON_AXE 
+      crafting:
+        ingredients:
+          QUARTZ: 'Q'
+          BONE: 'B'
+          AIR: 'A'
+        recipe:
+          - 'QQA'
+          - 'QBA'
+          - 'ABA'
+      display:
+        name: '<gray>Quartz Axe'
+        lore:
+          - '<dark_red>Axe but Nethery'
+      enchantments:
+        minecraft:efficiency: 1
+        minecraft:unbreaking: 1
+    shovel:
+      enable: true
+      material: IRON_SHOVEL
+      crafting:
+        ingredients:
+          QUARTZ: 'Q'
+          BONE: 'B'
+          AIR: 'A'
+        recipe:
+          - 'AQA'
+          - 'ABA'
+          - 'ABA'
+      display:
+        name: '<gray>Quartz Shovel'
+        lore:
+          - '<dark_red>Shovel but Nethery'
+      enchantments:
+        minecraft:efficiency: 1
+        minecraft:unbreaking: 1
+    hoe:
+      enable: true 
+      material: IRON_HOE
+      crafting:
+        ingredients:
+          QUARTZ: 'Q'
+          BONE: 'B'
+          AIR: 'A'
+        recipe:
+          - 'QQA'
+          - 'ABA'
+          - 'ABA'
+      display:
+        name: '<gray>Quartz Hoe'
+        lore:
+          - '<dark_red>Hoe but Nethery'
+      enchantments:
+        minecraft:efficiency: 1
+        minecraft:unbreaking: 1
+    sword:
+      enable: true
+      material: IRON_SWORD
+      crafting:
+        ingredients:
+          QUARTZ: 'Q'
+          BONE: 'B'
+          AIR: 'A'
+        recipe:
+          - 'AQA'
+          - 'AQA'
+          - 'ABA'
+      display:
+        name: '<gray>Quartz Sword'
+        lore:
+          - '<dark_red>Sword but Nethery'
+      enchantments:
+        minecraft:sharpness: 1
+        minecraft:unbreaking: 1
+  netherstar:
+    pickaxe:
+      enable: true
+      material: DIAMOND_PICKAXE
+      crafting:
+        ingredients:
+          NETHER_STAR: 'N'
+          BONE: 'B'
+          AIR: 'A'
+        recipe:
+          - 'NNN'
+          - 'ABA'
+          - 'ABA'
+      display:
+        name: '<aqua>Nether Star Pickaxe'
+        lore:
+          - '<dark_red>Pickaxe but Nethery'
+      enchantments:
+        minecraft:efficiency: 1
+        minecraft:unbreaking: 1
+    axe:
+      enable: true
+      material: DIAMOND_AXE
+      crafting:
+        ingredients:
+          NETHER_STAR: 'N'
+          BONE: 'B'
+          AIR: 'A'
+        recipe:
+          - 'NNA'
+          - 'NBA'
+          - 'ABA'
+      display:
+        name: '<aqua>Nether Star Axe'
+        lore:
+          - '<dark_red>Axe but Nethery'
+      enchantments:
+        minecraft:efficiency: 1
+        minecraft:unbreaking: 1
+    shovel:
+      enable: true
+      material: DIAMOND_SHOVEL
+      crafting:
+        ingredients:
+          NETHER_STAR: 'N'
+          BONE: 'B'
+          AIR: 'A'
+        recipe:
+          - 'ANA'
+          - 'ABA'
+          - 'ABA'
+      display:
+        name: '<aqua>Nether Star Shovel'
+        lore:
+          - '<dark_red>Shovel but Nethery'
+      enchantments:
+        minecraft:efficiency: 1
+        minecraft:unbreaking: 1
+    hoe:
+      enable: true
+      material: DIAMOND_HOE
+      crafting:
+        ingredients:
+          NETHER_STAR: 'N'
+          BONE: 'B'
+          AIR: 'A'
+        recipe:
+          - 'NNA'
+          - 'ABA'
+          - 'ABA'
+      display:
+        name: '<aqua>Nether Star Hoe'
+        lore:
+          - '<dark_red>Hoe but Nethery'
+      enchantments:
+        minecraft:efficiency: 1
+        minecraft:unbreaking: 1
+    sword:
+      enable: true
+      material: DIAMOND_SWORD
+      crafting:
+        ingredients:
+          NETHER_STAR: 'N'
+          BONE: 'B'
+          AIR: 'A'
+        recipe:
+          - 'ANA'
+          - 'ANA'
+          - 'ABA'
+      display:
+        name: '<aqua>Nether Star Sword'
+        lore:
+          - '<dark_red>Sword but Nethery'
+      enchantments:
+        minecraft:sharpness: 1
+        minecraft:unbreaking: 1

@@ -13,7 +13,6 @@ import java.util.concurrent.ConcurrentMap;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
-import org.bukkit.event.Event.Result;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
@@ -91,9 +90,19 @@ public class InviteGUIManager implements InviteGUIManagerInterface, Listener {
 	}
 
 	private void loadConfig() {
-		Section config = instance.getConfigManager().getGuiConfig().getSection("invitation.gui");
+		Section configFile = instance.getConfigManager().getGUIConfig("invites.yml");
+		if (configFile == null) {
+			instance.getPluginLogger().severe("GUI for invites.yml was unable to load correctly!");
+			return;
+		}
+		Section config = configFile.getSection("invitation.gui");
+		if (config == null) {
+			instance.getPluginLogger()
+					.severe("invitation.gui returned null, please regenerate your invites.yml GUI file.");
+			return;
+		}
 
-		this.layout = config.getStringList("layout").toArray(new String[0]);
+		this.layout = config.getStringList("layout", new ArrayList<>()).toArray(new String[0]);
 		this.title = TextValue.auto(config.getString("title", "invite.title"));
 
 		Section backSection = config.getSection("back-icon");
@@ -209,14 +218,8 @@ public class InviteGUIManager implements InviteGUIManagerInterface, Listener {
 		return headSlots.size();
 	}
 
-	/**
-	 * Open the Invitation GUI for a player
-	 *
-	 * @param player  player
-	 * @param isOwner whether is owner or not.
-	 */
 	@Override
-	public boolean openInvitationGUI(Player player, boolean isOwner) {
+	public boolean openInvitationGUI(Player player, int islandId, boolean isOwner) {
 		Optional<UserData> optionalUserData = instance.getStorageManager().getOnlineUser(player.getUniqueId());
 		if (optionalUserData.isEmpty()) {
 			instance.getPluginLogger()
@@ -224,11 +227,13 @@ public class InviteGUIManager implements InviteGUIManagerInterface, Listener {
 			return false;
 		}
 		Context<Player> context = Context.player(player);
-		InviteGUI gui = new InviteGUI(this, context, optionalUserData.get().getHellblockData(), isOwner);
+		Context<Integer> islandContext = Context.island(islandId);
+		InviteGUI gui = new InviteGUI(this, context, islandContext, optionalUserData.get().getHellblockData(), isOwner);
 		gui.addElement(new InviteDynamicGUIElement(backSlot, new ItemStack(Material.AIR)));
 		gui.addElement(new InviteDynamicGUIElement(leftSlot, new ItemStack(Material.AIR)));
 		gui.addElement(new InviteDynamicGUIElement(rightSlot, new ItemStack(Material.AIR)));
-		decorativeIcons.entrySet().forEach(entry -> gui.addElement(new InviteGUIElement(entry.getKey(), entry.getValue().left().build(context))));
+		decorativeIcons.entrySet().forEach(
+				entry -> gui.addElement(new InviteGUIElement(entry.getKey(), entry.getValue().left().build(context))));
 		gui.saveItems(player);
 		gui.clearPlayerInventory(player);
 		// start polling search and populate heads
@@ -296,7 +301,17 @@ public class InviteGUIManager implements InviteGUIManagerInterface, Listener {
 			return;
 		}
 
-		event.setResult(Result.DENY);
+		// Check if any dragged slot is in the GUI (top inventory)
+		for (int slot : event.getRawSlots()) {
+			if (slot < event.getInventory().getSize()) {
+				event.setCancelled(true);
+				return;
+			}
+		}
+
+		// If the drag is only in the player inventory, do nothing special
+		// but still make sure no ghost items appear
+		event.setCancelled(true);
 
 		// Refresh the GUI
 		instance.getScheduler().sync().runLater(gui::refresh, 1, player.getLocation());
@@ -321,6 +336,12 @@ public class InviteGUIManager implements InviteGUIManagerInterface, Listener {
 		if (gui == null) {
 			event.setCancelled(true);
 			player.closeInventory();
+			return;
+		}
+
+		// Handle shift-clicks, number keys, or clicking outside GUI
+		if (event.getClick().isShiftClick() || event.getClick().isKeyboardClick()) {
+			event.setCancelled(true);
 			return;
 		}
 
@@ -357,7 +378,7 @@ public class InviteGUIManager implements InviteGUIManagerInterface, Listener {
 			gui.cancelSearchPolling();
 			gui.returnItems(player);
 			inviteGUICache.remove(player.getUniqueId());
-			instance.getPartyGUIManager().openPartyGUI(gui.context.holder(), gui.isOwner);
+			instance.getPartyGUIManager().openPartyGUI(gui.context.holder(), gui.islandContext.holder(), gui.isOwner);
 			ActionManager.trigger(gui.context, backActions);
 			return;
 		}
@@ -455,7 +476,7 @@ public class InviteGUIManager implements InviteGUIManagerInterface, Listener {
 				gui.cancelSearchPolling();
 				gui.returnItems(player);
 				inviteGUICache.remove(player.getUniqueId());
-				instance.getPartyGUIManager().openPartyGUI(gui.context.holder(),
+				instance.getPartyGUIManager().openPartyGUI(gui.context.holder(), gui.islandContext.holder(),
 						gui.hellblockData.getOwnerUUID().equals(gui.context.holder().getUniqueId()));
 				return;
 			} else {
@@ -503,12 +524,15 @@ public class InviteGUIManager implements InviteGUIManagerInterface, Listener {
 			gui.cancelSearchPolling();
 			gui.returnItems(player);
 			inviteGUICache.remove(player.getUniqueId());
-			instance.getPartyGUIManager().openPartyGUI(gui.context.holder(), gui.isOwner);
+			instance.getPartyGUIManager().openPartyGUI(gui.context.holder(), gui.islandContext.holder(), gui.isOwner);
 			return;
 		}
 
 		// default refresh (if any) - keep previous behavior: schedule a refresh next
 		// tick
+		if (instance.getCooldownManager().shouldUpdateActivity(player.getUniqueId(), 15000)) {
+			gui.hellblockData.updateLastIslandActivity();
+		}
 		instance.getScheduler().sync().runLater(gui::refresh, 1, player.getLocation());
 	}
 }

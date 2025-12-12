@@ -1,0 +1,108 @@
+display:
+  gui:
+    # The title for the display settings menu
+    title: '<center><gradient:#A52A2A:#800000:#A52A2A>Hellblock Display Settings</gradient>'
+    # The layout for the display settings menu
+    layout:
+      - 'AAAAAAAAA'
+      - 'AANABATAA'
+      - 'AAAAAAAAX'
+    # Back icon to return to main menu
+    back-icon:
+      symbol: 'X'
+      material: RED_STAINED_GLASS_PANE
+      display:
+        name: '<red>Return to Main Menu'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_additional_tooltip: {}
+    # Change island name icon
+    name-icon:
+      symbol: 'N'
+      material: COMPASS
+      anvil-settings: 
+        title: '<dark_red>Enter Island Name'
+        empty: '<red>Name cannot be empty.'
+        invalid: '<red>Name must contain letters or numbers.'
+        length: '<red>Too long. Max: {length} characters.'
+        banned: '<red>Banned: {banned}'
+        unchanged: '<red>Unchanged.'
+      display:
+        name: '<green>Island Name'
+        lore:
+          - '<yellow>Click to change your island name!'
+          - '<gold>Current Island Name:'
+          - '{current_name}'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_additional_tooltip: {}
+    # Change island bio icon
+    bio-icon:
+      symbol: 'B'
+      material: FEATHER
+      anvil-settings:
+        title: '<dark_red>Enter Island Bio'
+        lines: '<red>Too many lines. Max: {lines}'
+        empty: '<red>Cannot be empty or formatting only.'
+        color-codes: '<red>Too much color formatting.'
+        length: '<red>Too long. Max {length} characters.'
+        banned: '<red>Banned: {banned}'
+        unchanged: '<red>Unchanged.'
+      display:
+        name: '<green>Island Bio'
+        lore:
+          - '<yellow>Click to change your island bio!'
+          - '<gold>Current Island Bio:'
+          - '{current_bio}'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_additional_tooltip: {}
+    # Toggle display view option
+    toggle-icon:
+      symbol: 'T'
+      material: BLAZE_POWDER
+      display:
+        name: '<green>Display Viewing Option'
+        lore:
+          - '<yellow>Click to switch to <gold><bold>{setting}'
+          - '<gold>Current Selection: <yellow><bold>{current_setting}'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_additional_tooltip: {}
+    # Decorative icons for visual enhancement
+    decorative-icons:
+      glass-pane:
+        symbol: 'A'
+        material: BLACK_STAINED_GLASS_PANE
+        display:
+          name: ' '
+        components:
+          minecraft:hide_tooltip: {}

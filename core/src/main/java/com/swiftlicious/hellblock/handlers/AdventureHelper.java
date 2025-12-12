@@ -4,12 +4,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.bukkit.Location;
-import org.bukkit.NamespacedKey;
-import org.bukkit.Registry;
-import org.bukkit.SoundCategory;
 import org.bukkit.World;
+import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 
 import com.github.benmanes.caffeine.cache.Cache;
@@ -18,55 +18,30 @@ import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.api.DefaultFontInfo;
 import com.swiftlicious.hellblock.sender.Sender;
 
-import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.key.Key;
-import net.kyori.adventure.sound.Sound;
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.Style;
-import net.kyori.adventure.text.minimessage.MiniMessage;
-import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
-import net.kyori.adventure.text.serializer.json.JSONOptions;
-import net.kyori.adventure.text.serializer.json.legacyimpl.NBTLegacyHoverEventSerializer;
-import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 
-/**
+/*	
  * Helper class for handling Adventure components and related functionalities.
  */
 public class AdventureHelper {
 
 	private static final int CENTER_PX = 154;
 
-	private final MiniMessage miniMessage;
-	private final MiniMessage miniMessageStrict;
-	private final GsonComponentSerializer gsonComponentSerializer;
-	private final PlainTextComponentSerializer plainTextComponentSerializer;
+	// We no longer store MiniMessage/etc. directly – only the bridge proxy
+	private final LoaderBridge bridge;
+
 	private final Cache<String, String> miniMessageToJsonCache = Caffeine.newBuilder()
 			.expireAfterWrite(5, TimeUnit.MINUTES).build();
+
 	public static boolean legacySupport = false;
 
-	private static final int MAX_PIXEL_WIDTH = 154; // GUI title line width (in pixels)
-
-	public AdventureHelper() {
-		this.miniMessage = MiniMessage.builder().build();
-		this.miniMessageStrict = MiniMessage.builder().strict(true).build();
-		this.plainTextComponentSerializer = PlainTextComponentSerializer.plainText();
-		final GsonComponentSerializer.Builder builder = GsonComponentSerializer.builder();
-		if (!VersionHelper.isVersionNewerThan1_20_5()) {
-			builder.legacyHoverEventSerializer(NBTLegacyHoverEventSerializer.get());
-			builder.editOptions((b) -> b.value(JSONOptions.EMIT_HOVER_SHOW_ENTITY_ID_AS_INT_ARRAY, false));
-		}
-		if (!VersionHelper.isVersionNewerThan1_21_5()) {
-			builder.editOptions((b) -> {
-				b.value(JSONOptions.EMIT_CLICK_EVENT_TYPE, JSONOptions.ClickEventValueMode.CAMEL_CASE);
-				b.value(JSONOptions.EMIT_HOVER_EVENT_TYPE, JSONOptions.HoverEventValueMode.CAMEL_CASE);
-				b.value(JSONOptions.EMIT_HOVER_SHOW_ENTITY_KEY_AS_TYPE_AND_UUID_AS_ID, true);
-			});
-		}
-		this.gsonComponentSerializer = builder.build();
+	private AdventureHelper(@NotNull LoaderBridge bridge) {
+		this.bridge = bridge;
 	}
 
 	private static class SingletonHolder {
-		private static final AdventureHelper INSTANCE = new AdventureHelper();
+		private static AdventureHelper INSTANCE;
 	}
 
 	/**
@@ -74,8 +49,28 @@ public class AdventureHelper {
 	 *
 	 * @return the singleton instance
 	 */
+	@NotNull
 	public static AdventureHelper getInstance() {
+		if (SingletonHolder.INSTANCE == null) {
+			HellblockPlugin plugin = HellblockPlugin.getInstance();
+			boolean legacyHover = !VersionHelper.isVersionNewerThan1_20_5();
+			boolean camelCase = !VersionHelper.isVersionNewerThan1_21_5();
+
+			SingletonHolder.INSTANCE = plugin.getDependencyManager()
+					.runWithLoader(AdventureDependencyHelper.ADVENTURE_DEPENDENCIES, () -> {
+						try {
+							// Directly instantiate LoaderBridge INSIDE the isolated loader
+							return new AdventureHelper(LoaderBridge.getBridgeConnection(legacyHover, camelCase));
+						} catch (Exception ex) {
+							throw new RuntimeException("Failed to initialize AdventureHelper bridge", ex);
+						}
+					});
+		}
 		return SingletonHolder.INSTANCE;
+	}
+
+	public static void resetInstance() {
+		SingletonHolder.INSTANCE = null;
 	}
 
 	/**
@@ -84,12 +79,21 @@ public class AdventureHelper {
 	 * @param text the MiniMessage string
 	 * @return the resulting Component
 	 */
-	public static Component miniMessage(String text) {
-		if (legacySupport) {
-			return getMiniMessage().deserialize(legacyToMiniMessage(text));
-		} else {
-			return getMiniMessage().deserialize(text);
-		}
+	@NotNull
+	public static Component miniMessageToComponent(@NotNull String text) {
+		return legacySupport ? getInstance().bridge.miniMessageToComponent(legacyToMiniMessage(text))
+				: getInstance().bridge.miniMessageToComponent(text);
+	}
+
+	/**
+	 * Converts a Component to a MiniMessage String.
+	 *
+	 * @param component the Component
+	 * @return the MiniMessage string representation
+	 */
+	@NotNull
+	public static String componentToMiniMessage(@NotNull Component component) {
+		return getInstance().bridge.componentToMiniMessage(component);
 	}
 
 	/**
@@ -97,8 +101,29 @@ public class AdventureHelper {
 	 *
 	 * @return the MiniMessage instance
 	 */
-	public static MiniMessage getMiniMessage() {
-		return getInstance().miniMessage;
+	@NotNull
+	public static net.kyori.adventure.text.minimessage.MiniMessage getMiniMessage() {
+		return getInstance().bridge.miniMessage;
+	}
+
+	/**
+	 * Retrieves the LegacyComponentSerializer instance.
+	 *
+	 * @return the LegacyComponentSerializer instance
+	 */
+	@NotNull
+	public static net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer getLegacyComponentSerializer() {
+		return getInstance().bridge.legacy;
+	}
+
+	/**
+	 * Retrieves the PlainTextComponentSerializer instance.
+	 *
+	 * @return the PlainTextComponentSerializer instance
+	 */
+	@NotNull
+	public static net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer getPlainTextComponentSerializer() {
+		return getInstance().bridge.plain;
 	}
 
 	/**
@@ -106,8 +131,9 @@ public class AdventureHelper {
 	 *
 	 * @return the GsonComponentSerializer instance
 	 */
-	public static GsonComponentSerializer getGson() {
-		return getInstance().gsonComponentSerializer;
+	@NotNull
+	public static net.kyori.adventure.text.serializer.gson.GsonComponentSerializer getGsonComponentSerializer() {
+		return getInstance().bridge.gson;
 	}
 
 	/**
@@ -116,10 +142,19 @@ public class AdventureHelper {
 	 * @param miniMessage the MiniMessage string
 	 * @return the JSON string representation
 	 */
-	public static String miniMessageToJson(String miniMessage) {
-		final AdventureHelper instance = getInstance();
-		return instance.miniMessageToJsonCache.get(miniMessage,
-				(text) -> instance.gsonComponentSerializer.serialize(miniMessage(text)));
+	@NotNull
+	public static String miniMessageToJson(@NotNull String miniMessage) {
+		String trimmed = miniMessage.trim();
+
+		// Detect if the user explicitly used italics
+		// MiniMessage supports <i>, <italic>, </i>, and </italic>
+		if (!trimmed.toLowerCase(Locale.ENGLISH).contains("<i")
+				&& !trimmed.toLowerCase(Locale.ENGLISH).contains("<italic")) {
+			// Prepend <!italic> to disable italics by default
+			miniMessage = "<!italic>" + miniMessage;
+		}
+
+		return getInstance().miniMessageToJsonCache.get(miniMessage, t -> componentToJson(miniMessageToComponent(t)));
 	}
 
 	/**
@@ -128,9 +163,9 @@ public class AdventureHelper {
 	 * @param audience the player to send the message to
 	 * @param message  the message component
 	 */
-	public static void sendCenteredMessage(Sender audience, Component message) {
+	public static void sendCenteredMessage(@NotNull Sender audience, @NotNull Component message) {
 		if (message.children().contains(Component.newline())) {
-			final Style parentStyle = message.style();
+			final net.kyori.adventure.text.format.Style parentStyle = message.style();
 			final List<Component> children = new ArrayList<>(message.children());
 			children.add(0, message.children(new ArrayList<>()));
 			Component toSend = Component.empty().style(parentStyle);
@@ -150,12 +185,12 @@ public class AdventureHelper {
 			sendCenteredMessage(audience, toSend);
 			return;
 		}
-		final String msg = getGson().serialize(message);
+		final String msg = componentToJson(message);
 		int messagePxSize = 0;
 		boolean previousCode = false;
 		boolean isBold = false;
 		for (char c : msg.toCharArray()) {
-			if (c == '§') {
+			if (isLegacyColorCode(c)) {
 				previousCode = true;
 			} else if (previousCode) {
 				previousCode = false;
@@ -175,7 +210,7 @@ public class AdventureHelper {
 			sb.append(" ");
 			compensated += spaceLength;
 		}
-		audience.sendMessage(Component.text(sb.toString()).append(message));
+		audience.sendMessage(miniMessageToComponent(sb.toString()).append(message));
 	}
 
 	/**
@@ -184,7 +219,8 @@ public class AdventureHelper {
 	 * @param audience the audience to play the sound for
 	 * @param sound    the sound to play
 	 */
-	public static void playSound(Audience audience, Sound sound) {
+	public static void playSound(@NotNull net.kyori.adventure.audience.Audience audience,
+			@NotNull net.kyori.adventure.sound.Sound sound) {
 		audience.playSound(sound);
 	}
 
@@ -197,7 +233,8 @@ public class AdventureHelper {
 	 * @param y        the y-coordinate
 	 * @param z        the z-coordinate
 	 */
-	public static void playSound(Audience audience, Sound sound, double x, double y, double z) {
+	public static void playSound(@NotNull net.kyori.adventure.audience.Audience audience,
+			@NotNull net.kyori.adventure.sound.Sound sound, double x, double y, double z) {
 		audience.playSound(sound, x, y, z);
 	}
 
@@ -206,25 +243,14 @@ public class AdventureHelper {
 	 *
 	 * @param world    the world to play the sound in
 	 * @param location the location to play the sound at
-	 * @param soundKey the namespaced key of the sound
-	 * @param volume   the volume of the sound
-	 * @param pitch    the pitch of the sound
+	 * @param sound    the sound to play
 	 */
-	public static void playPositionalSound(@NotNull World world, @NotNull Location location, @NotNull String soundKey,
-			float volume, float pitch) {
-		NamespacedKey key = NamespacedKey.fromString(soundKey);
-		if (key == null) {
-			HellblockPlugin.getInstance().getPluginLogger().warn("Invalid sound key: " + soundKey);
-			return;
-		}
-
-		org.bukkit.Sound sound = Registry.SOUNDS.get(key);
-		if (sound == null) {
-			HellblockPlugin.getInstance().getPluginLogger().warn("Unknown sound in registry: " + soundKey);
-			return;
-		}
-
-		world.playSound(location, sound, SoundCategory.BLOCKS, volume, pitch);
+	public static void playPositionalSound(@NotNull World world, @NotNull Location loc,
+			@NotNull net.kyori.adventure.sound.Sound sound) {
+		double half = HellblockPlugin.getInstance().getConfigManager().searchRadius() / 2.0;
+		world.getNearbyEntities(loc, half, half, half).stream().filter(Player.class::isInstance).map(Player.class::cast)
+				.map(HellblockPlugin.getInstance().getSenderFactory()::getAudience)
+				.forEach(audience -> playSound(audience, sound, loc.getX(), loc.getY(), loc.getZ()));
 	}
 
 	/**
@@ -234,7 +260,8 @@ public class AdventureHelper {
 	 * @param font the font as a {@link Key}
 	 * @return the text surrounded by the MiniMessage font tag
 	 */
-	public static String surroundWithMiniMessageFont(String text, Key font) {
+	@NotNull
+	public static String surroundWithMiniMessageFont(@NotNull String text, @NotNull net.kyori.adventure.key.Key font) {
 		return "<font:" + font.asString() + ">" + text + "</font>";
 	}
 
@@ -245,7 +272,8 @@ public class AdventureHelper {
 	 * @param font the font as a {@link String}
 	 * @return the text surrounded by the MiniMessage font tag
 	 */
-	public static String surroundWithMiniMessageFont(String text, String font) {
+	@NotNull
+	public static String surroundWithMiniMessageFont(@NotNull String text, @NotNull String font) {
 		return "<font:" + font + ">" + text + "</font>";
 	}
 
@@ -255,8 +283,9 @@ public class AdventureHelper {
 	 * @param json the JSON string
 	 * @return the MiniMessage string representation
 	 */
-	public static String jsonToMiniMessage(String json) {
-		return getInstance().miniMessageStrict.serialize(getInstance().gsonComponentSerializer.deserialize(json));
+	@NotNull
+	public static String jsonToMiniMessage(@NotNull String json) {
+		return getInstance().bridge.miniMessageStrict.serialize(jsonToComponent(json));
 	}
 
 	/**
@@ -265,8 +294,9 @@ public class AdventureHelper {
 	 * @param json the JSON string
 	 * @return the resulting Component
 	 */
-	public static Component jsonToComponent(String json) {
-		return getInstance().gsonComponentSerializer.deserialize(json);
+	@NotNull
+	public static Component jsonToComponent(@NotNull String json) {
+		return getInstance().bridge.jsonToComponent(json);
 	}
 
 	/**
@@ -275,76 +305,191 @@ public class AdventureHelper {
 	 * @param component the Component to convert
 	 * @return the JSON string representation
 	 */
-	public static String componentToJson(Component component) {
-		return getGson().serialize(component);
+	@NotNull
+	public static String componentToJson(@NotNull Component component) {
+		return getInstance().bridge.componentToJson(component);
 	}
 
-	public static @NotNull Component parseCenteredTitleMultiline(@NotNull String raw) {
-		String[] lines = raw.split("\n");
+	/**
+	 * Converts plain text to a Component.
+	 *
+	 * @param plainText the plain text
+	 * @return the resulting Component
+	 */
+	@NotNull
+	public static Component plainTextToComponent(@NotNull String plainText) {
+		return getInstance().bridge.plainTextToComponent(plainText);
+	}
 
+	/**
+	 * Converts a Component to a plain text.
+	 *
+	 * @param component the Component to convert
+	 * @return the plain text representation
+	 */
+	@NotNull
+	public static String componentToPlainText(@NotNull Component component) {
+		return getInstance().bridge.componentToPlainText(component);
+	}
+
+	/**
+	 * Converts a Legacy string to a Component.
+	 *
+	 * @param legacy The Legacy string
+	 * @return the resulting Component
+	 */
+	@NotNull
+	public static Component legacyToComponent(@NotNull String legacy) {
+		return getInstance().bridge.legacyToComponent(legacy);
+	}
+
+	/**
+	 * Converts a Component to a Legacy string.
+	 *
+	 * @param component the Component to convert
+	 * @return the Legacy string representation
+	 */
+	@NotNull
+	public static String componentToLegacy(@NotNull Component component) {
+		return getInstance().bridge.componentToLegacy(component);
+	}
+
+	/**
+	 * Checks if a component is empty.
+	 *
+	 * @param component the Component to check
+	 * @return if empty or not
+	 */
+	public static boolean isEmpty(@NotNull Component component) {
+		String plain = componentToPlainText(component);
+		return plain.trim().isEmpty();
+	}
+
+	/**
+	 * Parses a multiline MiniMessage string (with optional <center> tags) into a
+	 * visually centered Adventure Component suitable for GUI titles or inventory
+	 * menus.
+	 *
+	 * <p>
+	 * This implementation estimates text centering using character-domain
+	 * heuristics (not pixel width) because Minecraft GUI title centering is
+	 * font-approximate rather than strictly pixel-perfect. It dynamically adjusts
+	 * padding based on text length, color, gradient, bold, and italic effects to
+	 * produce consistent centering across short, medium, and long titles.
+	 * </p>
+	 *
+	 * <p>
+	 * Supports:
+	 * <ul>
+	 * <li>{@code <center>} — Automatically centers text line.</li>
+	 * <li>{@code <center:offset=±N>} — Adds manual fine-tuning offset in
+	 * spaces.</li>
+	 * <li>Nested MiniMessage tags like {@code <gradient>}, {@code <b>},
+	 * {@code <i>}, and colors.</li>
+	 * </ul>
+	 * </p>
+	 *
+	 * @param raw the raw MiniMessage input text (may contain multiple lines)
+	 * @return a fully formatted, approximately centered Adventure Component
+	 */
+	@NotNull
+	public static Component parseCenteredTitleMultiline(@NotNull String raw) {
+		String[] lines = raw.split("\n");
 		List<Component> components = new ArrayList<>();
 
 		for (String line : lines) {
-			String trimmedLine = line.trim();
+			String trimmed = line.trim();
+			boolean isCentered = trimmed.toLowerCase(Locale.ROOT).contains("<center");
+			int manualOffset = 0;
 
-			if (trimmedLine.toLowerCase(Locale.ROOT).startsWith("<center>")
-					&& trimmedLine.toLowerCase(Locale.ROOT).contains("</center>")) {
+			if (isCentered) {
+				Matcher matcher = Pattern.compile("(?i)<center:offset=(-?\\d+)>").matcher(trimmed);
+				if (matcher.find()) {
+					manualOffset = Integer.parseInt(matcher.group(1));
+				}
+			}
 
-				// Extract content between <center>...</center>
-				int start = trimmedLine.indexOf("<center>") + "<center>".length();
-				int end = trimmedLine.indexOf("</center>");
-				String inner = trimmedLine.substring(start, end).trim();
+			String inner = trimmed.replaceAll("(?i)</?center(:offset=-?\\d+)?>", "").trim();
+			Component component = miniMessageToComponent(inner);
 
-				// Deserialize inner content to preserve formatting
-				Component innerComponent = getInstance().miniMessage.deserialize(inner);
-				String plain = getInstance().plainTextComponentSerializer.serialize(innerComponent);
+			if (isCentered) {
+				String plain = stripFormattingTags(inner);
+				int charCount = plain.length();
 
-				// Compute left-padding in pixels
-				int pixelWidth = getStringPixelWidth(plain);
-				int spacePixelWidth = getCharPixelWidth(' ');
-				int paddingPixels = (MAX_PIXEL_WIDTH - pixelWidth) / 2;
-				int spaceCount = Math.max(0, paddingPixels / spacePixelWidth);
+				// Detect formatting that affects visual balance
+				boolean hasGradient = inner.toLowerCase(Locale.ROOT).contains("<gradient");
+				boolean hasBold = inner.toLowerCase(Locale.ROOT).contains("<b")
+						|| inner.toLowerCase(Locale.ROOT).contains("<bold");
+				boolean hasItalic = inner.toLowerCase(Locale.ROOT).contains("<i")
+						|| inner.toLowerCase(Locale.ROOT).contains("<italic");
+				boolean hasColor = inner.toLowerCase(Locale.ROOT).matches(".*<#[a-f0-9]{6}>.*|.*<color:.*>.*");
 
-				String spaces = " ".repeat(spaceCount);
-				Component padded = getInstance().miniMessage.deserialize(spaces + inner);
-				components.add(padded);
+				// --- Base width estimation ---
+				double visualWidth = charCount;
+				if (hasGradient)
+					visualWidth *= 1.05;
+				if (hasColor)
+					visualWidth *= 1.02;
+				if (hasBold)
+					visualWidth *= 1.15;
+				if (hasItalic)
+					visualWidth *= 0.97;
 
+				// --- Adaptive normalization ---
+				// GUI width domain grows slightly with title length (Minecraft font quirk)
+				double normalizedDomain = 34.5 + (visualWidth * 0.06);
+
+				// --- Bias correction ---
+				// Prevents short titles from leaning left and long ones from overflowing right
+				double bias = (Math.pow(visualWidth / 18.0, 1.3) - 1.0) * -2.5;
+
+				// --- Final padding ---
+				int padSpaces = (int) Math.max(0,
+						Math.round(((normalizedDomain - visualWidth) / 2.0) + bias + manualOffset));
+
+				Component padding = Component.text(" ".repeat(padSpaces));
+				components.add(padding.append(component));
 			} else {
-				// Non-centered line, parse as-is
-				components.add(getInstance().miniMessage.deserialize(trimmedLine));
+				components.add(component);
 			}
 		}
 
-		// Combine lines with newline separator
 		Component result = Component.empty();
 		for (int i = 0; i < components.size(); i++) {
 			result = result.append(components.get(i));
-			if (i != components.size() - 1) {
+			if (i != components.size() - 1)
 				result = result.append(Component.newline());
-			}
 		}
 
 		return result;
 	}
 
-	// Estimate string width in Minecraft pixels
-	private static int getStringPixelWidth(String text) {
-		int width = 0;
-		for (char c : text.toCharArray()) {
-			width += getCharPixelWidth(c);
-		}
-		return width;
-	}
-
-	private static int getCharPixelWidth(char c) {
-		return switch (c) {
-		case 'i', '.', ',', ':', ';', '!', '|', ' ' -> 2;
-		case '\'', 'l' -> 3;
-		case '`', '(', ')', '[', ']', '{', '}' -> 4;
-		case '<', '>', 't', 'f' -> 5;
-		case '@', '~', '=', '-' -> 6;
-		default -> 6;
-		};
+	/**
+	 * Strips MiniMessage formatting tags from a string for width approximation.
+	 * This allows centering calculations to consider only visible characters while
+	 * ignoring visual formatting markup (like gradients, colors, or style tags).
+	 *
+	 * <p>
+	 * This method removes:
+	 * <ul>
+	 * <li>Gradient and rainbow tags ({@code <gradient>, <rainbow>})</li>
+	 * <li>Hex color codes ({@code <#RRGGBB>}) and named colors
+	 * ({@code <color:red>})</li>
+	 * <li>Bold/italic tags ({@code <b>, <bold>, <i>, <italic>})</li>
+	 * <li>Center tags themselves ({@code <center>})</li>
+	 * </ul>
+	 * </p>
+	 *
+	 * @param input raw MiniMessage-style string
+	 * @return plain-text version of the input, safe for approximate width
+	 *         computation
+	 */
+	@NotNull
+	private static String stripFormattingTags(@NotNull String input) {
+		return input.replaceAll("(?i)</?gradient(:[^>]+)?>", "").replaceAll("(?i)</?rainbow(:[^>]+)?>", "")
+				.replaceAll("(?i)<#[A-F0-9]{6}>", "").replaceAll("(?i)<color:[^>]+>", "")
+				.replaceAll("(?i)</?b(>|$)|</?bold(>|$)|</?i(>|$)|</?italic(>|$)", "")
+				.replaceAll("(?i)</?center(:offset=-?\\d+)?>", "").replaceAll("\\s+", " ").trim();
 	}
 
 	/**
@@ -363,7 +508,8 @@ public class AdventureHelper {
 	 * @param legacy the legacy color code string
 	 * @return the MiniMessage string representation
 	 */
-	public static String legacyToMiniMessage(String legacy) {
+	@NotNull
+	public static String legacyToMiniMessage(@NotNull String legacy) {
 		final StringBuilder stringBuilder = new StringBuilder();
 		final char[] chars = legacy.toCharArray();
 		for (int i = 0; i < chars.length; i++) {
@@ -417,5 +563,96 @@ public class AdventureHelper {
 			i++;
 		}
 		return stringBuilder.toString();
+	}
+
+	public static class LoaderBridge {
+		private static LoaderBridge INSTANCE;
+
+		@NotNull
+		public static LoaderBridge getBridgeConnection(boolean legacyHover, boolean camelCase) {
+			if (INSTANCE == null)
+				INSTANCE = new LoaderBridge(legacyHover, camelCase);
+			return INSTANCE;
+		}
+
+		private final net.kyori.adventure.text.minimessage.MiniMessage miniMessage;
+		private final net.kyori.adventure.text.minimessage.MiniMessage miniMessageStrict;
+		private final net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer plain;
+		private final net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer legacy;
+		private final net.kyori.adventure.text.serializer.gson.GsonComponentSerializer gson;
+
+		public LoaderBridge(boolean legacyHover, boolean camelCase) {
+			net.kyori.adventure.text.minimessage.MiniMessage.Builder mini = net.kyori.adventure.text.minimessage.MiniMessage
+					.builder();
+			this.miniMessage = mini.build();
+			this.miniMessageStrict = mini.strict(true).build();
+
+			this.plain = net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText();
+			this.legacy = net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer.legacyAmpersand();
+
+			net.kyori.adventure.text.serializer.gson.GsonComponentSerializer.Builder gsonBuilder = net.kyori.adventure.text.serializer.gson.GsonComponentSerializer
+					.builder();
+
+			if (legacyHover) {
+				gsonBuilder.legacyHoverEventSerializer(
+						net.kyori.adventure.text.serializer.json.legacyimpl.NBTLegacyHoverEventSerializer.get());
+				gsonBuilder.editOptions(b -> b.value(
+						net.kyori.adventure.text.serializer.json.JSONOptions.EMIT_HOVER_SHOW_ENTITY_ID_AS_INT_ARRAY,
+						false));
+			}
+
+			if (camelCase) {
+				gsonBuilder.editOptions(b -> {
+					b.value(net.kyori.adventure.text.serializer.json.JSONOptions.EMIT_CLICK_EVENT_TYPE,
+							net.kyori.adventure.text.serializer.json.JSONOptions.ClickEventValueMode.CAMEL_CASE);
+					b.value(net.kyori.adventure.text.serializer.json.JSONOptions.EMIT_HOVER_EVENT_TYPE,
+							net.kyori.adventure.text.serializer.json.JSONOptions.HoverEventValueMode.CAMEL_CASE);
+					b.value(net.kyori.adventure.text.serializer.json.JSONOptions.EMIT_HOVER_SHOW_ENTITY_KEY_AS_TYPE_AND_UUID_AS_ID,
+							true);
+				});
+			}
+
+			this.gson = gsonBuilder.build();
+		}
+
+		@NotNull
+		public Component miniMessageToComponent(@NotNull String text) {
+			return this.miniMessage.deserializeOr(text, Component.empty());
+		}
+
+		@NotNull
+		public String componentToMiniMessage(@NotNull Component component) {
+			return this.miniMessage.serialize(component);
+		}
+
+		@NotNull
+		public Component jsonToComponent(@NotNull String json) {
+			return this.gson.deserializeOr(json, Component.empty());
+		}
+
+		@NotNull
+		public String componentToJson(@NotNull Component component) {
+			return this.gson.serialize(component);
+		}
+
+		@NotNull
+		public Component plainTextToComponent(@NotNull String plainText) {
+			return this.plain.deserializeOr(plainText, Component.empty());
+		}
+
+		@NotNull
+		public String componentToPlainText(@NotNull Component component) {
+			return this.plain.serialize(component);
+		}
+
+		@NotNull
+		public Component legacyToComponent(@NotNull String legacy) {
+			return this.legacy.deserializeOr(legacy, Component.empty());
+		}
+
+		@NotNull
+		public String componentToLegacy(@NotNull Component component) {
+			return this.legacy.serialize(component);
+		}
 	}
 }

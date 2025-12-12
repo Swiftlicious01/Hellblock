@@ -27,6 +27,7 @@ import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerSwapHandItemsEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.persistence.PersistentDataType;
+
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.context.Context;
 import com.swiftlicious.hellblock.context.ContextKeys;
@@ -155,12 +156,24 @@ public class FishingManager implements Listener, FishingManagerInterface {
 		case FISHING -> onCastRod(event);
 		case REEL_IN, CAUGHT_FISH -> onReelIn(event);
 		case CAUGHT_ENTITY -> onCaughtEntity(event);
-		// case CAUGHT_FISH -> onCaughtFish(event);
 		case BITE -> onBite(event);
 		case IN_GROUND -> onInGround(event);
 		case FAILED_ATTEMPT -> onFailedAttempt(event);
-		// case LURED 1.20.5+
-		default -> throw new IllegalArgumentException("Unexpected value: " + event.getState());
+		default -> {
+			// Dynamically check for LURED (1.20.5+)
+			if (VersionHelper.isPaperFork() && VersionHelper.isVersionNewerThan1_20_5()) {
+				try {
+					if (event.getState() == PlayerFishEvent.State.valueOf("LURED")) {
+						onLured(event);
+					}
+				} catch (Exception ex) {
+					instance.getPluginLogger()
+							.warn("PlayerFishEvent couldn't find the LURED state: " + ex.getMessage());
+				}
+			} else {
+				throw new IllegalArgumentException("Unexpected value: " + event.getState());
+			}
+		}
 		}
 	}
 
@@ -172,6 +185,8 @@ public class FishingManager implements Listener, FishingManagerInterface {
 		getFishHook(player).filter(hook -> hook.getCurrentHookMechanic() instanceof LavaFishingMechanic)
 				.map(hook -> (LavaFishingMechanic) hook.getCurrentHookMechanic())
 				.ifPresent(LavaFishingMechanic::onFailedAttempt);
+
+		instance.debug("FAILED ATTEMPT event triggered for player: " + player.getName());
 	}
 
 	private void onBite(PlayerFishEvent event) {
@@ -182,6 +197,8 @@ public class FishingManager implements Listener, FishingManagerInterface {
 		getFishHook(player).filter(hook -> hook.getCurrentHookMechanic() instanceof LavaFishingMechanic)
 				.map(hook -> (LavaFishingMechanic) hook.getCurrentHookMechanic())
 				.ifPresent(LavaFishingMechanic::onBite);
+
+		instance.debug("BITE event triggered for player: " + player.getName());
 	}
 
 	private void onCaughtEntity(PlayerFishEvent event) {
@@ -239,6 +256,20 @@ public class FishingManager implements Listener, FishingManagerInterface {
 //        });
 //    }
 
+	private void onLured(PlayerFishEvent event) {
+		final Player player = event.getPlayer();
+
+		if (!instance.getHellblockHandler().isInCorrectWorld(player.getWorld())) {
+			return;
+		}
+
+		getFishHook(player).filter(hook -> hook.getCurrentHookMechanic() instanceof LavaFishingMechanic)
+				.map(hook -> (LavaFishingMechanic) hook.getCurrentHookMechanic())
+				.ifPresent(LavaFishingMechanic::onLured);
+
+		instance.debug("LURED event triggered for player: " + player.getName());
+	}
+
 	private void onCastRod(PlayerFishEvent event) {
 		final FishHook hook = event.getHook();
 		final Player player = event.getPlayer();
@@ -246,29 +277,35 @@ public class FishingManager implements Listener, FishingManagerInterface {
 			return;
 		}
 		final Context<Player> context = Context.player(player);
-		final FishingGears gears = new FishingGears();
-		gears.init(context);
-		context.arg(ContextKeys.HOOK_ENTITY, hook);
-		if (!RequirementManager.isSatisfied(context, instance.getConfigManager().fishingRequirements())) {
-			this.destroyHook(player.getUniqueId());
-			return;
-		}
-		if (!gears.canFish()) {
-			event.setCancelled(true);
-			return;
-		}
-		if (EventUtils.fireAndCheckCancel(new RodCastEvent(event, gears))) {
-			return;
-		}
-		instance.debug(context.toString());
-		final CustomFishingHook customHook = new CustomFishingHook(instance, hook, gears, context);
-		customHook.init();
-		final CustomFishingHook previous = this.castHooks.put(player.getUniqueId(), customHook);
-		if (previous == null) {
-			return;
-		}
-		instance.debug("Previous hook is still in cache, which is not an expected behavior");
-		previous.stop();
+		final Optional<Integer> optIslandId = instance.getIslandManager().getLastTrackedIsland(player.getUniqueId());
+		optIslandId.filter(Objects::nonNull).ifPresent(islandId -> {
+			final Context<Integer> islandContext = Context.island(islandId);
+			final FishingGears gears = new FishingGears();
+			gears.init(context);
+			context.arg(ContextKeys.HOOK_ENTITY, hook);
+			if (!RequirementManager.isSatisfied(context, instance.getConfigManager().fishingPlayerRequirements())
+					|| !RequirementManager.isSatisfied(islandContext,
+							instance.getConfigManager().fishingIslandRequirements())) {
+				this.destroyHook(player.getUniqueId());
+				return;
+			}
+			if (!gears.canFish()) {
+				event.setCancelled(true);
+				return;
+			}
+			if (EventUtils.fireAndCheckCancel(new RodCastEvent(event, gears))) {
+				return;
+			}
+			instance.debug(context.toString());
+			final CustomFishingHook customHook = new CustomFishingHook(instance, hook, gears, context);
+			customHook.init();
+			final CustomFishingHook previous = this.castHooks.put(player.getUniqueId(), customHook);
+			if (previous == null) {
+				return;
+			}
+			instance.debug("Previous hook is still in cache, which is not an expected behavior");
+			previous.stop();
+		});
 	}
 
 	private void onInGround(PlayerFishEvent event) {
@@ -293,7 +330,6 @@ public class FishingManager implements Listener, FishingManagerInterface {
 		instance.getItemManager().increaseDamage(player, itemStack, 2, true);
 	}
 
-	@SuppressWarnings("incomplete-switch")
 	@EventHandler
 	public void onHookStateChange(FishingHookStateEvent event) {
 		final Player player = event.getPlayer();
@@ -306,7 +342,7 @@ public class FishingManager implements Listener, FishingManagerInterface {
 			case LAND -> hook.onLand();
 			case ESCAPE -> hook.onEscape();
 			case LURE -> hook.onLure();
-			// case HOOK -> hook.onHook()
+			case HOOK -> hook.onHook();
 			}
 		});
 	}
@@ -320,8 +356,8 @@ public class FishingManager implements Listener, FishingManagerInterface {
 		if (entity.getType() != EntityType.ARMOR_STAND) {
 			return;
 		}
-		if (entity.getPersistentDataContainer()
-				.has(Objects.requireNonNull(NamespacedKey.fromString("temp-entity", instance)))) {
+		if (entity.getPersistentDataContainer().has(
+				Objects.requireNonNull(NamespacedKey.fromString("temp-entity", instance)), PersistentDataType.STRING)) {
 			event.setCancelled(true);
 		}
 	}
@@ -335,8 +371,8 @@ public class FishingManager implements Listener, FishingManagerInterface {
 		if (entity.getType() != EntityType.ARMOR_STAND) {
 			return;
 		}
-		if (entity.getPersistentDataContainer()
-				.has(Objects.requireNonNull(NamespacedKey.fromString("temp-entity", instance)))) {
+		if (entity.getPersistentDataContainer().has(
+				Objects.requireNonNull(NamespacedKey.fromString("temp-entity", instance)), PersistentDataType.STRING)) {
 			event.setCancelled(true);
 		}
 	}

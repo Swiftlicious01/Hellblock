@@ -10,14 +10,12 @@ import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
 import org.incendo.cloud.CommandManager;
 
-import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.commands.BukkitCommandFeature;
 import com.swiftlicious.hellblock.commands.HellblockCommandManager;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
+import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.player.HellblockData;
 import com.swiftlicious.hellblock.player.UserData;
-
-import net.kyori.adventure.text.Component;
 
 public class HellblockCreateCommand extends BukkitCommandFeature<CommandSender> {
 
@@ -31,8 +29,7 @@ public class HellblockCreateCommand extends BukkitCommandFeature<CommandSender> 
 		return builder.senderType(Player.class).handler(context -> {
 			final Player player = context.sender();
 
-			final Optional<UserData> onlineUserOpt = HellblockPlugin.getInstance().getStorageManager()
-					.getOnlineUser(player.getUniqueId());
+			final Optional<UserData> onlineUserOpt = plugin.getStorageManager().getOnlineUser(player.getUniqueId());
 
 			if (onlineUserOpt.isEmpty()) {
 				handleFeedback(context, MessageConstants.COMMAND_DATA_FAILURE_NOT_LOADED);
@@ -45,32 +42,33 @@ public class HellblockCreateCommand extends BukkitCommandFeature<CommandSender> 
 			// Player does not have a hellblock yet → create flow
 			if (!data.hasHellblock()) {
 				if (data.getResetCooldown() > 0) {
-					handleFeedback(context, MessageConstants.MSG_HELLBLOCK_RESET_ON_COOLDOWN, Component
-							.text(HellblockPlugin.getInstance().getFormattedCooldown(data.getResetCooldown())));
+					handleFeedback(context, MessageConstants.MSG_HELLBLOCK_RESET_ON_COOLDOWN,
+							AdventureHelper.miniMessageToComponent(
+									plugin.getCooldownManager().getFormattedCooldown(data.getResetCooldown())));
 					return;
 				}
 
-				HellblockPlugin.getInstance().getIslandChoiceGUIManager().openIslandChoiceGUI(player, false);
+				plugin.getIslandChoiceGUIManager().openIslandChoiceGUI(player, false);
 				return;
 			}
 
 			// Player has a hellblock already → reset/ownership flow
 			final UUID ownerUUID = data.getOwnerUUID();
 			if (ownerUUID == null) {
-				HellblockPlugin.getInstance().getPluginLogger()
-						.severe("Hellblock owner UUID was null for player " + player.getName() + " ("
-								+ player.getUniqueId() + "). This indicates corrupted data or a serious bug.");
+				plugin.getPluginLogger().severe("Hellblock owner UUID was null for player " + player.getName() + " ("
+						+ player.getUniqueId() + "). This indicates corrupted data or a serious bug.");
 				throw new IllegalStateException(
 						"Owner reference was null. This should never happen — please report to the developer.");
 			}
 
-			HellblockPlugin.getInstance().getStorageManager()
-					.getOfflineUserData(ownerUUID, HellblockPlugin.getInstance().getConfigManager().lockData())
+			plugin.getStorageManager().getCachedUserDataWithFallback(ownerUUID, plugin.getConfigManager().lockData())
 					.thenAccept(result -> {
 						if (result.isEmpty()) {
 							final String username = Bukkit.getOfflinePlayer(ownerUUID).getName();
 							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_OWNER_DATA_NOT_LOADED,
-									username != null ? Component.text(username) : Component.empty());
+									AdventureHelper.miniMessageToComponent(username != null ? username
+											: plugin.getTranslationManager().miniMessageTranslation(
+													MessageConstants.FORMAT_UNKNOWN.build().key())));
 							return;
 						}
 
@@ -83,11 +81,11 @@ public class HellblockCreateCommand extends BukkitCommandFeature<CommandSender> 
 						// Already has a Hellblock → failure message
 						final Location loc = offlineUser.getHellblockData().getHellblockLocation();
 						handleFeedback(context, MessageConstants.MSG_HELLBLOCK_CREATION_FAILURE_ALREADY_EXISTS,
-								Component.text(loc.getBlockX()), Component.text(loc.getBlockZ()));
+								AdventureHelper.miniMessageToComponent(String.valueOf(loc.getBlockX())),
+								AdventureHelper.miniMessageToComponent(String.valueOf(loc.getBlockZ())));
 					}).exceptionally(ex -> {
-						HellblockPlugin.getInstance().getPluginLogger()
-								.warn("getOfflineUserData failed for hellblock creation of " + player.getName() + ": "
-										+ ex.getMessage());
+						plugin.getPluginLogger().warn("getCachedUserDataWithFallback failed for hellblock creation of "
+								+ player.getName() + ": " + ex.getMessage());
 						return null;
 					});
 		});

@@ -5,15 +5,19 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.DoubleSupplier;
+import java.util.stream.Collectors;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Fluid;
@@ -52,16 +56,24 @@ import com.swiftlicious.hellblock.listeners.generator.GenMode;
 import com.swiftlicious.hellblock.listeners.generator.GenPiston;
 import com.swiftlicious.hellblock.listeners.generator.GeneratorManager;
 import com.swiftlicious.hellblock.listeners.generator.GeneratorModeManager;
-import com.swiftlicious.hellblock.listeners.rain.LavaRainTask;
+import com.swiftlicious.hellblock.listeners.weather.WeatherType;
 import com.swiftlicious.hellblock.nms.fluid.FallingFluidData;
 import com.swiftlicious.hellblock.nms.fluid.FluidData;
 import com.swiftlicious.hellblock.player.HellblockData;
 import com.swiftlicious.hellblock.player.UserData;
+import com.swiftlicious.hellblock.scheduler.SchedulerTask;
 import com.swiftlicious.hellblock.upgrades.IslandUpgradeType;
 import com.swiftlicious.hellblock.upgrades.UpgradeData;
 import com.swiftlicious.hellblock.upgrades.UpgradeTier;
+import com.swiftlicious.hellblock.utils.EventUtils;
+import com.swiftlicious.hellblock.utils.LocationUtils;
 import com.swiftlicious.hellblock.utils.StringUtils;
 import com.swiftlicious.hellblock.utils.extras.MathValue;
+import com.swiftlicious.hellblock.utils.extras.Pair;
+import com.swiftlicious.hellblock.world.CustomBlockState;
+import com.swiftlicious.hellblock.world.CustomBlockTypes;
+import com.swiftlicious.hellblock.world.HellblockWorld;
+import com.swiftlicious.hellblock.world.Pos3;
 
 import net.kyori.adventure.key.Key;
 import net.kyori.adventure.sound.Sound;
@@ -70,32 +82,107 @@ import net.kyori.adventure.sound.Sound.Source;
 public class NetherGeneratorHandler implements Listener, Reloadable {
 
 	protected final HellblockPlugin instance;
-	private final GeneratorManager genManager;
-	private final GeneratorModeManager genModeManager;
+	private GeneratorManager genManager;
+	private GeneratorModeManager genModeManager;
 
-	private static final BlockFace[] FACES = new BlockFace[] { BlockFace.NORTH, BlockFace.SOUTH, BlockFace.EAST,
-			BlockFace.WEST };
+	// for deterministic testing
+	private final DoubleSupplier randomSupplier = Math::random;
 
-	private final Map<UUID, Double> islandGeneratorBonusCache = new ConcurrentHashMap<>();
+	private static final double FLOW_DIRECTION_THRESHOLD = 0.15; // lower = looser, higher = stricter
+	private static final int GENERATOR_NEIGHBORHOOD_RADIUS = 3; // search +/- 3 blocks in X/Z, Y +/- 1
 
-	private final Set<LocationKey> playerPlacedGenBlocks = ConcurrentHashMap.newKeySet();
+	private SchedulerTask cleanupTask = null;
+
+	private final Map<Integer, Double> islandGeneratorBonusCache = new ConcurrentHashMap<>();
+
+	private final Set<Pos3> playerPlacedGenBlocks = ConcurrentHashMap.newKeySet();
+
+	private final Set<Integer> loadedIslandPistonCaches = ConcurrentHashMap.newKeySet();
+
+	private static final Set<String> LAVA_KEY = Set.of("minecraft:lava");
+
+	private final Map<Pos3, Long> lastGenCheck = new ConcurrentHashMap<>();
+	private static final long GEN_THROTTLE_TICKS = 5; // e.g. 5 ticks = 0.25s
+
+	private static final int NO_CLEANUP_LOG_INTERVAL = 10; // log only every 10 no-cleanup runs
+	private final AtomicInteger consecutiveEmptyRuns = new AtomicInteger(0);
+	private volatile boolean wasSilent = false;
 
 	public NetherGeneratorHandler(HellblockPlugin plugin) {
 		instance = plugin;
-		this.genManager = new GeneratorManager();
-		this.genModeManager = new GeneratorModeManager(instance);
 	}
 
 	@Override
 	public void load() {
+		this.genManager = new GeneratorManager();
+		this.genModeManager = new GeneratorModeManager(instance);
 		this.genModeManager.loadFromConfig();
 		Bukkit.getPluginManager().registerEvents(this, instance);
+		cleanupPistonsTask();
 	}
 
 	@Override
 	public void unload() {
 		HandlerList.unregisterAll(this);
-		islandGeneratorBonusCache.clear();
+		this.islandGeneratorBonusCache.clear();
+		this.loadedIslandPistonCaches.clear();
+		if (this.cleanupTask != null && !this.cleanupTask.isCancelled()) {
+			this.cleanupTask.cancel();
+			this.cleanupTask = null;
+		}
+		this.consecutiveEmptyRuns.set(0);
+		this.wasSilent = false;
+		this.genManager = null;
+		this.genModeManager = null;
+	}
+
+	private void cleanupPistonsTask() {
+		this.cleanupTask = instance.getScheduler().sync().runRepeating(() -> {
+			Collection<HellblockWorld<?>> worlds = instance.getWorldManager().getManagedWorlds();
+			List<CompletableFuture<Pair<HellblockWorld<?>, Boolean>>> futures = new ArrayList<>();
+
+			for (HellblockWorld<?> world : worlds) {
+				if (world == null)
+					continue;
+
+				CompletableFuture<Pair<HellblockWorld<?>, Boolean>> future = getGeneratorManager()
+						.cleanupAllExpiredPistons(world).thenApply(cleaned -> Pair.of(world, cleaned));
+
+				futures.add(future);
+			}
+
+			CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new)).thenRun(() -> {
+				List<Pair<HellblockWorld<?>, Boolean>> results = futures.stream().map(CompletableFuture::join)
+						.collect(Collectors.toList());
+
+				List<HellblockWorld<?>> cleanedWorlds = results.stream().filter(Pair::right).map(Pair::left)
+						.collect(Collectors.toList());
+
+				if (!cleanedWorlds.isEmpty()) {
+					// Reset counters and log immediately
+					int emptyRuns = consecutiveEmptyRuns.getAndSet(0);
+					boolean wasQuiet = wasSilent;
+					wasSilent = false;
+
+					String worldNames = cleanedWorlds.stream().map(HellblockWorld::worldName)
+							.collect(Collectors.joining(", "));
+
+					if (wasQuiet && emptyRuns > 0) {
+						instance.debug("Piston cleanup resumed after " + emptyRuns + " quiet run"
+								+ (emptyRuns == 1 ? "" : "s") + ".");
+					}
+
+					instance.debug("Global piston cleanup completed: expired pistons removed in " + cleanedWorlds.size()
+							+ " world" + (cleanedWorlds.size() == 1 ? "" : "s") + ": " + worldNames);
+				} else {
+					int count = consecutiveEmptyRuns.incrementAndGet();
+					if (count % NO_CLEANUP_LOG_INTERVAL == 0) {
+						instance.debug("Global piston cleanup: no expired pistons found (x" + count + " in a row)");
+						wasSilent = true;
+					}
+				}
+			});
+		}, 30 * 60 * 20, 30 * 60 * 20, LocationUtils.getAnyLocationInstance());
 	}
 
 	public GeneratorManager getGeneratorManager() {
@@ -106,15 +193,7 @@ public class NetherGeneratorHandler implements Listener, Reloadable {
 		return this.genModeManager;
 	}
 
-	// Add this field to allow deterministic testing if desired (can be injected via
-	// constructor)
-	private final DoubleSupplier randomSupplier = Math::random;
-
-	// Add this field somewhere at the top of the listener:
-	private static final double FLOW_DIRECTION_THRESHOLD = 0.15; // lower = looser, higher = stricter
-	private static final int GENERATOR_NEIGHBORHOOD_RADIUS = 3; // search +/- 3 blocks in X/Z, Y +/- 1
-
-	@EventHandler
+	@EventHandler(ignoreCancelled = true)
 	public void onNetherrackGeneration(BlockFromToEvent event) {
 		final Block fromBlock = event.getBlock();
 		final World world = fromBlock.getWorld();
@@ -122,124 +201,167 @@ public class NetherGeneratorHandler implements Listener, Reloadable {
 			return;
 		}
 
+		if (!fromBlock.isLiquid()) {
+			return;
+		}
+
 		final BlockFace face = event.getFace();
-		if (!Arrays.asList(FACES).contains(face)) {
+		if (!Arrays.asList(FarmingHandler.FACES).contains(face)) {
 			return;
 		}
 
-		final GenMode mode = genModeManager.getGenMode();
+		final GenMode mode = getGeneratorModeManager().getGenMode();
 		final Block toBlock = event.getToBlock();
-		if (toBlock == null) {
-			return;
-		}
-
 		// Target must be air
 		if (!toBlock.getType().isAir()) {
 			return;
 		}
 
-		// Avoid generation in lava pools
-		if (isLavaPool(toBlock.getLocation())) {
+		final Location loc = toBlock.getLocation();
+		if (loc.getWorld() == null) {
 			return;
 		}
 
-		// The new, strict collision check:
-		// Two lava blocks whose flow (or source) will reach the `toBlock`, and there is
-		// only AIR between each lava block and the target.
-		if (!isValidTwoLavaCollision(toBlock)) {
+		final Integer islandId = instance.getPlacementDetector().getIslandIdAt(loc);
+		if (islandId == null) {
+			return; // Outside of any known island
+		}
+
+		final Optional<HellblockWorld<?>> worldOpt = instance.getWorldManager()
+				.getWorld(instance.getWorldManager().getHellblockWorldFormat(islandId));
+
+		if (worldOpt.isEmpty() || worldOpt.get().bukkitWorld() == null) {
 			return;
 		}
 
-		final Location l = toBlock.getLocation();
-		final LocationKey lk = new LocationKey(l);
-		if (l.getWorld() == null) {
+		final HellblockWorld<?> hellWorld = worldOpt.get();
+		final Pos3 pos = Pos3.from(loc);
+
+		if (!shouldProcessGenerationBlock(pos))
 			return;
-		}
 
-		// --- existing logic to track known gen locations & players nearby ---
-		if (!genManager.isGenLocationKnown(lk) && mode.isSearchingForPlayersNearby()) {
-			final double radius = instance.getConfigManager().searchRadius();
-			final Collection<Entity> playersNearby = l.getWorld().getNearbyEntities(l, radius, radius, radius).stream()
-					.filter(e -> e.getType() == EntityType.PLAYER).toList();
-			final Player closestPlayer = getClosestPlayer(l, playersNearby);
-			if (closestPlayer != null) {
-				genManager.addKnownGenLocation(lk);
-				genManager.setPlayerForLocation(closestPlayer.getUniqueId(), lk, false);
-			}
-		}
+		// Run async checks for lava pool, valid collision, and sign presence
+		CompletableFuture<Boolean> validGenFuture = isLavaPool(hellWorld, pos)
+				.thenCombine(isValidTwoLavaCollision(hellWorld, pos),
+						(isPool, validCollision) -> !isPool && validCollision)
+				.thenCombine(hasNearbySign(hellWorld, pos), (lavaValid, hasSign) -> lavaValid && hasSign);
 
-		if (!genManager.isGenLocationKnown(lk)) {
-			genManager.addKnownGenLocation(lk);
-			return;
-		}
-
-		// If known but nobody previously broke it -> nothing to generate
-		if (!genManager.getGenBreaks().containsKey(lk)) {
-			return;
-		}
-
-		final GenBlock gb = genManager.getGenBreaks().get(lk);
-		if (gb.hasExpired()) {
-			instance.debug("GB has expired %s".formatted(gb.getLocation()));
-			genManager.removeKnownGenLocation(lk);
-			return;
-		}
-
-		final UUID uuid = gb.getUUID();
-
-		// respect lava rain mode
-		if (!mode.canGenerateWhileLavaRaining()) {
-			final Optional<LavaRainTask> lavaRain = instance.getLavaRainHandler().getLavaRainingWorlds().stream()
-					.filter(task -> l.getWorld().getName().equalsIgnoreCase(task.getWorld().worldName())).findAny();
-			if (lavaRain.isPresent() && lavaRain.get().isLavaRaining()) {
-				event.setCancelled(true);
-				if (l.getBlock().getType() != mode.getFallbackMaterial()) {
-					l.getBlock().setType(mode.getFallbackMaterial());
-				}
+		validGenFuture.thenAccept(valid -> {
+			if (!valid)
 				return;
-			}
-		}
 
-		final float soundVolume = 2F;
-		final float pitch = 1F;
-
-		final Player owner = Bukkit.getPlayer(uuid);
-		final Context<Player> context = owner != null ? Context.player(owner) : Context.empty();
-
-		getResultsAsync(context, l, results -> {
-			AtomicReference<Material> chosenRef = new AtomicReference<>(chooseRandomResult(results));
-
-			if (chosenRef.get() == null) {
-				instance.getPluginLogger()
-						.severe("No generation results found for location, falling back to fallback material: " + l);
-				chosenRef.set(mode.getFallbackMaterial());
-			}
-
+			// Continue logic on the Bukkit main thread
 			instance.getScheduler().executeSync(() -> {
-				final GeneratorGenerateEvent genEvent = new GeneratorGenerateEvent(mode, chosenRef.get(), uuid, l);
-				Bukkit.getPluginManager().callEvent(genEvent);
-				if (genEvent.isCancelled()) {
+				// --- existing logic to track known gen locations & players nearby ---
+				if (!getGeneratorManager().isGenLocationKnown(pos) && mode.isSearchingForPlayersNearby()) {
+					final double radius = instance.getConfigManager().searchRadius();
+					final Collection<Entity> playersNearby = loc.getWorld()
+							.getNearbyEntities(loc, radius, radius, radius).stream()
+							.filter(e -> e.getType() == EntityType.PLAYER).toList();
+					final Player closestPlayer = getClosestPlayer(loc, playersNearby);
+					if (closestPlayer != null) {
+						getGeneratorManager().addKnownGenPosition(pos);
+						getGeneratorManager().setPlayerForLocation(closestPlayer.getUniqueId(), pos, false);
+					}
+				}
+
+				if (!getGeneratorManager().isGenLocationKnown(pos)) {
+					getGeneratorManager().addKnownGenPosition(pos);
 					return;
 				}
 
-				event.setCancelled(true);
-				genEvent.getGenerationLocation().getBlock().setType(genEvent.getResult());
-
-				// sound & particles
-				if (mode.hasGenSound()) {
-					final double radius = instance.getConfigManager().searchRadius();
-					l.getWorld().getNearbyEntities(l, radius, radius, radius).stream()
-							.filter(entity -> entity instanceof Player).map(entity -> (Player) entity)
-							.forEach(player -> AdventureHelper.playSound(
-									instance.getSenderFactory().getAudience(player),
-									Sound.sound(Key.key(mode.getGenSound()), Source.AMBIENT, soundVolume, pitch)));
+				// If known but nobody previously broke it -> nothing to generate
+				if (!getGeneratorManager().getGenBreaks().containsKey(pos)) {
+					return;
 				}
 
-				if (mode.hasParticleEffect()) {
-					mode.displayGenerationParticles(l);
+				final GenBlock gb = getGeneratorManager().getGenBreaks().get(pos);
+				if (gb.hasExpired()) {
+					instance.debug("GB has expired %s".formatted(gb.getPosition().toLocation(loc.getWorld())));
+					getGeneratorManager().removeKnownGenPosition(pos);
+					return;
 				}
+
+				final UUID uuid = gb.getUUID();
+
+				// respect lava rain mode
+				if (!mode.canGenerateWhileLavaRaining()) {
+					if (instance.getNetherWeatherManager().isWeatherActive(islandId, WeatherType.LAVA_RAIN)) {
+						event.setCancelled(true);
+
+						CustomBlockState fallbackState = CustomBlockTypes.fromMaterial(mode.getFallbackMaterial())
+								.createBlockState();
+
+						hellWorld.updateBlockState(pos, fallbackState).exceptionally(ex -> {
+							Block block = loc.getBlock();
+							if (block.getType() != mode.getFallbackMaterial()) {
+								block.setType(mode.getFallbackMaterial());
+							}
+							return null;
+						});
+						return;
+					}
+				}
+
+				final float soundVolume = 2F;
+				final float pitch = 1F;
+
+				final Player owner = Bukkit.getPlayer(uuid);
+				final Context<Player> context = owner != null ? Context.player(owner) : Context.playerEmpty();
+
+				processGenerationResults(context, loc, results -> {
+					AtomicReference<Material> chosenRef = new AtomicReference<>(chooseRandomResult(results));
+
+					if (chosenRef.get() == null) {
+						instance.getPluginLogger().severe(
+								"No generation results found for location, falling back to fallback material: " + loc);
+						chosenRef.set(mode.getFallbackMaterial());
+					}
+
+					instance.getScheduler().executeSync(() -> {
+						final GeneratorGenerateEvent genEvent = new GeneratorGenerateEvent(mode, chosenRef.get(), uuid,
+								loc);
+						if (EventUtils.fireAndCheckCancel(genEvent)) {
+							return;
+						}
+
+						event.setCancelled(true);
+						final Pos3 genPos = Pos3.from(genEvent.getGenerationLocation());
+
+						CustomBlockState customState = CustomBlockTypes.fromMaterial(genEvent.getResult())
+								.createBlockState();
+
+						hellWorld.updateBlockState(genPos, customState).exceptionally(ex -> {
+							genEvent.getGenerationLocation().getBlock().setType(genEvent.getResult());
+							return null;
+						});
+
+						if (mode.hasGenSound()) {
+							final double radius = instance.getConfigManager().searchRadius();
+							loc.getWorld().getNearbyEntities(loc, radius, radius, radius).stream()
+									.filter(entity -> entity instanceof Player).map(entity -> (Player) entity)
+									.forEach(player -> AdventureHelper
+											.playSound(instance.getSenderFactory().getAudience(player), Sound.sound(
+													Key.key(mode.getGenSound()), Source.AMBIENT, soundVolume, pitch)));
+						}
+
+						if (mode.hasParticleEffect()) {
+							mode.displayGenerationParticles(loc);
+						}
+					});
+				});
 			});
 		});
+	}
+
+	private boolean shouldProcessGenerationBlock(Pos3 pos) {
+		long now = System.currentTimeMillis();
+		long last = lastGenCheck.getOrDefault(pos, 0L);
+		if (now - last < GEN_THROTTLE_TICKS * 50L) {
+			return false;
+		}
+		lastGenCheck.put(pos, now);
+		return true;
 	}
 
 	/**
@@ -247,95 +369,104 @@ public class NetherGeneratorHandler implements Listener, Reloadable {
 	 * path into `toBlock`. Allows direct and diagonal generators. Avoids lava pools
 	 * by requiring exactly 2.
 	 */
-	private boolean isValidTwoLavaCollision(@NotNull Block toBlock) {
-		final Location loc = toBlock.getLocation();
-		final World world = loc.getWorld();
-		if (world == null) {
-			return false;
-		}
+	private CompletableFuture<Boolean> isValidTwoLavaCollision(@NotNull HellblockWorld<?> world, @NotNull Pos3 to) {
+		if (world.bukkitWorld() == null)
+			return CompletableFuture.completedFuture(false);
 
-		final int centerX = loc.getBlockX();
-		final int centerY = loc.getBlockY();
-		final int centerZ = loc.getBlockZ();
+		final int centerX = to.x();
+		final int centerY = to.y();
+		final int centerZ = to.z();
 
-		final List<Block> candidates = new ArrayList<>();
+		List<CompletableFuture<Boolean>> checks = new ArrayList<>();
 
 		for (int x = centerX - GENERATOR_NEIGHBORHOOD_RADIUS; x <= centerX + GENERATOR_NEIGHBORHOOD_RADIUS; x++) {
 			for (int y = centerY - 1; y <= centerY + 1; y++) {
 				for (int z = centerZ - GENERATOR_NEIGHBORHOOD_RADIUS; z <= centerZ
 						+ GENERATOR_NEIGHBORHOOD_RADIUS; z++) {
-					if (x == centerX && y == centerY && z == centerZ) {
+					if (x == centerX && y == centerY && z == centerZ)
 						continue;
-					}
 
-					final Block b = world.getBlockAt(x, y, z);
-					if (!(isSource(b) || isFlowing(b))) {
-						continue;
-					}
+					final Pos3 checkPos = new Pos3(x, y, z);
 
-					if (hasClearPath(b, toBlock)) {
-						// For flowing lava, check flow direction roughly points toward target
-						if (isFlowing(b)) {
-							final Vector flowDir = getFlowDirection(b);
-							if (flowDir != null) {
-								final Vector toTarget = new Vector(centerX + 0.5 - (x + 0.5), centerY + 0.5 - (y + 0.5),
-										centerZ + 0.5 - (z + 0.5));
-								final double dot = flowDir.normalize().dot(toTarget.normalize());
-								if (dot < FLOW_DIRECTION_THRESHOLD) {
-									continue;
-								}
-							}
-						}
-						candidates.add(b);
-					}
+					// chain async
+					CompletableFuture<Boolean> check = world.getBlockState(checkPos).thenCompose(stateOpt -> {
+						if (stateOpt.isEmpty())
+							return CompletableFuture.completedFuture(false);
+
+						CustomBlockState state = stateOpt.get();
+						if (!LAVA_KEY.contains(state.type().type().value()))
+							return CompletableFuture.completedFuture(false);
+
+						// chain to lava checks
+						return isLavaSource(world, checkPos).thenCombine(isLavaFlowing(world, checkPos),
+								(isSource, isFlowing) -> (isSource || isFlowing)).thenCompose(valid -> {
+									if (!valid)
+										return CompletableFuture.completedFuture(false);
+
+									// For flowing lava, check flow direction roughly points toward target
+									return hasClearPath(world, checkPos, to).thenCombine(
+											getLavaFlowDirection(world, checkPos), (clearPath, flowDir) -> {
+												if (!clearPath)
+													return false;
+
+												// For flowing lava, validate direction
+												if (flowDir != null
+														&& isLavaFlowingDirectionWrong(checkPos, to, flowDir))
+													return false;
+
+												return true;
+											});
+								});
+					});
+
+					checks.add(check);
 				}
 			}
 		}
 
 		// Only generate when exactly 2 lava sources are valid
-		return candidates.size() == 2;
+		return CompletableFuture.allOf(checks.toArray(CompletableFuture[]::new)).thenApply(
+				v -> (int) checks.stream().map(CompletableFuture::join).filter(Boolean::booleanValue).count() == 2);
 	}
 
 	/**
 	 * Checks that the path between a lava block and the target block consists only
 	 * of AIR.
 	 */
-	private boolean hasClearPath(@NotNull Block lava, @NotNull Block target) {
-		final Location lavaLoc = lava.getLocation();
-		final Location targetLoc = target.getLocation();
-		final World world = lavaLoc.getWorld();
-		if (world == null) {
-			return false;
-		}
+	private CompletableFuture<Boolean> hasClearPath(@NotNull HellblockWorld<?> world, @NotNull Pos3 from,
+			@NotNull Pos3 to) {
+		if (world.bukkitWorld() == null)
+			return CompletableFuture.completedFuture(false);
 
-		final int dx = targetLoc.getBlockX() - lavaLoc.getBlockX();
-		final int dy = targetLoc.getBlockY() - lavaLoc.getBlockY();
-		final int dz = targetLoc.getBlockZ() - lavaLoc.getBlockZ();
+		int dx = to.x() - from.x();
+		int dy = to.y() - from.y();
+		int dz = to.z() - from.z();
 
-		final int stepX = Integer.signum(dx);
-		final int stepY = Integer.signum(dy);
-		final int stepZ = Integer.signum(dz);
+		int stepX = Integer.signum(dx);
+		int stepY = Integer.signum(dy);
+		int stepZ = Integer.signum(dz);
 
-		int curX = lavaLoc.getBlockX();
-		int curY = lavaLoc.getBlockY();
-		int curZ = lavaLoc.getBlockZ();
+		List<CompletableFuture<Optional<CustomBlockState>>> futures = new ArrayList<>();
+		int curX = from.x(), curY = from.y(), curZ = from.z();
 
 		while (true) {
 			curX += stepX;
 			curY += stepY;
 			curZ += stepZ;
-			if (curX == targetLoc.getBlockX() && curY == targetLoc.getBlockY() && curZ == targetLoc.getBlockZ()) {
+
+			if (curX == to.x() && curY == to.y() && curZ == to.z())
 				break;
-			}
-			final Block intermediate = world.getBlockAt(curX, curY, curZ);
-			if (!intermediate.getType().isAir()) {
-				return false;
-			}
+
+			Pos3 current = new Pos3(curX, curY, curZ);
+			futures.add(world.getBlockState(current));
 		}
-		return true;
+
+		return CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new)).thenApply(v -> futures.stream()
+				.map(CompletableFuture::join).noneMatch(opt -> opt.isPresent() && !opt.get().isAir()));
 	}
 
-	public @Nullable Player getClosestPlayer(Location l, Collection<Entity> playersNearby) {
+	@Nullable
+	public Player getClosestPlayer(@NotNull Location l, @NotNull Collection<Entity> playersNearby) {
 		Player closestPlayer = null;
 		double closestDistance = Double.POSITIVE_INFINITY;
 		for (Entity entity : playersNearby) {
@@ -362,8 +493,8 @@ public class NetherGeneratorHandler implements Listener, Reloadable {
 		}
 
 		final Location loc = event.getBlock().getLocation();
-		final LocationKey locKey = new LocationKey(loc);
-		if (!genManager.isGenLocationKnown(locKey)) {
+		final Pos3 pos = Pos3.from(loc);
+		if (!genManager.isGenLocationKnown(pos)) {
 			return;
 		}
 		event.setCancelled(true);
@@ -375,21 +506,41 @@ public class NetherGeneratorHandler implements Listener, Reloadable {
 		if (!instance.getConfigManager().pistonAutomation()) {
 			return;
 		}
+
 		if (!instance.getHellblockHandler().isInCorrectWorld(event.getBlock().getWorld())) {
 			return;
 		}
-		final LocationKey locKey = new LocationKey(event.getBlock().getLocation());
-		if (!genManager.getKnownGenPistons().containsKey(locKey)) {
+
+		final Pos3 pistonPos = Pos3.from(event.getBlock().getLocation());
+
+		if (!genManager.getKnownGenPistons().containsKey(pistonPos)) {
 			return;
 		}
-		final GenPiston piston = genManager.getKnownGenPistons().get(locKey);
+
+		final GenPiston piston = genManager.getKnownGenPistons().get(pistonPos);
+
 		final Location genBlockLoc = event.getBlock().getRelative(event.getDirection()).getLocation();
-		final LocationKey genLocKey = new LocationKey(genBlockLoc);
-		if (!genManager.isGenLocationKnown(genLocKey)) {
+		final Pos3 genPos = Pos3.from(genBlockLoc);
+
+		if (!genManager.isGenLocationKnown(genPos)) {
 			return;
 		}
+
 		piston.setHasBeenUsed(true);
-		genManager.setPlayerForLocation(piston.getUUID(), genLocKey, true);
+
+		// Use radius-based search to find closest player
+		final World world = genBlockLoc.getWorld();
+		if (world == null)
+			return;
+
+		final double searchRadius = instance.getConfigManager().searchRadius();
+		final Collection<Entity> nearbyEntities = world.getNearbyEntities(genBlockLoc, searchRadius, searchRadius,
+				searchRadius);
+		final Player triggeringPlayer = getClosestPlayer(genBlockLoc, nearbyEntities);
+
+		if (triggeringPlayer != null) {
+			genManager.setPlayerForLocation(triggeringPlayer.getUniqueId(), genPos, true);
+		}
 	}
 
 	@EventHandler
@@ -399,27 +550,38 @@ public class NetherGeneratorHandler implements Listener, Reloadable {
 		}
 
 		final Location location = event.getBlock().getLocation();
-		final LocationKey locKey = new LocationKey(location);
+		final Pos3 pos = Pos3.from(location);
 
-		// track if placed in a generator location
-		if (genManager.isGenLocationKnown(locKey)) {
-			playerPlacedGenBlocks.add(locKey);
+		// Track if placed in a generator location
+		if (genManager.isGenLocationKnown(pos)) {
+			playerPlacedGenBlocks.add(pos);
 		}
 
 		if (!instance.getConfigManager().pistonAutomation()) {
 			return;
 		}
+
 		if (event.getBlock().getType() != Material.PISTON) {
 			return;
 		}
-		final Player player = event.getPlayer();
-		if (!player.isOnline()) {
-			return;
-		}
 
-		final UUID uuid = player.getUniqueId();
-		final GenPiston piston = new GenPiston(locKey, uuid);
-		genManager.addKnownGenPiston(piston);
+		instance.getCoopManager().getHellblockOwnerOfBlock(location.getBlock()).thenAccept(ownerUUID -> {
+			if (ownerUUID == null)
+				return;
+
+			instance.getStorageManager()
+					.getCachedUserDataWithFallback(ownerUUID, instance.getConfigManager().lockData())
+					.thenAccept(userOpt -> {
+						if (userOpt.isEmpty())
+							return;
+
+						UserData user = userOpt.get();
+						int islandId = user.getHellblockData().getIslandId();
+
+						GenPiston piston = new GenPiston(pos, islandId);
+						genManager.addKnownGenPiston(piston);
+					});
+		});
 	}
 
 	@EventHandler
@@ -428,37 +590,40 @@ public class NetherGeneratorHandler implements Listener, Reloadable {
 			return;
 		}
 		final Location location = event.getBlock().getLocation();
-		final LocationKey locKey = new LocationKey(location);
+		final Pos3 pos = Pos3.from(location);
 		final Player player = event.getPlayer();
 
 		// ignore piston cleanup
-		if (genManager.getKnownGenPistons().containsKey(locKey)) {
-			genManager.getKnownGenPistons().remove(locKey);
+		if (genManager.getKnownGenPistons().containsKey(pos)) {
+			genManager.getKnownGenPistons().remove(pos);
 			return;
 		}
 
 		if (location.getWorld() == null) {
 			return;
 		}
-		if (!genManager.isGenLocationKnown(locKey)) {
+		if (!genManager.isGenLocationKnown(pos)) {
 			return;
 		}
 
 		// Prevent abuse: skip progression if block was manually placed
-		if (playerPlacedGenBlocks.contains(locKey)) {
-			playerPlacedGenBlocks.remove(locKey); // cleanup
+		if (playerPlacedGenBlocks.contains(pos)) {
+			playerPlacedGenBlocks.remove(pos); // cleanup
 			return;
 		}
 
 		final PlayerBreakGeneratedBlock genEvent = new PlayerBreakGeneratedBlock(player, location);
-		Bukkit.getPluginManager().callEvent(genEvent);
-		if (genEvent.isCancelled()) {
+		if (EventUtils.fireAndCheckCancel(genEvent)) {
 			return;
 		}
 
-		genManager.setPlayerForLocation(player.getUniqueId(), locKey, false);
-		instance.getStorageManager().getOnlineUser(player.getUniqueId()).ifPresent(user -> instance
-				.getChallengeManager().handleChallengeProgression(player, ActionType.BREAK, event.getBlock()));
+		genManager.setPlayerForLocation(player.getUniqueId(), pos, false);
+		instance.getStorageManager().getOnlineUser(player.getUniqueId()).ifPresent(userData -> {
+			if (instance.getCooldownManager().shouldUpdateActivity(player.getUniqueId(), 5000)) {
+				userData.getHellblockData().updateLastIslandActivity();
+			}
+			instance.getChallengeManager().handleChallengeProgression(userData, ActionType.BREAK, event.getBlock());
+		});
 	}
 
 	@EventHandler
@@ -475,147 +640,243 @@ public class NetherGeneratorHandler implements Listener, Reloadable {
 			}
 
 			final Location location = block.getLocation();
-			final LocationKey locKey = new LocationKey(location);
-			if (genManager.getKnownGenPistons().containsKey(locKey)) {
-				genManager.getKnownGenPistons().remove(locKey);
+			final Pos3 pos = Pos3.from(location);
+			if (genManager.getKnownGenPistons().containsKey(pos)) {
+				genManager.getKnownGenPistons().remove(pos);
 				return;
 			}
 		}
 	}
 
-	private boolean isSource(@NotNull Block block) {
-		final FluidData lava = VersionHelper.getNMSManager().getFluidData(block.getLocation());
-		final boolean isLava = lava.getFluidType() == Fluid.LAVA || lava.getFluidType() == Fluid.FLOWING_LAVA;
-		return isLava && lava.isSource();
-	}
+	private CompletableFuture<Boolean> isLavaSource(@NotNull HellblockWorld<?> world, @NotNull Pos3 pos) {
+		if (world.bukkitWorld() == null)
+			return CompletableFuture.completedFuture(false);
 
-	private boolean isFlowing(@NotNull Block block) {
-		final FluidData lava = VersionHelper.getNMSManager().getFluidData(block.getLocation());
-		final boolean isLava = lava.getFluidType() == Fluid.LAVA || lava.getFluidType() == Fluid.FLOWING_LAVA;
-		return isLava && (!(lava instanceof FallingFluidData)) && !lava.isSource();
-	}
+		return world.getBlockState(pos).thenApply(stateOpt -> {
+			if (stateOpt.isEmpty() || !LAVA_KEY.contains(stateOpt.get().type().type().value()))
+				return false;
 
-	private @Nullable Vector getFlowDirection(@NotNull Block block) {
-		final FluidData lava = VersionHelper.getNMSManager().getFluidData(block.getLocation());
-		final boolean isLava = lava.getFluidType() == Fluid.LAVA || lava.getFluidType() == Fluid.FLOWING_LAVA;
-		if (isLava) {
-			return lava.computeFlowDirection(block.getLocation());
-		}
+			Location loc = pos.toLocation(world.bukkitWorld());
+			FluidData fluidData = VersionHelper.getNMSManager().getFluidData(loc);
+			org.bukkit.Fluid type = fluidData.getFluidType();
 
-		return null;
-	}
-
-	private boolean isLavaPool(@NotNull Location location) {
-		if (location.getWorld() == null) {
-			return false;
-		}
-		int lavaCount = 0;
-		final int centerX = location.getBlockX();
-		final int centerY = location.getBlockY();
-		final int centerZ = location.getBlockZ();
-		for (int x = centerX - 2; x <= centerX + 2; x++) {
-			for (int y = centerY - 1; y <= centerY + 1; y++) {
-				for (int z = centerZ - 2; z <= centerZ + 2; z++) {
-					final Block b = location.getWorld().getBlockAt(x, y, z);
-					if (b.getType() == Material.LAVA && ++lavaCount > 4) {
-						return true;
-					}
-				}
-			}
-		}
-		return false;
-	}
-
-	public @NotNull Map<Material, Double> getResults(@NotNull Context<Player> context) {
-		final Map<Material, Double> results = new HashMap<>();
-		for (Map.Entry<Material, MathValue<Player>> result : instance.getConfigManager().generationResults()
-				.entrySet()) {
-			final Material type = result.getKey();
-			if (type == null || type == Material.AIR) {
-				continue;
-			}
-			results.put(type, result.getValue().evaluate(context));
-		}
-		return results;
-	}
-
-	public void getResultsAsync(@NotNull Context<Player> context, @NotNull Location generatorLocation,
-			@NotNull Consumer<Map<Material, Double>> callback) {
-		Player player = context.holder();
-		if (player == null) {
-			callback.accept(getResults(context)); // fallback
-			return;
-		}
-
-		instance.getCoopManager().getHellblockOwnerOfBlock(generatorLocation.getBlock()).thenAcceptAsync(ownerUUID -> {
-			if (ownerUUID == null) {
-				callback.accept(getResults(context)); // not on an island
-				return;
-			}
-
-			instance.getStorageManager().getOfflineUserData(ownerUUID, instance.getConfigManager().lockData())
-					.thenAccept(userDataOpt -> {
-						// Build base generation map first
-						Map<Material, Double> results = new HashMap<>();
-						for (Map.Entry<Material, MathValue<Player>> entry : instance.getConfigManager()
-								.generationResults().entrySet()) {
-							Material mat = entry.getKey();
-							if (mat == null || mat == Material.AIR)
-								continue;
-
-							double baseChance = entry.getValue().evaluate(context);
-							results.put(mat, baseChance);
-						}
-
-						if (userDataOpt.isEmpty()) {
-							callback.accept(results);
-							return;
-						}
-
-						HellblockData hellblockData = userDataOpt.get().getHellblockData();
-						Set<UUID> partyPlusOwner = hellblockData.getPartyPlusOwner();
-						BoundingBox box = hellblockData.getBoundingBox();
-
-						boolean isMember = partyPlusOwner.contains(player.getUniqueId());
-						boolean isInsideIsland = box != null && box.contains(generatorLocation.toVector());
-
-						if (!(isMember && isInsideIsland)) {
-							// Player not in their own island or outside boundary → no bonus
-							callback.accept(results);
-							return;
-						}
-
-						// Player is inside their island → calculate total generator bonus
-						double totalBonus = getCachedGeneratorBonus(hellblockData);
-
-						// Apply only to blocks with base value under 10
-						results.entrySet().forEach(entry -> {
-							Material material = entry.getKey();
-							double base = entry.getValue();
-
-							if (base < 10.0) {
-								results.put(material, base + totalBonus);
-							}
-						});
-
-						callback.accept(results);
-					});
+			return (type == Fluid.LAVA || type == Fluid.FLOWING_LAVA) && fluidData.isSource();
 		});
 	}
 
+	private CompletableFuture<Boolean> isLavaFlowing(@NotNull HellblockWorld<?> world, @NotNull Pos3 pos) {
+		if (world.bukkitWorld() == null)
+			return CompletableFuture.completedFuture(false);
+
+		return world.getBlockState(pos).thenApply(stateOpt -> {
+			if (stateOpt.isEmpty() || !LAVA_KEY.contains(stateOpt.get().type().type().value()))
+				return false;
+
+			Location loc = pos.toLocation(world.bukkitWorld());
+			FluidData fluidData = VersionHelper.getNMSManager().getFluidData(loc);
+			org.bukkit.Fluid type = fluidData.getFluidType();
+
+			return (type == Fluid.LAVA || type == Fluid.FLOWING_LAVA) && !(fluidData instanceof FallingFluidData)
+					&& !fluidData.isSource();
+		});
+	}
+
+	@Nullable
+	private CompletableFuture<Vector> getLavaFlowDirection(@NotNull HellblockWorld<?> world, @NotNull Pos3 pos) {
+		if (world.bukkitWorld() == null)
+			return CompletableFuture.completedFuture(null);
+
+		return world.getBlockState(pos).thenApply(stateOpt -> {
+			if (stateOpt.isEmpty() || !LAVA_KEY.contains(stateOpt.get().type().type().value()))
+				return null;
+
+			Location loc = pos.toLocation(world.bukkitWorld());
+			FluidData fluidData = VersionHelper.getNMSManager().getFluidData(loc);
+			org.bukkit.Fluid type = fluidData.getFluidType();
+
+			if (type != Fluid.LAVA && type != Fluid.FLOWING_LAVA)
+				return null;
+
+			return fluidData.computeFlowDirection(loc);
+		});
+	}
+
+	private boolean isLavaFlowingDirectionWrong(Pos3 from, Pos3 to, Vector flowDir) {
+		Vector toTarget = new Vector(to.x() + 0.5 - (from.x() + 0.5), to.y() + 0.5 - (from.y() + 0.5),
+				to.z() + 0.5 - (from.z() + 0.5));
+		double dot = flowDir.normalize().dot(toTarget.normalize());
+		return dot < FLOW_DIRECTION_THRESHOLD;
+	}
+
+	/**
+	 * Checks if there is at least one sign block in front of or behind the target
+	 * air block where the generation occurs. This includes both wall signs and
+	 * standing signs.
+	 */
+	private CompletableFuture<Boolean> hasNearbySign(@NotNull HellblockWorld<?> world, @NotNull Pos3 to) {
+		final boolean requiresSignToGen = getGeneratorModeManager().getGenMode().requiresSignToGenerate();
+		if (!requiresSignToGen)
+			return CompletableFuture.completedFuture(true);
+
+		if (world.bukkitWorld() == null)
+			return CompletableFuture.completedFuture(false);
+
+		List<CompletableFuture<Optional<CustomBlockState>>> futures = new ArrayList<>();
+
+		// Check the "front" (air target + direction of flow) and "behind" (opposite
+		// side)
+		// In this context we don’t know flow direction, so check 4 cardinal directions
+		// around it.
+		for (BlockFace face : List.of(BlockFace.NORTH, BlockFace.SOUTH, BlockFace.EAST, BlockFace.WEST)) {
+			Pos3 checkPos = new Pos3(to.x() + face.getModX(), to.y() + face.getModY(), to.z() + face.getModZ());
+			futures.add(world.getBlockState(checkPos));
+		}
+
+		return CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new))
+				.thenApply(v -> futures.stream().map(CompletableFuture::join).filter(Optional::isPresent)
+						.map(Optional::get)
+						.anyMatch(state -> state.type().type().value().toLowerCase(Locale.ROOT).contains("sign")));
+	}
+
+	private CompletableFuture<Boolean> isLavaPool(@NotNull HellblockWorld<?> world, @NotNull Pos3 center) {
+		if (world.bukkitWorld() == null)
+			return CompletableFuture.completedFuture(false);
+
+		List<CompletableFuture<Optional<CustomBlockState>>> futures = new ArrayList<>();
+
+		for (int x = center.x() - 2; x <= center.x() + 2; x++) {
+			for (int y = center.y() - 1; y <= center.y() + 1; y++) {
+				for (int z = center.z() - 2; z <= center.z() + 2; z++) {
+					Pos3 checkPos = new Pos3(x, y, z);
+					// Avoid checking the center block itself
+					if (checkPos.equals(center))
+						continue;
+
+					futures.add(world.getBlockState(checkPos));
+				}
+			}
+		}
+
+		return CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new)).thenApply(v -> {
+			long lavaCount = futures.stream().map(CompletableFuture::join)
+					.filter(opt -> opt.isPresent() && LAVA_KEY.contains(opt.get().type().type().value())).count();
+
+			// Considered a lava pool
+			return lavaCount > 4;
+		});
+	}
+
+	@NotNull
+	public Map<Material, Double> getGenerationResults(@NotNull Context<Player> context) {
+		Map<Material, Double> results = new HashMap<>();
+
+		// Defensive: ensure we have a valid configuration map
+		Map<Material, MathValue<Player>> configuredResults = instance.getConfigManager().generationResults();
+		if (configuredResults == null || configuredResults.isEmpty()) {
+			instance.getPluginLogger().warn("No generation results configured — returning empty map.");
+			return results;
+		}
+
+		for (Map.Entry<Material, MathValue<Player>> entry : configuredResults.entrySet()) {
+			Material material = entry.getKey();
+			if (material == null || material == Material.AIR)
+				continue;
+
+			MathValue<Player> mathValue = entry.getValue();
+			double chance;
+
+			try {
+				chance = mathValue.evaluate(context);
+				// Ensure numeric stability — avoid NaN or negative weights
+				if (Double.isNaN(chance) || chance < 0.0) {
+					instance.debug("Invalid generation value for " + material + ": " + chance);
+					chance = 0.0;
+				}
+			} catch (Throwable ex) {
+				instance.getPluginLogger().warn("Error evaluating generation value for " + material, ex);
+				chance = 0.0;
+			}
+
+			results.put(material, chance);
+		}
+
+		return results;
+	}
+
+	public void processGenerationResults(@NotNull Context<Player> context, @NotNull Location generatorLocation,
+			@NotNull Consumer<Map<Material, Double>> callback) {
+		final Player player = context.holder();
+
+		// Early fallback when context is empty
+		if (player == null) {
+			instance.getScheduler().executeAsync(() -> callback.accept(getGenerationResults(context)));
+			return;
+		}
+
+		// Begin async chain
+		instance.getCoopManager().getHellblockOwnerOfBlock(generatorLocation.getBlock()).thenComposeAsync(ownerUUID -> {
+			if (ownerUUID == null) {
+				// No owner — return immediately with defaults
+				return CompletableFuture.completedFuture(Optional.<HellblockData>empty());
+			}
+
+			// Fetch user data asynchronously
+			return instance.getStorageManager()
+					.getCachedUserDataWithFallback(ownerUUID, instance.getConfigManager().lockData())
+					.thenApply(opt -> opt.map(data -> data.getHellblockData()));
+		}, instance.getScheduler().async()) // use plugin’s async executor if available
+				.thenAcceptAsync(hellblockDataOpt -> {
+					// Always start from shared base generation map
+					Map<Material, Double> results = new HashMap<>(getGenerationResults(context));
+
+					if (hellblockDataOpt.isEmpty()) {
+						callback.accept(results);
+						return;
+					}
+
+					HellblockData hellblockData = hellblockDataOpt.get();
+					Set<UUID> partyPlusOwner = hellblockData.getPartyPlusOwner();
+					BoundingBox box = hellblockData.getBoundingBox();
+
+					boolean isMember = partyPlusOwner.contains(player.getUniqueId());
+					boolean isInsideIsland = box != null && box.contains(generatorLocation.toVector());
+
+					if (!(isMember && isInsideIsland)) {
+						// No bonus if not part of island
+						callback.accept(results);
+						return;
+					}
+
+					// Player is inside their island → apply bonuses
+					double totalBonus = getCachedGeneratorBonus(hellblockData);
+
+					results.replaceAll((material, base) -> base < 10.0 ? base + totalBonus : base);
+
+					// Run callback async-safe (no sync assumptions)
+					callback.accept(results);
+
+				}, instance.getScheduler().async()) // avoid default ForkJoin threads
+				.exceptionally(ex -> {
+					instance.getPluginLogger().warn("Error while processing generation results", ex);
+					// Always fallback to safe results even if something fails
+					callback.accept(getGenerationResults(context));
+					return null;
+				});
+	}
+
 	public double getCachedGeneratorBonus(@NotNull HellblockData data) {
-		UUID ownerUUID = data.getOwnerUUID();
+		int islandId = data.getIslandId();
 
 		// If not cached yet, calculate and store
-		return islandGeneratorBonusCache.computeIfAbsent(ownerUUID, id -> calculateGeneratorBonus(data));
+		return islandGeneratorBonusCache.computeIfAbsent(islandId, id -> calculateGeneratorBonus(data));
 	}
 
 	public void updateGeneratorBonusCache(@NotNull HellblockData data) {
-		islandGeneratorBonusCache.put(data.getOwnerUUID(), calculateGeneratorBonus(data));
+		islandGeneratorBonusCache.put(data.getIslandId(), calculateGeneratorBonus(data));
 	}
 
-	public void invalidateGeneratorBonusCache(@NotNull UUID ownerUUID) {
-		islandGeneratorBonusCache.remove(ownerUUID);
+	public void invalidateGeneratorBonusCache(int islandId) {
+		islandGeneratorBonusCache.remove(islandId);
 	}
 
 	private double calculateGeneratorBonus(@NotNull HellblockData data) {
@@ -641,152 +902,137 @@ public class NetherGeneratorHandler implements Listener, Reloadable {
 	 * Improved deterministic-friendly random chooser for generation results. Caches
 	 * getResults(context) once.
 	 */
-	private @Nullable Material chooseRandomResult(@NotNull Map<Material, Double> results) {
-		double total = 0.0;
-		for (Double v : results.values()) {
-			if (v != null && v > 0) {
-				total += v;
-			}
-		}
-		if (total <= 0.0) {
+	@Nullable
+	private Material chooseRandomResult(@NotNull Map<Material, Double> results) {
+		if (results.isEmpty()) {
 			return null;
 		}
 
-		final double r = randomSupplier.getAsDouble() * total;
+		// Compute total weight (ignore invalid or zero weights)
+		double totalWeight = results.values().stream().filter(v -> v != null && v > 0).mapToDouble(Double::doubleValue)
+				.sum();
+
+		// Nothing valid to choose from
+		if (totalWeight <= 0.0) {
+			return null;
+		}
+
+		// Roll a random value in [0, totalWeight)
+		double randomValue = randomSupplier.getAsDouble() * totalWeight;
 		double cumulative = 0.0;
-		for (Map.Entry<Material, Double> e : results.entrySet()) {
-			final double weight = e.getValue() != null ? e.getValue() : 0.0;
+
+		for (Map.Entry<Material, Double> entry : results.entrySet()) {
+			double weight = entry.getValue() != null ? entry.getValue() : 0.0;
+			if (weight <= 0.0)
+				continue; // skip zero/negative weights
+
 			cumulative += weight;
-			if (r <= cumulative) {
-				return e.getKey();
+			if (randomValue <= cumulative + 1e-9) { // small epsilon for floating-point rounding
+				return entry.getKey();
 			}
 		}
-		// fallback to last material
-		return results.keySet().stream().reduce((first, second) -> second).orElse(null);
+
+		// Fallback: due to rounding, return the last non-null material
+		return results.keySet().stream().filter(Objects::nonNull).reduce((first, second) -> second).orElse(null);
 	}
 
-	public void savePistons(@NotNull UUID id) {
-		if (!instance.getConfigManager().pistonAutomation()) {
+	public void savePistonsByIsland(int islandId, @NotNull HellblockWorld<?> hellWorld) {
+		if (!instance.getConfigManager().pistonAutomation())
 			return;
-		}
-		final GenPiston[] generatedPistons = genManager.getGenPistonsByUUID(id);
 
-		if (!(generatedPistons != null && generatedPistons.length > 0)) {
-			return;
-		}
-		final List<String> locations = new ArrayList<>();
-		for (GenPiston piston : generatedPistons) {
-			if (piston == null || piston.getLoc() == null || !piston.hasBeenUsed()
-					|| piston.getLoc().getBlock().getType() != Material.PISTON) {
-				continue;
-			}
+		// Get all pistons at this island
+		GenPiston[] pistons = genManager.getGenPistonsByIslandId(islandId);
 
-			final String serializedLoc = StringUtils.serializeLoc(piston.getLoc().asLocation());
-			if (!locations.contains(serializedLoc)) {
-				locations.add(serializedLoc);
-			}
-		}
-		if (locations.isEmpty()) {
+		List<String> serialized = Arrays.stream(pistons).filter(p -> p != null && p.hasBeenUsed()).map(p -> {
+			Location loc = p.getPos().toLocation(hellWorld.bukkitWorld());
+			return StringUtils.serializeLoc(loc);
+		}).filter(Objects::nonNull).distinct().collect(Collectors.toList());
+
+		if (serialized.isEmpty())
 			return;
-		}
-		final Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(id);
-		if (onlineUser.isEmpty()) {
-			return;
-		}
-		onlineUser.get().getLocationCacheData().setPistonLocations(locations);
+
+		instance.getStorageManager().getOfflineUserDataByIslandId(islandId, instance.getConfigManager().lockData())
+				.thenAccept(optUser -> {
+					if (optUser.isEmpty())
+						return;
+
+					UserData user = optUser.get();
+					Map<Integer, List<String>> map = user.getLocationCacheData().getPistonLocationsByIsland();
+					if (map == null) {
+						map = new HashMap<>();
+					}
+					map.put(islandId, serialized);
+					user.getLocationCacheData().setPistonLocationsByIsland(map);
+				});
 	}
 
-	public void loadPistons(@NotNull UUID id) {
-		if (!instance.getConfigManager().pistonAutomation()) {
+	public void loadPistonsByIsland(int islandId) {
+		if (!instance.getConfigManager().pistonAutomation())
 			return;
-		}
-		final Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(id);
-		if (onlineUser.isEmpty()) {
-			return;
-		}
-		final List<String> locations = onlineUser.get().getLocationCacheData().getPistonLocations();
 
-		if (locations != null) {
-			for (String stringLoc : locations) {
-				final Location loc = StringUtils.deserializeLoc(stringLoc);
-				if (loc == null) {
-					instance.getPluginLogger()
-							.warn("Unknown piston location under UUID: %s: ".formatted(id) + stringLoc);
-					continue;
-				}
-				final World world = loc.getWorld();
-				if (world == null) {
-					instance.getPluginLogger().warn("Unknown piston world under UUID: %s: ".formatted(id) + stringLoc);
-					continue;
-				}
-				if (loc.getWorld().getBlockAt(loc).getType() != Material.PISTON) {
-					continue;
-				}
-				final LocationKey locKey = new LocationKey(loc);
-				genManager.getKnownGenPistons().remove(locKey);
-				final GenPiston piston = new GenPiston(locKey, id);
-				piston.setHasBeenUsed(true);
-				genManager.addKnownGenPiston(piston);
-				onlineUser.get().getLocationCacheData().setPistonLocations(new ArrayList<>());
-			}
-		}
+		instance.getStorageManager().getOfflineUserDataByIslandId(islandId, instance.getConfigManager().lockData())
+				.thenAccept(optUser -> {
+					if (optUser.isEmpty())
+						return;
+					UserData user = optUser.get();
+					Map<Integer, List<String>> stored = user.getLocationCacheData().getPistonLocationsByIsland();
+					if (stored == null)
+						return;
+
+					List<String> locations = stored.get(islandId);
+					if (locations == null || locations.isEmpty())
+						return;
+
+					for (String stringLoc : locations) {
+						Location loc = StringUtils.deserializeLoc(stringLoc);
+						if (loc == null || loc.getBlock().getType() != Material.PISTON)
+							continue;
+
+						Pos3 pos = Pos3.from(loc);
+						GenPiston piston = new GenPiston(pos, islandId);
+						piston.setHasBeenUsed(true);
+						genManager.addKnownGenPiston(piston);
+					}
+
+					// Clear once loaded
+					stored.remove(islandId);
+					user.getLocationCacheData().setPistonLocationsByIsland(stored);
+				});
 	}
 
-	public final class LocationKey {
-		private final String world;
-		private final int x;
-		private final int y;
-		private final int z;
+	public void loadIslandPistonsIfNeeded(int islandId) {
+		if (loadedIslandPistonCaches.contains(islandId))
+			return;
 
-		public LocationKey(@NotNull Location loc) {
-			this.world = loc.getWorld() != null ? loc.getWorld().getName() : "";
-			this.x = loc.getBlockX();
-			this.y = loc.getBlockY();
-			this.z = loc.getBlockZ();
-		}
+		instance.getStorageManager().getOfflineUserDataByIslandId(islandId, instance.getConfigManager().lockData())
+				.thenAccept(optUser -> {
+					if (optUser.isEmpty())
+						return;
 
-		public LocationKey(String world, int x, int y, int z) {
-			this.world = world;
-			this.x = x;
-			this.y = y;
-			this.z = z;
-		}
+					UserData user = optUser.get();
+					Map<Integer, List<String>> pistons = user.getLocationCacheData().getPistonLocationsByIsland();
 
-		public @Nullable Block getBlock() {
-			final World bukkitWorld = Bukkit.getWorld(world);
-			if (bukkitWorld == null) {
-				return null;
-			}
-			return bukkitWorld.getBlockAt(x, y, z);
-		}
+					if (pistons != null && pistons.containsKey(islandId)) {
+						List<String> serialized = pistons.get(islandId);
 
-		public @Nullable Location asLocation() {
-			final World bukkitWorld = Bukkit.getWorld(world);
-			if (bukkitWorld == null) {
-				return null;
-			}
-			return new Location(bukkitWorld, x, y, z);
-		}
+						for (String stringLoc : serialized) {
+							Location loc = StringUtils.deserializeLoc(stringLoc);
+							if (loc == null || loc.getBlock().getType() != Material.PISTON)
+								continue;
 
-		@Override
-		public boolean equals(Object o) {
-			if (this == o) {
-				return true;
-			}
-			if (!(o instanceof LocationKey k)) {
-				return false;
-			}
-			return x == k.x && y == k.y && z == k.z && Objects.equals(world, k.world);
-		}
+							Pos3 pos = Pos3.from(loc);
+							GenPiston piston = new GenPiston(pos, islandId);
+							piston.setHasBeenUsed(true);
+							getGeneratorManager().addKnownGenPiston(piston);
+						}
+					}
 
-		@Override
-		public int hashCode() {
-			return Objects.hash(world, x, y, z);
-		}
+					loadedIslandPistonCaches.add(islandId);
+					instance.debug("Loaded piston cache for island ID: " + islandId);
+				});
+	}
 
-		@Override
-		public String toString() {
-			return world + ":" + x + "," + y + "," + z;
-		}
+	public void clearIslandPistonCache(int islandId) {
+		loadedIslandPistonCaches.remove(islandId);
 	}
 }

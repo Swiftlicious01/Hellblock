@@ -19,7 +19,7 @@ import com.swiftlicious.hellblock.database.dependency.classloader.IsolatedClassL
  * Handles class runtime relocation of packages in downloaded dependencies
  */
 public class RelocationHandler {
-	public static final Set<Dependency> DEPENDENCIES = EnumSet.of(Dependency.ASM, Dependency.ASM_COMMONS,
+	public static final Set<Dependency> RELOCATION_DEPENDENCIES = EnumSet.of(Dependency.ASM, Dependency.ASM_COMMONS,
 			Dependency.JAR_RELOCATOR);
 	private static final String JAR_RELOCATOR_CLASS = "me.lucko.jarrelocator.JarRelocator";
 	private static final String JAR_RELOCATOR_RUN_METHOD = "run";
@@ -31,9 +31,9 @@ public class RelocationHandler {
 		ClassLoader classLoader = null;
 		try {
 			// download the required dependencies for remapping
-			dependencyManager.loadDependencies(DEPENDENCIES);
+			dependencyManager.loadDependencies(RELOCATION_DEPENDENCIES);
 			// get a classloader containing the required dependencies as sources
-			classLoader = dependencyManager.obtainClassLoaderWith(DEPENDENCIES);
+			classLoader = dependencyManager.obtainClassLoaderWith(RELOCATION_DEPENDENCIES);
 
 			// load the relocator class
 			final Class<?> jarRelocatorClass = classLoader.loadClass(JAR_RELOCATOR_CLASS);

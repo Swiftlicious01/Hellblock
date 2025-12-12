@@ -12,12 +12,10 @@ import org.incendo.cloud.parser.standard.EitherParser;
 import org.incendo.cloud.parser.standard.UUIDParser;
 import org.incendo.cloud.type.Either;
 
-import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.commands.BukkitCommandFeature;
 import com.swiftlicious.hellblock.commands.HellblockCommandManager;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
-
-import net.kyori.adventure.text.Component;
+import com.swiftlicious.hellblock.handlers.AdventureHelper;
 
 public class UnlockDataCommand extends BukkitCommandFeature<CommandSender> {
 
@@ -33,10 +31,9 @@ public class UnlockDataCommand extends BukkitCommandFeature<CommandSender> {
 				.handler(context -> {
 					Either<UUID, Player> either = context.get("uuid");
 					UUID uuid = either.primaryOrMapFallback(Entity::getUniqueId);
-					HellblockPlugin.getInstance().getStorageManager().getDataSource().lockOrUnlockPlayerData(uuid,
-							false);
+					plugin.getStorageManager().getDataSource().lockOrUnlockPlayerData(uuid, false);
 					handleFeedback(context, MessageConstants.COMMAND_DATA_UNLOCK_SUCCESS,
-							Component.text(uuid.toString()));
+							AdventureHelper.miniMessageToComponent(uuid.toString()));
 				});
 	}
 

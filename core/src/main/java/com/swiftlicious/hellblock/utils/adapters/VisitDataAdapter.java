@@ -17,20 +17,31 @@ public class VisitDataAdapter extends TypeAdapter<VisitData> {
 
 	@Override
 	public void write(JsonWriter out, VisitData visitData) throws IOException {
-		if (visitData == null) {
+		if (visitData == null || visitData.isEmpty()) {
 			out.nullValue();
 			return;
 		}
 
 		out.beginObject();
-		out.name("totalVisits").value(visitData.getTotalVisits());
-		out.name("visitsToday").value(visitData.getDailyVisits());
-		out.name("visitsThisWeek").value(visitData.getWeeklyVisits());
-		out.name("visitsThisMonth").value(visitData.getMonthlyVisits());
-		out.name("lastVisitReset").value(visitData.getLastVisitReset());
-		out.name("featuredUntil").value(visitData.getFeaturedUntil());
 
-		// Serialize warp location if present
+		if (visitData.getTotalVisits() > 0)
+			out.name("totalVisits").value(visitData.getTotalVisits());
+
+		if (visitData.getDailyVisits() > 0)
+			out.name("visitsToday").value(visitData.getDailyVisits());
+
+		if (visitData.getWeeklyVisits() > 0)
+			out.name("visitsThisWeek").value(visitData.getWeeklyVisits());
+
+		if (visitData.getMonthlyVisits() > 0)
+			out.name("visitsThisMonth").value(visitData.getMonthlyVisits());
+
+		if (visitData.getLastVisitReset() > 0 && visitData.hasVisits())
+			out.name("lastVisitReset").value(visitData.getLastVisitReset());
+
+		if (visitData.getFeaturedUntil() > 0)
+			out.name("featuredUntil").value(visitData.getFeaturedUntil());
+
 		Location warp = visitData.getWarpLocation();
 		if (warp != null) {
 			out.name("warp");

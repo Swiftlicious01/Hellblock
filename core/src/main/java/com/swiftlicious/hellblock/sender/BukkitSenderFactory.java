@@ -12,16 +12,12 @@ import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.handlers.VersionHelper;
 import com.swiftlicious.hellblock.utils.extras.Tristate;
 
-import net.kyori.adventure.audience.Audience;
-import net.kyori.adventure.platform.bukkit.BukkitAudiences;
 import net.kyori.adventure.text.Component;
 
 public class BukkitSenderFactory extends SenderFactory<HellblockPlugin, CommandSender> {
-	private final BukkitAudiences audiences;
 
 	public BukkitSenderFactory(HellblockPlugin plugin) {
 		super(plugin);
-		this.audiences = BukkitAudiences.create(plugin);
 	}
 
 	@Override
@@ -38,8 +34,11 @@ public class BukkitSenderFactory extends SenderFactory<HellblockPlugin, CommandS
 	}
 
 	@Override
-	public Audience getAudience(CommandSender sender) {
-		return this.audiences.sender(sender);
+	public net.kyori.adventure.audience.Audience getAudience(CommandSender sender) {
+		net.kyori.adventure.platform.bukkit.BukkitAudiences audience = getPlugin().getAdventureDependencyHelper().getBukkitAudiences();
+		if (audience == null)
+			return net.kyori.adventure.audience.Audience.empty();
+		return audience.sender(sender);
 	}
 
 	@Override
@@ -84,6 +83,6 @@ public class BukkitSenderFactory extends SenderFactory<HellblockPlugin, CommandS
 	@Override
 	public void close() {
 		super.close();
-		this.audiences.close();
+		getPlugin().getAdventureDependencyHelper().closeBukkitAudiences();
 	}
 }

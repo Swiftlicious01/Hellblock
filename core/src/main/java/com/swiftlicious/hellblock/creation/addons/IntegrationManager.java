@@ -2,8 +2,10 @@ package com.swiftlicious.hellblock.creation.addons;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.bukkit.Bukkit;
 import org.bukkit.inventory.ItemStack;
@@ -13,13 +15,23 @@ import org.jetbrains.annotations.Nullable;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.creation.addons.enchant.AdvancedEnchantmentsProvider;
+import com.swiftlicious.hellblock.creation.addons.enchant.CustomEnchantmentsProvider;
 import com.swiftlicious.hellblock.creation.addons.enchant.EnchantmentProvider;
 import com.swiftlicious.hellblock.creation.addons.enchant.VanillaEnchantmentsProvider;
 import com.swiftlicious.hellblock.creation.addons.level.JobsRebornLevelerProvider;
 import com.swiftlicious.hellblock.creation.addons.level.LevelerProvider;
+import com.swiftlicious.hellblock.creation.addons.level.McMMOLevelerProvider;
+import com.swiftlicious.hellblock.creation.addons.mobstacker.StackMobHook;
+import com.swiftlicious.hellblock.creation.addons.mobstacker.WildStackerHook;
 import com.swiftlicious.hellblock.creation.addons.papi.HellblockPapi;
 import com.swiftlicious.hellblock.creation.addons.papi.StatisticsPapi;
+import com.swiftlicious.hellblock.creation.addons.pet.PetProvider;
+import com.swiftlicious.hellblock.creation.addons.pet.SimplePetsHook;
 import com.swiftlicious.hellblock.creation.addons.shop.ShopGUIHook;
+import com.swiftlicious.hellblock.creation.addons.shop.sign.ChestShopHook;
+import com.swiftlicious.hellblock.creation.addons.shop.sign.QuickShopHook;
+import com.swiftlicious.hellblock.creation.addons.shop.sign.ShopSignProvider;
+import com.swiftlicious.hellblock.creation.addons.shop.sign.TradeShopHook;
 import com.swiftlicious.hellblock.creation.block.BlockProvider;
 import com.swiftlicious.hellblock.creation.entity.EntityProvider;
 import com.swiftlicious.hellblock.creation.entity.MythicEntityProvider;
@@ -33,6 +45,8 @@ public class IntegrationManager implements IntegrationManagerInterface {
 	private static IntegrationManager integration;
 	protected final HellblockPlugin instance;
 	private final Map<String, LevelerProvider> levelerProviders = new HashMap<>();
+	private final Map<String, PetProvider> petProviders = new HashMap<>();
+	private final Map<String, ShopSignProvider> shopSignProviders = new HashMap<>();
 	private final Map<String, EnchantmentProvider> enchantmentProviders = new HashMap<>();
 
 	private boolean hasFloodGate;
@@ -42,7 +56,7 @@ public class IntegrationManager implements IntegrationManagerInterface {
 		instance = plugin;
 	}
 
-	public void init() {
+	public void initialize() {
 		try {
 			this.load();
 		} catch (Throwable ex) {
@@ -56,6 +70,8 @@ public class IntegrationManager implements IntegrationManagerInterface {
 	public void disable() {
 		this.enchantmentProviders.clear();
 		this.levelerProviders.clear();
+		this.petProviders.clear();
+		this.shopSignProviders.clear();
 	}
 
 	@Override
@@ -64,23 +80,58 @@ public class IntegrationManager implements IntegrationManagerInterface {
 			registerItemProvider(new MythicMobsItemProvider());
 			registerEntityProvider(new MythicEntityProvider());
 		}
+
 		if (isHooked("Jobs") || isHooked("JobsReborn")) {
 			registerLevelerProvider(new JobsRebornLevelerProvider());
 		}
+		if (isHooked("mcMMO")) {
+			registerLevelerProvider(new McMMOLevelerProvider());
+		}
+
 		registerItemProvider(new SNBTItemProvider());
+
 		registerEnchantmentProvider(new VanillaEnchantmentsProvider());
+		registerEnchantmentProvider(new CustomEnchantmentsProvider(instance));
 		if (isHooked("AdvancedEnchantments")) {
 			registerEnchantmentProvider(new AdvancedEnchantmentsProvider());
 		}
+
 		if (isHooked("Vault")) {
 			VaultHook.init();
 		}
+		
+		if (isHooked("PlayerPoints")) {
+			PlayerPointsHook.register();
+		}
+
 		if (isHooked("PlaceholderAPI")) {
 			new HellblockPapi(instance).load();
 			new StatisticsPapi(instance).load();
 		}
+
 		if (isHooked("ShopGUIPlus")) {
 			ShopGUIHook.register();
+		}
+
+		if (isHooked("StackMob")) {
+			StackMobHook.register();
+		}
+		if (isHooked("WildStacker")) {
+			WildStackerHook.register();
+		}
+
+		if (isHooked("SimplePets")) {
+			registerPetProvider(new SimplePetsHook());
+		}
+
+		if (isHooked("ChestShop")) {
+			registerShopSignProvider(new ChestShopHook());
+		}
+		if (isHooked("TradeShop")) {
+			registerShopSignProvider(new TradeShopHook());
+		}
+		if (isHooked("QuickShop")) {
+			registerShopSignProvider(new QuickShopHook());
 		}
 
 		if (Bukkit.getPluginManager().getPlugin("Geyser-Spigot") != null) {
@@ -127,6 +178,56 @@ public class IntegrationManager implements IntegrationManagerInterface {
 	}
 
 	@Override
+	public boolean registerPetProvider(@NotNull PetProvider pet) {
+		if (petProviders.containsKey(pet.identifier())) {
+			return false;
+		}
+		petProviders.put(pet.identifier(), pet);
+		return true;
+	}
+
+	@Override
+	public boolean unregisterPetProvider(@NotNull String id) {
+		return petProviders.remove(id) != null;
+	}
+
+	@Override
+	@Nullable
+	public PetProvider getPetProvider(String plugin) {
+		return petProviders.get(plugin);
+	}
+
+	@Override
+	public Set<PetProvider> getPetProviders() {
+		return new HashSet<>(petProviders.values());
+	}
+
+	@Override
+	public boolean registerShopSignProvider(@NotNull ShopSignProvider sign) {
+		if (shopSignProviders.containsKey(sign.identifier())) {
+			return false;
+		}
+		shopSignProviders.put(sign.identifier(), sign);
+		return true;
+	}
+
+	@Override
+	public boolean unregisterShopSignProvider(@NotNull String id) {
+		return shopSignProviders.remove(id) != null;
+	}
+
+	@Override
+	@Nullable
+	public ShopSignProvider getShopSignProvider(String plugin) {
+		return shopSignProviders.get(plugin);
+	}
+
+	@Override
+	public Set<ShopSignProvider> getShopSignProviders() {
+		return new HashSet<>(shopSignProviders.values());
+	}
+
+	@Override
 	public boolean registerLevelerProvider(@NotNull LevelerProvider leveler) {
 		if (levelerProviders.containsKey(leveler.identifier())) {
 			return false;
@@ -141,6 +242,12 @@ public class IntegrationManager implements IntegrationManagerInterface {
 	}
 
 	@Override
+	@Nullable
+	public LevelerProvider getLevelerProvider(String plugin) {
+		return levelerProviders.get(plugin);
+	}
+
+	@Override
 	public boolean registerEnchantmentProvider(@NotNull EnchantmentProvider enchantment) {
 		if (enchantmentProviders.containsKey(enchantment.identifier())) {
 			return false;
@@ -152,12 +259,6 @@ public class IntegrationManager implements IntegrationManagerInterface {
 	@Override
 	public boolean unregisterEnchantmentProvider(@NotNull String id) {
 		return enchantmentProviders.remove(id) != null;
-	}
-
-	@Override
-	@Nullable
-	public LevelerProvider getLevelerProvider(String plugin) {
-		return levelerProviders.get(plugin);
 	}
 
 	@Override

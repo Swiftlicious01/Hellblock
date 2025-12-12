@@ -13,7 +13,7 @@ buildscript {
 
 // --- now declare plugins (Gradle 9+ requires this order) ---
 plugins {
-    id 'com.gradleup.shadow' version '9.0.0-beta11'
+    id 'com.gradleup.shadow' version '9.2.2'
     id 'java'
 }
 
@@ -36,82 +36,84 @@ repositories {
         content { includeGroup 'dev.folia' }
         metadataSources { mavenPom(); artifact() }
     }
+    maven { 
+    	url = 'https://repo.codemc.io/repository/maven-public/' 
+    	metadataSources { mavenPom(); artifact() }
+    }
     maven { url = 'https://mvn.lumine.io/repository/maven-public/' }
+    maven { url = 'https://repo.rosewooddev.io/repository/public/' }
     maven { url = 'https://hub.spigotmc.org/nexus/content/repositories/snapshots/' }
+    maven { url = 'https://repo.bsdevelopment.org/releases' }
     maven { url = 'https://repo.glaremasters.me/repository/concuncan/' }
     maven { url = 'https://repo.bg-software.com/repository/api/' }
     maven { url = 'https://nexus.neetgames.com/repository/maven-public' }
-    maven { url = 'https://repo.codemc.io/repository/maven-public/' }
     maven { url = 'https://repo.infernalsuite.com/repository/maven-snapshots/' }
     maven { url = 'https://repo.rapture.pw/repository/maven-releases/' }
     maven { url = 'https://repo.opencollab.dev/main/' }
+    maven { url = 'https://repo.minebench.de/' }
     maven {
         url = 'https://repo.extendedclip.com/content/repositories/placeholderapi/'
         content { includeGroup 'me.clip' }
     }
+    maven { url = 'https://repo.onarandombox.com/content/groups/public' }
 }
 
 dependencies {
     // Paper APIs (or spigot for testing purposes only, will always depend on paper)
     compileOnly hellblockLibs.folia
     // compileOnly hellblockLibs.spigot
+    // compileOnly hellblockLibs.paper
     compileOnly hellblockLibs.aswm
 
     // Internal API
     implementation project(":api")
 
     // --- ASM FIX for Shadow 9 ---
-    implementation 'org.ow2.asm:asm:9.7'
-    implementation 'org.ow2.asm:asm-commons:9.7'
-    implementation 'org.ow2.asm:asm-tree:9.7'
-    implementation 'org.ow2.asm:asm-util:9.7'
+    compileOnly 'org.ow2.asm:asm:9.7'
+    compileOnly 'org.ow2.asm:asm-commons:9.7'
+    compileOnly 'org.ow2.asm:asm-tree:9.7'
+    compileOnly 'org.ow2.asm:asm-util:9.7'
 
 	// --- Auto-discover and add versioned Paper & Spigot modules safely ---
-
-	// PAPER (Mojang-mapped) IMPLS — default configuration
+    	
+	// PAPER & SPIGOT IMPLS — include jars in runtime bundle
 	rootProject.childProjects['paper']?.childProjects
-    	?.findAll { it.key ==~ /v\d+_\d+_R\d+/ } // Only versioned modules
+    	?.findAll { it.key ==~ /v\d+_\d+_R\d+/ }
     	?.each { name, proj ->
-        	if (proj.configurations.findByName("reobf") != null) {
-            	// If somehow a Paper module has reobf (rare), use it
-            	implementation project(path: proj.path, configuration: "reobf")
-        	} else {
-            	implementation project(proj.path)
-        	}
+        	compileOnly project(proj.path)
     	}
 
-	// SPIGOT (Spigot-mapped) IMPLS — depend on reobf output if available
 	rootProject.childProjects['spigot']?.childProjects
-    	?.findAll { it.key ==~ /v\d+_\d+_R\d+/ } // Only versioned modules
+    	?.findAll { it.key ==~ /v\d+_\d+_R\d+/ }
     	?.each { name, proj ->
-        	if (proj.configurations.findByName("reobf") != null) {
-           	 	implementation project(path: proj.path, configuration: "reobf")
-        	} else {
-            	implementation project(proj.path)
-        	}
+        	compileOnly project(proj.path)
     	}
 
     implementation hellblockLibs.rtagcore
-    implementation hellblockLibs.rtagitem
-    implementation hellblockLibs.rtagentity
-    implementation hellblockLibs.rtagblock
+    implementation(hellblockLibs.rtagitem) { transitive = false }
+    implementation(hellblockLibs.rtagentity) { transitive = false }
+    implementation(hellblockLibs.rtagblock) { transitive = false }
 
-    implementation(hellblockLibs.adventureapi) {
+    compileOnly(hellblockLibs.adventureapi) {
         exclude module: 'adventure-bom'
         exclude module: 'checker-qual'
         exclude module: 'annotations'
     }
-    implementation hellblockLibs.adventureminimessage
-    implementation hellblockLibs.adventureplatform
-    implementation hellblockLibs.adventurejsonlegacy
-    implementation hellblockLibs.adventureplain
-    implementation hellblockLibs.adventurenbt
-    implementation(hellblockLibs.adventuregson) {
+    compileOnly hellblockLibs.adventureminimessage
+    compileOnly hellblockLibs.adventureplatformbukkit
+    compileOnly hellblockLibs.adventurejsonlegacy
+    compileOnly hellblockLibs.adventurenbt
+    compileOnly(hellblockLibs.adventuregson) {
         exclude group: 'com.google.code.gson'
     }
 
     implementation hellblockLibs.paperlib
-    implementation hellblockLibs.authlib
+    implementation(hellblockLibs.authlib) {
+    	exclude group: 'commons-io', module: 'commons-io'
+    	exclude group: 'com.google.code.findbugs', module: 'jsr305'
+	}
+    compileOnly hellblockLibs.bytebuddy
+    compileOnly hellblockLibs.spotbugs
     compileOnly hellblockLibs.jackson
     compileOnly hellblockLibs.jacksonannotations
 
@@ -151,15 +153,76 @@ dependencies {
 
     // External plugin APIs
     compileOnly(hellblockLibs.vault) { exclude group: 'org.bukkit' }
+    compileOnly hellblockLibs.multiversecore
     compileOnly hellblockLibs.mythicmobs
+    compileOnly hellblockLibs.playerpoints
     compileOnly(hellblockLibs.shopgui) { exclude group: 'org.spigotmc', module: 'spigot-api' }
     compileOnly hellblockLibs.jobs
     compileOnly hellblockLibs.wildstacker
     compileOnly hellblockLibs.mcmmo
     compileOnly hellblockLibs.stackermob
-
+    compileOnly hellblockLibs.simplepets
+    compileOnly hellblockLibs.tradeshop
+    compileOnly hellblockLibs.chestshop
+    compileOnly hellblockLibs.quickshop
+    compileOnly hellblockLibs.openinv
+    compileOnly hellblockLibs.jsonconfiguration
+    compileOnly hellblockLibs.jsonsmart
+ 
     // Local libs
     compileOnly files("libs/AdvancedEnchantments-api.jar")
+}
+
+tasks.named("processResources") {
+    // --- Find all versioned Paper/Spigot subprojects ---
+    def versionedProjects = rootProject.subprojects.findAll {
+        it.path.startsWith(":paper:") || it.path.startsWith(":spigot:")
+    }.findAll { it.name ==~ /v\d+_\d+_R\d+/ }
+
+    dependsOn versionedProjects.collect { it.tasks.named("jar") }
+
+    // --- Copy each JAR into runtime folder with proper prefix ---
+    versionedProjects.each { proj ->
+        def jarFile = proj.layout.buildDirectory.file("libs/${proj.name}.jar").get().asFile
+        def prefix = proj.path.startsWith(":paper:") ? "paper-" : "spigot-"
+
+        from(jarFile) {
+            into "runtime"
+            rename { "${prefix}${proj.name}.jar" }
+        }
+    }
+
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+
+    doFirst {
+        logger.lifecycle("Including versioned runtime jars: ${versionedProjects*.path}")
+    }
+
+	doLast {
+        fileTree("$buildDir/resources/main/runtime").matching { include '**/*.jar' }.each { f ->
+            def gzFile = new File(f.parentFile, f.name + ".gz")
+        	new java.util.zip.GZIPOutputStream(new FileOutputStream(gzFile)).withCloseable { out ->
+            	f.withInputStream { it.transferTo(out) }
+        	}
+            f.delete()
+        }
+        println "✅ Compressed runtime jars to GZIP."
+
+    	// --- Gzip non-plugin.yml YAML files as well ---
+    	def compressedCount = 0
+    	fileTree("${buildDir}/resources/main").matching { include '**/*.yml' }.files.each { file ->
+        	if (file.name == 'plugin.yml') return // Skip plugin.yml
+        	def gzipFile = new File(file.parentFile, file.name + ".gz")
+        	new java.util.zip.GZIPOutputStream(new FileOutputStream(gzipFile)).withCloseable { out ->
+            	file.withInputStream { it.transferTo(out) }
+        	}
+        	file.delete()
+        	compressedCount++
+    	}
+    	if (compressedCount > 0) {
+        	println "🪶 Gzipped ${compressedCount} YAML resource(s)."
+    	}
+	}
 }
 
 compileJava {
@@ -171,52 +234,98 @@ java {
     toolchain { languageVersion = JavaLanguageVersion.of(21) }
 }
 
+sourceSets.all {
+    allSource.exclude("**/.DS_Store")
+    resources.exclude("**/.DS_Store")
+}
+
 configurations.all {
+    resolutionStrategy.force 'com.google.guava:guava-mini:33.3.1-jre'
     resolutionStrategy.force 'org.ow2.asm:asm:9.7'
     resolutionStrategy.force 'org.ow2.asm:asm-commons:9.7'
     resolutionStrategy.force 'org.ow2.asm:asm-tree:9.7'
     resolutionStrategy.force 'org.ow2.asm:asm-util:9.7'
+    exclude group: 'org.apache.maven.plugins', module: 'maven-javadoc-plugin'
+    exclude group: 'org.checkerframework', module: 'checker-qual'
+    exclude group: 'org.apache.commons', module: 'commons-lang3'
+    exclude group: 'org.apache.commons', module: 'commons-io'
+}
+
+tasks.named("assemble") {
+    dependsOn rootProject.subprojects.findAll { it.name ==~ /v\d+_\d+_R\d+/ }.collect { it.tasks.named("jar") }
+}
+
+tasks.register('analyzeShadowJars') {
+    dependsOn tasks.shadowJar
+    doLast {
+        def jarFile = file("${rootDir}/target/Hellblock-${hellblockLibs.versions.pluginVersion.get()}.jar")
+        println "\n🔍 Analyzing JAR: ${jarFile.name} (${jarFile.length() / 1024 / 1024} MB)\n"
+        
+        ant.unzip(src: jarFile, dest: "$buildDir/tmp/analyze")
+        def dir = file("$buildDir/tmp/analyze")
+        def files = []
+        dir.eachFileRecurse { f ->
+            if (f.isFile()) files << [file: f, size: f.length()]
+        }
+
+        files.sort { -it.size }.take(30).each { entry ->
+            println String.format("%6.2f MB  %s", entry.size / 1024 / 1024, entry.file.path - dir.path)
+        }
+        println "\nTotal: ${(files.sum { it.size } / 1024 / 1024).round(2)} MB"
+    }
+}
+
+tasks.withType(Jar).configureEach {
+    exclude("**/.DS_Store", "**/*.kotlin_metadata", "**/*.kotlin_module",
+        "META-INF/LICENSE*", "META-INF/NOTICE*", "META-INF/*.RSA",
+        "META-INF/*.SF", "META-INF/*.DSA", "META-INF/versions/**",
+        "**/module-info.class")
 }
 
 tasks.named("shadowJar") { task ->
+    dependsOn tasks.processResources
 
-    // Precompute the filtered files provider at configuration time
-    def filteredFilesProvider = project.provider {
-        def result = []
-        if (task.hasProperty("configurations")) {
-            def configs = task.configurations.getOrElse([])
-            configs.each { cfg ->
-                cfg.resolve().each { file ->
-                    def name = file.name.toLowerCase()
-                    if (!name.contains("paperweight") && !name.contains("dev-bundle")) {
-                        result << file
-                    }
-                }
-            }
+    // --- Collect versioned Paper/Spigot modules ---
+    def versionedProjects = rootProject.subprojects.findAll {
+        it.path.startsWith(":paper:") || it.path.startsWith(":spigot:")
+    }.findAll { it.name ==~ /v\d+_\d+_R\d+/ }
+
+    versionedProjects.each { proj ->
+        if (proj.tasks.findByName("jar") != null) {
+            dependsOn proj.tasks.named("jar")
         }
-        // Build a detached FileCollection here, so no project.files inside doFirst
-        return project.layout.files(result)
     }
 
     doFirst {
-        // Only read the provider here — no project calls
-        def detachedFiles = filteredFilesProvider.get()
-        if (!detachedFiles.isEmpty()) {
-            task.from(detachedFiles)
-        }
+        logger.lifecycle("Building versioned NMS subprojects before shading: ${versionedProjects*.path}")
         logger.lifecycle("Running ShadowJar with isolated classpath...")
-        logger.lifecycle("Filtered ${detachedFiles.files.size()} JARs for shading.")
     }
 
-    // Normal Shadow config
+    // --- Dependency and exclude cleanup ---
+    dependencies {
+        exclude(dependency("com.google.guava:guava"))
+    }
+
+    // --- Exclude embedded JARs and redundant libs ---
+    exclude '**/*.jar'
+    exclude 'com/google/common/**'
+    exclude 'com/google/thirdparty/**'
+
+    // --- Normal shadow output config ---
     destinationDirectory.set(file("${rootDir}/target"))
     archiveBaseName.set("Hellblock")
+    entryCompression = ZipEntryCompression.DEFLATED
     archiveVersion.set(hellblockLibs.versions.pluginVersion.get())
     archiveClassifier.set('')
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     mergeServiceFiles()
+    zip64 = true
 
-    // Relocations at config time (safe)
+    minimize {
+        exclude(project(":api"))
+    }
+
+    // --- Relocations ---
     relocate 'com.mysql', 'com.swiftlicious.hellblock.libraries.mysql'
     relocate 'org.mariadb', 'com.swiftlicious.hellblock.libraries.mariadb'
     relocate 'org.postgresql', 'com.swiftlicious.hellblock.libraries.postgresql'
@@ -231,6 +340,7 @@ tasks.named("shadowJar") { task ->
     relocate 'com.github.benmanes.caffeine', 'com.swiftlicious.hellblock.libraries.caffeine'
     relocate 'org.incendo', 'com.swiftlicious.hellblock.libraries'
     relocate 'dev.dejvokep.boostedyaml', 'com.swiftlicious.hellblock.libraries.boostedyaml'
+    relocate 'net.bytebuddy', 'com.swiftlicious.hellblock.libraries.bytebuddy'
     relocate 'com.saicone.rtag', 'com.swiftlicious.hellblock.libraries.rtag'
     relocate 'io.papermc.lib', 'com.swiftlicious.hellblock.libraries.paperlib'
     relocate 'com.mojang.authlib', 'com.swiftlicious.hellblock.libraries.authlib'
@@ -246,4 +356,12 @@ tasks.build {
 
 tasks.jar {
     enabled = false
+}
+
+tasks.named("processResources") {
+    outputs.upToDateWhen { false } // Always re-run, even if inputs look up-to-date
+}
+
+tasks.named("shadowJar") {
+    outputs.upToDateWhen { false } // Always rebuild final JAR
 }

@@ -4,30 +4,29 @@ import java.lang.reflect.Type;
 import java.util.HashMap;
 import java.util.Map;
 
-import com.google.gson.Gson;
 import com.google.gson.JsonDeserializationContext;
 import com.google.gson.JsonDeserializer;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonPrimitive;
 import com.google.gson.JsonSerializationContext;
 import com.google.gson.JsonSerializer;
-import com.swiftlicious.hellblock.HellblockPlugin;
 
 public class MapSerializer<K, V> implements JsonSerializer<Map<K, V>>, JsonDeserializer<Map<K, V>> {
 
-	private final Class<K> keysClassType;
-	private final Class<V> valuesClassType;
+	private final Class<K> keyClassType;
+	private final Class<V> valueClassType;
 
 	/**
 	 * Constructor of the class.
 	 *
-	 * @param keysClassType   class type of the key objects
-	 * @param valuesClassType class type of the value objects
+	 * @param keyClassType   class type of the key objects
+	 * @param valueClassType class type of the value objects
 	 */
-	public MapSerializer(Class<K> keysClassType, Class<V> valuesClassType) {
-		this.keysClassType = keysClassType;
-		this.valuesClassType = valuesClassType;
+	public MapSerializer(Class<K> keyClassType, Class<V> valueClassType) {
+		this.keyClassType = keyClassType;
+		this.valueClassType = valueClassType;
 	}
 
 	/**
@@ -39,15 +38,13 @@ public class MapSerializer<K, V> implements JsonSerializer<Map<K, V>>, JsonDeser
 	 * @return the serialized object
 	 */
 	@Override
-	public JsonElement serialize(Map<K, V> kvMap, Type type, JsonSerializationContext jsonSerializationContext) {
-		if (kvMap == null || kvMap.isEmpty()) {
+	public JsonElement serialize(Map<K, V> map, Type type, JsonSerializationContext context) {
+		if (map == null || map.isEmpty()) {
 			return JsonNull.INSTANCE;
 		}
-		final JsonObject jsonObject = new JsonObject();
-
-		kvMap.entrySet().forEach(entry -> jsonObject.add(entry.getKey().toString(),
-				jsonSerializationContext.serialize(entry.getValue())));
-
+		JsonObject jsonObject = new JsonObject();
+		map.entrySet().stream().filter(entry -> entry.getKey() != null && entry.getValue() != null)
+				.forEach(entry -> jsonObject.add(entry.getKey().toString(), context.serialize(entry.getValue())));
 		return jsonObject;
 	}
 
@@ -60,15 +57,18 @@ public class MapSerializer<K, V> implements JsonSerializer<Map<K, V>>, JsonDeser
 	 * @return deserialized hashmap
 	 */
 	@Override
-	public Map<K, V> deserialize(JsonElement jsonElement, Type type,
-			JsonDeserializationContext jsonDeserializationContext) {
-		final Gson gson = HellblockPlugin.getInstance().getStorageManager().getGson();
-
-		final JsonObject jsonObject = (JsonObject) jsonElement;
-
-		final Map<K, V> reAssembledHashMap = new HashMap<>();
-		jsonObject.entrySet().forEach(entry -> reAssembledHashMap.put(gson.fromJson(entry.getKey(), keysClassType),
-				gson.fromJson(entry.getValue(), valuesClassType)));
-		return reAssembledHashMap;
+	public Map<K, V> deserialize(JsonElement json, Type type, JsonDeserializationContext context) {
+		if (json == null || json.isJsonNull()) {
+			return new HashMap<>();
+		}
+		JsonObject jsonObject = json.getAsJsonObject();
+		Map<K, V> result = new HashMap<>();
+		jsonObject.entrySet().forEach(entry -> {
+			K key = context.deserialize(new JsonPrimitive(entry.getKey()), keyClassType);
+			V value = context.deserialize(entry.getValue(), valueClassType);
+			if (key != null && value != null)
+				result.put(key, value);
+		});
+		return result;
 	}
 }

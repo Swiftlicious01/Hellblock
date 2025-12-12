@@ -1,0 +1,85 @@
+island-choice:
+  gui:
+    # The title for the island choice menu
+    title: '<center><gradient:#A52A2A:#800000:#A52A2A>Choose Your Hellblock!</gradient>'
+    # The layout for the island choice menu
+    layout: 
+      - 'AAAAAAAAA'
+      - 'ADAACAASA'
+      - 'AAAAAAAAA'
+    # Default icon for default island type
+    default-icon:
+      symbol: 'D'
+      material: MAGMA_BLOCK
+      display:
+        name: '<gradient:#ff4e50:#f9d423><b>Beginner Island</b></gradient>'
+        lore:
+          - ''
+          - '<gray>⬑ Cone-style vertical island design'
+          - '<gold>Stacked layers & compact resources!'
+          - ''
+          - '<red>Click to generate the modern Hellblock core!'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_additional_tooltip: {}
+    # Classic icon for classic island type
+    classic-icon:
+      symbol: 'C'
+      material: SOUL_SAND
+      display:
+        name: '<gradient:#8e44ad:#3498db><b>Classic Hellblock</b></gradient>'
+        lore:
+          - ''
+          - '<gray>⬑ The original L-shaped hellblock'
+          - '<gold>Includes a glowstone tree, chest, and nostalgia!'
+          - ''
+          - '<light_purple>Relive the nostalgia of the classic setup!'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_additional_tooltip: {}
+    # Schematic icon for schematic options
+    schematic-icon:
+      symbol: 'S'
+      material: KNOWLEDGE_BOOK
+      display:
+        name: '<gradient:#00c3ff:#ffff1c><b>Custom Templates</b></gradient>'
+        lore:
+          - ''
+          - '<blue> ✦ Choose from imported templates'
+          - '<yellow> ✦ Design your own hell world'
+          - '<green> ✦ Unique landscapes await'
+          - ''
+          - '<gold>Click to browse available templates!'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_additional_tooltip: {}
+    # Decorative icons for visual enhancement
+    decorative-icons:
+      glass-pane:
+        symbol: 'A'
+        material: RED_STAINED_GLASS_PANE
+        display:
+          name: ' '  
+        components:
+          minecraft:hide_tooltip: {}

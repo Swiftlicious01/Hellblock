@@ -11,13 +11,13 @@
 config-version: '${config_version}'
 
 # Debug
-debug: false
+debug: true
 
 # BStats
 metrics: true
 
 # Check updates
-update-checker: false
+update-checker: true
 
 # Force locale setting, e.g., en
 force-locale: 'en'
@@ -85,6 +85,53 @@ hellblock:
   # Whether or not the generation animation is disabled when creating a new hellblock.
   # Only set to true if you find the animation annoying as it is pretty quick anyway.
   disable-generation-animation: false
+  # If the above setting is true this is the command whitelist that can be used during the generation process. 
+  # Generally don't allow any commands involving movement or teleportation.
+  # You can edit the list as you wish this is just a few starters.
+  command-whitelist:
+    - "/help"
+    - "/msg"
+    - "/tell"
+    - "/reply"
+    - "/message"
+    - "/t"
+    - "/m"
+    - "/mail"
+    - "/seen"
+    - "/ignore"
+    - "/list"
+    - "/ping"
+    - "/rules"
+    - "/r"
+    - "/whisper"
+    - "/w"
+    - "/?"
+    - "/me"
+    - "/socialspy"
+    - "/bal"
+    - "/balance"
+    - "/baltop"
+    - "/balancetop"
+    - "/msgtoggle"
+    - "/paytoggle"
+    - "/pay"
+    - "/ptime"
+    - "/nick"
+    - "/nickname"
+    - "/feed"
+    - "/heal"
+    - "/shout"
+    - "/broadcast"
+    - "/mute"
+    - "/unmute"
+    - "/unban"
+    - "/unjail"
+    - "/kick"
+    - "/ban"
+    - "/jail"
+    - "/repair"
+    - "/hat"
+    - "/pm"
   # Whether or not players can link their nether portals to other player's hellblocks. If false a nether portal on any island will just
   # teleport them to their own hellblock.
   can-link-hellblocks: true
@@ -96,6 +143,26 @@ hellblock:
     - 'default'
     - 'classic'
     - 'schematic'
+  # Island event settings (Once the required island level is reached these types of events below will occur or attempt to at every x amount of minutes)
+  # Piglin invasions will spawn waves of piglins that you must defend your island from.
+  # Wither events will spawn an enhanced wither that spawns minions that you must defeat.
+  # Ghast Skyseige events will spawn waves of ghasts with a boss ghast at the end you must defeat.
+  island-events:
+    wither-settings:
+      enable: true
+      level-required: 50
+      cooldown: 30
+      max-duration: 5
+    invasion-settings:
+      enable: true
+      level-required: 100
+      cooldown: 30
+      max-duration: 10
+    skysiege-settings:
+      enable: true
+      level-required: 150
+      cooldown: 30
+      max-duration: 10
   # The starting height for each hellblock. This will be the height a spawn point is set per hellblock when creating a island.
   height: 150
   # Use worldguard for hellblock protection or have us handle it?
@@ -168,6 +235,7 @@ hellblock:
   # 0.0 starting means it will not add anything to the defined values.
   # When defining values per generator-chance, piglin-bartering, crop-growth or mob-spawn-rate it will not be a overall value 
   # but it just adds to the current so 0.2 for tier 1 will add to an already default value of say 0.5.
+  # Upgrade cost options are the following: MONEY (Vault support), POINTS (PlayerPoints support), ITEM (vanilla items) or EXP/XP/EXPERIENCE.
   upgrades:
     default:
       protection-range: 100
@@ -177,158 +245,159 @@ hellblock:
       piglin-bartering: 0.0
       crop-growth: 0.0
       mob-spawn-rate: 0.0
-    tier-1:
-      protection-range:
-        value: 125
-        costs:
-          - type: MONEY
-            amount: 500
-          - type: EXP
-            amount: 100
-          - type: ITEM
-            item: IRON_INGOT
-            amount: 16
-      party-size:
-        value: 5
-        costs:
-          - type: MONEY
-            amount: 250
-          - type: EXP
-            amount: 50
-      hopper-limit:
-        value: 30
-        costs:
-          - type: MONEY
-            amount: 300
-          - type: ITEM
-            item: REDSTONE
-            amount: 32
-      generator-chance:
-        value: 0.2
-        costs:
-          - type: EXPERIENCE
-            amount: 500
-          - type: ITEM
-            item: DIAMOND
-            amount: 16
-      piglin-bartering:
-        value: 0.1
-        costs:
-          - type: EXPERIENCE
-            amount: 450
-      crop-growth:
-        value: 0.2
-        costs:
-          - type: ITEM
-            item: GOLD_INGOT
-            amount: 64
-      mob-spawn-rate:
-        value: 0.3
-        costs:
-          - type: MONEY
-            amount: 7500
-    tier-2:
-      protection-range:
-        value: 150
-        costs:
-          - type: MONEY
-            amount: 1000
-          - type: EXP
-            amount: 200
-          - type: ITEM
-            item: GOLD_INGOT
-            amount: 8
-      party-size:
-        value: 6
-        costs:
-          - type: MONEY
-            amount: 500
-          - type: EXP
-            amount: 100
-      hopper-limit:
-        value: 40
-        costs:
-          - type: MONEY
-            amount: 600
-          - type: ITEM
-            item: IRON_BLOCK
-            amount: 4
-      generator-chance:
-        value: 0.3
-        costs:
-          - type: XP
-            amount: 1000
-          - type: MONEY
-            amount: 5000
-      piglin-bartering:
-        value: 0.2
-        costs:
-          - type: MONEY
-            amount: 10000
-      crop-growth:
-        value: 0.3
-        costs:
-          - type: MONEY
-            amount: 25000
-          - type: XP
-            amount: 8000
-      mob-spawn-rate:
-        value: 0.4
-        costs:
-          - type: EXP
-            amount: 15000
-    tier-3:
-      protection-range:
-        value: 175
-        costs:
-          - type: MONEY
-            amount: 2000
-          - type: EXP
-            amount: 400
-          - type: ITEM
-            item: DIAMOND
-            amount: 4
-      party-size:
-        value: 7
-        costs:
-          - type: MONEY
-            amount: 1000
-          - type: EXP
-            amount: 200
-      hopper-limit:
-        value: 50
-        costs:
-          - type: MONEY
-            amount: 1200
-          - type: ITEM
-            item: GOLD_BLOCK
-            amount: 2
-      generator-chance:
-        value: 0.5
-        costs:
-          - type: ITEM
-            item: EMERALD
-            amount: 24
-          - type: MONEY
-            amount: 2500
-          - type: EXP
-            amount: 400
-      piglin-bartering:
-        value: 0.4
-        costs:
-          - type: ITEM
-            item: NETHERITE_BLOCK
-            amount: 8
-      crop-growth:
-        value: 0.3
-        costs:
-          - type: MONEY
-            amount: 50000
-      mob-spawn-rate:
-        value: 0.2
-        costs:
-          - type: EXP
-            amount: 25000
+    tiers:
+      '1':
+        protection-range:
+          value: 125
+          costs:
+            - type: MONEY
+              amount: 500
+            - type: EXP
+              amount: 100
+            - type: ITEM
+              item: IRON_INGOT
+              amount: 16
+        party-size:
+          value: 5
+          costs:
+            - type: MONEY
+              amount: 250
+            - type: EXP
+              amount: 50
+        hopper-limit:
+          value: 30    
+          costs:
+            - type: MONEY
+              amount: 300
+            - type: ITEM
+              item: REDSTONE
+              amount: 32
+        generator-chance:
+          value: 0.2
+          costs:
+            - type: EXPERIENCE
+              amount: 500
+            - type: ITEM
+              item: DIAMOND
+              amount: 16
+        piglin-bartering:
+          value: 0.1
+          costs:
+            - type: EXPERIENCE
+              amount: 450
+        crop-growth:
+          value: 0.2
+          costs:
+            - type: ITEM
+              item: GOLD_INGOT
+              amount: 64
+        mob-spawn-rate:
+          value: 0.3
+          costs:
+            - type: MONEY
+              amount: 7500
+      '2':
+        protection-range:
+          value: 150
+          costs:
+            - type: MONEY
+              amount: 1000
+            - type: EXP
+              amount: 200
+            - type: ITEM
+              item: GOLD_INGOT
+              amount: 8
+        party-size:
+          value: 6
+          costs:
+            - type: MONEY
+              amount: 500  
+            - type: EXP
+              amount: 100
+        hopper-limit:
+          value: 40
+          costs:
+            - type: MONEY
+              amount: 600
+            - type: ITEM
+              item: IRON_BLOCK
+              amount: 4
+        generator-chance:
+          value: 0.3
+          costs:
+            - type: XP
+              amount: 1000
+            - type: MONEY
+              amount: 5000
+        piglin-bartering:
+          value: 0.2
+          costs:
+            - type: MONEY
+              amount: 10000
+        crop-growth:  
+          value: 0.3
+          costs:
+            - type: MONEY
+              amount: 25000
+            - type: XP
+              amount: 8000
+        mob-spawn-rate:
+          value: 0.4
+          costs:
+            - type: EXP
+              amount: 15000
+      '3':
+        protection-range:
+          value: 175
+          costs:
+            - type: MONEY
+              amount: 2000
+            - type: EXP 
+              amount: 400
+            - type: ITEM
+              item: DIAMOND
+              amount: 4
+        party-size:
+          value: 7
+          costs:
+            - type: MONEY
+              amount: 1000
+            - type: EXP
+              amount: 200
+        hopper-limit:
+          value: 50
+          costs:
+            - type: MONEY
+              amount: 1200
+            - type: ITEM
+              item: GOLD_BLOCK
+              amount: 2
+        generator-chance:
+          value: 0.5
+          costs:
+            - type: ITEM
+              item: EMERALD
+              amount: 24
+            - type: MONEY 
+              amount: 2500
+            - type: EXP
+              amount: 400
+        piglin-bartering:
+          value: 0.4
+          costs:
+            - type: ITEM
+              item: NETHERITE_BLOCK
+              amount: 8
+        crop-growth:
+          value: 0.3
+          costs:
+            - type: MONEY
+              amount: 50000
+        mob-spawn-rate:
+          value: 0.2
+          costs:
+            - type: EXP
+              amount: 25000
   creation-title-screen:
     enable: true
     title: '<red>Welcome <dark_red>{player}'
@@ -352,7 +421,7 @@ hellblock:
     volume: 1.0
     pitch: 1.0
   starter-chest: 
-    inventory-name: '<center><dark_red>Hellblock Chest</dark_red></center>'
+    inventory-name: '<center><dark_red>Hellblock Chest</dark_red>'
     items:
       '1':
         material: BROWN_MUSHROOM
@@ -398,61 +467,6 @@ hellblock:
         material: BONE
         amount: 1
         slot: 23
-
-# You add the block material type and then the amount of levels you want it to add to the hellblock.
-# Example: 'cobblestone:5' will add 5 levels to the hellblock when cobblestone is placed. Doesn't matter if a trusted member, party member or owner places it.
-# Levels are done in a decimal system so it can be 0.5 to only add half a level as well.
-# Blocks will add nothing to the island level unless it is displayed below in the list.
-# If you wish to define a specific mob spawner type you can put the entity's name after like shown in the example below for it to only work for that entity type.
-level-system:
-  blocks:
-    # Overworld survival essentials (valuable)
-    DIRT: 1
-    GRASS_BLOCK: 1
-    SAND: 0.8
-    GRAVEL: 0.3
-    COBBLESTONE: 1
-    STONE: 1
-    LOG: 1.2
-    PLANKS: 0.8
-    LEAVES: 0.2
-    # Overworld ores (very valuable here)
-    COAL_BLOCK: 2
-    IRON_BLOCK: 3
-    GOLD_BLOCK: 4
-    LAPIS_BLOCK: 4
-    REDSTONE_BLOCK: 3.5
-    COPPER_BLOCK: 3
-    DIAMOND_BLOCK: 10
-    EMERALD_BLOCK: 12
-    BEACON: 25
-    # Common Nether blocks (low value)
-    NETHERRACK: 0.05
-    SOUL_SAND: 0.1
-    SOUL_SOIL: 0.1
-    NETHER_BRICKS: 0.1
-    QUARTZ_BLOCK: 0.2
-    GLOWSTONE: 0.2
-    BLACKSTONE: 0.2
-    # Still valuable Nether blocks
-    BASALT: 0.8
-    MAGMA_BLOCK: 1
-    CRYING_OBSIDIAN: 2
-    OBSIDIAN: 2
-    ANCIENT_DEBRIS: 8
-    NETHERITE_BLOCK: 20
-    # End-game prestige
-    END_STONE: 1
-    PURPUR_BLOCK: 1.5
-    SEA_LANTERN: 2
-    # Spawners (late-game)
-    'SPAWNER:ZOMBIE': 15
-    'SPAWNER:SKELETON': 20
-    'SPAWNER:BLAZE': 25      # weaker than before (since Blaze = common in Nether)
-    'SPAWNER:IRON_GOLEM': 50
-    'SPAWNER:WITHER_SKELETON': 40
-    'SPAWNER:PIGLIN': 20
-    'SPAWNER:ENDER_DRAGON': 500
 
 piglin-bartering:
   # If set to true this will clear all default items and only the custom items added below will be dropped.
@@ -519,715 +533,6 @@ piglin-bartering:
       display:
         name: '<aqua>Diamond'
 
-potions:
-  nether-potion:
-    enable: true
-    material: POTION
-    glowing: true
-    crafting:
-      materials:
-        GLOWSTONE_DUST: 'G'
-        NETHER_POTION: 'P'
-      recipe: 
-        - 'GGG'
-        - 'GPG'
-        - 'GGG'
-    components:
-      minecraft:potion_contents:
-        custom_color: 16711680
-    display:
-      name: '<red>Nether Bottle'
-      lore:
-        - '<dark_red>Potion but Nethery'
-
-tools:
-  netherrack:
-    pickaxe:
-      enable: true
-      material: STONE_PICKAXE
-      crafting:
-        materials:
-          NETHERRACK: 'N'
-          BONE: 'B'
-          AIR: 'A'
-        recipe:
-          - 'NNN'
-          - 'ABA'
-          - 'ABA'
-      display:
-        name: '<red>Nether Pickaxe'
-        lore:
-          - '<dark_red>Pickaxe but Nethery'
-      enchantments:
-        minecraft:efficiency: 1
-        minecraft:unbreaking: 1
-    axe:
-      enable: true
-      material: STONE_AXE
-      crafting:
-        materials:
-          NETHERRACK: 'N'
-          BONE: 'B'
-          AIR: 'A'
-        recipe:
-          - 'NNA'
-          - 'NBA'
-          - 'ABA'
-      display:
-        name: '<red>Nether Axe'
-        lore:
-          - '<dark_red>Axe but Nethery'
-      enchantments:
-        minecraft:efficiency: 1
-        minecraft:unbreaking: 1
-    shovel:
-      enable: true
-      material: STONE_SHOVEL
-      crafting: 
-        materials:
-          NETHERRACK: 'N'
-          BONE: 'B'
-          AIR: 'A' 
-        recipe:
-          - 'ANA'
-          - 'ABA'
-          - 'ABA'
-      display:
-        name: '<red>Nether Shovel'
-        lore:
-          - '<dark_red>Shovel but Nethery'
-      enchantments:
-        minecraft:efficiency: 1
-        minecraft:unbreaking: 1
-    hoe:
-      enable: true
-      material: STONE_HOE
-      crafting:
-        materials:
-          NETHERRACK: 'N'
-          BONE: 'B'
-          AIR: 'A'
-        recipe:
-          - 'NNA'
-          - 'ABA'
-          - 'ABA'
-      display:
-        name: '<red>Nether Hoe'
-        lore:
-          - '<dark_red>Hoe but Nethery'
-      enchantments:
-        minecraft:efficiency: 1
-        minecraft:unbreaking: 1
-    sword:
-      enable: true
-      material: STONE_SWORD
-      crafting:
-        materials:
-          NETHERRACK: 'N'
-          BONE: 'B'
-          AIR: 'A'
-        recipe:
-          - 'ANA'
-          - 'ANA'
-          - 'ABA'
-      display:
-        name: '<red>Nether Sword'
-        lore:
-          - '<dark_red>Sword but Nethery'
-      enchantments:
-        minecraft:sharpness: 1
-        minecraft:unbreaking: 1
-  glowstone:
-    pickaxe: 
-      enable: true
-      night-vision: true
-      material: GOLDEN_PICKAXE
-      crafting: 
-        materials:
-          GLOWSTONE: 'G' 
-          BONE: 'B'
-          AIR: 'A'
-        recipe:
-          - 'GGG'
-          - 'ABA'
-          - 'ABA'
-      display:
-        name: '<yellow>Glowstone Pickaxe'
-        lore:
-          - '<dark_red>Pickaxe but Nethery'
-      enchantments:
-        minecraft:efficiency: 1
-        minecraft:unbreaking: 1
-    axe:
-      enable: true
-      night-vision: true 
-      material: GOLDEN_AXE
-      crafting:
-        materials: 
-          GLOWSTONE: 'G'
-          BONE: 'B'
-          AIR: 'A'
-        recipe:
-          - 'GGA'
-          - 'GBA'
-          - 'ABA'
-      display:
-        name: '<yellow>Glowstone Axe'
-        lore:
-          - '<dark_red>Axe but Nethery'
-      enchantments:
-        minecraft:efficiency: 1
-        minecraft:unbreaking: 1
-    shovel:
-      enable: true 
-      night-vision: true
-      material: GOLDEN_SHOVEL
-      crafting:
-        materials:
-          GLOWSTONE: 'G'
-          BONE: 'B'
-          AIR: 'A'
-        recipe:
-          - 'AGA'
-          - 'ABA'
-          - 'ABA'
-      display:
-        name: '<yellow>Glowstone Shovel'
-        lore:
-          - '<dark_red>Shovel but Nethery'
-      enchantments:
-        minecraft:efficiency: 1
-        minecraft:unbreaking: 1
-    hoe:
-      enable: true
-      night-vision: true
-      material: GOLDEN_HOE
-      crafting:
-        materials:
-          GLOWSTONE: 'G'
-          BONE: 'B'
-          AIR: 'A'
-        recipe:
-          - 'GGA'
-          - 'ABA'
-          - 'ABA'
-      display:
-        name: '<yellow>Glowstone Hoe'
-        lore:
-          - '<dark_red>Hoe but Nethery'
-      enchantments:
-        minecraft:efficiency: 1
-        minecraft:unbreaking: 1
-    sword:
-      enable: true
-      night-vision: true
-      material: GOLDEN_SWORD
-      crafting:
-        materials:
-          GLOWSTONE: 'G'
-          BONE: 'B'
-          AIR: 'A'
-        recipe:
-          - 'AGA'
-          - 'AGA'
-          - 'ABA'
-      display:
-        name: '<yellow>Glowstone Sword'
-        lore:
-          - '<dark_red>Sword but Nethery'
-      enchantments:
-        minecraft:sharpness: 1
-        minecraft:unbreaking: 1
-  quartz:
-    pickaxe:
-      enable: true
-      material: IRON_PICKAXE
-      crafting:
-        materials:
-          QUARTZ: 'Q'
-          BONE: 'B'
-          AIR: 'A'
-        recipe:
-          - 'QQQ'
-          - 'ABA'
-          - 'ABA'
-      display:
-        name: '<gray>Quartz Pickaxe'
-        lore:
-          - '<dark_red>Pickaxe but Nethery'
-      enchantments:
-        minecraft:efficiency: 1
-        minecraft:unbreaking: 1
-    axe:
-      enable: true
-      material: IRON_AXE 
-      crafting:
-        materials:
-          QUARTZ: 'Q'
-          BONE: 'B'
-          AIR: 'A'
-        recipe:
-          - 'QQA'
-          - 'QBA'
-          - 'ABA'
-      display:
-        name: '<gray>Quartz Axe'
-        lore:
-          - '<dark_red>Axe but Nethery'
-      enchantments:
-        minecraft:efficiency: 1
-        minecraft:unbreaking: 1
-    shovel:
-      enable: true
-      material: IRON_SHOVEL
-      crafting:
-        materials:
-          QUARTZ: 'Q'
-          BONE: 'B'
-          AIR: 'A'
-        recipe:
-          - 'AQA'
-          - 'ABA'
-          - 'ABA'
-      display:
-        name: '<gray>Quartz Shovel'
-        lore:
-          - '<dark_red>Shovel but Nethery'
-      enchantments:
-        minecraft:efficiency: 1
-        minecraft:unbreaking: 1
-    hoe:
-      enable: true 
-      material: IRON_HOE
-      crafting:
-        materials:
-          QUARTZ: 'Q'
-          BONE: 'B'
-          AIR: 'A'
-        recipe:
-          - 'QQA'
-          - 'ABA'
-          - 'ABA'
-      display:
-        name: '<gray>Quartz Hoe'
-        lore:
-          - '<dark_red>Hoe but Nethery'
-      enchantments:
-        minecraft:efficiency: 1
-        minecraft:unbreaking: 1
-    sword:
-      enable: true
-      material: IRON_SWORD
-      crafting:
-        materials:
-          QUARTZ: 'Q'
-          BONE: 'B'
-          AIR: 'A'
-        recipe:
-          - 'AQA'
-          - 'AQA'
-          - 'ABA'
-      display:
-        name: '<gray>Quartz Sword'
-        lore:
-          - '<dark_red>Sword but Nethery'
-      enchantments:
-        minecraft:sharpness: 1
-        minecraft:unbreaking: 1
-  netherstar:
-    pickaxe:
-      enable: true
-      material: DIAMOND_PICKAXE
-      crafting:
-        materials:
-          NETHER_STAR: 'N'
-          BONE: 'B'
-          AIR: 'A'
-        recipe:
-          - 'NNN'
-          - 'ABA'
-          - 'ABA'
-      display:
-        name: '<aqua>Nether Star Pickaxe'
-        lore:
-          - '<dark_red>Pickaxe but Nethery'
-      enchantments:
-        minecraft:efficiency: 1
-        minecraft:unbreaking: 1
-    axe:
-      enable: true
-      material: DIAMOND_AXE
-      crafting:
-        materials:
-          NETHER_STAR: 'N'
-          BONE: 'B'
-          AIR: 'A'
-        recipe:
-          - 'NNA'
-          - 'NBA'
-          - 'ABA'
-      display:
-        name: '<aqua>Nether Star Axe'
-        lore:
-          - '<dark_red>Axe but Nethery'
-      enchantments:
-        minecraft:efficiency: 1
-        minecraft:unbreaking: 1
-    shovel:
-      enable: true
-      material: DIAMOND_SHOVEL
-      crafting:
-        materials:
-          NETHER_STAR: 'N'
-          BONE: 'B'
-          AIR: 'A'
-        recipe:
-          - 'ANA'
-          - 'ABA'
-          - 'ABA'
-      display:
-        name: '<aqua>Nether Star Shovel'
-        lore:
-          - '<dark_red>Shovel but Nethery'
-      enchantments:
-        minecraft:efficiency: 1
-        minecraft:unbreaking: 1
-    hoe:
-      enable: true
-      material: DIAMOND_HOE
-      crafting:
-        materials:
-          NETHER_STAR: 'N'
-          BONE: 'B'
-          AIR: 'A'
-        recipe:
-          - 'NNA'
-          - 'ABA'
-          - 'ABA'
-      display:
-        name: '<aqua>Nether Star Hoe'
-        lore:
-          - '<dark_red>Hoe but Nethery'
-      enchantments:
-        minecraft:efficiency: 1
-        minecraft:unbreaking: 1
-    sword:
-      enable: true
-      material: DIAMOND_SWORD
-      crafting:
-        materials:
-          NETHER_STAR: 'N'
-          BONE: 'B'
-          AIR: 'A'
-        recipe:
-          - 'ANA'
-          - 'ANA'
-          - 'ABA'
-      display:
-        name: '<aqua>Nether Star Sword'
-        lore:
-          - '<dark_red>Sword but Nethery'
-      enchantments:
-        minecraft:sharpness: 1
-        minecraft:unbreaking: 1
-armor:
-  netherrack:
-    helmet:
-      enable: true
-      material: LEATHER_HELMET
-      crafting:
-        materials:
-          NETHERRACK: 'N'
-          AIR: 'A'
-        recipe:
-          - 'NNN'
-          - 'NAN'
-          - 'AAA'
-      display:
-        name: '<red>Nether Helmet'
-        lore: 
-          - '<dark_red>Helmet but Nethery'
-      enchantments:
-        minecraft:protection: 3
-        minecraft:fire_protection: 1
-    chestplate:
-      enable: true
-      material: LEATHER_CHESTPLATE
-      crafting:
-        materials:
-          NETHERRACK: 'N'
-          AIR: 'A'
-        recipe:
-          - 'NAN'
-          - 'NNN'
-          - 'NNN'
-      display:
-        name: '<red>Nether Chest Plate'
-        lore: 
-          - '<dark_red>Chest Plate but Nethery'
-      enchantments:
-        minecraft:protection: 3
-        minecraft:fire_protection: 1
-    leggings:
-      enable: true
-      material: LEATHER_LEGGINGS
-      crafting:
-        materials:
-          NETHERRACK: 'N'
-          AIR: 'A'
-        recipe:
-          - 'NNN'
-          - 'NAN'
-          - 'NNN'
-      display:
-        name: '<red>Nether Leggings'
-        lore: 
-          - '<dark_red>Leggings but Nethery'
-      enchantments:
-        minecraft:protection: 3
-        minecraft:fire_protection: 1
-    boots:
-      enable: true
-      material: LEATHER_BOOTS
-      crafting:
-        materials:
-          NETHERRACK: 'N'
-          AIR: 'A'
-        recipe:
-          - 'AAA'
-          - 'NAN'
-          - 'NAN'
-      display:
-        name: '<red>Nether Boots'
-        lore: 
-          - '<dark_red>Boots but Nethery'
-      enchantments:
-        minecraft:protection: 3
-        minecraft:fire_protection: 1
-  glowstone:
-    helmet:
-      enable: true
-      night-vision: true
-      material: GOLDEN_HELMET
-      crafting:
-        materials:
-          GLOWSTONE: 'G'
-          AIR: 'A'
-        recipe:
-          - 'GGG'
-          - 'GAG'
-          - 'AAA'
-      display:
-        name: '<yellow>Glowstone Helmet'
-        lore: 
-          - '<dark_red>Helmet but Nethery'
-      enchantments:
-        minecraft:protection: 3
-        minecraft:fire_protection: 1
-    chestplate:
-      enable: true
-      night-vision: true
-      material: GOLDEN_CHESTPLATE
-      crafting:
-        materials:
-          GLOWSTONE: 'G'
-          AIR: 'A'
-        recipe:
-          - 'GAG'
-          - 'GGG'
-          - 'GGG'
-      display:
-        name: '<yellow>Glowstone Chest Plate'
-        lore: 
-          - '<dark_red>Chest Plate but Nethery'
-      enchantments:
-        minecraft:protection: 3
-        minecraft:fire_protection: 1
-    leggings:
-      enable: true
-      night-vision: true
-      material: GOLDEN_LEGGINGS
-      crafting:
-        materials:
-          GLOWSTONE: 'G'
-          AIR: 'A'
-        recipe:
-          - 'GGG'
-          - 'GAG'
-          - 'GAG'
-      display:
-        name: '<yellow>Glowstone Leggings'
-        lore: 
-          - '<dark_red>Leggings but Nethery'
-      enchantments:
-        minecraft:protection: 3
-        minecraft:fire_protection: 1
-    boots:
-      enable: true
-      night-vision: true
-      material: GOLDEN_BOOTS
-      crafting: 
-        materials:
-          GLOWSTONE: 'G'
-          AIR: 'A'
-        recipe:
-          - 'AAA'
-          - 'GAG'
-          - 'GAG'
-      display:
-        name: '<yellow>Glowstone Boots'
-        lore: 
-          - '<dark_red>Boots but Nethery'
-      enchantments:
-        minecraft:protection: 3
-        minecraft:fire_protection: 1
-  quartz:
-    helmet: 
-      enable: true
-      material: IRON_HELMET
-      crafting:
-        materials:
-          QUARTZ: 'Q'
-          AIR: 'A'
-        recipe:
-          - 'QQQ'
-          - 'QAQ'
-          - 'AAA'
-      display:
-        name: '<gray>Quartz Helmet'
-        lore: 
-          - '<dark_red>Helmet but Nethery'
-      enchantments:
-        minecraft:protection: 3
-        minecraft:fire_protection: 1
-    chestplate:
-      enable: true
-      material: IRON_CHESTPLATE
-      crafting:
-        materials:
-          QUARTZ: 'Q'
-          AIR: 'A'
-        recipe:
-          - 'QAQ'
-          - 'QQQ'
-          - 'QQQ'
-      display:
-        name: '<gray>Quartz Chest Plate'
-        lore: 
-          - '<dark_red>Chest Plate but Nethery'
-      enchantments:
-        minecraft:protection: 3
-        minecraft:fire_protection: 1
-    leggings:
-      enable: true
-      material: IRON_LEGGINGS
-      crafting:
-        materials:
-          QUARTZ: 'Q'
-          AIR: 'A'
-        recipe:
-          - 'QQQ'
-          - 'QAQ'
-          - 'QAQ'
-      display:
-        name: '<gray>Quartz Leggings'
-        lore: 
-          - '<dark_red>Leggings but Nethery'
-      enchantments:
-        minecraft:protection: 3
-        minecraft:fire_protection: 1
-    boots:
-      enable: true
-      material: IRON_BOOTS
-      crafting:
-        materials:
-          QUARTZ: 'Q'
-          AIR: 'A'
-        recipe:
-          - 'AAA'
-          - 'QAQ'
-          - 'QAQ'
-      display:
-        name: '<gray>Quartz Boots'
-        lore: 
-          - '<dark_red>Boots but Nethery'
-      enchantments:
-        minecraft:protection: 3
-        minecraft:fire_protection: 1
-  netherstar:
-    helmet:
-      enable: true
-      material: DIAMOND_HELMET
-      crafting:
-        materials:
-          NETHER_STAR: 'N'
-          AIR: 'A'
-        recipe:
-          - 'NNN'
-          - 'NAN'
-          - 'NNN'
-      display:
-        name: '<aqua>Nether Star Helmet'
-        lore: 
-          - '<dark_red>Helmet but Nethery'
-      enchantments:
-        minecraft:protection: 3
-        minecraft:fire_protection: 1
-    chestplate:
-      enable: true
-      material: DIAMOND_CHESTPLATE
-      crafting:
-        materials:
-          NETHER_STAR: 'N'
-          AIR: 'A'
-        recipe:
-          - 'NAN'
-          - 'NNN'
-          - 'NNN'
-      display:
-        name: '<aqua>Nether Star Chest Plate'
-        lore: 
-          - '<dark_red>Chest Plate but Nethery'
-      enchantments:
-        minecraft:protection: 3
-        minecraft:fire_protection: 1
-    leggings:
-      enable: true
-      material: DIAMOND_LEGGINGS
-      crafting:
-        materials:
-          NETHER_STAR: 'N'
-          AIR: 'A'
-        recipe:
-          - 'NNN'
-          - 'NAN'
-          - 'NAN'
-      display:
-        name: '<aqua>Nether Star Leggings'
-        lore: 
-          - '<dark_red>Leggings but Nethery'
-      enchantments:
-        minecraft:protection: 3
-        minecraft:fire_protection: 1
-    boots:
-      enable: true
-      material: DIAMOND_BOOTS
-      crafting:
-        materials:
-          NETHER_STAR: 'N'
-          AIR: 'A'
-        recipe:
-          - 'AAA'
-          - 'NAN'
-          - 'NAN'
-      display:
-        name: '<aqua>Nether Star Boots'
-        lore: 
-          - '<dark_red>Boots but Nethery'
-      enchantments:
-        minecraft:protection: 3
-        minecraft:fire_protection: 1
-
 wither-stats:
   random-stats: true
   random-min-health: 200
@@ -1240,19 +545,30 @@ wither-stats:
 infinite-lava-options:
   enable: true
   
-lava-rain-options:
+nether-weather-options:
+  # If disabled will disable all weather events from happening.
   enable: true
-  # Whether or not to warn players beforehand that lava rain is about to start.
+  # If you just want certain types of weather disabled remove them from the list below.
+  supported-types:
+    - "LAVA_RAIN"
+    - "ASH_STORM"
+    - "EMBER_FOG"
+    - "MAGMA_WIND"
+  intervals:
+    # In ticks how long the weather event can last (picks a random number between the two values)
+    min-time: 150
+    max-time: 300
+  # Whether or not to warn players beforehand the weather event is about to start.
   warn-players-beforehand: true
-  # How far from the player should the lava particles fall (setting this value too high may cause lag !)
+  # How far from the player should the particles fall (setting this value too high may cause lag !)
   radius: 16
-  # Chance to make fire appear on the ground when the lava is falling
+  # Chance to make fire appear on the ground during certain weather types
   fire-chance: 1
   # Every how many ticks should the task repeat (20 ticks is 1 second)
   task-delay: 3
-  # Whether or not lava rain will damage not just players but other mobs / animals if not covered.
+  # Whether or not certain weather types will damage not just players but other mobs / animals if not covered.
   can-hurt-living-creatures: true
-  # Whether tnt and tnt minecarts will explode if exposed to lava rain.
+  # Whether tnt and tnt minecarts will explode if exposed to certain weather types.
   will-tnt-explode: true
 
 netherrack-generator-options:
@@ -1277,6 +593,7 @@ netherrack-generator-options:
     particle-effect: LARGE_SMOKE
     generation-sound: 'minecraft:entity.experience_orb.pickup'
     can-generate-while-lava-raining: true
+    require-sign-to-generate: false
     search-for-players-nearby: true
 
 lava-fishing-options:
@@ -1288,12 +605,14 @@ lava-fishing-options:
   fishing-requirements:
     weather_requirement:
       type: '!weather'
+      target: 'island'
       value:
         - lavarain
   # Conditions for enabling auto-fishing
   auto-fishing-requirements:
     impossible_requirement:
       type: 'impossible'
+      target: 'player'
   # Configures global effects, useful for applying certain effects to all players under specific conditions
   global-effects:
     effect_1:
@@ -1403,184 +722,6 @@ lava-fishing-options:
     show-in-fishfinder: true
     disable-stat: false
 
-  market:
-    # Title for the market GUI
-    title: '<gradient:#A52A2A:#800000:#A52A2A>Fish Market</gradient>'
-    # Enable limitations
-    limitation:
-      enable: true
-      earnings: '10000' # Expressions can be used here
-    # You can use expressions here if you want some players to earn more from selling fish
-    earnings-multiplier: 1
-    # Layout for the market menu
-    layout:
-      - 'AAAAAAAAC'
-      - 'AIIIIIIIA'
-      - 'AIIIIIIIA'
-      - 'AIIIIIIIA'
-      - 'AAAABAAAA'
-    # Price formula for custom fishing loot
-    price-formula: '{base} + {bonus} * {size}'
-    # Requirements for players to sell fish in bundles
-    allow-bundle-requirements:
-      impossible_requirement:
-        type: 'impossible'
-    # Requirements for players to sell fish in shulker boxes
-    allow-shulker-box-requirements:
-      impossible_requirement:
-        type: 'impossible'
-    # Prices for vanilla and other plugin items with CustomModelData
-    item-price:
-      # Vanilla items
-      COD: 10
-      PUFFERFISH: 10
-      SALMON: 10
-      TROPICAL_FISH: 10
-      # PAPER (CustomModelData: 999)
-      PAPER:999: 5
-    # Slots to place items in
-    item-slot:
-      symbol: 'I'
-      allow-items-with-no-price: true
-    # Icon allowing players to sell all fish from their inventory
-    # Enable it by placing the symbol in the layout
-    sell-all-icons:
-      symbol: 'S'
-      allow-icon:
-        material: IRON_BLOCK
-        display:
-          name: '<#00CED1><b>● <!b>Sell the fish'
-          lore:
-            - '<font:uniform><gradient:#E6E6FA:#48D1CC:#E6E6FA>You will earn <green>{money_formatted} coins</green> from the fish in your inventory</gradient></font>'
-        action:
-          sound_action:
-            type: sound
-            value:
-              key: 'minecraft:block.amethyst_block.place'
-              source: 'player'
-              volume: 1
-              pitch: 1
-          message_action:
-            type: message
-            value: 'You earned {money_formatted} coins from the fish! You can still earn {rest_formatted} more coins from the market today.'
-          # Requires Vault and an economy plugin
-          money_action:
-            type: give-money
-            value: '{money}'
-          # Uncomment the command_action if needed
-          # command_action:
-          #   type: command
-          #   value: 'money give {player} {money}'
-    deny-icon:
-      material: REDSTONE_BLOCK
-      display:
-        name: '<red><b>● <!b>Trade Denied'
-        lore:
-          - '<font:uniform><gradient:#E6E6FA:red:#E6E6FA>No items available to sell!</gradient></font>'
-      action:
-        sound_action:
-          type: sound
-          value:
-            key: 'minecraft:entity.villager.no'
-            source: 'player'
-            volume: 1
-            pitch: 1
-    limit-icon:
-      material: REDSTONE_BLOCK
-      display:
-        name: '<red><b>● <!b>Trade Denied'
-        lore:
-          - '<font:uniform><gradient:#E6E6FA:red:#E6E6FA>The total value exceeds the daily limit for earnings!</gradient></font>'
-      action:
-        sound_action:
-          type: sound
-          value:
-            key: 'minecraft:block.anvil.land'
-            source: 'player'
-            volume: 1
-            pitch: 1
-    # Sell icon for individual transactions
-    sell-icons:
-      symbol: 'B'
-      allow-icon:
-        material: IRON_BLOCK
-        display:
-          name: '<#00CED1><b>● <!b>Sell the fish'
-          lore:
-            - '<font:uniform><gradient:#E6E6FA:#48D1CC:#E6E6FA>You will earn <green>{money_formatted} coins</green> from the fish</gradient></font>'
-        action:
-          sound_action:
-            type: sound
-            value:
-              key: 'minecraft:block.amethyst_block.place'
-              source: 'player'
-              volume: 1
-              pitch: 1
-          message_action:
-            type: message
-            value: 'You earned {money_formatted} coins from the fish! You can still earn {rest_formatted} more coins from the market today.'
-          money_action:
-            type: give-money
-            value: '{money}'
-          # Uncomment the command_action if needed
-          # command_action:
-          #   type: command
-          #   value: 'money give {player} {money}'
-      deny-icon:
-        material: REDSTONE_BLOCK
-        display:
-          name: '<red><b>● <!b>Trade Denied'
-          lore:
-            - '<font:uniform><gradient:#E6E6FA:red:#E6E6FA>No items available to sell!</gradient></font>'
-        action:
-          sound_action:
-            type: sound
-            value:
-              key: 'minecraft:entity.villager.no'
-              source: 'player'
-              volume: 1
-              pitch: 1
-      limit-icon:
-        material: REDSTONE_BLOCK
-        display:
-          name: '<red><b>● <!b>Trade Denied'
-          lore:
-            - '<font:uniform><gradient:#E6E6FA:red:#E6E6FA>The total value exceeds the daily limit for earnings!</gradient></font>'
-        action:
-          sound_action:
-            type: sound
-            value:
-              key: 'minecraft:block.anvil.land'
-              source: 'player'
-              volume: 1
-              pitch: 1
-    # Decorative icons for visual enhancement
-    decorative-icons:
-      glass-pane:
-        symbol: 'A'
-        material: BLACK_STAINED_GLASS_PANE
-        display:
-          name: ' '
-        components:
-          minecraft:hide_tooltip: {}
-      close-icon:
-        symbol: 'C'
-        material: RED_STAINED_GLASS_PANE
-        display:
-          name: '<red>Close Menu'
-        action:
-          sound_action: 
-            type: sound
-            value:
-              key: 'minecraft:ui.button.click'
-              source: 'player'
-              volume: 1
-              pitch: 1
-          close_action:
-            type: close-inv
-        components:
-          minecraft:hide_tooltip: {}
-
   # Lava fishing settings
   # To modify vanilla fishing time, you should edit paper-world-defaults.yml where there's a section called fishing-time-range
   lava-fishing:
@@ -1641,6 +782,7 @@ other-settings:
   # Check the wiki for examples
   item-detection-order:
     - CustomItem
+    - snbt
     - vanilla
   block-detection-order:
     - vanilla
@@ -1650,18 +792,52 @@ other-settings:
     - ''
     - '<gray>Durability</gray><white>: {dur} <gray>/</gray> {max}</white>'
 
-  # Magma walker enchantment settings
+  # Hell enchantment settings
   # Change the display name or lore of the enchantment book.
-  # Also set the settings of the lore added to the boots after applied.
-  magma-walker:
-    enchantment-book-format:
-      name: "<dark_red><i>Book of Magma Walker {level}</i></dark_red>"
-      lore:
-        - '<gray><i>Applies Magma Walker {level} to boots in an anvil.</i></gray>'
-        - '<gray><i>Walk on lava throughout your hellblock; it becomes magma blocks briefly.</i></gray>'
-    boots-format:
-      - ''
-      - '<dark_red><i>"Magma Walker {level}</i></dark_red>'
+  # Also set the settings of the lore added to the armor piece after applied.
+  # You can also change the enchant table chance it appears.
+  hell-enchantments:
+    magma-walker:
+      enchantment-book-format:
+        name: '<dark_red><i>Book of Magma Walker {level}</i></dark_red>'
+        lore:
+          - '<gray><i>Applies Magma Walker {level} to boots in an anvil.</i></gray>'
+          - '<gray><i>Walk on lava throughout your hellblock; it becomes magma blocks briefly.</i></gray>'
+      armor-additional-format:
+        - ''
+        - '<dark_red><i>Magma Walker {level}</i></dark_red>'
+      enchant-table-chance: 3
+    molten-core:
+      enchantment-book-format:
+        name: '<dark_red><i>Book of Molten Core {level}</i></dark_red>'
+        lore:
+          - '<gray><i>Applies Molten Core {level} to leggings in an anvil.</i></gray>'
+          - '<gray><i>Ores you mine are automatically smelted throughout your hellblock.</i></gray>'
+          - '<gray><i>You will also gain a speed boost when smelting items.</i></gray>'
+      armor-additional-format:
+        - ''
+        - '<dark_red><i>Molten Core {level}</i></dark_red>'
+      enchant-table-chance: 3
+    lava-vision:
+      enchantment-book-format:
+        name: '<dark_red><i>Book of Lava Vision {level}</i></dark_red>'
+        lore:
+          - '<gray><i>Applies Lava Vision {level} to helmets in an anvil.</i></gray>'
+          - '<gray><i>See clearly and survive inside lava on your own hellblock.</i></gray>'
+      armor-additional-format:
+        - ''
+        - '<dark_red><i>Lava Vision {level}</i></dark_red>'
+      enchant-table-chance: 2
+    crimson-thorns:
+      enchantment-book-format:
+        name: '<dark_red><i>Book of Crimson Thorns {level}</i></dark_red>'
+        lore:
+          - '<gray><i>Applies Crimson Thorns {level} to chestplates in an anvil.</i></gray>'
+          - '<gray><i>Reflects fire and knockback to melee attackers on your island.</i></gray>'
+      armor-additonal-format:
+        - ''
+        - '<dark_red><i>Crimson Thorns {level}</i></dark_red>'
+      enchant-table-chance: 2
 
   # Offset characters' unicodes
   # Never edit this unless you know what you are doing

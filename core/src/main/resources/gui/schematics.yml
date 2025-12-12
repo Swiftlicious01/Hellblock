@@ -1,0 +1,74 @@
+schematic:
+  gui:
+    # The title for the schematic menu
+    title: '<center><gradient:#A52A2A:#800000:#A52A2A>Choose a template!</gradient>'
+    # The layout for the schematic menu
+    layout:
+      - 'AAAAAAAAA'
+      - 'A1XXXXXXA'
+      - 'AXXXXXXXA' 
+      - 'AXXXXXXXA'
+      - 'AXXXXXXXA'
+      - 'AAAAAAAAB'
+    # The schematic format for each schematic to be viewed in the menu
+    schematic-icons:
+      schematic-1:
+        symbol: '1'
+        # The schematic name should never include the file extension (.schem)
+        schematic: 'custom'
+        material: BOOK
+        display:
+          name: '<gradient:#00c6ff:#0072ff><b>Mythic Custom Island</b></gradient>'
+          lore:
+            - ''
+            - '<gray>⬑ A blank canvas for the bold and creative'
+            - '<aqua>Shape your own challenges and build your vision'
+            - '<dark_aqua>Freedom meets imagination in this empty world'
+            - ''
+            - '<green>Click to begin your custom journey!'
+        requirement:
+          permission_requirement:
+            type: permission
+            value: 'hellblock.schematic.custom'
+            action:
+              message_action: 
+                type: message
+                value: "<red>You require the permission</red <dark_red>hellblock.schematic.custom</dark_red> <red>to generate this island type!</red>"
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+    # The back icon to choose a default island format
+    back-icon:
+      symbol: 'B'
+      material: RED_STAINED_GLASS_PANE
+      display:
+        name: '<red>Back to Choice Selections'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_additional_tooltip: {}
+    # Decorative icons for visual enhancement
+    decorative-icons:
+      placeholder:
+        symbol: 'X'
+        material: AIR
+      glass-pane:
+        symbol: 'A'
+        material: ORANGE_STAINED_GLASS_PANE
+        display:
+          name: ' '
+        components:
+          minecraft:hide_tooltip: {}

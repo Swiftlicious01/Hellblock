@@ -18,6 +18,7 @@ import com.swiftlicious.hellblock.context.ContextKeys;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.handlers.VersionHelper;
 import com.swiftlicious.hellblock.player.EarningData;
+import com.swiftlicious.hellblock.player.HellblockData;
 import com.swiftlicious.hellblock.utils.PlayerUtils;
 import com.swiftlicious.hellblock.utils.extras.Pair;
 
@@ -28,11 +29,14 @@ public class MarketGUI {
 	private final MarketManager manager;
 	protected final Inventory inventory;
 	protected final Context<Player> context;
+	protected final HellblockData hellblockData;
 	protected final EarningData earningData;
 
-	public MarketGUI(MarketManager manager, Context<Player> context, EarningData earningData) {
+	public MarketGUI(MarketManager manager, Context<Player> context, HellblockData hellblockData,
+			EarningData earningData) {
 		this.manager = manager;
 		this.context = context;
+		this.hellblockData = hellblockData;
 		this.earningData = earningData;
 		this.itemsCharMap = new HashMap<>();
 		this.itemsSlotMap = new HashMap<>();
@@ -63,9 +67,8 @@ public class MarketGUI {
 			}
 			line++;
 		}
-		for (Map.Entry<Integer, MarketGUIElement> entry : itemsSlotMap.entrySet()) {
-			this.inventory.setItem(entry.getKey(), entry.getValue().getItemStack().clone());
-		}
+		itemsSlotMap.entrySet()
+				.forEach(entry -> this.inventory.setItem(entry.getKey(), entry.getValue().getItemStack().clone()));
 	}
 
 	public MarketGUI addElement(MarketGUIElement... elements) {
@@ -117,17 +120,17 @@ public class MarketGUI {
 				sellElement.setItemStack(manager.sellIconDenyItem.build(context));
 				if (manager.denyTitle != null)
 					VersionHelper.getNMSManager().updateInventoryTitle(context.holder(), AdventureHelper
-							.componentToJson(AdventureHelper.miniMessage(manager.denyTitle.render(context, true))));
+							.componentToJson(AdventureHelper.miniMessageToComponent(manager.denyTitle.render(context, true))));
 			} else if (earningLimit != -1 && (earningLimit - earningData.getEarnings() < totalWorth)) {
 				sellElement.setItemStack(manager.sellIconLimitItem.build(context));
 				if (manager.limitTitle != null)
 					VersionHelper.getNMSManager().updateInventoryTitle(context.holder(), AdventureHelper
-							.componentToJson(AdventureHelper.miniMessage(manager.limitTitle.render(context, true))));
+							.componentToJson(AdventureHelper.miniMessageToComponent(manager.limitTitle.render(context, true))));
 			} else {
 				sellElement.setItemStack(manager.sellIconAllowItem.build(context));
 				if (manager.allowTitle != null)
 					VersionHelper.getNMSManager().updateInventoryTitle(context.holder(), AdventureHelper
-							.componentToJson(AdventureHelper.miniMessage(manager.allowTitle.render(context, true))));
+							.componentToJson(AdventureHelper.miniMessageToComponent(manager.allowTitle.render(context, true))));
 			}
 		}
 
@@ -152,11 +155,11 @@ public class MarketGUI {
 			}
 		}
 
-		for (Map.Entry<Integer, MarketGUIElement> entry : itemsSlotMap.entrySet()) {
-			if (entry.getValue() instanceof MarketDynamicGUIElement dynamicGUIElement) {
-				this.inventory.setItem(entry.getKey(), dynamicGUIElement.getItemStack().clone());
-			}
-		}
+		itemsSlotMap.entrySet().stream().filter(entry -> entry.getValue() instanceof MarketDynamicGUIElement)
+				.forEach(entry -> {
+					MarketDynamicGUIElement dynamicGUIElement = (MarketDynamicGUIElement) entry.getValue();
+					this.inventory.setItem(entry.getKey(), dynamicGUIElement.getItemStack().clone());
+				});
 		return this;
 	}
 
@@ -186,12 +189,12 @@ public class MarketGUI {
 		if (itemElement == null) {
 			return;
 		}
-		for (int slot : itemElement.getSlots()) {
+		itemElement.getSlots().stream().mapToInt(Integer::valueOf).forEach(slot -> {
 			ItemStack itemStack = inventory.getItem(slot);
 			if (itemStack != null && itemStack.getType() != Material.AIR) {
 				PlayerUtils.giveItem(context.holder(), itemStack, itemStack.getAmount());
 				inventory.setItem(slot, new ItemStack(Material.AIR));
 			}
-		}
+		});
 	}
 }

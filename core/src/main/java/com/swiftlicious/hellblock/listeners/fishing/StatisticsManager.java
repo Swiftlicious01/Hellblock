@@ -24,7 +24,8 @@ public class StatisticsManager implements StatisticsManagerInterface {
 	@Override
 	public void load() {
 		this.loadCategoriesFromPluginFolder();
-		categoryMap.entrySet().forEach(entry -> instance.debug("Category: {" + entry.getKey() + "} Members: " + entry.getValue()));
+		categoryMap.entrySet()
+				.forEach(entry -> instance.debug("Category: {" + entry.getKey() + "} Members: " + entry.getValue()));
 	}
 
 	@Override
@@ -33,27 +34,33 @@ public class StatisticsManager implements StatisticsManagerInterface {
 	}
 
 	public void loadCategoriesFromPluginFolder() {
-		final Deque<File> fileDeque = new ArrayDeque<>();
-		for (String type : List.of("category")) {
-			final File typeFolder = new File(instance.getDataFolder() + File.separator + "contents" + File.separator + type);
-			if (!typeFolder.exists()) {
-				if (!typeFolder.mkdirs()) {
-					return;
-				}
-				instance.saveResource("contents" + File.separator + type + File.separator + "default.yml", false);
-			}
-			fileDeque.push(typeFolder);
-			while (!fileDeque.isEmpty()) {
-				final File file = fileDeque.pop();
-				final File[] files = file.listFiles();
-				if (files == null) {
-					continue;
-				}
-				for (File subFile : files) {
-					if (subFile.isDirectory()) {
-						fileDeque.push(subFile);
-					} else if (subFile.isFile() && subFile.getName().endsWith(".yml")) {
+		final File rootFolder = new File(instance.getDataFolder(), "contents" + File.separator + "category");
+		if (!rootFolder.exists() && !rootFolder.mkdirs()) {
+			instance.getPluginLogger().severe("Failed to create contents/category directory.");
+			return;
+		}
+
+		// Ensure at least one default file exists
+		instance.getConfigManager()
+				.saveResource("contents" + File.separator + "category" + File.separator + "default.yml");
+
+		final Deque<File> stack = new ArrayDeque<>();
+		stack.push(rootFolder);
+
+		while (!stack.isEmpty()) {
+			final File dir = stack.pop();
+			final File[] files = dir.listFiles();
+			if (files == null)
+				continue;
+
+			for (File subFile : files) {
+				if (subFile.isDirectory()) {
+					stack.push(subFile);
+				} else if (subFile.isFile() && subFile.getName().endsWith(".yml")) {
+					try {
 						this.loadSingleFile(subFile);
+					} catch (Exception e) {
+						instance.getPluginLogger().warn("Failed to load category file: " + subFile.getPath(), e);
 					}
 				}
 			}

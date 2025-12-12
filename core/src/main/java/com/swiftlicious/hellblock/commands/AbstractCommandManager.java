@@ -7,10 +7,10 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
-import org.incendo.cloud.minecraft.extras.MinecraftExceptionHandler;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 import org.incendo.cloud.Command;
 import org.incendo.cloud.CommandManager;
 import org.incendo.cloud.caption.Caption;
@@ -22,10 +22,14 @@ import org.incendo.cloud.exception.InvalidCommandSenderException;
 import org.incendo.cloud.exception.InvalidSyntaxException;
 import org.incendo.cloud.exception.NoPermissionException;
 import org.incendo.cloud.exception.handling.ExceptionContext;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.config.locale.HellblockCaptionFormatter;
 import com.swiftlicious.hellblock.config.locale.HellblockCaptionProvider;
+import com.swiftlicious.hellblock.database.dependency.Dependency;
+import com.swiftlicious.hellblock.handlers.AdventureDependencyHelper;
 import com.swiftlicious.hellblock.sender.Sender;
 import com.swiftlicious.hellblock.utils.ArrayUtils;
 import com.swiftlicious.hellblock.utils.extras.TriConsumer;
@@ -43,18 +47,14 @@ public abstract class AbstractCommandManager<C> implements HellblockCommandManag
 	protected final CommandManager<C> commandManager;
 	protected final HellblockPlugin plugin;
 	private final HellblockCaptionFormatter<C> captionFormatter = new HellblockCaptionFormatter<>();
-	private final MinecraftExceptionHandler.Decorator<C> decorator = (formatter, ctx, msg) -> msg;
+	private final org.incendo.cloud.minecraft.extras.MinecraftExceptionHandler.Decorator<C> decorator = (formatter, ctx,
+			msg) -> msg;
 
 	private TriConsumer<C, String, Component> feedbackConsumer;
 
-	public AbstractCommandManager(HellblockPlugin plugin, CommandManager<C> commandManager) {
-		this.commandManager = commandManager;
+	public AbstractCommandManager(HellblockPlugin plugin, Supplier<CommandManager<C>> managerSupplier) {
 		this.plugin = plugin;
-	}
-
-	public void init() {
-		this.inject();
-		this.feedbackConsumer = defaultFeedbackConsumer();
+		this.commandManager = managerSupplier.get();
 	}
 
 	@Override
@@ -69,28 +69,38 @@ public abstract class AbstractCommandManager<C> implements HellblockCommandManag
 
 	protected abstract Sender wrapSender(C c);
 
-	private void inject() {
+	protected void inject() {
+		this.feedbackConsumer = defaultFeedbackConsumer();
 		getCommandManager().captionRegistry().registerProvider(new HellblockCaptionProvider<>());
-		injectExceptionHandler(InvalidSyntaxException.class,
-				MinecraftExceptionHandler.createDefaultInvalidSyntaxHandler(),
-				StandardCaptionKeys.EXCEPTION_INVALID_SYNTAX);
-		injectExceptionHandler(InvalidCommandSenderException.class,
-				MinecraftExceptionHandler.createDefaultInvalidSenderHandler(),
-				StandardCaptionKeys.EXCEPTION_INVALID_SENDER);
-		injectExceptionHandler(NoPermissionException.class,
-				MinecraftExceptionHandler.createDefaultNoPermissionHandler(),
-				StandardCaptionKeys.EXCEPTION_NO_PERMISSION);
-		injectExceptionHandler(ArgumentParseException.class,
-				MinecraftExceptionHandler.createDefaultArgumentParsingHandler(),
-				StandardCaptionKeys.EXCEPTION_INVALID_ARGUMENT);
-		injectExceptionHandler(CommandExecutionException.class,
-				MinecraftExceptionHandler.createDefaultCommandExecutionHandler(),
-				StandardCaptionKeys.EXCEPTION_UNEXPECTED);
+
+		Set<Dependency> combined = Stream
+				.of(CloudDependencyHelper.CLOUD_DEPENDENCIES, AdventureDependencyHelper.ADVENTURE_DEPENDENCIES)
+				.flatMap(Set::stream).collect(Collectors.toUnmodifiableSet());
+
+		plugin.getDependencyManager().runWithLoader(combined, () -> {
+			injectExceptionHandler(InvalidSyntaxException.class,
+					org.incendo.cloud.minecraft.extras.MinecraftExceptionHandler.createDefaultInvalidSyntaxHandler(),
+					StandardCaptionKeys.EXCEPTION_INVALID_SYNTAX);
+			injectExceptionHandler(InvalidCommandSenderException.class,
+					org.incendo.cloud.minecraft.extras.MinecraftExceptionHandler.createDefaultInvalidSenderHandler(),
+					StandardCaptionKeys.EXCEPTION_INVALID_SENDER);
+			injectExceptionHandler(NoPermissionException.class,
+					org.incendo.cloud.minecraft.extras.MinecraftExceptionHandler.createDefaultNoPermissionHandler(),
+					StandardCaptionKeys.EXCEPTION_NO_PERMISSION);
+			injectExceptionHandler(ArgumentParseException.class,
+					org.incendo.cloud.minecraft.extras.MinecraftExceptionHandler.createDefaultArgumentParsingHandler(),
+					StandardCaptionKeys.EXCEPTION_INVALID_ARGUMENT);
+			injectExceptionHandler(CommandExecutionException.class,
+					org.incendo.cloud.minecraft.extras.MinecraftExceptionHandler.createDefaultCommandExecutionHandler(),
+					StandardCaptionKeys.EXCEPTION_UNEXPECTED);
+
+			return null;
+		});
 	}
 
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	private void injectExceptionHandler(Class<? extends Throwable> type,
-			MinecraftExceptionHandler.MessageFactory<C, ?> factory, Caption key) {
+			org.incendo.cloud.minecraft.extras.MinecraftExceptionHandler.MessageFactory<C, ?> factory, Caption key) {
 		getCommandManager().exceptionController().registerHandler(type, ctx -> {
 			final @Nullable ComponentLike message = factory.message(captionFormatter, (ExceptionContext) ctx);
 			if (message != null) {
@@ -145,16 +155,16 @@ public abstract class AbstractCommandManager<C> implements HellblockCommandManag
 	public void registerDefaultFeatures() {
 		final YamlDocument document = plugin.getConfigManager().loadConfig(commandsFile);
 		try {
-			document.save(new File(plugin.getDataFolder().toPath().toAbsolutePath().toFile(), "commands.yml"));
+			document.save(new File(plugin.getDataFolder().toPath().toAbsolutePath().toFile(), commandsFile));
 		} catch (IOException e) {
 			throw new RuntimeException(e);
 		}
 		this.getFeatures().values().forEach(feature -> {
 			final CommandConfig<C> config = getCommandConfig(document, feature.getFeatureID());
 			if (config != null && config.isEnabled()) {
-			    registerFeature(feature, config);
+				registerFeature(feature, config);
 			} else if (config == null) {
-			    plugin.getPluginLogger().warn("[Cloud Debug] Missing command section for: " + feature.getFeatureID());
+				plugin.getPluginLogger().warn("[Cloud Debug] Missing command section for: " + feature.getFeatureID());
 			}
 		});
 	}
@@ -166,6 +176,11 @@ public abstract class AbstractCommandManager<C> implements HellblockCommandManag
 		this.registeredRootCommandComponents.clear();
 		this.registeredFeatures.forEach(CommandFeature::unregisterRelatedFunctions);
 		this.registeredFeatures.clear();
+	}
+
+	@Override
+	public HellblockPlugin getPlugin() {
+		return plugin;
 	}
 
 	@Override

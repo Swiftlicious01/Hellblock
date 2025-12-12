@@ -4,10 +4,10 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.PriorityBlockingQueue;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Stream;
 
 import org.bukkit.World;
@@ -16,6 +16,7 @@ import org.jetbrains.annotations.NotNull;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.handlers.VersionHelper;
+import com.swiftlicious.hellblock.utils.ChunkUtils;
 import com.swiftlicious.hellblock.utils.RandomUtils;
 
 public final class CustomChunk implements CustomChunkInterface {
@@ -71,35 +72,45 @@ public final class CustomChunk implements CustomChunkInterface {
 	}
 
 	@Override
-	public void load(boolean loadBukkitChunk) {
+	public CompletableFuture<Boolean> load(boolean loadBukkitChunk) {
 		if (isLoaded()) {
-			return;
+			return CompletableFuture.completedFuture(true);
 		}
+
+		CompletableFuture<Boolean> future = new CompletableFuture<>();
 
 		if (((HellblockWorld<?>) world).loadChunk(this)) {
-			this.isLoaded = true;
-			this.lazySeconds = 0;
-		}
+			if (loadBukkitChunk) {
+				final World bukkitWorld = this.world.bukkitWorld();
+				final int x = chunkPos.x();
+				final int z = chunkPos.z();
 
-		if (loadBukkitChunk) {
-			final World bukkitWorld = this.world.bukkitWorld();
-			final int x = chunkPos.x();
-			final int z = chunkPos.z();
-
-			if (!bukkitWorld.isChunkLoaded(x, z)) {
-				if (VersionHelper.isPaper()) {
-					try {
-						bukkitWorld.getClass().getMethod("addPluginChunkTicket", int.class, int.class, Plugin.class)
-								.invoke(bukkitWorld, x, z, HellblockPlugin.getInstance());
-					} catch (Exception ignored) {
-						// If method doesn't exist or call fails, fallback to force load
-						bukkitWorld.setChunkForceLoaded(x, z, true);
-					}
+				if (!bukkitWorld.isChunkLoaded(x, z)) {
+					ChunkUtils.getChunkAtAsync(bukkitWorld, x, z).thenAccept(chunk -> {
+						addPluginChunkTicket(bukkitWorld, x, z);
+						this.isLoaded = true;
+						this.lazySeconds = 0;
+						future.complete(true);
+					}).exceptionally(ex -> {
+						future.completeExceptionally(ex);
+						return null;
+					});
 				} else {
-					bukkitWorld.setChunkForceLoaded(x, z, true);
+					addPluginChunkTicket(bukkitWorld, x, z);
+					this.isLoaded = true;
+					this.lazySeconds = 0;
+					future.complete(true);
 				}
+			} else {
+				this.isLoaded = true;
+				this.lazySeconds = 0;
+				future.complete(true);
 			}
+		} else {
+			future.complete(false); // failed to register
 		}
+
+		return future;
 	}
 
 	@Override
@@ -118,17 +129,13 @@ public final class CustomChunk implements CustomChunkInterface {
 			final int x = chunkPos.x();
 			final int z = chunkPos.z();
 
-			if (VersionHelper.isPaper()) {
+			if (VersionHelper.isPaperFork()) {
 				// Paper: remove plugin ticket
 				try {
 					bukkitWorld.getClass().getMethod("removePluginChunkTicket", int.class, int.class, Plugin.class)
 							.invoke(bukkitWorld, x, z, HellblockPlugin.getInstance());
 				} catch (Exception ignored) {
-					// fallback or log if needed
 				}
-			} else {
-				// Spigot: remove forced chunk
-				bukkitWorld.setChunkForceLoaded(x, z, false);
 			}
 		}
 	}
@@ -142,14 +149,22 @@ public final class CustomChunk implements CustomChunkInterface {
 			final int x = chunkPos.x();
 			final int z = chunkPos.z();
 
-			if (VersionHelper.isPaper()) {
+			if (VersionHelper.isPaperFork()) {
 				try {
 					bukkitWorld.getClass().getMethod("removePluginChunkTicket", int.class, int.class, Plugin.class)
 							.invoke(bukkitWorld, x, z, HellblockPlugin.getInstance());
 				} catch (Exception ignored) {
 				}
-			} else {
-				bukkitWorld.setChunkForceLoaded(x, z, false);
+			}
+		}
+	}
+
+	private void addPluginChunkTicket(World world, int x, int z) {
+		if (VersionHelper.isPaperFork()) {
+			try {
+				world.getClass().getMethod("addPluginChunkTicket", int.class, int.class, Plugin.class).invoke(world, x,
+						z, HellblockPlugin.getInstance());
+			} catch (Exception ignored) {
 			}
 		}
 	}
@@ -190,9 +205,8 @@ public final class CustomChunk implements CustomChunkInterface {
 	}
 
 	private void arrangeTasks(int unit) {
-		final ThreadLocalRandom random = ThreadLocalRandom.current();
 		loadedSections.values().forEach(section -> section.blockMap().entrySet().forEach(entry -> {
-			this.queue.add(new DelayedTickTask(random.nextInt(0, unit), entry.getKey()));
+			this.queue.add(new DelayedTickTask(RandomUtils.generateRandomInt(0, unit), entry.getKey()));
 			this.tickedBlocks.add(entry.getKey());
 		}));
 	}
@@ -233,15 +247,46 @@ public final class CustomChunk implements CustomChunkInterface {
 	@Override
 	public Optional<CustomBlockState> removeBlockState(Pos3 location) {
 		final BlockPos pos = BlockPos.fromPos3(location);
-		return getLoadedSection(pos.sectionID()).flatMap(section -> section.removeBlockState(pos));
+		final int sectionID = pos.sectionID();
+
+		final Optional<CustomSection> maybeSection = getLoadedSection(sectionID);
+
+		if (maybeSection.isEmpty()) {
+			HellblockPlugin.getInstance().getPluginLogger()
+					.warn("Attempted to remove block in unloaded or nonexistent section at " + location);
+			return Optional.empty();
+		}
+
+		CustomSection section = maybeSection.get();
+		Optional<CustomBlockState> removed = section.removeBlockState(pos);
+
+		// Optional: log if section is now empty
+		if (section.canPrune()) {
+			HellblockPlugin.getInstance().debug("Section %d in chunk %s became empty after removing block at %s"
+					.formatted(sectionID, chunkPos, location));
+		}
+
+		return removed;
 	}
 
 	@NotNull
 	@Override
 	public Optional<CustomBlockState> addBlockState(Pos3 location, CustomBlockState block) {
 		final BlockPos pos = BlockPos.fromPos3(location);
-		final CustomSection section = getSection(pos.sectionID());
-		this.arrangeScheduledTickTaskForNewBlock(pos);
+		final int sectionID = pos.sectionID();
+
+		// Try to get without creating first, just for logging
+		boolean isNewSection = !loadedSections.containsKey(sectionID);
+
+		// Create section if missing
+		final CustomSection section = loadedSections.computeIfAbsent(sectionID, CustomSection::new);
+
+		if (isNewSection) {
+			HellblockPlugin.getInstance().debug(
+					"Created new section %d in chunk %s for block at %s".formatted(sectionID, chunkPos, location));
+		}
+
+		arrangeScheduledTickTaskForNewBlock(pos);
 		return section.addBlockState(pos, block);
 	}
 

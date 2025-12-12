@@ -6,15 +6,25 @@ description: Skyblock in the nether!
 website: https://github.com/Swiftlicious01
 authors: [ Swiftlicious ]
 folia-supported: true
+load: STARTUP
 softdepend:
 - WorldEdit
 - FastAsyncWorldEdit
 - WorldGuard
+- Multiverse-Core
 - PlaceholderAPI
+- PlayerPoints
 - Vault
+- SimplePets
+- ChestShop
+- QuickShop
+- TradeShop
 - MythicMobs
 - Jobs
+- mcMMO
 - ShopGUIPlus
+- StackMob
+- WildStacker
 - AdvancedEnchantments
 - SlimeWorldPlugin
 - SlimeWorldManager

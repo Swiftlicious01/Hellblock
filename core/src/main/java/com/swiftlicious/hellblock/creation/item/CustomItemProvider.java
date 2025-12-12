@@ -12,11 +12,6 @@ import com.swiftlicious.hellblock.context.ContextKeys;
 
 public class CustomItemProvider implements ItemProvider {
 
-	@Override
-	public String identifier() {
-		return "CustomItem";
-	}
-
 	@NotNull
 	@Override
 	public ItemStack buildItem(@NotNull Context<Player> player, @NotNull String id) {
@@ -31,5 +26,10 @@ public class CustomItemProvider implements ItemProvider {
 	@Override
 	public String itemID(@NotNull ItemStack itemStack) {
 		return HellblockPlugin.getInstance().getItemManager().getCustomItemID(itemStack);
+	}
+
+	@Override
+	public String identifier() {
+		return "CustomItem";
 	}
 }

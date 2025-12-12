@@ -1,5 +1,6 @@
 package com.swiftlicious.hellblock.utils;
 
+import java.lang.reflect.Method;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 
@@ -15,6 +16,33 @@ import io.papermc.lib.PaperLib;
 import io.papermc.lib.features.blockstatesnapshot.BlockStateSnapshotResult;
 
 public class ChunkUtils {
+	
+	private ChunkUtils() {
+		throw new UnsupportedOperationException("This class cannot be instantiated");
+	}
+
+	private static final Method IS_ENTITIES_LOADED;
+
+	static {
+		Method method = null;
+		try {
+			method = Chunk.class.getMethod("isEntitiesLoaded");
+		} catch (NoSuchMethodException ignored) {
+			// Not available in 1.17.0
+		}
+		IS_ENTITIES_LOADED = method;
+	}
+
+	public static boolean isEntitiesLoaded(Chunk chunk) {
+		if (IS_ENTITIES_LOADED != null) {
+			try {
+				return (boolean) IS_ENTITIES_LOADED.invoke(chunk);
+			} catch (Throwable ignored) {
+			}
+		}
+		// Fallback — assume true to be safe
+		return true;
+	}
 
 	/*
 	 * PaperLib methods for addons to call

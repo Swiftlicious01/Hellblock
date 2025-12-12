@@ -2,6 +2,7 @@ package com.swiftlicious.hellblock.paper.v1_18_r1;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -15,13 +16,16 @@ import java.util.UUID;
 import org.bukkit.Bukkit;
 import org.bukkit.Color;
 import org.bukkit.Location;
+import org.bukkit.Sound;
 import org.bukkit.World;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.craftbukkit.v1_18_R1.CraftServer;
 import org.bukkit.craftbukkit.v1_18_R1.CraftWorld;
 import org.bukkit.craftbukkit.v1_18_R1.entity.CraftFishHook;
+import org.bukkit.craftbukkit.v1_18_R1.entity.CraftMinecart;
 import org.bukkit.craftbukkit.v1_18_R1.entity.CraftPlayer;
+import org.bukkit.craftbukkit.v1_18_R1.entity.CraftWither;
 import org.bukkit.craftbukkit.v1_18_R1.event.CraftEventFactory;
 import org.bukkit.craftbukkit.v1_18_R1.inventory.CraftContainer;
 import org.bukkit.craftbukkit.v1_18_R1.inventory.CraftItemStack;
@@ -30,6 +34,8 @@ import org.bukkit.craftbukkit.v1_18_R1.util.CraftVector;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.FishHook;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.Wither;
+import org.bukkit.entity.minecart.ExplosiveMinecart;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.util.BoundingBox;
@@ -38,6 +44,8 @@ import org.jetbrains.annotations.Nullable;
 
 import com.swiftlicious.hellblock.nms.NMSHandler;
 import com.swiftlicious.hellblock.nms.border.BorderColor;
+import com.swiftlicious.hellblock.nms.bossbar.BossBarColor;
+import com.swiftlicious.hellblock.nms.bossbar.BossBarOverlay;
 import com.swiftlicious.hellblock.nms.entity.armorstand.FakeArmorStand;
 import com.swiftlicious.hellblock.nms.entity.display.FakeItemDisplay;
 import com.swiftlicious.hellblock.nms.entity.display.FakeTextDisplay;
@@ -45,6 +53,8 @@ import com.swiftlicious.hellblock.nms.entity.firework.FakeFirework;
 import com.swiftlicious.hellblock.nms.exception.UnsupportedVersionException;
 import com.swiftlicious.hellblock.nms.fluid.FluidData;
 import com.swiftlicious.hellblock.nms.inventory.HandSlot;
+import com.swiftlicious.hellblock.nms.util.BossBarUtils;
+import com.swiftlicious.hellblock.nms.util.ReflectionUtils;
 import com.swiftlicious.hellblock.nms.util.SelfIncreaseEntityID;
 
 import io.netty.buffer.Unpooled;
@@ -57,6 +67,7 @@ import net.minecraft.advancements.DisplayInfo;
 import net.minecraft.advancements.FrameType;
 import net.minecraft.advancements.critereon.ImpossibleTrigger;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.Registry;
 import net.minecraft.network.Connection;
 import net.minecraft.network.FriendlyByteBuf;
@@ -67,6 +78,8 @@ import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
 import net.minecraft.network.protocol.game.ClientboundAddEntityPacket;
 import net.minecraft.network.protocol.game.ClientboundAnimatePacket;
+import net.minecraft.network.protocol.game.ClientboundBlockEventPacket;
+import net.minecraft.network.protocol.game.ClientboundBossEventPacket;
 import net.minecraft.network.protocol.game.ClientboundChatPacket;
 import net.minecraft.network.protocol.game.ClientboundInitializeBorderPacket;
 import net.minecraft.network.protocol.game.ClientboundOpenScreenPacket;
@@ -87,16 +100,35 @@ import net.minecraft.server.dedicated.DedicatedServer;
 import net.minecraft.server.level.ChunkMap;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.server.network.ServerPlayerConnection;
+import net.minecraft.world.BossEvent;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.ai.goal.GoalSelector;
+import net.minecraft.world.entity.ai.goal.target.NearestAttackableTargetGoal;
+import net.minecraft.world.entity.boss.wither.WitherBoss;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.projectile.FishingHook;
+import net.minecraft.world.entity.vehicle.AbstractMinecart;
+import net.minecraft.world.entity.vehicle.MinecartTNT;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.MenuType;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.biome.Biome;
+import net.minecraft.world.level.block.BarrelBlock;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.ChestBlock;
+import net.minecraft.world.level.block.EnderChestBlock;
+import net.minecraft.world.level.block.ShulkerBoxBlock;
+import net.minecraft.world.level.block.TrappedChestBlock;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.ChestType;
 import net.minecraft.world.level.border.WorldBorder;
+import net.minecraft.world.level.chunk.ChunkAccess;
+import net.minecraft.world.level.chunk.LevelChunk;
+import net.minecraft.world.level.levelgen.feature.StructureFeature;
+import net.minecraft.world.level.levelgen.structure.StructureStart;
+import net.minecraft.world.level.levelgen.structure.pieces.PiecesContainer;
 import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.level.material.LavaFluid;
 import net.minecraft.world.level.material.WaterFluid;
@@ -111,13 +143,40 @@ public class NMSUtils1_18_R1 implements NMSHandler {
 
 	private final Registry<Biome> biomeRegistry;
 
+	private final Enum<?> addBossBarOperation;
+	private final Enum<?> updateBossBarNameOperation;
+	private final Enum<?> updateBossBarProgressOperation;
+
 	private final EntityDataAccessor<Boolean> dataBiting;
 	private final Field timeUntilLuredField;
+	private final Field structureStartsField;
 
 	private final Method sendPacketImmediateMethod;
 
+	private Random source = new SecureRandom();
+
 	@SuppressWarnings("unchecked")
 	public NMSUtils1_18_R1() {
+		try {
+			Class<?> cls = Class.forName("net.minecraft.network.protocol.game.PacketPlayOutBoss$d");
+			Field fieldAdd = cls.getDeclaredField("a");
+			fieldAdd.setAccessible(true);
+			addBossBarOperation = (Enum<?>) fieldAdd.get(null);
+			Field fieldUpdateProgress = cls.getDeclaredField("c");
+			fieldUpdateProgress.setAccessible(true);
+			updateBossBarProgressOperation = (Enum<?>) fieldUpdateProgress.get(null);
+			Field fieldUpdateName = cls.getDeclaredField("d");
+			fieldUpdateName.setAccessible(true);
+			updateBossBarNameOperation = (Enum<?>) fieldUpdateName.get(null);
+		} catch (Exception e) {
+			throw new RuntimeException("Failed to get add boss bar operation", e);
+		}
+		try {
+			structureStartsField = ReflectionUtils.getDeclaredField(ChunkAccess.class, "structureStarts");
+			structureStartsField.setAccessible(true);
+		} catch (Exception e) {
+			throw new RuntimeException("Failed to get structureStarts field", e);
+		}
 		try {
 			Field dataBitingField = FishingHook.class.getDeclaredField("ap");
 			dataBitingField.setAccessible(true);
@@ -188,9 +247,47 @@ public class NMSUtils1_18_R1 implements NMSHandler {
 			packetListeners.add(new ClientboundSetSubtitleTextPacket(
 					Objects.requireNonNull(Component.Serializer.fromJson(subTitleJson))));
 		}
-		for (Packet<ClientGamePacketListener> packet : packetListeners) {
-			sendPacketImmediately(serverPlayer, packet);
-		}
+		packetListeners.forEach(packet -> sendPacketImmediately(serverPlayer, packet));
+	}
+
+	@Override
+	public void createBossBar(Player player, UUID uuid, Object component, BossBarColor color, BossBarOverlay overlay,
+			float progress, boolean createWorldFog, boolean playBossMusic, boolean darkenScreen) {
+		FriendlyByteBuf buf = new FriendlyByteBuf(Unpooled.buffer());
+		buf.writeUUID(uuid);
+		buf.writeEnum(addBossBarOperation);
+		buf.writeComponent((Component) component);
+		buf.writeFloat(progress);
+		buf.writeEnum(BossEvent.BossBarColor.valueOf(color.name()));
+		buf.writeEnum(BossEvent.BossBarOverlay.valueOf(overlay.name()));
+		buf.writeByte(BossBarUtils.encodeProperties(darkenScreen, playBossMusic, createWorldFog));
+		ClientboundBossEventPacket packet = new ClientboundBossEventPacket(buf);
+		((CraftPlayer) player).getHandle().connection.send(packet);
+	}
+
+	@Override
+	public void removeBossBar(Player player, UUID uuid) {
+		((CraftPlayer) player).getHandle().connection.send(ClientboundBossEventPacket.createRemovePacket(uuid));
+	}
+
+	@Override
+	public void updateBossBarName(Player player, UUID uuid, Object component) {
+		FriendlyByteBuf buf = new FriendlyByteBuf(Unpooled.buffer());
+		buf.writeUUID(uuid);
+		buf.writeEnum(updateBossBarNameOperation);
+		buf.writeComponent((Component) component);
+		ClientboundBossEventPacket packet = new ClientboundBossEventPacket(buf);
+		((CraftPlayer) player).getHandle().connection.send(packet);
+	}
+
+	@Override
+	public void updateBossBarProgress(Player player, UUID uuid, float progress) {
+		FriendlyByteBuf buf = new FriendlyByteBuf(Unpooled.buffer());
+		buf.writeUUID(uuid);
+		buf.writeEnum(updateBossBarProgressOperation);
+		buf.writeFloat(progress);
+		ClientboundBossEventPacket packet = new ClientboundBossEventPacket(buf);
+		((CraftPlayer) player).getHandle().connection.send(packet);
 	}
 
 	@Override
@@ -217,6 +314,167 @@ public class NMSUtils1_18_R1 implements NMSHandler {
 		ClientboundUpdateAdvancementsPacket packet2 = new ClientboundUpdateAdvancementsPacket(false, new ArrayList<>(),
 				new HashSet<>(List.of(id)), new HashMap<>());
 		serverPlayer.connection.send(packet2);
+	}
+
+	@Override
+	public void playChestAnimation(Player player, Location location, boolean open) {
+		ServerLevel serverLevel = ((CraftWorld) location.getWorld()).getHandle();
+		BlockPos pos = new BlockPos(location.getBlockX(), location.getBlockY(), location.getBlockZ());
+		BlockState blockState = serverLevel.getBlockState(pos);
+		Block block = blockState.getBlock();
+
+		int actionId = open ? 1 : 0;
+
+		// Get the NMS player connection
+		ServerPlayer serverPlayer = ((CraftPlayer) player).getHandle();
+
+		// Handle (double/single) chests and trapped chests
+		if (block instanceof ChestBlock || block instanceof TrappedChestBlock) {
+			// Send animation for the current chest block
+			serverPlayer.connection.send(new ClientboundBlockEventPacket(pos, block, 1, actionId));
+
+			// Play appropriate sound
+			player.playSound(location, open ? Sound.BLOCK_CHEST_OPEN : Sound.BLOCK_CHEST_CLOSE, 1.0f, 1.0f);
+
+			// Check and handle the second half of a double chest
+			ChestType type = blockState.getValue(ChestBlock.TYPE);
+			if (type != ChestType.SINGLE) {
+				Direction facing = blockState.getValue(ChestBlock.FACING);
+				BlockPos otherHalfPos = pos.relative(getConnectedChestOffset(type, facing));
+
+				BlockState otherHalfState = serverLevel.getBlockState(otherHalfPos);
+				if (otherHalfState.getBlock() == block) {
+					serverPlayer.connection.send(new ClientboundBlockEventPacket(otherHalfPos, block, 1, actionId));
+				}
+			}
+			return;
+		}
+
+		// Ender Chest
+		if (block instanceof EnderChestBlock) {
+			serverPlayer.connection.send(new ClientboundBlockEventPacket(pos, block, 1, actionId));
+			player.playSound(location, open ? Sound.BLOCK_ENDER_CHEST_OPEN : Sound.BLOCK_ENDER_CHEST_CLOSE, 1.0f, 1.0f);
+			return;
+		}
+
+		// Barrel
+		if (block instanceof BarrelBlock) {
+			serverPlayer.connection.send(new ClientboundBlockEventPacket(pos, block, 1, actionId));
+			player.playSound(location, open ? Sound.BLOCK_BARREL_OPEN : Sound.BLOCK_BARREL_CLOSE, 1.0f, 1.0f);
+			return;
+		}
+
+		// Shulker Boxes (all colors)
+		if (block instanceof ShulkerBoxBlock) {
+			serverPlayer.connection.send(new ClientboundBlockEventPacket(pos, block, 1, actionId));
+			player.playSound(location, open ? Sound.BLOCK_SHULKER_BOX_OPEN : Sound.BLOCK_SHULKER_BOX_CLOSE, 1.0f, 1.0f);
+			return;
+		}
+	}
+
+	/**
+	 * Gets the relative direction to the other half of a double chest based on its
+	 * type and facing.
+	 *
+	 * LEFT and RIGHT are determined from the player's point of view looking at the
+	 * front of the chest.
+	 *
+	 * @param chestType the type of the chest (LEFT, RIGHT, SINGLE)
+	 * @param facing    the front-facing direction of the chest
+	 * @return the direction toward the connected chest block
+	 */
+	private Direction getConnectedChestOffset(ChestType chestType, Direction facing) {
+		return chestType == ChestType.LEFT ? facing.getClockWise() // LEFT chest connects clockwise
+				: facing.getCounterClockWise(); // RIGHT chest connects counter-clockwise
+	}
+
+	@Override
+	public void injectFakeFortress(World world, BoundingBox bounds) {
+		if (world.getEnvironment() != World.Environment.NETHER) {
+			throw new IllegalStateException("Fake fortress can only be injected in a Nether world!");
+		}
+
+		// Step 1: Get NMS world
+		ServerLevel nmsWorld = ((CraftWorld) world).getHandle();
+
+		// Step 2: Use the built-in StructureFeature constant
+		StructureFeature<?> fortressFeature = StructureFeature.NETHER_BRIDGE;
+
+		// Step 3: Determine which chunks the bounding box spans
+		int minChunkX = ((int) bounds.getMinX()) >> 4;
+		int maxChunkX = ((int) bounds.getMaxX()) >> 4;
+		int minChunkZ = ((int) bounds.getMinZ()) >> 4;
+		int maxChunkZ = ((int) bounds.getMaxZ()) >> 4;
+
+		// Step 4: Create an empty PiecesContainer (no actual structure pieces)
+		PiecesContainer emptyPieces = new PiecesContainer(List.of());
+
+		// Step 5: Loop through all chunks overlapping the bounding box
+		try {
+			for (int chunkX = minChunkX; chunkX <= maxChunkX; chunkX++) {
+				for (int chunkZ = minChunkZ; chunkZ <= maxChunkZ; chunkZ++) {
+					ChunkPos chunkPos = new ChunkPos(chunkX, chunkZ);
+
+					// Create the StructureStart for this chunk
+					StructureStart<?> start = new StructureStart<>(fortressFeature, chunkPos, 0, emptyPieces);
+
+					// Inject into the chunk's structure map
+					LevelChunk chunk = nmsWorld.getChunk(chunkPos.x, chunkPos.z);
+
+					@SuppressWarnings("unchecked")
+					Map<StructureFeature<?>, StructureStart<?>> starts = (Map<StructureFeature<?>, StructureStart<?>>) structureStartsField
+							.get(chunk);
+
+					// Create a new mutable copy with the fortress added
+					Map<StructureFeature<?>, StructureStart<?>> newStarts = new HashMap<>();
+					if (starts != null) {
+						newStarts.putAll(starts);
+					}
+					newStarts.put(fortressFeature, start);
+					structureStartsField.set(chunk, newStarts);
+				}
+			}
+		} catch (IllegalAccessException e) {
+			throw new RuntimeException("Failed to inject fortress structure", e);
+		}
+	}
+
+	@Override
+	public void removeFakeFortress(World world, BoundingBox bounds) {
+		if (world.getEnvironment() != World.Environment.NETHER) {
+			throw new IllegalStateException("Fake fortress can only be removed from a Nether world!");
+		}
+
+		ServerLevel nmsWorld = ((CraftWorld) world).getHandle();
+
+		StructureFeature<?> fortressFeature = StructureFeature.NETHER_BRIDGE;
+
+		// Compute chunk range
+		int minChunkX = ((int) bounds.getMinX()) >> 4;
+		int maxChunkX = ((int) bounds.getMaxX()) >> 4;
+		int minChunkZ = ((int) bounds.getMinZ()) >> 4;
+		int maxChunkZ = ((int) bounds.getMaxZ()) >> 4;
+
+		try {
+			for (int chunkX = minChunkX; chunkX <= maxChunkX; chunkX++) {
+				for (int chunkZ = minChunkZ; chunkZ <= maxChunkZ; chunkZ++) {
+					ChunkPos chunkPos = new ChunkPos(chunkX, chunkZ);
+					LevelChunk chunk = nmsWorld.getChunk(chunkPos.x, chunkPos.z);
+
+					@SuppressWarnings("unchecked")
+					Map<StructureFeature<?>, StructureStart<?>> starts = (Map<StructureFeature<?>, StructureStart<?>>) structureStartsField
+							.get(chunk);
+					if (starts != null && starts.containsKey(fortressFeature)) {
+						// Create a new mutable copy without the fortress
+						Map<StructureFeature<?>, StructureStart<?>> newStarts = new HashMap<>(starts);
+						newStarts.remove(fortressFeature);
+						structureStartsField.set(chunk, newStarts);
+					}
+				}
+			}
+		} catch (IllegalAccessException e) {
+			throw new RuntimeException("Failed to remove fortress structure", e);
+		}
 	}
 
 	@Override
@@ -310,6 +568,35 @@ public class NMSUtils1_18_R1 implements NMSHandler {
 	}
 
 	@Override
+	public void restrictWitherAI(Wither bukkitWither) {
+		// Convert the Bukkit Wither to its NMS equivalent
+		WitherBoss wither = ((CraftWither) bukkitWither).getHandle();
+
+		// Access and clear both goal and target selectors
+		GoalSelector goalSelector = wither.goalSelector;
+		GoalSelector targetSelector = wither.targetSelector;
+		goalSelector.removeAllGoals();
+		targetSelector.removeAllGoals();
+
+		// Add a target goal to attack players only
+		targetSelector.addGoal(2, new NearestAttackableTargetGoal<>(wither, ServerPlayer.class, true));
+	}
+
+	@Override
+	public void igniteTNTMinecart(ExplosiveMinecart bukkitExplosiveMinecart) {
+		// Cast to CraftMinecart
+		CraftMinecart craftMinecart = (CraftMinecart) bukkitExplosiveMinecart;
+
+		// Get NMS handle
+		AbstractMinecart nmsCart = craftMinecart.getHandle();
+
+		// Check if it's a MinecartTNT
+		if (nmsCart instanceof MinecartTNT tntCart) {
+			tntCart.primeFuse();
+		}
+	}
+
+	@Override
 	public FluidData getFluidData(Location location) {
 		World world = location.getWorld();
 		FluidState state = ((CraftWorld) world).getHandle()
@@ -368,7 +655,7 @@ public class NMSUtils1_18_R1 implements NMSHandler {
 	public List<ItemStack> getFishingLoot(Player player, FishHook hook, ItemStack rod) {
 		Location location = hook.getLocation();
 		ServerLevel level = ((CraftWorld) location.getWorld()).getHandle();
-		Random source = new Random(hook.getUniqueId().getLeastSignificantBits() ^ level.getGameTime());
+		source.setSeed(hook.getUniqueId().getLeastSignificantBits() ^ level.getGameTime());
 		LootContext.Builder loottableinfo_builder = (new LootContext.Builder(level))
 				.withParameter(LootContextParams.ORIGIN, new Vec3(location.getX(), location.getY(), location.getZ()))
 				.withParameter(LootContextParams.TOOL, CraftItemStack.asNMSCopy(rod))
@@ -448,9 +735,7 @@ public class NMSUtils1_18_R1 implements NMSHandler {
 		serverPlayer.connection.send(packet);
 		ChunkMap.TrackedEntity tracker = serverPlayer.tracker;
 		if (tracker != null) {
-			for (ServerPlayerConnection connection : tracker.seenBy) {
-				connection.send(packet);
-			}
+			tracker.seenBy.forEach(connection -> connection.send(packet));
 		}
 	}
 

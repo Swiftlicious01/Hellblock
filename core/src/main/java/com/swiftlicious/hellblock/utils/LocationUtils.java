@@ -5,10 +5,12 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
 import org.bukkit.Bukkit;
+import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Tag;
@@ -27,31 +29,56 @@ import dev.dejvokep.boostedyaml.block.implementation.Section;
 
 public class LocationUtils {
 
-	private static final Set<Material> UNSAFE_GROUND_BLOCKS = EnumSet.of(Material.ANVIL, Material.CHIPPED_ANVIL,
-			Material.DAMAGED_ANVIL, Material.BARRIER, Material.GRAVEL, Material.SAND, Material.SUSPICIOUS_GRAVEL,
-			Material.SUSPICIOUS_SAND, Material.RED_SAND, Material.POINTED_DRIPSTONE, Material.STRUCTURE_VOID,
-			Material.CACTUS, Material.END_PORTAL, Material.END_ROD, Material.FIRE, Material.FLOWER_POT, Material.LADDER,
-			Material.LEVER, Material.TALL_GRASS, Material.PISTON_HEAD, Material.MOVING_PISTON, Material.TORCH,
-			Material.SOUL_TORCH, Material.REDSTONE_TORCH, Material.WALL_TORCH, Material.TRIPWIRE, Material.WATER,
-			Material.COBWEB, Material.LAVA, Material.SOUL_FIRE, Material.SOUL_CAMPFIRE, Material.CAMPFIRE,
-			Material.BAMBOO, Material.POWDER_SNOW, Material.CANDLE, Material.VINE, Material.SWEET_BERRY_BUSH,
-			Material.NETHER_PORTAL, Material.MAGMA_BLOCK, Material.TURTLE_EGG, Material.SEA_PICKLE,
-			Material.LIGHTNING_ROD, Material.CHAIN, Material.SCULK_SENSOR, Material.LANTERN, Material.SOUL_LANTERN,
-			Material.SCAFFOLDING, Material.TNT, Material.LAVA_CAULDRON, Material.DRAGON_EGG, Material.SMALL_DRIPLEAF,
-			Material.BIG_DRIPLEAF, Material.SHULKER_BOX, Material.END_GATEWAY, Material.IRON_BARS, Material.STRING,
-			Material.CALIBRATED_SCULK_SENSOR, Material.DROPPER, Material.OBSERVER, Material.END_CRYSTAL,
-			Material.DISPENSER, Material.HOPPER, Material.LILY_PAD, Material.PLAYER_HEAD, Material.PLAYER_WALL_HEAD,
-			Material.ZOMBIE_HEAD, Material.CREEPER_HEAD, Material.PIGLIN_HEAD, Material.DRAGON_HEAD,
-			Material.ZOMBIE_WALL_HEAD, Material.CREEPER_WALL_HEAD, Material.DRAGON_WALL_HEAD, Material.PIGLIN_WALL_HEAD,
-			Material.WITHER_SKELETON_SKULL, Material.SKELETON_SKULL, Material.SKELETON_WALL_SKULL,
-			Material.WITHER_SKELETON_WALL_SKULL, Material.WITHER_ROSE, Material.WEEPING_VINES, Material.TWISTING_VINES,
-			Material.TRIPWIRE_HOOK, Material.POWDER_SNOW_CAULDRON, Material.ORANGE_STAINED_GLASS_PANE,
-			Material.BLACK_STAINED_GLASS_PANE, Material.BLUE_STAINED_GLASS_PANE, Material.LIGHT_BLUE_STAINED_GLASS_PANE,
-			Material.LIME_STAINED_GLASS_PANE, Material.GREEN_STAINED_GLASS_PANE, Material.RED_STAINED_GLASS_PANE,
-			Material.GRAY_STAINED_GLASS_PANE, Material.WHITE_STAINED_GLASS_PANE, Material.YELLOW_STAINED_GLASS_PANE,
-			Material.PINK_STAINED_GLASS_PANE, Material.PURPLE_STAINED_GLASS_PANE, Material.CYAN_STAINED_GLASS_PANE,
-			Material.LIGHT_GRAY_STAINED_GLASS_PANE, Material.BROWN_STAINED_GLASS_PANE,
-			Material.MAGENTA_STAINED_GLASS_PANE, Material.GLASS_PANE);
+	private static final Set<Material> UNSAFE_GROUND_BLOCKS = Collections.unmodifiableSet(initUnsafeBlocks());
+
+	@NotNull
+	private static Set<Material> initUnsafeBlocks() {
+		Set<String> materialNames = Set.of("ANVIL", "CHIPPED_ANVIL", "DAMAGED_ANVIL", "BARRIER", "GRAVEL", "SAND",
+				"SUSPICIOUS_GRAVEL", "SUSPICIOUS_SAND", "RED_SAND", "POINTED_DRIPSTONE", "STRUCTURE_VOID", "CACTUS",
+				"END_PORTAL", "END_ROD", "FIRE", "FLOWER_POT", "LADDER", "LEVER", "TALL_GRASS", "PISTON_HEAD",
+				"MOVING_PISTON", "TORCH", "SOUL_TORCH", "REDSTONE_TORCH", "WALL_TORCH", "TRIPWIRE", "WATER", "COBWEB",
+				"LAVA", "SOUL_FIRE", "SOUL_CAMPFIRE", "CAMPFIRE", "BAMBOO", "POWDER_SNOW", "CANDLE", "VINE",
+				"SWEET_BERRY_BUSH", "NETHER_PORTAL", "MAGMA_BLOCK", "TURTLE_EGG", "SEA_PICKLE", "LIGHTNING_ROD",
+				"CHAIN", "SCULK_SENSOR", "LANTERN", "SOUL_LANTERN", "SCAFFOLDING", "TNT", "LAVA_CAULDRON", "DRAGON_EGG",
+				"SMALL_DRIPLEAF", "BIG_DRIPLEAF", "SHULKER_BOX", "END_GATEWAY", "IRON_BARS", "STRING",
+				"CALIBRATED_SCULK_SENSOR", "DROPPER", "OBSERVER", "END_CRYSTAL", "DISPENSER", "HOPPER", "LILY_PAD",
+				"PLAYER_HEAD", "PLAYER_WALL_HEAD", "ZOMBIE_HEAD", "CREEPER_HEAD", "PIGLIN_HEAD", "DRAGON_HEAD",
+				"ZOMBIE_WALL_HEAD", "CREEPER_WALL_HEAD", "DRAGON_WALL_HEAD", "PIGLIN_WALL_HEAD",
+				"WITHER_SKELETON_SKULL", "SKELETON_SKULL", "SKELETON_WALL_SKULL", "WITHER_SKELETON_WALL_SKULL",
+				"WITHER_ROSE", "WEEPING_VINES", "TWISTING_VINES", "TRIPWIRE_HOOK", "POWDER_SNOW_CAULDRON",
+				"ORANGE_STAINED_GLASS_PANE", "BLACK_STAINED_GLASS_PANE", "BLUE_STAINED_GLASS_PANE",
+				"LIGHT_BLUE_STAINED_GLASS_PANE", "LIME_STAINED_GLASS_PANE", "GREEN_STAINED_GLASS_PANE",
+				"RED_STAINED_GLASS_PANE", "GRAY_STAINED_GLASS_PANE", "WHITE_STAINED_GLASS_PANE",
+				"YELLOW_STAINED_GLASS_PANE", "PINK_STAINED_GLASS_PANE", "PURPLE_STAINED_GLASS_PANE",
+				"CYAN_STAINED_GLASS_PANE", "LIGHT_GRAY_STAINED_GLASS_PANE", "BROWN_STAINED_GLASS_PANE",
+				"MAGENTA_STAINED_GLASS_PANE", "GLASS_PANE");
+
+		EnumSet<Material> safeSet = EnumSet.noneOf(Material.class);
+
+		materialNames.forEach(name -> {
+			Material mat = Material.matchMaterial(name);
+			if (mat != null) {
+				safeSet.add(mat);
+			} else {
+				// Optional: log skipped materials
+				HellblockPlugin.getInstance().debug("Skipped missing Material for safety check: " + name);
+			}
+		});
+
+		return safeSet;
+	}
+
+	private static final Set<Material> HAZARD_BLOCKS = initHazardBlocks();
+
+	@NotNull
+	private static Set<Material> initHazardBlocks() {
+		Set<String> materialNames = Set.of("POINTED_DRIPSTONE", "SAND", "RED_SAND", "GRAVEL", "SUSPICIOUS_GRAVEL",
+				"SUSPICIOUS_SAND");
+
+		EnumSet<Material> safeSet = EnumSet.noneOf(Material.class);
+		materialNames.stream().map(Material::matchMaterial).filter(Objects::nonNull).forEach(safeSet::add);
+		return safeSet;
+	}
 
 	private LocationUtils() {
 		throw new UnsupportedOperationException("This class cannot be instantiated");
@@ -69,16 +96,21 @@ public class LocationUtils {
 				+ Math.pow(location2.getY() - location1.getY(), 2) + Math.pow(location2.getZ() - location1.getZ(), 2));
 	}
 
-	public static @NotNull List<String> readableLocation(@NotNull Location location) {
+	@NotNull
+	public static List<String> readableLocation(@NotNull Location location) {
 		return Arrays.asList(location.getWorld().getName(), String.valueOf(location.getX()),
 				String.valueOf(location.getY()), String.valueOf(location.getZ()));
 	}
 
+	@Nullable
 	public static Location getAnyLocationInstance() {
-		return new Location(Bukkit.getWorlds().get(0), 0, 64, 0);
+		return !Bukkit.getWorlds().isEmpty()
+				? new Location(Bukkit.getWorlds().stream().filter(Objects::nonNull).findFirst().orElse(null), 0, 64, 0)
+				: null;
 	}
 
-	public static String toChunkPosString(Location location) {
+	@NotNull
+	public static String toChunkPosString(@NotNull Location location) {
 		return (location.getBlockX() % 16) + "_" + location.getBlockY() + "_" + (location.getBlockZ() % 16);
 	}
 
@@ -89,6 +121,18 @@ public class LocationUtils {
 		return isSafeLocation(player.getLocation());
 	}
 
+	@NotNull
+	public static CompletableFuture<Boolean> isSafeLocationAsync(@NotNull Location location, @Nullable Player player) {
+		// Flying is always safe
+		if (player != null && (player.isFlying() || player.isGliding() || player.getGameMode() == GameMode.CREATIVE)) {
+			return CompletableFuture.completedFuture(true);
+		}
+
+		final CompletableFuture<Boolean> result = new CompletableFuture<>();
+		ChunkUtils.getChunkAtAsync(location).thenRun(() -> result.complete(isSafeLocation(location)));
+		return result;
+	}
+
 	/**
 	 * Checks if this location is safe for a player to teleport to and loads chunks
 	 * async to check.
@@ -96,10 +140,9 @@ public class LocationUtils {
 	/**
 	 * Checks if this location is safe for teleporting, with async chunk loading.
 	 */
+	@NotNull
 	public static CompletableFuture<Boolean> isSafeLocationAsync(@NotNull Location location) {
-		final CompletableFuture<Boolean> result = new CompletableFuture<>();
-		ChunkUtils.getChunkAtAsync(location).thenRun(() -> result.complete(isSafeLocation(location)));
-		return result;
+		return isSafeLocationAsync(location, null);
 	}
 
 	/**
@@ -113,11 +156,15 @@ public class LocationUtils {
 			return false;
 		}
 
-		// Full player bounding box (~0.6 wide, ~1.8 tall)
-		final BoundingBox playerBox = BoundingBox.of(location, 0.6, 1.8, 0.6);
+		final double feetY = location.getY();
+		final double headY = feetY + 1.8;
+
+		double width = 0.28; // experimental
+		BoundingBox playerBox = new BoundingBox(location.getX() - width, feetY, location.getZ() - width,
+				location.getX() + width, headY, location.getZ() + width);
 
 		// Ground check box extends down 1 block below feet
-		final BoundingBox groundCheck = playerBox.clone().expand(0, -1, 0);
+		final BoundingBox groundCheck = playerBox.clone().shift(0, -1, 0);
 
 		final int minX = NumberConversions.floor(groundCheck.getMinX());
 		final int maxX = NumberConversions.ceil(groundCheck.getMaxX());
@@ -137,11 +184,13 @@ public class LocationUtils {
 					// --- Explicit check: head in water or lava = unsafe ---
 					if ((type == Material.WATER || type == Material.LAVA)
 							&& playerBox.overlaps(block.getBoundingBox())) {
+						HellblockPlugin.getInstance()
+								.debug("Unsafe: Head in liquid block: " + type + " at " + block.getLocation());
 						return false;
 					}
 
 					// Liquids/air/passable blocks are not valid support
-					if (block.isPassable()) {
+					if (block.isPassable() || Tag.LEAVES.isTagged(type)) {
 						continue;
 					}
 
@@ -153,36 +202,37 @@ public class LocationUtils {
 					for (BoundingBox shape : shapes) {
 						shape = shape.clone().shift(block.getX(), block.getY(), block.getZ());
 
-						// If the full player box intersects with a solid block → unsafe
 						if (playerBox.overlaps(shape)) {
+							HellblockPlugin.getInstance().debug("Player box overlaps solid block: " + block.getType()
+									+ " @ " + block.getLocation());
 							return false;
 						}
 
-						// Check if standing on this block
 						if (groundCheck.overlaps(shape)) {
 							final double blockTopY = shape.getMaxY();
-							final double feetY = playerBox.getMinY();
+							final double delta = feetY - blockTopY;
 
-							// Player is "standing" if feet are aligned within tolerance
-							if (feetY >= blockTopY && feetY - blockTopY < 0.3) {
+							if (delta >= 0 && delta < 0.5) {
 								// Carpet/snow require solid support beneath
-								if (Tag.WOOL_CARPETS.isTagged(type) || type == Material.SNOW) {
+								if (HellblockPlugin.getInstance().getFarmingManager().isWoolCarpet(type)
+										|| type == Material.SNOW) {
 									final Block support = block.getRelative(BlockFace.DOWN);
 									if (support.isPassable()) {
-										continue; // floating carpet/snow = unsafe
+										continue;
 									}
 								}
 
 								standingOnSomething = true;
+								HellblockPlugin.getInstance()
+										.debug("FeetY=" + feetY + ", BlockTopY=" + blockTopY + ", delta=" + delta);
+								HellblockPlugin.getInstance().debug("StandingOn: " + type + " | shape: " + shape);
 
-								// --- Unsafe ground checks ---
 								if (UNSAFE_GROUND_BLOCKS.contains(type) || Tag.FIRE.isTagged(type)
 										|| type == Material.LAVA || type == Material.CACTUS
 										|| type == Material.MAGMA_BLOCK) {
 									return false;
 								}
 
-								// Bubble column check: Magma/Soul Sand under water
 								if ((type == Material.MAGMA_BLOCK || type == Material.SOUL_SAND)
 										&& block.getRelative(BlockFace.UP).getType() == Material.WATER) {
 									return false;
@@ -194,25 +244,29 @@ public class LocationUtils {
 			}
 		}
 
-		// If no ground to stand on → unsafe
+		HellblockPlugin.getInstance().debug("Final playerBox: " + playerBox);
+		HellblockPlugin.getInstance().debug("GroundCheck: " + groundCheck);
+		HellblockPlugin.getInstance()
+				.debug("Bounding: X(%d-%d), Y(%d-%d), Z(%d-%d)".formatted(minX, maxX, minY, maxY, minZ, maxZ));
+
 		if (!standingOnSomething) {
+			HellblockPlugin.getInstance().debug("No valid ground to stand on at " + getStringLocation(location));
 			return false;
 		}
 
-		// --- Extra hazard check ABOVE the player’s head ---
 		final Block hazardCheck = world.getBlockAt(location).getRelative(BlockFace.UP, 2);
 		final Material hazardType = hazardCheck.getType();
-		if (hazardType == Material.POINTED_DRIPSTONE || hazardType == Material.ANVIL
-				|| hazardType == Material.CHIPPED_ANVIL || hazardType == Material.DAMAGED_ANVIL
-				|| hazardType == Material.SAND || hazardType == Material.RED_SAND || hazardType == Material.GRAVEL
-				|| hazardType == Material.SUSPICIOUS_GRAVEL || hazardType == Material.SUSPICIOUS_SAND) {
-			return false; // unsafe falling hazard
+		if (HAZARD_BLOCKS.contains(hazardType) || Tag.ANVIL.isTagged(hazardType) || HellblockPlugin.getInstance()
+				.getFarmingManager().getConcreteConverter().getConcretePowderBlocks().contains(hazardType)) {
+			return false;
 		}
 
+		HellblockPlugin.getInstance().debug("Safe location: " + getStringLocation(location));
 		return true;
 	}
 
-	public @Nullable Block getBlockSupporting(@NotNull Player player) {
+	@Nullable
+	public Block getBlockSupporting(@NotNull Player player) {
 		final World w = player.getWorld();
 		final BoundingBox box = player.getBoundingBox();
 		// check two blocks below the player as some blocks
@@ -268,7 +322,8 @@ public class LocationUtils {
 	 * @param s - serialized location in format "world:x:y:z:y:p"
 	 * @return Location
 	 */
-	public static @NotNull Location getLocationString(final @NotNull String s) {
+	@Nullable
+	public static Location getLocationString(final @NotNull String s) {
 		if (s == null || "".equals(s.trim())) {
 			return null;
 		}
@@ -297,7 +352,8 @@ public class LocationUtils {
 	 * @param l - the location
 	 * @return String of location in format "world:x:y:z:y:p"
 	 */
-	public static @NotNull String getStringLocation(final @NotNull Location l) {
+	@NotNull
+	public static String getStringLocation(final @NotNull Location l) {
 		if (l == null || l.getWorld() == null) {
 			return "";
 		}
@@ -332,7 +388,8 @@ public class LocationUtils {
 		};
 	}
 
-	public static @NotNull String getFacing(@NotNull Player player) {
+	@NotNull
+	public static String getFacing(@NotNull Player player) {
 		final double yaw = player.getLocation().getYaw();
 		if (yaw >= 337.5 || (yaw <= 22.5 && yaw >= 0.0) || (yaw >= -22.5 && yaw <= 0.0)
 				|| (yaw <= -337.5 && yaw <= 0.0)) {
@@ -392,7 +449,8 @@ public class LocationUtils {
 		section.set("pitch", round(pitch, 3));
 	}
 
-	public static @Nullable Location deserializeLocation(@NotNull Section section) {
+	@Nullable
+	public static Location deserializeLocation(@NotNull Section section) {
 		final World world = Bukkit.getWorld(section.getString("world"));
 		if (world == null) {
 			return null;

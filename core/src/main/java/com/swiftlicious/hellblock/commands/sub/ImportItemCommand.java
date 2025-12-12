@@ -12,14 +12,13 @@ import org.incendo.cloud.Command;
 import org.incendo.cloud.CommandManager;
 import org.incendo.cloud.parser.standard.StringParser;
 
-import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.commands.BukkitCommandFeature;
 import com.swiftlicious.hellblock.commands.HellblockCommandManager;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
+import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.utils.ItemStackUtils;
 
 import dev.dejvokep.boostedyaml.YamlDocument;
-import net.kyori.adventure.text.Component;
 
 public class ImportItemCommand extends BukkitCommandFeature<CommandSender> {
 
@@ -39,7 +38,7 @@ public class ImportItemCommand extends BukkitCommandFeature<CommandSender> {
 						handleFeedback(context, MessageConstants.COMMAND_ITEM_IMPORT_FAILURE_NO_ITEM);
 						return;
 					}
-					File saved = new File(HellblockPlugin.getInstance().getDataFolder(), "imported_items.yml");
+					File saved = new File(plugin.getDataFolder(), "imported_items.yml");
 					if (!saved.exists()) {
 						try {
 							saved.createNewFile();
@@ -47,12 +46,13 @@ public class ImportItemCommand extends BukkitCommandFeature<CommandSender> {
 							throw new RuntimeException(e);
 						}
 					}
-					YamlDocument document = HellblockPlugin.getInstance().getConfigManager().loadData(saved);
+					YamlDocument document = plugin.getConfigManager().loadData(saved);
 					Map<String, Object> map = ItemStackUtils.itemStackToMap(item);
 					document.set(id, map);
 					try {
 						document.save(saved);
-						handleFeedback(context, MessageConstants.COMMAND_ITEM_IMPORT_SUCCESS, Component.text(id));
+						handleFeedback(context, MessageConstants.COMMAND_ITEM_IMPORT_SUCCESS,
+								AdventureHelper.miniMessageToComponent(id));
 					} catch (IOException e) {
 						throw new RuntimeException(e);
 					}

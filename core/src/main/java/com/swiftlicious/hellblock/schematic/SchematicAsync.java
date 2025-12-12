@@ -44,9 +44,6 @@ import org.bukkit.block.Skull;
 import org.bukkit.block.banner.Pattern;
 import org.bukkit.block.banner.PatternType;
 import org.bukkit.block.data.BlockData;
-import org.bukkit.block.sign.Side;
-import org.bukkit.block.sign.SignSide;
-import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.ItemFrame;
@@ -65,9 +62,13 @@ import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.handlers.VersionHelper;
+import com.swiftlicious.hellblock.nms.entity.armorstand.FakeArmorStand;
+import com.swiftlicious.hellblock.player.GameProfileBuilder;
 import com.swiftlicious.hellblock.scheduler.SchedulerTask;
 import com.swiftlicious.hellblock.schematic.SchematicManager.SpawnSearchMode;
+import com.swiftlicious.hellblock.utils.ParticleUtils;
 
+import net.kyori.adventure.key.Key;
 import net.kyori.adventure.nbt.BinaryTag;
 import net.kyori.adventure.nbt.ByteBinaryTag;
 import net.kyori.adventure.nbt.CompoundBinaryTag;
@@ -76,6 +77,8 @@ import net.kyori.adventure.nbt.IntBinaryTag;
 import net.kyori.adventure.nbt.ListBinaryTag;
 import net.kyori.adventure.nbt.ShortBinaryTag;
 import net.kyori.adventure.nbt.StringBinaryTag;
+import net.kyori.adventure.sound.Sound;
+import net.kyori.adventure.sound.Sound.Source;
 import net.kyori.adventure.text.Component;
 
 public class SchematicAsync implements SchematicPaster {
@@ -100,7 +103,6 @@ public class SchematicAsync implements SchematicPaster {
 	@Override
 	public CompletableFuture<Location> pasteHellblock(UUID playerId, File file, Location location,
 			boolean ignoreAirBlock, SchematicMetadata metadata, boolean animated) {
-
 		CompletableFuture<Location> future = new CompletableFuture<>();
 
 		instance.getScheduler().executeAsync(() -> {
@@ -157,33 +159,36 @@ public class SchematicAsync implements SchematicPaster {
 		pasteProgress.put(playerId, 0);
 
 		Player player = Bukkit.getPlayer(playerId);
-		ArmorStand camera = null;
 
-		if (animated && player != null) {
+		if (animated && player != null && player.isOnline()) {
 			long durationTicks = (total / (long) pasterLimit) + 20L;
-			camera = instance.getIslandGenerator().createCameraAnchor(player, location);
-			instance.getIslandGenerator().animateCamera(camera, location, durationTicks);
+
+			instance.getStorageManager().getOnlineUser(playerId).ifPresent(userData -> {
+				FakeArmorStand camera = instance.getIslandGenerator().createCameraAnchor(userData, location);
+				instance.getIslandGenerator().animateCamera(camera, location, player, durationTicks);
+			});
 		}
 
 		final SchedulerTask[] actionBarTaskRef = new SchedulerTask[1];
-		if (animated && player != null) {
+		if (animated && player != null && player.isOnline()) {
 			actionBarTaskRef[0] = instance.getScheduler().sync().runRepeating(new Runnable() {
 				int secondsElapsed = 0;
 
 				@Override
 				public void run() {
 					if (future.isDone()) {
-						actionBarTaskRef[0].cancel();
+						if (actionBarTaskRef[0] != null && !actionBarTaskRef[0].isCancelled())
+							actionBarTaskRef[0].cancel();
 						return;
 					}
 
 					int percent = (int) ((placedBlocks[0] / (double) total) * 100);
-					VersionHelper.getNMSManager().sendActionBar(player,
-							AdventureHelper.componentToJson(instance.getTranslationManager()
-									.render(MessageConstants.MSG_HELLBLOCK_SCHEMATIC_PROGRESS_BAR
-											.arguments(AdventureHelper.miniMessage(String.valueOf(percent)),
-													AdventureHelper.miniMessage(String.valueOf(secondsElapsed)))
-											.build())));
+					VersionHelper.getNMSManager().sendActionBar(player, AdventureHelper.componentToJson(instance
+							.getTranslationManager()
+							.render(MessageConstants.MSG_HELLBLOCK_SCHEMATIC_PROGRESS_BAR
+									.arguments(AdventureHelper.miniMessageToComponent(String.format("%d%%", percent)),
+											AdventureHelper.miniMessageToComponent(String.valueOf(secondsElapsed)))
+									.build())));
 					secondsElapsed++;
 				}
 			}, 20L, 20L, location);
@@ -209,10 +214,10 @@ public class SchematicAsync implements SchematicPaster {
 
 						block.setBlockData(data, false);
 
-						if (animated && player != null) {
-							player.spawnParticle(Particle.BLOCK_CRUMBLE, blockLoc, 5, data);
+						if (animated && player != null && player.isOnline()) {
+							player.spawnParticle(ParticleUtils.getParticle("BLOCK_DUST"), blockLoc, 5, data);
 							AdventureHelper.playPositionalSound(player.getWorld(), blockLoc,
-									"minecraft:block.stone.place", 0.5f, 1.2f);
+									Sound.sound(Key.key("minecraft:block.stone.place"), Source.BLOCK, 0.5f, 1.2f));
 						}
 
 						placedBlocks[0]++;
@@ -223,14 +228,14 @@ public class SchematicAsync implements SchematicPaster {
 
 			if (!iterator.hasNext()) {
 				SchedulerTask running = runningPastes.remove(playerId);
-				if (running != null)
+				if (running != null && !running.isCancelled())
 					running.cancel();
 
 				SchedulerTask timeout = pasteTimeouts.remove(playerId);
-				if (timeout != null)
+				if (timeout != null && !timeout.isCancelled())
 					timeout.cancel();
 
-				if (actionBarTaskRef[0] != null)
+				if (actionBarTaskRef[0] != null && !actionBarTaskRef[0].isCancelled())
 					actionBarTaskRef[0].cancel();
 
 				schematicData.tileEntities.forEach(tag -> {
@@ -239,7 +244,10 @@ public class SchematicAsync implements SchematicPaster {
 					BlockState state = blockLocation.getBlock().getState();
 
 					restoreInventory(state, tag);
-					restoreTileEntity(state, tag, blockLocation);
+					restoreTileEntity(state, tag, blockLocation,
+							player != null ? player.getName()
+									: instance.getTranslationManager()
+											.miniMessageTranslation(MessageConstants.FORMAT_UNKNOWN.build().key()));
 				});
 
 				restoreEntitiesFromSchematic(schematicData, location);
@@ -249,11 +257,10 @@ public class SchematicAsync implements SchematicPaster {
 						: location.clone().add(width / 2.0, 0, length / 2.0); // fallback center
 
 				Optional<TreeAnimationData> treeDataOpt = scanGlowstoneTree(treeLoc, 5);
-				if (treeDataOpt.isPresent()) {
-					TreeAnimationData treeData = treeDataOpt.get();
+				treeDataOpt.ifPresentOrElse(treeData -> {
 					totalBlocks.put(playerId, total + treeData.getStagedBlocks().size());
 					animateTreeFromScanned(playerId, treeData, future, location, metadata, width, height, length);
-				} else {
+				}, () -> {
 					Location safeSpawn = (metadata.getHome() != null) ? location.clone().add(metadata.getHome())
 							: instance.getSchematicManager().findSafeSpawn(location.getWorld(), location.clone(), width,
 									height, length, SpawnSearchMode.CENTER);
@@ -266,7 +273,7 @@ public class SchematicAsync implements SchematicPaster {
 					totalBlocks.remove(playerId);
 
 					future.complete(safeSpawn);
-				}
+				});
 			}
 		};
 
@@ -282,14 +289,15 @@ public class SchematicAsync implements SchematicPaster {
 			totalBlocks.remove(playerId);
 
 			SchedulerTask running = runningPastes.remove(playerId);
-			if (running != null)
+			if (running != null && !running.isCancelled())
 				running.cancel();
 
-			if (actionBarTaskRef[0] != null) {
+			if (actionBarTaskRef[0] != null && !actionBarTaskRef[0].isCancelled()) {
 				actionBarTaskRef[0].cancel();
 			}
 
-			instance.getIslandGenerator().cleanupAnimation(player);
+			instance.getStorageManager().getCachedUserData(playerId)
+					.ifPresent(userData -> instance.getIslandGenerator().cleanupAnimation(userData));
 			future.completeExceptionally(new TimeoutException("Schematic paste timed out after 10 seconds."));
 			instance.getPluginLogger().warn("InternalAsync schematic paste for player " + playerId + " timed out.");
 		}, PASTE_TIMEOUT_TICKS, location);
@@ -342,7 +350,7 @@ public class SchematicAsync implements SchematicPaster {
 		List<List<Block>> stages = new ArrayList<>(treeData.getStagedBlocks().values());
 		AtomicInteger step = new AtomicInteger();
 		Block top = treeData.getTopBlock();
-		Location topLocation = top.getLocation().add(0.5, 0.5, 0.5);
+		Location topLocation = top.getLocation().clone().add(0.5, 0.5, 0.5);
 
 		final SchedulerTask[] taskRef = new SchedulerTask[1]; // Mutable reference
 
@@ -354,9 +362,8 @@ public class SchematicAsync implements SchematicPaster {
 				world.spawnParticle(Particle.CLOUD, topLocation, 30, 0.4, 0.3, 0.4, 0.02);
 				world.spawnParticle(Particle.END_ROD, topLocation, 20, 0.2, 0.3, 0.2, 0.01);
 				world.strikeLightningEffect(topLocation);
-
-				AdventureHelper.playPositionalSound(world, topLocation, "minecraft:entity.lightning_bolt.thunder", 0.8f,
-						1.0f);
+				AdventureHelper.playPositionalSound(world, topLocation,
+						Sound.sound(Key.key("minecraft:entity.lightning_bolt.thunder"), Source.BLOCK, 0.8f, 1.0f));
 
 				Location spawn = (metadata.getHome() != null) ? location.clone().add(metadata.getHome())
 						: instance.getSchematicManager().findSafeSpawn(location.getWorld(), location, width, height,
@@ -368,7 +375,7 @@ public class SchematicAsync implements SchematicPaster {
 
 				future.complete(spawn);
 
-				if (taskRef[0] != null) {
+				if (taskRef[0] != null && !taskRef[0].isCancelled()) {
 					taskRef[0].cancel();
 				}
 				return;
@@ -376,10 +383,10 @@ public class SchematicAsync implements SchematicPaster {
 
 			List<Block> layer = stages.get(currentStep);
 			layer.forEach(b -> {
-				Location loc = b.getLocation().add(0.5, 0.5, 0.5);
+				Location loc = b.getLocation().clone().add(0.5, 0.5, 0.5);
 				b.getWorld().spawnParticle(Particle.END_ROD, loc, 8, 0.1, 0.1, 0.1, 0.01);
-				AdventureHelper.playPositionalSound(b.getWorld(), loc, "minecraft:block.amethyst_block.hit", 0.6f,
-						1.4f);
+				AdventureHelper.playPositionalSound(b.getWorld(), loc,
+						Sound.sound(Key.key("minecraft:block.amethyst_block.hit"), Source.BLOCK, 0.6f, 1.4f));
 			});
 
 			pasteProgress.compute(playerId, (k, v) -> {
@@ -463,7 +470,7 @@ public class SchematicAsync implements SchematicPaster {
 				if (entity instanceof Painting painting) {
 					if (entityTag.get("Motive") instanceof StringBinaryTag motiveTag) {
 						String motive = motiveTag.value();
-						painting.setArt(ItemRegistry.getPaintingVariant(motive)); // Your registry
+						painting.setArt(VariantRegistry.getPaintingVariant(motive)); // Your registry
 					}
 				}
 
@@ -586,7 +593,7 @@ public class SchematicAsync implements SchematicPaster {
 				} else {
 					container.getInventory().setItem(slot, itemStack);
 				}
-			} catch (IllegalArgumentException ignored) {
+			} catch (NoSuchFieldError | IllegalArgumentException ignored) {
 				// Skip items with missing/invalid tags
 			}
 		}
@@ -598,7 +605,7 @@ public class SchematicAsync implements SchematicPaster {
 		}
 	}
 
-	private void restoreTileEntity(BlockState state, CompoundBinaryTag tag, Location blockLocation) {
+	private void restoreTileEntity(BlockState state, CompoundBinaryTag tag, Location blockLocation, String ownerName) {
 		// Furnace
 		if (state instanceof Furnace furnace) {
 			try {
@@ -665,23 +672,39 @@ public class SchematicAsync implements SchematicPaster {
 		if (state instanceof Lectern lectern) {
 			try {
 				if (tag.get("Book") instanceof CompoundBinaryTag bookTag) {
-					final String title = SchematicData.getChildTag(bookTag, "title", StringBinaryTag.class).value();
-					final String author = SchematicData.getChildTag(bookTag, "author", StringBinaryTag.class).value();
+					final String titleRaw = SchematicData.getChildTag(bookTag, "title", StringBinaryTag.class).value();
+					final String authorRaw = SchematicData.getChildTag(bookTag, "author", StringBinaryTag.class)
+							.value();
 					final ListBinaryTag pagesTag = SchematicData.getChildTag(bookTag, "pages", ListBinaryTag.class);
 
 					final ItemStack book = new ItemStack(Material.WRITTEN_BOOK);
 					final BookMeta meta = (BookMeta) book.getItemMeta();
-					if (title != null) {
-						meta.setTitle(title);
+
+					if (titleRaw != null) {
+						String replacedTitle = titleRaw.replace("{player}", ownerName);
+						meta.setTitle(replacedTitle);
 					}
-					if (author != null) {
-						meta.setAuthor(author);
+
+					if (authorRaw != null) {
+						String replacedAuthor = authorRaw.replace("{player}", ownerName);
+						meta.setAuthor(replacedAuthor);
 					}
 
 					final List<Component> pages = new ArrayList<>();
 					for (BinaryTag page : pagesTag) {
 						if (page instanceof StringBinaryTag sbt) {
-							pages.add(Component.text(sbt.value()));
+							String rawPage = sbt.value();
+							String replacedPage = rawPage.replace("{player}", ownerName);
+
+							Component pageComponent;
+							try {
+								pageComponent = AdventureHelper.jsonToComponent(replacedPage);
+							} catch (Exception e) {
+								pageComponent = AdventureHelper
+										.miniMessageToComponent(AdventureHelper.legacyToMiniMessage(replacedPage));
+							}
+
+							pages.add(pageComponent);
 						}
 					}
 
@@ -715,7 +738,7 @@ public class SchematicAsync implements SchematicPaster {
 								.value();
 						final DyeColor color = DyeColor.values()[colorIndex];
 
-						final PatternType type = ItemRegistry.getBannerPattern(patternId);
+						final PatternType type = VariantRegistry.getBannerPattern(patternId);
 
 						if (type != null) {
 							banner.addPattern(new Pattern(color, type));
@@ -732,22 +755,45 @@ public class SchematicAsync implements SchematicPaster {
 		// Sign
 		if (state instanceof Sign sign) {
 			try {
-				for (Side side : Side.values()) {
-					final SignSide signSide = sign.getSide(side);
-					for (int i = 0; i < 4; i++) {
-						final String key = "Text" + (i + 1);
-						final String rawJson = tag.get(key) instanceof StringBinaryTag sbt ? sbt.value() : "";
+				List<Component> processedLines = new ArrayList<>(4);
 
-						Component line;
-						try {
-							line = AdventureHelper.jsonToComponent(rawJson);
-						} catch (Exception e) {
-							line = Component.text(AdventureHelper.legacyToMiniMessage(rawJson));
+				// Deserialize the raw JSON lines and replace placeholders
+				for (int i = 0; i < 4; i++) {
+					final String key = "Text" + (i + 1);
+					final String rawJson = tag.get(key) instanceof StringBinaryTag sbt ? sbt.value() : "";
+
+					Component line;
+					try {
+						// Replace {player} BEFORE parsing into a Component
+						String replacedJson = rawJson.replace("{player}", ownerName);
+						line = AdventureHelper.jsonToComponent(replacedJson);
+					} catch (Exception e) {
+						// Fallback to legacy → MiniMessage
+						String fallback = AdventureHelper.legacyToMiniMessage(rawJson.replace("{player}", ownerName));
+						line = AdventureHelper.miniMessageToComponent(fallback);
+					}
+
+					processedLines.add(line);
+				}
+
+				// Set lines using dual-version reflection helper
+				if (SignReflectionHelper.isDualSided()) {
+					// In 1.20+, write to both FRONT and BACK sides
+					for (Object sideEnum : SignReflectionHelper.getSideEnumConstants()) {
+						Object signSide = SignReflectionHelper.invokeGetSide(sign, sideEnum);
+						for (int i = 0; i < 4; i++) {
+							SignReflectionHelper.invokeSetLine(signSide, i, processedLines.get(i));
 						}
-						AdventureMetadata.setSignLine(signSide, i, line);
+					}
+				} else {
+					// In 1.19.4 or earlier: single side only
+					for (int i = 0; i < 4; i++) {
+						SignReflectionHelper.setLine(sign, i, processedLines.get(i));
 					}
 				}
+
 				sign.update();
+
 			} catch (Exception ex) {
 				instance.getPluginLogger()
 						.warn("Failed to restore sign metadata at " + blockLocation + ": " + ex.getMessage());
@@ -913,7 +959,7 @@ public class SchematicAsync implements SchematicPaster {
 
 	private void applySkullTexture(Skull skull, String base64) {
 		try {
-			final GameProfile profile = new GameProfile(UUID.randomUUID(), null);
+			final GameProfile profile = GameProfileBuilder.fetch(UUID.randomUUID());
 			profile.getProperties().put("textures", new Property("textures", base64));
 
 			final Field profileField = skull.getClass().getDeclaredField("profile");
@@ -953,9 +999,9 @@ public class SchematicAsync implements SchematicPaster {
 		pasteProgress.remove(playerId);
 		totalBlocks.remove(playerId);
 
-		if (timeout != null)
+		if (timeout != null && !timeout.isCancelled())
 			timeout.cancel();
-		if (task != null) {
+		if (task != null && !task.isCancelled()) {
 			task.cancel();
 			return true;
 		}
@@ -972,7 +1018,7 @@ public class SchematicAsync implements SchematicPaster {
 		schematicCache.clear();
 	}
 
-	public static class TreeAnimationData {
+	public class TreeAnimationData {
 		private final Map<Integer, List<Block>> stagedBlocks = new TreeMap<>();
 		private final Block topBlock;
 

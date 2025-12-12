@@ -60,6 +60,17 @@ public interface StorageManagerInterface extends Reloadable {
 	Optional<UserData> getCachedUserData(UUID uuid);
 
 	/**
+	 * Attempts to load a {@link UserData} from cache or offline storage.
+	 *
+	 * @param uuid The UUID of the user to load.
+	 * @param lock Whether to lock the data on retrieval.
+	 * @return A {@link CompletableFuture} containing the {@link Optional} of
+	 *         {@link UserData}.
+	 */
+	@NotNull
+	CompletableFuture<Optional<UserData>> getCachedUserDataWithFallback(UUID uuid, boolean lock);
+
+	/**
 	 * Invalidate cache user data on certain events.
 	 * 
 	 * @param uuid the UUID of the user
@@ -75,6 +86,16 @@ public interface StorageManagerInterface extends Reloadable {
 	 *         user data, or empty if not found
 	 */
 	CompletableFuture<Optional<UserData>> getOfflineUserData(UUID uuid, boolean lock);
+
+	/**
+	 * Retrieves the user data for an offline user by their island ID.
+	 *
+	 * @param islandId the islandId of the data to retrieve
+	 * @param lock     whether to lock the user data for exclusive access
+	 * @return a {@link CompletableFuture} containing an {@link Optional} with the
+	 *         user data, or empty if not found
+	 */
+	CompletableFuture<Optional<UserData>> getOfflineUserDataByIslandId(int islandId, boolean lock);
 
 	/**
 	 * Saves the user data.

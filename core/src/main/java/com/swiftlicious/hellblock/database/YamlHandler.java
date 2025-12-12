@@ -4,25 +4,30 @@ import java.io.File;
 import java.io.IOException;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.util.BoundingBox;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.google.common.base.Enums;
 import com.google.common.io.Files;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.challenges.ChallengeResult;
@@ -30,19 +35,26 @@ import com.swiftlicious.hellblock.challenges.ChallengeType;
 import com.swiftlicious.hellblock.challenges.HellblockChallenge.CompletionStatus;
 import com.swiftlicious.hellblock.generation.HellBiome;
 import com.swiftlicious.hellblock.generation.IslandOptions;
+import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.handlers.VisitManager;
 import com.swiftlicious.hellblock.handlers.VisitManager.VisitRecord;
 import com.swiftlicious.hellblock.player.ChallengeData;
+import com.swiftlicious.hellblock.player.CoopChatSetting;
 import com.swiftlicious.hellblock.player.DisplaySettings;
 import com.swiftlicious.hellblock.player.DisplaySettings.DisplayChoice;
 import com.swiftlicious.hellblock.player.EarningData;
 import com.swiftlicious.hellblock.player.HellblockData;
+import com.swiftlicious.hellblock.player.InvasionData;
 import com.swiftlicious.hellblock.player.LocationCacheData;
+import com.swiftlicious.hellblock.player.NotificationSettings;
 import com.swiftlicious.hellblock.player.PlayerData;
+import com.swiftlicious.hellblock.player.SkysiegeData;
 import com.swiftlicious.hellblock.player.StatisticData;
 import com.swiftlicious.hellblock.player.VisitData;
+import com.swiftlicious.hellblock.player.WitherData;
 import com.swiftlicious.hellblock.player.mailbox.MailboxEntry;
 import com.swiftlicious.hellblock.player.mailbox.MailboxFlag;
+import com.swiftlicious.hellblock.protection.HellblockFlag;
 import com.swiftlicious.hellblock.protection.HellblockFlag.AccessType;
 import com.swiftlicious.hellblock.protection.HellblockFlag.FlagType;
 import com.swiftlicious.hellblock.upgrades.IslandUpgradeType;
@@ -51,6 +63,7 @@ import com.swiftlicious.hellblock.utils.LocationUtils;
 import dev.dejvokep.boostedyaml.YamlDocument;
 import dev.dejvokep.boostedyaml.block.implementation.Section;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.minimessage.MiniMessage;
 
 /**
  * A data storage implementation that uses YAML files to store player data, with
@@ -58,17 +71,899 @@ import net.kyori.adventure.text.Component;
  */
 public class YamlHandler extends AbstractStorage {
 
+	private final File dataFolder;
+
+	private final ConcurrentHashMap<UUID, CompletableFuture<Optional<PlayerData>>> loadingCache = new ConcurrentHashMap<>();
+	private final ConcurrentHashMap<UUID, CompletableFuture<Boolean>> updatingCache = new ConcurrentHashMap<>();
+
+	private final Cache<Integer, UUID> islandIdToUUIDCache = Caffeine.newBuilder()
+			.expireAfterWrite(30, TimeUnit.MINUTES).maximumSize(10_000).build();
+
+	private final Cache<UUID, PlayerData> memoryCache = Caffeine.newBuilder().maximumSize(500).build();
+
 	public YamlHandler(HellblockPlugin plugin) {
 		super(plugin);
-		final File folder = new File(plugin.getDataFolder(), "data");
-		if (!folder.exists()) {
-			folder.mkdirs();
+		this.dataFolder = new File(plugin.getDataFolder(), "data");
+		if (!dataFolder.exists() && !dataFolder.mkdirs()) {
+			plugin.getPluginLogger().warn("Failed to create data folder for YAML storage.");
 		}
 	}
 
 	@Override
 	public StorageType getStorageType() {
 		return StorageType.YAML;
+	}
+
+	@Override
+	public CompletableFuture<Optional<PlayerData>> getPlayerData(UUID uuid, boolean lock, Executor executor) {
+		final Executor finalExecutor = executor != null ? executor : plugin.getScheduler().async();
+
+		return loadingCache.computeIfAbsent(uuid, id -> {
+			plugin.debug("getPlayerData: starting new load for " + id);
+			final CompletableFuture<Optional<PlayerData>> future = new CompletableFuture<>();
+
+			// Ensure the entry is only removed after the future completes (success or
+			// failure)
+			future.whenComplete((result, throwable) -> loadingCache.remove(uuid));
+
+			finalExecutor.execute(() -> {
+				try {
+					// Check cache first
+					PlayerData cached = memoryCache.getIfPresent(uuid);
+					if (cached != null) {
+						plugin.debug("YAML cache hit for " + uuid);
+						future.complete(Optional.of(cached));
+						return;
+					}
+
+					plugin.debug("YAML cache miss for " + uuid);
+
+					File file = getPlayerDataFile(uuid);
+					if (!file.exists()) {
+						PlayerData data = Bukkit.getPlayer(uuid) != null ? PlayerData.empty() : null;
+						if (data != null)
+							data.setUUID(uuid);
+						future.complete(Optional.ofNullable(data));
+						return;
+					}
+
+					YamlDocument yaml = plugin.getConfigManager().loadData(file);
+					PlayerData playerData = parseYamlToPlayerData(uuid, yaml);
+
+					if (playerData != null) {
+						memoryCache.put(uuid, playerData);
+
+						// Index the island ID to UUID
+						int islandId = playerData.getHellblockData().getIslandId();
+						if (islandId > 0) {
+							islandIdToUUIDCache.put(islandId, uuid);
+						}
+					}
+
+					future.complete(Optional.ofNullable(playerData));
+				} catch (Exception ex) {
+					plugin.getPluginLogger().warn("Failed to load YAML for " + uuid, ex);
+					future.completeExceptionally(ex);
+				}
+			});
+
+			return future;
+		});
+	}
+
+	@Override
+	public CompletableFuture<Optional<PlayerData>> getPlayerDataByIslandId(int islandId, boolean lock,
+			Executor executor) {
+		UUID cachedUUID = islandIdToUUIDCache.getIfPresent(islandId);
+
+		if (cachedUUID != null) {
+			return getPlayerData(cachedUUID, lock, executor);
+		}
+
+		return scanYamlFilesForIslandId(islandId, lock, executor);
+	}
+
+	private CompletableFuture<Optional<PlayerData>> scanYamlFilesForIslandId(int islandId, boolean lock,
+			Executor executor) {
+		final Executor finalExecutor = executor != null ? executor : plugin.getScheduler().async();
+		final CompletableFuture<Optional<PlayerData>> future = new CompletableFuture<>();
+
+		finalExecutor.execute(() -> {
+			try {
+				File dataDir = getPlayerDataFolder();
+				File[] files = dataDir.listFiles((dir, name) -> name.endsWith(".yml"));
+
+				if (files == null) {
+					future.complete(Optional.empty());
+					return;
+				}
+
+				for (File file : files) {
+					UUID fileUUID;
+					try {
+						fileUUID = UUID.fromString(file.getName().replace(".yml", ""));
+					} catch (IllegalArgumentException e) {
+						continue;
+					}
+
+					// Fast path: check memory cache first
+					PlayerData cached = memoryCache.getIfPresent(fileUUID);
+					if (cached != null && cached.getHellblockData().getIslandId() == islandId) {
+						islandIdToUUIDCache.put(islandId, fileUUID);
+						future.complete(Optional.of(cached));
+						return;
+					}
+
+					// Load from file
+					YamlDocument yaml = plugin.getConfigManager().loadData(file);
+					PlayerData parsed = parseYamlToPlayerData(fileUUID, yaml);
+
+					if (parsed != null && parsed.getHellblockData().getIslandId() == islandId) {
+						memoryCache.put(fileUUID, parsed);
+						islandIdToUUIDCache.put(islandId, fileUUID);
+						future.complete(Optional.of(parsed));
+						return;
+					}
+				}
+
+				future.complete(Optional.empty());
+			} catch (Exception e) {
+				plugin.getPluginLogger().warn("Failed to scan YAML files for islandId=" + islandId, e);
+				future.completeExceptionally(e);
+			}
+		});
+
+		return future;
+	}
+
+	@Override
+	public CompletableFuture<Boolean> updatePlayerData(UUID uuid, PlayerData playerData, boolean ignore) {
+		return updatingCache.computeIfAbsent(uuid, id -> {
+			final CompletableFuture<Boolean> future = new CompletableFuture<>();
+			final Executor executor = plugin.getScheduler().async();
+
+			// Ensure cleanup happens only once after complete
+			future.whenComplete((result, throwable) -> updatingCache.remove(uuid));
+
+			executor.execute(() -> {
+				try {
+					File file = getPlayerDataFile(uuid);
+					YamlDocument yaml = plugin.getConfigManager().loadData(file);
+
+					serializePlayerDataToYaml(playerData, yaml);
+
+					yaml.save(file);
+					memoryCache.put(uuid, playerData);
+					future.complete(true);
+				} catch (IOException ex) {
+					plugin.getPluginLogger().warn("Failed to save YAML data for " + uuid, ex);
+					future.completeExceptionally(ex);
+				} catch (Exception ex) {
+					plugin.getPluginLogger().warn("Unexpected error while saving YAML for " + uuid, ex);
+					future.completeExceptionally(ex);
+				}
+			});
+
+			return future;
+		});
+	}
+
+	private PlayerData parseYamlToPlayerData(UUID uuid, YamlDocument data) {
+		// Basic initialization
+		final Set<UUID> party = readUUIDSet(data.getStringList("hellblockData.partyMembers"));
+		final Set<UUID> trusted = readUUIDSet(data.getStringList("hellblockData.trustedMembers"));
+		final Set<UUID> banned = readUUIDSet(data.getStringList("hellblockData.bannedMembers"));
+		final Map<UUID, Long> invitations = readUUIDLongMap(data.getSection("hellblockData.islandInvitations"));
+		EnumMap<FlagType, HellblockFlag> flags = new EnumMap<>(FlagType.class);
+		Section section = data.getSection("hellblockData.protectionFlags");
+		if (section != null) {
+			for (String key : section.getRoutesAsStrings(false)) {
+				FlagType flagType = Enums.getIfPresent(FlagType.class, key).orNull();
+				if (flagType == null)
+					continue;
+
+				Section flagSection = section.getSection(key);
+				if (flagSection != null) {
+					AccessType status = Enums.getIfPresent(AccessType.class, flagSection.getString("allowedStatus", ""))
+							.or(flagType.getDefaultValue() ? AccessType.ALLOW : AccessType.DENY);
+
+					// Read optional string data if present
+					String dataString = flagSection.contains("stringData") ? flagSection.getString("stringData") : null;
+
+					// Use constructor with data if data is present or flag supports it
+					if ((flagType == FlagType.GREET_MESSAGE || flagType == FlagType.FAREWELL_MESSAGE)) {
+						flags.put(flagType, new HellblockFlag(flagType, status, dataString));
+					} else {
+						flags.put(flagType, new HellblockFlag(flagType, status));
+					}
+				}
+			}
+		}
+		final EnumMap<IslandUpgradeType, Integer> upgrades = readEnumIntMap(
+				data.getSection("hellblockData.islandUpgrades"), IslandUpgradeType.class);
+		final Map<ChallengeType, ChallengeResult> challenges = parseChallengeData(
+				data.getSection("challengeData.challenges"));
+		final List<MailboxEntry> mailbox = parseMailboxEntries(data.getSection("mailboxEntries"));
+		final VisitData visitData = parseVisitData(data.getSection("hellblockData.visitData"));
+		final List<VisitRecord> recentVisitors = parseRecentVisitors(data.getSection("hellblockData.recentVisitors"));
+		final InvasionData invasionData = parseInvasionData(data.getSection("hellblockData.invasionData"));
+		final WitherData witherData = parseWitherData(data.getSection("hellblockData.witherData"));
+		final SkysiegeData skysiegeData = parseSkysiegeData(data.getSection("hellblockData.skysiegeData"));
+		final DisplaySettings display = parseDisplaySettings(data.getSection("hellblockData.displaySettings"));
+		final BoundingBox bounds = parseBoundingBox(data.getSection("hellblockData.islandBounds"));
+		final Location home = safeDeserializeLocation(data, "hellblockData.homeLocation");
+		final Location location = safeDeserializeLocation(data, "hellblockData.hellblockLocation");
+
+		// Hellblock metadata
+		final boolean hasHellblock = data.getBoolean("hellblockData.hellblockExists", false);
+		final UUID ownerUUID = tryParseUUID(data.getString("hellblockData.ownerUUID"));
+		final UUID linkedPortalUUID = tryParseUUID(data.getString("hellblockData.linkedPortalUUID"));
+		final int hellblockId = data.getInt("hellblockData.islandId", 0);
+		final float level = data.getFloat("hellblockData.islandLevel", 0.0F);
+		final long creation = data.getLong("hellblockData.creationTime", 0L);
+		final HellBiome biome = tryParseEnum(data.getString("hellblockData.islandBiome"), HellBiome.class,
+				HellBiome.NETHER_WASTES);
+		final IslandOptions islandChoice = tryParseEnum(data.getString("hellblockData.islandChoice"),
+				IslandOptions.class, null);
+		final CoopChatSetting chatSetting = tryParseEnum(data.getString("hellblockData.chatPreference"),
+				CoopChatSetting.class, CoopChatSetting.GLOBAL);
+		final String schematic = data.getString("hellblockData.usedSchematic", null);
+		final boolean locked = data.getBoolean("hellblockData.isLocked", false);
+		final boolean abandoned = data.getBoolean("hellblockData.isAbandoned", false);
+		final long resetCooldown = data.getLong("hellblockData.resetCooldown", 0L);
+		final long biomeCooldown = data.getLong("hellblockData.biomeCooldown", 0L);
+		final long transferCooldown = data.getLong("hellblockData.transferCooldown", 0L);
+		final long lastIslandActivity = data.getLong("hellblockData.lastIslandActivity", 0L);
+		final long lastWorldAccess = data.getLong("hellblockData.lastWorldAccess", 0L);
+
+		// Name and date
+		final String name = data.getString("name", "");
+		final int dataVersion = data.getInt("dataVersion", PlayerData.CURRENT_VERSION);
+		final String dateStr = data.getString("earningData.date", null);
+		final LocalDate date = (dateStr != null) ? LocalDate.parse(dateStr) : LocalDate.now();
+
+		// Construct player data
+		final PlayerData playerData = PlayerData.builder().setUUID(uuid).setName(name).setVersion(dataVersion)
+				.setEarningData(new EarningData(data.getDouble("earningData.earnings", 0.0), date))
+				.setStatisticData(getStatistics(data.getSection("statisticData.stats"))).setMailbox(mailbox)
+				.setChallengeData(new ChallengeData(challenges))
+				.setLocationCacheData(new LocationCacheData(
+						plugin.getConfigManager().pistonAutomation()
+								? readIntegerListMap(data.getSection("locationCacheData.cachedPistons"))
+								: new HashMap<>(),
+						ownerUUID != null && ownerUUID.equals(uuid)
+								? readNestedMap(data.getSection("locationCacheData.placedBlocks"))
+								: new HashMap<>()))
+				.setNotificationSettings(
+						new NotificationSettings(data.getBoolean("notificationSettings.joinNotifications", true),
+								data.getBoolean("notificationSettings.inviteNotifications", true)))
+				.setHellblockData(new HellblockData(hellblockId, level, hasHellblock, ownerUUID, linkedPortalUUID,
+						bounds, display, chatSetting, party, trusted, banned, invitations, flags, upgrades, location,
+						home, creation, visitData, recentVisitors, biome, islandChoice, schematic, locked, abandoned,
+						resetCooldown, biomeCooldown, transferCooldown, lastIslandActivity, lastWorldAccess,
+						invasionData, witherData, skysiegeData))
+				.build();
+
+		return playerData;
+	}
+
+	private Location safeDeserializeLocation(YamlDocument data, String path) {
+		Section section = data.getSection(path);
+		return (section != null) ? LocationUtils.deserializeLocation(section) : null;
+	}
+
+	private Map<ChallengeType, ChallengeResult> parseChallengeData(Section section) {
+		Map<ChallengeType, ChallengeResult> map = new HashMap<>();
+		if (section == null)
+			return map;
+
+		section.getKeys().forEach(key -> {
+			ChallengeType type = plugin.getChallengeManager().getById(key.toString());
+			if (type == null)
+				return;
+
+			CompletionStatus status = tryParseEnum(section.getString(key + ".completionStatus"), CompletionStatus.class,
+					CompletionStatus.NOT_STARTED);
+			int progress = section.getInt(key + ".progress", type.getNeededAmount());
+			boolean claimed = section.getBoolean(key + ".claimedReward", false);
+
+			map.put(type, new ChallengeResult(status, progress, claimed));
+		});
+
+		return map;
+	}
+
+	private List<MailboxEntry> parseMailboxEntries(Section section) {
+		List<MailboxEntry> list = new ArrayList<>();
+		if (section == null)
+			return list;
+
+		MiniMessage mini = AdventureHelper.getMiniMessage();
+
+		section.getKeys().stream().map(key -> section.getSection(key.toString())).forEach(entry -> {
+			if (entry == null)
+				return;
+			String messageKey = entry.getString("messageKey");
+			List<Component> args = entry.getStringList("arguments").stream().map(mini::deserialize).toList();
+			Set<MailboxFlag> flags = entry.getStringList("flags").stream().map(s -> {
+				try {
+					return MailboxFlag.valueOf(s.toUpperCase(Locale.ENGLISH));
+				} catch (IllegalArgumentException e) {
+					return null;
+				}
+			}).filter(Objects::nonNull).collect(Collectors.toSet());
+			list.add(new MailboxEntry(messageKey, args, flags));
+		});
+
+		return list;
+	}
+
+	private VisitData parseVisitData(Section section) {
+		VisitData data = new VisitData();
+		if (section == null)
+			return data;
+
+		Section warp = section.getSection("warpLocation");
+		if (warp != null)
+			data.setWarpLocation(LocationUtils.deserializeLocation(warp));
+
+		data.setTotalVisits(section.getInt("totalVisits", 0));
+		data.setVisitsToday(section.getInt("visitsToday", 0));
+		data.setVisitsThisWeek(section.getInt("visitsThisWeek", 0));
+		data.setVisitsThisMonth(section.getInt("visitsThisMonth", 0));
+		data.setLastVisitReset(section.getLong("lastVisitReset", 0L));
+		data.setFeaturedUntil(section.getLong("featuredUntil", 0L));
+
+		return data;
+	}
+
+	private List<VisitRecord> parseRecentVisitors(Section section) {
+		List<VisitRecord> list = new ArrayList<>();
+		if (section == null)
+			return list;
+
+		VisitManager visitManager = plugin.getVisitManager();
+		section.getKeys().stream().map(key -> section.getSection(key.toString())).forEach(entry -> {
+			if (entry == null)
+				return;
+			UUID id = tryParseUUID(entry.getString("visitorId"));
+			long time = entry.getLong("timestamp");
+			if (id != null)
+				list.add(visitManager.new VisitRecord(id, time));
+		});
+
+		return list;
+	}
+
+	private DisplaySettings parseDisplaySettings(Section section) {
+		DisplaySettings settings = new DisplaySettings("", "", DisplayChoice.CHAT);
+		if (section == null)
+			return settings;
+
+		settings.setIslandName(section.getString("islandName", ""));
+		settings.setIslandBio(section.getString("islandBio", ""));
+
+		DisplayChoice choice = tryParseEnum(section.getString("displayChoice"), DisplayChoice.class,
+				DisplayChoice.CHAT);
+		settings.setDisplayChoice(choice);
+
+		if (section.getBoolean("isDefaultIslandName", true))
+			settings.setAsDefaultIslandName();
+		else
+			settings.isNotDefaultIslandName();
+
+		if (section.getBoolean("isDefaultIslandBio", true))
+			settings.setAsDefaultIslandBio();
+		else
+			settings.isNotDefaultIslandBio();
+
+		return settings;
+	}
+
+	private BoundingBox parseBoundingBox(Section section) {
+		if (section == null)
+			return null;
+
+		double minX = section.getDouble("minX");
+		double minY = section.getDouble("minY");
+		double minZ = section.getDouble("minZ");
+		double maxX = section.getDouble("maxX");
+		double maxY = section.getDouble("maxY");
+		double maxZ = section.getDouble("maxZ");
+
+		return new BoundingBox(minX, minY, minZ, maxX, maxY, maxZ);
+	}
+
+	private InvasionData parseInvasionData(Section section) {
+		InvasionData data = new InvasionData();
+		if (section == null)
+			return data;
+
+		data.setTotalInvasions(section.getInt("totalInvasions", 0));
+		data.setSuccessfulInvasions(section.getInt("successfulInvasions", 0));
+		data.setFailedInvasions(section.getInt("failedInvasions", 0));
+		data.setBossKills(section.getInt("bossKills", 0));
+		data.setCurrentStreak(section.getInt("currentStreak", 0));
+		data.setLastInvasionTime(section.getLong("lastInvasionTime", 0L));
+		data.setHighestDifficultyTierReached(section.getInt("highestDifficultyTierReached", 0));
+
+		return data;
+	}
+
+	private WitherData parseWitherData(Section section) {
+		WitherData data = new WitherData();
+		if (section == null)
+			return data;
+
+		data.setTotalSpawns(section.getInt("totalSpawns", 0));
+		data.setKills(section.getInt("kills", 0));
+		data.setTotalMinionWaves(section.getInt("totalMinionWaves", 0));
+		data.setTotalHeals(section.getInt("totalHeals", 0));
+		data.setDespawns(section.getInt("despawns", 0));
+		data.setShortestFightMillis(section.getLong("shortestFightMillis", 0L));
+		data.setLongestFightMillis(section.getLong("longestFightMillis", 0L));
+		data.setLastSpawnTime(section.getLong("lastSpawnTime", 0L));
+
+		return data;
+	}
+
+	private SkysiegeData parseSkysiegeData(Section section) {
+		SkysiegeData data = new SkysiegeData();
+		if (section == null)
+			return data;
+
+		data.setTotalSkysieges(section.getInt("totalSkysieges", 0));
+		data.setSuccessfulSkysieges(section.getInt("successfulSkysieges", 0));
+		data.setFailedSkysieges(section.getInt("failedSkysieges", 0));
+		data.setQueenKills(section.getInt("queenKills", 0));
+		data.setTotalGhastsKilled(section.getInt("totalGhastsKilled", 0));
+		data.setTotalWavesCompleted(section.getInt("totalWavesCompleted", 0));
+		data.setShortestDurationMillis(section.getLong("shortestDurationMillis", 0L));
+		data.setLongestDurationMillis(section.getLong("longestDurationMillis", 0L));
+		data.setLastSkysiegeTime(section.getLong("lastSkysiegeTime", 0L));
+
+		return data;
+	}
+
+	private void serializePlayerDataToYaml(PlayerData playerData, YamlDocument data) {
+		// General Info
+		data.set("name", playerData.getName());
+		data.set("dataVersion", playerData.getVersion());
+		if (playerData.getEarningData().getEarnings() > 0.0D)
+			data.set("earningData.date", playerData.getEarningData().getDate().toString());
+		setIfNotZero(data, "earningData.earnings", playerData.getEarningData().getEarnings());
+
+		// Only serialize placed blocks / pistons for the island owner
+		if (playerData.getHellblockData().getOwnerUUID() != null
+				&& playerData.getUUID().equals(playerData.getHellblockData().getOwnerUUID())) {
+			serializeLevelBlocks(data, playerData.getLocationCacheData().getPlacedBlocks());
+			cleanIfEmpty(data, "locationCacheData.placedBlocks");
+
+			Map<Integer, List<String>> pistonsByIsland = playerData.getLocationCacheData().getPistonLocationsByIsland();
+			if (pistonsByIsland != null && !pistonsByIsland.isEmpty()) {
+				Section pistonSection = ensureSection(data, "locationCacheData.cachedPistons");
+
+				pistonsByIsland.forEach((islandId, pistons) -> {
+					if (pistons != null && !pistons.isEmpty()) {
+						pistonSection.set(String.valueOf(islandId), pistons);
+					}
+				});
+
+				cleanIfEmpty(data, "locationCacheData.cachedPistons");
+			}
+		}
+
+		setIfNotDefault(data, "notificationSettings.joinNotifications",
+				playerData.getNotificationSettings().hasJoinNotifications(), true);
+		setIfNotDefault(data, "notificationSettings.inviteNotifications",
+				playerData.getNotificationSettings().hasInviteNotifications(), true);
+
+		// Mailbox
+		if (!playerData.getMailbox().isEmpty()) {
+			data.set("mailboxEntries", playerData.getMailbox());
+			cleanIfEmpty(data, "mailboxEntries");
+		}
+
+		// Stats
+		Section statSection = ensureSection(data, "statisticData.stats");
+		writeMapToSection(statSection.createSection("amount"), playerData.getStatisticData().getAmountMap());
+		writeMapToSection(statSection.createSection("size"), playerData.getStatisticData().getSizeMap());
+
+		// Invitations
+		if (!playerData.getHellblockData().getInvitations().isEmpty()) {
+			Section inviteSection = ensureSection(data, "hellblockData.islandInvitations");
+			playerData.getHellblockData().getInvitations().forEach((uuid, time) -> {
+				if (time > 0)
+					inviteSection.set(uuid.toString(), time);
+			});
+			cleanIfEmpty(data, "hellblockData.islandInvitations");
+		}
+
+		setIfNotZero(data, "hellblockData.lastIslandActivity", playerData.getHellblockData().getLastIslandActivity());
+
+		// Challenges
+		Map<ChallengeType, ChallengeResult> challenges = playerData.getChallengeData().getChallenges();
+		if (!challenges.isEmpty()) {
+			Section challengeSection = ensureSection(data, "challengeData.challenges");
+			for (Map.Entry<ChallengeType, ChallengeResult> entry : challenges.entrySet()) {
+				ChallengeResult result = entry.getValue();
+				if (result.getStatus() == CompletionStatus.NOT_STARTED)
+					continue;
+
+				String key = entry.getKey().toString();
+				challengeSection.set(key + ".completionStatus", result.getStatus().toString());
+
+				if (result.getStatus() == CompletionStatus.IN_PROGRESS) {
+					challengeSection.set(key + ".progress", result.getProgress());
+				} else if (result.getStatus() == CompletionStatus.COMPLETED && result.isRewardClaimed()) {
+					challengeSection.set(key + ".claimedReward", true);
+				}
+			}
+			cleanIfEmpty(data, "challengeData.challenges");
+		}
+
+		// Hellblock
+		if (!playerData.getHellblockData().hasHellblock())
+			return;
+		HellblockData hellblock = playerData.getHellblockData();
+		data.set("hellblockData.hellblockExists", true);
+		setIfNotNull(data, "hellblockData.ownerUUID", hellblock.getOwnerUUID());
+		setIfNotZero(data, "hellblockData.islandId", hellblock.getIslandId());
+		setIfNotZero(data, "hellblockData.islandLevel", hellblock.getIslandLevel());
+		setIfNotNull(data, "hellblockData.linkedPortalUUID", hellblock.getLinkedPortalUUID());
+		setIfNotZero(data, "hellblockData.lastWorldAccess", hellblock.getLastWorldAccess());
+
+		// Party / Trusted / Banned
+		setIfNotEmpty(data, "hellblockData.partyMembers", uuidSetToString(hellblock.getPartyMembers()));
+		setIfNotEmpty(data, "hellblockData.trustedMembers", uuidSetToString(hellblock.getTrustedMembers()));
+		setIfNotEmpty(data, "hellblockData.bannedMembers", uuidSetToString(hellblock.getBannedMembers()));
+
+		// Flags
+		Section flagSection = ensureSection(data, "hellblockData.protectionFlags");
+		hellblock.getProtectionFlags().forEach((type, flag) -> {
+			if (!flag.isDefault()) {
+				Section sub = flagSection.createSection(type.toString());
+				sub.set("allowedStatus", flag.getStatus().toString());
+				setIfNotNull(sub, "stringData", flag.getData());
+			}
+		});
+		cleanIfEmpty(data, "hellblockData.protectionFlags");
+
+		// Upgrades
+		Section upgradeSection = ensureSection(data, "hellblockData.islandUpgrades");
+		hellblock.getIslandUpgrades().forEach((type, tier) -> {
+			if (tier > 0)
+				upgradeSection.set(type.toString(), tier);
+		});
+		cleanIfEmpty(data, "hellblockData.islandUpgrades");
+
+		// Bounding Box
+		if (hellblock.getBoundingBox() != null) {
+			BoundingBox box = hellblock.getBoundingBox();
+			data.set("hellblockData.islandBounds.minX", box.getMinX());
+			data.set("hellblockData.islandBounds.minY", box.getMinY());
+			data.set("hellblockData.islandBounds.minZ", box.getMinZ());
+			data.set("hellblockData.islandBounds.maxX", box.getMaxX());
+			data.set("hellblockData.islandBounds.maxY", box.getMaxY());
+			data.set("hellblockData.islandBounds.maxZ", box.getMaxZ());
+		}
+
+		// Display
+		DisplaySettings display = hellblock.getDisplaySettings();
+		setIfNotEqual(data, "hellblockData.displaySettings.islandName", display.getIslandName(),
+				hellblock.getDefaultIslandName());
+		setIfNotEqual(data, "hellblockData.displaySettings.islandBio", display.getIslandBio(),
+				hellblock.getDefaultIslandBio());
+		setIfNotEqual(data, "hellblockData.displaySettings.displayChoice", display.getDisplayChoice(),
+				DisplayChoice.CHAT);
+		setIfNotDefault(data, "hellblockData.displaySettings.isDefaultIslandName", display.isDefaultIslandName(), true);
+		setIfNotDefault(data, "hellblockData.displaySettings.isDefaultIslandBio", display.isDefaultIslandBio(), true);
+
+		// Locations
+		if (hellblock.getHomeLocation() != null)
+			LocationUtils.serializeLocation(ensureSection(data, "hellblockData.homeLocation"),
+					hellblock.getHomeLocation(), true);
+		if (hellblock.getHellblockLocation() != null)
+			LocationUtils.serializeLocation(ensureSection(data, "hellblockData.hellblockLocation"),
+					hellblock.getHellblockLocation(), false);
+
+		// Creation & Timers
+		setIfNotZero(data, "hellblockData.creationTime", hellblock.getCreationTime());
+		setIfNotZero(data, "hellblockData.resetCooldown", hellblock.getResetCooldown());
+		setIfNotZero(data, "hellblockData.biomeCooldown", hellblock.getBiomeCooldown());
+		setIfNotZero(data, "hellblockData.transferCooldown", hellblock.getTransferCooldown());
+		setIfTrue(data, "hellblockData.isLocked", hellblock.isLocked());
+		setIfTrue(data, "hellblockData.isAbandoned", hellblock.isAbandoned());
+
+		// Biome / Island Choice
+		if (hellblock.getBiome() != null && hellblock.getBiome() != HellBiome.NETHER_WASTES)
+			data.set("hellblockData.islandBiome", hellblock.getBiome().toString());
+
+		if (hellblock.getChatSetting() != CoopChatSetting.GLOBAL)
+			data.set("hellblockData.chatPreference", hellblock.getChatSetting().toString());
+
+		setIfNotNull(data, "hellblockData.islandChoice", safeToString(hellblock.getIslandChoice()));
+		setIfNotNull(data, "hellblockData.usedSchematic", hellblock.getUsedSchematic());
+
+		// Visitors
+		serializeVisitData(hellblock.getVisitData(), data);
+		serializeRecentVisitors(hellblock.getRecentVisitors(), data);
+
+		// Events
+		serializeInvasionData(hellblock.getInvasionData(), data);
+		serializeWitherData(hellblock.getWitherData(), data);
+		serializeSkysiegeData(hellblock.getSkysiegeData(), data);
+	}
+
+	private void setIfNotZero(YamlDocument yaml, String path, int value) {
+		if (value != 0)
+			yaml.set(path, value);
+	}
+
+	private void setIfNotZero(YamlDocument yaml, String path, long value) {
+		if (value != 0L)
+			yaml.set(path, value);
+	}
+
+	private void setIfNotZero(YamlDocument yaml, String path, double value) {
+		if (value != 0.0)
+			yaml.set(path, value);
+	}
+
+	private void setIfNotZero(YamlDocument yaml, String path, float value) {
+		if (value != 0.0f)
+			yaml.set(path, value);
+	}
+
+	private void setIfNotZero(Section section, String path, int value) {
+		if (value != 0)
+			section.set(path, value);
+	}
+
+	private void setIfNotZero(Section section, String path, long value) {
+		if (value != 0L)
+			section.set(path, value);
+	}
+
+	private void setIfTrue(YamlDocument yaml, String path, boolean condition) {
+		if (condition)
+			yaml.set(path, true);
+	}
+
+	private void setIfNotDefault(YamlDocument yaml, String path, boolean condition, boolean defaultValue) {
+		if (condition != defaultValue)
+			yaml.set(path, condition);
+	}
+
+	private void setIfNotNull(YamlDocument yaml, String path, Object value) {
+		if (value != null)
+			yaml.set(path, value.toString());
+	}
+
+	private void setIfNotNull(Section section, String path, Object value) {
+		if (value != null)
+			section.set(path, value.toString());
+	}
+
+	private void setIfNotEmpty(YamlDocument yaml, String path, Collection<?> collection) {
+		if (collection != null && !collection.isEmpty()) {
+			yaml.set(path, collection);
+		}
+	}
+
+	private void setIfNotEqual(YamlDocument yaml, String path, Object value, Object defaultValue) {
+		if (value != null && !value.equals(defaultValue)) {
+			yaml.set(path, value.toString());
+		}
+	}
+
+	private void cleanIfEmpty(YamlDocument yaml, String section) {
+		Section s = yaml.getSection(section);
+		if (s != null && s.getKeys().isEmpty()) {
+			yaml.set(section, null);
+		}
+	}
+
+	private Section ensureSection(YamlDocument yaml, String path) {
+		Section section = yaml.getSection(path);
+		return (section != null) ? section : yaml.createSection(path);
+	}
+
+	private UUID tryParseUUID(String str) {
+		try {
+			return str != null ? UUID.fromString(str) : null;
+		} catch (IllegalArgumentException ex) {
+			return null;
+		}
+	}
+
+	private <T extends Enum<T>> T tryParseEnum(String str, Class<T> enumClass, T defaultValue) {
+		try {
+			return (str != null) ? Enum.valueOf(enumClass, str.toUpperCase(Locale.ENGLISH)) : defaultValue;
+		} catch (IllegalArgumentException ex) {
+			return defaultValue;
+		}
+	}
+
+	private String safeToString(Enum<?> e) {
+		return e != null ? e.toString() : null;
+	}
+
+	private Set<UUID> readUUIDSet(List<String> list) {
+		return list.stream().map(this::tryParseUUID).filter(Objects::nonNull).collect(Collectors.toSet());
+	}
+
+	private Map<String, Map<String, Integer>> readNestedMap(Section root) {
+		Map<String, Map<String, Integer>> result = new HashMap<>();
+		if (root == null)
+			return result;
+
+		for (String chunkKey : root.getRoutesAsStrings(false)) {
+			Section chunkSection = root.getSection(chunkKey);
+			if (chunkSection == null)
+				continue;
+
+			Map<String, Integer> blockMap = new HashMap<>();
+			chunkSection.getRoutesAsStrings(false)
+					.forEach(blockKey -> blockMap.put(blockKey, chunkSection.getInt(blockKey)));
+			result.put(chunkKey, blockMap);
+		}
+
+		return result;
+	}
+
+	private Map<Integer, List<String>> readIntegerListMap(Section root) {
+		Map<Integer, List<String>> result = new HashMap<>();
+		if (root == null)
+			return result;
+
+		root.getRoutesAsStrings(false).forEach(key -> {
+			try {
+				int islandId = Integer.parseInt(key);
+				List<String> pistons = root.getStringList(key);
+				if (!pistons.isEmpty()) {
+					result.put(islandId, pistons);
+				}
+			} catch (NumberFormatException ignored) {
+				// skip invalid keys
+			}
+		});
+		return result;
+	}
+
+	private Map<UUID, Long> readUUIDLongMap(Section section) {
+		Map<UUID, Long> result = new HashMap<>();
+		if (section != null) {
+			section.getKeys().forEach(key -> {
+				UUID uuid = tryParseUUID(key.toString());
+				long time = section.getLong(key.toString(), 0L);
+				if (uuid != null && time > 0L)
+					result.put(uuid, time);
+			});
+		}
+		return result;
+	}
+
+	private <K extends Enum<K>> EnumMap<K, Integer> readEnumIntMap(Section section, Class<K> keyType) {
+		EnumMap<K, Integer> map = new EnumMap<>(keyType);
+		if (section != null) {
+			section.getKeys().forEach(key -> {
+				try {
+					K enumKey = Enum.valueOf(keyType, key.toString().toUpperCase(Locale.ENGLISH));
+					map.put(enumKey, section.getInt(key.toString(), 0));
+				} catch (Exception ignored) {
+				}
+			});
+		}
+		return map;
+	}
+
+	private List<String> uuidSetToString(Set<UUID> set) {
+		return set.stream().filter(Objects::nonNull).map(UUID::toString).collect(Collectors.toList());
+	}
+
+	private void writeMapToSection(Section section, Map<String, ?> map) {
+		map.forEach(section::set);
+	}
+
+	private void serializeLevelBlocks(YamlDocument data, Map<String, Map<String, Integer>> placedBlocks) {
+		if (placedBlocks == null || placedBlocks.isEmpty())
+			return;
+
+		Section levelBlocksSection = ensureSection(data, "locationCacheData.placedBlocks");
+
+		placedBlocks.entrySet().forEach(chunkEntry -> {
+			String chunkKey = chunkEntry.getKey();
+			Section chunkSection = levelBlocksSection.createSection(chunkKey);
+
+			chunkEntry.getValue().entrySet()
+					.forEach(blockEntry -> chunkSection.set(blockEntry.getKey(), blockEntry.getValue()));
+		});
+	}
+
+	private void serializeVisitData(VisitData visitData, YamlDocument data) {
+		if (visitData == null)
+			return;
+
+		if (visitData.getWarpLocation() != null) {
+			Section warpSection = ensureSection(data, "hellblockData.visitData.warpLocation");
+			LocationUtils.serializeLocation(warpSection, visitData.getWarpLocation(), true);
+		}
+		setIfNotZero(data, "hellblockData.visitData.totalVisits", visitData.getTotalVisits());
+		setIfNotZero(data, "hellblockData.visitData.visitsToday", visitData.getDailyVisits());
+		setIfNotZero(data, "hellblockData.visitData.visitsThisWeek", visitData.getWeeklyVisits());
+		setIfNotZero(data, "hellblockData.visitData.visitsThisMonth", visitData.getMonthlyVisits());
+		if (visitData.hasVisits())
+			setIfNotZero(data, "hellblockData.visitData.lastVisitReset", visitData.getLastVisitReset());
+		setIfNotZero(data, "hellblockData.visitData.featuredUntil", visitData.getFeaturedUntil());
+
+		// Clean up empty section
+		cleanIfEmpty(data, "hellblockData.visitData");
+	}
+
+	private void serializeRecentVisitors(List<VisitRecord> visitors, YamlDocument data) {
+		if (visitors == null || visitors.isEmpty())
+			return;
+
+		Section section = ensureSection(data, "hellblockData.recentVisitors");
+
+		for (int i = 0; i < visitors.size(); i++) {
+			VisitRecord record = visitors.get(i);
+			Section entry = section.createSection(String.valueOf(i));
+			entry.set("visitorId", record.getVisitorId().toString());
+			entry.set("timestamp", record.getTimestamp());
+		}
+	}
+
+	private void serializeInvasionData(InvasionData dataModel, YamlDocument data) {
+		if (dataModel == null)
+			return;
+
+		Section section = ensureSection(data, "hellblockData.invasionData");
+		setIfNotZero(section, "totalInvasions", dataModel.getTotalInvasions());
+		setIfNotZero(section, "successfulInvasions", dataModel.getSuccessfulInvasions());
+		setIfNotZero(section, "failedInvasions", dataModel.getFailedInvasions());
+		setIfNotZero(section, "bossKills", dataModel.getBossKills());
+		setIfNotZero(section, "currentStreak", dataModel.getCurrentStreak());
+		setIfNotZero(section, "lastInvasionTime", dataModel.getLastInvasionTime());
+		setIfNotZero(section, "highestDifficultyTierReached", dataModel.getHighestDifficultyTierReached());
+
+		cleanIfEmpty(data, "hellblockData.invasionData");
+	}
+
+	private void serializeWitherData(WitherData dataModel, YamlDocument data) {
+		if (dataModel == null)
+			return;
+
+		Section section = ensureSection(data, "hellblockData.witherData");
+		setIfNotZero(section, "totalSpawns", dataModel.getTotalSpawns());
+		setIfNotZero(section, "kills", dataModel.getKills());
+		setIfNotZero(section, "totalMinionWaves", dataModel.getTotalMinionWaves());
+		setIfNotZero(section, "totalHeals", dataModel.getTotalHeals());
+		setIfNotZero(section, "despawns", dataModel.getDespawns());
+		setIfNotZero(section, "shortestFightMillis", dataModel.getShortestFightMillis());
+		setIfNotZero(section, "longestFightMillis", dataModel.getLongestFightMillis());
+		setIfNotZero(section, "lastSpawnTime", dataModel.getLastSpawnTime());
+
+		cleanIfEmpty(data, "hellblockData.witherData");
+	}
+
+	private void serializeSkysiegeData(SkysiegeData dataModel, YamlDocument data) {
+		if (dataModel == null)
+			return;
+
+		Section section = ensureSection(data, "hellblockData.skysiegeData");
+		setIfNotZero(section, "totalSkysieges", dataModel.getTotalSkysieges());
+		setIfNotZero(section, "successfulSkysieges", dataModel.getSuccessfulSkysieges());
+		setIfNotZero(section, "failedSkysieges", dataModel.getFailedSkysieges());
+		setIfNotZero(section, "queenKills", dataModel.getQueenKills());
+		setIfNotZero(section, "totalGhastsKilled", dataModel.getTotalGhastsKilled());
+		setIfNotZero(section, "totalWavesCompleted", dataModel.getTotalWavesCompleted());
+		setIfNotZero(section, "shortestDurationMillis", dataModel.getShortestDurationMillis());
+		setIfNotZero(section, "longestDurationMillis", dataModel.getLongestDurationMillis());
+		setIfNotZero(section, "lastSkysiegeTime", dataModel.getLastSkysiegeTime());
+
+		cleanIfEmpty(data, "hellblockData.skysiegeData");
 	}
 
 	/**
@@ -78,484 +973,27 @@ public class YamlHandler extends AbstractStorage {
 	 * @return The file for the player's data.
 	 */
 	public File getPlayerDataFile(UUID uuid) {
-		return new File(plugin.getDataFolder(), "data" + File.separator + uuid + ".yml");
+		return new File(dataFolder, uuid + ".yml");
 	}
 
-	@Override
-	public CompletableFuture<Optional<PlayerData>> getPlayerData(UUID uuid, boolean lock, Executor executor) {
-		final File dataFile = getPlayerDataFile(uuid);
-		if (!dataFile.exists()) {
-			if (Bukkit.getPlayer(uuid) != null) {
-				return CompletableFuture.completedFuture(Optional.of(PlayerData.empty()));
-			} else {
-				return CompletableFuture.completedFuture(Optional.empty());
-			}
-		}
-		final YamlDocument data = plugin.getConfigManager().loadData(dataFile);
-
-		final Set<UUID> party = new HashSet<>();
-		final Set<UUID> trusted = new HashSet<>();
-		final Set<UUID> banned = new HashSet<>();
-		final Map<UUID, Long> invitations = new HashMap<>();
-		final Map<FlagType, AccessType> flags = new HashMap<>();
-		final EnumMap<IslandUpgradeType, Integer> upgrades = new EnumMap<>(IslandUpgradeType.class);
-		final Map<ChallengeType, ChallengeResult> challenges = new HashMap<>();
-		final List<MailboxEntry> mailbox = new ArrayList<>();
-		DisplaySettings display = null;
-		data.getStringList("party").forEach(id -> party.add(UUID.fromString(id)));
-		data.getStringList("trusted").forEach(id -> trusted.add(UUID.fromString(id)));
-		data.getStringList("banned").forEach(id -> banned.add(UUID.fromString(id)));
-		if (data.getSection("invitations") != null) {
-			data.getSection("invitations").getKeys().forEach(key -> {
-				final UUID invitee = UUID.fromString(key.toString());
-				final long expirationTime = data.getLong("invitations." + key.toString());
-				invitations.put(invitee, expirationTime);
-			});
-		}
-		if (data.getSection("flags") != null) {
-			data.getSection("flags").getKeys().forEach(key -> {
-				final FlagType flag = FlagType.valueOf(key.toString().toUpperCase(Locale.ENGLISH));
-				final AccessType status = AccessType
-						.valueOf(data.getString("flags." + key.toString()).toUpperCase(Locale.ENGLISH));
-				flags.put(flag, status);
-			});
-		}
-		if (data.getSection("upgrades") != null) {
-			data.getSection("upgrades").getKeys().forEach(key -> {
-				final IslandUpgradeType upgradeType = IslandUpgradeType
-						.valueOf(key.toString().toUpperCase(Locale.ENGLISH));
-				final int tierLevel = data.getInt("upgrades." + key.toString(), 0);
-				upgrades.put(upgradeType, tierLevel);
-			});
-		}
-		if (data.getSection("challenges") != null) {
-			data.getSection("challenges").getKeys().forEach(key -> {
-				final ChallengeType challenge = HellblockPlugin.getInstance().getChallengeManager()
-						.getById(key.toString());
-				if (challenge != null) {
-					final CompletionStatus completion = CompletionStatus.valueOf(
-							data.getString("challenges." + key.toString() + ".status").toUpperCase(Locale.ENGLISH));
-					final int progress = data.getInt("challenges." + key.toString() + ".progress",
-							challenge.getNeededAmount());
-					final boolean claimedReward = data.getBoolean("challenges." + key.toString() + ".claimed-reward",
-							false);
-					challenges.put(challenge, new ChallengeResult(completion, progress, claimedReward));
-				}
-			});
-		}
-		final BoundingBox bounds = new BoundingBox(data.getDouble("bounds.min-x"), data.getDouble("bounds.min-y"),
-				data.getDouble("bounds.min-z"), data.getDouble("bounds.max-x"), data.getDouble("bounds.max-y"),
-				data.getDouble("bounds.max-z"));
-		if (data.getSection("display") != null) {
-			String islandName = data.getString("display.name");
-			String bio = data.getString("display.bio");
-			DisplayChoice displayChoice = DisplayChoice
-					.valueOf(data.getString("display.choice").toUpperCase(Locale.ENGLISH));
-			display = new DisplaySettings(islandName, bio, displayChoice);
-			boolean defaultName = data.getBoolean("display.default-name");
-			boolean defaultBio = data.getBoolean("display.default-bio");
-			if (defaultName) {
-				display.setAsDefaultIslandName();
-			} else {
-				display.isNotDefaultIslandName();
-			}
-			if (defaultBio) {
-				display.setAsDefaultIslandBio();
-			} else {
-				display.isNotDefaultIslandBio();
-			}
-		}
-		Location home = null;
-		Location location = null;
-		if (data.getSection("home") != null) {
-			home = LocationUtils.deserializeLocation(data.getSection("home"));
-		}
-		if (data.getSection("location") != null) {
-			location = LocationUtils.deserializeLocation(data.getSection("location"));
-		}
-		if (data.getSection("mailbox") != null) {
-			Section mailboxSection = data.getSection("mailbox");
-
-			mailboxSection.getKeys().stream().map(key -> mailboxSection.getSection(key.toString()))
-					.forEach(entrySection -> {
-						if (entrySection == null) {
-							return;
-						}
-						String messageKey = entrySection.getString("messageKey");
-						List<String> argStrings = entrySection.getStringList("arguments");
-						List<Component> arguments = argStrings.stream().map(Component::text)
-								.collect(Collectors.toList());
-						List<String> flagStrings = entrySection.getStringList("flags");
-						Set<MailboxFlag> mailboxFlags = flagStrings.stream().map(s -> {
-							try {
-								return MailboxFlag.valueOf(s.toUpperCase(Locale.ENGLISH));
-							} catch (IllegalArgumentException e) {
-								return null;
-							}
-						}).filter(Objects::nonNull).collect(Collectors.toSet());
-						mailbox.add(new MailboxEntry(messageKey, arguments, mailboxFlags));
-					});
-		}
-		VisitData visitData = new VisitData();
-		if (data.getSection("visitors") != null) {
-			Section visitSection = data.getSection("visitors");
-			if (visitSection.getSection("warp") != null) {
-				Section warpSection = visitSection.getSection("warp");
-				visitData.setWarpLocation(LocationUtils.deserializeLocation(warpSection));
-			}
-			visitData.setTotalVisits(visitSection.getInt("total", 0));
-			visitData.setVisitsToday(visitSection.getInt("daily", 0));
-			visitData.setVisitsThisWeek(visitSection.getInt("weekly", 0));
-			visitData.setVisitsThisMonth(visitSection.getInt("monthly", 0));
-			visitData.setLastVisitReset(visitSection.getLong("last-reset", 0L));
-			visitData.setFeaturedUntil(visitSection.getLong("featured-until", 0L));
-		}
-		List<VisitRecord> recentVisitors = new ArrayList<>();
-		if (data.getSection("recent-visitors") != null) {
-			Section recentSection = data.getSection("recent-visitors");
-
-			VisitManager visitManager = HellblockPlugin.getInstance().getVisitManager();
-			recentSection.getKeys().stream().map(key -> recentSection.getSection(key.toString()))
-					.forEach(entrySection -> {
-						if (entrySection == null) {
-							return;
-						}
-
-						String uuidStr = entrySection.getString("visitor");
-						long timestamp = entrySection.getLong("timestamp");
-
-						try {
-							UUID visitorId = UUID.fromString(uuidStr);
-							recentVisitors.add(visitManager.new VisitRecord(visitorId, timestamp));
-						} catch (IllegalArgumentException ignored) {
-							// skip invalid UUID
-						}
-					});
-		}
-		String dateStr = data.getString("date", null);
-		LocalDate date = dateStr != null ? LocalDate.parse(dateStr) : LocalDate.now(); // or some fallback
-		final PlayerData playerData = PlayerData.builder()
-				.setEarningData(new EarningData(data.getDouble("earnings", 0.0), date))
-				.setStatisticData(getStatistics(data.getSection("stats")))
-				.setHellblockData(new HellblockData(data.getInt("id", 0), data.getFloat("level", 0.0F),
-						data.getBoolean("has-hellblock", false),
-						data.getString("owner") != null ? UUID.fromString(data.getString("owner")) : null,
-						data.getString("linked-hellblock") != null ? UUID.fromString(data.getString("linked-hellblock"))
-								: null,
-						bounds, display, party, trusted, banned, invitations, flags, upgrades, location, home,
-						data.getLong("creation-time", 0L), visitData, recentVisitors,
-						HellBiome.valueOf(data.getString("biome", "NETHER_WASTES").toUpperCase(Locale.ENGLISH)),
-						data.getString("island-choice") != null
-								? IslandOptions.valueOf(data.getString("island-choice").toUpperCase(Locale.ENGLISH))
-								: null,
-						data.getString("schematic"), data.getBoolean("locked", false),
-						data.getBoolean("abandoned", false), data.getLong("reset-cooldown", 0L),
-						data.getLong("biome-cooldown", 0L), data.getLong("transfer-cooldown", 0L)))
-				.setChallengeData(new ChallengeData(challenges))
-				.setLocationCacheData(new LocationCacheData(
-						plugin.getConfigManager().pistonAutomation() ? data.getStringList("pistons")
-								: new ArrayList<>(),
-						data.getStringList("level-blocks")))
-				.setName(data.getString("name", "")).setMailbox(mailbox)
-				.setHellblockInviteNotifications(data.getBoolean("invite-notifications", true))
-				.setHellblockJoinNotifications(data.getBoolean("join-notifications", true))
-				.setLastActivity(data.getLong("last-activity", 0L)).build();
-		return CompletableFuture.completedFuture(Optional.of(playerData));
-	}
-
-	@Override
-	public CompletableFuture<Boolean> updatePlayerData(UUID uuid, PlayerData playerData, boolean ignore) {
-		final YamlDocument data = plugin.getConfigManager().loadData(getPlayerDataFile(uuid));
-		if (!playerData.getMailbox().isEmpty()) {
-			if (data.getSection("mailbox") == null) {
-				data.createSection("mailbox");
-			}
-			data.set("mailbox", playerData.getMailbox());
-			if (data.getSection("mailbox") != null && data.getSection("mailbox").getKeys().isEmpty()) {
-				data.set("mailbox", null);
-			}
-		}
-		if (playerData.getLastActivity() > 0) {
-			data.set("last-activity", playerData.getLastActivity());
-		}
-		if (!playerData.hasHellblockInviteNotifications()) {
-			data.set("invite-notifications", playerData.hasHellblockInviteNotifications());
-		}
-		if (!playerData.hasHellblockJoinNotifications()) {
-			data.set("join-notifications", playerData.hasHellblockJoinNotifications());
-		}
-		data.set("name", playerData.getName());
-		if (playerData.getLocationCacheData().getPistonLocations() != null
-				&& !playerData.getLocationCacheData().getPistonLocations().isEmpty()
-				&& plugin.getConfigManager().pistonAutomation()) {
-			final Set<String> pistonString = playerData.getLocationCacheData().getPistonLocations().stream()
-					.filter(Objects::nonNull).collect(Collectors.toSet());
-			if (!pistonString.isEmpty()) {
-				data.set("pistons", pistonString);
-			}
-		}
-		if (playerData.getLocationCacheData().getLevelBlockLocations() != null
-				&& !playerData.getLocationCacheData().getLevelBlockLocations().isEmpty()) {
-			final Set<String> levelBlockString = playerData.getLocationCacheData().getLevelBlockLocations().stream()
-					.filter(Objects::nonNull).collect(Collectors.toSet());
-			if (!levelBlockString.isEmpty()) {
-				data.set("level-blocks", levelBlockString);
-			}
-		}
-		data.set("date", playerData.getEarningData().getDate().toString());
-		if (playerData.getEarningData().getEarnings() > 0.0) {
-			data.set("earnings", playerData.getEarningData().getEarnings());
-		}
-		if (data.getSection("stats") == null) {
-			final Section section = data.createSection("stats");
-			if (section.getSection("amount") == null) {
-				final Section amountSection = section.createSection("amount");
-				playerData.getStatisticData().getAmountMap().entrySet()
-						.forEach(entry -> amountSection.set(entry.getKey(), entry.getValue()));
-			}
-			if (section.getSection("size") == null) {
-				final Section sizeSection = section.createSection("size");
-				playerData.getStatisticData().getSizeMap().entrySet()
-						.forEach(entry -> sizeSection.set(entry.getKey(), entry.getValue()));
-			}
-		}
-		if (playerData.getHellblockData().getID() > 0) {
-			data.set("id", playerData.getHellblockData().getID());
-		}
-		if (playerData.getHellblockData().getLevel() > HellblockData.DEFAULT_LEVEL) {
-			data.set("level", playerData.getHellblockData().getLevel());
-		}
-		if (playerData.getHellblockData().hasHellblock()) {
-			data.set("has-hellblock", playerData.getHellblockData().hasHellblock());
-		}
-		if (playerData.getHellblockData().getOwnerUUID() != null) {
-			data.set("owner", playerData.getHellblockData().getOwnerUUID().toString());
-		}
-		if (playerData.getHellblockData().getLinkedUUID() != null
-				&& (playerData.getHellblockData().getOwnerUUID() != null && !playerData.getHellblockData()
-						.getLinkedUUID().equals(playerData.getHellblockData().getOwnerUUID()))
-				&& !playerData.getHellblockData().getParty().contains(playerData.getHellblockData().getLinkedUUID())) {
-			data.set("linked-hellblock", playerData.getHellblockData().getLinkedUUID().toString());
-		}
-		if (playerData.getHellblockData().hasHellblock() && playerData.getHellblockData().getBoundingBox() != null) {
-			final BoundingBox bounds = playerData.getHellblockData().getBoundingBox();
-			data.set("bounds.min-x", bounds.getMinX());
-			data.set("bounds.min-y", bounds.getMinY());
-			data.set("bounds.min-z", bounds.getMinZ());
-			data.set("bounds.max-x", bounds.getMaxX());
-			data.set("bounds.max-y", bounds.getMaxY());
-			data.set("bounds.max-z", bounds.getMaxZ());
-		}
-		DisplaySettings display = playerData.getHellblockData().getDisplaySettings();
-		if (!display.getIslandName().equalsIgnoreCase(playerData.getHellblockData().getDefaultIslandName())) {
-			data.set("display.name", display.getIslandName());
-		}
-		if (!display.getIslandBio().equalsIgnoreCase(playerData.getHellblockData().getDefaultIslandBio())) {
-			data.set("display.bio", display.getIslandBio());
-		}
-		if (display.getDisplayChoice() != DisplayChoice.CHAT) {
-			data.set("display.choice", display.getDisplayChoice().toString());
-		}
-		if (!display.isDefaultIslandName()) {
-			data.set("display.default-name", display.isDefaultIslandName());
-		}
-		if (!display.isDefaultIslandBio()) {
-			data.set("display.default-bio", display.isDefaultIslandBio());
-		}
-		if (!playerData.getHellblockData().getParty().isEmpty()) {
-			final Set<String> partyString = playerData.getHellblockData().getParty().stream().filter(Objects::nonNull)
-					.map(UUID::toString).collect(Collectors.toSet());
-			if (!partyString.isEmpty()) {
-				data.set("party", partyString);
-			}
-		}
-		if (!playerData.getHellblockData().getTrusted().isEmpty()) {
-			final Set<String> trustedString = playerData.getHellblockData().getTrusted().stream()
-					.filter(Objects::nonNull).map(UUID::toString).collect(Collectors.toSet());
-			if (!trustedString.isEmpty()) {
-				data.set("trusted", trustedString);
-			}
-		}
-		if (!playerData.getHellblockData().getBanned().isEmpty()) {
-			final Set<String> bannedString = playerData.getHellblockData().getBanned().stream().filter(Objects::nonNull)
-					.map(UUID::toString).collect(Collectors.toSet());
-			if (!bannedString.isEmpty()) {
-				data.set("banned", bannedString);
-			}
-		}
-		if (!playerData.getHellblockData().getInvitations().isEmpty()) {
-			if (data.getSection("invitations") == null) {
-				data.createSection("invitations");
-			}
-			for (Map.Entry<UUID, Long> invites : playerData.getHellblockData().getInvitations().entrySet()) {
-				if (invites.getValue() <= 0) {
-					continue;
-				}
-				data.set("invitations." + invites.getKey().toString(), invites.getValue().longValue());
-			}
-			if (data.getSection("invitations") != null && data.getSection("invitations").getKeys().isEmpty()) {
-				data.set("invitations", null);
-			}
-		}
-		if (!playerData.getHellblockData().getProtectionFlags().isEmpty()) {
-			if (data.getSection("flags") == null) {
-				data.createSection("flags");
-			}
-			for (Map.Entry<FlagType, AccessType> flags : playerData.getHellblockData().getProtectionFlags()
-					.entrySet()) {
-				final AccessType returnValue = flags.getKey().getDefaultValue() ? AccessType.ALLOW : AccessType.DENY;
-				if (flags.getValue() == returnValue) {
-					continue;
-				}
-				data.set("flags." + flags.getKey().toString(), flags.getValue().toString());
-			}
-			if (data.getSection("flags") != null && data.getSection("flags").getKeys().isEmpty()) {
-				data.set("flags", null);
-			}
-		}
-		if (!playerData.getHellblockData().getIslandUpgrades().isEmpty()) {
-			if (data.getSection("upgrades") == null) {
-				data.createSection("upgrades");
-			}
-			for (Entry<IslandUpgradeType, Integer> upgrades : playerData.getHellblockData().getIslandUpgrades()
-					.entrySet()) {
-				if (upgrades.getValue().intValue() == 0) {
-					continue;
-				}
-				data.set("upgrades." + upgrades.getKey().toString(), upgrades.getValue().toString());
-			}
-			if (data.getSection("upgrades") != null && data.getSection("upgrades").getKeys().isEmpty()) {
-				data.set("upgrades", null);
-			}
-		}
-		if (!playerData.getChallengeData().getChallenges().isEmpty()) {
-			if (data.getSection("challenges") == null) {
-				data.createSection("challenges");
-			}
-			for (Map.Entry<ChallengeType, ChallengeResult> challenges : playerData.getChallengeData().getChallenges()
-					.entrySet()) {
-				if (challenges.getValue().getStatus() == CompletionStatus.NOT_STARTED) {
-					continue;
-				}
-				data.set("challenges." + challenges.getKey().toString() + ".status",
-						challenges.getValue().getStatus().toString());
-				if (challenges.getValue().getStatus() == CompletionStatus.IN_PROGRESS) {
-					data.set("challenges." + challenges.getKey().toString() + ".progress",
-							challenges.getValue().getProgress());
-				}
-				if (challenges.getValue().getStatus() == CompletionStatus.COMPLETED) {
-					data.set("challenges." + challenges.getKey().toString() + ".progress", null);
-					if (challenges.getValue().isRewardClaimed()) {
-						data.set("challenges." + challenges.getKey().toString() + ".claimed-reward",
-								challenges.getValue().isRewardClaimed());
-					}
-				}
-			}
-			if (data.getSection("challenges") != null && data.getSection("challenges").getKeys().isEmpty()) {
-				data.set("challenges", null);
-			}
-		}
-		if (playerData.getHellblockData().hasHellblock()) {
-			if (playerData.getHellblockData().getHellblockLocation() != null) {
-				if (data.getSection("location") == null) {
-					data.createSection("location");
-				}
-				LocationUtils.serializeLocation(data.getSection("location"),
-						playerData.getHellblockData().getHellblockLocation(), false);
-			}
-			if (playerData.getHellblockData().getHomeLocation() != null) {
-				if (data.getSection("home") == null) {
-					data.createSection("home");
-				}
-				LocationUtils.serializeLocation(data.getSection("home"),
-						playerData.getHellblockData().getHomeLocation(), true);
-			}
-		}
-		if (playerData.getHellblockData().getCreation() > 0) {
-			data.set("creation-time", playerData.getHellblockData().getCreation());
-		}
-		VisitData visitData = playerData.getHellblockData().getVisitData();
-		if (visitData.getWarpLocation() != null) {
-			if (data.getSection("visitors.warp") == null) {
-				data.createSection("visitors.warp");
-			}
-			LocationUtils.serializeLocation(data.getSection("visitors.warp"), visitData.getWarpLocation(), true);
-		}
-		if (visitData.getTotalVisits() > 0) {
-			data.set("visitors.total", visitData.getTotalVisits());
-		}
-		if (visitData.getDailyVisits() > 0) {
-			data.set("visitors.daily", visitData.getDailyVisits());
-		}
-		if (visitData.getWeeklyVisits() > 0) {
-			data.set("visitors.weekly", visitData.getWeeklyVisits());
-		}
-		if (visitData.getMonthlyVisits() > 0) {
-			data.set("visitors.monthly", visitData.getMonthlyVisits());
-		}
-		if (visitData.getLastVisitReset() > 0L) {
-			data.set("visitors.last-reset", visitData.getLastVisitReset());
-		}
-		if (visitData.getFeaturedUntil() > 0L) {
-			data.set("visitors.featured-until", visitData.getFeaturedUntil());
-		}
-		List<VisitRecord> visitors = playerData.getHellblockData().getRecentVisitors();
-		if (!visitors.isEmpty()) {
-			if (data.getSection("recent-visitors") == null) {
-				data.createSection("recent-visitors");
-			}
-			Section recentSection = data.getSection("recent-visitors");
-
-			for (int i = 0; i < visitors.size(); i++) {
-				VisitRecord record = visitors.get(i);
-				Section entry = recentSection.createSection(String.valueOf(i));
-				entry.set("visitor", record.getVisitorId().toString());
-				entry.set("timestamp", record.getTimestamp());
-			}
-		}
-		if (playerData.getHellblockData().getBiome() != null
-				&& playerData.getHellblockData().getBiome() != HellBiome.NETHER_WASTES) {
-			data.set("biome", playerData.getHellblockData().getBiome().toString());
-		}
-		if (playerData.getHellblockData().getIslandChoice() != null) {
-			data.set("island-choice", playerData.getHellblockData().getIslandChoice().toString());
-		}
-		if (playerData.getHellblockData().getIslandChoice() == IslandOptions.SCHEMATIC
-				&& playerData.getHellblockData().getUsedSchematic() != null) {
-			data.set("schematic", playerData.getHellblockData().getUsedSchematic());
-		}
-		if (playerData.getHellblockData().isLocked()) {
-			data.set("locked", playerData.getHellblockData().isLocked());
-		}
-		if (playerData.getHellblockData().isAbandoned()) {
-			data.set("abandoned", playerData.getHellblockData().isAbandoned());
-		}
-		if (playerData.getHellblockData().getResetCooldown() > 0) {
-			data.set("reset-cooldown", playerData.getHellblockData().getResetCooldown());
-		}
-		if (playerData.getHellblockData().getBiomeCooldown() > 0) {
-			data.set("biome-cooldown", playerData.getHellblockData().getBiomeCooldown());
-		}
-		if (playerData.getHellblockData().getTransferCooldown() > 0) {
-			data.set("transfer-cooldown", playerData.getHellblockData().getTransferCooldown());
-		}
-		try {
-			data.save(getPlayerDataFile(uuid));
-		} catch (IOException ex) {
-			plugin.getPluginLogger().warn("Failed to save player data.", ex);
-		}
-		return CompletableFuture.completedFuture(true);
+	public File getPlayerDataFolder() {
+		return this.dataFolder;
 	}
 
 	@Override
 	public Set<UUID> getUniqueUsers() {
-		final File folder = new File(plugin.getDataFolder(), "data");
 		final Set<UUID> uuids = new HashSet<>();
-		if (folder.exists()) {
-			final File[] files = folder.listFiles();
+		if (dataFolder.exists()) {
+			File[] files = dataFolder.listFiles((dir, name) -> name.endsWith(".yml"));
 			if (files != null) {
 				for (File file : files) {
-					uuids.add(UUID.fromString(Files.getNameWithoutExtension(file.getName())));
+					try {
+						String uuidStr = Files.getNameWithoutExtension(file.getName());
+						uuids.add(UUID.fromString(uuidStr));
+					} catch (IllegalArgumentException ex) {
+						plugin.getPluginLogger().warn("Invalid UUID filename in YAML data: " + file.getName());
+						file.delete(); // optional cleanup
+					}
 				}
 			}
 		}
@@ -579,5 +1017,40 @@ public class YamlHandler extends AbstractStorage {
 					.forEach(entry -> sizeMap.put(entry.getKey(), ((Double) entry.getValue()).floatValue()));
 		}
 		return new StatisticData(amountMap, sizeMap);
+	}
+
+	@Override
+	public void invalidateCache(UUID uuid) {
+		memoryCache.invalidate(uuid);
+	}
+
+	@Override
+	public void clearCache() {
+		memoryCache.invalidateAll();
+	}
+
+	@Override
+	public void invalidateIslandCache(int islandId) {
+		islandIdToUUIDCache.invalidate(islandId);
+	}
+
+	@Override
+	public boolean isPendingInsert(UUID uuid) {
+		return false;
+	}
+
+	@Override
+	public boolean isInsertStillRecent(UUID uuid) {
+		return false;
+	}
+
+	@Override
+	public Long getInsertAge(UUID uuid) {
+		return null;
+	}
+
+	@Override
+	public CompletableFuture<Void> getInsertFuture(UUID uuid) {
+		return CompletableFuture.completedFuture(null);
 	}
 }

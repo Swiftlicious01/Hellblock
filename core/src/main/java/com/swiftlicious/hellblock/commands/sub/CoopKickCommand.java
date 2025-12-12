@@ -1,6 +1,8 @@
 package com.swiftlicious.hellblock.commands.sub;
 
 import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -10,14 +12,9 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
 import org.incendo.cloud.CommandManager;
-import org.incendo.cloud.context.CommandContext;
-import org.incendo.cloud.context.CommandInput;
 import org.incendo.cloud.parser.standard.StringParser;
 import org.incendo.cloud.suggestion.Suggestion;
-import org.incendo.cloud.suggestion.SuggestionProvider;
-import org.jetbrains.annotations.NotNull;
 
-import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.commands.BukkitCommandFeature;
 import com.swiftlicious.hellblock.commands.HellblockCommandManager;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
@@ -35,26 +32,45 @@ public class CoopKickCommand extends BukkitCommandFeature<CommandSender> {
 	public Command.Builder<? extends CommandSender> assembleCommand(CommandManager<CommandSender> manager,
 			Command.Builder<CommandSender> builder) {
 		return builder.senderType(Player.class)
-				.required("player", StringParser.stringComponent().suggestionProvider(new SuggestionProvider<>() {
-					@Override
-					public @NotNull CompletableFuture<? extends @NotNull Iterable<? extends @NotNull Suggestion>> suggestionsFuture(
-							@NotNull CommandContext<Object> context, @NotNull CommandInput input) {
-						if (context.sender() instanceof Player player) {
-							return CompletableFuture.completedFuture(HellblockPlugin.getInstance().getStorageManager()
-									.getOnlineUsers().stream()
-									.filter(onlineUser -> onlineUser.isOnline()
-											&& onlineUser.getHellblockData().hasHellblock()
-											&& onlineUser.getHellblockData().getOwnerUUID() != null
-											&& onlineUser.getHellblockData().getOwnerUUID().equals(player.getUniqueId())
-											&& !onlineUser.getName().equalsIgnoreCase(player.getName()))
-									.map(UserData::getName).map(Suggestion::suggestion).toList());
-						}
+				.required("player", StringParser.stringComponent().suggestionProvider((context, input) -> {
+					if (!(context.sender() instanceof Player player)) {
 						return CompletableFuture.completedFuture(Collections.emptyList());
 					}
+
+					Optional<UserData> userOpt = plugin.getStorageManager().getOnlineUser(player.getUniqueId());
+
+					if (userOpt.isEmpty()) {
+						// No data loaded — show nothing
+						return CompletableFuture.completedFuture(Collections.emptyList());
+					}
+
+					final UserData userData = userOpt.get();
+					final HellblockData data = userData.getHellblockData();
+
+					if (!data.hasHellblock()) {
+						return CompletableFuture.completedFuture(Collections.emptyList());
+					}
+
+					final UUID ownerUUID = data.getOwnerUUID();
+					if (ownerUUID == null) {
+						return CompletableFuture.completedFuture(Collections.emptyList());
+					}
+
+					if (!data.isOwner(ownerUUID)) {
+						return CompletableFuture.completedFuture(Collections.emptyList());
+					}
+
+					if (data.isAbandoned()) {
+						return CompletableFuture.completedFuture(Collections.emptyList());
+					}
+
+					final List<String> suggestions = data.getPartyMembers().stream()
+							.map(uuid -> Bukkit.getOfflinePlayer(uuid).getName()).filter(Objects::nonNull).toList();
+
+					return CompletableFuture.completedFuture(suggestions.stream().map(Suggestion::suggestion).toList());
 				})).handler(context -> {
 					final Player player = context.sender();
-					final Optional<UserData> senderOpt = HellblockPlugin.getInstance().getStorageManager()
-							.getOnlineUser(player.getUniqueId());
+					final Optional<UserData> senderOpt = plugin.getStorageManager().getOnlineUser(player.getUniqueId());
 
 					if (senderOpt.isEmpty()) {
 						handleFeedback(context, MessageConstants.COMMAND_DATA_FAILURE_NOT_LOADED);
@@ -73,9 +89,8 @@ public class CoopKickCommand extends BukkitCommandFeature<CommandSender> {
 					// Must be the owner
 					final UUID ownerUUID = senderData.getOwnerUUID();
 					if (ownerUUID == null) {
-						HellblockPlugin.getInstance().getPluginLogger()
-								.severe("Hellblock owner UUID was null for player " + player.getName() + " ("
-										+ player.getUniqueId() + "). This indicates corrupted data or a serious bug.");
+						plugin.getPluginLogger().severe("Hellblock owner UUID was null for player " + player.getName()
+								+ " (" + player.getUniqueId() + "). This indicates corrupted data or a serious bug.");
 						throw new IllegalStateException(
 								"Owner reference was null. This should never happen — please report to the developer.");
 					}
@@ -97,11 +112,21 @@ public class CoopKickCommand extends BukkitCommandFeature<CommandSender> {
 						return;
 					}
 
-					final UUID targetId = (Bukkit.getPlayer(targetName) != null)
-							? Bukkit.getPlayer(targetName).getUniqueId()
-							: UUIDFetcher.getUUID(targetName);
+					UUID targetId;
 
-					if (targetId == null || !Bukkit.getOfflinePlayer(targetId).hasPlayedBefore()) {
+					Player onlinePlayer = Bukkit.getPlayer(targetName);
+					if (onlinePlayer != null) {
+						targetId = onlinePlayer.getUniqueId();
+					} else {
+						Optional<UUID> fetchedId = UUIDFetcher.getUUID(targetName);
+						if (fetchedId.isEmpty()) {
+							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_PLAYER_OFFLINE);
+							return;
+						}
+						targetId = fetchedId.get();
+					}
+
+					if (!Bukkit.getOfflinePlayer(targetId).hasPlayedBefore()) {
 						handleFeedback(context, MessageConstants.MSG_HELLBLOCK_PLAYER_OFFLINE);
 						return;
 					}
@@ -112,14 +137,13 @@ public class CoopKickCommand extends BukkitCommandFeature<CommandSender> {
 					}
 
 					// Must be in the party
-					if (!senderData.getParty().contains(targetId)) {
+					if (!senderData.getPartyMembers().contains(targetId)) {
 						handleFeedback(context, MessageConstants.MSG_HELLBLOCK_COOP_NOT_PART_OF_PARTY);
 						return;
 					}
 
 					// Remove from party
-					HellblockPlugin.getInstance().getCoopManager().removeMemberFromHellblock(sender, targetName,
-							targetId);
+					plugin.getCoopManager().removeMemberFromHellblock(sender, targetName, targetId);
 				});
 	}
 

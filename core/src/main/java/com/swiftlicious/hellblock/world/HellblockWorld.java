@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
@@ -13,9 +14,9 @@ import java.util.concurrent.TimeUnit;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
+import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.jetbrains.annotations.ApiStatus;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.handlers.VersionHelper;
@@ -28,6 +29,8 @@ public class HellblockWorld<W> implements CustomWorldInterface<W> {
 	private final ConcurrentMap<ChunkPos, CustomChunk> loadedChunks = new ConcurrentHashMap<>(512);
 	private final ConcurrentMap<ChunkPos, CustomChunk> lazyChunks = new ConcurrentHashMap<>(128);
 	private final ConcurrentMap<RegionPos, CustomRegion> loadedRegions = new ConcurrentHashMap<>(128);
+	private final ConcurrentMap<ChunkPos, Object> syncLoadGuards = new ConcurrentHashMap<>();
+	private final ConcurrentMap<ChunkPos, CompletableFuture<CustomChunk>> inFlightLoads = new ConcurrentHashMap<>();
 	private final WeakReference<W> world;
 	private final WeakReference<World> bukkitWorld;
 	private final String worldName;
@@ -41,7 +44,7 @@ public class HellblockWorld<W> implements CustomWorldInterface<W> {
 	public HellblockWorld(W world, WorldAdapter<W> adapter) {
 		this.world = new WeakReference<>(world);
 		this.worldName = adapter.getName(world);
-		this.bukkitWorld = new WeakReference<>(Bukkit.getWorld(worldName));
+		this.bukkitWorld = new WeakReference<>(Bukkit.getWorld(this.worldName));
 		this.regionTimer = 0;
 		this.adapter = adapter;
 		this.extraData = adapter.loadExtraData(world);
@@ -51,13 +54,13 @@ public class HellblockWorld<W> implements CustomWorldInterface<W> {
 	@NotNull
 	@Override
 	public WorldAdapter<W> adapter() {
-		return adapter;
+		return this.adapter;
 	}
 
 	@NotNull
 	@Override
 	public WorldExtraData extraData() {
-		return extraData;
+		return this.extraData;
 	}
 
 	@Override
@@ -116,21 +119,22 @@ public class HellblockWorld<W> implements CustomWorldInterface<W> {
 
 	@Override
 	public CustomChunk[] loadedChunks() {
-		return loadedChunks.values().toArray(new CustomChunk[0]);
+		return this.loadedChunks.values().toArray(new CustomChunk[0]);
 	}
 
 	@Override
 	public CustomChunk[] lazyChunks() {
-		return lazyChunks.values().toArray(new CustomChunk[0]);
+		return this.lazyChunks.values().toArray(new CustomChunk[0]);
 	}
 
 	@Override
 	public CustomRegion[] loadedRegions() {
-		return loadedRegions.values().toArray(new CustomRegion[0]);
+		return this.loadedRegions.values().toArray(new CustomRegion[0]);
 	}
 
+	@NotNull
 	@Override
-	public @NotNull Optional<CustomBlockState> getLoadedBlockState(Pos3 location) {
+	public Optional<CustomBlockState> getLoadedBlockState(Pos3 location) {
 		final ChunkPos pos = location.toChunkPos();
 		final Optional<CustomChunk> chunk = getLoadedChunk(pos);
 		if (chunk.isEmpty()) {
@@ -143,40 +147,141 @@ public class HellblockWorld<W> implements CustomWorldInterface<W> {
 
 	@NotNull
 	@Override
-	public Optional<CustomBlockState> getBlockState(Pos3 location) {
-		final ChunkPos pos = location.toChunkPos();
-		final Optional<CustomChunk> chunk = getChunk(pos);
-		if (chunk.isEmpty()) {
-			return Optional.empty();
-		} else {
-			final CustomChunk customChunk = chunk.get();
-			// to let the bukkit system trigger the ChunkUnloadEvent later
-			customChunk.load(true);
-			return customChunk.getBlockState(location);
+	public CompletableFuture<Optional<CustomBlockState>> getBlockState(Pos3 location) {
+		ChunkPos pos = location.toChunkPos();
+		Optional<CustomChunk> chunkOpt = getChunk(pos);
+		if (chunkOpt.isEmpty()) {
+			return CompletableFuture.completedFuture(Optional.empty());
 		}
+
+		CustomChunk chunk = chunkOpt.get();
+		return chunk.load(true).thenApply(success -> {
+			if (!success)
+				return Optional.empty();
+			return chunk.getBlockState(location);
+		});
+	}
+
+	@Override
+	public CompletableFuture<Optional<CustomBlockState>> removeBlockState(Pos3 location) {
+		ChunkPos pos = location.toChunkPos();
+
+		return getOrCreateChunk(pos).thenCompose(chunk -> chunk.load(true).thenCompose(success -> {
+			if (!success)
+				return CompletableFuture.completedFuture(Optional.empty());
+
+			// Get current state before removal (for drops/rollback)
+			Optional<CustomBlockState> oldState = chunk.getBlockState(location);
+			if (oldState.isEmpty())
+				return CompletableFuture.completedFuture(Optional.empty());
+
+			// Create the AIR state (for rendering)
+			CustomBlockState airState = CustomBlockTypes.AIR.createBlockState();
+
+			// Physically set and render air on main thread
+			HellblockPlugin.getInstance().getScheduler().executeSync(() -> {
+				try {
+					// Render air visually
+					CustomBlockRenderer.render(airState, location, bukkitWorld());
+				} catch (Throwable t) {
+					HellblockPlugin.getInstance().getPluginLogger().warn("Error removing block state at " + location,
+							t);
+				}
+			});
+
+			// Now actually remove it from the chunk data
+			chunk.removeBlockState(location);
+
+			// Return old state for optional logic (e.g., drops)
+			return CompletableFuture.completedFuture(oldState);
+		}));
 	}
 
 	@NotNull
 	@Override
-	public Optional<CustomBlockState> removeBlockState(Pos3 location) {
-		final ChunkPos pos = location.toChunkPos();
-		final Optional<CustomChunk> chunk = getChunk(pos);
-		if (chunk.isEmpty()) {
-			return Optional.empty();
-		} else {
-			final CustomChunk customChunk = chunk.get();
-			// to let the bukkit system trigger the ChunkUnloadEvent later
-			customChunk.load(true);
-			return customChunk.removeBlockState(location);
-		}
+	public CompletableFuture<Optional<CustomBlockState>> addBlockState(Pos3 location, CustomBlockState block) {
+		ChunkPos pos = location.toChunkPos();
+
+		return getOrCreateChunk(pos).thenCompose(chunk -> chunk.load(true).thenApply(success -> {
+			if (!success)
+				return Optional.empty();
+			return chunk.addBlockState(location, block);
+		}));
 	}
 
-	@NotNull
 	@Override
-	public Optional<CustomBlockState> addBlockState(Pos3 location, CustomBlockState block) {
-		final ChunkPos pos = location.toChunkPos();
-		final CustomChunk chunk = getOrCreateChunk(pos);
-		return chunk.addBlockState(location, block);
+	public CompletableFuture<Void> updateBlockState(Pos3 location, CustomBlockState block) {
+		ChunkPos pos = location.toChunkPos();
+
+		return getOrCreateChunk(pos).thenCompose(chunk -> chunk.load(true).thenCompose(success -> {
+			if (!success)
+				throw new IllegalStateException("Failed to load chunk at " + pos);
+
+			try {
+				chunk.addBlockState(location, block);
+
+				HellblockPlugin.getInstance().getScheduler()
+						.executeSync(() -> CustomBlockRenderer.render(block, location, bukkitWorld()));
+			} catch (Throwable t) {
+				HellblockPlugin.getInstance().getPluginLogger().warn("Error applying block state at " + location, t);
+			}
+
+			return CompletableFuture.completedFuture(null);
+		}));
+	}
+
+	@Override
+	public CompletableFuture<Void> updateBlockStates(Map<Pos3, CustomBlockState> updates) {
+		if (updates.isEmpty()) {
+			return CompletableFuture.completedFuture(null);
+		}
+
+		List<CompletableFuture<Map.Entry<Pos3, CustomBlockState>>> futures = new ArrayList<>();
+
+		for (Map.Entry<Pos3, CustomBlockState> entry : updates.entrySet()) {
+			Pos3 pos = entry.getKey();
+			CustomBlockState state = entry.getValue();
+
+			if (pos == null || state == null)
+				continue;
+
+			ChunkPos chunkPos = pos.toChunkPos();
+
+			CompletableFuture<Map.Entry<Pos3, CustomBlockState>> future = getOrCreateChunk(chunkPos)
+					.thenCompose(chunk -> chunk.load(true).thenApply(success -> {
+						if (!success)
+							throw new IllegalStateException("Failed to load chunk at " + chunkPos);
+						chunk.addBlockState(pos, state);
+						return Map.entry(pos, state);
+					})).exceptionally(ex -> {
+						HellblockPlugin.getInstance().getPluginLogger()
+								.warn("updateBlockStates: Failed to update block at %s".formatted(pos), ex);
+						return null; // Mark as skipped
+					});
+
+			futures.add(future);
+		}
+
+		return CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new))
+				.thenCompose(v -> CompletableFuture.runAsync(() -> {
+					World bukkit = bukkitWorld();
+					if (bukkit == null) {
+						HellblockPlugin.getInstance().getPluginLogger().warn("updateBlockStates: Bukkit world is null");
+						return;
+					}
+
+					for (CompletableFuture<Map.Entry<Pos3, CustomBlockState>> future : futures) {
+						try {
+							Map.Entry<Pos3, CustomBlockState> entry = future.join();
+							if (entry != null) {
+								CustomBlockRenderer.render(entry.getValue(), entry.getKey(), bukkit);
+							}
+						} catch (Exception ex) {
+							HellblockPlugin.getInstance().getPluginLogger()
+									.warn("updateBlockStates: Error rendering block update", ex);
+						}
+					}
+				}, HellblockPlugin.getInstance().getScheduler()::executeSync));
 	}
 
 	@Override
@@ -194,12 +299,15 @@ public class HellblockWorld<W> implements CustomWorldInterface<W> {
 
 	private void save() {
 		final long time1 = System.currentTimeMillis();
-		loadedChunks.values().forEach(chunk -> this.adapter.saveChunk(this, chunk));
-		lazyChunks.values().forEach(chunk -> this.adapter.saveChunk(this, chunk));
-		loadedRegions.values().forEach(region -> this.adapter.saveRegion(this, region));
+		this.loadedChunks.values().forEach(chunk -> this.adapter.saveChunk(this, chunk));
+		this.lazyChunks.values().forEach(chunk -> this.adapter.saveChunk(this, chunk));
+		this.loadedRegions.values().forEach(region -> this.adapter.saveRegion(this, region));
 		final long time2 = System.currentTimeMillis();
-		HellblockPlugin.getInstance().debug(() -> "Took " + (time2 - time1) + "ms to save world " + worldName
-				+ ". Saved " + (lazyChunks.size() + loadedChunks.size()) + " chunks.");
+		final int chunkSize = this.lazyChunks.size() + this.loadedChunks.size();
+		if (chunkSize > 0) {
+			HellblockPlugin.getInstance().debug(() -> "Took " + (time2 - time1) + "ms to save world " + this.worldName
+					+ ". Saved " + chunkSize + " chunks.");
+		}
 	}
 
 	@Override
@@ -227,10 +335,10 @@ public class HellblockWorld<W> implements CustomWorldInterface<W> {
 	private void tickChunks() {
 		if (VersionHelper.isFolia()) {
 			final SchedulerAdapter<Location, World> scheduler = HellblockPlugin.getInstance().getScheduler();
-			loadedChunks.values().forEach(chunk -> scheduler.sync().run(chunk::timer, bukkitWorld(),
+			this.loadedChunks.values().forEach(chunk -> scheduler.sync().run(chunk::timer, bukkitWorld(),
 					chunk.chunkPos().x(), chunk.chunkPos().z()));
 		} else {
-			loadedChunks.values().forEach(CustomChunk::timer);
+			this.loadedChunks.values().forEach(CustomChunk::timer);
 		}
 	}
 
@@ -242,7 +350,7 @@ public class HellblockWorld<W> implements CustomWorldInterface<W> {
 		}
 		this.regionTimer = 0;
 		final List<CustomRegion> removed = new ArrayList<>();
-		loadedRegions.entrySet().stream().filter(entry -> shouldUnloadRegion(entry.getKey()))
+		this.loadedRegions.entrySet().stream().filter(entry -> shouldUnloadRegion(entry.getKey()))
 				.forEach(entry -> removed.add(entry.getValue()));
 		removed.forEach(CustomRegion::unload);
 	}
@@ -262,22 +370,25 @@ public class HellblockWorld<W> implements CustomWorldInterface<W> {
 
 	@Override
 	public W world() {
-		return world.get();
+		return this.world.get();
 	}
 
 	@Override
 	public World bukkitWorld() {
-		return bukkitWorld.get();
+		return this.bukkitWorld.get();
 	}
 
 	@Override
 	public String worldName() {
-		return worldName;
+		return this.worldName;
 	}
 
 	@Override
 	public @NotNull WorldSetting setting() {
-		return setting;
+		if (this.setting == null) {
+			throw new IllegalStateException("WorldSetting not initialized for world: " + this.worldName());
+		}
+		return this.setting;
 	}
 
 	@Override
@@ -310,7 +421,7 @@ public class HellblockWorld<W> implements CustomWorldInterface<W> {
 		final Optional<CustomChunk> previousChunk = getLoadedChunk(chunk.chunkPos());
 		if (previousChunk.isPresent()) {
 			HellblockPlugin.getInstance().debug(() -> "Chunk " + chunk.chunkPos() + " already loaded.");
-			if (previousChunk.get() != chunk) {
+			if (!previousChunk.get().equals(chunk)) {
 				HellblockPlugin.getInstance().getPluginLogger().severe(
 						"Failed to load the chunk. There is already a different chunk instance with the same coordinates in the cache. "
 								+ chunk.chunkPos());
@@ -318,7 +429,9 @@ public class HellblockWorld<W> implements CustomWorldInterface<W> {
 			}
 			return true;
 		}
+
 		this.loadedChunks.put(chunk.chunkPos(), chunk);
+		HellblockPlugin.getInstance().debug(() -> "Inserted chunk into loaded cache: " + chunk.chunkPos());
 		this.lazyChunks.remove(chunk.chunkPos());
 		return true;
 	}
@@ -328,7 +441,7 @@ public class HellblockWorld<W> implements CustomWorldInterface<W> {
 		final ChunkPos pos = chunk.chunkPos();
 		final Optional<CustomChunk> previousChunk = getLoadedChunk(chunk.chunkPos());
 		if (previousChunk.isPresent()) {
-			if (previousChunk.get() != chunk) {
+			if (!previousChunk.get().equals(chunk)) {
 				HellblockPlugin.getInstance().getPluginLogger().severe(
 						"Failed to remove the chunk. The provided chunk instance is inconsistent with the one in the cache. "
 								+ chunk.chunkPos());
@@ -381,28 +494,94 @@ public class HellblockWorld<W> implements CustomWorldInterface<W> {
 	@NotNull
 	@Override
 	public Optional<CustomChunk> getChunk(ChunkPos chunkPos) {
-		return Optional.ofNullable(getLoadedChunk(chunkPos).orElseGet(() -> {
-			final CustomChunk chunk = getLazyChunk(chunkPos);
-			if (chunk != null) {
-				return chunk;
+		// Fast path: already loaded
+		Optional<CustomChunk> loaded = getLoadedChunk(chunkPos);
+		if (loaded.isPresent())
+			return loaded;
+
+		// Fast path: already in lazy memory
+		CustomChunk lazy = getLazyChunk(chunkPos);
+		if (lazy != null) {
+			HellblockPlugin.getInstance().debug(() -> "Loaded chunk from lazy cache: " + chunkPos);
+			return Optional.of(lazy);
+		}
+
+		// Prevent concurrent access
+		Object lock = syncLoadGuards.computeIfAbsent(chunkPos, k -> new Object());
+
+		synchronized (lock) {
+			try {
+				// Re-check inside lock
+				Optional<CustomChunk> alreadyLoaded = getLoadedChunk(chunkPos);
+				if (alreadyLoaded.isPresent())
+					return alreadyLoaded;
+
+				CustomChunk stillLazy = getLazyChunk(chunkPos);
+				if (stillLazy != null) {
+					HellblockPlugin.getInstance().debug(() -> "Loaded chunk from lazy cache: " + chunkPos);
+					return Optional.of(stillLazy);
+				}
+
+				// Load from disk (but don't create new)
+				CustomChunk loadedChunk = adapter.loadChunk(this, chunkPos, false);
+				if (loadedChunk == null)
+					return Optional.empty();
+
+				return Optional.of(loadedChunk);
+			} finally {
+				// Cleanup to prevent memory leak
+				syncLoadGuards.remove(chunkPos);
 			}
-			return this.adapter.loadChunk(this, chunkPos, false);
-		}));
+		}
 	}
 
 	@NotNull
 	@Override
-	public CustomChunk getOrCreateChunk(ChunkPos chunkPos) {
-		return Objects.requireNonNull(getLoadedChunk(chunkPos).orElseGet(() -> {
-			CustomChunk chunk = getLazyChunk(chunkPos);
-			if (chunk != null) {
-				return chunk;
-			}
-			chunk = this.adapter.loadChunk(this, chunkPos, true);
-			// to let the bukkit system trigger the ChunkUnloadEvent later
-			chunk.load(true);
-			return chunk;
-		}));
+	public CompletableFuture<CustomChunk> getOrCreateChunk(ChunkPos chunkPos) {
+		// Fast path for already loaded chunks
+		Optional<CustomChunk> loaded = getLoadedChunk(chunkPos);
+		if (loaded.isPresent()) {
+			return CompletableFuture.completedFuture(loaded.get());
+		}
+
+		// De-duplicate concurrent requests
+		return inFlightLoads.computeIfAbsent(chunkPos, pos -> {
+			CompletableFuture<CustomChunk> future = new CompletableFuture<>();
+
+			CompletableFuture.runAsync(() -> {
+				try {
+					// Check again (double-check) inside async thread
+					CustomChunk chunk = getLoadedChunk(chunkPos).orElseGet(() -> getLazyChunk(chunkPos));
+
+					if (chunk == null) {
+						chunk = adapter.loadChunk(this, chunkPos, true); // create if not exist
+						if (chunk == null)
+							throw new IllegalStateException("Failed to load/create chunk");
+						loadChunk(chunk);
+					}
+
+					CustomChunk finalChunk = chunk;
+
+					// Then ensure it's fully loaded (async)
+					finalChunk.load(true).thenAccept(success -> {
+						if (!success)
+							future.completeExceptionally(new IllegalStateException("Chunk failed to load"));
+						else
+							future.complete(finalChunk);
+					}).exceptionally(ex -> {
+						future.completeExceptionally(ex);
+						return null;
+					});
+
+				} catch (Throwable t) {
+					future.completeExceptionally(t);
+				} finally {
+					inFlightLoads.remove(chunkPos); // Always remove after completion
+				}
+			});
+
+			return future;
+		});
 	}
 
 	/*
@@ -418,7 +597,7 @@ public class HellblockWorld<W> implements CustomWorldInterface<W> {
 		final Optional<CustomRegion> previousRegion = getLoadedRegion(region.regionPos());
 		if (previousRegion.isPresent()) {
 			HellblockPlugin.getInstance().debug(() -> "Region " + region.regionPos() + " already loaded.");
-			if (previousRegion.get() != region) {
+			if (!previousRegion.get().equals(region)) {
 				HellblockPlugin.getInstance().getPluginLogger().severe(
 						"Failed to load the region. There is already a different region instance with the same coordinates in the cache. "
 								+ region.regionPos());
@@ -433,19 +612,20 @@ public class HellblockWorld<W> implements CustomWorldInterface<W> {
 	@NotNull
 	@Override
 	public Optional<CustomRegion> getLoadedRegion(RegionPos regionPos) {
-		return Optional.ofNullable(loadedRegions.get(regionPos));
+		return Optional.ofNullable(this.loadedRegions.get(regionPos));
 	}
 
 	@NotNull
 	@Override
 	public Optional<CustomRegion> getRegion(RegionPos regionPos) {
-		return Optional.ofNullable(getLoadedRegion(regionPos).orElse(adapter.loadRegion(this, regionPos, false)));
+		return Optional.ofNullable(getLoadedRegion(regionPos).orElse(this.adapter.loadRegion(this, regionPos, false)));
 	}
 
 	@NotNull
 	@Override
 	public CustomRegion getOrCreateRegion(RegionPos regionPos) {
-		return Objects.requireNonNull(getLoadedRegion(regionPos).orElse(adapter.loadRegion(this, regionPos, true)));
+		return Objects
+				.requireNonNull(getLoadedRegion(regionPos).orElse(this.adapter.loadRegion(this, regionPos, true)));
 	}
 
 	private boolean shouldUnloadRegion(RegionPos regionPos) {
@@ -466,7 +646,7 @@ public class HellblockWorld<W> implements CustomWorldInterface<W> {
 	public boolean unloadRegion(CustomRegion region) {
 		final Optional<CustomRegion> previousRegion = getLoadedRegion(region.regionPos());
 		if (previousRegion.isPresent()) {
-			if (previousRegion.get() != region) {
+			if (!previousRegion.get().equals(region)) {
 				HellblockPlugin.getInstance().getPluginLogger().severe(
 						"Failed to remove the region. The provided region instance is inconsistent with the one in the cache. "
 								+ region.regionPos());
@@ -487,12 +667,12 @@ public class HellblockWorld<W> implements CustomWorldInterface<W> {
 		this.adapter.saveRegion(this, region);
 		this.loadedRegions.remove(region.regionPos());
 		HellblockPlugin.getInstance()
-				.debug(() -> "[" + worldName + "] " + "Region " + region.regionPos() + " unloaded.");
+				.debug(() -> "[" + this.worldName + "] " + "Region " + region.regionPos() + " unloaded.");
 		return true;
 	}
 
 	@Override
 	public WorldScheduler scheduler() {
-		return scheduler;
+		return this.scheduler;
 	}
 }

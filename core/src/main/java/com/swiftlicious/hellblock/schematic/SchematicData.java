@@ -6,7 +6,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+
+import com.swiftlicious.hellblock.HellblockPlugin;
 
 import net.kyori.adventure.nbt.BinaryTag;
 import net.kyori.adventure.nbt.BinaryTagIO;
@@ -56,32 +60,35 @@ public class SchematicData {
 		try (InputStream stream = new FileInputStream(file)) {
 			final BinaryTag rawTag = BinaryTagIO.reader().read(stream);
 
-			if (!(rawTag instanceof CompoundBinaryTag schematicTag)) {
+			if (!(rawTag instanceof CompoundBinaryTag tag)) {
 				throw new IOException("Invalid schematic format — expected CompoundBinaryTag");
 			}
 
-			final short width = getShort(schematicTag, "Width");
-			final short length = getShort(schematicTag, "Length");
-			final short height = getShort(schematicTag, "Height");
-			final int version = getInt(schematicTag, "Version");
-			final byte[] blockdata = getByteArray(schematicTag, "BlockData");
+			// === Detect legacy `.schematic` format ===
+			if (tag.contains("Blocks") && tag.contains("Data")) {
+				return parseLegacySchematic(tag);
+			}
 
-			final CompoundBinaryTag palette = getCompound(schematicTag, "Palette");
+			// === Modern Sponge format ===
+			final short width = getShort(tag, "Width");
+			final short length = getShort(tag, "Length");
+			final short height = getShort(tag, "Height");
+			final int version = getInt(tag, "Version");
+			final byte[] blockdata = getByteArray(tag, "BlockData");
+			final CompoundBinaryTag palette = getCompound(tag, "Palette");
 
 			List<CompoundBinaryTag> entities = List.of();
-			final BinaryTag entitiesTag = schematicTag.get("Entities");
-
-			if (entitiesTag instanceof ListBinaryTag listTag && listTag.elementType() == BinaryTagTypes.COMPOUND) {
-				entities = getCompoundList(schematicTag, "Entities");
+			if (tag.get("Entities") instanceof ListBinaryTag list && list.elementType() == BinaryTagTypes.COMPOUND) {
+				entities = getCompoundList(tag, "Entities");
 			}
 
 			switch (version) {
 			case 1 -> {
-				final List<CompoundBinaryTag> tileEntities = getCompoundList(schematicTag, "TileEntities");
+				final List<CompoundBinaryTag> tileEntities = getCompoundList(tag, "TileEntities");
 				return new SchematicData(width, length, height, tileEntities, entities, blockdata, palette, version);
 			}
 			case 2 -> {
-				final List<CompoundBinaryTag> blockEntities = getCompoundList(schematicTag, "BlockEntities");
+				final List<CompoundBinaryTag> blockEntities = getCompoundList(tag, "BlockEntities");
 				return new SchematicData(width, length, height, blockEntities, entities, blockdata, palette, version);
 			}
 			default -> {
@@ -89,6 +96,41 @@ public class SchematicData {
 			}
 			}
 		}
+	}
+
+	private static SchematicData parseLegacySchematic(CompoundBinaryTag tag) {
+		final short width = getShort(tag, "Width");
+		final short height = getShort(tag, "Height");
+		final short length = getShort(tag, "Length");
+
+		final byte[] blocks = getByteArray(tag, "Blocks");
+		final byte[] data = getByteArray(tag, "Data");
+
+		final List<CompoundBinaryTag> tileEntities = getCompoundList(tag, "TileEntities");
+
+		// Create palette from block IDs (0–255) + data (0–15)
+		Map<String, Integer> reversedPalette = new HashMap<>();
+		byte[] blockdata = new byte[blocks.length];
+		CompoundBinaryTag.Builder paletteBuilder = CompoundBinaryTag.builder();
+
+		for (int i = 0; i < blocks.length; i++) {
+			int id = blocks[i] & 0xFF;
+			int meta = data[i] & 0x0F;
+			String legacyName = LegacyBlockConverter.getBlockData(id, meta); // We'll define this next
+
+			int paletteId = reversedPalette.computeIfAbsent(legacyName, key -> {
+				int newId = reversedPalette.size();
+				paletteBuilder.putInt(key, newId);
+				return newId;
+			});
+
+			blockdata[i] = (byte) paletteId;
+		}
+
+		CompoundBinaryTag palette = paletteBuilder.build();
+
+		// Use version 1 for compatibility
+		return new SchematicData(width, length, height, tileEntities, blockdata, palette, 1);
 	}
 
 	private static short getShort(CompoundBinaryTag tag, String key) {
@@ -183,5 +225,137 @@ public class SchematicData {
 		}
 
 		return (T) child;
+	}
+
+	public class LegacyBlockConverter {
+
+		private static final Map<Integer, Map<Integer, String>> blockIdMetaToName = new HashMap<>();
+
+		private LegacyBlockConverter() {
+			// Static utility class; prevent instantiation
+		}
+
+		static {
+			// === Stone (ID 1) ===
+			blockIdMetaToName.put(1,
+					Map.of(0, "minecraft:stone", 1, "minecraft:granite", 2, "minecraft:polished_granite", 3,
+							"minecraft:diorite", 4, "minecraft:polished_diorite", 5, "minecraft:andesite", 6,
+							"minecraft:polished_andesite"));
+
+			// === Grass (ID 2) ===
+			blockIdMetaToName.put(2, Map.of(0, "minecraft:grass_block"));
+
+			// === Dirt (ID 3) ===
+			blockIdMetaToName.put(3, Map.of(0, "minecraft:dirt", 1, "minecraft:coarse_dirt", 2, "minecraft:podzol"));
+
+			blockIdMetaToName.put(4, Map.of(0, "minecraft:cobblestone")); // Cobblestone
+			blockIdMetaToName.put(6, Map.of(0, "minecraft:oak_sapling")); // Sapling (simplified)
+			blockIdMetaToName.put(20, Map.of(0, "minecraft:glass")); // Glass
+
+			// === Planks (ID 5) ===
+			Map<Integer, String> planks = new HashMap<>();
+			planks.put(0, "minecraft:oak_planks");
+			planks.put(1, "minecraft:spruce_planks");
+			planks.put(2, "minecraft:birch_planks");
+			planks.put(3, "minecraft:jungle_planks");
+			planks.put(4, "minecraft:acacia_planks");
+			planks.put(5, "minecraft:dark_oak_planks");
+			blockIdMetaToName.put(5, planks);
+
+			// === Wool (ID 35) ===
+			Map<Integer, String> wool = new HashMap<>();
+			String[] woolColors = { "white", "orange", "magenta", "light_blue", "yellow", "lime", "pink", "gray",
+					"light_gray", "cyan", "purple", "blue", "brown", "green", "red", "black" };
+			for (int i = 0; i < woolColors.length; i++) {
+				wool.put(i, "minecraft:" + woolColors[i] + "_wool");
+			}
+			blockIdMetaToName.put(35, wool);
+
+			// === Terracotta (ID 159) ===
+			Map<Integer, String> terracotta = new HashMap<>();
+			for (int i = 0; i < woolColors.length; i++) {
+				terracotta.put(i, "minecraft:" + woolColors[i] + "_terracotta");
+			}
+			blockIdMetaToName.put(159, terracotta);
+
+			// === Stained Glass (ID 95) ===
+			Map<Integer, String> stainedGlass = new HashMap<>();
+			for (int i = 0; i < woolColors.length; i++) {
+				stainedGlass.put(i, "minecraft:" + woolColors[i] + "_stained_glass");
+			}
+			blockIdMetaToName.put(95, stainedGlass);
+
+			// === Stone Bricks (ID 98) ===
+			blockIdMetaToName.put(98, Map.of(0, "minecraft:stone_bricks", 1, "minecraft:mossy_stone_bricks", 2,
+					"minecraft:cracked_stone_bricks", 3, "minecraft:chiseled_stone_bricks"));
+
+			// === Quartz (ID 155) ===
+			blockIdMetaToName.put(155, Map.of(0, "minecraft:quartz_block", 1, "minecraft:chiseled_quartz_block", 2,
+					"minecraft:quartz_pillar"));
+
+			// === Log (ID 17) — axis not stored in metadata in legacy ===
+			Map<Integer, String> logs = new HashMap<>();
+			logs.put(0, "minecraft:oak_log");
+			logs.put(1, "minecraft:spruce_log");
+			logs.put(2, "minecraft:birch_log");
+			logs.put(3, "minecraft:jungle_log");
+			blockIdMetaToName.put(17, logs);
+
+			// === Leaves (ID 18) — simplified ===
+			blockIdMetaToName.put(18, Map.of(0, "minecraft:oak_leaves", 1, "minecraft:spruce_leaves", 2,
+					"minecraft:birch_leaves", 3, "minecraft:jungle_leaves"));
+
+			// === Slabs (ID 44) — bottom only ===
+			Map<Integer, String> slabs = new HashMap<>();
+			slabs.put(0, "minecraft:stone_slab[type=bottom]");
+			slabs.put(1, "minecraft:sandstone_slab[type=bottom]");
+			slabs.put(2, "minecraft:oak_slab[type=bottom]");
+			slabs.put(3, "minecraft:cobblestone_slab[type=bottom]");
+			slabs.put(4, "minecraft:brick_slab[type=bottom]");
+			slabs.put(5, "minecraft:stone_brick_slab[type=bottom]");
+			slabs.put(6, "minecraft:nether_brick_slab[type=bottom]");
+			slabs.put(7, "minecraft:quartz_slab[type=bottom]");
+			blockIdMetaToName.put(44, slabs);
+
+			// === Stairs (ID 53, etc.) — only direction/half supported ===
+			blockIdMetaToName.put(53, Map.of( // Oak stairs
+					0, "minecraft:oak_stairs[facing=east,half=bottom]", 1,
+					"minecraft:oak_stairs[facing=west,half=bottom]", 2,
+					"minecraft:oak_stairs[facing=south,half=bottom]", 3,
+					"minecraft:oak_stairs[facing=north,half=bottom]", 4, "minecraft:oak_stairs[facing=east,half=top]",
+					5, "minecraft:oak_stairs[facing=west,half=top]", 6, "minecraft:oak_stairs[facing=south,half=top]",
+					7, "minecraft:oak_stairs[facing=north,half=top]"));
+
+			// === Air (ID 0) ===
+			blockIdMetaToName.put(0, Map.of(0, "minecraft:air"));
+		}
+
+		/**
+		 * Converts legacy block ID + metadata to modern BlockData string.
+		 *
+		 * @param id   Legacy block ID
+		 * @param meta Metadata (0–15)
+		 * @return BlockData string like "minecraft:oak_stairs[facing=north,half=top]"
+		 */
+		public static String getBlockData(int id, int meta) {
+			Map<Integer, String> metaMap = blockIdMetaToName.get(id);
+			if (metaMap != null) {
+				String data = metaMap.get(meta);
+				if (data != null) {
+					return data;
+				}
+				// Fallback to meta = 0
+				String fallback = metaMap.get(0);
+				if (fallback != null) {
+					HellblockPlugin.getInstance().getPluginLogger()
+							.warn("Missing variant for ID %d meta %d, using meta 0.".formatted(id, meta));
+					return fallback;
+				}
+			}
+
+			HellblockPlugin.getInstance().getPluginLogger()
+					.warn("Unknown legacy block: ID %d meta %d".formatted(id, meta));
+			return "minecraft:air";
+		}
 	}
 }

@@ -1,0 +1,783 @@
+flags:
+  gui:
+    # The title for the flags menu
+    title: '<center><gradient:#A52A2A:#800000:#A52A2A>Hellblock Flags</gradient>'
+    # The layout for the flags menu
+    layout:
+      - 'BPDFMCSTV'
+      - 'CUNLQRIEO'
+      - 'FHGWYZ123'
+      - '4567890JK'
+      - 'abcdefzAA'
+      - 'AAAAAAAAX'
+    # Make the flags that are selected glow?
+    highlight-selected-flags: true
+    # Back icon to return to main menu
+    back-icon:
+      symbol: 'X'
+      material: RED_STAINED_GLASS_PANE
+      display:
+        name: '<red>Return to Main Menu'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_additional_tooltip: {}
+    # Flag icons for each different flag type
+    flag-icons:
+      block-break-icon:
+        symbol: 'B'
+        material: STONE_PICKAXE
+        flag-type: BLOCK_BREAK
+        display:
+          name: '<yellow>Block Break Flag'
+          lore: 
+            - '<gold>Allowed: <yellow>{flag_value}'
+        action:  
+          sound_action: 
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components: 
+          minecraft:hide_additional_tooltip: {}
+      block-place-icon:
+        symbol: 'P'
+        material: COBBLESTONE
+        flag-type: BLOCK_PLACE
+        display:
+          name: '<yellow>Block Place Flag'
+          lore:
+            - '<gold>Allowed: <yellow>{flag_value}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      damage-animals-icon:
+        symbol: 'D'
+        material: BEEF
+        flag-type: DAMAGE_ANIMALS
+        display:
+          name: '<yellow>Damage Animals Flag'
+          lore:
+            - '<gold>Allowed: <yellow>{flag_value}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      mob-damage-icon:
+        symbol: 'M'
+        material: ZOMBIE_HEAD
+        flag-type: MOB_DAMAGE
+        display:
+          name: '<yellow>Mob Damage Flag'
+          lore:
+            - '<gold>Allowed: <yellow>{flag_value}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      mob-spawning-icon:
+        symbol: 'S'
+        material: MOB_SPAWNER
+        flag-type: MOB_SPAWNING
+        display:
+          name: '<yellow>Mob Spawning Flag'
+          lore:
+            - '<gold>Allowed: <yellow>{flag_value}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      pvp-icon:
+        symbol: 'V'
+        material: DIAMOND_SWORD
+        flag-type: PVP
+        display:
+          name: '<yellow>PvP Flag'
+          lore:
+            - '<gold>Allowed: <yellow>{flag_value}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      tnt-icon:
+        symbol: 'T'
+        material: TNT
+        flag-type: TNT
+        display:
+          name: '<yellow>TNT Flag'
+          lore:
+            - '<gold>Allowed: <yellow>{flag_value}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      chest-access-icon:
+        symbol: 'C'
+        material: CHEST
+        flag-type: CHEST_ACCESS
+        display:
+          name: '<yellow>Chest Access Flag'
+          lore:
+            - '<gold>Allowed: <yellow>{flag_value}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      use-icon:
+        symbol: 'U'
+        material: LEVER
+        flag-type: USE
+        display:
+          name: '<yellow>Use Flag'
+          lore:
+            - '<gold>Allowed: <yellow>{flag_value}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      use-anvil-icon:
+        symbol: 'N'
+        material: ANVIL
+        flag-type: USE_ANVIL
+        display:
+          name: '<yellow>Use Anvil Flag'
+          lore:
+            - '<gold>Allowed: <yellow>{flag_value}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      use-dripleaf-icon:
+        symbol: 'L'
+        material: BIG_DRIPLEAF
+        flag-type: USE_DRIPLEAF
+        display:
+          name: '<yellow>Use Dripleaf Flag'
+          lore:
+            - '<gold>Allowed: <yellow>{flag_value}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      place-vehicle-icon:
+        symbol: 'Q'
+        material: MINECART
+        flag-type: PLACE_VEHICLE
+        display:
+          name: '<yellow>Place Vehicle Flag'
+          lore:
+            - '<gold>Allowed: <yellow>{flag_value}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      destroy-vehicle-icon:
+        symbol: 'R'
+        material: OAK_BOAT
+        flag-type: DESTROY_VEHICLE
+        display:
+          name: '<yellow>Destroy Vehicle Flag'
+          lore:
+            - '<gold>Allowed: <yellow>{flag_value}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      ride-icon:
+        symbol: 'I'
+        material: SADDLE
+        flag-type: RIDE
+        display:
+          name: '<yellow>Ride Flag'
+          lore:
+            - '<gold>Allowed: <yellow>{flag_value}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      enderpearl-icon:
+        symbol: 'E'
+        material: ENDER_PEARL
+        flag-type: ENDERPEARL
+        display:
+          name: '<yellow>Enderpearl Flag'
+          lore:
+            - '<gold>Allowed: <yellow>{flag_value}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      trample-blocks-icon:
+        symbol: 'F'
+        material: WHEAT
+        flag-type: TRAMPLE_BLOCKS
+        display:
+          name: '<yellow>Trample Blocks Flag'
+          lore:
+            - '<gold>Allowed: <yellow>{flag_value}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      item-frame-rotate-icon:
+        symbol: 'O'
+        material: CLOCK
+        flag-type: ITEM_FRAME_ROTATE
+        display:
+          name: '<yellow>Item Frame Rotation Flag'
+          lore:
+            - '<gold>Allowed: <yellow>{flag_value}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      chorus-teleport-icon:
+        symbol: 'H'
+        material: CHORUS_FRUIT
+        flag-type: CHORUS_TELEPORT
+        display:
+          name: '<yellow>Chorus Fruit Teleport Flag'
+          lore:
+            - '<gold>Allowed: <yellow>{flag_value}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      lighter-icon:
+        symbol: 'G'
+        material: FLINT_AND_STEEL
+        flag-type: LIGHTER
+        display:
+          name: '<yellow>Lighter Flag'
+          lore:
+            - '<gold>Allowed: <yellow>{flag_value}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      firework-damage-icon:
+        symbol: 'W'
+        material: FIREWORK_ROCKET
+        flag-type: FIREWORK_DAMAGE
+        display:
+          name: '<yellow>Firework Damage Flag'
+          lore:
+            - '<gold>Allowed: <yellow>{flag_value}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      respawn-anchors-icon:
+        symbol: 'Y'
+        material: RESPAWN_ANCHOR
+        flag-type: RESPAWN_ANCHORS
+        display:
+          name: '<yellow>Respawn Anchors Flag'
+          lore:
+            - '<gold>Allowed: <yellow>{flag_value}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      wind-charge-burst-icon:
+        symbol: 'Z'
+        material: PHANTOM_MEMBRANE
+        flag-type: WIND_CHARGE_BURST
+        display:
+          name: '<yellow>Wind Charge Burst Flag'
+          lore:
+            - '<gold>Allowed: <yellow>{flag_value}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      potion-splash-icon:
+        symbol: '1'
+        material: SPLASH_POTION
+        flag-type: POTION_SPLASH
+        display:
+          name: '<yellow>Potion Splash Flag'
+          lore:
+            - '<gold>Allowed: <yellow>{flag_value}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+          minecraft:potion_contents:
+            custom_effects:
+              - id: POISON
+                amplifier: 1
+      interact-icon:
+        symbol: '2'
+        material: STICK
+        flag-type: INTERACT
+        display:
+          name: '<yellow>Interact Flag'
+          lore:
+            - '<gold>Allowed: <yellow>{flag_value}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      sleep-icon:
+        symbol: '3'
+        material: RED_BED
+        flag-type: SLEEP
+        display:
+          name: '<yellow>Sleep Flag'
+          lore:
+            - '<gold>Allowed: <yellow>{flag_value}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      snowman-trails-icon:
+        symbol: '4'
+        material: SNOWBALL
+        flag-type: SNOWMAN_TRAILS
+        display:
+          name: '<yellow>Snowman Trails Flag'
+          lore:
+            - '<gold>Allowed: <yellow>{flag_value}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      ender-build-icon:
+        symbol: '5'
+        material: ENDER_EYE
+        flag-type: ENDER_BUILD
+        display:
+          name: '<yellow>Enderman Build Flag'
+          lore:
+            - '<gold>Allowed: <yellow>{flag_value}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      ghast-fireball-icon:
+        symbol: '6'
+        material: FIRE_CHARGE
+        flag-type: GHAST_FIREBALL
+        display:
+          name: '<yellow>Ghast Fireball Flag'
+          lore:
+            - '<gold>Allowed: <yellow>{flag_value}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      fall-damage-icon:
+        symbol: '7'
+        material: FEATHER
+        flag-type: FALL_DAMAGE
+        display:
+          name: '<yellow>Fall Damage Flag'
+          lore:
+            - '<gold>Allowed: <yellow>{flag_value}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      health-regen-icon:
+        symbol: '8'
+        material: GOLDEN_APPLE
+        flag-type: HEALTH_REGEN
+        display:
+          name: '<yellow>Health Regen Flag'
+          lore:
+            - '<gold>Allowed: <yellow>{flag_value}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      hunger-drain-icon:
+        symbol: '9'
+        material: BREAD
+        flag-type: HUNGER_DRAIN
+        display:
+          name: '<yellow>Hunger Drain Flag'
+          lore:
+            - '<gold>Allowed: <yellow>{flag_value}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      invincibility-icon:
+        symbol: '0'
+        material: TOTEM_OF_UNDYING
+        flag-type: INVINCIBILITY
+        display:
+          name: '<yellow>Invincibility Flag'
+          lore:
+            - '<gold>Allowed: <yellow>{flag_value}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      build-icon:
+        symbol: 'z'
+        material: OAK_PLANKS
+        flag-type: BUILD
+        display:
+          name: '<yellow>Build Flag'
+          lore:
+            - '<gold>Allowed: <yellow>{flag_value}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      ravager-ravage-icon:
+        symbol: 'a'
+        material: IRON_AXE
+        flag-type: RAVAGER_RAVAGE
+        display:
+          name: '<yellow>Ravager Ravage Flag'
+          lore:
+            - '<gold>Allowed: <yellow>{flag_value}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      item-pickup-icon:
+        symbol: 'b'
+        material: HOPPER
+        flag-type: ITEM_PICKUP
+        display:
+          name: '<yellow>Item Pickup Flag'
+          lore:
+            - '<gold>Allowed: <yellow>{flag_value}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      item-drop-icon:
+        symbol: 'c'
+        material: DROPPER
+        flag-type: ITEM_DROP
+        display:
+          name: '<yellow>Item Drop Flag'
+          lore:
+            - '<gold>Allowed: <yellow>{flag_value}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      wind-charge-icon:
+        symbol: 'd'
+        material: HEART_OF_THE_SEA
+        flag-type: BREEZE_WIND_CHARGE
+        display:
+          name: '<yellow>Breeze Wind Charge Flag'
+          lore:
+            - '<gold>Allowed: <yellow>{flag_value}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      painting-destroy-icon:
+        symbol: 'J'
+        material: PAINTING
+        flag-type: ENTITY_PAINTING_DESTROY
+        display:
+          name: '<yellow>Painting Destroy Flag'
+          lore:
+            - '<gold>Allowed: <yellow>{flag_value}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      itemframe-destroy-icon:
+        symbol: 'K'
+        material: ITEM_FRAME
+        flag-type: ENTITY_ITEM_FRAME_DESTROY
+        display:
+          name: '<yellow>Item Frame Destroy Flag'
+          lore:
+            - '<gold>Allowed: <yellow>{flag_value}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      creeper-explosion-icon:
+        symbol: 'e'
+        material: CREEPER_HEAD
+        flag-type: CREEPER_EXPLOSION
+        display:
+          name: '<yellow>Creeper Explosion Flag'
+          lore:
+            - '<gold>Allowed: <yellow>{flag_value}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      exp-drops-icon:
+        symbol: 'f'
+        material: EXPERIENCE_BOTTLE
+        flag-type: EXP_DROPS
+        display:
+          name: '<yellow>Exp Drops Flag'
+          lore:
+            - '<gold>Allowed: <yellow>{flag_value}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+    # Decorative icons for visual enhancement
+    decorative-icons:
+      glass-pane:
+        symbol: 'A'
+        material: BLACK_STAINED_GLASS_PANE
+        display:
+          name: ' '
+        components:
+          minecraft:hide_tooltip: {}

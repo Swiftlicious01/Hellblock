@@ -10,15 +10,13 @@ import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
 import org.incendo.cloud.CommandManager;
 
-import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.commands.BukkitCommandFeature;
 import com.swiftlicious.hellblock.commands.HellblockCommandManager;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
+import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.player.HellblockData;
 import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.utils.LocationUtils;
-
-import net.kyori.adventure.text.Component;
 
 public class HellblockNewHomeCommand extends BukkitCommandFeature<CommandSender> {
 
@@ -32,8 +30,7 @@ public class HellblockNewHomeCommand extends BukkitCommandFeature<CommandSender>
 		return builder.senderType(Player.class).handler(context -> {
 			final Player player = context.sender();
 
-			final Optional<UserData> onlineUserOpt = HellblockPlugin.getInstance().getStorageManager()
-					.getOnlineUser(player.getUniqueId());
+			final Optional<UserData> onlineUserOpt = plugin.getStorageManager().getOnlineUser(player.getUniqueId());
 
 			if (onlineUserOpt.isEmpty()) {
 				handleFeedback(context, MessageConstants.COMMAND_DATA_FAILURE_NOT_LOADED);
@@ -50,8 +47,8 @@ public class HellblockNewHomeCommand extends BukkitCommandFeature<CommandSender>
 
 			final UUID ownerUUID = data.getOwnerUUID();
 			if (ownerUUID == null) {
-				HellblockPlugin.getInstance().getPluginLogger().severe("Hellblock owner UUID was null for player "
-						+ player.getName() + " (" + player.getUniqueId() + "). This indicates corrupted data.");
+				plugin.getPluginLogger().severe("Hellblock owner UUID was null for player " + player.getName() + " ("
+						+ player.getUniqueId() + "). This indicates corrupted data.");
 				throw new IllegalStateException(
 						"Owner reference was null. This should never happen — please report to the developer.");
 			}
@@ -94,13 +91,14 @@ public class HellblockNewHomeCommand extends BukkitCommandFeature<CommandSender>
 
 				// Save new home
 				data.setHomeLocation(newLoc);
-				handleFeedback(context,
-						MessageConstants.MSG_HELLBLOCK_HOME_NEW_LOCATION.arguments(Component.text(newLoc.getBlockX()),
-								Component.text(newLoc.getBlockY()), Component.text(newLoc.getBlockZ()),
-								Component.text(LocationUtils.getFacing(player))));
+				handleFeedback(context, MessageConstants.MSG_HELLBLOCK_HOME_NEW_LOCATION,
+						AdventureHelper.miniMessageToComponent(String.valueOf(newLoc.getBlockX())),
+						AdventureHelper.miniMessageToComponent(String.valueOf(newLoc.getBlockY())),
+						AdventureHelper.miniMessageToComponent(String.valueOf(newLoc.getBlockZ())),
+						AdventureHelper.miniMessageToComponent(LocationUtils.getFacing(player)));
 			}).exceptionally(ex -> {
-				HellblockPlugin.getInstance().getPluginLogger().severe("Failed to check if home location is safe "
-						+ player.getName() + " (" + player.getUniqueId() + "): " + ex.getMessage());
+				plugin.getPluginLogger().severe("Failed to check if home location is safe " + player.getName() + " ("
+						+ player.getUniqueId() + "): " + ex.getMessage());
 				ex.printStackTrace();
 				return null;
 			});

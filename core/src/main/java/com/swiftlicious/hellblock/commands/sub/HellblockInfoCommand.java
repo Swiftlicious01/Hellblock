@@ -5,16 +5,16 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 import org.bukkit.Bukkit;
+import org.bukkit.OfflinePlayer;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
 import org.incendo.cloud.CommandManager;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.commands.BukkitCommandFeature;
 import com.swiftlicious.hellblock.commands.HellblockCommandManager;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
@@ -26,9 +26,10 @@ import com.swiftlicious.hellblock.utils.TextWrapUtils;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.JoinConfiguration;
-import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 
 public class HellblockInfoCommand extends BukkitCommandFeature<CommandSender> {
+
+	private static final int DEFAULT_LIST_CUTOFF = 4;
 
 	public HellblockInfoCommand(HellblockCommandManager<CommandSender> commandManager) {
 		super(commandManager);
@@ -40,8 +41,7 @@ public class HellblockInfoCommand extends BukkitCommandFeature<CommandSender> {
 		return builder.senderType(Player.class).handler(context -> {
 			final Player player = context.sender();
 
-			final Optional<UserData> onlineUserOpt = HellblockPlugin.getInstance().getStorageManager()
-					.getOnlineUser(player.getUniqueId());
+			final Optional<UserData> onlineUserOpt = plugin.getStorageManager().getOnlineUser(player.getUniqueId());
 
 			if (onlineUserOpt.isEmpty()) {
 				handleFeedback(context, MessageConstants.COMMAND_DATA_FAILURE_NOT_LOADED);
@@ -58,22 +58,20 @@ public class HellblockInfoCommand extends BukkitCommandFeature<CommandSender> {
 
 			final UUID ownerUUID = hellblockData.getOwnerUUID();
 			if (ownerUUID == null) {
-				HellblockPlugin.getInstance().getPluginLogger()
-						.severe("Hellblock owner UUID was null for player " + player.getName() + " ("
-								+ player.getUniqueId() + "). This indicates corrupted data or a serious bug.");
+				plugin.getPluginLogger().severe("Hellblock owner UUID was null for player " + player.getName() + " ("
+						+ player.getUniqueId() + "). This indicates corrupted data or a serious bug.");
 				throw new IllegalStateException(
 						"Owner reference was null. This should never happen — please report to the developer.");
 			}
 
-			final HellblockPlugin plugin = HellblockPlugin.getInstance();
-
-			plugin.getStorageManager().getOfflineUserData(ownerUUID, plugin.getConfigManager().lockData())
+			plugin.getStorageManager().getCachedUserDataWithFallback(ownerUUID, plugin.getConfigManager().lockData())
 					.thenAccept(result -> {
 						if (result.isEmpty()) {
 							final String username = Optional.ofNullable(Bukkit.getOfflinePlayer(ownerUUID).getName())
-									.orElse("???");
-							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_PLAYER_DATA_FAILURE_LOAD
-									.arguments(Component.text(username)));
+									.orElse(plugin.getTranslationManager()
+											.miniMessageTranslation(MessageConstants.FORMAT_UNKNOWN.build().key()));
+							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_OWNER_DATA_NOT_LOADED,
+									AdventureHelper.miniMessageToComponent(username));
 							return;
 						}
 
@@ -86,12 +84,14 @@ public class HellblockInfoCommand extends BukkitCommandFeature<CommandSender> {
 						}
 
 						// Build member lists
-						final String partyString = formatPlayerList(offlineData.getParty());
-						final String trustedString = formatPlayerList(offlineData.getTrusted());
-						final String bannedString = formatPlayerList(offlineData.getBanned());
+						final String partyString = formatPlayerList(offlineData.getPartyMembers(), DEFAULT_LIST_CUTOFF);
+						final String trustedString = formatPlayerList(offlineData.getTrustedMembers(),
+								DEFAULT_LIST_CUTOFF);
+						final String bannedString = formatPlayerList(offlineData.getBannedMembers(),
+								DEFAULT_LIST_CUTOFF);
 
 						Component bioComponent = hellblockData.displayIslandBioWithContext();
-						String plainBio = PlainTextComponentSerializer.plainText().serialize(bioComponent);
+						String plainBio = AdventureHelper.componentToPlainText(bioComponent);
 						String[] bioLines = plainBio.split("\\r?\\n");
 
 						// Extract the prefix pattern from your message template dynamically
@@ -118,13 +118,13 @@ public class HellblockInfoCommand extends BukkitCommandFeature<CommandSender> {
 
 								// Use dynamic prefix for first line, indent for wrapped ones
 								if (i == 0) {
-									formattedBioLines.add(AdventureHelper.getMiniMessage()
-											.deserialize(bioPrefix + " " + wrappedLine.trim()));
+									formattedBioLines
+											.add(AdventureHelper.miniMessageToComponent(bioPrefix + " " + wrappedLine.trim()));
 								} else {
 									// Indent follows same color scheme but replaces symbol with spaces
-									formattedBioLines.add(AdventureHelper.getMiniMessage()
-											.deserialize(bioPrefix.replaceAll("(?i)<[^>]+>|[^\\w]", " ") + " "
-													+ wrappedLine.trim()));
+									formattedBioLines.add(
+											AdventureHelper.miniMessageToComponent(bioPrefix.replaceAll("(?i)<[^>]+>|[^\\w]", " ")
+													+ " " + wrappedLine.trim()));
 								}
 							}
 						}
@@ -133,40 +133,47 @@ public class HellblockInfoCommand extends BukkitCommandFeature<CommandSender> {
 						Component formattedBio = Component.join(JoinConfiguration.newlines(), formattedBioLines);
 
 						// Send main info message
-						handleFeedback(context,
-								MessageConstants.MSG_HELLBLOCK_INFORMATION.arguments(
-										Component.text(offlineData.getID()),
-										Component
-												.text(Bukkit.getOfflinePlayer(offlineUser.getUUID()).hasPlayedBefore()
-														? offlineUser.getName()
-														: plugin.getTranslationManager().miniMessageTranslation(
-																MessageConstants.FORMAT_UNKNOWN.build().key())),
-										Component.text(offlineData.getLevel()),
-										Component.text(offlineData.getCreationTime()),
-										offlineData.displayIslandNameWithContext(), formattedBio,
-										Component.text(offlineData.getMaxProtectionRange()),
-										Component.text(offlineData.isLocked()
-												? plugin.getTranslationManager().miniMessageTranslation(
-														MessageConstants.FORMAT_CLOSED.build().key())
+						handleFeedback(context, MessageConstants.MSG_HELLBLOCK_INFORMATION,
+								AdventureHelper.miniMessageToComponent(String.valueOf(offlineData.getIslandId())),
+								AdventureHelper
+										.miniMessageToComponent(Bukkit.getOfflinePlayer(offlineUser.getUUID()).hasPlayedBefore()
+												? offlineUser.getName()
 												: plugin.getTranslationManager().miniMessageTranslation(
-														MessageConstants.FORMAT_OPEN.build().key())),
-										Component.text(offlineData.getVisitData().getDailyVisits()),
-										Component.text(offlineData.getVisitData().getWeeklyVisits()),
-										Component.text(offlineData.getVisitData().getMonthlyVisits()),
-										Component.text(offlineData.getVisitData().getTotalVisits()),
-										Component.text(plugin.getHopperHandler().getHopperCount(offlineUser.getUUID())),
-										Component.text(offlineData.getMaxHopperLimit()),
-										Component.text(
-												StringUtils.toProperCase(offlineData.getIslandChoice().toString())),
-										Component.text(offlineData.getBiome().getName()),
-										Component.text(offlineData.getParty().size()),
-										Component.text(plugin.getCoopManager().getMaxPartySize(offlineUser)),
-										Component.text(partyString), Component.text(trustedString),
-										Component.text(bannedString)));
+														MessageConstants.FORMAT_UNKNOWN.build().key())),
+								AdventureHelper.miniMessageToComponent(String.valueOf(offlineData.getIslandLevel())),
+								AdventureHelper.miniMessageToComponent(offlineData.getCreationTimeFormatted()),
+								offlineData.displayIslandNameWithContext(), formattedBio,
+								AdventureHelper.miniMessageToComponent(String.valueOf(offlineData.getMaxProtectionRange())),
+								AdventureHelper.miniMessageToComponent(offlineData.isLocked()
+										? plugin.getTranslationManager()
+												.miniMessageTranslation(MessageConstants.FORMAT_CLOSED.build().key())
+										: plugin.getTranslationManager()
+												.miniMessageTranslation(MessageConstants.FORMAT_OPEN.build().key())),
+								AdventureHelper
+										.miniMessageToComponent(String.valueOf(offlineData.getVisitData().getDailyVisits())),
+								AdventureHelper
+										.miniMessageToComponent(String.valueOf(offlineData.getVisitData().getWeeklyVisits())),
+								AdventureHelper
+										.miniMessageToComponent(String.valueOf(offlineData.getVisitData().getMonthlyVisits())),
+								AdventureHelper.miniMessageToComponent(String
+										.valueOf(offlineData.getVisitData().getTotalVisits())),
+								AdventureHelper.miniMessageToComponent(offlineUser.getHellblockData().getBoundingBox() != null
+										? String.valueOf(plugin.getHopperHandler()
+												.countHoppers(offlineUser.getHellblockData().getBoundingBox()))
+										: String.valueOf("0")),
+								AdventureHelper.miniMessageToComponent(String.valueOf(offlineData.getMaxHopperLimit())),
+								AdventureHelper
+										.miniMessageToComponent(StringUtils.toCamelCase(offlineData.getIslandChoice().toString())),
+								AdventureHelper.miniMessageToComponent(StringUtils.toCamelCase(offlineData.getBiome().toString())),
+								AdventureHelper.miniMessageToComponent(String.valueOf(offlineData.getPartyMembers().size())),
+								AdventureHelper.miniMessageToComponent(
+										String.valueOf(plugin.getCoopManager().getMaxPartySize(offlineUser))),
+								AdventureHelper.miniMessageToComponent(partyString), AdventureHelper.miniMessageToComponent(trustedString),
+								AdventureHelper.miniMessageToComponent(bannedString));
 					}).exceptionally(ex -> {
-						HellblockPlugin.getInstance().getPluginLogger()
-								.warn("getOfflineUserData failed for hellblock information check of " + player.getName()
-										+ ": " + ex.getMessage());
+						plugin.getPluginLogger()
+								.warn("getCachedUserDataWithFallback failed for hellblock information check of "
+										+ player.getName() + ": " + ex.getMessage());
 						return null;
 					});
 		});
@@ -176,24 +183,47 @@ public class HellblockInfoCommand extends BukkitCommandFeature<CommandSender> {
 	 * Utility method to format a list of UUIDs into a translated, comma-separated
 	 * string.
 	 */
-	private String formatPlayerList(Collection<UUID> uuids) {
+	@NotNull
+	private String formatPlayerList(@NotNull Collection<UUID> uuids, int cutoff) {
 		if (uuids.isEmpty()) {
-			return HellblockPlugin.getInstance().getTranslationManager()
-					.miniMessageTranslation(MessageConstants.FORMAT_NONE.build().key());
+			return plugin.getTranslationManager().miniMessageTranslation(MessageConstants.FORMAT_NONE.build().key());
 		}
 
-		return uuids.stream().map(Bukkit::getOfflinePlayer).filter(p -> p.hasPlayedBefore() && p.getName() != null)
-				.map(p -> HellblockPlugin.getInstance().getTranslationManager()
-						.miniMessageTranslation(MessageConstants.MSG_HELLBLOCK_INFO_LIST_STYLE
-								.arguments(Component.text(p.getName())).build().key()))
-				.collect(Collectors.joining(", ")); // cleanly handles commas
+		List<OfflinePlayer> players = uuids.stream().map(Bukkit::getOfflinePlayer)
+				.filter(p -> p.hasPlayedBefore() && p.getName() != null).toList();
+
+		List<String> output = new ArrayList<>();
+		int displayedCount = Math.min(players.size(), cutoff);
+
+		for (int i = 0; i < displayedCount; i++) {
+			String styled = plugin.getTranslationManager()
+					.miniMessageTranslation(MessageConstants.MSG_HELLBLOCK_INFO_LIST_STYLE
+							.arguments(AdventureHelper.miniMessageToComponent(players.get(i).getName())).build().key());
+			output.add(styled);
+		}
+
+		// If cutoff applies, append the "...and more" at the end
+		if (players.size() > cutoff) {
+			int remaining = players.size() - cutoff;
+			String cutoffMessage = plugin.getTranslationManager()
+					.miniMessageTranslation(MessageConstants.MSG_HELLBLOCK_INFO_LIST_CUTOFF
+							.arguments(AdventureHelper.miniMessageToComponent(String.valueOf(remaining))).build().key());
+			output.add(cutoffMessage);
+		}
+
+		String separator = plugin.getTranslationManager()
+				.miniMessageTranslation(MessageConstants.MSG_HELLBLOCK_INFO_LIST_SEPARATOR.build().key());
+
+		// Do NOT join with ", " — just concatenate MiniMessage strings
+		return String.join(separator, output); // Already contains commas from the style key
 	}
 
 	/**
 	 * Extracts the prefix (e.g. "<gray>-</gray>") from the YAML line that contains
 	 * <arg:5>. Returns null if not found.
 	 */
-	private @Nullable String extractBioPrefix(String rawTemplateList) {
+	@Nullable
+	private String extractBioPrefix(@Nullable String rawTemplateList) {
 		if (rawTemplateList == null || rawTemplateList.isBlank()) {
 			return null;
 		}

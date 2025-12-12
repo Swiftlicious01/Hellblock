@@ -30,6 +30,7 @@ import com.swiftlicious.hellblock.context.Context;
 import com.swiftlicious.hellblock.creation.item.CustomItem;
 import com.swiftlicious.hellblock.creation.item.Item;
 import com.swiftlicious.hellblock.player.HellblockData;
+import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.upgrades.IslandUpgradeType;
 import com.swiftlicious.hellblock.upgrades.UpgradeData;
 import com.swiftlicious.hellblock.upgrades.UpgradeTier;
@@ -43,7 +44,7 @@ public final class PiglinBarterHandler implements Listener, Reloadable {
 	private final Map<UUID, Set<UUID>> barterTracker = new ConcurrentHashMap<>();
 
 	// Cache of island owner UUID to barter bonus
-	private final Map<UUID, Double> piglinBarterBonusCache = new ConcurrentHashMap<>();
+	private final Map<Integer, Double> piglinBarterBonusCache = new ConcurrentHashMap<>();
 
 	public PiglinBarterHandler(HellblockPlugin plugin) {
 		instance = plugin;
@@ -72,6 +73,9 @@ public final class PiglinBarterHandler implements Listener, Reloadable {
 			return;
 		}
 
+		if (event.getHand() == null) {
+			return;
+		}
 		final ItemStack inHand = player.getInventory().getItem(event.getHand());
 		if (inHand.getType() != Material.GOLD_INGOT || !(event.getRightClicked() instanceof Piglin piglin)) {
 			return;
@@ -140,12 +144,14 @@ public final class PiglinBarterHandler implements Listener, Reloadable {
 						return; // Piglin is not within any island
 					}
 
-					instance.getStorageManager().getOfflineUserData(ownerUUID, instance.getConfigManager().lockData())
+					instance.getStorageManager()
+							.getCachedUserDataWithFallback(ownerUUID, instance.getConfigManager().lockData())
 							.thenAccept(userDataOpt -> {
 								if (userDataOpt.isEmpty())
 									return;
 
-								HellblockData hellblockData = userDataOpt.get().getHellblockData();
+								UserData ownerData = userDataOpt.get();
+								HellblockData hellblockData = ownerData.getHellblockData();
 								Set<UUID> partyPlusOwner = hellblockData.getPartyPlusOwner();
 								BoundingBox box = hellblockData.getBoundingBox();
 
@@ -165,11 +171,20 @@ public final class PiglinBarterHandler implements Listener, Reloadable {
 									barteredItems.addAll(customItems);
 								}
 
+								instance.getStorageManager().getOnlineUser(player.getUniqueId()).ifPresent(userData -> {
+									if (instance.getCooldownManager().shouldUpdateActivity(player.getUniqueId(),
+											5000)) {
+										userData.getHellblockData().updateLastIslandActivity();
+									}
+								});
+
 								// Progress challenges for every outcome item
 								barteredItems.forEach(bartered -> {
 									final int amount = bartered.getAmount();
-									instance.getChallengeManager().handleChallengeProgression(player, ActionType.BARTER,
-											bartered.clone(), amount);
+									instance.getStorageManager().getOnlineUser(player.getUniqueId())
+											.ifPresent(userData -> instance.getChallengeManager()
+													.handleChallengeProgression(userData, ActionType.BARTER,
+															bartered.clone(), amount));
 								});
 
 								// Cleanup
@@ -260,15 +275,15 @@ public final class PiglinBarterHandler implements Listener, Reloadable {
 	}
 
 	public double getCachedBarterBonus(@NotNull HellblockData data) {
-		UUID ownerUUID = data.getOwnerUUID();
-		return piglinBarterBonusCache.computeIfAbsent(ownerUUID, id -> calculateBarterBonus(data));
+		int islandId = data.getIslandId();
+		return piglinBarterBonusCache.computeIfAbsent(islandId, id -> calculateBarterBonus(data));
 	}
 
 	public void updateBarterBonusCache(@NotNull HellblockData data) {
-		piglinBarterBonusCache.put(data.getOwnerUUID(), calculateBarterBonus(data));
+		piglinBarterBonusCache.put(data.getIslandId(), calculateBarterBonus(data));
 	}
 
-	public void invalidateBarterBonusCache(@NotNull UUID ownerUUID) {
-		piglinBarterBonusCache.remove(ownerUUID);
+	public void invalidateBarterBonusCache(int islandId) {
+		piglinBarterBonusCache.remove(islandId);
 	}
 }

@@ -1,7 +1,5 @@
 package com.swiftlicious.hellblock.spigot.v1_21_r3;
 
-import com.google.common.base.Preconditions;
-
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
@@ -14,6 +12,7 @@ import org.bukkit.craftbukkit.v1_21_R3.util.CraftVector;
 import org.bukkit.util.Vector;
 import org.jetbrains.annotations.NotNull;
 
+import com.google.common.base.Preconditions;
 import com.swiftlicious.hellblock.nms.fluid.FluidData;
 
 import net.minecraft.world.level.material.Fluid;
@@ -30,7 +29,8 @@ public class FluidDataInstance implements FluidData {
 	}
 
 	public static FluidData createData(final FluidState state) {
-		return MAP.getOrDefault(state.getType().getClass(), FluidDataInstance::new).apply(state);
+		net.minecraft.world.level.material.Fluid type = state.getType();
+		return MAP.getOrDefault(type.getClass(), FluidDataInstance::new).apply(state);
 	}
 
 	private final FluidState state;

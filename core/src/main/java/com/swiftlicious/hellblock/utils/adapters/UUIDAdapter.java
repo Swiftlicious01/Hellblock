@@ -7,6 +7,7 @@ import com.google.gson.TypeAdapter;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonToken;
 import com.google.gson.stream.JsonWriter;
+import com.swiftlicious.hellblock.HellblockPlugin;
 
 public class UUIDAdapter extends TypeAdapter<UUID> {
 
@@ -25,12 +26,14 @@ public class UUIDAdapter extends TypeAdapter<UUID> {
 			in.nextNull();
 			return null;
 		}
-		final String uuid = in.nextString();
-		try {
-			return UUID.fromString(uuid);
-		} catch (IllegalArgumentException ignored) {
 
+		String uuidStr = in.nextString();
+		try {
+			return UUID.fromString(uuidStr);
+		} catch (IllegalArgumentException ex) {
+			// Optionally log or track malformed UUID
+			HellblockPlugin.getInstance().getPluginLogger().warn("Invalid UUID string: " + uuidStr);
+			return null;
 		}
-		return null;
 	}
 }

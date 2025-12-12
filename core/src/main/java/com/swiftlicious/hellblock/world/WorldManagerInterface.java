@@ -16,6 +16,19 @@ import com.swiftlicious.hellblock.world.adapter.WorldAdapter;
 public interface WorldManagerInterface extends Reloadable {
 
 	/**
+	 * Reload all worlds.
+	 */
+	void reloadWorlds();
+
+	/**
+	 * Loads a Hellblock world based on the specified Hellblock world.
+	 *
+	 * @param world The Hellblock world to load as a Hellblock world.
+	 * @return The loaded HellblockWorld instance.
+	 */
+	HellblockWorld<?> loadWorld(HellblockWorld<?> world);
+
+	/**
 	 * Loads a Hellblock world based on the specified Bukkit world.
 	 *
 	 * @param world The Bukkit world to load as a Hellblock world.
@@ -105,4 +118,28 @@ public interface WorldManagerInterface extends Reloadable {
 	 * @return The adapted HellblockWorld instance.
 	 */
 	HellblockWorld<?> adapt(String world);
+
+	/**
+	 * Retrieves the registered {@link WorldAdapter} instance that matches the
+	 * specified type.
+	 *
+	 * <p>
+	 * This is used when accessing a specific world adapter implementation, such as
+	 * {@code SlimeWorldAdapter} or {@code BukkitWorldAdapter}, which may be needed
+	 * for format-specific operations like world conversion or direct chunk access.
+	 * </p>
+	 *
+	 * <p>
+	 * If no adapter of the given type is registered, this method throws an
+	 * {@link IllegalStateException}.
+	 * </p>
+	 *
+	 * @param <T>  the type of the world adapter to retrieve
+	 * @param type the class of the desired world adapter (e.g.,
+	 *             {@code SlimeWorldAdapter.class})
+	 * @return the matching {@link WorldAdapter} instance
+	 * @throws IllegalStateException if no adapter of the specified type is
+	 *                               registered
+	 */
+	<T extends WorldAdapter<?>> T getAdapterByType(Class<T> type);
 }

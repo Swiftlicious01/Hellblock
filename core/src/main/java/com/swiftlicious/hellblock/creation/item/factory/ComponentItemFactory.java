@@ -162,15 +162,31 @@ public class ComponentItemFactory extends BukkitItemFactory {
 
 	@Override
 	protected void enchantments(RtagItem item, Map<Key, Short> enchantments) {
+		if (enchantments == null || enchantments.isEmpty()) {
+			return;
+		}
+
 		final Map<String, Integer> enchants = new HashMap<>();
-		enchantments.entrySet().forEach(entry -> enchants.put(entry.getKey().toString(), Integer.valueOf(entry.getValue())));
+		enchantments.forEach((key, level) -> {
+			if (key != null) {
+				enchants.put(key.asString(), level.intValue());
+			}
+		});
 		item.setComponent(ComponentKeys.ENCHANTMENTS, enchants);
 	}
 
 	@Override
 	protected void storedEnchantments(RtagItem item, Map<Key, Short> enchantments) {
+		if (enchantments == null || enchantments.isEmpty()) {
+			return;
+		}
+
 		final Map<String, Integer> enchants = new HashMap<>();
-		enchantments.entrySet().forEach(entry -> enchants.put(entry.getKey().toString(), Integer.valueOf(entry.getValue())));
+		enchantments.forEach((key, level) -> {
+			if (key != null) {
+				enchants.put(key.asString(), level.intValue());
+			}
+		});
 		item.setComponent(ComponentKeys.STORED_ENCHANTMENTS, enchants);
 	}
 

@@ -1,17 +1,26 @@
 package com.swiftlicious.hellblock.listeners;
 
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
-import java.util.function.BiConsumer;
+import java.util.Objects;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
-import java.util.function.Function;
 
 import org.bukkit.Bukkit;
 import org.bukkit.GameRule;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
+import org.bukkit.entity.HumanEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.HandlerList;
@@ -26,14 +35,12 @@ import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerItemBreakEvent;
 import org.bukkit.event.player.PlayerItemHeldEvent;
 import org.bukkit.event.player.PlayerSwapHandItemsEvent;
-import org.bukkit.inventory.CraftingRecipe;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.Recipe;
 import org.bukkit.inventory.RecipeChoice;
 import org.bukkit.inventory.ShapedRecipe;
-import org.bukkit.inventory.recipe.CraftingBookCategory;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import com.saicone.rtag.RtagItem;
@@ -43,26 +50,54 @@ import com.swiftlicious.hellblock.challenges.HellblockChallenge.ActionType;
 import com.swiftlicious.hellblock.config.parser.SingleItemParser;
 import com.swiftlicious.hellblock.context.Context;
 import com.swiftlicious.hellblock.creation.item.CustomItem;
-import com.swiftlicious.hellblock.creation.item.Item;
 import com.swiftlicious.hellblock.player.UserData;
+import com.swiftlicious.hellblock.utils.HellblockRecipe;
+import com.swiftlicious.hellblock.utils.RecipeDiscoveryUtil;
+import com.swiftlicious.hellblock.utils.RecipeHelper;
 
+import dev.dejvokep.boostedyaml.YamlDocument;
 import dev.dejvokep.boostedyaml.block.implementation.Section;
+import dev.dejvokep.boostedyaml.libs.org.snakeyaml.engine.v2.common.ScalarStyle;
+import dev.dejvokep.boostedyaml.libs.org.snakeyaml.engine.v2.nodes.Tag;
+import dev.dejvokep.boostedyaml.settings.dumper.DumperSettings;
+import dev.dejvokep.boostedyaml.settings.general.GeneralSettings;
+import dev.dejvokep.boostedyaml.settings.loader.LoaderSettings;
+import dev.dejvokep.boostedyaml.utils.format.NodeRole;
 
 public class ToolsHandler implements Listener, Reloadable {
 
-	protected final HellblockPlugin instance;
+	private final HellblockPlugin instance;
 
-	private final Map<UserData, Boolean> clickCache = new HashMap<>();
+	private final RecipeHelper recipeHelper;
 
-	protected final Map<Material, ToolData> toolMap = new HashMap<>();
+	private YamlDocument toolsConfig;
+
+	private final Set<NamespacedKey> registeredRecipes = new HashSet<>();
+
+	private final Set<UUID> clickCache = ConcurrentHashMap.newKeySet();
+	private final Map<Material, ToolData> toolMap = new HashMap<>();
+	private final Set<String> loggedInvalidRecipes = new HashSet<>();
 
 	public ToolsHandler(HellblockPlugin plugin) {
 		this.instance = plugin;
+		this.recipeHelper = new RecipeHelper();
 	}
 
 	@Override
 	public void load() {
-		addTools();
+		loadToolsConfig();
+
+		// Register all recipes immediately on startup
+		Section toolsSection = getToolsConfig().getSection("tools");
+		if (toolsSection != null) {
+			List<HellblockRecipe> recipes = registerNetherTool(Context.playerEmpty(), toolsSection);
+			applyToolRecipes(recipes);
+			instance.debug("A total of " + recipes.size() + " tool recipe" + (recipes.size() == 1 ? "" : "s")
+					+ " have been registered!");
+		} else {
+			instance.getPluginLogger().warn("Missing 'tools' section in tools.yml");
+		}
+
 		Bukkit.getPluginManager().registerEvents(this, instance);
 	}
 
@@ -71,183 +106,245 @@ public class ToolsHandler implements Listener, Reloadable {
 		HandlerList.unregisterAll(this);
 		this.clickCache.clear();
 		this.toolMap.clear();
+		this.loggedInvalidRecipes.clear();
 	}
 
-	/**
-	 * Registers custom Nether tool recipes from config.
-	 */
-	public void addTools() {
-		try {
-			final Function<Object, BiConsumer<Item<ItemStack>, Context<Player>>> f1 = arg -> (item, context) -> {
-				final Map<NamespacedKey, ShapedRecipe> recipes = registerNetherTools(context,
-						instance.getConfigManager().getMainConfig().getSection("tools"));
-				recipes.entrySet().forEach(recipe -> {
-					Bukkit.removeRecipe(recipe.getKey());
-					if (recipe.getValue() != null) {
-						Bukkit.addRecipe(recipe.getValue());
-					}
-				});
-			};
-			instance.getConfigManager().registerItemParser(f1, 6800, "tools");
-		} catch (IllegalStateException ignored) {
-			// ignored
+	@Override
+	public void disable() {
+		unload();
+		registeredRecipes.forEach(Bukkit::removeRecipe);
+		registeredRecipes.clear();
+	}
+
+	@NotNull
+	public YamlDocument getToolsConfig() {
+		return this.toolsConfig;
+	}
+
+	private void loadToolsConfig() {
+		try (InputStream inputStream = new FileInputStream(
+				instance.getConfigManager().resolveConfig("tools.yml").toFile())) {
+			toolsConfig = YamlDocument.create(inputStream, instance.getConfigManager().getResourceMaybeGz("tools.yml"),
+					GeneralSettings.builder().setRouteSeparator('.').setUseDefaults(false).build(),
+					LoaderSettings.builder().setAutoUpdate(true).build(),
+					DumperSettings.builder().setScalarFormatter((tag, value, role, def) -> {
+						if (role == NodeRole.KEY) {
+							return ScalarStyle.PLAIN;
+						} else {
+							return tag == Tag.STR ? ScalarStyle.DOUBLE_QUOTED : ScalarStyle.PLAIN;
+						}
+					}).build());
+			toolsConfig.save(instance.getConfigManager().resolveConfig("tools.yml").toFile());
+		} catch (IOException ex) {
+			throw new RuntimeException(ex);
 		}
 	}
 
-	/**
-	 * Builds tool recipes from configuration.
-	 */
-	private Map<NamespacedKey, ShapedRecipe> registerNetherTools(Context<Player> context, Section section) {
-		final Map<NamespacedKey, ShapedRecipe> recipes = new HashMap<>();
+	private void applyToolRecipes(@NotNull List<HellblockRecipe> recipes) {
+		List<String> unregisteredTypes = new ArrayList<>();
+		List<String> registeredTypes = new ArrayList<>();
+		List<String> existingTypes = new ArrayList<>();
+		for (HellblockRecipe recipe : recipes) {
+			try {
+				if (recipe instanceof HellblockRecipe.Disabled disabled) {
+					Bukkit.removeRecipe(disabled.key());
+					registeredRecipes.remove(disabled.key());
+					unregisteredTypes.add(disabled.key().asString());
+				} else if (recipe instanceof HellblockRecipe.Enabled enabled) {
+					NamespacedKey key = enabled.key();
+					if (Bukkit.getRecipe(key) == null) {
+						Bukkit.addRecipe(enabled.recipe());
+						registeredRecipes.add(key);
+						registeredTypes.add(key.asString());
+					} else {
+						existingTypes.add(key.asString());
+					}
+				}
+			} catch (IllegalStateException ignored) {
+			}
+		}
+
+		if (!registeredTypes.isEmpty()) {
+			instance.debug(
+					"Registered tool recipe" + (registeredTypes.size() == 1 ? "" : "s") + ": " + registeredTypes);
+		}
+		if (!unregisteredTypes.isEmpty()) {
+			instance.debug("Removed disabled tool recipe" + (unregisteredTypes.size() == 1 ? "" : "s") + ": "
+					+ unregisteredTypes);
+		}
+		if (!existingTypes.isEmpty()) {
+			instance.debug(
+					"Skipped existing tool recipe" + (existingTypes.size() == 1 ? "" : "s") + ": " + existingTypes);
+		}
+	}
+
+	@NotNull
+	private List<HellblockRecipe> registerNetherTool(@NotNull Context<Player> context, @NotNull Section section) {
+		List<HellblockRecipe> result = new ArrayList<>();
+
+		instance.debug("Scanning tools.yml for recipes...");
 
 		for (Map.Entry<String, Object> entry : section.getStringRouteMappedValues(false).entrySet()) {
 			if (!(entry.getValue() instanceof Section inner)) {
+				instance.getPluginLogger().warn("Tool '" + entry.getValue() + "' is not a valid section, skipping.");
 				continue;
 			}
 
+			instance.debug("Found tool category entry: " + entry.getKey());
+
+			List<String> foundTypes = new ArrayList<>();
+
 			for (ToolType type : ToolType.values()) {
-				final Section typeSection = inner.getSection(type.toString().toLowerCase());
-				if (typeSection == null) {
+				Section typeSection = inner.getSection(type.toString().toLowerCase());
+				if (typeSection == null)
 					continue;
-				}
 
-				final String materialName = typeSection.getString("material");
+				foundTypes.add(type.toString().toLowerCase());
+
+				String materialName = typeSection.getString("material");
 				if (materialName == null) {
-					instance.getPluginLogger()
-							.warn("Tool entry " + entry.getKey() + " (" + type + ") missing 'material'.");
+					warnInvalidTool("missing 'material'", entry.getKey(), type);
 					continue;
 				}
 
-				final Material material = Material.matchMaterial(materialName.toUpperCase(Locale.ROOT));
+				Material material = Material.matchMaterial(materialName.toUpperCase(Locale.ROOT));
 				if (material == null) {
-					instance.getPluginLogger().warn("Invalid tool material: " + materialName);
+					warnInvalidTool("invalid material: " + materialName, entry.getKey(), type);
 					continue;
 				}
 
-				final boolean enabled = typeSection.getBoolean("enable", true);
-				final boolean nightVision = typeSection.getBoolean("night-vision", false);
-				final NamespacedKey key = new NamespacedKey(instance, materialName.toLowerCase());
-
+				boolean enabled = typeSection.getBoolean("enable", true);
+				boolean nightVision = typeSection.getBoolean("night-vision", false);
+				NamespacedKey key = new NamespacedKey(instance, materialName.toLowerCase());
 				toolMap.putIfAbsent(material, new ToolData(enabled, nightVision));
 
 				if (!enabled) {
-					recipes.putIfAbsent(key, null);
+					result.add(new HellblockRecipe.Disabled(key));
 					continue;
 				}
 
-				// Build tool item
-				final CustomItem item = new SingleItemParser(entry.getKey(), inner,
-						instance.getConfigManager().getItemFormatFunctions()).getItem();
-				ItemStack data = setToolData(item.build(context), true);
-				data = setNightVisionToolStatus(data, nightVision);
-
-				// Build recipe
-				final ShapedRecipe recipe = new ShapedRecipe(key, data);
-				recipe.setCategory(CraftingBookCategory.EQUIPMENT);
-
-				final String[] shape = typeSection.getStringList("crafting.recipe").toArray(new String[0]);
-				if (shape.length != 3) {
-					instance.getPluginLogger()
-							.warn("Recipe for " + entry.getKey() + " (" + type + ") must have 3 rows.");
-					continue;
+				CustomItem item = new SingleItemParser(entry.getKey() + "_" + type.toString().toLowerCase(),
+						typeSection, instance.getConfigManager().getItemFormatFunctions()).getItem();
+				ItemStack resultItem = setNightVisionToolStatus(setToolData(item.build(context), true), nightVision);
+				if (resultItem != null) {
+					Map<NamespacedKey, ShapedRecipe> built = buildShiftedToolRecipes(
+							entry.getKey() + "_" + type.toString().toLowerCase(), typeSection, resultItem);
+					if (built != null)
+						built.forEach((k, v) -> result.add(new HellblockRecipe.Enabled(k, v)));
+				} else {
+					warnInvalidTool("invalid tool result: " + item.id(), entry.getKey(), type);
 				}
-				recipe.shape(shape);
-
-				final Section craftingIngredients = typeSection.getSection("crafting.materials");
-				if (craftingIngredients != null) {
-					final Map<ItemStack, Character> craftingMaterials = instance.getConfigManager()
-							.getCraftingMaterials(craftingIngredients);
-
-					craftingMaterials.entrySet().forEach(ingredient -> recipe.setIngredient(ingredient.getValue(),
-							new RecipeChoice.ExactChoice(ingredient.getKey())));
-				}
-
-				recipes.putIfAbsent(key, recipe);
 			}
+
+			// After finishing the type loop, print all found types in one line
+			if (!foundTypes.isEmpty()) {
+				instance.debug("Found tool type value" + (foundTypes.size() == 1 ? "" : "s") + ": " + foundTypes);
+			}
+		}
+
+		return result;
+	}
+
+	@Nullable
+	private Map<NamespacedKey, ShapedRecipe> buildShiftedToolRecipes(@NotNull String keyName, @NotNull Section section,
+			@NotNull ItemStack result) {
+		List<String> originalShape = section.getStringList("crafting.recipe", new ArrayList<>());
+		if (originalShape.size() != 3) {
+			warnInvalidRecipe("Invalid recipe shape", keyName);
+			return null;
+		}
+
+		Section ingredientSection = section.getSection("crafting.ingredients");
+		if (ingredientSection == null) {
+			warnInvalidRecipe("Missing ingredients section", keyName);
+			return null;
+		}
+
+		Map<ItemStack, Character> ingredients = instance.getConfigManager().getCraftingIngredients(ingredientSection);
+		List<String> trimmed = recipeHelper.trimShape(originalShape);
+		List<String[][]> variants = recipeHelper.generateShiftedShapes(trimmed);
+
+		Map<NamespacedKey, ShapedRecipe> recipes = new HashMap<>();
+		int variantIndex = 0;
+
+		for (String[][] shapeGrid : variants) {
+			String variantSuffix = variantIndex > 0 ? "_" + variantIndex : "";
+			NamespacedKey variantKey = new NamespacedKey(instance, keyName.toLowerCase(Locale.ROOT) + variantSuffix);
+			ShapedRecipe recipe = new ShapedRecipe(variantKey, result);
+			RecipeDiscoveryUtil.trySetRecipeCategory(recipe, "EQUIPMENT");
+
+			String[] shapeLines = Arrays.stream(shapeGrid).map(row -> String.join("", row)).toArray(String[]::new);
+			recipe.shape(shapeLines);
+
+			for (Map.Entry<ItemStack, Character> entry : ingredients.entrySet()) {
+				if (entry.getKey() == null || entry.getKey().getType().isAir())
+					continue;
+				recipe.setIngredient(entry.getValue(), new RecipeChoice.MaterialChoice(entry.getKey().getType()));
+			}
+
+			recipes.put(variantKey, recipe);
 		}
 
 		return recipes;
 	}
 
-	@EventHandler
+	@EventHandler(ignoreCancelled = true)
 	public void onCrafting(CraftItemEvent event) {
-		if (!(event.getView().getPlayer() instanceof Player player)) {
+		Player player = getValidPlayer(event.getView().getPlayer());
+		if (player == null)
 			return;
-		}
-		if (!instance.getHellblockHandler().isInCorrectWorld(player)) {
-			return;
-		}
 
-		handleRecipeDiscovery(player, event.getRecipe());
-		final ItemStack result = event.getRecipe().getResult().clone();
-		instance.getStorageManager().getOnlineUser(player.getUniqueId())
-				.ifPresent(user -> instance.getChallengeManager().handleChallengeProgression(player, ActionType.CRAFT,
-						result, result.getAmount()));
+		RecipeDiscoveryUtil.handleRecipeDiscovery(player, event.getRecipe(), this::isNetherToolEnabled,
+				this::getToolData);
+
+		ItemStack result = event.getRecipe().getResult().clone();
+		instance.getStorageManager().getOnlineUser(player.getUniqueId()).ifPresent(userData -> {
+			if (instance.getCooldownManager().shouldUpdateActivity(player.getUniqueId(), 5000)) {
+				userData.getHellblockData().updateLastIslandActivity();
+			}
+			instance.getChallengeManager().handleChallengeProgression(userData, ActionType.CRAFT, result,
+					result.getAmount());
+		});
 	}
 
 	@EventHandler
 	public void onLimitedCrafting(PrepareItemCraftEvent event) {
-		if (!(event.getView().getPlayer() instanceof Player player)) {
+		Player player = getValidPlayer(event.getView().getPlayer());
+		if (player == null || !player.getWorld().getGameRuleValue(GameRule.DO_LIMITED_CRAFTING))
 			return;
-		}
-		if (!instance.getHellblockHandler().isInCorrectWorld(player)) {
-			return;
-		}
-		if (!player.getWorld().getGameRuleValue(GameRule.DO_LIMITED_CRAFTING)) {
-			return;
-		}
 
-		handleRecipeDiscovery(player, event.getRecipe());
+		RecipeDiscoveryUtil.handleRecipeDiscovery(player, event.getRecipe(), this::isNetherToolEnabled,
+				this::getToolData);
 	}
 
-	@EventHandler
+	@EventHandler(ignoreCancelled = true)
 	public void onSlotChange(PlayerItemHeldEvent event) {
-		final Player player = event.getPlayer();
-		if (!instance.getHellblockHandler().isInCorrectWorld(player)) {
+		Player player = getValidPlayer(event.getPlayer());
+		if (player == null)
 			return;
-		}
-		final Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
-		if (onlineUser.isEmpty()) {
-			return;
-		}
 
-		ItemStack tool = player.getInventory().getItem(event.getNewSlot());
-		if (!hasValidGlowstoneTool(tool)) {
-			tool = player.getInventory().getItemInOffHand();
-		}
-
-		applyToolEffect(player, onlineUser.get(), hasValidGlowstoneTool(tool));
+		instance.getStorageManager().getOnlineUser(player.getUniqueId()).ifPresent(data -> handleToolEffect(player,
+				data, player.getInventory().getItem(event.getNewSlot()), player.getInventory().getItemInOffHand()));
 	}
 
-	@EventHandler
+	@EventHandler(ignoreCancelled = true)
 	public void onSwapHand(PlayerSwapHandItemsEvent event) {
-		final Player player = event.getPlayer();
-		if (!instance.getHellblockHandler().isInCorrectWorld(player)) {
+		Player player = getValidPlayer(event.getPlayer());
+		if (player == null)
 			return;
-		}
-		final Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
-		if (onlineUser.isEmpty()) {
-			return;
-		}
-		ItemStack tool = event.getMainHandItem();
-		if (!hasValidGlowstoneTool(tool)) {
-			tool = event.getOffHandItem();
-		}
-		applyToolEffect(player, onlineUser.get(), hasValidGlowstoneTool(tool));
+
+		instance.getStorageManager().getOnlineUser(player.getUniqueId())
+				.ifPresent(data -> handleToolEffect(player, data, event.getMainHandItem(), event.getOffHandItem()));
 	}
 
-	@EventHandler
+	@EventHandler(ignoreCancelled = true)
 	public void onPickup(EntityPickupItemEvent event) {
-		if (!(event.getEntity() instanceof Player player)) {
+		if (!(event.getEntity() instanceof Player livingEntity)) {
 			return;
 		}
-		if (!instance.getHellblockHandler().isInCorrectWorld(player)) {
+		Player player = getValidPlayer(livingEntity);
+		if (player == null)
 			return;
-		}
-		final Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
-		if (onlineUser.isEmpty()) {
-			return;
-		}
 		final ItemStack tool = event.getItem().getItemStack();
 		instance.getScheduler().sync().runLater(() -> {
 			final ItemStack main = player.getInventory().getItemInMainHand();
@@ -256,195 +353,145 @@ public class ToolsHandler implements Listener, Reloadable {
 			final boolean holding = main.isSimilar(tool) || off.isSimilar(tool);
 
 			if (holding) {
-				applyToolEffect(player, onlineUser.get(), hasValidGlowstoneTool(tool));
+				instance.getStorageManager().getOnlineUser(player.getUniqueId())
+						.ifPresent(data -> handleToolEffect(player, data, main, off));
 			}
 		}, 1, player.getLocation());
 	}
 
-	@EventHandler
+	@EventHandler(ignoreCancelled = true)
 	public void onDrop(PlayerDropItemEvent event) {
-		final Player player = event.getPlayer();
-		if (!instance.getHellblockHandler().isInCorrectWorld(player)) {
+		Player player = getValidPlayer(event.getPlayer());
+		if (player == null)
 			return;
-		}
-		final Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
-		if (onlineUser.isEmpty()) {
-			return;
-		}
-		applyToolEffect(player, onlineUser.get(), false);
+
+		instance.getStorageManager().getOnlineUser(player.getUniqueId())
+				.ifPresent(data -> handleToolEffect(player, data));
 	}
 
-	@EventHandler
-	public void onClick(InventoryClickEvent event) {
-		if (!(event.getWhoClicked() instanceof Player player)) {
+	@EventHandler(ignoreCancelled = true)
+	public void onToolClick(InventoryClickEvent event) {
+		Player player = getValidPlayer(event.getWhoClicked());
+		if (player == null)
 			return;
-		}
-		if (!instance.getHellblockHandler().isInCorrectWorld(player)) {
-			return;
-		}
-		final Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
-		if (onlineUser.isEmpty()) {
-			return;
-		}
-		if (!(event.getSlotType() == InventoryType.SlotType.QUICKBAR
-				|| event.getSlotType() == InventoryType.SlotType.CONTAINER)) {
-			return;
-		}
-		final ItemStack tool = event.getCursor();
-		if (tool.getType() != Material.AIR) {
-			clickCache.put(onlineUser.get(), hasValidGlowstoneTool(tool));
+
+		if (event.getSlotType() == InventoryType.SlotType.QUICKBAR
+				|| event.getSlotType() == InventoryType.SlotType.CONTAINER) {
+			clickCache.add(player.getUniqueId());
 		}
 	}
 
 	@EventHandler
-	public void onClose(InventoryCloseEvent event) {
-		if (!(event.getPlayer() instanceof Player player)) {
+	public void onToolClose(InventoryCloseEvent event) {
+		Player player = getValidPlayer(event.getPlayer());
+		if (player == null)
 			return;
-		}
-		if (!instance.getHellblockHandler().isInCorrectWorld(player)) {
-			return;
-		}
-		final Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
-		if (onlineUser.isEmpty()) {
-			return;
-		}
 		instance.getScheduler().sync().runLater(() -> {
-			if (clickCache.containsKey(onlineUser.get())) {
-				applyToolEffect(player, onlineUser.get(), clickCache.get(onlineUser.get()));
-				clickCache.remove(onlineUser.get());
+			if (clickCache.remove(player.getUniqueId())) {
+				instance.getStorageManager().getOnlineUser(player.getUniqueId())
+						.ifPresent(data -> handleToolEffect(player, data));
 			}
 		}, 1, player.getLocation());
 	}
 
 	@EventHandler
 	public void onToolBreak(PlayerItemBreakEvent event) {
-		final Player player = event.getPlayer();
-		if (!instance.getHellblockHandler().isInCorrectWorld(player)) {
+		Player player = getValidPlayer(event.getPlayer());
+		if (player == null)
 			return;
-		}
-		final Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
-		if (onlineUser.isEmpty()) {
-			return;
-		}
-		applyToolEffect(player, onlineUser.get(), false);
+
+		instance.getStorageManager().getOnlineUser(player.getUniqueId())
+				.ifPresent(data -> handleToolEffect(player, data));
 	}
 
-	private void handleRecipeDiscovery(Player player, @Nullable Recipe recipe) {
-		if (recipe == null) {
-			return;
-		}
-		if (!(recipe instanceof CraftingRecipe craft)) {
-			return;
-		}
+	private void handleToolEffect(@NotNull Player player, @NotNull UserData userData, @Nullable ItemStack... items) {
+		ItemStack[] itemsToCheck;
 
-		final ItemStack result = recipe.getResult();
-
-		if (!isNetherToolEnabled(result)) {
-			return;
-		}
-		if (!checkToolData(result)) {
-			return;
-		}
-		if (!getToolData(result)) {
-			return;
-		}
-
-		if (!player.hasDiscoveredRecipe(craft.getKey())) {
-			player.discoverRecipe(craft.getKey());
-		}
-	}
-
-	private void applyToolEffect(Player player, UserData onlineUser, boolean enable) {
-		if (enable) {
-			player.addPotionEffect(new PotionEffect(PotionEffectType.NIGHT_VISION, Integer.MAX_VALUE, 1));
-			onlineUser.isHoldingGlowstoneTool(true);
+		if (items == null || items.length == 0) {
+			itemsToCheck = new ItemStack[] { player.getInventory().getItemInMainHand(),
+					player.getInventory().getItemInOffHand() };
 		} else {
-			if (onlineUser.hasGlowstoneToolEffect() && player.hasPotionEffect(PotionEffectType.NIGHT_VISION)) {
-				onlineUser.isHoldingGlowstoneTool(false);
-				if (!onlineUser.hasGlowstoneArmorEffect()) {
-					player.removePotionEffect(PotionEffectType.NIGHT_VISION);
-				}
+			itemsToCheck = items;
+		}
+
+		boolean hasGlowTool = Arrays.stream(itemsToCheck).filter(Objects::nonNull)
+				.filter(item -> item.getType() != Material.AIR).anyMatch(item -> isNetherToolEnabled(item)
+						&& isNetherToolNightVisionAllowed(item) && getNightVisionToolStatus(item));
+
+		if (hasGlowTool) {
+			player.addPotionEffect(new PotionEffect(PotionEffectType.NIGHT_VISION, Integer.MAX_VALUE, 1));
+			userData.isHoldingGlowstoneTool(true);
+		} else if (userData.hasGlowstoneToolEffect() && player.hasPotionEffect(PotionEffectType.NIGHT_VISION)) {
+			userData.isHoldingGlowstoneTool(true);
+			if (!userData.hasGlowstoneToolEffect()) {
+				player.removePotionEffect(PotionEffectType.NIGHT_VISION);
 			}
 		}
 	}
 
-	private boolean hasValidGlowstoneTool(@Nullable ItemStack item) {
-		if (!isNetherToolEnabled(item)) {
-			return false;
+	@Nullable
+	private Player getValidPlayer(@NotNull HumanEntity entity) {
+		if (!(entity instanceof Player player))
+			return null;
+		return instance.getHellblockHandler().isInCorrectWorld(player) ? player : null;
+	}
+
+	private void warnInvalidTool(@NotNull String reason, @NotNull String key, @NotNull ToolType type) {
+		instance.getPluginLogger().warn("Tool entry " + key + " (" + type + "): " + reason);
+	}
+
+	private void warnInvalidRecipe(@NotNull String reason, @NotNull String keyName) {
+		if (loggedInvalidRecipes.add(keyName)) {
+			instance.getPluginLogger().warn("Invalid recipe for " + keyName + ": " + reason);
 		}
-		if (!isNetherToolNightVisionAllowed(item)) {
-			return false;
-		}
-		if (checkNightVisionToolStatus(item) && getNightVisionToolStatus(item)) {
-			return true;
-		}
-		return false;
 	}
 
 	public boolean checkToolData(@Nullable ItemStack item) {
-		if (item == null || item.getType() == Material.AIR) {
-			return false;
-		}
-
-		return new RtagItem(item).hasTag("HellblockRecipe", "isNetherTool");
+		return item != null && item.getType() != Material.AIR
+				&& new RtagItem(item).hasTag("HellblockRecipe", "isNetherTool");
 	}
 
 	public boolean getToolData(@Nullable ItemStack item) {
-		if (item == null || item.getType() == Material.AIR) {
-			return false;
-		}
-
-		return new RtagItem(item).getOptional("HellblockRecipe", "isNetherTool").asBoolean();
+		return item != null && item.getType() != Material.AIR
+				&& new RtagItem(item).getOptional("HellblockRecipe", "isNetherTool").asBoolean();
 	}
 
-	public @Nullable ItemStack setToolData(@Nullable ItemStack item, boolean data) {
-		if (item == null || item.getType() == Material.AIR) {
+	@Nullable
+	public ItemStack setToolData(@Nullable ItemStack item, boolean data) {
+		if (item == null || item.getType() == Material.AIR)
 			return null;
-		}
 
-		final Consumer<RtagItem> rtag = tag -> tag.set(data, "HellblockRecipe", "isNetherTool");
-		return RtagItem.edit(item, rtag);
-	}
-
-	public boolean isNetherToolEnabled(@Nullable ItemStack item) {
-		if (item == null || item.getType() == Material.AIR) {
-			return false;
-		}
-
-		return toolMap.containsKey(item.getType()) && toolMap.get(item.getType()).isEnabled();
+		return RtagItem.<ItemStack>edit(item,
+				(Consumer<RtagItem>) tag -> tag.set(data, "HellblockRecipe", "isNetherTool"));
 	}
 
 	public boolean checkNightVisionToolStatus(@Nullable ItemStack item) {
-		if (item == null || item.getType() == Material.AIR) {
-			return false;
-		}
-
-		return new RtagItem(item).hasTag("HellblockRecipe", "hasNightVision");
+		return item != null && item.getType() != Material.AIR
+				&& new RtagItem(item).hasTag("HellblockRecipe", "hasNightVision");
 	}
 
 	public boolean getNightVisionToolStatus(@Nullable ItemStack item) {
-		if (item == null || item.getType() == Material.AIR) {
-			return false;
-		}
-
-		return new RtagItem(item).getOptional("HellblockRecipe", "hasNightVision").asBoolean();
+		return item != null && item.getType() != Material.AIR
+				&& new RtagItem(item).getOptional("HellblockRecipe", "hasNightVision").asBoolean();
 	}
 
-	public @Nullable ItemStack setNightVisionToolStatus(@Nullable ItemStack item, boolean data) {
-		if (item == null || item.getType() == Material.AIR) {
+	@Nullable
+	public ItemStack setNightVisionToolStatus(@Nullable ItemStack item, boolean data) {
+		if (item == null || item.getType() == Material.AIR)
 			return null;
-		}
 
-		final Consumer<RtagItem> rtag = tag -> tag.set(data, "HellblockRecipe", "hasNightVision");
-		return RtagItem.edit(item, rtag);
+		return RtagItem.<ItemStack>edit(item,
+				(Consumer<RtagItem>) tag -> tag.set(data, "HellblockRecipe", "hasNightVision"));
+	}
+
+	public boolean isNetherToolEnabled(@Nullable ItemStack item) {
+		return item != null && item.getType() != Material.AIR && toolMap.containsKey(item.getType())
+				&& toolMap.get(item.getType()).isEnabled();
 	}
 
 	public boolean isNetherToolNightVisionAllowed(@Nullable ItemStack item) {
-		if (item == null || item.getType() == Material.AIR) {
-			return false;
-		}
-
-		return toolMap.containsKey(item.getType()) && toolMap.get(item.getType()).hasGlowstoneAbility();
+		return item != null && item.getType() != Material.AIR && toolMap.containsKey(item.getType())
+				&& toolMap.get(item.getType()).hasGlowstoneAbility();
 	}
 
 	protected class ToolData {
@@ -457,11 +504,11 @@ public class ToolsHandler implements Listener, Reloadable {
 		}
 
 		public boolean isEnabled() {
-			return this.enabled;
+			return enabled;
 		}
 
 		public boolean hasGlowstoneAbility() {
-			return this.glowstone;
+			return glowstone;
 		}
 	}
 

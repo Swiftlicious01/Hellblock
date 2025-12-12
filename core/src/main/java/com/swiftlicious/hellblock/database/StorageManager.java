@@ -2,13 +2,18 @@ package com.swiftlicious.hellblock.database;
 
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.Type;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -43,25 +48,51 @@ import com.google.gson.reflect.TypeToken;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.challenges.ChallengeResult;
 import com.swiftlicious.hellblock.challenges.ChallengeType;
+import com.swiftlicious.hellblock.challenges.HellblockChallenge.ActionType;
+import com.swiftlicious.hellblock.challenges.HellblockChallenge.CompletionStatus;
+import com.swiftlicious.hellblock.challenges.requirement.LevelUpRequirement;
+import com.swiftlicious.hellblock.commands.CommandConfig;
+import com.swiftlicious.hellblock.commands.HellblockCommandManager;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
+import com.swiftlicious.hellblock.generation.HellBiome;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
+import com.swiftlicious.hellblock.handlers.VersionHelper;
 import com.swiftlicious.hellblock.handlers.VisitManager.VisitRecord;
+import com.swiftlicious.hellblock.player.CoopChatSetting;
+import com.swiftlicious.hellblock.player.DisplaySettings;
+import com.swiftlicious.hellblock.player.DisplaySettings.DisplayChoice;
+import com.swiftlicious.hellblock.player.HellblockData;
 import com.swiftlicious.hellblock.player.PlayerData;
 import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.player.UserDataInterface;
 import com.swiftlicious.hellblock.player.mailbox.MailboxEntry;
+import com.swiftlicious.hellblock.protection.HellblockFlag;
 import com.swiftlicious.hellblock.protection.HellblockFlag.AccessType;
 import com.swiftlicious.hellblock.protection.HellblockFlag.FlagType;
 import com.swiftlicious.hellblock.scheduler.SchedulerTask;
 import com.swiftlicious.hellblock.sender.Sender;
+import com.swiftlicious.hellblock.upgrades.IslandUpgradeType;
+import com.swiftlicious.hellblock.utils.adapters.BooleanAdapter;
+import com.swiftlicious.hellblock.utils.adapters.DoubleAdapter;
+import com.swiftlicious.hellblock.utils.adapters.EnumMapSerializer;
+import com.swiftlicious.hellblock.utils.adapters.EnumOmitDefaultAdapter;
+import com.swiftlicious.hellblock.utils.adapters.FloatAdapter;
 import com.swiftlicious.hellblock.utils.adapters.HellblockTypeAdapterFactory;
+import com.swiftlicious.hellblock.utils.adapters.IntegerAdapter;
 import com.swiftlicious.hellblock.utils.adapters.ListSerializer;
+import com.swiftlicious.hellblock.utils.adapters.LongAdapter;
 import com.swiftlicious.hellblock.utils.adapters.MapSerializer;
+import com.swiftlicious.hellblock.utils.adapters.NestedMapSerializer;
 import com.swiftlicious.hellblock.utils.adapters.SetSerializer;
+import com.swiftlicious.hellblock.utils.adapters.StringAdapter;
 import com.swiftlicious.hellblock.world.HellblockWorld;
 
 import dev.dejvokep.boostedyaml.YamlDocument;
+import net.kyori.adventure.key.Key;
+import net.kyori.adventure.sound.Sound;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.event.ClickEvent;
+import net.kyori.adventure.text.event.HoverEvent;
 
 /**
  * This class implements the StorageManager interface and is responsible for
@@ -76,12 +107,25 @@ public class StorageManager implements StorageManagerInterface, Listener {
 	private final ConcurrentMap<UUID, UserData> onlineUserMap = new ConcurrentHashMap<>();
 	private final Cache<UUID, UserData> offlineUserCache = Caffeine.newBuilder().maximumSize(10_000)
 			.expireAfterAccess(Duration.ofMinutes(15)).build();
+	// Keeps track of each user's last saved snapshot
+	private final Map<UUID, PlayerData> lastSavedSnapshots = new ConcurrentHashMap<>();
 	private final Set<UUID> locked = new HashSet<>();
 	private boolean hasRedis;
 	private RedisManager redisManager;
 	private String serverID;
 	private SchedulerTask timerSaveTask;
 	private final Gson gson;
+
+	private final Set<UUID> forceUnlockedPlayers = ConcurrentHashMap.newKeySet();
+	private final Map<UUID, Object> cacheLocks = new ConcurrentHashMap<>();
+	private final Set<UUID> cachingInProgress = ConcurrentHashMap.newKeySet();
+	// Class-level set to deduplicate callbacks
+	private final ConcurrentMap<UUID, Runnable> pendingCacheCallbacks = new ConcurrentHashMap<>();
+	private final Set<UUID> confirmedInsertFutureCallbacks = ConcurrentHashMap.newKeySet();
+	private final Set<UUID> callbackDeferralGuard = ConcurrentHashMap.newKeySet();
+	private RetryManager retryManager;
+
+	private final ExecutorService preloadExecutor = Executors.newFixedThreadPool(10); // adjust threads
 
 	public StorageManager(HellblockPlugin plugin) {
 		instance = plugin;
@@ -92,32 +136,64 @@ public class StorageManager implements StorageManagerInterface, Listener {
 		// Map keys
 		final GsonBuilder builder = new GsonBuilder().excludeFieldsWithoutExposeAnnotation()
 				.enableComplexMapKeySerialization().setPrettyPrinting();
-		// Register map, set & list serializers
-		builder.registerTypeAdapter((new TypeToken<Map<ChallengeType, ChallengeResult>>() {
-		}).getType(), new MapSerializer<>(ChallengeType.class, ChallengeResult.class));
-		builder.registerTypeAdapter((new TypeToken<Map<UUID, Long>>() {
-		}).getType(), new MapSerializer<>(UUID.class, Long.class));
-		builder.registerTypeAdapter((new TypeToken<Map<FlagType, AccessType>>() {
-		}).getType(), new MapSerializer<>(FlagType.class, AccessType.class));
-		builder.registerTypeAdapter((new TypeToken<Set<UUID>>() {
-		}).getType(), new SetSerializer<>(UUID.class));
-		builder.registerTypeAdapter((new TypeToken<List<String>>() {
-		}).getType(), new ListSerializer<>(String.class));
-		builder.registerTypeAdapter((new TypeToken<List<MailboxEntry>>() {
-		}).getType(), new ListSerializer<>(MailboxEntry.class));
-		builder.registerTypeAdapter((new TypeToken<List<VisitRecord>>() {
-		}).getType(), new ListSerializer<>(VisitRecord.class));
-		// Register adapter factory
+
+		// --- Collections ---
+		builder.registerTypeAdapter(new TypeToken<Map<ChallengeType, ChallengeResult>>() {
+		}.getType(), new MapSerializer<>(ChallengeType.class, ChallengeResult.class));
+		builder.registerTypeAdapter(new TypeToken<Map<UUID, Long>>() {
+		}.getType(), new MapSerializer<>(UUID.class, Long.class));
+		builder.registerTypeAdapter(new TypeToken<Map<UUID, Long>>() {
+		}.getType(), new MapSerializer<>(String.class, Integer.class));
+		builder.registerTypeAdapter(new TypeToken<Map<UUID, Long>>() {
+		}.getType(), new MapSerializer<>(String.class, Float.class));
+		builder.registerTypeAdapter(new TypeToken<Map<Integer, List<String>>>() {
+		}.getType(), new MapSerializer<>(Integer.class, List.class));
+		builder.registerTypeAdapter(new TypeToken<EnumMap<FlagType, HellblockFlag>>() {
+		}.getType(), new EnumMapSerializer<>(FlagType.class, HellblockFlag.class));
+		Type mapType = new TypeToken<Map<String, Map<String, Integer>>>() {
+		}.getType();
+		builder.registerTypeAdapter(mapType, new NestedMapSerializer<>(String.class, Integer.class));
+		builder.registerTypeAdapter(new TypeToken<EnumMap<IslandUpgradeType, Integer>>() {
+		}.getType(), new EnumMapSerializer<>(IslandUpgradeType.class, Integer.class));
+		builder.registerTypeAdapter(new TypeToken<Set<UUID>>() {
+		}.getType(), new SetSerializer<>(UUID.class));
+		builder.registerTypeAdapter(new TypeToken<List<String>>() {
+		}.getType(), new ListSerializer<>(String.class));
+		builder.registerTypeAdapter(new TypeToken<List<MailboxEntry>>() {
+		}.getType(), new ListSerializer<>(MailboxEntry.class));
+		builder.registerTypeAdapter(new TypeToken<List<VisitRecord>>() {
+		}.getType(), new ListSerializer<>(VisitRecord.class));
+
+		// --- Plugin-specific Enums: use null for default (omit during serialization)
+		builder.registerTypeAdapter(CompletionStatus.class,
+				new EnumOmitDefaultAdapter<>(CompletionStatus.class, CompletionStatus.NOT_STARTED));
+		builder.registerTypeAdapter(AccessType.class, new EnumOmitDefaultAdapter<>(AccessType.class, AccessType.ALLOW));
+		builder.registerTypeAdapter(HellBiome.class,
+				new EnumOmitDefaultAdapter<>(HellBiome.class, HellBiome.NETHER_WASTES));
+		builder.registerTypeAdapter(CoopChatSetting.class,
+				new EnumOmitDefaultAdapter<>(CoopChatSetting.class, CoopChatSetting.GLOBAL));
+		builder.registerTypeAdapter(DisplayChoice.class,
+				new EnumOmitDefaultAdapter<>(DisplayChoice.class, DisplayChoice.CHAT));
+
+		// --- Primitives / Boxed primitives ---
+		builder.registerTypeAdapter(Integer.class, new IntegerAdapter());
+		builder.registerTypeAdapter(Long.class, new LongAdapter());
+		builder.registerTypeAdapter(Float.class, new FloatAdapter());
+		builder.registerTypeAdapter(Double.class, new DoubleAdapter());
+		builder.registerTypeAdapter(Boolean.class, new BooleanAdapter());
+		builder.registerTypeAdapter(String.class, new StringAdapter());
+
+		// --- Core types ---
 		builder.registerTypeAdapterFactory(new HellblockTypeAdapterFactory());
-		// Allow characters like < or > without escaping them
+
+		// --- Cleanup output
 		builder.disableHtmlEscaping();
+
 		gson = builder.create();
 	}
 
-	public void init() {
+	public void initialize() {
 		Bukkit.getPluginManager().registerEvents(this, instance);
-		preloadCachedIslandOwners()
-				.thenRun(() -> instance.getPluginLogger().info("Finished preloading island owner data."));
 	}
 
 	/**
@@ -163,6 +239,11 @@ public class StorageManager implements StorageManagerInterface, Listener {
 			}
 		}
 
+		this.retryManager = new RetryManager(
+				(task, delay) -> instance.getScheduler().asyncLater(task, delay, TimeUnit.SECONDS), 4, // max retries
+				1 // initial delay in seconds
+		);
+
 		// Handle Redis configuration
 		if (!this.hasRedis && config.getBoolean("Redis.enable", false)) {
 			this.redisManager = new RedisManager(instance);
@@ -186,19 +267,71 @@ public class StorageManager implements StorageManagerInterface, Listener {
 		// Schedule periodic data saving if dataSaveInterval is configured
 		if (instance.getConfigManager().dataSaveInterval() > 0) {
 			this.timerSaveTask = instance.getScheduler().asyncRepeating(() -> {
-				if (this.onlineUserMap.values().isEmpty()) {
+				if (this.onlineUserMap.isEmpty() && this.offlineUserCache.asMap().isEmpty()) {
 					return;
 				}
-				final long finalTime = System.currentTimeMillis();
-				this.dataSource.updateManyPlayersData(this.onlineUserMap.values(),
-						!instance.getConfigManager().lockData());
-				if (instance.getConfigManager().logDataSaving()) {
-					instance.getPluginLogger().info("Data Saved for online players. Took %sms."
-							.formatted((System.currentTimeMillis() - finalTime)));
+
+				final long startTime = System.currentTimeMillis();
+
+				// Determine which online users have changed
+				List<UserData> dirtyOnlineUsers = this.onlineUserMap.values().stream().filter(user -> {
+					PlayerData current = user.toPlayerData();
+					PlayerData lastSaved = lastSavedSnapshots.get(user.getUUID());
+					return lastSaved == null || !Arrays.equals(current.toBytes(), lastSaved.toBytes());
+				}).toList();
+
+				if (!dirtyOnlineUsers.isEmpty()) {
+					this.dataSource.updateManyPlayersData(dirtyOnlineUsers, !instance.getConfigManager().lockData())
+							.thenRun(() -> {
+								// Update snapshots after successful save
+								dirtyOnlineUsers
+										.forEach(user -> lastSavedSnapshots.put(user.getUUID(), user.toPlayerData()));
+								instance.debug("Online batch update successful for " + dirtyOnlineUsers.size() + " user"
+										+ (dirtyOnlineUsers.size() == 1 ? "" : "s") + "!");
+							}).exceptionally(ex -> {
+								instance.getPluginLogger().severe("Online batch update failed", ex);
+								return null;
+							});
 				}
+
+				// Handle offline users, but skip ones already updated
+				Set<UUID> updatedOnlineUUIDs = dirtyOnlineUsers.stream().map(UserData::getUUID)
+						.collect(Collectors.toSet());
+
+				Collection<UserData> filteredOfflineUsers = this.offlineUserCache.asMap().values().stream()
+						.filter(user -> !updatedOnlineUUIDs.contains(user.getUUID())).filter(user -> {
+							PlayerData current = user.toPlayerData();
+							PlayerData lastSaved = lastSavedSnapshots.get(user.getUUID());
+							return lastSaved == null || !Arrays.equals(current.toBytes(), lastSaved.toBytes());
+						}).toList();
+
+				if (!filteredOfflineUsers.isEmpty()) {
+					this.dataSource.updateManyPlayersData(filteredOfflineUsers, !instance.getConfigManager().lockData())
+							.thenRun(() -> {
+								filteredOfflineUsers
+										.forEach(user -> lastSavedSnapshots.put(user.getUUID(), user.toPlayerData()));
+								instance.debug("Offline batch update successful for " + filteredOfflineUsers.size()
+										+ " user" + (filteredOfflineUsers.size() == 1 ? "" : "s") + "!");
+							}).exceptionally(ex -> {
+								instance.getPluginLogger().severe("Offline batch update failed", ex);
+								return null;
+							});
+				}
+
+				// Logging
+				if ((!dirtyOnlineUsers.isEmpty() || !filteredOfflineUsers.isEmpty())
+						&& instance.getConfigManager().logDataSaving()) {
+					instance.getPluginLogger()
+							.info("Data saved for " + (dirtyOnlineUsers.size() + filteredOfflineUsers.size()) + " user"
+									+ ((dirtyOnlineUsers.size() + filteredOfflineUsers.size()) == 1 ? "" : "s")
+									+ " (online/offline). Took " + (System.currentTimeMillis() - startTime) + "ms.");
+				}
+
 			}, instance.getConfigManager().dataSaveInterval(), instance.getConfigManager().dataSaveInterval(),
 					TimeUnit.SECONDS);
 		}
+
+		preloadCachedIslandOwners();
 	}
 
 	/**
@@ -207,23 +340,53 @@ public class StorageManager implements StorageManagerInterface, Listener {
 	@Override
 	public void disable() {
 		HandlerList.unregisterAll(this);
-		if (this.dataSource != null && !onlineUserMap.isEmpty()) {
-			this.dataSource.updateManyPlayersData(onlineUserMap.values(), true);
-		}
-		if (this.dataSource != null && !offlineUserCache.asMap().isEmpty()) {
-			this.dataSource.updateManyPlayersData(offlineUserCache.asMap().values(), true);
-		}
 		if (this.dataSource != null) {
+			List<UserData> onlineUsers = new ArrayList<>(this.onlineUserMap.values());
+			List<UserData> offlineUsers = new ArrayList<>(this.offlineUserCache.asMap().values());
+
+			if (onlineUsers.isEmpty() && offlineUsers.isEmpty()) {
+				instance.debug("No user data to save during shutdown.");
+			} else {
+				Set<UUID> onlineUUIDs = onlineUsers.stream().map(UserData::getUUID).collect(Collectors.toSet());
+
+				// Save online users
+				if (!onlineUsers.isEmpty()) {
+					this.dataSource.updateManyPlayersData(onlineUsers, true)
+							.thenRun(() -> instance.debug("Online batch update successful for " + onlineUsers.size()
+									+ " user" + (onlineUsers.size() == 1 ? "" : "s") + "!"))
+							.exceptionally(ex -> {
+								instance.getPluginLogger().severe("Online batch update failed", ex);
+								return null;
+							});
+				}
+
+				// Save offline users excluding already updated online ones
+				List<UserData> filteredOfflineUsers = offlineUsers.stream()
+						.filter(user -> !onlineUUIDs.contains(user.getUUID())).toList();
+
+				if (!filteredOfflineUsers.isEmpty()) {
+					this.dataSource.updateManyPlayersData(filteredOfflineUsers, true).thenRun(
+							() -> instance.debug("Offline batch update successful for " + filteredOfflineUsers.size()
+									+ " user" + (filteredOfflineUsers.size() == 1 ? "" : "s") + "!"))
+							.exceptionally(ex -> {
+								instance.getPluginLogger().severe("Offline batch update failed", ex);
+								return null;
+							});
+				}
+			}
+
 			this.dataSource.disable();
 		}
 		if (this.redisManager != null) {
 			this.redisManager.disable();
 		}
+		if (this.retryManager != null) {
+			this.retryManager.active.stream().forEach(id -> this.retryManager.cancel(id));
+			this.retryManager.active.clear();
+		}
 		this.onlineUserMap.clear();
-		this.offlineUserCache.asMap().clear();
+		this.offlineUserCache.cleanUp();
 	}
-
-	private final ExecutorService preloadExecutor = Executors.newFixedThreadPool(10); // adjust threads
 
 	@Override
 	public CompletableFuture<Void> preloadCachedIslandOwners() {
@@ -232,22 +395,23 @@ public class StorageManager implements StorageManagerInterface, Listener {
 				return CompletableFuture.completedFuture(null);
 			}
 
-			// Run each preload task in parallel
+			// Preload tasks
 			List<CompletableFuture<Void>> preloadTasks = owners.parallelStream()
-					.map(ownerId -> CompletableFuture.supplyAsync(() ->
-			// join here because we're already async
-			instance.getStorageManager().getOfflineUserData(ownerId, false).join(), preloadExecutor)
+					.map(ownerId -> CompletableFuture
+							.supplyAsync(() -> getCachedUserDataWithFallback(ownerId, false).join(), preloadExecutor)
 							.thenAccept(data -> {
 								if (data.isPresent()) {
 									instance.debug("Preloaded user data for island owner: " + ownerId);
 								}
 							}))
-					.collect(Collectors.toList());
+					.toList();
 
-			return CompletableFuture.allOf(preloadTasks.toArray(CompletableFuture[]::new));
+			return CompletableFuture.allOf(preloadTasks.toArray(CompletableFuture[]::new))
+					.thenRun(() -> instance.debug("Finished preloading island owner data for " + owners.size()
+							+ " owner" + (owners.size() == 1 ? "" : "s") + "."));
 		});
 	}
-	
+
 	public void shutdownPreloadExecutor() {
 		preloadExecutor.shutdownNow();
 	}
@@ -264,7 +428,7 @@ public class StorageManager implements StorageManagerInterface, Listener {
 
 	@NotNull
 	@Override
-	public Optional<UserData> getOnlineUser(UUID uuid) {
+	public Optional<@Nullable UserData> getOnlineUser(UUID uuid) {
 		return Optional.ofNullable(onlineUserMap.get(uuid));
 	}
 
@@ -276,7 +440,7 @@ public class StorageManager implements StorageManagerInterface, Listener {
 
 	@NotNull
 	@Override
-	public Optional<UserData> getCachedUserData(@NotNull UUID uuid) {
+	public Optional<@Nullable UserData> getCachedUserData(@NotNull UUID uuid) {
 		// Prefer online user
 		Optional<UserData> online = getOnlineUser(uuid);
 		if (online.isPresent())
@@ -284,6 +448,19 @@ public class StorageManager implements StorageManagerInterface, Listener {
 
 		// Check cached offline user
 		return Optional.ofNullable(offlineUserCache.getIfPresent(uuid));
+	}
+
+	@NotNull
+	@Override
+	public CompletableFuture<Optional<UserData>> getCachedUserDataWithFallback(UUID uuid, boolean lock) {
+		// First, try cached (online or offline)
+		Optional<UserData> cached = getCachedUserData(uuid);
+		if (cached.isPresent()) {
+			return CompletableFuture.completedFuture(cached);
+		}
+
+		// Fallback to async offline data load
+		return getOfflineUserData(uuid, lock);
 	}
 
 	@Override
@@ -294,15 +471,38 @@ public class StorageManager implements StorageManagerInterface, Listener {
 	@Override
 	public CompletableFuture<Optional<UserData>> getOfflineUserData(UUID uuid, boolean lock) {
 		final CompletableFuture<Optional<PlayerData>> optionalDataFuture = dataSource.getPlayerData(uuid, lock, null);
+
 		return optionalDataFuture.thenCompose(optionalUser -> {
 			if (optionalUser.isEmpty()) {
 				return CompletableFuture.completedFuture(Optional.empty());
 			}
+
 			final PlayerData data = optionalUser.get();
 			UserData userData = UserDataInterface.builder().setData(data).build();
 
-			// Cache for future sync access
 			offlineUserCache.put(uuid, userData);
+
+			return CompletableFuture.completedFuture(Optional.of(userData));
+		});
+	}
+
+	@Override
+	public CompletableFuture<Optional<UserData>> getOfflineUserDataByIslandId(int islandId, boolean lock) {
+		CompletableFuture<Optional<PlayerData>> optionalDataFuture = dataSource.getPlayerDataByIslandId(islandId, lock,
+				null);
+
+		return optionalDataFuture.thenCompose(optionalPlayerData -> {
+			if (optionalPlayerData.isEmpty()) {
+				return CompletableFuture.completedFuture(Optional.empty());
+			}
+
+			PlayerData data = optionalPlayerData.get();
+			UserData userData = UserDataInterface.builder().setData(data).build();
+
+			UUID ownerUUID = userData.getHellblockData().getOwnerUUID();
+			if (ownerUUID != null) {
+				offlineUserCache.put(ownerUUID, userData);
+			}
 
 			return CompletableFuture.completedFuture(Optional.of(userData));
 		});
@@ -329,18 +529,34 @@ public class StorageManager implements StorageManagerInterface, Listener {
 		final Player player = event.getPlayer();
 		final UUID uuid = player.getUniqueId();
 		locked.add(uuid);
+
+		// Send update notification if needed
 		if (player.hasPermission("hellblock.updates") && instance.isUpdateAvailable()) {
-			instance.getSenderFactory().wrap(player).sendMessage(AdventureHelper.miniMessage(
-					"<red>There is a new update available!: <dark_red><u>https://github.com/Swiftlicious01/Hellblock<!u>"));
+			String currentVersion = VersionHelper.getCurrentVersion();
+			String latestVersion = VersionHelper.getLatestVersion();
+
+			String message = """
+					<gradient:#ff5555:#aa0000><bold>[!]</bold></gradient> <bold><red>Hellblock Update Available!</red>
+					<gray>You're on</gray> <yellow>v%s</yellow><gray>, latest is</gray> <green>v%s</green>
+					<hover:show_text:'<green>Open GitHub page'><click:open_url:'https://github.com/Swiftlicious01/Hellblock'><underlined><aqua>Click here to update</aqua></underlined></click></hover>
+					"""
+					.formatted(currentVersion, latestVersion);
+
+			instance.getSenderFactory().wrap(player).sendMessage(AdventureHelper.miniMessageToComponent(message));
 		}
+
 		if (!hasRedis) {
-			waitForDataLockRelease(uuid, 1);
+			// Local data load with retries
+			scheduleDataUnlockRetry(uuid);
 		} else {
+			// fallback path
+			// Redis path with retries
+			// Redis-based retry, fallback to local if needed
 			instance.getScheduler().asyncLater(() -> redisManager.getChangeServer(uuid).thenAccept(changeServer -> {
 				if (!changeServer) {
-					waitForDataLockRelease(uuid, 3);
+					scheduleDataUnlockRetry(uuid);
 				} else {
-					new RedisGetDataTask(uuid);
+					scheduleRedisDataRetry(uuid);
 				}
 			}), 500, TimeUnit.MILLISECONDS);
 		}
@@ -361,17 +577,32 @@ public class StorageManager implements StorageManagerInterface, Listener {
 
 		instance.getProtectionManager().cancelBlockScan(uuid);
 
+		instance.getCoopManager().invalidateVisitingIsland(uuid);
+
 		instance.getSchematicManager().schematicPaster.cancelPaste(uuid);
 
-		instance.getIslandLevelManager().saveCache(uuid);
-		instance.getNetherrackGeneratorHandler().savePistons(uuid);
+		final UserData userData = onlineUserMap.remove(uuid);
 
-		final UserData onlineUser = onlineUserMap.remove(uuid);
-		final PlayerData data = onlineUser.toPlayerData();
+		if (userData.getHellblockData().hasHellblock())
+			userData.getHellblockData().updateLastIslandActivity();
 
+		instance.getBorderHandler().setBorderExpanding(uuid, false);
 		instance.getBorderHandler().stopBorderTask(uuid);
-		onlineUser.stopSpawningAnimals();
-		onlineUser.stopSpawningFortressMobs();
+
+		if (userData.getHellblockData().getOwnerUUID() != null
+				&& userData.getHellblockData().getOwnerUUID().equals(uuid)) {
+			instance.getIslandLevelManager().serializePlacedBlocks(userData.getHellblockData().getIslandId());
+			String worldName = instance.getWorldManager()
+					.getHellblockWorldFormat(userData.getHellblockData().getIslandId());
+			Optional<HellblockWorld<?>> hellWorld = instance.getWorldManager().getWorld(worldName);
+			hellWorld.ifPresent(world -> instance.getNetherrackGeneratorHandler()
+					.savePistonsByIsland(userData.getHellblockData().getIslandId(), world));
+		}
+
+		instance.getIslandManager().resolveIslandId(player.getLocation()).thenAccept(optIslandId -> optIslandId
+				.ifPresent(islandId -> instance.getIslandManager().handlePlayerLeaveIsland(player, islandId)));
+
+		getDataSource().invalidateCache(uuid);
 
 		// Check if this player is an island owner
 		instance.getCoopManager().getIslandOwner(uuid).thenAccept(optionalOwner -> {
@@ -385,23 +616,16 @@ public class StorageManager implements StorageManagerInterface, Listener {
 			}
 		});
 
-		if ((onlineUser.hasGlowstoneToolEffect() || onlineUser.hasGlowstoneArmorEffect())
+		if ((userData.hasGlowstoneToolEffect() || userData.hasGlowstoneArmorEffect())
 				&& player.hasPotionEffect(PotionEffectType.NIGHT_VISION)) {
 			player.removePotionEffect(PotionEffectType.NIGHT_VISION);
-			onlineUser.isHoldingGlowstoneTool(false);
-			onlineUser.isWearingGlowstoneArmor(false);
-		}
-		if (instance.getPlayerListener().getCancellablePortalMap().containsKey(uuid)
-				&& instance.getPlayerListener().getCancellablePortalMap().get(uuid) != null) {
-			instance.getPlayerListener().getCancellablePortalMap().get(uuid).cancel();
-			instance.getPlayerListener().getCancellablePortalMap().remove(uuid);
-		}
-		if (instance.getPlayerListener().getLinkPortalCatcherSet().contains(uuid)) {
-			instance.getPlayerListener().getLinkPortalCatcherSet().remove(uuid);
+			userData.isHoldingGlowstoneTool(false);
+			userData.isWearingGlowstoneArmor(false);
 		}
 		// Cleanup
-		instance.getNetherrackGeneratorHandler().getGeneratorManager().cleanupExpiredPistons(uuid);
-		instance.getNetherrackGeneratorHandler().getGeneratorManager().cleanupExpiredLocations();
+		instance.getNetherrackGeneratorHandler().getGeneratorManager().cleanupExpiredPositions();
+
+		final PlayerData data = userData.toPlayerData();
 
 		if (hasRedis) {
 			redisManager.setChangeServer(uuid).thenRun(() -> redisManager.updatePlayerData(uuid, data, true)
@@ -423,76 +647,130 @@ public class StorageManager implements StorageManagerInterface, Listener {
 	 * Runnable task for asynchronously retrieving data from Redis. Retries up to 6
 	 * times and cancels the task if the player is offline.
 	 */
-	public final class RedisGetDataTask implements Runnable {
-
-		private final UUID uuid;
-		private int triedTimes;
-		private final SchedulerTask task;
-
-		public RedisGetDataTask(UUID uuid) {
-			this.uuid = uuid;
-			this.task = instance.getScheduler().asyncRepeating(this, 0, 333, TimeUnit.MILLISECONDS);
-		}
-
-		@Override
-		public void run() {
-			triedTimes++;
-			final Player player = Bukkit.getPlayer(uuid);
+	public void scheduleRedisDataRetry(UUID uuid) {
+		retryManager.retry(uuid, (id, attempt, retry, cancel) -> {
+			final Player player = Bukkit.getPlayer(id);
 			if (player == null || !player.isOnline()) {
-				// offline
-				task.cancel();
+				cancel.run(); // Player went offline, stop retrying
 				return;
 			}
-			if (triedTimes >= 6) {
-				waitForDataLockRelease(uuid, 3);
-				task.cancel();
+
+			if (dataSource.isPendingInsert(uuid) || dataSource.isInsertStillRecent(uuid)) {
+				instance.debug("Delaying Redis retry — insert still active or recent for " + id);
+				instance.getScheduler().asyncLater(() -> scheduleRedisDataRetry(id), 250, TimeUnit.MILLISECONDS);
 				return;
 			}
-			redisManager.getPlayerData(uuid, false, null).thenAccept(optionalData -> {
+
+			if (attempt >= 6) {
+				instance.getPluginLogger()
+						.warn("Redis data fetch failed after 6 attempts for " + id + ". Falling back.");
+				cancel.run();
+				scheduleDataUnlockRetry(id);
+				return;
+			}
+
+			redisManager.getPlayerData(id, false, null).thenAccept(optionalData -> {
 				if (optionalData.isPresent()) {
-					putDataInCache(player, optionalData.get());
-					task.cancel();
-					dataSource.lockOrUnlockPlayerData(uuid, instance.getConfigManager().lockData());
+					try {
+						putDataInCache(player, optionalData.get());
+						dataSource.lockOrUnlockPlayerData(id, false);
+					} catch (Exception e) {
+						e.printStackTrace();
+					}
+					cancel.run(); // Done
+				} else {
+					retry.run(); // Try again later
 				}
 			});
-		}
+		});
 	}
 
 	/**
-	 * Waits for data lock release with a delay and a maximum of three retries.
+	 * Waits for data lock release with a delay and a maxium of four retries.
 	 *
-	 * @param uuid  The UUID of the player.
-	 * @param times The number of times this method has been retried.
+	 * @param uuid The UUID of the player.
 	 */
-	public void waitForDataLockRelease(UUID uuid, int times) {
-		instance.getScheduler().asyncLater(() -> {
-			final var player = Bukkit.getPlayer(uuid);
+	public void scheduleDataUnlockRetry(UUID uuid) {
+		retryManager.retry(uuid, (id, attempt, retry, cancel) -> {
+			final Player player = Bukkit.getPlayer(id);
 			if (player == null || !player.isOnline()) {
+				cancel.run(); // stop retrying if player left
 				return;
 			}
-			if (times > 3) {
-				instance.getPluginLogger().warn("Tried 3 times when getting data for %s. Giving up.".formatted(uuid));
-				return;
-			}
-			this.dataSource.getPlayerData(uuid, instance.getConfigManager().lockData(), null)
-					.thenAccept(optionalData -> {
-						// Data should not be empty
-						if (optionalData.isEmpty()) {
-							instance.getPluginLogger().severe("Unexpected error: Data is null.");
-							return;
-						}
 
-						if (optionalData.get().isLocked()) {
-							waitForDataLockRelease(uuid, times + 1);
-						} else {
-							try {
-								putDataInCache(player, optionalData.get());
-							} catch (Exception ex) {
-								ex.printStackTrace();
+			if (dataSource.isPendingInsert(uuid) || dataSource.isInsertStillRecent(uuid)) {
+				Long startedAt = dataSource.getInsertAge(uuid);
+
+				long elapsed = startedAt != null ? (System.currentTimeMillis() - startedAt) : -1;
+				String elapsedStr = elapsed >= 0 ? " (insert age: " + elapsed + "ms)" : "";
+
+				instance.debug("Delaying retry — insert still active or recent for " + id + elapsedStr);
+
+				instance.getScheduler().asyncLater(() -> scheduleDataUnlockRetry(id), 250, TimeUnit.MILLISECONDS);
+				return;
+			}
+
+			dataSource.getPlayerData(id, false, null).thenAccept(optionalData -> {
+				if (optionalData.isEmpty()) {
+					instance.getPluginLogger().severe("Unexpected error: Player data is null for " + id);
+					cancel.run();
+					return;
+				}
+
+				PlayerData playerData = optionalData.get();
+
+				if (playerData.isLocked()) {
+					if (attempt >= 4) {
+						instance.getPluginLogger().severe("Player " + id + "'s data is still locked after " + attempt
+								+ " attempts. Forcing unlock...");
+
+						// Run unlock with timeout protection
+						CompletableFuture.runAsync(() -> {
+							dataSource.lockOrUnlockPlayerData(id, false);
+
+							// Fallback: re-insert empty row if missing
+							dataSource.getPlayerData(id, false, null).thenAccept(optional -> {
+								if (optional.isPresent() && !optional.get().isLocked()) {
+									instance.debug("Row unlocked successfully for retry: " + id);
+								}
+								if (optional.isEmpty()) {
+									instance.getPluginLogger()
+											.warn("Unlock fallback: player row missing — inserting empty record.");
+									forceUnlockedPlayers.add(id);
+									PlayerData data = PlayerData.empty();
+									data.setUUID(id);
+									dataSource.updateOrInsertPlayerData(id, data, false);
+								} else {
+									instance.debug("Unlock fallback successful — existing player record unlocked.");
+								}
+							});
+						}).orTimeout(3, TimeUnit.SECONDS).whenComplete((unused, ex) -> {
+							if (ex != null) {
+								instance.getPluginLogger().warn("Timeout or error while force-unlocking data for " + id,
+										ex);
+							} else {
+								instance.getPluginLogger().warn("Force-unlocked data for " + id);
 							}
-						}
-					});
-		}, 1, TimeUnit.SECONDS);
+
+							// One final retry after unlock
+							retry.run();
+						});
+
+					} else {
+						instance.getPluginLogger()
+								.warn("Player " + id + "'s data is locked. Retrying (" + attempt + "/4)...");
+						retry.run();
+					}
+				} else {
+					try {
+						putDataInCache(player, playerData);
+					} catch (Exception e) {
+						e.printStackTrace();
+					}
+					cancel.run(); // success
+				}
+			});
+		});
 	}
 
 	/**
@@ -501,137 +779,332 @@ public class StorageManager implements StorageManagerInterface, Listener {
 	 * @param player     The player whose data is being cached.
 	 * @param playerData The data to be cached.
 	 */
-	public void putDataInCache(Player player, PlayerData playerData) {
-		locked.remove(player.getUniqueId());
-		// updates the player's name if changed
-		String storedName = UserDataInterface.builder().setData(playerData).build().getName();
-		final var bukkitUser = UserDataInterface.builder().setData(playerData).setName(player.getName())
-				.updateLastActivity().build();
-		onlineUserMap.put(player.getUniqueId(), bukkitUser);
-		final Sender audience = instance.getSenderFactory().wrap(player);
-		if (bukkitUser.getHellblockData().isAbandoned()) {
-			audience.sendMessage(instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_LOGIN_ABANDONED
-					.arguments(
-							AdventureHelper.miniMessage(String.valueOf(instance.getConfigManager().abandonAfterDays())))
-					.build()));
+	private void putDataInCache(Player player, PlayerData playerData) {
+		putDataInCache(player, playerData, false);
+	}
+
+	/**
+	 * Puts player data in cache and removes the player from the locked set.
+	 *
+	 * @param player       The player whose data is being cached.
+	 * @param playerData   The data to be cached.
+	 * @param fromCallback whether it's a callback version
+	 */
+	private void putDataInCache(Player player, PlayerData playerData, boolean fromCallback) {
+		UUID uuid = player.getUniqueId();
+
+		// EARLY EXIT: Block duplicates unless it's the delayed retry
+		if (!fromCallback && !cachingInProgress.add(uuid)) {
+			instance.debug("Cache already in progress for %s, skipping.".formatted(player.getName()));
+			return;
 		}
 
-		// If the stored bio, name and entry messages references an old name
-		// placeholder, regenerate it
-		if (bukkitUser.getHellblockData().getOwnerUUID() != null
-				&& bukkitUser.getHellblockData().getOwnerUUID().equals(bukkitUser.getUUID())) {
-			String bio = bukkitUser.getHellblockData().getDisplaySettings().getIslandBio();
-			if (bukkitUser.getHellblockData().getDisplaySettings().isDefaultIslandBio()
-					&& !bio.contains(player.getName())) {
-				bukkitUser.getHellblockData().getDisplaySettings()
-						.setIslandBio(bukkitUser.getHellblockData().getDefaultIslandBio());
-				bukkitUser.getHellblockData().getDisplaySettings().setAsDefaultIslandBio();
-				instance.debug("Updated island bio for " + player.getName() + " due to name change.");
-			}
-			String name = bukkitUser.getHellblockData().getDisplaySettings().getIslandName();
-			if (bukkitUser.getHellblockData().getDisplaySettings().isDefaultIslandName()
-					&& !name.contains(player.getName())) {
-				bukkitUser.getHellblockData().getDisplaySettings()
-						.setIslandName(bukkitUser.getHellblockData().getDefaultIslandName());
-				bukkitUser.getHellblockData().getDisplaySettings().setAsDefaultIslandName();
-				instance.debug("Updated island name for " + player.getName() + " due to name change.");
-			}
-			if (!bukkitUser.getHellblockData().isAbandoned()) {
-				String currentName = player.getName();
-				if (!currentName.equalsIgnoreCase(storedName)) {
-					Optional<HellblockWorld<?>> world = instance.getWorldManager().getWorld(
-							instance.getWorldManager().getHellblockWorldFormat(bukkitUser.getHellblockData().getID()));
-					world.ifPresent(value -> {
-						instance.getProtectionManager().getIslandProtection()
-								.updateHellblockMessages(value.bukkitWorld(), bukkitUser.getUUID());
-						instance.debug(
-								"Updated island entry messages for " + player.getName() + " due to name change.");
+		Object lock = cacheLocks.computeIfAbsent(uuid, __ -> new Object());
+
+		synchronized (lock) {
+			// Only check this if we're *not already* in the callback
+			if (!fromCallback && dataSource.isPendingInsert(uuid)) {
+				instance.debug("Insert still pending, will cache %s after it finishes.".formatted(player.getName()));
+
+				Runnable previous = pendingCacheCallbacks.putIfAbsent(uuid,
+						() -> instance.getScheduler().executeSync(() -> putDataInCache(player, playerData, true)));
+
+				if (previous == null) {
+					instance.debug("Insert still pending, callback registered for %s.".formatted(player.getName()));
+
+					dataSource.getInsertFuture(uuid).thenRun(() -> {
+						instance.debug("Insert completed, now caching %s.".formatted(player.getName()));
+						Runnable callback = pendingCacheCallbacks.remove(uuid);
+						if (callback != null)
+							callback.run();
 					});
+				} else {
+					instance.debug("Callback already queued for %s, skipping duplicate.".formatted(player.getName()));
+				}
+
+				cachingInProgress.remove(uuid);
+				return;
+			}
+
+			// Delay caching if insert was just recently completed
+			if (dataSource.isInsertStillRecent(uuid)) {
+				// If already confirmed via future, proceed without deferring again
+				if (confirmedInsertFutureCallbacks.contains(uuid)) {
+					instance.debug("Insert recently completed, but future already confirmed for %s — proceeding."
+							.formatted(player.getName()));
+				} else if (fromCallback && !callbackDeferralGuard.add(uuid)) {
+					instance.debug("Insert still recent for %s — skipping repeat deferral from callback."
+							.formatted(player.getName()));
+					return;
+				} else {
+					instance.debug("Insert recently completed, deferring cache for %s until insert future confirms."
+							.formatted(player.getName()));
+
+					Runnable previous = pendingCacheCallbacks.putIfAbsent(uuid,
+							() -> instance.getScheduler().executeSync(() -> putDataInCache(player, playerData, true)));
+
+					if (previous == null) {
+						dataSource.getInsertFuture(uuid).thenRun(() -> {
+							confirmedInsertFutureCallbacks.add(uuid);
+							instance.debug(
+									"Insert future confirmed complete, now caching %s.".formatted(player.getName()));
+							Runnable callback = pendingCacheCallbacks.remove(uuid);
+							if (callback != null) {
+								callback.run();
+							}
+						});
+					} else {
+						instance.debug("Callback already queued for %s (insert recent), skipping."
+								.formatted(player.getName()));
+					}
+
+					cachingInProgress.remove(uuid);
+					return;
 				}
 			}
+
+			// Safe to cache now — mark in-progress and clean up concurrency guards
+			pendingCacheCallbacks.remove(uuid);
+			cachingInProgress.remove(uuid);
+			cacheLocks.remove(uuid);
+			locked.remove(uuid);
+			forceUnlockedPlayers.remove(uuid);
+			callbackDeferralGuard.remove(uuid);
+			confirmedInsertFutureCallbacks.remove(uuid);
+
+			// Build user wrapper with updated name and activity
+			String storedName = UserDataInterface.builder().setData(playerData).build().getName();
+			UserData userData = UserDataInterface.builder().setData(playerData).setName(player.getName()).build();
+
+			// Store user data in cache
+			onlineUserMap.put(uuid, userData);
+
+			// Trigger various login behaviors and notifications
+			sendAbandonedWarningIfNeeded(userData);
+			updateIslandDisplayInfoIfNameChanged(userData, storedName);
+			notifyPendingInvitations(userData);
+			notifyCoopMembersOnJoin(userData);
+
+			// Run login-related systems
+			instance.getMailboxManager().handleLogin(userData);
+			startWorldHandlers(userData);
+			handleNightVisionFromGear(userData);
+			updateLevelUpChallenge(userData);
+
+			instance.debug("Finished caching logic for " + player.getName());
+		}
+	}
+
+	private void sendAbandonedWarningIfNeeded(@NotNull UserData userData) {
+		if (!userData.getHellblockData().hasHellblock())
+			return;
+		HellblockData data = userData.getHellblockData();
+		UUID userUUID = userData.getUUID();
+		UUID ownerUUID = data.getOwnerUUID();
+
+		// Skip if island is not owned
+		if (ownerUUID == null)
+			return;
+
+		// Asynchronously get the owner's UserData
+		getCachedUserDataWithFallback(ownerUUID, instance.getConfigManager().lockData())
+				.thenAccept(optionalOwnerData -> {
+					// If owner data is not present, do nothing
+					if (optionalOwnerData.isEmpty())
+						return;
+
+					UserData ownerData = optionalOwnerData.get();
+					HellblockData ownerHellblockData = ownerData.getHellblockData();
+
+					// Get party (including owner)
+					Set<UUID> partyPlusOwner = ownerHellblockData.getPartyPlusOwner();
+
+					// If user is not in the party, skip
+					if (!partyPlusOwner.contains(userUUID))
+						return;
+
+					// If the island is abandoned, send message
+					if (ownerHellblockData.isAbandoned()) {
+						final Sender audience = instance.getSenderFactory().wrap(userData.getPlayer());
+						audience.sendMessage(instance.getTranslationManager()
+								.render(MessageConstants.MSG_HELLBLOCK_LOGIN_ABANDONED
+										.arguments(AdventureHelper.miniMessageToComponent(
+												String.valueOf(instance.getConfigManager().abandonAfterDays())))
+										.build()));
+						AdventureHelper.playSound(instance.getSenderFactory().getAudience(userData.getPlayer()),
+								Sound.sound(Key.key("minecraft:entity.villager.no"), Sound.Source.PLAYER, 1, 1));
+					}
+				});
+	}
+
+	private void updateIslandDisplayInfoIfNameChanged(@NotNull UserData userData, @NotNull String storedName) {
+		HellblockData data = userData.getHellblockData();
+
+		if (data.getOwnerUUID() == null || !Objects.equals(data.getOwnerUUID(), userData.getUUID()))
+			return;
+
+		DisplaySettings display = data.getDisplaySettings();
+
+		if (display.isDefaultIslandBio() && !display.getIslandBio().contains(userData.getName())) {
+			display.setIslandBio(data.getDefaultIslandBio());
+			display.setAsDefaultIslandBio();
+			instance.debug("Updated island bio for " + userData.getName() + " due to name change.");
 		}
 
-		if (bukkitUser.toPlayerData().hasHellblockInviteNotifications()
-				&& !bukkitUser.getHellblockData().getInvitations().isEmpty()) {
-			int invitations = bukkitUser.getHellblockData().getInvitations().size();
-			audience.sendMessage(instance.getTranslationManager().render(
-					MessageConstants.MSG_HELLBLOCK_INVITE_REMINDER.arguments(Component.text(invitations)).build()));
+		if (display.isDefaultIslandName() && !display.getIslandName().contains(userData.getName())) {
+			display.setIslandName(data.getDefaultIslandName());
+			display.setAsDefaultIslandName();
+			instance.debug("Updated island name for " + userData.getName() + " due to name change.");
 		}
 
-		if (bukkitUser.toPlayerData().hasHellblockJoinNotifications() && bukkitUser.getHellblockData().hasHellblock()) {
-			UUID ownerUUID = bukkitUser.getHellblockData().getOwnerUUID();
-			if (ownerUUID != null) {
-				getOfflineUserData(ownerUUID, instance.getConfigManager().lockData())
-						.thenAccept(ownerOpt -> ownerOpt.ifPresent(ownerData -> {
-							Set<UUID> partyPlusOwner = ownerData.getHellblockData().getPartyPlusOwner();
-							partyPlusOwner.stream().filter(id -> !id.equals(player.getUniqueId()))
-									.map(Bukkit::getPlayer).filter(member -> member != null && member.isOnline())
-									.forEach(member -> {
-										Sender sender = instance.getSenderFactory().wrap(member);
-										sender.sendMessage(instance.getTranslationManager()
-												.render(MessageConstants.MSG_HELLBLOCK_COOP_JOINED_SERVER
-														.arguments(Component.text(bukkitUser.getName())).build()));
-									});
-						}));
-			}
+		if (!data.isAbandoned() && !storedName.equalsIgnoreCase(userData.getName())) {
+			instance.getWorldManager().getWorld(instance.getWorldManager().getHellblockWorldFormat(data.getIslandId()))
+					.ifPresent(world -> {
+						instance.getProtectionManager().getIslandProtection().updateHellblockMessages(world,
+								userData.getUUID());
+						instance.debug(
+								"Updated island entry messages for " + userData.getName() + " due to name change.");
+					});
+		}
+	}
+
+	private void notifyPendingInvitations(@NotNull UserData userData) {
+		if (!userData.getNotificationSettings().hasInviteNotifications())
+			return;
+		if (userData.getHellblockData().getInvitations().isEmpty())
+			return;
+
+		Player player = userData.getPlayer();
+		if (player == null || !player.isOnline())
+			return;
+		final Sender audience = instance.getSenderFactory().wrap(player);
+		final int invitationCount = userData.getHellblockData().getInvitations().size();
+
+		CommandConfig<?> config = instance.getCommandManager().getCommandConfig(
+				instance.getConfigManager().loadConfig(HellblockCommandManager.commandsFile), "coop_invites");
+
+		List<String> usages = config.getUsages();
+
+		if (usages.isEmpty()) {
+			throw new IllegalStateException("No usages defined for 'coop_invites' command in commands.yml");
 		}
 
-		instance.getMailboxManager().handleLogin(player);
+		String command = usages.get(0);
 
+		// Build the [HERE] button
+		Component button = MessageConstants.BTN_HELLBLOCK_INVITE_REMINDER_HERE
+				.clickEvent(ClickEvent.runCommand(command))
+				.hoverEvent(HoverEvent.showText(MessageConstants.BTN_HELLBLOCK_INVITE_REMINDER_HOVER.build())).build();
+
+		// Build the full message with injected args: count, button
+		Component reminder = MessageConstants.MSG_HELLBLOCK_INVITE_REMINDER
+				.arguments(AdventureHelper.miniMessageToComponent(String.valueOf(invitationCount)), button).build();
+
+		// Send the message
+		audience.sendMessage(instance.getTranslationManager().render(reminder));
+
+		// Play notification sound
+		AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
+				Sound.sound(Key.key("minecraft:block.note_block.pling"), Sound.Source.PLAYER, 1, 1.2f));
+	}
+
+	private void notifyCoopMembersOnJoin(@NotNull UserData userData) {
+		if (!userData.getNotificationSettings().hasJoinNotifications())
+			return;
+		if (!userData.getHellblockData().hasHellblock())
+			return;
+
+		UUID ownerUUID = userData.getHellblockData().getOwnerUUID();
+		if (ownerUUID == null)
+			return;
+
+		getCachedUserDataWithFallback(ownerUUID, instance.getConfigManager().lockData())
+				.thenAccept(optOwner -> optOwner.ifPresent(ownerData -> {
+					Set<UUID> party = ownerData.getHellblockData().getPartyPlusOwner();
+					party.stream().filter(id -> !id.equals(userData.getUUID())).map(Bukkit::getPlayer)
+							.filter(Objects::nonNull).filter(Player::isOnline).forEach(member -> {
+								Sender sender = instance.getSenderFactory().wrap(member);
+								sender.sendMessage(instance.getTranslationManager()
+										.render(MessageConstants.MSG_HELLBLOCK_COOP_JOINED_SERVER
+												.arguments(AdventureHelper.miniMessageToComponent(userData.getName()))
+												.build()));
+								AdventureHelper.playSound(instance.getSenderFactory().getAudience(member), Sound.sound(
+										Key.key("minecraft:entity.experience_orb.pickup"), Sound.Source.PLAYER, 1, 1));
+							});
+				}));
+	}
+
+	private void startWorldHandlers(@NotNull UserData userData) {
+		Player player = userData.getPlayer();
+		if (player == null || !player.isOnline())
+			return;
 		if (instance.getHellblockHandler().isInCorrectWorld(player)) {
-			instance.getBorderHandler().startBorderTask(player);
+			instance.getBorderHandler().startBorderTask(userData.getUUID());
 		}
-		bukkitUser.startSpawningAnimals();
-		bukkitUser.startSpawningFortressMobs();
-		instance.getFarmingManager().updateCrops(player.getWorld(), player);
-		instance.getIslandLevelManager().loadCache(player.getUniqueId());
-		instance.getNetherrackGeneratorHandler().loadPistons(player.getUniqueId());
 
-		instance.getHellblockHandler().ensureSafety(player, bukkitUser);
+		instance.getIslandManager().resolveIslandId(player.getLocation()).thenAccept(optIslandId -> optIslandId
+				.ifPresent(islandId -> instance.getIslandManager().handlePlayerEnterIsland(player, islandId)));
 
-		instance.getHellblockHandler().handleVisitingIsland(player, bukkitUser);
+		instance.getHellblockHandler().ensureSafety(userData);
+		instance.getHellblockHandler().handleVisitingIsland(player, userData);
+	}
 
-		final ItemStack[] armorSet = player.getInventory().getArmorContents();
-		boolean checkArmor = false;
-		if (armorSet != null) {
-			for (ItemStack item : armorSet) {
-				if (item == null || item.getType() == Material.AIR) {
-					continue;
-				}
-				if (!instance.getNetherArmorHandler().isNetherArmorEnabled(item)) {
-					continue;
-				}
-				if (!instance.getNetherArmorHandler().isNetherArmorNightVisionAllowed(item)) {
-					continue;
-				}
-				if (instance.getNetherArmorHandler().checkNightVisionArmorStatus(item)
-						&& instance.getNetherArmorHandler().getNightVisionArmorStatus(item)) {
-					checkArmor = true;
-					break;
-				}
-			}
+	private void handleNightVisionFromGear(@NotNull UserData userData) {
+		Player player = userData.getPlayer();
+		if (player == null || !player.isOnline())
+			return;
+		boolean hasGlowstoneArmor = Arrays.stream(player.getInventory().getArmorContents()).filter(Objects::nonNull)
+				.anyMatch(item -> item.getType() != Material.AIR
+						&& instance.getNetherArmorHandler().isNetherArmorEnabled(item)
+						&& instance.getNetherArmorHandler().isNetherArmorNightVisionAllowed(item)
+						&& instance.getNetherArmorHandler().checkNightVisionArmorStatus(item)
+						&& instance.getNetherArmorHandler().getNightVisionArmorStatus(item));
 
-			if (checkArmor) {
-				player.addPotionEffect(new PotionEffect(PotionEffectType.NIGHT_VISION, Integer.MAX_VALUE, 1));
-				bukkitUser.isWearingGlowstoneArmor(true);
-			}
+		if (hasGlowstoneArmor) {
+			player.addPotionEffect(new PotionEffect(PotionEffectType.NIGHT_VISION, Integer.MAX_VALUE, 1));
+			userData.isWearingGlowstoneArmor(true);
 		}
 
 		ItemStack tool = player.getInventory().getItemInMainHand();
 		if (tool.getType() == Material.AIR) {
 			tool = player.getInventory().getItemInOffHand();
-			if (tool.getType() == Material.AIR) {
-				return;
-			}
 		}
 
-		if (instance.getNetherToolsHandler().isNetherToolEnabled(tool)
+		if (tool.getType() != Material.AIR && instance.getNetherToolsHandler().isNetherToolEnabled(tool)
 				&& instance.getNetherToolsHandler().isNetherToolNightVisionAllowed(tool)
 				&& instance.getNetherToolsHandler().checkNightVisionToolStatus(tool)
 				&& instance.getNetherToolsHandler().getNightVisionToolStatus(tool)) {
+
 			player.addPotionEffect(new PotionEffect(PotionEffectType.NIGHT_VISION, Integer.MAX_VALUE, 1));
-			bukkitUser.isHoldingGlowstoneTool(true);
+			userData.isHoldingGlowstoneTool(true);
 		}
+	}
+
+	private void updateLevelUpChallenge(@NotNull UserData userData) {
+		if (!userData.getHellblockData().hasHellblock())
+			return;
+
+		UUID ownerUUID = userData.getHellblockData().getOwnerUUID();
+		if (ownerUUID == null)
+			return;
+
+		getCachedUserDataWithFallback(ownerUUID, instance.getConfigManager().lockData())
+				.thenAccept(optOwner -> optOwner.ifPresent(ownerData -> {
+					float currentLevel = ownerData.getHellblockData().getIslandLevel();
+					for (ChallengeType challenge : instance.getChallengeManager().getByActionType(ActionType.LEVELUP)) {
+						if (userData.getChallengeData().isChallengeActive(challenge)
+								&& challenge.getRequiredData() instanceof LevelUpRequirement req && req.isRelative()
+								&& userData.getChallengeData().getChallengeMeta(challenge, "startLevel", Double.class)
+										.isEmpty()) {
+
+							// Record baseline if missing
+							userData.getChallengeData().setChallengeMeta(challenge, "startLevel", currentLevel);
+
+							instance.getChallengeManager().handleChallengeProgression(userData, ActionType.LEVELUP,
+									currentLevel);
+						}
+					}
+				}));
 	}
 
 	/**
@@ -688,7 +1161,13 @@ public class StorageManager implements StorageManagerInterface, Listener {
 	@Override
 	public PlayerData fromJson(String json) {
 		try {
-			return gson.fromJson(json, PlayerData.class);
+			PlayerData data = gson.fromJson(json, PlayerData.class);
+
+			if (data.getVersion() < PlayerData.CURRENT_VERSION) {
+				// migratePlayerData(data, data.getVersion());
+				data.setVersion(PlayerData.CURRENT_VERSION);
+			}
+			return data;
 		} catch (JsonSyntaxException ex) {
 			instance.getPluginLogger().severe("Failed to parse PlayerData from json.");
 			instance.getPluginLogger().info("Json: %s".formatted(json));
@@ -706,5 +1185,58 @@ public class StorageManager implements StorageManagerInterface, Listener {
 	@NotNull
 	public PlayerData fromBytes(byte[] data) {
 		return fromJson(new String(data, StandardCharsets.UTF_8));
+	}
+
+	public class RetryManager {
+
+		private final RetryScheduler scheduler;
+		private final int maxAttempts;
+		private final long initialDelaySeconds;
+		private final Map<UUID, Integer> attempts = new ConcurrentHashMap<>();
+		private final Set<UUID> active = ConcurrentHashMap.newKeySet();
+
+		public interface RetryTask {
+			void run(UUID uuid, int attempt, Runnable retryCallback, Runnable cancelCallback);
+		}
+
+		public interface RetryScheduler {
+			void schedule(Runnable task, long delaySeconds);
+		}
+
+		public RetryManager(RetryScheduler scheduler, int maxAttempts, long initialDelaySeconds) {
+			this.scheduler = scheduler;
+			this.maxAttempts = maxAttempts;
+			this.initialDelaySeconds = initialDelaySeconds;
+		}
+
+		public void retry(UUID uuid, RetryTask task) {
+			if (!active.add(uuid))
+				return; // already retrying this UUID
+			runRetry(uuid, task);
+		}
+
+		private void runRetry(UUID uuid, RetryTask task) {
+			int attempt = attempts.getOrDefault(uuid, 1);
+
+			// Exponential backoff with configurable initial delay
+			long delay = (attempt == 1) ? initialDelaySeconds : Math.min(8, (long) Math.pow(2, attempt - 1));
+
+			// Max attempts reached
+			// Explicit cancel
+			scheduler.schedule(() -> task.run(uuid, attempt, () -> {
+				int next = attempt + 1;
+				if (next > maxAttempts) {
+					cancel(uuid);
+				} else {
+					attempts.put(uuid, next);
+					runRetry(uuid, task);
+				}
+			}, () -> cancel(uuid)), delay);
+		}
+
+		public void cancel(UUID uuid) {
+			attempts.remove(uuid);
+			active.remove(uuid);
+		}
 	}
 }

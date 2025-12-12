@@ -2,8 +2,10 @@ package com.swiftlicious.hellblock.config;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -19,13 +21,15 @@ import java.util.TreeMap;
 import java.util.UUID;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
+import java.util.zip.GZIPInputStream;
 
 import org.bukkit.Material;
 import org.bukkit.enchantments.Enchantment;
-import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventPriority;
 import org.bukkit.inventory.ItemStack;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.yaml.snakeyaml.constructor.ConstructorException;
 
 import com.saicone.rtag.RtagItem;
@@ -56,6 +60,7 @@ import com.swiftlicious.hellblock.handlers.EventManagerInterface;
 import com.swiftlicious.hellblock.handlers.ExpressionHelper;
 import com.swiftlicious.hellblock.handlers.RequirementManager;
 import com.swiftlicious.hellblock.handlers.VersionHelper;
+import com.swiftlicious.hellblock.listeners.weather.WeatherType;
 import com.swiftlicious.hellblock.loot.LootInterface;
 import com.swiftlicious.hellblock.loot.StatisticsKeys;
 import com.swiftlicious.hellblock.loot.operation.AddWeightOperation;
@@ -66,7 +71,7 @@ import com.swiftlicious.hellblock.loot.operation.MultiplyWeightOperation;
 import com.swiftlicious.hellblock.loot.operation.ReduceWeightOperation;
 import com.swiftlicious.hellblock.loot.operation.WeightOperation;
 import com.swiftlicious.hellblock.mechanics.MechanicType;
-import com.swiftlicious.hellblock.schematic.ItemRegistry;
+import com.swiftlicious.hellblock.utils.EnchantmentUtils;
 import com.swiftlicious.hellblock.utils.ItemStackUtils;
 import com.swiftlicious.hellblock.utils.ListUtils;
 import com.swiftlicious.hellblock.utils.OffsetUtils;
@@ -98,15 +103,20 @@ import net.kyori.adventure.sound.Sound;
 public final class ConfigManager extends ConfigHandler {
 
 	private YamlDocument mainConfig;
-	private YamlDocument guiConfig;
+	private final Map<String, YamlDocument> guiConfigs = new HashMap<>();
 	private ConfigRegistry registry;
 
 	public YamlDocument getMainConfig() {
 		return mainConfig;
 	}
 
-	public YamlDocument getGuiConfig() {
-		return guiConfig;
+	/**
+	 * Retrieves a specific GUI configuration by name. Example:
+	 * getGUIConfig("upgrades.yml")
+	 */
+	@Nullable
+	public YamlDocument getGUIConfig(String name) {
+		return guiConfigs.get(name);
 	}
 
 	public ConfigRegistry getRegistry() {
@@ -132,7 +142,7 @@ public final class ConfigManager extends ConfigHandler {
 	public void load() {
 		final String configVersion = HellblockProperties.getValue("config");
 		try (InputStream inputStream = new FileInputStream(resolveConfig("config.yml").toFile())) {
-			mainConfig = YamlDocument.create(inputStream, instance.getResource("config.yml".replace("\\", "/")),
+			mainConfig = YamlDocument.create(inputStream, getResourceMaybeGz("config.yml"),
 					GeneralSettings.builder().setRouteSeparator('.').setUseDefaults(false).build(),
 					LoaderSettings.builder().setAutoUpdate(true).build(),
 					DumperSettings.builder().setScalarFormatter((tag, value, role, def) -> {
@@ -148,15 +158,13 @@ public final class ConfigManager extends ConfigHandler {
 							.addIgnoredRoute(configVersion, "lava-fishing-options.auto-fishing-requirements", '.')
 							.addIgnoredRoute(configVersion, "lava-fishing-options.global-events", '.')
 							.addIgnoredRoute(configVersion, "lava-fishing-options.global-effects", '.')
-							.addIgnoredRoute(configVersion, "lava-fishing-options.market.item-price", '.')
-							.addIgnoredRoute(configVersion, "lava-fishing-options.market.sell-all-icons", '.')
-							.addIgnoredRoute(configVersion, "lava-fishing-options.market.sell-icons", '.')
-							.addIgnoredRoute(configVersion, "lava-fishing-options.market.decorative-icons", '.')
 							.addIgnoredRoute(configVersion, "other-settings.placeholder-register", '.')
-							.addIgnoredRoute(configVersion, "level-system.blocks", '.')
 							.addIgnoredRoute(configVersion, "piglin-bartering.items", '.')
 							.addIgnoredRoute(configVersion, "netherrack-generator-options.generation.blocks", '.')
 							.addIgnoredRoute(configVersion, "hellblock.island-options", '.')
+							.addIgnoredRoute(configVersion, "hellblock.command-whitelist", '.')
+							.addIgnoredRoute(configVersion, "hellblock.display-settings.banned-phrases", '.')
+							.addIgnoredRoute(configVersion, "hellblock.upgrades.tiers", '.')
 							.addIgnoredRoute(configVersion, "hellblock.starter-chest.items", '.').build());
 			mainConfig.save(resolveConfig("config.yml").toFile());
 		} catch (IOException ex) {
@@ -165,7 +173,7 @@ public final class ConfigManager extends ConfigHandler {
 
 		this.loadSettings();
 		this.loadConfigs();
-		this.createGUIConfig();
+		this.loadAllGUIConfigs();
 		this.loadGlobalEffects();
 		this.registry.load();
 	}
@@ -182,21 +190,78 @@ public final class ConfigManager extends ConfigHandler {
 		}
 	}
 
-	private void createGUIConfig() {
-		try (InputStream inputStream = new FileInputStream(resolveConfig("gui.yml").toFile())) {
-			guiConfig = YamlDocument.create(inputStream, instance.getResource("gui.yml".replace("\\", "/")),
+	/**
+	 * Loads all GUI configuration files from the plugin’s JAR (supports .yml.gz).
+	 */
+	public void loadAllGUIConfigs() {
+		File guiFolder = new File(instance.getDataFolder(), "gui");
+
+		if (!guiFolder.exists() && !guiFolder.mkdirs()) {
+			instance.getPluginLogger().severe("Failed to create GUI folder!");
+			return;
+		}
+
+		guiConfigs.clear();
+
+		// Ensure default GUI files exist
+		String[] defaultGuiFiles = { "main_menu.yml", "biomes.yml", "upgrades.yml", "flags.yml", "party.yml",
+				"invites.yml", "challenges.yml", "choices.yml", "notifications.yml", "display.yml", "schematics.yml",
+				"visit.yml", "events.yml", "reset.yml", "market.yml" };
+
+		for (String name : defaultGuiFiles) {
+			// This automatically extracts the .yml.gz resource from the JAR if missing
+			saveResource("gui" + File.separator + name);
+		}
+
+		// Now load all YAML files from the GUI folder recursively
+		Deque<File> stack = new ArrayDeque<>();
+		stack.push(guiFolder);
+
+		while (!stack.isEmpty()) {
+			File dir = stack.pop();
+			File[] files = dir.listFiles();
+			if (files == null)
+				continue;
+
+			for (File subFile : files) {
+				if (subFile.isDirectory()) {
+					stack.push(subFile);
+					continue;
+				}
+
+				if (!subFile.isFile() || !subFile.getName().endsWith(".yml"))
+					continue;
+
+				try {
+					YamlDocument doc = createOrLoadGUIConfig(subFile);
+					guiConfigs.put(subFile.getName(), doc);
+				} catch (Throwable e) {
+					instance.getPluginLogger()
+							.severe("GUI for " + subFile.getName() + " was unable to load correctly!");
+					e.printStackTrace();
+				}
+			}
+		}
+	}
+
+	private YamlDocument createOrLoadGUIConfig(File file) throws IOException {
+		try (InputStream inputStream = new FileInputStream(file)) {
+			// Load defaults from inside the JAR (.yml or .yml.gz)
+			InputStream defaults = getResourceMaybeGz("gui" + File.separator + file.getName());
+			if (defaults == null) {
+				instance.getPluginLogger().warn("No defaults found for: gui" + File.separator + file.getName());
+			}
+
+			YamlDocument document = YamlDocument.create(inputStream, defaults,
 					GeneralSettings.builder().setRouteSeparator('.').setUseDefaults(false).build(),
 					LoaderSettings.builder().setAutoUpdate(true).build(),
-					DumperSettings.builder().setScalarFormatter((tag, value, role, def) -> {
-						if (role == NodeRole.KEY) {
-							return ScalarStyle.PLAIN;
-						} else {
-							return tag == Tag.STR ? ScalarStyle.DOUBLE_QUOTED : ScalarStyle.PLAIN;
-						}
-					}).build());
-			guiConfig.save(resolveConfig("gui.yml").toFile());
-		} catch (IOException ex) {
-			throw new RuntimeException(ex);
+					DumperSettings.builder()
+							.setScalarFormatter((tag, value, role, def) -> role == NodeRole.KEY ? ScalarStyle.PLAIN
+									: (tag == Tag.STR ? ScalarStyle.DOUBLE_QUOTED : ScalarStyle.PLAIN))
+							.build());
+
+			document.save(file);
+			return document;
 		}
 	}
 
@@ -226,7 +291,7 @@ public final class ConfigManager extends ConfigHandler {
 		disableGenerationAnimation = config.getBoolean("hellblock.disable-generation-animation", false);
 		linkHellblocks = config.getBoolean("hellblock.can-link-hellblocks", true);
 		schematicPaster = config.getString("hellblock.schematic-paster", "worldedit");
-		config.getStringList("hellblock.island-options")
+		config.getStringList("hellblock.island-options", new ArrayList<>()).stream()
 				.forEach(option -> islandOptions.add(IslandOptions.valueOf(option.toUpperCase(Locale.ENGLISH))));
 		height = config.getInt("hellblock.height", 150);
 		worldguardProtect = config.getBoolean("hellblock.use-worldguard-protection", false);
@@ -246,6 +311,9 @@ public final class ConfigManager extends ConfigHandler {
 		maxColorCodes = config.getInt("hellblock.display-settings.max-color-codes", 10);
 		maxNewLines = config.getInt("hellblock.display-settings.max-new-lines", 3);
 		wrapLength = config.getInt("hellblock.display-settings.wrap-length", 55);
+		config.getStringList("hellblock.command-whitelist", new ArrayList<>()).stream()
+				.filter(cmd -> cmd.startsWith("/"))
+				.forEach(command -> commandWhitelist.add(command.toLowerCase(Locale.ROOT)));
 		bannedWords = config.getStringList("hellblock.display-settings.banned-phrases", new ArrayList<>());
 
 		chestInventoryName = config.getString("hellblock.starter-chest.inventory-name", "Chest");
@@ -256,33 +324,20 @@ public final class ConfigManager extends ConfigHandler {
 					continue;
 				}
 				final int itemID = Integer.parseInt(entry.getKey());
+				if (itemID <= 0) {
+					instance.getPluginLogger().warn("Invalid item ID in config (must be positive): " + entry.getKey());
+					continue;
+				}
 				if (entry.getValue() instanceof Section inner) {
 					final int slot = inner.getInt("slot", RandomUtils.generateRandomInt(0, 26));
+					if (slot < 0) {
+						instance.getPluginLogger()
+								.warn("Invalid chest slot in config (must be >= 0): " + entry.getKey());
+						continue;
+					}
 					final CustomItem item = new SingleItemParser("chest_item_" + itemID, inner,
 							getItemFormatFunctions()).getItem();
 					chestItems.putIfAbsent(itemID, Pair.of(slot, item));
-				}
-			}
-		}
-
-		final Section levelSystemSection = config.getSection("level-system.blocks");
-		if (levelSystemSection != null) {
-			int i = 0;
-			for (Map.Entry<String, Object> entry : levelSystemSection.getStringRouteMappedValues(false).entrySet()) {
-				final MathValue<Player> level = MathValue.auto(((Number) entry.getValue()).floatValue());
-				final Material material;
-				EntityType entity = null;
-				if (entry.getKey().contains(":")) {
-					final String[] split = entry.getKey().split(":");
-					material = Material.matchMaterial(split[0].toUpperCase(Locale.ROOT));
-					if (material != null && material == Material.SPAWNER) {
-						entity = EntityType.valueOf(split[1].toUpperCase(Locale.ROOT));
-					}
-				} else {
-					material = Material.matchMaterial(entry.getKey().toUpperCase(Locale.ROOT));
-				}
-				if (material != null && material.isBlock()) {
-					levelSystem.putIfAbsent(i++, Tuple.of(material, entity, level));
 				}
 			}
 		}
@@ -295,10 +350,14 @@ public final class ConfigManager extends ConfigHandler {
 					continue;
 				}
 				final int itemID = Integer.parseInt(entry.getKey());
+				if (itemID <= 0) {
+					instance.getPluginLogger().warn("Invalid item ID in config (must be positive): " + entry.getKey());
+					continue;
+				}
 				if (entry.getValue() instanceof Section inner) {
 					final CustomItem item = new SingleItemParser("barter_item_" + itemID, inner,
 							getItemFormatFunctions()).getItem();
-					final MathValue<Player> weight = MathValue.auto(inner.getInt("weight"));
+					final MathValue<Player> weight = MathValue.auto(inner.getInt("weight", 1));
 					barteringItems.putIfAbsent(item, weight);
 				}
 			}
@@ -326,24 +385,38 @@ public final class ConfigManager extends ConfigHandler {
 
 		infiniteLavaEnabled = config.getBoolean("infinite-lava-options.enable", true);
 
-		lavaRainEnabled = config.getBoolean("lava-rain-options.enable", true);
-		warnPlayers = config.getBoolean("lava-rain-options.warn-players-beforehand", true);
-		radius = Math.abs(config.getInt("lava-rain-options.radius", 16));
-		fireChance = Math.abs(config.getInt("lava-rain-options.fire-chance", 1));
-		delay = Math.abs(config.getInt("lava-rain-options.task-delay", 3));
-		hurtCreatures = config.getBoolean("lava-rain-options.can-hurt-living-creatures", true);
-		explodeTNT = config.getBoolean("lava-rain-options.will-tnt-explode", true);
+		weatherEnabled = config.getBoolean("nether-weather-options.enable", true);
+		config.getStringList("nether-weather-options.supported-types", new ArrayList<>()).stream().forEach(
+				weatherType -> supportedWeatherTypes.add(WeatherType.valueOf(weatherType.toUpperCase(Locale.ENGLISH))));
+		minTime = config.getInt("nether-weather-options.intervals.min-time", 150);
+		maxTime = config.getInt("nether-weather-options.intervals.max-time", 300);
+		warnPlayers = config.getBoolean("nether-weather-options.warn-players-beforehand", true);
+		radius = Math.abs(config.getInt("nether-weather-options.radius", 16));
+		fireChance = Math.abs(config.getInt("nether-weather-options.fire-chance", 1));
+		delay = Math.abs(config.getInt("nether-weather-options.task-delay", 3));
+		hurtCreatures = config.getBoolean("nether-weather-options.can-hurt-living-creatures", true);
+		explodeTNT = config.getBoolean("nether-weather-options.will-tnt-explode", true);
 
 		searchRadius = config.getDouble("netherrack-generator-options.player-search-radius", 4D);
 		pistonAutomation = config.getBoolean("netherrack-generator-options.automation.pistons", false);
 		final Section genResultSection = config.getSection("netherrack-generator-options.generation.blocks");
 		if (genResultSection != null) {
 			genResultSection.getStringRouteMappedValues(false).entrySet().forEach(entry -> {
-				final Material material = Material.matchMaterial(entry.getKey().toUpperCase(Locale.ROOT));
-				final MathValue<Player> chance = MathValue.auto(entry.getValue());
-				if (material != null) {
-					generationResults.putIfAbsent(material, chance);
+				if (!(entry.getValue() instanceof Number value)) {
+					return;
 				}
+				if (value.doubleValue() <= 0) {
+					instance.getPluginLogger()
+							.warn("Invalid generation weight for " + entry.getKey() + ": must be > 0");
+					return;
+				}
+				final Material material = Material.matchMaterial(entry.getKey().toUpperCase(Locale.ROOT));
+				if (material == null || !material.isBlock()) {
+					instance.getPluginLogger().warn("Unknown material (null or not a block) for " + entry.getKey());
+					return;
+				}
+				final MathValue<Player> chance = MathValue.auto(value);
+				generationResults.putIfAbsent(material, chance);
 			});
 		}
 
@@ -369,68 +442,75 @@ public final class ConfigManager extends ConfigHandler {
 		logDataSaving = config.getBoolean("other-settings.log-data-saving", true);
 		lockData = config.getBoolean("other-settings.lock-data", true);
 
-		durabilityLore = new ArrayList<>(config.getStringList("other-settings.custom-durability-format").stream()
-				.map(it -> "<!i>" + it).toList());
-
-		magmaWalkerBookName = config.getString("other-settings.magma-walker.enchantment-book-format.name",
-				"Book of Magma Walker {level}");
-		magmaWalkerBookLore = new ArrayList<>(
-				config.getStringList("other-settings.magma-walker.enchantment-book-format.lore").stream()
+		durabilityLore = new ArrayList<>(
+				config.getStringList("other-settings.custom-durability-format", new ArrayList<>()).stream()
 						.map(it -> "<!i>" + it).toList());
 
-		magmaWalkerBootsLore = new ArrayList<>(config.getStringList("other-settings.magma-walker.boots-format").stream()
-				.map(it -> "<!i>" + it).toList());
+		loadEnchantmentConfigs(config);
 
-		final Section challengeSoundSection = config.getSection("hellblock.challenge-completed-sound");
-		if (challengeSoundSection != null) {
-			challengeCompletedSound = Sound.sound(
-					net.kyori.adventure.key.Key.key(challengeSoundSection.getString("key")),
-					Sound.Source
-							.valueOf(challengeSoundSection.getString("source", "PLAYER").toUpperCase(Locale.ENGLISH)),
-					challengeSoundSection.getFloat("volume", 1.0F).floatValue(),
-					challengeSoundSection.getFloat("pitch", 1.0F).floatValue());
-		}
+		challengeCompletedSound = loadSound(config, "hellblock.challenge-completed-sound", "minecraft:item.totem.use",
+				"PLAYER", 1.0F, 1.0F);
 
-		final Section linkingSoundSection = config.getSection("hellblock.linking-hellblock-sound");
-		if (linkingSoundSection != null) {
-			linkingHellblockSound = Sound.sound(net.kyori.adventure.key.Key.key(linkingSoundSection.getString("key")),
-					Sound.Source.valueOf(linkingSoundSection.getString("source", "PLAYER").toUpperCase(Locale.ENGLISH)),
-					linkingSoundSection.getFloat("volume", 1.0F).floatValue(),
-					linkingSoundSection.getFloat("pitch", 1.0F).floatValue());
-		}
+		linkingHellblockSound = loadSound(config, "hellblock.linking-hellblock-sound",
+				"minecraft:block.end_portal.spawn", "PLAYER", 1.0F, 1.0F);
 
-		final Section creatingSoundSection = config.getSection("hellblock.creating-hellblock-sound");
-		if (creatingSoundSection != null) {
-			creatingHellblockSound = Sound.sound(net.kyori.adventure.key.Key.key(creatingSoundSection.getString("key")),
-					Sound.Source
-							.valueOf(creatingSoundSection.getString("source", "PLAYER").toUpperCase(Locale.ENGLISH)),
-					creatingSoundSection.getFloat("volume", 1.0F).floatValue(),
-					creatingSoundSection.getFloat("pitch", 1.0F).floatValue());
-		}
+		creatingHellblockSound = loadSound(config, "hellblock.creating-hellblock-sound",
+				"minecraft:entity.player.levelup", "PLAYER", 1.0F, 1.0F);
 
 		final Section titleScreenSection = config.getSection("hellblock.creation-title-screen");
 		if (titleScreenSection != null) {
 			final boolean enabled = titleScreenSection.getBoolean("enable", true);
-			final String title = titleScreenSection.getString("title");
-			final String subtitle = titleScreenSection.getString("subtitle");
+			final String title = titleScreenSection.getString("title", "");
+			final String subtitle = titleScreenSection.getString("subtitle", "");
 			final int fadeIn = titleScreenSection.getInt("fadeIn", 3) * 20;
 			final int stay = titleScreenSection.getInt("stay", 2) * 20;
 			final int fadeOut = titleScreenSection.getInt("fadeOut", 3) * 20;
 			creationTitleScreen = new TitleScreenInfo(enabled, title, subtitle, fadeIn, stay, fadeOut);
 		}
 
-		itemDetectOrder = config.getStringList("other-settings.item-detection-order").toArray(new String[0]);
-		blockDetectOrder = config.getStringList("other-settings.block-detection-order").toArray(new String[0]);
+		final Section eventSection = config.getSection("hellblock.island-events");
+
+		if (eventSection != null) {
+			invasionEvent = loadEventData(eventSection, "invasion-settings", 100F, 30, 10);
+			witherEvent = loadEventData(eventSection, "wither-settings", 50F, 30, 5);
+			skysiegeEvent = loadEventData(eventSection, "skysiege-settings", 150F, 30, 10);
+		} else {
+			// Use hardcoded defaults if entire section is missing
+			invasionEvent = new IslandEventData(true, 100F, 30, 10);
+			witherEvent = new IslandEventData(true, 50F, 30, 5);
+			skysiegeEvent = new IslandEventData(true, 150F, 30, 10);
+		}
+
+		itemDetectOrder = config.getStringList("other-settings.item-detection-order", new ArrayList<>())
+				.toArray(new String[0]);
+		blockDetectOrder = config.getStringList("other-settings.block-detection-order", new ArrayList<>())
+				.toArray(new String[0]);
 
 		eventPriority = EventPriority
 				.valueOf(config.getString("other-settings.event-priority", "NORMAL").toUpperCase(Locale.ENGLISH));
 
 		antiAutoFishingMod = config.getBoolean("other-settings.anti-auto-fishing-mod", false);
 
-		fishingRequirements = instance.getRequirementManager(Player.class)
-				.parseRequirements(config.getSection("lava-fishing-options.fishing-requirements"), true);
-		autoFishingRequirements = instance.getRequirementManager(Player.class)
-				.parseRequirements(config.getSection("lava-fishing-options.auto-fishing-requirements"), true);
+		RequirementManager<Integer> islandReqs = instance.getRequirementManager(Integer.class);
+		RequirementManager<Player> playerReqs = instance.getRequirementManager(Player.class);
+
+		Section fishingReqSection = config.getSection("lava-fishing-options.fishing-requirements");
+		if (fishingReqSection != null) {
+			SplitRequirements<Player, Integer> fishingReqs = parseFishingRequirements(fishingReqSection, playerReqs,
+					islandReqs);
+
+			fishingPlayerRequirements = fishingReqs.playerReqs();
+			fishingIslandRequirements = fishingReqs.islandReqs();
+		}
+
+		Section autoFishingReqSection = config.getSection("lava-fishing-options.auto-fishing-requirements");
+		if (autoFishingReqSection != null) {
+			SplitRequirements<Player, Integer> fishingAutoReqs = parseFishingRequirements(autoFishingReqSection,
+					playerReqs, islandReqs);
+
+			autoFishingPlayerRequirements = fishingAutoReqs.playerReqs();
+			autoFishingIslandRequirements = fishingAutoReqs.islandReqs();
+		}
 
 		baitAnimation = config.getBoolean("lava-fishing-options.show-bait-animation", true);
 
@@ -479,91 +559,310 @@ public final class ConfigManager extends ConfigHandler {
 		}
 	}
 
+	@Nullable
 	@Override
-	public void saveResource(String filePath) {
-		if (!new File(instance.getDataFolder(), filePath).exists()) {
-			instance.saveResource(filePath, false);
+	public File saveResource(String filePath) {
+		File target = new File(instance.getDataFolder(), filePath);
+
+		// If it already exists, just return it
+		if (target.exists())
+			return target;
+
+		target.getParentFile().mkdirs();
+
+		// --- Try direct (uncompressed) resource ---
+		try (InputStream in = instance.getResource(filePath)) {
+			if (in != null) {
+				try (OutputStream out = new FileOutputStream(target)) {
+					in.transferTo(out);
+				}
+				return target;
+			}
+		} catch (IOException ex) {
+			instance.getPluginLogger().warn("Failed to write resource " + filePath + ": " + ex.getMessage());
 		}
+
+		// --- Try gzip-compressed fallback ---
+		try (InputStream gzStream = instance.getResource(filePath + ".gz")) {
+			if (gzStream != null) {
+				try (GZIPInputStream in = new GZIPInputStream(gzStream);
+						OutputStream out = new FileOutputStream(target)) {
+					in.transferTo(out);
+				}
+				return target;
+			}
+		} catch (IOException ex) {
+			instance.getPluginLogger().warn("Failed to decompress gzip resource " + filePath + ": " + ex.getMessage());
+		}
+
+		// --- Not found ---
+		instance.getPluginLogger().warn("Resource not found in JAR: " + filePath + " or " + filePath + ".gz");
+		return null;
 	}
 
 	private void loadConfigs() {
-		final Deque<File> fileDeque = new ArrayDeque<>();
 		for (ConfigType type : ConfigType.values()) {
 			final File typeFolder = new File(instance.getDataFolder(), "contents" + File.separator + type.path());
-			if (!typeFolder.exists()) {
-				if (!typeFolder.mkdirs()) {
-					return;
-				}
-				instance.saveResource("contents" + File.separator + type.path() + File.separator + "default.yml",
-						false);
+
+			if (!typeFolder.exists() && !typeFolder.mkdirs()) {
+				instance.getPluginLogger().severe("Failed to create directory for config type: " + type.toString());
+				continue;
 			}
+
+			// Ensure default file exists
+			saveResource("contents" + File.separator + type.path() + File.separator + "default.yml");
+
 			final Map<String, Node<ConfigParserFunction>> nodes = type.parser();
-			fileDeque.push(typeFolder);
-			while (!fileDeque.isEmpty()) {
-				final File file = fileDeque.pop();
-				final File[] files = file.listFiles();
-				if (files == null) {
+			final Deque<File> stack = new ArrayDeque<>();
+			stack.push(typeFolder);
+
+			while (!stack.isEmpty()) {
+				final File dir = stack.pop();
+				final File[] files = dir.listFiles();
+				if (files == null)
 					continue;
-				}
+
 				for (File subFile : files) {
 					if (subFile.isDirectory()) {
-						fileDeque.push(subFile);
-					} else if (subFile.isFile() && subFile.getName().endsWith(".yml")) {
-						try {
-							final YamlDocument document = loadData(subFile);
-							document.getStringRouteMappedValues(false).entrySet().forEach(entry -> {
+						stack.push(subFile);
+						continue;
+					}
+
+					if (!subFile.isFile() || !subFile.getName().endsWith(".yml"))
+						continue;
+
+					try {
+						final YamlDocument document = loadData(subFile);
+						document.getStringRouteMappedValues(false).forEach((key, value) -> {
+							if (value instanceof Section section) {
 								try {
-									if (entry.getValue() instanceof Section section) {
-										type.parse(entry.getKey(), section, nodes);
-									}
+									type.parse(key, section, nodes);
 								} catch (Exception e) {
-									instance.getPluginLogger().warn("Invalid config " + subFile.getPath()
-											+ " - Failed to parse section " + entry.getKey(), e);
+									instance.getPluginLogger().warn(
+											"Invalid config " + subFile.getPath() + " - failed to parse section " + key,
+											e);
 								}
-							});
-						} catch (ConstructorException e) {
-							instance.getPluginLogger().warn("Could not load config file: " + subFile.getAbsolutePath()
-									+ ". Is it a corrupted file?");
-						}
+							}
+						});
+					} catch (ConstructorException e) {
+						instance.getPluginLogger().warn(
+								"Could not load config file: " + subFile.getAbsolutePath() + " (corrupted YAML?)");
+					} catch (Exception e) {
+						instance.getPluginLogger().warn("Unexpected error loading config " + subFile.getPath(), e);
 					}
 				}
 			}
 		}
 	}
 
-	public Map<ItemStack, Character> getCraftingMaterials(Section section) {
+	@NotNull
+	public Map<ItemStack, Character> getCraftingIngredients(Section section) {
 		final Map<ItemStack, Character> map = new HashMap<>();
+
+		if (section == null) {
+			instance.getPluginLogger().warn("Tried to parse crafting ingredients from a null section!");
+			return map;
+		}
+
 		for (Map.Entry<String, Object> entry : section.getStringRouteMappedValues(false).entrySet()) {
-			if (!(entry.getValue() instanceof Character)) {
+			String key = entry.getKey();
+			Object rawValue = entry.getValue();
+
+			// Value should be a one-character string like: "A"
+			if (!(rawValue instanceof String valueStr) || valueStr.length() != 1) {
 				continue;
 			}
-			final char symbol = (char) entry.getValue();
-			// SPECIAL CASE
-			if ("NETHER_POTION".equalsIgnoreCase(entry.getKey())) {
-				map.put(instance.getNetherBrewingHandler().getNetherPotion().load(), symbol);
-			} else {
-				final Material material = Material.matchMaterial(entry.getKey().toUpperCase(Locale.ROOT));
-				if (material != null) {
-					map.put(new ItemStack(material), symbol);
-				}
+
+			char symbol = valueStr.charAt(0);
+
+			// Normalize key to lowercase and strip namespace if present
+			String materialName = key.toLowerCase(Locale.ROOT);
+			if (materialName.contains(":")) {
+				// e.g. "minecraft:netherrack" -> "netherrack"
+				materialName = materialName.substring(materialName.indexOf(':') + 1);
 			}
+
+			Material material = Material.matchMaterial(materialName.toUpperCase(Locale.ROOT));
+
+			if (material == null) {
+				instance.getPluginLogger().warn("Unknown ingredient in crafting recipe: " + key);
+				continue;
+			}
+
+			map.put(new ItemStack(material), symbol);
 		}
+
 		return map;
+	}
+
+	@SuppressWarnings("unchecked")
+	@NotNull
+	public SplitRequirements<Player, Integer> parseFishingRequirements(@NotNull Section config,
+			@NotNull RequirementManager<Player> playerReqs, @NotNull RequirementManager<Integer> islandReqs) {
+		List<Requirement<Player>> playerList = new ArrayList<>();
+		List<Requirement<Integer>> islandList = new ArrayList<>();
+
+		if (config != null) {
+			config.getStringRouteMappedValues(false).entrySet().forEach(entry -> {
+				Section section = config.getSection(entry.getKey());
+				if (section == null || !section.contains("type")) {
+					return;
+				}
+
+				String target = section.getString("target", "").toLowerCase();
+				switch (target) {
+				case "player" -> playerList.add(playerReqs.parseRequirement(section, true));
+				case "island" -> islandList.add(islandReqs.parseRequirement(section, true));
+				default -> {
+					instance.getPluginLogger().warn("Unknown or missing target for requirement: " + entry.getKey());
+				}
+				}
+			});
+		}
+
+		return new SplitRequirements<>(playerList.toArray(Requirement[]::new), islandList.toArray(Requirement[]::new));
+	}
+
+	@NotNull
+	private HellEnchantmentData loadEnchantmentData(@NotNull YamlDocument config, @NotNull String enchantmentKey,
+			@NotNull String defaultBookName, @NotNull List<String> defaultBookLore,
+			@NotNull List<String> defaultArmorLore, int defaultChance) {
+		String base = "other-settings.hell-enchantments." + enchantmentKey;
+
+		String bookName = config.getString(base + ".enchantment-book-format.name", defaultBookName);
+
+		List<String> bookLore = new ArrayList<>(
+				config.getStringList(base + ".enchantment-book-format.lore", new ArrayList<>())).stream()
+				.map(it -> "<!i>" + it).toList();
+		if (bookLore.isEmpty())
+			bookLore = defaultBookLore;
+
+		List<String> armorLore = new ArrayList<>(
+				config.getStringList(base + ".armor-additional-format", new ArrayList<>())).stream()
+				.map(it -> "<!i>" + it).toList();
+		if (armorLore.isEmpty())
+			armorLore = defaultArmorLore;
+
+		int chance = config.getInt(base + ".enchant-table-chance", defaultChance);
+
+		return new HellEnchantmentData(bookName, bookLore, armorLore, chance);
+	}
+
+	public void loadEnchantmentConfigs(@NotNull YamlDocument config) {
+		magmaWalkerEnchantData = loadEnchantmentData(config, "magma-walker", "Book of Magma Walker {level}",
+				List.of("<!i>Walks on lava, creating magma blocks", "<!i>Immune to magma damage"),
+				List.of("<!i>Magma Walker {level}"), 3);
+
+		moltenCoreEnchantData = loadEnchantmentData(config, "molten-core", "Book of Molten Core {level}",
+				List.of("<!i>Auto-smelts ores when mined", "<!i>Only works on your island"),
+				List.of("<!i>Molten Core {level}"), 3);
+
+		lavaVisionEnchantData = loadEnchantmentData(config, "lava-vision", "Book of Lava Vision {level}",
+				List.of("<!i>See clearly while submerged in lava", "<!i>Highlights nearby entities"),
+				List.of("<!i>Lava Vision {level}"), 2);
+
+		crimsonThornsEnchantData = loadEnchantmentData(config, "crimson-thorns", "Book of Crimson Thorns {level}",
+				List.of("<!i>Reflects fire damage and knockback to attackers", "<!i>Only works on your island"),
+				List.of("<!i>Crimson Thorns {level}"), 2);
+	}
+
+	@Nullable
+	private Sound loadSound(@NotNull YamlDocument config, @NotNull String path, @NotNull String defaultKey,
+			@NotNull String defaultSource, float defaultVolume, float defaultPitch) {
+		final Section section = config.getSection(path);
+		if (section == null) {
+			return null;
+		}
+
+		try {
+			String key = section.getString("key", defaultKey);
+			String sourceStr = section.getString("source", defaultSource).toUpperCase(Locale.ENGLISH);
+			float volume = section.getFloat("volume", defaultVolume);
+			float pitch = section.getFloat("pitch", defaultPitch);
+
+			Sound.Source source = Sound.Source.valueOf(sourceStr);
+
+			return Sound.sound(net.kyori.adventure.key.Key.key(key), source, volume, pitch);
+		} catch (Exception ex) {
+			instance.getPluginLogger().warn("Failed to load sound at " + path + ": " + ex.getMessage());
+			return null;
+		}
+	}
+
+	@NotNull
+	private IslandEventData loadEventData(@NotNull Section parent, @NotNull String key, float defaultLevel,
+			int defaultCooldown, int defaultDuration) {
+		Section section = parent.getSection(key);
+		if (section != null) {
+			boolean enabled = section.getBoolean("enable", true);
+			float levelRequired = section.getFloat("level-required", defaultLevel);
+			int cooldown = section.getInt("cooldown", defaultCooldown);
+			int maxDuration = section.getInt("max-duration", defaultDuration);
+			return new IslandEventData(enabled, levelRequired, cooldown, maxDuration);
+		} else {
+			return new IslandEventData(true, defaultLevel, defaultCooldown, defaultDuration);
+		}
 	}
 
 	public Map<Key, Short> getEnchantments(Section section) {
 		final Map<Key, Short> map = new HashMap<>();
-		section.getStringRouteMappedValues(false).entrySet().forEach(entry -> {
-			final int level = Math.min(255, Math.max(1, (int) entry.getValue()));
-			if (ItemRegistry.getEnchantment(entry.getKey()) != null) {
-				map.put(Key.fromString(entry.getKey()), (short) level);
+
+		if (section == null) {
+			instance.getPluginLogger().warn("Tried to parse enchantments from a null section!");
+			return map;
+		}
+
+		// Whitelisted custom enchantments (case-insensitive)
+		final Set<String> allowedCustom = Set.of("hellblock:crimson_thorns", "hellblock:lava_vision",
+				"hellblock:magma_walker", "hellblock:molten_core");
+
+		section.getStringRouteMappedValues(false).forEach((key, value) -> {
+			if (key == null || key.isBlank())
+				return;
+
+			// Convert value safely to integer
+			int level = 1;
+			if (value instanceof Number num) {
+				level = num.intValue();
+			} else if (value instanceof String str && str.matches("\\d+")) {
+				level = Integer.parseInt(str);
+			} else {
+				instance.getPluginLogger()
+						.warn("Invalid enchantment level '" + value + "' for key '" + key + "'. Using level 1.");
 			}
+
+			// Clamp to valid range
+			level = Math.min(255, Math.max(1, level));
+
+			// Try vanilla first
+			Enchantment enchant = EnchantmentUtils.getCompatibleEnchantment(key);
+			if (enchant != null) {
+				map.put(Key.of(enchant.getKey().getNamespace(), enchant.getKey().getKey()), (short) level);
+				return;
+			}
+
+			// Then try custom allowed enchantments
+			String lowered = key.toLowerCase(Locale.ROOT);
+			if (allowedCustom.contains(lowered)) {
+				Key customKey = Key.of(lowered);
+				map.put(customKey, (short) level);
+				return;
+			}
+
+			instance.getPluginLogger().warn("Unknown or unsupported enchantment key '" + key + "' — skipping.");
 		});
+
 		return map;
 	}
 
 	private List<Tuple<Double, String, Short>> getPossibleEnchantments(Section section) {
 		final List<Tuple<Double, String, Short>> list = new ArrayList<>();
+
+		if (section == null) {
+			instance.getPluginLogger().warn("Tried to parse possible enchantments from a null section!");
+			return list;
+		}
+
 		section.getStringRouteMappedValues(false).entrySet().stream()
 				.filter(entry -> entry.getValue() instanceof Section).map(entry -> (Section) entry.getValue())
 				.forEach(inner -> {
@@ -610,7 +909,8 @@ public final class ConfigManager extends ConfigHandler {
 				int i = 0;
 				outer: while (i < amount && !cloned.isEmpty()) {
 					final Pair<Key, Short> enchantPair = WeightUtils.getRandom(cloned);
-					final Enchantment enchantment = ItemRegistry.getEnchantment(enchantPair.left().toString());
+					final Enchantment enchantment = EnchantmentUtils
+							.getCompatibleEnchantment(enchantPair.left().toString());
 					if (enchantment == null) {
 						instance.getPluginLogger().warn("Enchantment: " + enchantPair.left() + " doesn't exist.");
 						return;
@@ -665,6 +965,110 @@ public final class ConfigManager extends ConfigHandler {
 			final Map<Key, Short> map = getEnchantments(section);
 			return (item, context) -> item.enchantments(map);
 		}, 4500, "enchantments");
+		this.registerItemParser(arg -> {
+			final Section section = (Section) arg;
+			final Map<Key, Short> map = getEnchantments(section);
+
+			return (item, context) -> {
+				if (item.getItem().getType() != Material.ENCHANTED_BOOK) {
+					instance.getPluginLogger()
+							.warn("Ignoring hellblock-stored-enchantments: can only be applied to enchanted books ("
+									+ item.getItem().getType().name() + ")");
+					return;
+				}
+
+				for (Map.Entry<Key, Short> entry : map.entrySet()) {
+					Key customKey = entry.getKey();
+					short level = entry.getValue();
+
+					if (!"hellblock".equals(customKey.namespace())) {
+						// Vanilla enchantments — store normally
+						item.storedEnchantments(Map.of(customKey, level));
+						continue;
+					}
+
+					String value = customKey.value();
+					String tagPath = switch (value) {
+					case "lava_vision" -> "lava_vision_book";
+					case "crimson_thorns" -> "crimson_thorns_book";
+					case "molten_core" -> "molten_core_book";
+					case "magma_walker" -> "magma_walker_book";
+					default -> null;
+					};
+
+					if (tagPath == null) {
+						instance.getPluginLogger().warn("Unknown hellblock stored enchantment: " + value);
+						continue;
+					}
+
+					item.setTag((int) level, "custom", tagPath, "level");
+					item.setTag(true, "minecraft", "enchantment_glint_override");
+				}
+			};
+		}, 4601, "hellblock-stored-enchantments");
+		this.registerItemParser(arg -> {
+			final Section section = (Section) arg;
+			final Map<Key, Short> map = getEnchantments(section);
+
+			return (item, context) -> {
+				for (Map.Entry<Key, Short> entry : map.entrySet()) {
+					Key customKey = entry.getKey();
+					short level = entry.getValue();
+
+					if ("hellblock".equals(customKey.namespace())) {
+						String value = customKey.value();
+
+						// Validate per-item-type
+						String type = item.getItem().getType().name();
+						switch (value) {
+						case "lava_vision" -> {
+							if (!type.endsWith("_HELMET")) {
+								instance.getPluginLogger()
+										.warn("Ignoring lava_vision: can only be applied to helmets (" + type + ")");
+								continue;
+							}
+							item.setTag((int) level, "custom", "lava_vision_helmet", "level");
+						}
+
+						case "crimson_thorns" -> {
+							if (!type.endsWith("_CHESTPLATE")) {
+								instance.getPluginLogger().warn(
+										"Ignoring crimson_thorns: can only be applied to chestplates (" + type + ")");
+								continue;
+							}
+							item.setTag((int) level, "custom", "crimson_thorns_chestplate", "level");
+						}
+
+						case "molten_core" -> {
+							if (!type.endsWith("_LEGGINGS")) {
+								instance.getPluginLogger()
+										.warn("Ignoring molten_core: can only be applied to leggings (" + type + ")");
+								continue;
+							}
+							item.setTag((int) level, "custom", "molten_core_leggings", "level");
+						}
+
+						case "magma_walker" -> {
+							if (!type.endsWith("_BOOTS")) {
+								instance.getPluginLogger()
+										.warn("Ignoring magma_walker: can only be applied to boots (" + type + ")");
+								continue;
+							}
+							item.setTag((int) level, "custom", "magma_walker_boots", "level");
+						}
+
+						default -> instance.getPluginLogger().warn("Unknown custom enchantment: " + value);
+						}
+
+						// Always give glint
+						item.setTag(true, "minecraft", "enchantment_glint_override");
+					} else {
+						// Vanilla enchantment — apply normally
+						item.enchantments(Map.of(customKey, level));
+					}
+				}
+			};
+		}, 4501, "hellblock-enchantments");
 		this.registerItemParser(arg -> {
 			final String base64 = (String) arg;
 			return (item, context) -> item.skull(base64);
@@ -1385,8 +1789,68 @@ public final class ConfigManager extends ConfigHandler {
 		}, "statistics");
 	}
 
-	public class TitleScreenInfo {
+	public class HellEnchantmentData {
+		protected final String bookName;
+		protected final List<String> bookLore;
+		protected final List<String> armorAdditionalLore;
+		protected final int enchantmentTableChance;
 
+		public HellEnchantmentData(String bookName, List<String> bookLore, List<String> armorAdditionalLore,
+				int enchantmentTableChance) {
+			this.bookName = bookName;
+			this.bookLore = bookLore;
+			this.armorAdditionalLore = armorAdditionalLore;
+			this.enchantmentTableChance = enchantmentTableChance;
+		}
+
+		public String bookName() {
+			return bookName;
+		}
+
+		public List<String> bookLore() {
+			return bookLore;
+		}
+
+		public List<String> armorAdditionalLore() {
+			return armorAdditionalLore;
+		}
+
+		public int enchantmentTableChance() {
+			return enchantmentTableChance;
+		}
+	}
+
+	public class IslandEventData {
+		protected final boolean enabled;
+		protected final float levelRequired;
+		protected final int cooldown;
+		protected final int maxDuration;
+
+		public IslandEventData(boolean enabled, float levelRequired, int cooldown, int maxDuration) {
+			this.enabled = enabled;
+			this.levelRequired = levelRequired;
+			this.cooldown = cooldown;
+			this.maxDuration = maxDuration;
+		}
+
+		public boolean enabled() {
+			return enabled;
+		}
+
+		public float levelRequired() {
+			return levelRequired;
+		}
+
+		public int cooldown() {
+			return cooldown;
+		}
+
+		public int maxDuration() {
+			return maxDuration;
+		}
+	}
+
+	public class TitleScreenInfo {
 		protected final boolean enabled;
 		protected final String title;
 		protected final String subtitle;
@@ -1394,7 +1858,8 @@ public final class ConfigManager extends ConfigHandler {
 		protected final int stay;
 		protected final int fadeOut;
 
-		public TitleScreenInfo(boolean enabled, String title, String subtitle, int fadeIn, int stay, int fadeOut) {
+		public TitleScreenInfo(boolean enabled, @NotNull String title, @NotNull String subtitle, int fadeIn, int stay,
+				int fadeOut) {
 			this.enabled = enabled;
 			this.title = title;
 			this.subtitle = subtitle;
@@ -1407,10 +1872,12 @@ public final class ConfigManager extends ConfigHandler {
 			return enabled;
 		}
 
+		@NotNull
 		public String title() {
 			return title;
 		}
 
+		@NotNull
 		public String subtitle() {
 			return subtitle;
 		}
@@ -1426,5 +1893,8 @@ public final class ConfigManager extends ConfigHandler {
 		public int fadeOut() {
 			return fadeOut;
 		}
+	}
+
+	public record SplitRequirements<T1, T2>(Requirement<T1>[] playerReqs, Requirement<T2>[] islandReqs) {
 	}
 }

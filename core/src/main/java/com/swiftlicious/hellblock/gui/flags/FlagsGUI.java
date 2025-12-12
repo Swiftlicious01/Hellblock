@@ -13,12 +13,15 @@ import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.Nullable;
 
 import com.swiftlicious.hellblock.context.Context;
+import com.swiftlicious.hellblock.creation.item.CustomItem;
 import com.swiftlicious.hellblock.creation.item.Item;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.handlers.VersionHelper;
 import com.swiftlicious.hellblock.player.HellblockData;
 import com.swiftlicious.hellblock.protection.HellblockFlag.AccessType;
 import com.swiftlicious.hellblock.protection.HellblockFlag.FlagType;
+
+import dev.dejvokep.boostedyaml.block.implementation.Section;
 
 public class FlagsGUI {
 
@@ -27,12 +30,18 @@ public class FlagsGUI {
 	private final FlagsGUIManager manager;
 	protected final Inventory inventory;
 	protected final Context<Player> context;
+	protected final Context<Integer> islandContext;
 	protected final HellblockData hellblockData;
 	protected final boolean isOwner;
 
-	public FlagsGUI(FlagsGUIManager manager, Context<Player> context, HellblockData hellblockData, boolean isOwner) {
+	private volatile boolean refreshInProgress = false;
+	private volatile boolean refreshQueued = false;
+
+	public FlagsGUI(FlagsGUIManager manager, Context<Player> context, Context<Integer> islandContext,
+			HellblockData hellblockData, boolean isOwner) {
 		this.manager = manager;
 		this.context = context;
+		this.islandContext = islandContext;
 		this.hellblockData = hellblockData;
 		this.isOwner = isOwner;
 		this.itemsCharMap = new HashMap<>();
@@ -102,32 +111,62 @@ public class FlagsGUI {
 	 * @return The FlagsGUI instance.
 	 */
 	public FlagsGUI refresh() {
-		FlagsDynamicGUIElement backElement = (FlagsDynamicGUIElement) getElement(manager.backSlot);
-		if (backElement != null && !backElement.getSlots().isEmpty()) {
-			backElement.setItemStack(manager.backIcon.build(context));
+		if (refreshInProgress) {
+			refreshQueued = true;
+			return this;
 		}
-		manager.flagIcons.forEach(flag -> {
-			FlagsDynamicGUIElement flagElement = (FlagsDynamicGUIElement) getElement(flag.left());
-			if (flagElement != null && !flagElement.getSlots().isEmpty()) {
-				Item<ItemStack> item = manager.instance.getItemManager().wrap(flag.right().left().build(context));
-				FlagType flagType = flag.right().mid();
-				List<String> newLore = new ArrayList<>();
-				flag.mid().getStringList("display.lore")
-						.forEach(lore -> newLore.add(AdventureHelper.miniMessageToJson(lore.replace("{flag_value}",
-								String.valueOf(hellblockData.getProtectionValue(flagType).getReturnValue())))));
-				item.lore(newLore);
-				if (hellblockData.getProtectionValue(flagType) == AccessType.ALLOW)
-					if (manager.highlightSelection)
-						item.glint(true);
+		refreshInProgress = true;
+		refreshQueued = false;
 
-				flagElement.setItemStack(item.load());
+		manager.instance.getScheduler().executeSync(() -> {
+			try {
+				// Back button
+				FlagsDynamicGUIElement backElement = (FlagsDynamicGUIElement) getElement(manager.backSlot);
+				if (backElement != null && !backElement.getSlots().isEmpty()) {
+					backElement.setItemStack(manager.backIcon.build(context));
+				}
+
+				// Flag icons
+				for (var flag : manager.flagIcons) {
+					char symbol = flag.left();
+					Section config = flag.mid();
+					CustomItem itemDef = flag.right().left();
+					FlagType flagType = flag.right().mid();
+
+					FlagsDynamicGUIElement flagElement = (FlagsDynamicGUIElement) getElement(symbol);
+					if (flagElement == null || flagElement.getSlots().isEmpty())
+						continue;
+
+					Item<ItemStack> item = manager.instance.getItemManager().wrap(itemDef.build(context));
+					AccessType value = hellblockData.getProtectionValue(flagType);
+
+					List<String> lore = new ArrayList<>();
+					config.getStringList("display.lore").forEach(raw -> lore.add(AdventureHelper
+							.miniMessageToJson(raw.replace("{flag_value}", String.valueOf(value.getReturnValue())))));
+					item.lore(lore);
+
+					if (value == AccessType.ALLOW && manager.highlightSelection) {
+						item.glint(true);
+					}
+
+					flagElement.setItemStack(item.loadCopy());
+				}
+
+				// Update inventory items
+				itemsSlotMap.entrySet().stream().filter(entry -> entry.getValue() instanceof FlagsDynamicGUIElement)
+						.forEach(entry -> {
+							FlagsDynamicGUIElement dynamicElement = (FlagsDynamicGUIElement) entry.getValue();
+							this.inventory.setItem(entry.getKey(), dynamicElement.getItemStack().clone());
+						});
+			} finally {
+				refreshInProgress = false;
+				if (refreshQueued) {
+					refreshQueued = false;
+					manager.instance.getScheduler().sync().run(this::refresh, context.holder().getLocation());
+				}
 			}
-		});
-		itemsSlotMap.entrySet().stream().filter(entry -> entry.getValue() instanceof FlagsDynamicGUIElement)
-				.forEach(entry -> {
-					FlagsDynamicGUIElement dynamicGUIElement = (FlagsDynamicGUIElement) entry.getValue();
-					this.inventory.setItem(entry.getKey(), dynamicGUIElement.getItemStack().clone());
-				});
+		}, context.holder().getLocation());
+
 		return this;
 	}
 }

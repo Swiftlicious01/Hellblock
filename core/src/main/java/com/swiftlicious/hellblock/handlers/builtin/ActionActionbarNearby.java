@@ -44,7 +44,7 @@ public class ActionActionbarNearby<T> extends AbstractBuiltInAction<T> {
 				final String replaced = plugin.getPlaceholderManager().parse(owner, actionbar,
 						context.placeholderMap());
 				VersionHelper.getNMSManager().sendActionBar(player,
-						AdventureHelper.componentToJson(AdventureHelper.miniMessage(replaced)));
+						AdventureHelper.componentToJson(AdventureHelper.miniMessageToComponent(replaced)));
 			}
 		}
 	}

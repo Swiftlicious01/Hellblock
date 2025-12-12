@@ -1,101 +1,95 @@
 package com.swiftlicious.hellblock.player;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
+import java.io.IOException;
 import java.net.URI;
-import java.net.URLConnection;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.util.Optional;
 import java.util.UUID;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.bukkit.entity.Player;
 
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+
 /**
- * Helper-class for getting UUIDs of players.
+ * Utility class for fetching Minecraft player UUIDs based on their usernames.
+ * <p>
+ * This class queries Mojang's public API to retrieve UUIDs and caches them in
+ * memory for faster future lookups.
+ * </p>
+ *
+ * <p>
+ * <strong>Note:</strong> This class uses Java 11+ {@link HttpClient} and
+ * requires the org.gson library.
+ * </p>
  */
 public final class UUIDFetcher {
 
-	private static final String UUID_URL = "https://api.mojang.com/users" + "/profiles/minecraft/";
+	private static final String UUID_URL = "https://api.mojang.com/users/profiles/minecraft/";
+	private static final HttpClient CLIENT = HttpClient.newHttpClient();
 
-	private static final Pattern UUID_PATTERN = Pattern.compile("\"id\"\\s*:\\s*\"(.*?)\"");
+	// Thread-safe in-memory cache to avoid duplicate lookups
+	private static final ConcurrentHashMap<String, UUID> CACHE = new ConcurrentHashMap<>();
 
 	private UUIDFetcher() {
-		throw new UnsupportedOperationException();
+		throw new UnsupportedOperationException("This is a utility class and cannot be instantiated.");
 	}
 
 	/**
-	 * Returns the UUID of the searched player.
+	 * Retrieves the UUID of the given player using their Player object.
 	 *
-	 * @param player The player.
-	 * @return The UUID of the given player.
+	 * @param player The Minecraft player.
+	 * @return An Optional containing the UUID if found, otherwise Optional.empty().
 	 */
-	public static UUID getUUID(Player player) {
+	public static Optional<UUID> getUUID(Player player) {
 		return getUUID(player.getName());
 	}
 
 	/**
-	 * Returns the UUID of the searched player.
+	 * Retrieves the UUID of a player by their username. Results are cached after
+	 * the first successful fetch.
 	 *
-	 * @param name The name of the player.
-	 * @return The UUID of the given player.
+	 * @param name The username of the player.
+	 * @return An Optional containing the UUID if found, otherwise Optional.empty().
 	 */
-	public static UUID getUUID(String name) {
-		final String output = callURL(UUID_URL + name);
-		final Matcher m = UUID_PATTERN.matcher(output);
-		if (m.find()) {
-			return UUID.fromString(insertDashes(m.group(1)));
+	public static Optional<UUID> getUUID(String name) {
+		if (CACHE.containsKey(name)) {
+			return Optional.of(CACHE.get(name));
 		}
-		return null;
+
+		try {
+			HttpRequest request = HttpRequest.newBuilder().uri(URI.create(UUID_URL + name)).GET().build();
+
+			HttpResponse<String> response = CLIENT.send(request,
+					HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+
+			if (response.statusCode() == 200) {
+				JsonObject json = JsonParser.parseString(response.body()).getAsJsonObject();
+				String rawId = json.get("id").getAsString();
+				UUID uuid = UUID.fromString(insertDashes(rawId));
+				CACHE.put(name, uuid);
+				return Optional.of(uuid);
+			}
+		} catch (IOException | InterruptedException e) {
+			e.printStackTrace(); // Ideally replace with a logging framework
+		} catch (Exception e) {
+			e.printStackTrace(); // Handle other exceptions like JSON parsing
+		}
+
+		return Optional.empty();
 	}
 
 	/**
-	 * Helper method for inserting dashes into unformatted UUID.
+	 * Inserts dashes into a raw UUID string to format it as a standard UUID.
 	 *
-	 * @return Formatted UUID with dashes.
+	 * @param uuid The raw UUID string without dashes.
+	 * @return The formatted UUID string with dashes.
 	 */
-	public static String insertDashes(String uuid) {
-		final StringBuilder sb = new StringBuilder(uuid);
-		sb.insert(8, '-');
-		sb.insert(13, '-');
-		sb.insert(18, '-');
-		sb.insert(23, '-');
-		return sb.toString();
-	}
-
-	private static String callURL(String urlStr) {
-		final StringBuilder sb = new StringBuilder();
-		final URLConnection conn;
-		BufferedReader br = null;
-		InputStreamReader in = null;
-		try {
-			conn = new URI(urlStr).toURL().openConnection();
-			if (conn != null) {
-				conn.setReadTimeout(60 * 1000);
-			}
-			if (conn != null && conn.getInputStream() != null) {
-				in = new InputStreamReader(conn.getInputStream(), "UTF-8");
-				br = new BufferedReader(in);
-				String line = br.readLine();
-				while (line != null) {
-					sb.append(line).append("\n");
-					line = br.readLine();
-				}
-			}
-		} catch (Throwable ignored) {
-		} finally {
-			if (br != null) {
-				try {
-					br.close();
-				} catch (Throwable ignored) {
-				}
-			}
-			if (in != null) {
-				try {
-					in.close();
-				} catch (Throwable ignored) {
-				}
-			}
-		}
-		return sb.toString();
+	private static String insertDashes(String uuid) {
+		return uuid.replaceFirst("(\\w{8})(\\w{4})(\\w{4})(\\w{4})(\\w{12})", "$1-$2-$3-$4-$5");
 	}
 }

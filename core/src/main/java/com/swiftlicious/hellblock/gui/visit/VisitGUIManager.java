@@ -16,7 +16,6 @@ import java.util.function.Function;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
-import org.bukkit.event.Event.Result;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
@@ -55,7 +54,9 @@ public class VisitGUIManager implements VisitGUIManagerInterface, Listener {
 	protected final HellblockPlugin instance;
 
 	protected TextValue<Player> title;
+	protected final Map<Integer, TextValue<Player>> pageTitles = new HashMap<>();
 	protected String[] layout;
+	protected final Map<Integer, String[]> pageLayouts = new HashMap<>();
 	protected final Map<Character, Pair<CustomItem, Action<Player>[]>> decorativeIcons = new HashMap<>();
 	protected final List<Tuple<Character, Section, Tuple<CustomItem, VisitSorter, Action<Player>[]>>> sortingIcons = new ArrayList<>();
 	protected final ConcurrentMap<UUID, VisitGUI> visitGUICache = new ConcurrentHashMap<>();
@@ -77,6 +78,14 @@ public class VisitGUIManager implements VisitGUIManagerInterface, Listener {
 	protected Action<Player>[] emptyActions;
 	protected Requirement<Player>[] emptyRequirements;
 
+	protected char leftSlot;
+	protected char rightSlot;
+
+	protected CustomItem leftIcon;
+	protected Action<Player>[] leftActions;
+	protected CustomItem rightIcon;
+	protected Action<Player>[] rightActions;
+
 	public VisitGUIManager(HellblockPlugin plugin) {
 		this.instance = plugin;
 	}
@@ -91,12 +100,47 @@ public class VisitGUIManager implements VisitGUIManagerInterface, Listener {
 	public void unload() {
 		HandlerList.unregisterAll(this);
 		this.decorativeIcons.clear();
+		this.pageLayouts.clear();
+		this.pageTitles.clear();
 	}
 
 	private void loadConfig() {
-		Section config = instance.getConfigManager().getGuiConfig().getSection("visit.gui");
+		Section configFile = instance.getConfigManager().getGUIConfig("visit.yml");
+		if (configFile == null) {
+			instance.getPluginLogger().severe("GUI for visit.yml was unable to load correctly!");
+			return;
+		}
+		Section config = configFile.getSection("visit.gui");
+		if (config == null) {
+			instance.getPluginLogger().severe("visit.gui returned null, please regenerate your visit.yml GUI file.");
+			return;
+		}
 
-		this.layout = config.getStringList("layout").toArray(new String[0]);
+		// check if there’s a `pages:` section
+		Section pagesSection = config.getSection("pages");
+		if (pagesSection != null) {
+			for (Map.Entry<String, Object> entry : pagesSection.getStringRouteMappedValues(false).entrySet()) {
+				if (entry.getValue() instanceof Section pageSection) {
+					try {
+						int pageIndex = Integer.parseInt(entry.getKey());
+						List<String> layoutLines = pageSection.getStringList("layout", new ArrayList<>());
+						pageLayouts.put(pageIndex - 1, layoutLines.toArray(new String[0]));
+
+						// Optional per-page title
+						if (pageSection.contains("title")) {
+							pageTitles.put(pageIndex - 1, TextValue.auto(pageSection.getString("title")));
+						}
+
+					} catch (NumberFormatException e) {
+						instance.getPluginLogger().severe("Invalid page number: " + entry.getKey());
+					}
+				}
+			}
+		} else {
+			// fallback to single-layout mode
+			this.layout = config.getStringList("layout", new ArrayList<>()).toArray(new String[0]);
+		}
+
 		this.title = TextValue.auto(config.getString("title", "visit.title"));
 
 		Section backSection = config.getSection("back-icon");
@@ -106,6 +150,24 @@ public class VisitGUIManager implements VisitGUIManagerInterface, Listener {
 			backIcon = new SingleItemParser("back", backSection, instance.getConfigManager().getItemFormatFunctions())
 					.getItem();
 			backActions = instance.getActionManager(Player.class).parseActions(backSection.getSection("action"));
+		}
+
+		Section leftSection = config.getSection("left-icon");
+		if (leftSection != null) {
+			leftSlot = leftSection.getString("symbol", "L").charAt(0);
+
+			leftIcon = new SingleItemParser("left", leftSection, instance.getConfigManager().getItemFormatFunctions())
+					.getItem();
+			leftActions = instance.getActionManager(Player.class).parseActions(leftSection.getSection("action"));
+		}
+
+		Section rightSection = config.getSection("right-icon");
+		if (rightSection != null) {
+			rightSlot = rightSection.getString("symbol", "R").charAt(0);
+
+			rightIcon = new SingleItemParser("right", rightSection,
+					instance.getConfigManager().getItemFormatFunctions()).getItem();
+			rightActions = instance.getActionManager(Player.class).parseActions(rightSection.getSection("action"));
 		}
 
 		filledSection = config.getSection("filled-icon");
@@ -158,7 +220,7 @@ public class VisitGUIManager implements VisitGUIManagerInterface, Listener {
 
 						sortingIcons.add(Tuple.of(symbol, innerSection,
 								Tuple.of(
-										new SingleItemParser("sorting", innerSection,
+										new SingleItemParser(sortingType.toString().toLowerCase(), innerSection,
 												instance.getConfigManager().getItemFormatFunctions()).getItem(),
 										sortingType, instance.getActionManager(Player.class)
 												.parseActions(innerSection.getSection("action")))));
@@ -199,15 +261,9 @@ public class VisitGUIManager implements VisitGUIManagerInterface, Listener {
 		}
 	}
 
-	/**
-	 * Open the Visit GUI for a player
-	 *
-	 * @param player       player
-	 * @param visitSorter  the current sorter to open on.
-	 * @param showBackIcon show back menu icon or not
-	 */
 	@Override
-	public boolean openVisitGUI(Player player, VisitSorter visitSorter, boolean showBackIcon) {
+	public boolean openVisitGUI(Player player, int islandId, VisitSorter visitSorter, boolean isOwner,
+			boolean showBackIcon) {
 		Optional<UserData> optionalUserData = instance.getStorageManager().getOnlineUser(player.getUniqueId());
 		if (optionalUserData.isEmpty()) {
 			instance.getPluginLogger()
@@ -221,21 +277,22 @@ public class VisitGUIManager implements VisitGUIManagerInterface, Listener {
 			return false;
 		}
 		Context<Player> context = Context.player(player);
-		VisitGUI gui = new VisitGUI(this, visitSorter, context, optionalUserData.get().getHellblockData(),
-				showBackIcon);
-		if (gui.showBackIcon) {
-			gui.addElement(new VisitDynamicGUIElement(backSlot, new ItemStack(Material.AIR)));
-		}
+		Context<Integer> islandContext = Context.island(islandId);
+		VisitGUI gui = new VisitGUI(this, visitSorter, context, islandContext,
+				optionalUserData.get().getHellblockData(), isOwner, showBackIcon, leftIcon, leftActions, rightIcon,
+				rightActions);
+		gui.addElement(new VisitDynamicGUIElement(backSlot,
+				showBackIcon ? new ItemStack(Material.AIR) : gui.getDecorativePlaceholderForSlot(backSlot)));
 		gui.addElement(new VisitDynamicGUIElement(filledSlot, new ItemStack(Material.AIR)));
 		gui.addElement(new VisitDynamicGUIElement(emptySlot, new ItemStack(Material.AIR)));
-		sortingIcons
-				.forEach(flag -> gui.addElement(new VisitDynamicGUIElement(flag.left(), new ItemStack(Material.AIR))));
+		sortingIcons.forEach(
+				sortType -> gui.addElement(new VisitDynamicGUIElement(sortType.left(), new ItemStack(Material.AIR))));
 		decorativeIcons.entrySet().forEach(
 				entry -> gui.addElement(new VisitGUIElement(entry.getKey(), entry.getValue().left().build(context))));
 		gui.build().show();
 		gui.refreshAndRepopulate();
 		if (visitSorter == VisitSorter.FEATURED) {
-			startFeaturedGuiUpdate(player);
+			startFeaturedGUIUpdate(player);
 		}
 		visitGUICache.put(player.getUniqueId(), gui);
 		return true;
@@ -253,7 +310,7 @@ public class VisitGUIManager implements VisitGUIManagerInterface, Listener {
 		if (!(event.getInventory().getHolder() instanceof VisitGUIHolder))
 			return;
 		visitGUICache.remove(player.getUniqueId());
-		cancelGuiUpdate(player);
+		cancelGUIUpdate(player);
 	}
 
 	/**
@@ -264,7 +321,7 @@ public class VisitGUIManager implements VisitGUIManagerInterface, Listener {
 	@EventHandler
 	public void onQuit(PlayerQuitEvent event) {
 		visitGUICache.remove(event.getPlayer().getUniqueId());
-		cancelGuiUpdate(event.getPlayer());
+		cancelGUIUpdate(event.getPlayer());
 	}
 
 	/**
@@ -287,7 +344,17 @@ public class VisitGUIManager implements VisitGUIManagerInterface, Listener {
 			return;
 		}
 
-		event.setResult(Result.DENY);
+		// Check if any dragged slot is in the GUI (top inventory)
+		for (int slot : event.getRawSlots()) {
+			if (slot < event.getInventory().getSize()) {
+				event.setCancelled(true);
+				return;
+			}
+		}
+
+		// If the drag is only in the player inventory, do nothing special
+		// but still make sure no ghost items appear
+		event.setCancelled(true);
 
 		// Refresh the GUI
 		instance.getScheduler().sync().runLater(gui::refresh, 1, player.getLocation());
@@ -317,7 +384,13 @@ public class VisitGUIManager implements VisitGUIManagerInterface, Listener {
 			return;
 		}
 
-		if (clickedInv != player.getInventory()) {
+		// Handle shift-clicks, number keys, or clicking outside GUI
+		if (event.getClick().isShiftClick() || event.getClick().isKeyboardClick()) {
+			event.setCancelled(true);
+			return;
+		}
+
+		if (!Objects.equals(clickedInv, player.getInventory())) {
 			int slot = event.getSlot();
 			VisitGUIElement element = gui.getElement(slot);
 			if (element == null) {
@@ -327,15 +400,29 @@ public class VisitGUIManager implements VisitGUIManagerInterface, Listener {
 
 			Pair<CustomItem, Action<Player>[]> decorativeIcon = this.decorativeIcons.get(element.getSymbol());
 			if (decorativeIcon != null) {
+				event.setCancelled(true);
 				ActionManager.trigger(gui.context, decorativeIcon.right());
 				return;
 			}
 
-			if (gui.showBackIcon && element.getSymbol() == backSlot) {
+			if (element.getSymbol() == backSlot) {
 				event.setCancelled(true);
-				instance.getHellblockGUIManager().openHellblockGUI(player,
-						gui.context.holder().getUniqueId().equals(gui.hellblockData.getOwnerUUID()));
+				if (!gui.showBackIcon) {
+					return;
+				}
+				instance.getHellblockGUIManager().openHellblockGUI(player, gui.islandContext.holder(), gui.isOwner);
 				ActionManager.trigger(gui.context, backActions);
+				return;
+			}
+
+			if (slot == gui.getLeftIconSlot()) {
+				event.setCancelled(true);
+				gui.previousPage();
+				return;
+			}
+			if (slot == gui.getRightIconSlot()) {
+				event.setCancelled(true);
+				gui.nextPage();
 				return;
 			}
 
@@ -353,6 +440,7 @@ public class VisitGUIManager implements VisitGUIManagerInterface, Listener {
 
 					// Update GUI state to reflect new sorter
 					gui.setCurrentSorter(sortType);
+					gui.setRefreshReason(VisitGUI.RefreshReason.SORT_CHANGE);
 
 					int limit = getFilledSlotCount();
 
@@ -368,20 +456,24 @@ public class VisitGUIManager implements VisitGUIManagerInterface, Listener {
 					}
 
 					ActionManager.trigger(gui.context, sort.right().right());
-					break;
+					return;
 				}
 			}
 
 			if (element.getSymbol() == filledSlot && element.getUUID() != null) {
 				event.setCancelled(true);
 				UUID targetUUID = element.getUUID();
-				instance.getStorageManager().getOfflineUserData(targetUUID, instance.getConfigManager().lockData())
+				instance.getStorageManager()
+						.getCachedUserDataWithFallback(targetUUID, instance.getConfigManager().lockData())
 						.thenAccept(ownerOpt -> {
 							if (ownerOpt.isEmpty()) {
 								final String username = Bukkit.getOfflinePlayer(targetUUID).getName();
 								instance.getSenderFactory().wrap(player).sendMessage(instance.getTranslationManager()
-										.render(MessageConstants.MSG_HELLBLOCK_PLAYER_DATA_FAILURE_LOAD.arguments(
-												AdventureHelper.miniMessage(username != null ? username : "???"))
+										.render(MessageConstants.MSG_HELLBLOCK_PLAYER_DATA_FAILURE_LOAD
+												.arguments(AdventureHelper.miniMessageToComponent(username != null
+														? username
+														: instance.getTranslationManager().miniMessageTranslation(
+																MessageConstants.FORMAT_UNKNOWN.build().key())))
 												.build()));
 								AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
 										Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
@@ -401,12 +493,13 @@ public class VisitGUIManager implements VisitGUIManagerInterface, Listener {
 								return;
 							}
 
-							if (ownerData.getBanned().contains(player.getUniqueId())) {
-								instance.getSenderFactory().wrap(player)
-										.sendMessage(instance.getTranslationManager()
-												.render(MessageConstants.MSG_HELLBLOCK_BANNED_ENTRY
-														.arguments(AdventureHelper.miniMessage(ownerUser.getName()))
-														.build()));
+							if (ownerData.getBannedMembers().contains(player.getUniqueId())
+									&& (!(player.isOp() || player.hasPermission("hellblock.admin")
+											|| player.hasPermission("hellblock.bypass.interact")))) {
+								instance.getSenderFactory().wrap(player).sendMessage(instance.getTranslationManager()
+										.render(MessageConstants.MSG_HELLBLOCK_BANNED_ENTRY
+												.arguments(AdventureHelper.miniMessageToComponent(ownerUser.getName()))
+												.build()));
 								AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
 										Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
 												Sound.Source.PLAYER, 1, 1));
@@ -419,7 +512,8 @@ public class VisitGUIManager implements VisitGUIManagerInterface, Listener {
 											instance.getSenderFactory().wrap(player).sendMessage(instance
 													.getTranslationManager()
 													.render(MessageConstants.MSG_HELLBLOCK_LOCKED_FROM_VISITORS
-															.arguments(AdventureHelper.miniMessage(ownerUser.getName()))
+															.arguments(AdventureHelper
+																	.miniMessageToComponent(ownerUser.getName()))
 															.build()));
 											AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
 													Sound.sound(
@@ -441,7 +535,13 @@ public class VisitGUIManager implements VisitGUIManagerInterface, Listener {
 
 			if (userData.isEmpty() || !gui.hellblockData.hasHellblock() || gui.hellblockData.getOwnerUUID() == null) {
 				event.setCancelled(true);
-				player.closeInventory();
+				AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
+						Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
+								net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
+				if (gui.getCurrentSorter() == VisitSorter.FEATURED) {
+					instance.getSenderFactory().wrap(player).sendMessage(
+							instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_NOT_FOUND.build()));
+				}
 				return;
 			}
 
@@ -468,19 +568,37 @@ public class VisitGUIManager implements VisitGUIManagerInterface, Listener {
 			if (element.getSymbol() == emptySlot && element.getUUID() == null
 					&& gui.getCurrentSorter() == VisitSorter.FEATURED) {
 				event.setCancelled(true);
-				instance.getVisitManager().attemptFeaturedSlotPurchase(player, emptyRequirements)
-						.thenAccept(success -> {
-							if (success) {
-								gui.refreshAndRepopulate();
-								startFeaturedGuiUpdate(player);
-								ActionManager.trigger(gui.context, emptyActions);
-							}
-						});
+				int maxSlots = getFilledSlotCount(); // Total allowed
+				instance.getVisitManager().getFeaturedIslands(maxSlots).thenAccept(currentFeatured -> {
+					if (currentFeatured.size() >= maxSlots) {
+						// All slots filled
+						instance.getSenderFactory().wrap(player).sendMessage(
+								instance.getTranslationManager().render(MessageConstants.MSG_FEATURED_FULL.build()));
+						AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
+								Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
+										Sound.Source.PLAYER, 1f, 1f));
+						return;
+					}
+
+					// Proceed to purchase
+					instance.getVisitManager().attemptFeaturedSlotPurchase(player, emptyRequirements)
+							.thenAccept(success -> {
+								if (success) {
+									gui.refreshAndRepopulate();
+									startFeaturedGUIUpdate(player);
+									ActionManager.trigger(gui.context, emptyActions);
+								}
+							});
+				});
+
 				return;
 			}
 		}
 
 		// Refresh the GUI
+		if (instance.getCooldownManager().shouldUpdateActivity(player.getUniqueId(), 15000)) {
+			gui.hellblockData.updateLastIslandActivity();
+		}
 		instance.getScheduler().sync().runLater(gui::refresh, 1, player.getLocation());
 	}
 
@@ -495,8 +613,8 @@ public class VisitGUIManager implements VisitGUIManagerInterface, Listener {
 		return count;
 	}
 
-	private void startFeaturedGuiUpdate(Player player) {
-		cancelGuiUpdate(player); // in case there's an old one
+	private void startFeaturedGUIUpdate(Player player) {
+		cancelGUIUpdate(player); // in case there's an old one
 
 		SchedulerTask task = instance.getScheduler().sync().runRepeating(() -> {
 			VisitGUI gui = visitGUICache.get(player.getUniqueId());
@@ -505,7 +623,7 @@ public class VisitGUIManager implements VisitGUIManagerInterface, Listener {
 				return;
 			}
 			if (!player.isOnline()) {
-				cancelGuiUpdate(player);
+				cancelGUIUpdate(player);
 				return;
 			}
 
@@ -517,7 +635,7 @@ public class VisitGUIManager implements VisitGUIManagerInterface, Listener {
 		guiUpdateTasks.put(player.getUniqueId(), task);
 	}
 
-	private void cancelGuiUpdate(Player player) {
+	private void cancelGUIUpdate(Player player) {
 		SchedulerTask task = guiUpdateTasks.remove(player.getUniqueId());
 		if (task != null && !task.isCancelled())
 			task.cancel();
@@ -525,7 +643,7 @@ public class VisitGUIManager implements VisitGUIManagerInterface, Listener {
 
 	public enum VisitSorter {
 		DAILY(VisitData::getDailyVisits), WEEKLY(VisitData::getWeeklyVisits), MONTHLY(VisitData::getMonthlyVisits),
-		OVERALL(VisitData::getTotalVisits), FEATURED(data -> data.getFeaturedRanking());
+		OVERALL(VisitData::getTotalVisits), FEATURED(VisitData::getFeaturedRanking);
 
 		private final Function<VisitData, Integer> visitFunction;
 

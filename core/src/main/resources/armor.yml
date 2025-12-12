@@ -1,0 +1,368 @@
+# =========================================================
+#                     ⚔️ Armor Configuration ⚔️
+# =========================================================
+# This file defines all custom armor sets for the Hellblock plugin.
+# Each armor type (e.g., netherrack, glowstone, quartz, netherstar)
+# is a separate group containing 4 armor pieces: helmet, chestplate,
+# leggings, and boots.
+#
+# ───────────────
+# 🔧 Structure
+# ───────────────
+# armor:
+#   <set-name>:                 # Example: netherrack, glowstone, etc.
+#     <piece>:                  # One of: helmet, chestplate, leggings, boots
+#       enable: true|false      # Whether this armor piece is active
+#       material: <MATERIAL>    # Base Bukkit material for the armor
+#
+#       crafting:
+#         ingredients:            # Defines symbol-to-material mapping
+#           <MATERIAL>: '<CHAR>' 
+#           AIR: 'A'            # Use 'A' for empty slots in recipe
+#         recipe:               # 3 lines defining the 3x3 crafting grid
+#           - 'XYZ'
+#           - 'XYZ'
+#           - 'XYZ'
+#
+#       display:                # Appearance in-game
+#         name: '<color>Name'   # Supports MiniMessage-style color tags (<red>, <yellow>, etc.)
+#         lore:
+#           - '<gray>Line of lore text'
+#
+#       enchantments:           # Vanilla enchantments applied on creation
+#         minecraft:<enchant>: <level>
+#
+#       night-vision: true|false # (Optional) Enables night vision when equipped (helmet only)
+#
+# ───────────────
+# 🧱 Example
+# ───────────────
+# armor:
+#   quartz:
+#     helmet:
+#       enable: true
+#       material: IRON_HELMET
+#       crafting:
+#         ingredients:
+#           QUARTZ: 'Q'
+#           AIR: 'A'
+#         recipe:
+#           - 'QQQ'
+#           - 'QAQ'
+#           - 'AAA'
+#       display:
+#         name: '<gray>Quartz Helmet'
+#         lore:
+#           - '<dark_gray>Forged from Nether Quartz'
+#       enchantments:
+#         minecraft:protection: 3
+#         minecraft:fire_protection: 1
+#
+# ───────────────
+# 💡 Notes
+# ───────────────
+# • All MiniMessage tags (e.g. <red>, <bold>) are supported in names and lore.
+# • Ensure crafting recipes form valid 3x3 grids; use 'A' or omit lines for empty rows.
+# • Each set can have custom enchantments and display names.
+# • Set "enable: false" to temporarily disable specific armor pieces.
+# • The plugin automatically registers crafting recipes for all enabled pieces.
+# • Night vision works for any type of armor piece with "night-vision: true".
+# =========================================================
+
+armor:
+  netherrack:
+    helmet:
+      enable: true
+      material: LEATHER_HELMET
+      crafting:
+        ingredients:
+          NETHERRACK: 'N'
+          AIR: 'A'
+        recipe:
+          - 'NNN'
+          - 'NAN'
+          - 'AAA'
+      display:
+        name: '<red>Nether Helmet'
+        lore: 
+          - '<dark_red>Helmet but Nethery'
+      enchantments:
+        minecraft:protection: 3
+        minecraft:fire_protection: 1
+    chestplate:
+      enable: true
+      material: LEATHER_CHESTPLATE
+      crafting:
+        ingredients:
+          NETHERRACK: 'N'
+          AIR: 'A'
+        recipe:
+          - 'NAN'
+          - 'NNN'
+          - 'NNN'
+      display:
+        name: '<red>Nether Chest Plate'
+        lore: 
+          - '<dark_red>Chest Plate but Nethery'
+      enchantments:
+        minecraft:protection: 3
+        minecraft:fire_protection: 1
+    leggings:
+      enable: true
+      material: LEATHER_LEGGINGS
+      crafting:
+        ingredients:
+          NETHERRACK: 'N'
+          AIR: 'A'
+        recipe:
+          - 'NNN'
+          - 'NAN'
+          - 'NNN'
+      display:
+        name: '<red>Nether Leggings'
+        lore: 
+          - '<dark_red>Leggings but Nethery'
+      enchantments:
+        minecraft:protection: 3
+        minecraft:fire_protection: 1
+    boots:
+      enable: true
+      material: LEATHER_BOOTS
+      crafting:
+        ingredients:
+          NETHERRACK: 'N'
+          AIR: 'A'
+        recipe:
+          - 'AAA'
+          - 'NAN'
+          - 'NAN'
+      display:
+        name: '<red>Nether Boots'
+        lore: 
+          - '<dark_red>Boots but Nethery'
+      enchantments:
+        minecraft:protection: 3
+        minecraft:fire_protection: 1
+  glowstone:
+    helmet:
+      enable: true
+      night-vision: true
+      material: GOLDEN_HELMET
+      crafting:
+        ingredients:
+          GLOWSTONE: 'G'
+          AIR: 'A'
+        recipe:
+          - 'GGG'
+          - 'GAG'
+          - 'AAA'
+      display:
+        name: '<yellow>Glowstone Helmet'
+        lore: 
+          - '<dark_red>Helmet but Nethery'
+      enchantments:
+        minecraft:protection: 3
+        minecraft:fire_protection: 1
+    chestplate:
+      enable: true
+      night-vision: true
+      material: GOLDEN_CHESTPLATE
+      crafting:
+        ingredients:
+          GLOWSTONE: 'G'
+          AIR: 'A'
+        recipe:
+          - 'GAG'
+          - 'GGG'
+          - 'GGG'
+      display:
+        name: '<yellow>Glowstone Chest Plate'
+        lore: 
+          - '<dark_red>Chest Plate but Nethery'
+      enchantments:
+        minecraft:protection: 3
+        minecraft:fire_protection: 1
+    leggings:
+      enable: true
+      night-vision: true
+      material: GOLDEN_LEGGINGS
+      crafting:
+        ingredients:
+          GLOWSTONE: 'G'
+          AIR: 'A'
+        recipe:
+          - 'GGG'
+          - 'GAG'
+          - 'GAG'
+      display:
+        name: '<yellow>Glowstone Leggings'
+        lore: 
+          - '<dark_red>Leggings but Nethery'
+      enchantments:
+        minecraft:protection: 3
+        minecraft:fire_protection: 1
+    boots:
+      enable: true
+      night-vision: true
+      material: GOLDEN_BOOTS
+      crafting: 
+        ingredients:
+          GLOWSTONE: 'G'
+          AIR: 'A'
+        recipe:
+          - 'AAA'
+          - 'GAG'
+          - 'GAG'
+      display:
+        name: '<yellow>Glowstone Boots'
+        lore: 
+          - '<dark_red>Boots but Nethery'
+      enchantments:
+        minecraft:protection: 3
+        minecraft:fire_protection: 1
+  quartz:
+    helmet: 
+      enable: true
+      material: IRON_HELMET
+      crafting:
+        ingredients:
+          QUARTZ: 'Q'
+          AIR: 'A'
+        recipe:
+          - 'QQQ'
+          - 'QAQ'
+          - 'AAA'
+      display:
+        name: '<gray>Quartz Helmet'
+        lore: 
+          - '<dark_red>Helmet but Nethery'
+      enchantments:
+        minecraft:protection: 3
+        minecraft:fire_protection: 1
+    chestplate:
+      enable: true
+      material: IRON_CHESTPLATE
+      crafting:
+        ingredients:
+          QUARTZ: 'Q'
+          AIR: 'A'
+        recipe:
+          - 'QAQ'
+          - 'QQQ'
+          - 'QQQ'
+      display:
+        name: '<gray>Quartz Chest Plate'
+        lore: 
+          - '<dark_red>Chest Plate but Nethery'
+      enchantments:
+        minecraft:protection: 3
+        minecraft:fire_protection: 1
+    leggings:
+      enable: true
+      material: IRON_LEGGINGS
+      crafting:
+        ingredients:
+          QUARTZ: 'Q'
+          AIR: 'A'
+        recipe:
+          - 'QQQ'
+          - 'QAQ'
+          - 'QAQ'
+      display:
+        name: '<gray>Quartz Leggings'
+        lore: 
+          - '<dark_red>Leggings but Nethery'
+      enchantments:
+        minecraft:protection: 3
+        minecraft:fire_protection: 1
+    boots:
+      enable: true
+      material: IRON_BOOTS
+      crafting:
+        ingredients:
+          QUARTZ: 'Q'
+          AIR: 'A'
+        recipe:
+          - 'AAA'
+          - 'QAQ'
+          - 'QAQ'
+      display:
+        name: '<gray>Quartz Boots'
+        lore: 
+          - '<dark_red>Boots but Nethery'
+      enchantments:
+        minecraft:protection: 3
+        minecraft:fire_protection: 1
+  netherstar:
+    helmet:
+      enable: true
+      material: DIAMOND_HELMET
+      crafting:
+        ingredients:
+          NETHER_STAR: 'N'
+          AIR: 'A'
+        recipe:
+          - 'NNN'
+          - 'NAN'
+          - 'NNN'
+      display:
+        name: '<aqua>Nether Star Helmet'
+        lore: 
+          - '<dark_red>Helmet but Nethery'
+      enchantments:
+        minecraft:protection: 3
+        minecraft:fire_protection: 1
+    chestplate:
+      enable: true
+      material: DIAMOND_CHESTPLATE
+      crafting:
+        ingredients:
+          NETHER_STAR: 'N'
+          AIR: 'A'
+        recipe:
+          - 'NAN'
+          - 'NNN'
+          - 'NNN'
+      display:
+        name: '<aqua>Nether Star Chest Plate'
+        lore: 
+          - '<dark_red>Chest Plate but Nethery'
+      enchantments:
+        minecraft:protection: 3
+        minecraft:fire_protection: 1
+    leggings:
+      enable: true
+      material: DIAMOND_LEGGINGS
+      crafting:
+        ingredients:
+          NETHER_STAR: 'N'
+          AIR: 'A'
+        recipe:
+          - 'NNN'
+          - 'NAN'
+          - 'NAN'
+      display:
+        name: '<aqua>Nether Star Leggings'
+        lore: 
+          - '<dark_red>Leggings but Nethery'
+      enchantments:
+        minecraft:protection: 3
+        minecraft:fire_protection: 1
+    boots:
+      enable: true
+      material: DIAMOND_BOOTS
+      crafting:
+        ingredients:
+          NETHER_STAR: 'N'
+          AIR: 'A'
+        recipe:
+          - 'AAA'
+          - 'NAN'
+          - 'NAN'
+      display:
+        name: '<aqua>Nether Star Boots'
+        lore: 
+          - '<dark_red>Boots but Nethery'
+      enchantments:
+        minecraft:protection: 3
+        minecraft:fire_protection: 1

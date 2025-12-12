@@ -41,7 +41,7 @@ public class CustomDurabilityItem implements DurabilityItem {
 		}
 		durabilityLore.forEach(lore -> {
 			final ScoreComponent.Builder builder = Component.score().name("hb").objective("durability");
-			builder.append(AdventureHelper.miniMessage(lore.replace("{dur}", String.valueOf(customMaxDamage - value))
+			builder.append(AdventureHelper.miniMessageToComponent(lore.replace("{dur}", String.valueOf(customMaxDamage - value))
 					.replace("{max}", String.valueOf(customMaxDamage))));
 			newLore.add(AdventureHelper.componentToJson(builder.build()));
 		});

@@ -1,11 +1,12 @@
 package com.swiftlicious.hellblock.schematic;
 
 import java.io.Serializable;
-import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
@@ -22,17 +23,15 @@ import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.block.data.BlockData;
+import org.bukkit.entity.AbstractArrow;
 import org.bukkit.entity.AbstractHorse;
 import org.bukkit.entity.Ageable;
-import org.bukkit.entity.Allay;
 import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.Axolotl;
 import org.bukkit.entity.Bat;
 import org.bukkit.entity.Bee;
 import org.bukkit.entity.Boat;
-import org.bukkit.entity.Camel;
 import org.bukkit.entity.Cat;
-import org.bukkit.entity.ChestBoat;
 import org.bukkit.entity.ChestedHorse;
 import org.bukkit.entity.Chicken;
 import org.bukkit.entity.Cow;
@@ -45,7 +44,6 @@ import org.bukkit.entity.EntityType;
 import org.bukkit.entity.ExperienceOrb;
 import org.bukkit.entity.FallingBlock;
 import org.bukkit.entity.Fox;
-import org.bukkit.entity.Frog;
 import org.bukkit.entity.Ghast;
 import org.bukkit.entity.GlowSquid;
 import org.bukkit.entity.Goat;
@@ -81,13 +79,14 @@ import org.bukkit.entity.Snowman;
 import org.bukkit.entity.Strider;
 import org.bukkit.entity.TNTPrimed;
 import org.bukkit.entity.Tameable;
+import org.bukkit.entity.ThrownPotion;
+import org.bukkit.entity.Trident;
 import org.bukkit.entity.TropicalFish;
 import org.bukkit.entity.Turtle;
 import org.bukkit.entity.Vex;
 import org.bukkit.entity.Villager;
 import org.bukkit.entity.Vindicator;
 import org.bukkit.entity.WanderingTrader;
-import org.bukkit.entity.Warden;
 import org.bukkit.entity.Witch;
 import org.bukkit.entity.Wither;
 import org.bukkit.entity.Wolf;
@@ -96,6 +95,7 @@ import org.bukkit.entity.ZombieVillager;
 import org.bukkit.entity.minecart.CommandMinecart;
 import org.bukkit.entity.minecart.ExplosiveMinecart;
 import org.bukkit.entity.minecart.PoweredMinecart;
+import org.bukkit.entity.minecart.StorageMinecart;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
@@ -106,7 +106,6 @@ import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.util.EulerAngle;
-import org.jetbrains.annotations.Nullable;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -115,6 +114,7 @@ import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.handlers.PotionEffectResolver;
 import com.swiftlicious.hellblock.handlers.VersionHelper;
+import com.swiftlicious.hellblock.utils.EntityTypeUtils;
 
 import net.kyori.adventure.nbt.BinaryTag;
 import net.kyori.adventure.nbt.BinaryTagType;
@@ -154,6 +154,57 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 		}
 	}
 
+	public static final Map<String, EntityType> BOAT_TYPES = buildBoatTypes();
+
+	private static Map<String, EntityType> buildBoatTypes() {
+		Map<String, EntityType> map = new HashMap<>();
+
+		// Safe via reflection for both old and new
+		addEntityIfPresent(map, "OAK", "OAK_BOAT");
+		addEntityIfPresent(map, "SPRUCE", "SPRUCE_BOAT");
+		addEntityIfPresent(map, "BIRCH", "BIRCH_BOAT");
+		addEntityIfPresent(map, "JUNGLE", "JUNGLE_BOAT");
+		addEntityIfPresent(map, "ACACIA", "ACACIA_BOAT");
+		addEntityIfPresent(map, "DARK_OAK", "DARK_OAK_BOAT");
+
+		addEntityIfPresent(map, "OAK_CHEST", "OAK_CHEST_BOAT");
+		addEntityIfPresent(map, "SPRUCE_CHEST", "SPRUCE_CHEST_BOAT");
+		addEntityIfPresent(map, "BIRCH_CHEST", "BIRCH_CHEST_BOAT");
+		addEntityIfPresent(map, "JUNGLE_CHEST", "JUNGLE_CHEST_BOAT");
+		addEntityIfPresent(map, "ACACIA_CHEST", "ACACIA_CHEST_BOAT");
+		addEntityIfPresent(map, "DARK_OAK_CHEST", "DARK_OAK_CHEST_BOAT");
+
+		// Version-sensitive boats
+		addEntityIfPresent(map, "MANGROVE", "MANGROVE_BOAT");
+		addEntityIfPresent(map, "CHERRY", "CHERRY_BOAT");
+		addEntityIfPresent(map, "PALE_OAK", "PALE_OAK_BOAT");
+		addEntityIfPresent(map, "BAMBOO", "BAMBOO_RAFT");
+
+		// Chest variants
+		addEntityIfPresent(map, "MANGROVE_CHEST", "MANGROVE_CHEST_BOAT");
+		addEntityIfPresent(map, "CHERRY_CHEST", "CHERRY_CHEST_BOAT");
+		addEntityIfPresent(map, "PALE_OAK_CHEST", "PALE_OAK_CHEST_BOAT");
+		addEntityIfPresent(map, "BAMBOO_CHEST", "BAMBOO_CHEST_RAFT");
+
+		// Fallback (pre-1.20.5): Add generic boat for all types if nothing else is
+		// present
+		if (map.isEmpty()) {
+			addEntityIfPresent(map, "OAK", "BOAT");
+			addEntityIfPresent(map, "OAK_CHEST", "CHEST_BOAT"); // If available (rare)
+		}
+
+		return Collections.unmodifiableMap(map);
+	}
+
+	private static void addEntityIfPresent(Map<String, EntityType> map, String key, String entityTypeName) {
+		try {
+			EntityType type = EntityType.valueOf(entityTypeName);
+			map.put(key, type);
+		} catch (NoSuchFieldError | IllegalArgumentException ignored) {
+			// Type doesn't exist in this version
+		}
+	}
+
 	/**
 	 * Captures all relevant data from the given entity and returns it as a new
 	 * EntitySnapshot instance. Does not capture player entities.
@@ -177,7 +228,7 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 			dataBuilder.put("itemStack", itemStackToNBT(item.getItemStack()));
 			dataBuilder.putInt("pickupDelay", item.getPickupDelay());
 			dataBuilder.putInt("age", item.getTicksLived());
-			dataBuilder.putBoolean("unlimitedLifetime", item.isUnlimitedLifetime());
+			dataBuilder.putBoolean("unlimitedLifetime", PaperReflection.isItemUnlimitedLifetime(item));
 		}
 
 		// --- Item Frame / Glow Frame ---
@@ -204,12 +255,12 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 
 		// --- Falling Block ---
 		else if (entity instanceof FallingBlock fallingBlock) {
-			dataBuilder.putBoolean("cancelDrop", fallingBlock.getCancelDrop());
+			dataBuilder.putBoolean("cancelDrop", PaperReflection.getFallingBlockCancelDrop(fallingBlock));
 			dataBuilder.putString("blockData", fallingBlock.getBlockData().getAsString());
 			dataBuilder.putBoolean("canHurtEntities", fallingBlock.canHurtEntities());
-			dataBuilder.putFloat("damagePerBlock", fallingBlock.getDamagePerBlock());
+			dataBuilder.putFloat("damagePerBlock", PaperReflection.getFallingBlockDamagePerBlock(fallingBlock));
 			dataBuilder.putBoolean("dropItem", fallingBlock.getDropItem());
-			dataBuilder.putInt("maxDamage", fallingBlock.getMaxDamage());
+			dataBuilder.putInt("maxDamage", PaperReflection.getFallingBlockMaxDamage(fallingBlock));
 
 		}
 
@@ -221,42 +272,41 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 			dataBuilder.putString("displayBlock", minecart.getDisplayBlockData().getAsString());
 			dataBuilder.putInt("displayOffset", minecart.getDisplayBlockOffset());
 
-			switch (minecart.getType()) {
-			case CHEST_MINECART, HOPPER_MINECART -> {
-				final Inventory inv = ((InventoryHolder) minecart).getInventory();
-				dataBuilder.put("contents", inventoryToNBT(inv));
-			}
-			case COMMAND_BLOCK_MINECART -> {
-				final CommandMinecart cmd = (CommandMinecart) minecart;
-				dataBuilder.putString("command", cmd.getCommand());
-				Component name = AdventureMetadata.getCommandMinecartName(cmd);
-				if (name != null) {
-					dataBuilder.putString("name", AdventureHelper.getGson().serialize(name));
-				}
-			}
-			case FURNACE_MINECART -> {
-				final PoweredMinecart powered = (PoweredMinecart) minecart;
-				dataBuilder.putInt("fuel", powered.getFuel());
-			}
-			case TNT_MINECART -> {
-				final ExplosiveMinecart tnt = (ExplosiveMinecart) minecart;
-				dataBuilder.putInt("fuseTicks", tnt.getFuseTicks());
-			}
-			default -> {
-				/* no extra data */ }
+			CompoundBinaryTag minecartTag = captureMinecartData(minecart);
+			if (minecartTag != null && !minecartTag.isEmpty()) {
+				dataBuilder.put("minecartData", minecartTag);
 			}
 		}
 
 		// --- Boats & Chest Boats ---
 		else if (entity instanceof Boat boat) {
-			String boatType = VersionHelper.isPaper() ? boat.getBoatMaterial().name()
+			String boatType = VersionHelper.isPaperFork() && PaperReflection.getBoatMaterialName(boat) != null
+					? PaperReflection.getBoatMaterialName(boat)
 					: boat.getType().name().replace("_BOAT", "");
-			if (entity instanceof ChestBoat chestBoat) {
+			if (PaperReflection.isChestBoat(entity)) {
 				boatType += "_CHEST";
-				final Inventory inv = chestBoat.getInventory();
+				final Inventory inv = PaperReflection.getChestBoatInventory(entity);
 				dataBuilder.put("contents", inventoryToNBT(inv));
 			}
 			dataBuilder.putString("boatType", boatType);
+		}
+
+		// --- Abstract Arrows (Arrow, SpectralArrow, etc.) ---
+		else if (entity instanceof AbstractArrow arrow) {
+			dataBuilder.putBoolean("critical", arrow.isCritical());
+			dataBuilder.putInt("pierceLevel", arrow.getPierceLevel());
+			dataBuilder.putBoolean("pickupAllowed", arrow.getPickupStatus() != AbstractArrow.PickupStatus.DISALLOWED);
+			dataBuilder.putString("pickupStatus", arrow.getPickupStatus().name());
+		}
+
+		// --- Trident ---
+		else if (entity instanceof Trident trident) {
+			dataBuilder.putInt("loyaltyLevel", PaperReflection.getTridentLoyaltyLevel(trident));
+		}
+
+		// --- Thrown Potion ---
+		else if (entity instanceof ThrownPotion thrownPotion) {
+			dataBuilder.put("potion", itemStackToNBT(thrownPotion.getItem()));
 		}
 
 		// --- Armor Stand ---
@@ -276,9 +326,10 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 			dataBuilder.putBoolean("invulnerable", stand.isInvulnerable());
 			dataBuilder.putBoolean("marker", stand.isMarker());
 
-			if (VersionHelper.isPaper()) {
-				if (!stand.getDisabledSlots().isEmpty()) {
-					final List<String> disabled = stand.getDisabledSlots().stream().map(EquipmentSlot::name).toList();
+			if (VersionHelper.isPaperFork()) {
+				if (!PaperReflection.getArmorStandDisabledSlots(stand).isEmpty()) {
+					final List<String> disabled = PaperReflection.getArmorStandDisabledSlots(stand).stream()
+							.map(EquipmentSlot::name).toList();
 					dataBuilder.put("disabledSlots", objectToTag(disabled));
 				}
 			}
@@ -298,8 +349,8 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 			dataBuilder.putDouble("jumpStrength", horse.getJumpStrength());
 			dataBuilder.putBoolean("tamed", horse.isTamed());
 
-			if (AdventureMetadata.getHorseOwnerUUID(horse) != null) {
-				dataBuilder.putString("owner", AdventureMetadata.getHorseOwnerUUID(horse).toString());
+			if (PaperReflection.getHorseOwnerUniqueId(horse) != null) {
+				dataBuilder.putString("owner", PaperReflection.getHorseOwnerUniqueId(horse).toString());
 			}
 
 			// Saddle
@@ -329,13 +380,14 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 				dataBuilder.put("chestContents", inventoryToNBT(llama.getInventory()));
 			}
 
-			// Camel
-			if (horse instanceof Camel camel) {
-				dataBuilder.putBoolean("saddled", camel.getInventory().getSaddle() != null);
-				if (camel.getInventory().getSaddle() != null) {
-					dataBuilder.put("saddle", itemStackToNBT(camel.getInventory().getSaddle()));
+			// Camel (1.19.3+)
+			if (VersionHelper.isVersionNewerThan1_19_3() && PaperReflection.isCamel(horse)) {
+				AbstractHorse camel = horse;
+				dataBuilder.putBoolean("saddled", PaperReflection.getCamelSaddle(camel) != null);
+				if (PaperReflection.getCamelSaddle(camel) != null) {
+					dataBuilder.put("saddle", itemStackToNBT(PaperReflection.getCamelSaddle(camel)));
 				}
-				dataBuilder.putBoolean("sitting", camel.isSitting());
+				dataBuilder.putBoolean("sitting", PaperReflection.isCamelSitting(camel));
 			}
 
 			// Donkey/Mule
@@ -348,7 +400,7 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 
 			// Skeleton Horse
 			if (horse instanceof SkeletonHorse skeleton) {
-				dataBuilder.putBoolean("trapped", skeleton.isTrapped());
+				dataBuilder.putBoolean("trapped", PaperReflection.isSkeletonHorseTrapped(skeleton));
 			}
 		}
 
@@ -358,8 +410,8 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 			dataBuilder.putInt("level", villager.getVillagerLevel());
 			dataBuilder.putString("type", villager.getVillagerType().toString());
 			dataBuilder.putInt("experience", villager.getVillagerExperience());
-			if (VersionHelper.isPaper()) {
-				dataBuilder.putInt("restocksToday", villager.getRestocksToday());
+			if (VersionHelper.isPaperFork()) {
+				dataBuilder.putInt("restocksToday", PaperReflection.getVillagerRestocksToday(villager));
 			}
 
 			// Sleeping + bed location
@@ -382,24 +434,28 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 
 			// Reputations (Paper) ATM the spigot system is not very well versed to store
 			// this data.
-			if (VersionHelper.isPaper()) {
+			if (VersionHelper.isPaperFork()) {
 				final List<Map<String, Object>> reps = new ArrayList<>();
-				villager.getReputations().keySet().forEach(uuid -> {
-					final com.destroystokyo.paper.entity.villager.Reputation rep = villager.getReputation(uuid);
-					if (rep != null) {
-						for (com.destroystokyo.paper.entity.villager.ReputationType type : com.destroystokyo.paper.entity.villager.ReputationType
-								.values()) {
-							final int value = rep.getReputation(type);
-							if (value != 0) {
-								final Map<String, Object> entry = new HashMap<>();
-								entry.put("uuid", uuid.toString());
-								entry.put("type", type.name());
-								entry.put("value", value);
-								reps.add(entry);
-							}
+
+				Map<UUID, Object> villagerReps = PaperReflection.getVillagerReputations(villager);
+				if (villagerReps != null && !villagerReps.isEmpty()) {
+					villagerReps.forEach((uuid, repObj) -> {
+						Object reputation = PaperReflection.getVillagerReputation(villager, uuid);
+						if (reputation != null) {
+							PaperReflection.getReputationTypes().forEach(type -> {
+								int value = PaperReflection.getReputationValue(reputation, type);
+								if (value != 0) {
+									Map<String, Object> entry = new HashMap<>();
+									entry.put("uuid", uuid.toString());
+									entry.put("type", ((Enum<?>) type).name());
+									entry.put("value", value);
+									reps.add(entry);
+								}
+							});
 						}
-					}
-				});
+					});
+				}
+
 				if (!reps.isEmpty()) {
 					dataBuilder.put("reputations", objectToTag(reps));
 				}
@@ -464,9 +520,14 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 
 		// --- Witch ---
 		else if (entity instanceof Witch witch) {
-			dataBuilder.putBoolean("isDrinkingPotion", witch.isDrinkingPotion());
-			final ItemStack potion = VersionHelper.isPaper() ? witch.getDrinkingPotion()
-					: getWitchDrinkingPotion(witch);
+			dataBuilder.putBoolean("isDrinkingPotion", PaperReflection.isWitchDrinkingPotion(witch));
+			final ItemStack potion = VersionHelper.isPaperFork()
+					&& PaperReflection.getWitchDrinkingPotion(witch) != null
+							? PaperReflection.getWitchDrinkingPotion(witch)
+							: witch.getEquipment() != null
+									&& witch.getEquipment().getItem(EquipmentSlot.HAND).getType() == Material.POTION
+											? witch.getEquipment().getItem(EquipmentSlot.HAND)
+											: null;
 			if (potion != null) {
 				dataBuilder.put("drinkingPotion", itemStackToNBT(potion));
 			}
@@ -480,7 +541,7 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 
 		// --- Ghast ---
 		else if (entity instanceof Ghast ghast) {
-			dataBuilder.putBoolean("charging", ghast.isCharging());
+			dataBuilder.putBoolean("charging", PaperReflection.isGhastCharging(ghast));
 		}
 
 		// --- Fox ---
@@ -489,7 +550,7 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 			dataBuilder.putBoolean("sitting", fox.isSitting());
 			dataBuilder.putBoolean("sleeping", fox.isSleeping());
 			dataBuilder.putBoolean("crouching", fox.isCrouching());
-			dataBuilder.putBoolean("faceplanted", fox.isFaceplanted());
+			dataBuilder.putBoolean("faceplanted", PaperReflection.isFoxFaceplanted(fox));
 
 			if (fox.getFirstTrustedPlayer() != null) {
 				dataBuilder.putString("trustedFirst", fox.getFirstTrustedPlayer().getUniqueId().toString());
@@ -503,18 +564,18 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 		else if (entity instanceof Panda panda) {
 			dataBuilder.putString("mainGene", panda.getMainGene().name());
 			dataBuilder.putString("hiddenGene", panda.getHiddenGene().name());
-			dataBuilder.putBoolean("sneezing", panda.isSneezing());
-			dataBuilder.putBoolean("rolling", panda.isRolling());
-			dataBuilder.putBoolean("sitting", panda.isSitting());
+			dataBuilder.putBoolean("sneezing", PaperReflection.isPandaSneezing(panda));
+			dataBuilder.putBoolean("rolling", PaperReflection.isPandaRolling(panda));
+			dataBuilder.putBoolean("sitting", PaperReflection.isPandaSitting(panda));
 		}
 
 		// --- Piglin ---
 		else if (entity instanceof Piglin piglin) {
 			dataBuilder.putBoolean("immuneToZombification", piglin.isImmuneToZombification());
 			dataBuilder.putBoolean("ableToHunt", piglin.isAbleToHunt());
-			if (VersionHelper.isPaper()) {
-				dataBuilder.putBoolean("chargingCrossbow", piglin.isChargingCrossbow());
-				dataBuilder.putBoolean("dancing", piglin.isDancing());
+			if (VersionHelper.isPaperFork()) {
+				dataBuilder.putBoolean("chargingCrossbow", PaperReflection.isPiglinChargingCrossbow(piglin));
+				dataBuilder.putBoolean("dancing", PaperReflection.isPiglinDancing(piglin));
 			}
 		}
 
@@ -523,7 +584,7 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 			dataBuilder.putBoolean("zombieVillager", true);
 			dataBuilder.putString("profession", zombieVillager.getVillagerProfession().toString());
 			dataBuilder.putString("type", zombieVillager.getVillagerType().toString());
-			dataBuilder.putBoolean("canBreakDoors", zombieVillager.canBreakDoors());
+			dataBuilder.putBoolean("canBreakDoors", PaperReflection.canZombieVillagerBreakDoors(zombieVillager));
 
 			if (zombieVillager.getConversionPlayer() != null) {
 				dataBuilder.putBoolean("converting", true);
@@ -535,7 +596,7 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 		// --- Standard Zombie (not ZV) ---
 		else if (entity instanceof Zombie zombie && !(zombie instanceof ZombieVillager)) {
 			dataBuilder.putBoolean("zombie", true);
-			dataBuilder.putBoolean("breakDoors", zombie.canBreakDoors());
+			dataBuilder.putBoolean("breakDoors", PaperReflection.canZombieBreakDoors(zombie));
 
 			if (zombie.getConversionTime() >= 0) {
 				dataBuilder.putBoolean("converting", true);
@@ -549,9 +610,9 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 		}
 
 		// --- Dolphin ---
-		else if (VersionHelper.isPaper() && entity instanceof Dolphin dolphin) {
-			dataBuilder.putBoolean("hasFish", dolphin.hasFish());
-			dataBuilder.putInt("moistness", dolphin.getMoistness());
+		else if (VersionHelper.isPaperFork() && entity instanceof Dolphin dolphin) {
+			dataBuilder.putBoolean("hasFish", PaperReflection.dolphinHasFish(dolphin));
+			dataBuilder.putInt("moistness", PaperReflection.getDolphinMoistness(dolphin));
 		}
 
 		// --- Puffer Fish ---
@@ -566,9 +627,10 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 			dataBuilder.putString("bodyColor", tropicalFish.getBodyColor().name());
 		}
 
-		// --- Salmon ---
-		else if (entity instanceof Salmon salmon) {
-			dataBuilder.putString("variant", salmon.getVariant().name());
+		// --- Salmon (1.21.2+) variants are only accessible in this version or above
+		// ---
+		else if (VersionHelper.isVersionNewerThan1_21_2() && entity instanceof Salmon salmon) {
+			VariantRegistry.writeVariantIfPresent(salmon, dataBuilder);
 		}
 
 		// --- Glow Squid ---
@@ -576,34 +638,43 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 			dataBuilder.putInt("darkTicksRemaining", glowSquid.getDarkTicksRemaining());
 		}
 
-		// --- Frog (1.19.3+) ---
-		else if (VersionHelper.isVersionNewerThan1_19_3() && entity instanceof Frog frog) {
-			dataBuilder.putString("variant", frog.getVariant().toString());
+		// --- Sniffer (1.19.4+) ---
+		else if (VersionHelper.isVersionNewerThan1_19_4() && PaperReflection.isSniffer(entity)) {
+			String state = PaperReflection.getSnifferState(entity);
+			if (state != null) {
+				dataBuilder.putString("state", state);
+			}
+		}
+
+		// --- Frog (1.19+) variants are only accessible in this version or above
+		// ---
+		else if (VersionHelper.isVersionNewerThan1_19() && PaperReflection.isFrog(entity)) {
+			VariantRegistry.writeVariantIfPresent(entity, dataBuilder);
 		}
 
 		// --- Vindicator ---
 		else if (entity instanceof Vindicator vindicator) {
-			dataBuilder.putBoolean("johnny", vindicator.isJohnny());
+			dataBuilder.putBoolean("johnny", PaperReflection.isVindicatorJohnny(vindicator));
 		}
 
 		// --- Vex ---
 		else if (entity instanceof Vex vex) {
-			if (VersionHelper.isPaper()) {
-				if (vex.getSummoner() != null) {
-					dataBuilder.putString("summoner", vex.getSummoner().getUniqueId().toString());
+			if (VersionHelper.isPaperFork()) {
+				if (PaperReflection.getVexSummoner(vex) != null) {
+					dataBuilder.putString("summoner", PaperReflection.getVexSummoner(vex).getUniqueId().toString());
 				}
 			}
-			dataBuilder.putInt("limitedLifetimeTicks", AdventureMetadata.getVexLifetimeTicks(vex));
+			dataBuilder.putInt("limitedLifetimeTicks", PaperReflection.getVexLimitedLifetimeTicks(vex));
 			dataBuilder.putBoolean("charging", vex.isCharging());
-			if (vex.getBound() != null) {
-				dataBuilder.put("bound", serializeLocation(vex.getBound()));
+			if (PaperReflection.getVexBound(vex) != null) {
+				dataBuilder.put("bound", serializeLocation(PaperReflection.getVexBound(vex)));
 			}
 		}
 
 		// --- Guardian ---
 		else if (entity instanceof Guardian guardian) {
-			dataBuilder.putBoolean("hasLaser", guardian.hasLaser());
-			dataBuilder.putInt("laserTicks", guardian.getLaserTicks());
+			dataBuilder.putBoolean("hasLaser", PaperReflection.hasGuardianLaser(guardian));
+			dataBuilder.putInt("laserTicks", PaperReflection.getGuardianLaserTicks(guardian));
 		}
 
 		// --- Tameable Mobs ---
@@ -619,10 +690,36 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 				dataBuilder.putString("collar", wolf.getCollarColor().name());
 				dataBuilder.putBoolean("angry", wolf.isAngry());
 				dataBuilder.putBoolean("sitting", wolf.isSitting());
-				dataBuilder.putBoolean("begging", wolf.isInterested());
-				dataBuilder.putString("variant", wolf.getVariant().getKey().toString());
-				if (VersionHelper.isPaper()) {
-					dataBuilder.putString("soundVariant", wolf.getSoundVariant().getKey().toString());
+				dataBuilder.putBoolean("begging", PaperReflection.isWolfInterested(wolf));
+				if (VersionHelper.isVersionNewerThan1_20_5()) {
+					try {
+						// Wolf armor added in 1.20.5 as well
+						if (wolf.getEquipment() != null) {
+							ItemStack armor = wolf.getEquipment().getItem(EquipmentSlot.valueOf("BODY"));
+							if (armor.getType() == Material.matchMaterial("WOLF_ARMOR")) {
+								dataBuilder.put("armor", itemStackToNBT(armor));
+							}
+						}
+					} catch (NoSuchFieldError | IllegalArgumentException ignored) {
+						// this should never run anyway since this should only occur on versions where
+						// wolf armor exists
+					}
+					// (1.20.5+) variants are only accessible in this version or above
+					VariantRegistry.writeVariantIfPresent(wolf, dataBuilder);
+				}
+				if (VersionHelper.isPaperFork()) {
+					Object soundVariant = PaperReflection.getWolfSoundVariant(wolf);
+					if (soundVariant != null) {
+						try {
+							Method getKey = soundVariant.getClass().getMethod("getKey");
+							Object namespacedKey = getKey.invoke(soundVariant);
+							if (namespacedKey != null) {
+								dataBuilder.putString("soundVariant", namespacedKey.toString());
+							}
+						} catch (Throwable ignored) {
+							// Fallback or log if needed
+						}
+					}
 				}
 			}
 
@@ -631,9 +728,9 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 				dataBuilder.putString("type", cat.getCatType().toString());
 				dataBuilder.putBoolean("sitting", cat.isSitting());
 				dataBuilder.putString("collar", cat.getCollarColor().name());
-				if (VersionHelper.isPaper()) {
-					dataBuilder.putBoolean("headUp", cat.isHeadUp());
-					dataBuilder.putBoolean("lyingDown", cat.isLyingDown());
+				if (VersionHelper.isPaperFork()) {
+					dataBuilder.putBoolean("headUp", PaperReflection.isCatHeadUp(cat));
+					dataBuilder.putBoolean("lyingDown", PaperReflection.isCatLyingDown(cat));
 				}
 			}
 
@@ -657,17 +754,21 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 		// --- Pig ---
 		else if (entity instanceof Pig pig) {
 			dataBuilder.putBoolean("saddled", pig.hasSaddle());
-			dataBuilder.putString("variant", pig.getVariant().toString());
+			// (1.21.5+) variants are only accessible in this version or above
+			if (VersionHelper.isVersionNewerThan1_21_5()) {
+				VariantRegistry.writeVariantIfPresent(pig, dataBuilder);
+			}
 		}
 
-		// --- Cow ---
-		else if (entity instanceof Cow cow) {
-			dataBuilder.putString("variant", cow.getVariant().toString());
+		// --- Cow (1.21.5+) variants are only accessible in this version or above ---
+		else if (VersionHelper.isVersionNewerThan1_21_5() && entity instanceof Cow cow) {
+			VariantRegistry.writeVariantIfPresent(cow, dataBuilder);
 		}
 
-		// --- Chicken ---
-		else if (entity instanceof Chicken chicken) {
-			dataBuilder.putString("variant", chicken.getVariant().toString());
+		// --- Chicken (1.21.5+) variants are only accessible in this version or above
+		// ---
+		else if (VersionHelper.isVersionNewerThan1_21_5() && entity instanceof Chicken chicken) {
+			VariantRegistry.writeVariantIfPresent(chicken, dataBuilder);
 		}
 
 		// --- Strider ---
@@ -679,17 +780,17 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 		// --- Goat ---
 		else if (entity instanceof Goat goat) {
 			dataBuilder.putBoolean("screaming", goat.isScreaming());
-			dataBuilder.putBoolean("leftHorn", goat.hasLeftHorn());
-			dataBuilder.putBoolean("rightHorn", goat.hasRightHorn());
+			dataBuilder.putBoolean("leftHorn", PaperReflection.hasGoatLeftHorn(goat));
+			dataBuilder.putBoolean("rightHorn", PaperReflection.hasGoatRightHorn(goat));
 		}
 
-		// --- Allay ---
-		else if (entity instanceof Allay allay) {
-			dataBuilder.putBoolean("dancing", allay.isDancing());
-			dataBuilder.putBoolean("duplicate", allay.canDuplicate());
-			dataBuilder.putLong("duplicationCooldown", allay.getDuplicationCooldown());
-			if (allay.getJukebox() != null) {
-				dataBuilder.put("jukebox", serializeLocation(allay.getJukebox()));
+		// --- Allay (1.19.2+) entity exists before this but the api has nothing ---
+		else if (VersionHelper.isVersionNewerThan1_19_2() && PaperReflection.isAllay(entity)) {
+			dataBuilder.putBoolean("dancing", PaperReflection.isAllayDancing(entity));
+			dataBuilder.putBoolean("duplicate", PaperReflection.canAllayDuplicate(entity));
+			dataBuilder.putLong("duplicationCooldown", PaperReflection.getAllayDuplicationCooldown(entity));
+			if (PaperReflection.getAllayJukeboxLocation(entity) != null) {
+				dataBuilder.put("jukebox", serializeLocation(PaperReflection.getAllayJukeboxLocation(entity)));
 			}
 		}
 
@@ -720,9 +821,9 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 
 		// --- Turtle ---
 		else if (entity instanceof Turtle turtle) {
-			dataBuilder.putBoolean("hasEgg", turtle.hasEgg());
-			if (VersionHelper.isPaper()) {
-				dataBuilder.put("home", serializeLocation(turtle.getHome()));
+			dataBuilder.putBoolean("hasEgg", PaperReflection.turtleHasEgg(turtle));
+			if (VersionHelper.isPaperFork() && PaperReflection.getTurtleHome(turtle) != null) {
+				dataBuilder.put("home", serializeLocation(PaperReflection.getTurtleHome(turtle)));
 			}
 		}
 
@@ -731,8 +832,8 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 			if (enderman.getCarriedBlock() != null) {
 				dataBuilder.putString("carriedBlock", enderman.getCarriedBlock().getAsString());
 			}
-			if (VersionHelper.isPaper()) {
-				dataBuilder.putBoolean("screaming", enderman.isScreaming());
+			if (VersionHelper.isPaperFork()) {
+				dataBuilder.putBoolean("screaming", PaperReflection.isEndermanScreaming(enderman));
 			}
 		}
 
@@ -748,16 +849,17 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 
 		// --- Wither ---
 		else if (entity instanceof Wither wither) {
-			dataBuilder.putInt("invulnerableTicks", AdventureMetadata.getWitherInvulnerableTicks(wither));
+			dataBuilder.putInt("invulnerableTicks", PaperReflection.getWitherInvulnerableTicks(wither));
 		}
 
-		// --- Warden ---
-		else if (entity instanceof Warden warden) {
-			dataBuilder.putInt("anger", warden.getAnger());
+		// --- Warden (1.19.2+) API is very useless before this so not much to save ---
+		if (VersionHelper.isVersionNewerThan1_19_2() && PaperReflection.isWarden(entity)) {
+			Entity target = PaperReflection.getWardenAngryAt(entity);
+			int anger = PaperReflection.getWardenAnger(entity);
 
-			if (warden.getAnger() > 0 && warden.getEntityAngryAt() != null) {
-				dataBuilder.putString("angerTarget", warden.getEntityAngryAt().getUniqueId().toString());
-				dataBuilder.putInt("angerLevel", warden.getAnger());
+			if (target != null && anger > 0) {
+				dataBuilder.putString("angerTarget", target.getUniqueId().toString());
+				dataBuilder.putInt("angerLevel", anger);
 			}
 		}
 
@@ -773,8 +875,8 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 
 		// --- Ender Dragon ---
 		else if (entity instanceof EnderDragon dragon) {
-			if (VersionHelper.isPaper()) {
-				dataBuilder.put("podium", serializeLocation(dragon.getPodium()));
+			if (VersionHelper.isPaperFork() && PaperReflection.getEnderDragonPodium(dragon) != null) {
+				dataBuilder.put("podium", serializeLocation(PaperReflection.getEnderDragonPodium(dragon)));
 			}
 			dataBuilder.putString("phase", dragon.getPhase().name());
 		}
@@ -801,7 +903,7 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 			// Custom name
 			Component customName = AdventureMetadata.getEntityCustomName(living);
 			if (customName != null) {
-				dataBuilder.putString("customName", AdventureHelper.getGson().serialize(customName));
+				dataBuilder.putString("customName", AdventureHelper.componentToJson(customName));
 				dataBuilder.putBoolean("customNameVisible", living.isCustomNameVisible());
 			}
 
@@ -810,12 +912,15 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 				final List<Map<String, Object>> effects = new ArrayList<>();
 				living.getActivePotionEffects().forEach(effect -> {
 					final Map<String, Object> effData = new HashMap<>();
-					effData.put("type", effect.getType().getKey().toString());
-					effData.put("duration", effect.getDuration());
-					effData.put("amplifier", effect.getAmplifier());
-					effData.put("ambient", effect.isAmbient());
-					effData.put("particles", effect.hasParticles());
-					effData.put("icon", effect.hasIcon());
+					NamespacedKey effectType = PotionEffectResolver.getPotionEffectKey(effect.getType());
+					if (effectType != null) {
+						effData.put("type", effectType.getKey());
+						effData.put("duration", effect.getDuration());
+						effData.put("amplifier", effect.getAmplifier());
+						effData.put("ambient", effect.isAmbient());
+						effData.put("particles", effect.hasParticles());
+						effData.put("icon", effect.hasIcon());
+					}
 					effects.add(effData);
 				});
 				dataBuilder.put("effects", objectToTag(effects));
@@ -865,6 +970,11 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 			}
 		}
 
+		// --- Scoreboard Tags ---
+		if (!entity.getScoreboardTags().isEmpty()) {
+			dataBuilder.put("scoreboardTags", objectToTag(new ArrayList<>(entity.getScoreboardTags())));
+		}
+
 		// --- Ageable Mobs ---
 		if (entity instanceof Ageable ageable) {
 			dataBuilder.putBoolean("ageable", true);
@@ -910,10 +1020,11 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 				entity = world.spawn(spawnLoc, Painting.class, painting -> {
 					painting.setFacingDirection(face, true);
 					if (data.get("art") != null) {
-						painting.setArt(ItemRegistry.getPaintingVariant(data.getString("art")), true);
+						painting.setArt(VariantRegistry.getPaintingVariant(data.getString("art")), true);
 					}
 				});
-			} else if (entityType == EntityType.LEASH_KNOT && data.get("block") != null) {
+			} else if (entityType == EntityTypeUtils.getCompatibleEntityType("LEASH_KNOT", "LEASH_HITCH")
+					&& data.get("block") != null) {
 				final Location loc = deserializeLocation(data.getCompound("block"));
 				entity = world.spawn(loc, LeashHitch.class, hitch -> hitch.setFacingDirection(face, true));
 			} else {
@@ -925,30 +1036,17 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 		else if (Boat.class.isAssignableFrom(entityType.getEntityClass())) {
 			final String boatTypeName = getStringOrDefault(data, "boatType", "OAK");
 
-			final Map<String, EntityType> boatTypes = Map.ofEntries(Map.entry("OAK", EntityType.OAK_BOAT),
-					Map.entry("SPRUCE", EntityType.SPRUCE_BOAT), Map.entry("BIRCH", EntityType.BIRCH_BOAT),
-					Map.entry("JUNGLE", EntityType.JUNGLE_BOAT), Map.entry("ACACIA", EntityType.ACACIA_BOAT),
-					Map.entry("DARK_OAK", EntityType.DARK_OAK_BOAT), Map.entry("MANGROVE", EntityType.MANGROVE_BOAT),
-					Map.entry("CHERRY", EntityType.CHERRY_BOAT), Map.entry("BAMBOO", EntityType.BAMBOO_RAFT),
-					Map.entry("OAK_CHEST", EntityType.OAK_CHEST_BOAT),
-					Map.entry("SPRUCE_CHEST", EntityType.SPRUCE_CHEST_BOAT),
-					Map.entry("BIRCH_CHEST", EntityType.BIRCH_CHEST_BOAT),
-					Map.entry("JUNGLE_CHEST", EntityType.JUNGLE_CHEST_BOAT),
-					Map.entry("ACACIA_CHEST", EntityType.ACACIA_CHEST_BOAT),
-					Map.entry("DARK_OAK_CHEST", EntityType.DARK_OAK_CHEST_BOAT),
-					Map.entry("MANGROVE_CHEST", EntityType.MANGROVE_CHEST_BOAT),
-					Map.entry("CHERRY_CHEST", EntityType.CHERRY_CHEST_BOAT),
-					Map.entry("BAMBOO_CHEST", EntityType.BAMBOO_CHEST_RAFT));
-
-			final EntityType boatType = boatTypes.get(boatTypeName);
+			final EntityType boatType = BOAT_TYPES.get(boatTypeName);
 			if (boatType == null) {
 				throw new IllegalArgumentException("Unknown boat type: " + boatTypeName);
 			}
 
 			entity = world.spawn(spawnLoc, boatType.getEntityClass(), boat -> {
-				if (boat instanceof ChestBoat chestBoat
+				if (PaperReflection.isChestBoat(boat)
 						&& data.get("contents") instanceof CompoundBinaryTag contentsTag) {
-					inventoryFromNBT(contentsTag, ((InventoryHolder) chestBoat).getInventory());
+					Inventory chestInv = PaperReflection.getChestBoatInventory(boat);
+					if (chestInv != null)
+						inventoryFromNBT(contentsTag, chestInv);
 				}
 			});
 		}
@@ -964,11 +1062,14 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 			}
 
 			FallingBlock fb = world.spawnFallingBlock(spawnLoc, blockData);
-			fb.setCancelDrop(getBooleanOrDefault(data, "cancelDrop", fb.getCancelDrop()));
+			PaperReflection.setFallingBlockCancelDrop(fb,
+					getBooleanOrDefault(data, "cancelDrop", PaperReflection.getFallingBlockCancelDrop(fb)));
 			fb.setHurtEntities(getBooleanOrDefault(data, "canHurtEntities", fb.canHurtEntities()));
-			fb.setDamagePerBlock(getFloatOrDefault(data, "damagePerBlock", fb.getDamagePerBlock()));
+			PaperReflection.setFallingBlockDamagePerBlock(fb,
+					getFloatOrDefault(data, "damagePerBlock", PaperReflection.getFallingBlockDamagePerBlock(fb)));
 			fb.setDropItem(getBooleanOrDefault(data, "dropItem", fb.getDropItem()));
-			fb.setMaxDamage(getIntOrDefault(data, "maxDamage", fb.getMaxDamage()));
+			PaperReflection.setFallingBlockMaxDamage(fb,
+					getIntOrDefault(data, "maxDamage", PaperReflection.getFallingBlockMaxDamage(fb)));
 			entity = fb;
 		}
 
@@ -989,7 +1090,7 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 	 * @param entity The entity to configure
 	 * @param data   The serialized data
 	 */
-	@SuppressWarnings("unchecked")
+	@SuppressWarnings({ "unchecked" })
 	private void postSpawnConfiguration(Entity entity, CompoundBinaryTag data) {
 		if (entity instanceof Item item) {
 			if (data.get("itemStack") instanceof CompoundBinaryTag itemTag)
@@ -997,12 +1098,14 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 
 			item.setPickupDelay(getIntOrDefault(data, "pickupDelay", item.getPickupDelay()));
 			item.setTicksLived(getIntOrDefault(data, "age", item.getTicksLived()));
-			item.setUnlimitedLifetime(getBooleanOrDefault(data, "unlimitedLifetime", item.isUnlimitedLifetime()));
+			PaperReflection.setItemUnlimitedLifetime(item,
+					getBooleanOrDefault(data, "unlimitedLifetime", PaperReflection.isItemUnlimitedLifetime(item)));
 		}
 
 		else if (entity instanceof ExperienceOrb orb) {
+			// Default Xp to 1
 			orb.setExperience(getIntOrDefault(data, "experience",
-					VersionHelper.isPaper() ? orb.getCount() : orb.getExperience())); // Default XP to 1
+					VersionHelper.isPaperFork() ? PaperReflection.getExperienceOrbCount(orb) : orb.getExperience()));
 		}
 
 		else if (entity instanceof TNTPrimed tnt) {
@@ -1014,6 +1117,28 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 					tnt.setSource(sourceEntity);
 				}
 			}
+		}
+
+		else if (entity instanceof AbstractArrow arrow) {
+			arrow.setCritical(getBooleanOrDefault(data, "critical", arrow.isCritical()));
+			arrow.setPierceLevel(getIntOrDefault(data, "pierceLevel", arrow.getPierceLevel()));
+
+			final String pickupStatus = getStringOrDefault(data, "pickupStatus", arrow.getPickupStatus().name());
+			try {
+				arrow.setPickupStatus(AbstractArrow.PickupStatus.valueOf(pickupStatus));
+			} catch (NoSuchFieldError | IllegalArgumentException ignored) {
+				arrow.setPickupStatus(AbstractArrow.PickupStatus.ALLOWED);
+			}
+		}
+
+		else if (entity instanceof ThrownPotion thrownPotion && data.get("potion") != null) {
+			if (data.get("potion") instanceof CompoundBinaryTag itemTag)
+				thrownPotion.setItem(itemStackFromNBT(itemTag));
+		}
+
+		else if (entity instanceof Trident trident) {
+			PaperReflection.setTridentLoyaltyLevel(trident,
+					getIntOrDefault(data, "loyaltyLevel", PaperReflection.getTridentLoyaltyLevel(trident)));
 		}
 
 		else if (entity instanceof ArmorStand stand) {
@@ -1029,10 +1154,11 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 			stand.setInvulnerable(getBooleanOrDefault(data, "invulnerable", stand.isInvulnerable()));
 			stand.setMarker(getBooleanOrDefault(data, "marker", stand.isMarker()));
 
-			if (VersionHelper.isPaper()) {
+			if (VersionHelper.isPaperFork()) {
 				if (data.get("disabledSlots") != null) {
 					final List<String> slots = (List<String>) tagToObject(data.get("disabledSlots"));
-					stand.setDisabledSlots(slots.stream().map(EquipmentSlot::valueOf).toArray(EquipmentSlot[]::new));
+					PaperReflection.setArmorStandDisabledSlots(stand,
+							slots.stream().map(EquipmentSlot::valueOf).toArray(EquipmentSlot[]::new));
 				}
 			}
 
@@ -1063,37 +1189,8 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 			minecart.setDisplayBlockData(Bukkit.createBlockData(data.getString("displayBlock")));
 			minecart.setDisplayBlockOffset(getIntOrDefault(data, "displayOffset", minecart.getDisplayBlockOffset()));
 
-			switch (minecart.getType()) {
-			case CHEST_MINECART, HOPPER_MINECART -> {
-				if (data.get("contents") instanceof CompoundBinaryTag contentsTag) {
-					inventoryFromNBT(contentsTag, ((InventoryHolder) minecart).getInventory());
-				}
-			}
-			case COMMAND_BLOCK_MINECART -> {
-				final CommandMinecart cmd = (CommandMinecart) minecart;
-				if (data.get("command") != null) {
-					cmd.setCommand(data.getString("command"));
-				}
-				if (data.get("name") != null) {
-					Component name = AdventureHelper.getGson().deserialize(data.getString("name"));
-					AdventureMetadata.setCommandMinecartName(cmd, name);
-				}
-			}
-			case FURNACE_MINECART -> {
-				if (data.get("fuel") != null) {
-					final PoweredMinecart pm = (PoweredMinecart) minecart;
-					pm.setFuel(getIntOrDefault(data, "fuel", pm.getFuel()));
-				}
-			}
-			case TNT_MINECART -> {
-				if (data.get("fuseTicks") != null) {
-					final ExplosiveMinecart em = (ExplosiveMinecart) minecart;
-					em.setFuseTicks(getIntOrDefault(data, "fuseTicks", em.getFuseTicks()));
-				}
-			}
-			default -> {
-				/* No special handling required */
-			}
+			if (data.get("minecartData") instanceof CompoundBinaryTag minecartTag) {
+				restoreMinecartData(minecart, minecartTag);
 			}
 		}
 
@@ -1131,11 +1228,13 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 				}
 			}
 
-			if (horse instanceof Camel camel) {
+			if (VersionHelper.isVersionNewerThan1_19_3() && PaperReflection.isCamel(horse)) {
+				AbstractHorse camel = horse;
 				if (data.get("saddle") instanceof CompoundBinaryTag saddleTag) {
-					camel.getInventory().setSaddle(itemStackFromNBT(saddleTag));
+					PaperReflection.setCamelSaddle(camel, itemStackFromNBT(saddleTag));
 				}
-				camel.setSitting(getBooleanOrDefault(data, "sitting", camel.isSitting()));
+				PaperReflection.setCamelSitting(camel,
+						getBooleanOrDefault(data, "sitting", PaperReflection.isCamelSitting(camel)));
 			}
 
 			if (horse instanceof ChestedHorse chested && getBooleanOrDefault(data, "chested", false)) {
@@ -1146,17 +1245,19 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 			}
 
 			if (horse instanceof SkeletonHorse skeletonHorse) {
-				skeletonHorse.setTrapped(getBooleanOrDefault(data, "trapped", skeletonHorse.isTrapped()));
+				PaperReflection.setSkeletonHorseTrapped(skeletonHorse,
+						getBooleanOrDefault(data, "trapped", PaperReflection.isSkeletonHorseTrapped(skeletonHorse)));
 			}
 		}
 
 		else if (entity instanceof Villager villager && !(villager instanceof WanderingTrader)) {
-			villager.setProfession(ItemRegistry.getVillagerProfession(data.getString("profession")));
-			villager.setVillagerType(ItemRegistry.getVillagerType(data.getString("type")));
+			villager.setProfession(VariantRegistry.getVillagerProfession(data.getString("profession")));
+			villager.setVillagerType(VariantRegistry.getVillagerType(data.getString("type")));
 			villager.setVillagerLevel(getIntOrDefault(data, "level", villager.getVillagerLevel()));
 			villager.setVillagerExperience(getIntOrDefault(data, "experience", villager.getVillagerExperience()));
-			if (VersionHelper.isPaper()) {
-				villager.setRestocksToday(getIntOrDefault(data, "restocksToday", villager.getRestocksToday()));
+			if (VersionHelper.isPaperFork()) {
+				PaperReflection.setVillagerRestocksToday(villager,
+						getIntOrDefault(data, "restocksToday", PaperReflection.getVillagerRestocksToday(villager)));
 			}
 
 			if (getBooleanOrDefault(data, "sleeping", villager.isSleeping())
@@ -1169,19 +1270,16 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 			}
 
 			// Reputation (Paper only)
-			if (VersionHelper.isPaper()) {
+			if (VersionHelper.isPaperFork()) {
 				if (data.get("reputations") != null) {
 					final List<Map<String, Object>> reps = (List<Map<String, Object>>) tagToObject(
 							data.get("reputations"));
 					reps.forEach(entry -> {
 						try {
 							final UUID uuid = UUID.fromString((String) entry.get("uuid"));
-							final com.destroystokyo.paper.entity.villager.ReputationType type = com.destroystokyo.paper.entity.villager.ReputationType
-									.valueOf(data.getString("type"));
+							final String type = data.getString("type");
 							final int value = (int) entry.get("value");
-							final com.destroystokyo.paper.entity.villager.Reputation rep = new com.destroystokyo.paper.entity.villager.Reputation();
-							rep.setReputation(type, value);
-							villager.setReputation(uuid, rep);
+							PaperReflection.setVillagerReputation(villager, uuid, type, value);
 						} catch (Exception e) {
 							HellblockPlugin.getInstance().getPluginLogger()
 									.warn("Failed to restore villager reputation: " + entry + " - " + e.getMessage());
@@ -1212,9 +1310,10 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 		}
 
 		else if (entity instanceof ZombieVillager zombieVillager && data.get("zombieVillager") != null) {
-			zombieVillager.setVillagerProfession(ItemRegistry.getVillagerProfession(data.getString("profession")));
-			zombieVillager.setVillagerType(ItemRegistry.getVillagerType(data.getString("type")));
-			zombieVillager.setCanBreakDoors(getBooleanOrDefault(data, "breakDoors", zombieVillager.canBreakDoors()));
+			zombieVillager.setVillagerProfession(VariantRegistry.getVillagerProfession(data.getString("profession")));
+			zombieVillager.setVillagerType(VariantRegistry.getVillagerType(data.getString("type")));
+			PaperReflection.setCanZombieVillagerBreakDoors(zombieVillager, getBooleanOrDefault(data, "breakDoors",
+					PaperReflection.canZombieVillagerBreakDoors(zombieVillager)));
 
 			if (getBooleanOrDefault(data, "converting", zombieVillager.isConverting())) {
 				zombieVillager
@@ -1231,7 +1330,8 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 
 		else if (entity instanceof Zombie zombie && data.get("zombie") != null
 				&& (!(entity instanceof ZombieVillager))) {
-			zombie.setCanBreakDoors(getBooleanOrDefault(data, "breakDoors", zombie.canBreakDoors()));
+			PaperReflection.setCanZombieBreakDoors(zombie,
+					getBooleanOrDefault(data, "breakDoors", PaperReflection.canZombieBreakDoors(zombie)));
 
 			if (getBooleanOrDefault(data, "converting", zombie.isConverting())) {
 				zombie.setConversionTime(getIntOrDefault(data, "conversionTime", zombie.getConversionTime()));
@@ -1240,15 +1340,23 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 
 		else if (entity instanceof Pig pig) {
 			pig.setSaddle(getBooleanOrDefault(data, "saddled", pig.hasSaddle()));
-			pig.setVariant(ItemRegistry.getPigVariant(data.getString("variant")));
+			if (VersionHelper.isVersionNewerThan1_21_5()) {
+				Object variant = VariantRegistry.getPigVariant(data.getString("variant"));
+				if (variant != null)
+					VariantRegistry.setVariantIfPresent(pig, variant);
+			}
 		}
 
-		else if (entity instanceof Cow cow) {
-			cow.setVariant(ItemRegistry.getCowVariant(data.getString("variant")));
+		else if (VersionHelper.isVersionNewerThan1_21_5() && entity instanceof Cow cow) {
+			Object variant = VariantRegistry.getCowVariant(data.getString("variant"));
+			if (variant != null)
+				VariantRegistry.setVariantIfPresent(cow, variant);
 		}
 
-		else if (entity instanceof Chicken chicken) {
-			chicken.setVariant(ItemRegistry.getChickenVariant(data.getString("variant")));
+		else if (VersionHelper.isVersionNewerThan1_21_5() && entity instanceof Chicken chicken) {
+			Object variant = VariantRegistry.getChickenVariant(data.getString("variant"));
+			if (variant != null)
+				VariantRegistry.setVariantIfPresent(chicken, variant);
 		}
 
 		else if (entity instanceof Strider strider) {
@@ -1258,17 +1366,21 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 
 		else if (entity instanceof Goat goat) {
 			goat.setScreaming(getBooleanOrDefault(data, "screaming", goat.isScreaming()));
-			goat.setLeftHorn(getBooleanOrDefault(data, "leftHorn", goat.hasLeftHorn()));
-			goat.setRightHorn(getBooleanOrDefault(data, "rightHorn", goat.hasRightHorn()));
+			PaperReflection.setGoatLeftHorn(goat,
+					getBooleanOrDefault(data, "leftHorn", PaperReflection.hasGoatLeftHorn(goat)));
+			PaperReflection.setGoatRightHorn(goat,
+					getBooleanOrDefault(data, "rightHorn", PaperReflection.hasGoatRightHorn(goat)));
 		}
 
-		else if (entity instanceof Allay allay) {
+		else if (VersionHelper.isVersionNewerThan1_19_2() && PaperReflection.isAllay(entity)) {
 			if (data.get("jukebox") instanceof CompoundBinaryTag jukeboxTag) {
 				final Location jukebox = deserializeLocation(jukeboxTag);
-				allay.startDancing(jukebox);
+				PaperReflection.allayStartDancing(entity, jukebox);
 			}
-			allay.setCanDuplicate(getBooleanOrDefault(data, "duplicate", allay.canDuplicate()));
-			allay.setDuplicationCooldown(getLongOrDefault(data, "duplicationCooldown", allay.getDuplicationCooldown()));
+			PaperReflection.setAllayCanDuplicate(entity,
+					getBooleanOrDefault(data, "duplicate", PaperReflection.canAllayDuplicate(entity)));
+			PaperReflection.setAllayDuplicationCooldown(entity,
+					getLongOrDefault(data, "duplicationCooldown", PaperReflection.getAllayDuplicationCooldown(entity)));
 		}
 
 		else if (entity instanceof Tameable tameable && !(entity instanceof AbstractHorse)) {
@@ -1283,22 +1395,34 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 
 			if (tameable instanceof Wolf wolf) {
 				wolf.setCollarColor(DyeColor.valueOf(data.getString("collar")));
-				wolf.setVariant(ItemRegistry.getWolfVariant(data.getString("variant")));
+				if (VersionHelper.isVersionNewerThan1_20_5()) {
+					try {
+						if (wolf.getEquipment() != null && data.get("armor") instanceof CompoundBinaryTag armorTag)
+							wolf.getEquipment().setItem(EquipmentSlot.valueOf("BODY"), itemStackFromNBT(armorTag));
+					} catch (NoSuchFieldError | IllegalArgumentException ignored) {
+					}
+					Object variant = VariantRegistry.getWolfVariant(data.getString("variant"));
+					if (variant != null)
+						VariantRegistry.setVariantIfPresent(wolf, variant);
+				}
 				wolf.setAngry(getBooleanOrDefault(data, "angry", wolf.isAngry()));
-				wolf.setInterested(getBooleanOrDefault(data, "begging", wolf.isInterested()));
+				PaperReflection.setWolfInterested(wolf,
+						getBooleanOrDefault(data, "begging", PaperReflection.isWolfInterested(wolf)));
 				wolf.setSitting(getBooleanOrDefault(data, "sitting", wolf.isSitting()));
-				if (VersionHelper.isPaper()) {
-					wolf.setSoundVariant(ItemRegistry.getWolfSoundVariant(data.getString("soundVariant")));
+				if (VersionHelper.isPaperFork() && data.get("soundVariant") != null) {
+					PaperReflection.setWolfSoundVariant(wolf, data.get("soundVariant"));
 				}
 			}
 
 			if (tameable instanceof Cat cat) {
-				cat.setCatType(ItemRegistry.getCatVariant(data.getString("type")));
+				cat.setCatType(VariantRegistry.getCatVariant(data.getString("type")));
 				cat.setCollarColor(DyeColor.valueOf(data.getString("collar")));
 				cat.setSitting(getBooleanOrDefault(data, "sitting", cat.isSitting()));
-				if (VersionHelper.isPaper()) {
-					cat.setHeadUp(getBooleanOrDefault(data, "headUp", cat.isHeadUp()));
-					cat.setLyingDown(getBooleanOrDefault(data, "lyingDown", cat.isLyingDown()));
+				if (VersionHelper.isPaperFork()) {
+					PaperReflection.setCatHeadUp(cat,
+							getBooleanOrDefault(data, "headUp", PaperReflection.isCatHeadUp(cat)));
+					PaperReflection.setCatLyingDown(cat,
+							getBooleanOrDefault(data, "lyingDown", PaperReflection.isCatLyingDown(cat)));
 				}
 			}
 
@@ -1334,7 +1458,7 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 			living.setCollidable(getBooleanOrDefault(data, "collidable", living.isCollidable()));
 
 			if (data.get("customName") != null) {
-				Component name = AdventureHelper.getGson().deserialize(data.getString("customName"));
+				Component name = AdventureHelper.jsonToComponent(data.getString("customName"));
 				AdventureMetadata.setEntityCustomName(living, name);
 				living.setCustomNameVisible(
 						getBooleanOrDefault(data, "customNameVisible", living.isCustomNameVisible()));
@@ -1417,6 +1541,15 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 				}
 			});
 		}
+
+		// Scoreboard Tags
+		if (data.get("scoreboardTags") != null) {
+			List<String> tags = (List<String>) tagToObject(data.get("scoreboardTags"));
+			if (tags != null) {
+				tags.forEach(entity::addScoreboardTag);
+			}
+		}
+
 		// Ageable
 		if (entity instanceof Ageable ageable && data.get("ageable") != null) {
 			ageable.setAge(getIntOrDefault(data, "age", ageable.getAge()));
@@ -1434,14 +1567,15 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 			if (data.get("carriedBlock") != null) {
 				enderman.setCarriedBlock(Bukkit.createBlockData(data.getString("carriedBlock")));
 			}
-			if (VersionHelper.isPaper()) {
-				enderman.setScreaming(getBooleanOrDefault(data, "screaming", enderman.isScreaming()));
+			if (VersionHelper.isPaperFork()) {
+				PaperReflection.setEndermanScreaming(enderman,
+						getBooleanOrDefault(data, "screaming", PaperReflection.isEndermanScreaming(enderman)));
 			}
 		}
 
 		else if (entity instanceof Witch witch) {
-			if (getBooleanOrDefault(data, "isDrinkingPotion", witch.isDrinkingPotion())) {
-				if (VersionHelper.isPaper()) {
+			if (getBooleanOrDefault(data, "isDrinkingPotion", PaperReflection.isWitchDrinkingPotion(witch))) {
+				if (VersionHelper.isPaperFork()) {
 					// Paper has a different method to set the drinking potion
 					// which doesn't exist in Spigot
 					// https://papermc.io/javadocs/paper/1.20/org
@@ -1449,7 +1583,7 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 					// This method is also preferred as it handles the internal state better
 					// according to the javadoc
 					if (data.get("drinkingPotion") instanceof CompoundBinaryTag potionTag) {
-						witch.setDrinkingPotion(itemStackFromNBT(potionTag));
+						PaperReflection.setWitchDrinkingPotion(witch, itemStackFromNBT(potionTag));
 					}
 				} else {
 					// Fallback for Spigot - use the deprecated method
@@ -1457,8 +1591,9 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 					// /Witch.html#setDrinkingPotion-org.bukkit.inventory.ItemStack-
 					// This may not handle the internal state as well as the Paper method
 					// but it's the best we can do for Spigot
-					if (data.get("drinkingPotion") instanceof CompoundBinaryTag potionTag) {
-						setWitchDrinkingPotion(witch, itemStackFromNBT(potionTag));
+					if (witch.getEquipment() != null
+							&& data.get("drinkingPotion") instanceof CompoundBinaryTag potionTag) {
+						witch.getEquipment().setItem(EquipmentSlot.HAND, itemStackFromNBT(potionTag));
 					}
 				}
 			}
@@ -1477,8 +1612,9 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 			fox.setSitting(getBooleanOrDefault(data, "sitting", fox.isSitting()));
 			fox.setSleeping(getBooleanOrDefault(data, "sleeping", fox.isSleeping()));
 			fox.setCrouching(getBooleanOrDefault(data, "crouching", fox.isCrouching()));
-			if (VersionHelper.isPaper()) {
-				fox.setFaceplanted(getBooleanOrDefault(data, "faceplanted", fox.isFaceplanted()));
+			if (VersionHelper.isPaperFork()) {
+				PaperReflection.setFoxFaceplanted(fox,
+						getBooleanOrDefault(data, "faceplanted", PaperReflection.isFoxFaceplanted(fox)));
 			}
 			if (data.get("trustedFirst") != null) {
 				final UUID uuid = UUID.fromString(data.getString("trustedFirst"));
@@ -1493,16 +1629,20 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 		else if (entity instanceof Panda panda) {
 			panda.setMainGene(Panda.Gene.valueOf(data.getString("mainGene")));
 			panda.setHiddenGene(Panda.Gene.valueOf(data.getString("hiddenGene")));
-			panda.setSneezing(getBooleanOrDefault(data, "sneezing", panda.isSneezing()));
-			panda.setRolling(getBooleanOrDefault(data, "rolling", panda.isRolling()));
-			panda.setSitting(getBooleanOrDefault(data, "sitting", panda.isSitting()));
+			PaperReflection.setPandaSneezing(panda,
+					getBooleanOrDefault(data, "sneezing", PaperReflection.isPandaSneezing(panda)));
+			PaperReflection.setPandaRolling(panda,
+					getBooleanOrDefault(data, "rolling", PaperReflection.isPandaRolling(panda)));
+			PaperReflection.setPandaSitting(panda,
+					getBooleanOrDefault(data, "sitting", PaperReflection.isPandaSitting(panda)));
 		}
 
-		else if (VersionHelper.isPaper() && entity instanceof Turtle turtle) {
+		else if (VersionHelper.isPaperFork() && entity instanceof Turtle turtle) {
 			if (data.get("home") instanceof CompoundBinaryTag homeTag) {
-				turtle.setHome(deserializeLocation(homeTag));
+				PaperReflection.setTurtleHome(turtle, deserializeLocation(homeTag));
 			}
-			turtle.setHasEgg(getBooleanOrDefault(data, "hasEgg", turtle.hasEgg()));
+			PaperReflection.setTurtleHasEgg(turtle,
+					getBooleanOrDefault(data, "hasEgg", PaperReflection.turtleHasEgg(turtle)));
 		}
 
 		else if (entity instanceof Bat bat) {
@@ -1524,9 +1664,11 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 					getBooleanOrDefault(data, "immuneToZombification", hoglin.isImmuneToZombification()));
 		}
 
-		else if (VersionHelper.isPaper() && entity instanceof Dolphin dolphin) {
-			dolphin.setHasFish(getBooleanOrDefault(data, "hasFish", dolphin.hasFish()));
-			dolphin.setMoistness(getIntOrDefault(data, "moistness", dolphin.getMoistness()));
+		else if (VersionHelper.isPaperFork() && entity instanceof Dolphin dolphin) {
+			PaperReflection.setDolphinHasFish(dolphin,
+					getBooleanOrDefault(data, "hasFish", PaperReflection.dolphinHasFish(dolphin)));
+			PaperReflection.setDolphinMoistness(dolphin,
+					getIntOrDefault(data, "moistness", PaperReflection.getDolphinMoistness(dolphin)));
 		}
 
 		else if (entity instanceof TropicalFish tropicalFish) {
@@ -1535,21 +1677,26 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 			tropicalFish.setBodyColor(DyeColor.valueOf(data.getString("bodyColor")));
 		}
 
-		else if (entity instanceof Salmon salmon) {
-			salmon.setVariant(Salmon.Variant.valueOf(data.getString("variant")));
+		else if (VersionHelper.isVersionNewerThan1_21_2() && entity instanceof Salmon salmon) {
+			Object variant = VariantRegistry.getSalmonVariant(data.getString("variant"));
+			if (variant != null)
+				VariantRegistry.setVariantIfPresent(salmon, variant);
 		}
 
 		else if (entity instanceof Vindicator vindicator) {
-			vindicator.setJohnny(getBooleanOrDefault(data, "johnny", vindicator.isJohnny()));
+			PaperReflection.setVindicatorJohnny(vindicator,
+					getBooleanOrDefault(data, "johnny", PaperReflection.isVindicatorJohnny(vindicator)));
 		}
 
 		else if (entity instanceof Piglin piglin) {
 			piglin.setImmuneToZombification(
 					getBooleanOrDefault(data, "immuneToZombification", piglin.isImmuneToZombification()));
 			piglin.setIsAbleToHunt(getBooleanOrDefault(data, "ableToHunt", piglin.isAbleToHunt()));
-			if (VersionHelper.isPaper()) {
-				piglin.setChargingCrossbow(getBooleanOrDefault(data, "chargingCrossbow", piglin.isChargingCrossbow()));
-				piglin.setDancing(getBooleanOrDefault(data, "dancing", piglin.isDancing()));
+			if (VersionHelper.isPaperFork()) {
+				PaperReflection.setPiglinChargingCrossbow(piglin, getBooleanOrDefault(data, "chargingCrossbow",
+						PaperReflection.isPiglinChargingCrossbow(piglin)));
+				PaperReflection.setPiglinDancing(piglin,
+						getBooleanOrDefault(data, "dancing", PaperReflection.isPiglinDancing(piglin)));
 			}
 		}
 
@@ -1578,13 +1725,24 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 			sheep.setSheared(getBooleanOrDefault(data, "sheared", sheep.isSheared()));
 		}
 
-		else if (VersionHelper.isVersionNewerThan1_19_3() && entity instanceof Frog frog) {
-			frog.setVariant(ItemRegistry.getFrogVariant(data.getString("variant")));
+		else if (VersionHelper.isVersionNewerThan1_19() && PaperReflection.isFrog(entity)) {
+			Object variant = VariantRegistry.getFrogVariant(data.getString("variant"));
+			if (variant != null)
+				VariantRegistry.setVariantIfPresent(entity, variant);
+		}
+
+		else if (VersionHelper.isVersionNewerThan1_19_4() && PaperReflection.isSniffer(entity)) {
+			String state = getStringOrDefault(data, "state", null);
+			if (state != null) {
+				PaperReflection.setSnifferState(entity, state);
+			}
 		}
 
 		else if (entity instanceof Guardian guardian) {
-			guardian.setLaser(getBooleanOrDefault(data, "hasLaser", guardian.hasLaser()));
-			guardian.setLaserTicks(getIntOrDefault(data, "laserTicks", guardian.getLaserTicks()));
+			PaperReflection.setGuardianLaser(guardian,
+					getBooleanOrDefault(data, "hasLaser", PaperReflection.hasGuardianLaser(guardian)));
+			PaperReflection.setGuardianLaserTicks(guardian,
+					getIntOrDefault(data, "laserTicks", PaperReflection.getGuardianLaserTicks(guardian)));
 		}
 
 		else if (entity instanceof Bee bee) {
@@ -1599,10 +1757,10 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 			}
 		}
 
-		else if (entity instanceof Warden warden && data.get("anger") != null) {
-			if (data.get("angerTarget") != null && data.get("angerLevel") != null) {
+		if (VersionHelper.isVersionNewerThan1_19_2() && PaperReflection.isWarden(entity)) {
+			if (data.contains("angerTarget") && data.contains("angerLevel")) {
 				final UUID id = UUID.fromString(data.getString("angerTarget"));
-				final int anger = getIntOrDefault(data, "angerLevel", warden.getAnger());
+				final int anger = getIntOrDefault(data, "angerLevel", 0);
 
 				final Runnable tryWarden = new Runnable() {
 					int attempts = 0;
@@ -1610,31 +1768,31 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 
 					@Override
 					public void run() {
-						final Entity found = Bukkit.getEntity(id);
+						Entity found = Bukkit.getEntity(id);
 						if (found instanceof LivingEntity target) {
-							warden.setAnger(target, anger);
+							PaperReflection.setWardenAnger(entity, target, anger);
 						} else if (++attempts < maxAttempts) {
 							HellblockPlugin.getInstance().getScheduler().sync().runLater(this, 1L,
-									warden.getLocation());
+									entity.getLocation());
 						} else {
 							HellblockPlugin.getInstance().getPluginLogger()
-									.warn("Failed to restore warden anger for " + warden.getUniqueId());
+									.warn("Failed to restore warden anger for " + entity.getUniqueId());
 						}
 					}
 				};
 
-				HellblockPlugin.getInstance().getScheduler().sync().runLater(tryWarden, 1L, warden.getLocation());
+				HellblockPlugin.getInstance().getScheduler().sync().runLater(tryWarden, 1L, entity.getLocation());
 			}
 		}
 
 		else if (entity instanceof Vex vex) {
 			if (data.get("bound") instanceof CompoundBinaryTag bound) {
-				vex.setBound(deserializeLocation(bound));
+				PaperReflection.setVexBound(vex, deserializeLocation(bound));
 			}
 			vex.setCharging(getBooleanOrDefault(data, "charging", vex.isCharging()));
-			AdventureMetadata.setVexLifetimeTicks(vex,
-					getIntOrDefault(data, "limitedLifetimeTicks", AdventureMetadata.getVexLifetimeTicks(vex)));
-			if (VersionHelper.isPaper()) {
+			PaperReflection.setVexLimitedLifetimeTicks(vex,
+					getIntOrDefault(data, "limitedLifetimeTicks", PaperReflection.getVexLimitedLifetimeTicks(vex)));
+			if (VersionHelper.isPaperFork()) {
 				if (data.get("summoner") != null) {
 					final UUID summonerId = UUID.fromString(data.getString("summoner"));
 
@@ -1646,7 +1804,7 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 						public void run() {
 							final Entity found = Bukkit.getEntity(summonerId);
 							if (found instanceof Mob summoner) {
-								vex.setSummoner(summoner);
+								PaperReflection.setVexSummoner(vex, summoner);
 							} else if (++attempts < maxAttempts) {
 								HellblockPlugin.getInstance().getScheduler().sync().runLater(this, 1L,
 										vex.getLocation());
@@ -1663,7 +1821,8 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 		}
 
 		else if (entity instanceof Ghast ghast) {
-			ghast.setCharging(getBooleanOrDefault(data, "charging", ghast.isCharging()));
+			PaperReflection.setGhastCharging(ghast,
+					getBooleanOrDefault(data, "charging", PaperReflection.isGhastCharging(ghast)));
 		}
 
 		else if (entity instanceof Creeper creeper) {
@@ -1677,8 +1836,8 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 		}
 
 		else if (entity instanceof Wither wither) {
-			AdventureMetadata.setWitherInvulnerableTicks(wither,
-					getIntOrDefault(data, "invulnerableTicks", AdventureMetadata.getWitherInvulnerableTicks(wither)));
+			PaperReflection.setWitherInvulnerableTicks(wither,
+					getIntOrDefault(data, "invulnerableTicks", PaperReflection.getWitherInvulnerableTicks(wither)));
 		}
 
 		else if (entity instanceof Slime slime) {
@@ -1694,13 +1853,118 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 		}
 
 		else if (entity instanceof EnderDragon enderDragon) {
-			if (VersionHelper.isPaper()) {
+			if (VersionHelper.isPaperFork()) {
 				if (data.get("podium") instanceof CompoundBinaryTag podium) {
-					enderDragon.setPodium(deserializeLocation(podium));
+					PaperReflection.setEnderDragonPodium(enderDragon, deserializeLocation(podium));
 				}
 			}
 			enderDragon.setPhase(EnderDragon.Phase.valueOf(data.getString("phase")));
 		}
+	}
+
+	/**
+	 * Capture the minecart data of a Minecart into a CompoundBinaryTag.
+	 * 
+	 * @param minecart The Minecart whose data is to be captured
+	 * 
+	 * @return A CompoundBinaryTag representing the minecart's data, or null if no
+	 *         data
+	 */
+	private static CompoundBinaryTag captureMinecartData(Minecart minecart) {
+		String type = minecart.getType().name().toUpperCase(Locale.ROOT);
+
+		final CompoundBinaryTag.Builder tagBuilder = CompoundBinaryTag.builder();
+
+		switch (type) {
+		// modern name, legacy (pre 1.20.5) name
+		case "CHEST_MINECART", "MINECART_CHEST" -> {
+			Inventory inv = ((StorageMinecart) minecart).getInventory();
+			tagBuilder.put("contents", inventoryToNBT(inv));
+		}
+		case "HOPPER_MINECART", "MINECART_HOPPER" -> {
+			Inventory inv = ((InventoryHolder) minecart).getInventory();
+			tagBuilder.put("contents", inventoryToNBT(inv));
+		}
+		case "COMMAND_BLOCK_MINECART", "MINECART_COMMAND" -> {
+			CommandMinecart cmd = (CommandMinecart) minecart;
+			tagBuilder.putString("command", cmd.getCommand());
+			Component name = AdventureMetadata.getCommandMinecartName(cmd);
+			if (name != null) {
+				tagBuilder.putString("name", AdventureHelper.componentToJson(name));
+			}
+		}
+		case "FURNACE_MINECART", "MINECART_FURNACE" -> {
+			PoweredMinecart powered = (PoweredMinecart) minecart;
+			tagBuilder.putInt("fuel", powered.getFuel());
+		}
+		case "TNT_MINECART", "MINECART_TNT" -> {
+			ExplosiveMinecart tnt = (ExplosiveMinecart) minecart;
+			tagBuilder.putInt("fuseTicks", PaperReflection.getTNTMinecartFuseTicks(tnt));
+		}
+		default -> {
+			// No extra metadata for other minecarts
+		}
+		}
+
+		final CompoundBinaryTag tag = tagBuilder.build();
+		return tag.isEmpty() ? null : tag;
+	}
+
+	/**
+	 * Restore minecart data from a CompoundBinaryTag to a Minecart.
+	 * 
+	 * @param minecart    The Minecart to restore data to
+	 * 
+	 * @param minecartTag The CompoundBinaryTag containing minecart data
+	 */
+	private static void restoreMinecartData(Minecart minecart, CompoundBinaryTag minecartTag) {
+		if (minecartTag == null) {
+			return;
+		}
+
+		String type = minecart.getType().name().toUpperCase(Locale.ROOT);
+
+		minecartTag.keySet().forEach(key -> {
+			switch (type) {
+			// modern name, legacy (pre 1.20.5) name
+			case "CHEST_MINECART", "MINECART_CHEST" -> {
+				if (minecartTag.get("contents") instanceof CompoundBinaryTag contentsTag) {
+					inventoryFromNBT(contentsTag, ((StorageMinecart) minecart).getInventory());
+				}
+			}
+			case "HOPPER_MINECART", "MINECART_HOPPER" -> {
+				if (minecartTag.get("contents") instanceof CompoundBinaryTag contentsTag) {
+					inventoryFromNBT(contentsTag, ((InventoryHolder) minecart).getInventory());
+				}
+			}
+			case "COMMAND_BLOCK_MINECART", "MINECART_COMMAND" -> {
+				final CommandMinecart cmd = (CommandMinecart) minecart;
+				if (minecartTag.get("command") != null) {
+					cmd.setCommand(minecartTag.getString("command"));
+				}
+				if (minecartTag.get("name") != null) {
+					Component name = AdventureHelper.jsonToComponent(minecartTag.getString("name"));
+					AdventureMetadata.setCommandMinecartName(cmd, name);
+				}
+			}
+			case "FURNACE_MINECART", "MINECART_FURNACE" -> {
+				if (minecartTag.get("fuel") != null) {
+					final PoweredMinecart pm = (PoweredMinecart) minecart;
+					pm.setFuel(getIntOrDefault(minecartTag, "fuel", pm.getFuel()));
+				}
+			}
+			case "TNT_MINECART", "MINECART_TNT" -> {
+				if (minecartTag.get("fuseTicks") != null) {
+					final ExplosiveMinecart em = (ExplosiveMinecart) minecart;
+					PaperReflection.setTNTMinecartFuseTicks(em,
+							getIntOrDefault(minecartTag, "fuseTicks", PaperReflection.getTNTMinecartFuseTicks(em)));
+				}
+			}
+			default -> {
+				// No extra metadata for other minecarts
+			}
+			}
+		});
 	}
 
 	/**
@@ -1720,7 +1984,7 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 
 		for (EquipmentSlot slot : EquipmentSlot.values()) {
 			final ItemStack item = entity.getEquipment().getItem(slot);
-			if (item != null && !item.getType().isAir()) {
+			if (!item.getType().isAir()) {
 				tagBuilder.put(slot.name(), itemStackToNBT(item));
 			}
 		}
@@ -1748,7 +2012,7 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 				if (itemTag instanceof CompoundBinaryTag compound) {
 					entity.getEquipment().setItem(slot, itemStackFromNBT(compound), true);
 				}
-			} catch (IllegalArgumentException ignored) {
+			} catch (NoSuchFieldError | IllegalArgumentException ignored) {
 				// Skip invalid slot name
 			}
 		});
@@ -1800,79 +2064,6 @@ public record EntitySnapshot(@JsonProperty("type") EntityType type, @JsonPropert
 		final World world = Bukkit.getWorld(tag.getString("world"));
 		return new Location(world, tag.getDouble("x"), tag.getDouble("y"), tag.getDouble("z"), tag.getFloat("yaw"),
 				tag.getFloat("pitch"));
-	}
-
-	/**
-	 * Uses reflection to access the private field in CraftBukkit that stores the
-	 * potion a witch is currently drinking, if any.
-	 * 
-	 * @param witch The witch entity to inspect
-	 * @return The ItemStack of the potion being consumed, or null if none
-	 */
-	@Nullable
-	private static ItemStack getWitchDrinkingPotion(Witch witch) {
-		try {
-			final String version = Bukkit.getServer().getClass().getPackage().getName().split("\\.")[3];
-
-			final Class<?> craftWitchClass = Class.forName("org.bukkit.craftbukkit." + version + ".entity.CraftWitch");
-			final Class<?> nmsWitchClass = Class.forName("net.minecraft.world.entity.monster.EntityWitch");
-			final Class<?> nmsItemStackClass = Class.forName("net.minecraft.world.item.ItemStack");
-			final Class<?> craftItemStackClass = Class
-					.forName("org.bukkit.craftbukkit." + version + ".inventory.CraftItemStack");
-
-			final Method getHandle = craftWitchClass.getMethod("getHandle");
-			final Method asBukkitCopy = craftItemStackClass.getMethod("asBukkitCopy", nmsItemStackClass);
-			final Field drinkingPotionField = nmsWitchClass.getDeclaredField("drinkingPotion");
-			drinkingPotionField.setAccessible(true);
-
-			final Object craftWitch = craftWitchClass.cast(witch);
-			final Object nmsWitch = getHandle.invoke(craftWitch);
-			final Object nmsItemStack = drinkingPotionField.get(nmsWitch);
-
-			if (nmsItemStack == null) {
-				return null;
-			}
-
-			final ItemStack potion = (ItemStack) asBukkitCopy.invoke(null, nmsItemStack);
-			return potion.getType() != Material.AIR ? potion : null;
-
-		} catch (Exception ex) {
-			HellblockPlugin.getInstance().getPluginLogger()
-					.warn("Failed to read witch drinking potion: " + ex.getMessage());
-			return null;
-		}
-	}
-
-	/**
-	 * Uses reflection to set the private field in CraftBukkit that stores the
-	 * potion a witch is currently drinking.
-	 * 
-	 * @param witch  The witch entity to modify
-	 * @param potion The ItemStack of the potion to set, or null to clear
-	 */
-	private static void setWitchDrinkingPotion(Witch witch, @Nullable ItemStack potion) {
-		try {
-			final String version = Bukkit.getServer().getClass().getPackage().getName().split("\\.")[3];
-
-			final Class<?> craftWitchClass = Class.forName("org.bukkit.craftbukkit." + version + ".entity.CraftWitch");
-			final Class<?> nmsWitchClass = Class.forName("net.minecraft.world.entity.monster.EntityWitch");
-			final Class<?> craftItemStackClass = Class
-					.forName("org.bukkit.craftbukkit." + version + ".inventory.CraftItemStack");
-
-			final Method getHandle = craftWitchClass.getMethod("getHandle");
-			final Method asNMSCopy = craftItemStackClass.getMethod("asNMSCopy", ItemStack.class);
-			final Field drinkingPotionField = nmsWitchClass.getDeclaredField("drinkingPotion");
-			drinkingPotionField.setAccessible(true);
-
-			final Object craftWitch = craftWitchClass.cast(witch);
-			final Object nmsWitch = getHandle.invoke(craftWitch);
-			final Object nmsItemStack = potion == null ? null : asNMSCopy.invoke(null, potion);
-
-			drinkingPotionField.set(nmsWitch, nmsItemStack);
-		} catch (Exception ex) {
-			HellblockPlugin.getInstance().getPluginLogger()
-					.warn("Failed to set witch drinking potion: " + ex.getMessage());
-		}
 	}
 
 	/**

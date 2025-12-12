@@ -76,15 +76,24 @@ public class DependencyManager implements DependencyManagerInterface {
 				return classLoader;
 			}
 
-			final URL[] urls = set.stream().map(this.loaded::get).map(file -> {
+			final List<URL> urls = new ArrayList<>();
+			try {
+				// Add plugin jar first so LoaderBridge is visible
+				URL pluginUrl = instance.getClass().getProtectionDomain().getCodeSource().getLocation();
+				urls.add(pluginUrl);
+			} catch (Exception e) {
+				instance.getPluginLogger().warn("Could not determine plugin JAR location", e);
+			}
+
+			for (Dependency dep : set) {
 				try {
-					return file.toUri().toURL();
+					urls.add(this.loaded.get(dep).toUri().toURL());
 				} catch (MalformedURLException ex) {
 					throw new RuntimeException(ex);
 				}
-			}).toArray(URL[]::new);
+			}
 
-			classLoader = new IsolatedClassLoader(urls);
+			classLoader = new IsolatedClassLoader(urls.toArray(new URL[0]));
 			this.loaders.put(set, classLoader);
 			return classLoader;
 		}
@@ -213,16 +222,16 @@ public class DependencyManager implements DependencyManagerInterface {
 			instance.getPluginLogger().severe(firstEx.getMessage(), firstEx);
 		}
 	}
-	
+
 	@Override
 	public <T> T runWithLoader(Set<Dependency> deps, Supplier<T> supplier) {
-	    ClassLoader loader = obtainClassLoaderWith(deps);
-	    ClassLoader prev = Thread.currentThread().getContextClassLoader();
-	    try {
-	        Thread.currentThread().setContextClassLoader(loader);
-	        return supplier.get();
-	    } finally {
-	        Thread.currentThread().setContextClassLoader(prev);
-	    }
+		ClassLoader loader = obtainClassLoaderWith(deps);
+		ClassLoader prev = Thread.currentThread().getContextClassLoader();
+		try {
+			Thread.currentThread().setContextClassLoader(loader);
+			return supplier.get();
+		} finally {
+			Thread.currentThread().setContextClassLoader(prev);
+		}
 	}
 }

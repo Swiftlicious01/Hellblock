@@ -3,11 +3,14 @@ package com.swiftlicious.hellblock.gui.visit;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -17,12 +20,15 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import com.mojang.authlib.GameProfile;
 import com.swiftlicious.hellblock.context.Context;
 import com.swiftlicious.hellblock.context.ContextKeys;
+import com.swiftlicious.hellblock.creation.item.CustomItem;
 import com.swiftlicious.hellblock.creation.item.Item;
+import com.swiftlicious.hellblock.gui.PaginatedGUI;
 import com.swiftlicious.hellblock.gui.visit.VisitGUIManager.VisitSorter;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.handlers.VersionHelper;
@@ -31,31 +37,42 @@ import com.swiftlicious.hellblock.player.GameProfileBuilder;
 import com.swiftlicious.hellblock.player.HellblockData;
 import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.player.VisitData;
+import com.swiftlicious.hellblock.utils.StringUtils;
 import com.swiftlicious.hellblock.utils.TextWrapUtils;
+import com.swiftlicious.hellblock.utils.extras.Action;
+import com.swiftlicious.hellblock.utils.extras.Pair;
+import com.swiftlicious.hellblock.utils.extras.TextValue;
 
-import net.kyori.adventure.key.Key;
 import net.kyori.adventure.sound.Sound;
-import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 
-public class VisitGUI {
+public class VisitGUI extends PaginatedGUI<VisitGUIElement> {
 
 	private final Map<Character, VisitGUIElement> itemsCharMap;
 	private final Map<Integer, VisitGUIElement> itemsSlotMap;
 	private final VisitGUIManager manager;
 	protected final Inventory inventory;
 	protected final Context<Player> context;
+	protected final Context<Integer> islandContext;
 	protected final HellblockData hellblockData;
 	protected VisitSorter currentSorter;
-	protected boolean showBackIcon;
+	protected final boolean isOwner;
+	protected final boolean showBackIcon;
+
+	private RefreshReason refreshReason = RefreshReason.OPENING;
 
 	private final Map<UUID, String> cachedSkullTextures = new ConcurrentHashMap<>(); // Skull cache
 
 	public VisitGUI(VisitGUIManager manager, VisitSorter currentSorter, Context<Player> context,
-			HellblockData hellblockData, boolean showBackIcon) {
+			Context<Integer> islandContext, HellblockData hellblockData, boolean isOwner, boolean showBackIcon,
+			@Nullable CustomItem leftIcon, @Nullable Action<Player>[] leftActions, @Nullable CustomItem rightIcon,
+			@Nullable Action<Player>[] rightActions) {
+		super(leftIcon, leftActions, rightIcon, rightActions);
 		this.manager = manager;
 		this.currentSorter = currentSorter;
 		this.context = context;
+		this.islandContext = islandContext;
 		this.hellblockData = hellblockData;
+		this.isOwner = isOwner;
 		this.showBackIcon = showBackIcon;
 		this.itemsCharMap = new HashMap<>();
 		this.itemsSlotMap = new HashMap<>();
@@ -66,28 +83,80 @@ public class VisitGUI {
 			this.inventory = Bukkit.createInventory(holder, manager.layout.length * 9);
 		}
 		holder.setInventory(this.inventory);
+
+		super.player = context.holder();
+		// Since PaginatedGUI also stores `inventory`, assign it
+		super.inventory = this.inventory; // safely overwrite it
 	}
 
 	private void init() {
 		int line = 0;
+		int width = (this.inventory.getType() == InventoryType.HOPPER ? 5 : 9);
+
+		// Use single layout (only when not in pageLayouts mode)
 		for (String content : manager.layout) {
-			for (int index = 0; index < (this.inventory.getType() == InventoryType.HOPPER ? 5 : 9); index++) {
-				char symbol;
-				if (index < content.length())
-					symbol = content.charAt(index);
-				else
-					symbol = ' ';
+			for (int index = 0; index < width; index++) {
+				char symbol = (index < content.length()) ? content.charAt(index) : ' ';
 				VisitGUIElement element = itemsCharMap.get(symbol);
 				if (element != null) {
-					element.addSlot(index + line * (this.inventory.getType() == InventoryType.HOPPER ? 5 : 9));
-					itemsSlotMap.put(index + line * (this.inventory.getType() == InventoryType.HOPPER ? 5 : 9),
-							element);
+					element.addSlot(index + line * width);
+					itemsSlotMap.put(index + line * width, element);
 				}
 			}
 			line++;
 		}
-		itemsSlotMap.entrySet()
-				.forEach(entry -> this.inventory.setItem(entry.getKey(), entry.getValue().getItemStack().clone()));
+
+		// Only auto-paginate if NOT using multi-page mode
+		if (manager.pageLayouts.isEmpty() && (rightIconItem != null || leftIconItem != null)) {
+			List<VisitGUIElement> visitElements = new ArrayList<>();
+
+			for (VisitGUIElement element : itemsCharMap.values()) {
+				if (element.getSymbol() != manager.backSlot) {
+					visitElements.add(element);
+				}
+			}
+
+			int itemsPerPage = manager.layout.length * 9 - 2; // reserve for arrows
+			List<List<VisitGUIElement>> pages = new ArrayList<>();
+
+			for (int i = 0; i < visitElements.size(); i += itemsPerPage) {
+				pages.add(visitElements.subList(i, Math.min(i + itemsPerPage, visitElements.size())));
+			}
+
+			setPages(pages); // PaginatedGUI base method
+		}
+
+		// Set initial inventory items
+		itemsSlotMap.forEach((slot, element) -> this.inventory.setItem(slot, element.getItemStack().clone()));
+	}
+
+	private void buildPaginated() {
+		List<List<VisitGUIElement>> allPages = new ArrayList<>();
+		int width = (this.inventory.getType() == InventoryType.HOPPER ? 5 : 9);
+
+		// Each entry in pageLayouts is one "page"
+		for (Map.Entry<Integer, String[]> entry : manager.pageLayouts.entrySet()) {
+			List<VisitGUIElement> pageElements = new ArrayList<>();
+			String[] layout = entry.getValue();
+			int line = 0;
+
+			for (String content : layout) {
+				for (int index = 0; index < width; index++) {
+					char symbol = (index < content.length()) ? content.charAt(index) : ' ';
+					VisitGUIElement element = itemsCharMap.get(symbol);
+					if (element != null) {
+						element.addSlot(index + line * width);
+						pageElements.add(element);
+					}
+				}
+				line++;
+			}
+			allPages.add(pageElements);
+		}
+
+		setPages(allPages);
+		// Initialize the inventory with page 0 visible
+		openPage(0);
 	}
 
 	public VisitGUI addElement(VisitGUIElement... elements) {
@@ -98,14 +167,26 @@ public class VisitGUI {
 	}
 
 	public VisitGUI build() {
-		init();
+		if (!manager.pageLayouts.isEmpty()) {
+			// multi-page mode
+			buildPaginated();
+		} else {
+			// single-layout mode (legacy behavior)
+			init();
+		}
 		return this;
 	}
 
 	public void show() {
+		setRefreshReason(RefreshReason.OPENING);
 		context.holder().openInventory(inventory);
-		VersionHelper.getNMSManager().updateInventoryTitle(context.holder(), AdventureHelper
-				.componentToJson(AdventureHelper.parseCenteredTitleMultiline(manager.title.render(context, true))));
+		updateTitle();
+	}
+
+	private void updateTitle() {
+		String titleJson = AdventureHelper.componentToJson(AdventureHelper.parseCenteredTitleMultiline(manager.title
+				.render(context, true).replace("{sort_type}", StringUtils.toProperCase(currentSorter.toString()))));
+		VersionHelper.getNMSManager().updateInventoryTitle(context.holder(), titleJson);
 	}
 
 	@Nullable
@@ -119,32 +200,50 @@ public class VisitGUI {
 	}
 
 	public void clearDynamicElements() {
-		itemsSlotMap.entrySet().removeIf(entry -> entry.getValue() instanceof VisitDynamicGUIElement);
+		itemsSlotMap.entrySet().removeIf(entry -> entry.getValue() instanceof VisitDynamicGUIElement
+				&& ((VisitDynamicGUIElement) entry.getValue()).getSymbol() == manager.filledSlot);
 	}
 
+	@NotNull
 	public VisitSorter getCurrentSorter() {
 		return currentSorter;
 	}
 
-	public void setCurrentSorter(VisitSorter sorter) {
+	public void setCurrentSorter(@NotNull VisitSorter sorter) {
 		this.currentSorter = sorter;
 	}
 
-	public void populateVisitEntries(List<VisitEntry> entries, VisitSorter sorter) {
+	@NotNull
+	public RefreshReason getRefreshReason() {
+		return refreshReason;
+	}
+
+	public void setRefreshReason(@NotNull RefreshReason refreshReason) {
+		this.refreshReason = refreshReason;
+	}
+
+	public void populateVisitEntries(@NotNull List<VisitEntry> entries, @NotNull VisitSorter sorter) {
 		// Prevent redundant sort triggers
-		if (sorter == currentSorter) {
-			AdventureHelper.playSound(manager.instance.getSenderFactory().getAudience(context.holder()),
-					Sound.sound(Key.key("minecraft:entity.villager.no"), Sound.Source.PLAYER, 1f, 1f));
-			return;
-		}
-		this.currentSorter = sorter;
+		setCurrentSorter(sorter);
 
 		manager.instance.getCoopManager().getCachedIslandOwnerData().thenAccept(ownerSet -> {
 			Map<UUID, UserData> ownerMap = ownerSet.stream()
 					.collect(Collectors.toMap(UserData::getUUID, Function.identity()));
 
 			List<CompletableFuture<VisitDynamicGUIElement>> futures = new ArrayList<>();
-			int slotIndex = 0;
+
+			Set<UUID> alreadyAdded = new HashSet<>();
+			Map<UUID, Integer> existingSlotAssignments = new HashMap<>();
+
+			// Build map of UUID -> slotIndex (resolved slot handling)
+			int assignedIndex = 0;
+			for (VisitEntry entry : entries) {
+				if (!alreadyAdded.add(entry.ownerId()))
+					continue; // Skip duplicates
+				existingSlotAssignments.put(entry.ownerId(), assignedIndex++);
+			}
+
+			int layoutSlotIndex = 0;
 
 			for (int row = 0; row < manager.layout.length; row++) {
 				for (int col = 0; col < manager.layout[row].length(); col++) {
@@ -152,13 +251,11 @@ public class VisitGUI {
 					if (symbol != manager.filledSlot)
 						continue;
 
-					final int currentIndex = slotIndex;
+					final int currentIndex = layoutSlotIndex;
 					Item<ItemStack> baseEmptyItem = manager.instance.getItemManager()
 							.wrap(manager.emptyIcon.build(context));
 
 					boolean isFeatured = sorter == VisitSorter.FEATURED;
-					boolean isOwner = hellblockData.getOwnerUUID() != null
-							&& context.holder().getUniqueId().equals(hellblockData.getOwnerUUID());
 
 					// Only retain lore if FEATURED view and player is island owner
 					if (!(isFeatured && isOwner)) {
@@ -167,20 +264,29 @@ public class VisitGUI {
 
 					final VisitDynamicGUIElement element = new VisitDynamicGUIElement(symbol, baseEmptyItem.loadCopy());
 
+					// Skip if we've assigned all entries already
 					if (currentIndex >= entries.size()) {
 						futures.add(CompletableFuture.completedFuture(element));
-						slotIndex++;
+						layoutSlotIndex++;
 						continue;
 					}
 
 					VisitEntry entry = entries.get(currentIndex);
-					UUID uuid = entry.islandOwner();
+					UUID uuid = entry.ownerId();
+
+					// Ensure this entry is supposed to be placed in this layout slot
+					if (existingSlotAssignments.get(uuid) != currentIndex) {
+						layoutSlotIndex++;
+						continue;
+					}
+
 					int rank = currentIndex + 1;
 
 					UserData user = ownerMap.get(uuid);
-					if (user == null || user.getHellblockData().getOwnerUUID() == null) {
+					if (user == null || !user.getHellblockData().hasHellblock()
+							|| user.getHellblockData().getOwnerUUID() == null) {
 						futures.add(CompletableFuture.completedFuture(element));
-						slotIndex++;
+						layoutSlotIndex++;
 						continue;
 					}
 
@@ -188,28 +294,50 @@ public class VisitGUI {
 
 					if (data.isLocked()) {
 						futures.add(CompletableFuture.completedFuture(element));
-						slotIndex++;
+						layoutSlotIndex++;
 						continue;
 					}
+
+					element.setFeaturedUntil(data.getVisitData().getFeaturedUntil());
 
 					String playerName = data.getResolvedOwnerName();
 					String islandName = data.getDisplaySettings().getIslandName();
 					String islandBio = data.getDisplaySettings().getIslandBio();
 
 					// Set context args
-					context.arg(ContextKeys.VISIT_UUID, uuid.toString()).arg(ContextKeys.VISIT_NAME, playerName)
-							.arg(ContextKeys.VISIT_LEVEL, data.getLevel()).arg(ContextKeys.VISIT_COUNT, entry.visits())
-							.arg(ContextKeys.VISIT_RANK, rank).arg(ContextKeys.VISIT_ISLAND_NAME, islandName)
+					Context<Integer> perIslandCtx = Context.island(data.getIslandId())
+							.arg(ContextKeys.VISIT_UUID, uuid.toString()).arg(ContextKeys.VISIT_NAME, playerName)
+							.arg(ContextKeys.VISIT_LEVEL, data.getIslandLevel())
+							.arg(ContextKeys.VISIT_COUNT, entry.visits()).arg(ContextKeys.VISIT_RANK, rank)
+							.arg(ContextKeys.VISIT_ISLAND_NAME, islandName)
 							.arg(ContextKeys.VISIT_ISLAND_BIO, islandBio);
 
+					Context<Player> combinedCtx = context.merge(perIslandCtx);
 					Item<ItemStack> filledItem = manager.instance.getItemManager()
-							.wrap(manager.filledIcon.build(context));
+							.wrap(manager.filledIcon.build(combinedCtx));
+
+					// Check if this entry belongs to the current player
+					boolean isOwnerEntry = uuid.equals(context.holder().getUniqueId());
+
+					if (isOwnerEntry) {
+						// Tag the item for identification
+						filledItem.setTag("custom", "visit_gui", "owner_entry", 1);
+
+						// Append custom lore if defined
+						if (manager.filledSection.contains("display.self-indicator-additional-lore")) {
+							List<String> extraLore = manager.filledSection
+									.getStringList("display.self-indicator-additional-lore");
+							List<String> existingLore = new ArrayList<>(filledItem.lore().orElseGet(ArrayList::new));
+							extraLore.forEach(line -> existingLore.add(AdventureHelper.miniMessageToJson(line)));
+							filledItem.lore(existingLore);
+						}
+					}
 
 					List<String> newLore = new ArrayList<>();
 
 					// Use plain text version of the bio for wrapping
-					String plainBio = PlainTextComponentSerializer.plainText()
-							.serialize(AdventureHelper.getMiniMessage().deserialize(islandBio));
+					String plainBio = AdventureHelper
+							.componentToPlainText(AdventureHelper.miniMessageToComponent(islandBio));
 
 					// Determine max characters per line (or use pixel-accurate wrapping if needed)
 					int wrapWidth = manager.instance.getConfigManager().wrapLength(); // or any appropriate width
@@ -220,7 +348,7 @@ public class VisitGUI {
 							newLore.add(AdventureHelper.miniMessageToJson(line.replace("{player}", playerName)
 									.replace("{visits}", String.valueOf(entry.visits()))
 									.replace("{uuid}", uuid.toString()).replace("{rank}", String.valueOf(rank))
-									.replace("{level}", String.valueOf(data.getLevel()))
+									.replace("{level}", String.valueOf(data.getIslandLevel()))
 									.replace("{island_name}", islandName)));
 							continue;
 						}
@@ -242,7 +370,7 @@ public class VisitGUI {
 							fullLine = fullLine.replace("{player}", playerName)
 									.replace("{visits}", String.valueOf(entry.visits()))
 									.replace("{uuid}", uuid.toString()).replace("{rank}", String.valueOf(rank))
-									.replace("{level}", String.valueOf(data.getLevel()))
+									.replace("{level}", String.valueOf(data.getIslandLevel()))
 									.replace("{island_name}", islandName);
 
 							newLore.add(AdventureHelper.miniMessageToJson(fullLine));
@@ -251,7 +379,8 @@ public class VisitGUI {
 
 					String name = manager.filledSection.getString("display.name").replace("{player}", playerName)
 							.replace("{visits}", String.valueOf(entry.visits())).replace("{uuid}", uuid.toString())
-							.replace("{rank}", String.valueOf(rank)).replace("{level}", String.valueOf(data.getLevel()))
+							.replace("{rank}", String.valueOf(rank))
+							.replace("{level}", String.valueOf(data.getIslandLevel()))
 							.replace("{island_name}", islandName).replace("{island_bio}", islandBio);
 
 					filledItem.displayName(AdventureHelper.miniMessageToJson(name));
@@ -286,7 +415,7 @@ public class VisitGUI {
 						return element;
 					});
 					futures.add(future);
-					slotIndex++;
+					layoutSlotIndex++;
 				}
 			}
 
@@ -295,17 +424,21 @@ public class VisitGUI {
 				List<VisitDynamicGUIElement> elements = futures.stream().map(CompletableFuture::join).toList();
 
 				manager.instance.getScheduler().executeSync(() -> {
-					clearDynamicElements(); // Optional if you want to reset before repopulating
+					clearDynamicElements(); // reset before repopulating
 					elements.forEach(this::addElement);
-					refresh();
+					init(); // rebuild slot map and inventory placement
+					refresh(); // update visuals
 				});
 			});
 		});
 	}
 
 	public void updateFeaturedCountdownLore() {
-		if (currentSorter != VisitSorter.FEATURED)
+		if (getCurrentSorter() != VisitSorter.FEATURED)
 			return;
+
+		boolean expiredFound = false;
+		setRefreshReason(RefreshReason.PERIODIC_UPDATE);
 
 		for (Map.Entry<Integer, VisitGUIElement> entry : itemsSlotMap.entrySet()) {
 			VisitGUIElement element = entry.getValue();
@@ -316,8 +449,15 @@ public class VisitGUI {
 			if (uuid == null)
 				continue;
 
+			long until = dynElem.getFeaturedUntil();
+			if (until > 0 && until <= System.currentTimeMillis()) {
+				expiredFound = true;
+				break;
+			}
+
 			manager.instance.getStorageManager()
-					.getOfflineUserData(uuid, manager.instance.getConfigManager().lockData()).thenAccept(opt -> {
+					.getCachedUserDataWithFallback(uuid, manager.instance.getConfigManager().lockData())
+					.thenAccept(opt -> {
 						if (opt.isEmpty())
 							return;
 
@@ -329,10 +469,15 @@ public class VisitGUI {
 							return;
 
 						long remainingSeconds = remainingMillis / 1000L;
-						String countdown = manager.instance.getFormattedCooldown(remainingSeconds);
+						String countdown = manager.instance.getCooldownManager().getFormattedCooldown(remainingSeconds);
 
-						context.arg(ContextKeys.FEATURED_TIME, remainingSeconds)
+						// Build a fresh featured context for this island
+						Context<Integer> featuredCtx = Context.island(user.getHellblockData().getIslandId())
+								.arg(ContextKeys.FEATURED_TIME, remainingSeconds)
 								.arg(ContextKeys.FEATURED_TIME_FORMATTED, countdown);
+
+						// Combine with player context when rendering placeholders
+						context.merge(featuredCtx);
 
 						// Wrap the *existing* item in the GUI
 						Item<ItemStack> wrapped = manager.instance.getItemManager()
@@ -366,6 +511,17 @@ public class VisitGUI {
 								.executeSync(() -> inventory.setItem(entry.getKey(), dynElem.getItemStack().clone()));
 					});
 		}
+
+		if (expiredFound) {
+			manager.instance.getScheduler().executeSync(() -> {
+				this.refreshAndRepopulate();
+
+				Player viewer = context.holder();
+				AdventureHelper.playSound(manager.instance.getSenderFactory().getAudience(viewer),
+						Sound.sound(net.kyori.adventure.key.Key.key("minecraft:block.note_block.bell"),
+								Sound.Source.MASTER, 1.0f, 1.0f));
+			});
+		}
 	}
 
 	/**
@@ -374,10 +530,18 @@ public class VisitGUI {
 	 * @return The VisitGUI instance.
 	 */
 	public VisitGUI refresh() {
-		if (showBackIcon) {
-			VisitDynamicGUIElement backElement = (VisitDynamicGUIElement) getElement(manager.backSlot);
-			if (backElement != null && !backElement.getSlots().isEmpty()) {
+		// Only update title when first opened or when sorter changes
+		// Skip it on quick refreshes triggered by repopulation
+		if (getRefreshReason() == RefreshReason.OPENING || getRefreshReason() == RefreshReason.SORT_CHANGE) {
+			updateTitle();
+		}
+
+		VisitDynamicGUIElement backElement = (VisitDynamicGUIElement) getElement(manager.backSlot);
+		if (backElement != null && !backElement.getSlots().isEmpty()) {
+			if (showBackIcon) {
 				backElement.setItemStack(manager.backIcon.build(context));
+			} else {
+				backElement.setItemStack(getDecorativePlaceholderForSlot(manager.backSlot));
 			}
 		}
 		manager.sortingIcons.forEach(visit -> {
@@ -391,14 +555,98 @@ public class VisitGUI {
 					VisitDynamicGUIElement dynamicGUIElement = (VisitDynamicGUIElement) entry.getValue();
 					this.inventory.setItem(entry.getKey(), dynamicGUIElement.getItemStack().clone());
 				});
+
+		setRefreshReason(RefreshReason.MANUAL);
 		return this;
 	}
 
+	/**
+	 * Returns an ItemStack to use as the decorative placeholder for `slot`.
+	 * Preferred order: 1) decorativeIcons.get(symbolForSlot) if present 2) first
+	 * entry in decorativeIcons 3) hard fallback gray pane
+	 */
+	protected ItemStack getDecorativePlaceholderForSlot(int slot) {
+		final VisitGUIElement element = getElement(slot);
+		if (element != null) {
+			final char symbol = element.getSymbol();
+			final Pair<CustomItem, Action<Player>[]> mapped = manager.decorativeIcons.get(symbol);
+			if (mapped != null && mapped.left() != null) {
+				try {
+					return mapped.left().build(context);
+				} catch (Exception ignored) {
+					/* fall through to next option */ }
+			}
+		}
+
+		// fallback: use the first decorative icon configured (if any)
+		for (Pair<CustomItem, Action<Player>[]> pair : manager.decorativeIcons.values()) {
+			if (pair != null && pair.left() != null) {
+				try {
+					return pair.left().build(context);
+				} catch (Exception ignored) {
+					/* try next */ }
+			}
+		}
+
+		// final fallback: a plain black pane so slot isn't empty
+		final ItemStack fallback = new ItemStack(Material.BLACK_STAINED_GLASS_PANE);
+		return fallback;
+	}
+
 	public void refreshAndRepopulate() {
-		manager.instance.getVisitManager().getTopIslands(currentSorter.getVisitFunction(), manager.getFilledSlotCount(),
-				entries -> manager.instance.getScheduler().executeSync(() -> {
-					populateVisitEntries(entries, currentSorter);
-					refresh();
-				}));
+		Consumer<List<VisitEntry>> callback = entries -> manager.instance.getScheduler().executeSync(() -> {
+			setRefreshReason(RefreshReason.REPOPULATE);
+			populateVisitEntries(entries, currentSorter);
+			refresh();
+		});
+
+		if (getCurrentSorter() == VisitSorter.FEATURED) {
+			manager.instance.getVisitManager().getFeaturedIslands(manager.getFilledSlotCount()).thenAccept(callback);
+		} else {
+			manager.instance.getVisitManager().getTopIslands(currentSorter.getVisitFunction(),
+					manager.getFilledSlotCount(), callback);
+		}
+	}
+
+	@Override
+	protected int getLeftIconSlot() {
+		VisitGUIElement element = getElement(manager.leftSlot);
+		return element != null && !element.getSlots().isEmpty() ? element.getSlots().get(0) : -1;
+	}
+
+	@Override
+	protected int getRightIconSlot() {
+		VisitGUIElement element = getElement(manager.rightSlot);
+		return element != null && !element.getSlots().isEmpty() ? element.getSlots().get(0) : -1;
+	}
+
+	@Override
+	public void openPage(int index) {
+		if (index < 0 || index > maxPage)
+			return;
+		this.currentPage = index;
+		refreshPage();
+
+		// Use per-page title if defined, otherwise fallback to global title
+		TextValue<Player> titleValue = manager.pageTitles.getOrDefault(index, manager.title);
+		VersionHelper.getNMSManager().updateInventoryTitle(context.holder(), AdventureHelper
+				.componentToJson(AdventureHelper.parseCenteredTitleMultiline(titleValue.render(context, true))));
+	}
+
+	public enum RefreshReason {
+		/** Initial GUI opening */
+		OPENING,
+
+		/** Sorting type changed (e.g. clicked a sort icon) */
+		SORT_CHANGE,
+
+		/** Repopulating data after a fetch or update */
+		REPOPULATE,
+
+		/** Routine refresh like countdown or minor update */
+		PERIODIC_UPDATE,
+
+		/** Manual refresh (e.g. from code logic) */
+		MANUAL;
 	}
 }

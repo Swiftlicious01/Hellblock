@@ -13,15 +13,15 @@ import net.advancedplugins.ae.api.AEAPI;
 public class AdvancedEnchantmentsProvider implements EnchantmentProvider {
 
 	@Override
-	public String identifier() {
-		return "AdvancedEnchantments";
-	}
-
-	@Override
 	public List<Pair<String, Short>> getEnchants(@NotNull ItemStack itemStack) {
 		final List<Pair<String, Short>> enchants = new ArrayList<>();
 		AEAPI.getEnchantmentsOnItem(itemStack).entrySet()
 				.forEach(entry -> enchants.add(Pair.of("AE:" + entry.getKey(), entry.getValue().shortValue())));
 		return enchants;
+	}
+
+	@Override
+	public String identifier() {
+		return "AdvancedEnchantments";
 	}
 }

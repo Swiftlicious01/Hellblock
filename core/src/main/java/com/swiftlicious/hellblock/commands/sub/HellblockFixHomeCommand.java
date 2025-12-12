@@ -3,17 +3,18 @@ package com.swiftlicious.hellblock.commands.sub;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.bukkit.World;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
 import org.incendo.cloud.CommandManager;
 
-import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.commands.BukkitCommandFeature;
 import com.swiftlicious.hellblock.commands.HellblockCommandManager;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
 import com.swiftlicious.hellblock.player.HellblockData;
 import com.swiftlicious.hellblock.player.UserData;
+import com.swiftlicious.hellblock.world.HellblockWorld;
 
 public class HellblockFixHomeCommand extends BukkitCommandFeature<CommandSender> {
 
@@ -27,16 +28,15 @@ public class HellblockFixHomeCommand extends BukkitCommandFeature<CommandSender>
 		return builder.senderType(Player.class).handler(context -> {
 			final Player player = context.sender();
 
-			final Optional<UserData> onlineUserOpt = HellblockPlugin.getInstance().getStorageManager()
-					.getOnlineUser(player.getUniqueId());
+			final Optional<UserData> onlineUserOpt = plugin.getStorageManager().getOnlineUser(player.getUniqueId());
 
 			if (onlineUserOpt.isEmpty()) {
 				handleFeedback(context, MessageConstants.COMMAND_DATA_FAILURE_NOT_LOADED);
 				return;
 			}
 
-			final UserData user = onlineUserOpt.get();
-			final HellblockData data = user.getHellblockData();
+			final UserData userData = onlineUserOpt.get();
+			final HellblockData data = userData.getHellblockData();
 
 			if (!data.hasHellblock()) {
 				handleFeedback(context, MessageConstants.MSG_HELLBLOCK_NOT_FOUND);
@@ -46,8 +46,8 @@ public class HellblockFixHomeCommand extends BukkitCommandFeature<CommandSender>
 			// Owner validation (kept exactly as requested)
 			final UUID ownerUUID = data.getOwnerUUID();
 			if (ownerUUID == null) {
-				HellblockPlugin.getInstance().getPluginLogger().severe("Hellblock owner UUID was null for player "
-						+ player.getName() + " (" + player.getUniqueId() + "). This indicates corrupted data.");
+				plugin.getPluginLogger().severe("Hellblock owner UUID was null for player " + player.getName() + " ("
+						+ player.getUniqueId() + "). This indicates corrupted data.");
 				throw new IllegalStateException(
 						"Owner reference was null. This should never happen — please report to the developer.");
 			}
@@ -67,18 +67,42 @@ public class HellblockFixHomeCommand extends BukkitCommandFeature<CommandSender>
 				return;
 			}
 
-			HellblockPlugin.getInstance().getHellblockHandler().locateBedrock(player.getUniqueId())
-					.thenAccept(bedrock -> {
-						bedrock.setY(player.getWorld().getHighestBlockYAt(bedrock));
-						data.setHomeLocation(bedrock);
+			final int islandId = data.getIslandId();
+			final String worldName = plugin.getWorldManager().getHellblockWorldFormat(islandId);
 
-						handleFeedback(context, MessageConstants.MSG_HELLBLOCK_RESET_HOME_TO_BEDROCK);
-					}).exceptionally(ex -> {
-						HellblockPlugin.getInstance().getPluginLogger().severe("Failed to reset home to bedrock for "
-								+ player.getName() + " (" + player.getUniqueId() + "): " + ex.getMessage());
-						ex.printStackTrace();
-						return null;
-					});
+			final Optional<HellblockWorld<?>> worldOpt = plugin.getWorldManager().getWorld(worldName);
+			if (worldOpt.isEmpty()) {
+				handleFeedback(context, MessageConstants.MSG_HELLBLOCK_WORLD_ERROR);
+				plugin.getPluginLogger().warn("World not found for force flag: " + worldName + " (Island ID: "
+						+ islandId + ", Owner UUID: " + ownerUUID + ")");
+				return;
+			}
+
+			final World bukkitWorld = worldOpt.get().bukkitWorld();
+			if (bukkitWorld == null) {
+				handleFeedback(context, MessageConstants.MSG_HELLBLOCK_WORLD_ERROR);
+				plugin.getPluginLogger().warn("Bukkit world is null for: " + worldName + " (Island ID: " + islandId
+						+ ", Owner UUID: " + ownerUUID + ")");
+				return;
+			}
+
+			plugin.getHellblockHandler().locateNearestBedrock(userData).thenAccept(bedrock -> {
+				if (bedrock == null) {
+					handleFeedback(context, MessageConstants.MSG_HELLBLOCK_BEDROCK_ERROR);
+					plugin.getPluginLogger().warn("Bedrock was not found for: " + worldName + " (Island ID: " + islandId
+							+ ", Owner UUID: " + ownerUUID + ")");
+					return;
+				}
+				bedrock.setY(bukkitWorld.getHighestBlockYAt(bedrock));
+				data.setHomeLocation(bedrock);
+
+				handleFeedback(context, MessageConstants.MSG_HELLBLOCK_RESET_HOME_TO_BEDROCK);
+			}).exceptionally(ex -> {
+				plugin.getPluginLogger().severe("Failed to reset home to bedrock for " + player.getName() + " ("
+						+ ownerUUID + "): " + ex.getMessage());
+				ex.printStackTrace();
+				return null;
+			});
 		});
 	}
 

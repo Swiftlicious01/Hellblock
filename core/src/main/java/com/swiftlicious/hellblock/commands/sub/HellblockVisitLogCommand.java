@@ -11,18 +11,16 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
 import org.incendo.cloud.CommandManager;
-import org.incendo.cloud.parser.standard.IntegerParser;
+import org.incendo.cloud.parser.standard.StringParser;
 import org.incendo.cloud.suggestion.Suggestion;
 
-import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.commands.BukkitCommandFeature;
 import com.swiftlicious.hellblock.commands.HellblockCommandManager;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
+import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.handlers.VisitManager;
 import com.swiftlicious.hellblock.player.HellblockData;
 import com.swiftlicious.hellblock.player.UserData;
-
-import net.kyori.adventure.text.Component;
 
 public class HellblockVisitLogCommand extends BukkitCommandFeature<CommandSender> {
 
@@ -35,12 +33,13 @@ public class HellblockVisitLogCommand extends BukkitCommandFeature<CommandSender
 			Command.Builder<CommandSender> builder) {
 
 		return builder.senderType(Player.class)
-				.optional("page", IntegerParser.integerComponent().suggestionProvider((context, input) -> {
-					// Suggest up to N pages based on total visits
-					Player player = (Player) context.sender();
+				.optional("page", StringParser.stringComponent().suggestionProvider((context, input) -> {
+					if (!(context.sender() instanceof Player player)) {
+						return CompletableFuture.completedFuture(Collections.emptyList());
+					}
 
-					Optional<UserData> userOpt = HellblockPlugin.getInstance().getStorageManager()
-							.getOnlineUser(player.getUniqueId());
+					Optional<UserData> userOpt = plugin.getStorageManager().getOnlineUser(player.getUniqueId());
+
 					if (userOpt.isEmpty()) {
 						return CompletableFuture.completedFuture(Collections.emptyList());
 					}
@@ -51,17 +50,21 @@ public class HellblockVisitLogCommand extends BukkitCommandFeature<CommandSender
 						return CompletableFuture.completedFuture(Collections.emptyList());
 					}
 
-					return HellblockPlugin.getInstance().getVisitManager().getIslandVisitLog(ownerUUID)
-							.thenApply(log -> {
-								int pages = (int) Math.ceil(log.size() / 10.0);
-								return IntStream.rangeClosed(1, pages)
-										.mapToObj(i -> Suggestion.suggestion(String.valueOf(i))).toList();
-							});
+					if (data.isAbandoned()) {
+						return CompletableFuture.completedFuture(Collections.emptyList());
+					}
+
+					// Suggest all pages, or maybe filter by input
+					String userInput = input.peekString();
+
+					return plugin.getVisitManager().getIslandVisitLog(ownerUUID).thenApply(log -> {
+						int pages = (int) Math.ceil(log.size() / 10.0);
+						return IntStream.rangeClosed(1, pages).mapToObj(String::valueOf)
+								.filter(s -> userInput.isEmpty() || s.startsWith(userInput)).map(Suggestion::suggestion)
+								.toList();
+					});
 				})).handler(context -> {
 					final Player player = context.sender();
-					final int page = (int) context.optional("page").orElse(1); // Ensure page ≥ 1
-
-					final HellblockPlugin plugin = HellblockPlugin.getInstance();
 
 					final Optional<UserData> onlineUserOpt = plugin.getStorageManager()
 							.getOnlineUser(player.getUniqueId());
@@ -86,13 +89,15 @@ public class HellblockVisitLogCommand extends BukkitCommandFeature<CommandSender
 								"Owner reference was null. This should never happen — please report to the developer.");
 					}
 
-					plugin.getStorageManager().getOfflineUserData(ownerUUID, plugin.getConfigManager().lockData())
+					plugin.getStorageManager()
+							.getCachedUserDataWithFallback(ownerUUID, plugin.getConfigManager().lockData())
 							.thenAccept(result -> {
 								if (result.isEmpty()) {
 									String username = Optional.ofNullable(Bukkit.getOfflinePlayer(ownerUUID).getName())
-											.orElse("???");
-									handleFeedback(context, MessageConstants.MSG_HELLBLOCK_PLAYER_DATA_FAILURE_LOAD
-											.arguments(Component.text(username)));
+											.orElse(plugin.getTranslationManager().miniMessageTranslation(
+													MessageConstants.FORMAT_UNKNOWN.build().key()));
+									handleFeedback(context, MessageConstants.MSG_HELLBLOCK_OWNER_DATA_NOT_LOADED,
+											AdventureHelper.miniMessageToComponent(username));
 									return;
 								}
 
@@ -127,14 +132,28 @@ public class HellblockVisitLogCommand extends BukkitCommandFeature<CommandSender
 									final int entriesPerPage = 10;
 									final int totalPages = (int) Math.ceil((double) records.size() / entriesPerPage);
 
-									if (page < 1 || page > totalPages) {
-										handleFeedback(context, MessageConstants.COMMAND_INVALID_PAGE_ARGUMENT
-												.arguments(Component.text(page), Component.text(totalPages)));
+									int page;
+									// Extract the page argument as a string (if present), or default to "1"
+									String pageInput = context.<String>optional("page").orElse("1");
+									try {
+										page = Integer.parseInt(pageInput);
+									} catch (NumberFormatException e) {
+										handleFeedback(context, MessageConstants.COMMAND_INVALID_PAGE_ARGUMENT,
+												AdventureHelper.miniMessageToComponent(pageInput),
+												AdventureHelper.miniMessageToComponent(String.valueOf(totalPages)));
 										return;
 									}
 
-									handleFeedback(context, MessageConstants.MSG_HELLBLOCK_VISIT_LOG_HEADER
-											.arguments(Component.text(page), Component.text(totalPages)));
+									if (page < 1 || page > totalPages) {
+										handleFeedback(context, MessageConstants.COMMAND_INVALID_PAGE_ARGUMENT,
+												AdventureHelper.miniMessageToComponent(String.valueOf(page)),
+												AdventureHelper.miniMessageToComponent(String.valueOf(totalPages)));
+										return;
+									}
+
+									handleFeedback(context, MessageConstants.MSG_HELLBLOCK_VISIT_LOG_HEADER,
+											AdventureHelper.miniMessageToComponent(String.valueOf(page)),
+											AdventureHelper.miniMessageToComponent(String.valueOf(totalPages)));
 
 									int start = (page - 1) * entriesPerPage;
 									int end = Math.min(start + entriesPerPage, records.size());
@@ -149,10 +168,12 @@ public class HellblockVisitLogCommand extends BukkitCommandFeature<CommandSender
 												.orElse(visitorId.toString());
 
 										long secondsAgo = (now - timestamp) / 1000;
-										String formattedAgo = plugin.getFormattedCooldown(secondsAgo);
+										String formattedAgo = plugin.getCooldownManager()
+												.getFormattedCooldown(secondsAgo);
 
-										handleFeedback(context, MessageConstants.MSG_HELLBLOCK_VISIT_LOG_ENTRY
-												.arguments(Component.text(name), Component.text(formattedAgo)));
+										handleFeedback(context, MessageConstants.MSG_HELLBLOCK_VISIT_LOG_ENTRY,
+												AdventureHelper.miniMessageToComponent(name),
+												AdventureHelper.miniMessageToComponent(formattedAgo));
 									}
 								});
 							});

@@ -13,10 +13,12 @@ public interface VisitGUIManagerInterface extends Reloadable {
 	/**
 	 * Opens the visit GUI for the specified player.
 	 *
-	 * @param player       the {@link Player} for whom the visit GUI will be opened
+	 * @param player       the {@link Player} for whom the visit GUI will be opened.
+	 * @param islandId     the islandId of the island owner.
 	 * @param visitSorter  the {@link VisitSorter} to open the menu on.
-	 * @param showBackIcon show back menu icon
+	 * @param isOwner      whether the player opening the menu is the owner or not.
+	 * @param showBackIcon show back menu icon.
 	 * @return true if the visit GUI was successfully opened, false otherwise
 	 */
-	boolean openVisitGUI(Player player, VisitSorter visitSorter, boolean showBackIcon);
+	boolean openVisitGUI(Player player, int islandId, VisitSorter visitSorter, boolean isOwner, boolean showBackIcon);
 }

@@ -40,8 +40,9 @@ challenges:
   # Barter refers to bartering with piglins (can include custom bartering items from the config.yml). 
   # Breed refers to breeding specific animals. Must be breedable.
   # Farm refers to farming specific crops using lava. Must be crop that can be either placed on farmland or sugar cane or nether wart.
-  # Slay refers to slaying a specific monster/entity (can be the custom hell mobs we include such as the custom wither, wraiths or hell golems).
-  # Levelup refers to leveling up your hellblock to a specific level (this is checked periodically).
+  # Slay refers to slaying a specific monster/entity (can be the custom hell mobs we include such as the custom wither, wraiths, piglin invaders or hell golems).
+  # Levelup refers to leveling up your hellblock to gain a specific amount of levels (this is checked periodically). 
+  # (Relative = false will check for the specific level instead of gained)
 
   # -------- BREAK CHALLENGES --------
   BREAK_NETHERRACK_1:
@@ -54,6 +55,7 @@ challenges:
         type: 'give-vanilla-item'
         value:
           material: STONE_PICKAXE
+          to-inventory: true
   BREAK_NETHERRACK_2:
     needed-amount: 500
     action: BREAK
@@ -64,6 +66,7 @@ challenges:
         type: 'give-vanilla-item'
         value:
           material: IRON_PICKAXE
+          to-inventory: true
           enchantments:
             minecraft:efficiency: 2
   BREAK_BASALT:
@@ -76,6 +79,7 @@ challenges:
         type: 'give-vanilla-item'
         value:
           material: GOLD_PICKAXE
+          to-inventory: true
           enchantments:
             minecraft:unbreaking: 2
   BREAK_BLACKSTONE:
@@ -88,6 +92,7 @@ challenges:
         type: 'give-vanilla-item'
         value:
           material: DIAMOND_PICKAXE
+          to-inventory: true
   BREAK_ANCIENT_DEBRIS:
     needed-amount: 10
     action: BREAK
@@ -99,41 +104,45 @@ challenges:
         value:
           material: NETHERITE_SCRAP
           amount: 2
+          to-inventory: true
 
   # -------- GROW CHALLENGES --------
   GROW_OAK:
     needed-amount: 50
     action: GROW
     data:
-      tree: OAK
+      family: OAK
     rewards:
       item_action:
         type: 'give-vanilla-item'
         value:
           material: APPLE
           amount: 3
+          to-inventory: true
   GROW_BIRCH:
     needed-amount: 50
     action: GROW
     data:
-      tree: BIRCH
+      family: BIRCH
     rewards:
       item_action:
         type: 'give-vanilla-item'
         value:
           material: BIRCH_LOG
           amount: 16
+          to-inventory: true
   GROW_SPRUCE:
     needed-amount: 75
     action: GROW
     data:
-      tree: SPRUCE
+      family: SPRUCE
     rewards:
       item_action:
         type: 'give-vanilla-item'
         value:
           material: SPRUCE_SAPLING
           amount: 2
+          to-inventory: true
   GROW_GLOWSTONE:
     needed-amount: 100
     action: GROW
@@ -145,28 +154,31 @@ challenges:
         value:
           material: GLOWSTONE_DUST
           amount: 12
+          to-inventory: true
   GROW_CRIMSON:
     needed-amount: 25
     action: GROW
     data:
-      tree: CRIMSON
+      tree: CRIMSON_FUNGUS
     rewards:
       item_action:
         type: 'give-vanilla-item'
         value:
           material: CRIMSON_STEM
           amount: 16
+          to-inventory: true
   GROW_WARPED:
     needed-amount: 25
     action: GROW
     data:
-      tree: WARPED
+      tree: WARPED_FUNGUS
     rewards:
       item_action:
         type: 'give-vanilla-item'
         value:
           material: WARPED_STEM
           amount: 16
+          to-inventory: true
 
   # -------- FISH CHALLENGES --------
   FISH_RUBBISH:
@@ -180,6 +192,7 @@ challenges:
         value:
           material: COAL
           amount: 8
+          to-inventory: true
   FISH_RAINBOW:
     needed-amount: 3
     action: FISH
@@ -191,6 +204,7 @@ challenges:
         value:
           material: EMERALD
           amount: 2
+          to-inventory: true
   FISH_TUNA:
     needed-amount: 4
     action: FISH
@@ -202,6 +216,7 @@ challenges:
         value:
           material: COD
           amount: 6
+          to-inventory: true
   FISH_SKELETON:
     needed-amount: 3
     action: FISH
@@ -213,6 +228,7 @@ challenges:
         value:
           material: BONE
           amount: 5
+          to-inventory: true
   FISH_MYTHIC_KNIGHT:
     needed-amount: 2
     action: FISH
@@ -223,6 +239,7 @@ challenges:
         type: 'give-vanilla-item'
         value:
           material: IRON_SWORD
+          to-inventory: true
 
   # -------- CRAFT CHALLENGES --------
   CRAFT_STONE_PICKAXE:
@@ -235,6 +252,7 @@ challenges:
         type: 'give-vanilla-item'
         value:
           material: IRON_PICKAXE
+          to-inventory: true
   CRAFT_GOLDEN_SWORD:
     needed-amount: 1
     action: CRAFT
@@ -246,6 +264,7 @@ challenges:
         value:
           material: GOLD_INGOT
           amount: 4
+          to-inventory: true
   CRAFT_NETHERITE_HELMET:
     needed-amount: 1
     action: CRAFT
@@ -256,6 +275,7 @@ challenges:
         type: 'give-vanilla-item'
         value:
           material: DIAMOND_HELMET
+          to-inventory: true
   CRAFT_NETHERSTAR_PICKAXE:
     needed-amount: 1
     action: CRAFT
@@ -267,6 +287,7 @@ challenges:
         value:
           material: DIRT
           amount: 16
+          to-inventory: true
   CRAFT_NETHERSTAR_CHESTPLATE:
     needed-amount: 1
     action: CRAFT
@@ -277,6 +298,7 @@ challenges:
         type: 'give-vanilla-item'
         value:
           material: DIAMOND
+          to-inventory: true
 
   # -------- BREW CHALLENGES --------
   BREW_STRENGTH_2:
@@ -294,6 +316,7 @@ challenges:
         type: 'give-vanilla-item'
         value:
           material: BLAZE_ROD
+          to-inventory: true
   BREW_SWIFTNESS_2:
     needed-amount: 2
     action: BREW
@@ -301,7 +324,7 @@ challenges:
       material: SPLASH_POTION
       potion_contents:
         custom_effects:
-          - id: swiftness
+          - id: speed
             amplifier: 1   # Swiftness II
             duration: 180
     rewards:
@@ -310,6 +333,7 @@ challenges:
         value:
           material: SUGAR
           amount: 10
+          to-inventory: true
   BREW_HEALING_2:
     needed-amount: 1
     action: BREW
@@ -317,7 +341,7 @@ challenges:
       material: POTION
       potion_contents:
         custom_effects:
-          - id: healing
+          - id: instant_health
             amplifier: 1   # Instant Health II
             duration: 1
     rewards:
@@ -326,6 +350,7 @@ challenges:
         value:
           material: GLASS_BOTTLE
           amount: 3
+          to-inventory: true
   BREW_FIRE_RESISTANCE:
     needed-amount: 2
     action: BREW
@@ -341,6 +366,7 @@ challenges:
         type: 'give-vanilla-item'
         value:
           material: BLAZE_POWDER
+          to-inventory: true
   BREW_REGENERATION:
     needed-amount: 1
     action: BREW
@@ -356,6 +382,7 @@ challenges:
         type: 'give-vanilla-item'
         value:
           material: GHAST_TEAR
+          to-inventory: true
 
   # -------- BARTER CHALLENGES --------
   BARTER_OBSIDIAN:
@@ -369,6 +396,7 @@ challenges:
         value:
           material: GOLD_INGOT
           amount: 5
+          to-inventory: true
   BARTER_QUARTZ:
     needed-amount: 12
     action: BARTER
@@ -380,6 +408,7 @@ challenges:
         value:
           material: IRON_INGOT
           amount: 4
+          to-inventory: true
   BARTER_DIRT:
     needed-amount: 1
     action: BARTER
@@ -390,6 +419,7 @@ challenges:
         value:
           material: BOOKSHELF
           amount: 2
+          to-inventory: true
   BARTER_CUSTOM_MAGMA_BLOCK:
     needed-amount: 1
     action: BARTER
@@ -401,6 +431,7 @@ challenges:
         value:
           material: LAPIS_LAZULI
           amount: 10
+          to-inventory: true
   BARTER_WITHER_ROSE:
     needed-amount: 1
     action: BARTER
@@ -411,6 +442,7 @@ challenges:
         type: 'give-vanilla-item'
         value:
           material: BREWING_STAND
+          to-inventory: true
 
   # -------- BREED CHALLENGES --------
   BREED_COW:
@@ -424,6 +456,7 @@ challenges:
         value:
           material: LEATHER
           amount: 8
+          to-inventory: true
   BREED_SHEEP:
     needed-amount: 5
     action: BREED
@@ -435,6 +468,7 @@ challenges:
         value:
           material: WHITE_WOOL
           amount: 8
+          to-inventory: true
   BREED_PIG:
     needed-amount: 5
     action: BREED
@@ -446,6 +480,7 @@ challenges:
         value:
           material: PORKCHOP
           amount: 6
+          to-inventory: true
   BREED_CHICKEN:
     needed-amount: 5
     action: BREED
@@ -457,6 +492,7 @@ challenges:
         value:
           material: EGG
           amount: 4
+          to-inventory: true
   BREED_HORSE:
     needed-amount: 2
     action: BREED
@@ -467,6 +503,7 @@ challenges:
         type: 'give-vanilla-item'
         value:
           material: SADDLE
+          to-inventory: true
 
   # -------- FARM CHALLENGES --------
   FARM_WHEAT:
@@ -480,6 +517,7 @@ challenges:
         value:
           material: BREAD
           amount: 6
+          to-inventory: true
   FARM_CARROTS:
     needed-amount: 20
     action: FARM
@@ -491,6 +529,7 @@ challenges:
         value:
           material: GOLDEN_CARROT
           amount: 2
+          to-inventory: true
   FARM_POTATOES:
     needed-amount: 20
     action: FARM
@@ -502,6 +541,7 @@ challenges:
         value:
           material: BAKED_POTATO
           amount: 4
+          to-inventory: true
   FARM_BEETROOTS:
     needed-amount: 20
     action: FARM
@@ -513,6 +553,7 @@ challenges:
         value:
           material: BEETROOT_SOUP
           amount: 2
+          to-inventory: true
   FARM_SUGAR_CANE:
     needed-amount: 15
     action: FARM
@@ -524,6 +565,7 @@ challenges:
         value:
           material: PAPER
           amount: 12
+          to-inventory: true
   FARM_NETHER_WART:
     needed-amount: 10
     action: FARM
@@ -535,6 +577,7 @@ challenges:
         value:
           material: RED_NETHER_BRICKS
           amount: 4
+          to-inventory: true
 
   # -------- SLAY CHALLENGES --------
   SLAY_ZOMBIE:
@@ -548,6 +591,7 @@ challenges:
         value:
           material: ROTTEN_FLESH
           amount: 10
+          to-inventory: true
   SLAY_SKELETON:
     needed-amount: 20
     action: SLAY
@@ -559,6 +603,7 @@ challenges:
         value:
           material: ARROW
           amount: 16
+          to-inventory: true
   SLAY_BLAZE:
     needed-amount: 15
     action: SLAY
@@ -570,6 +615,7 @@ challenges:
         value:
           material: BLAZE_ROD
           amount: 3
+          to-inventory: true
   SLAY_WITHER_SKELETON:
     needed-amount: 10
     action: SLAY
@@ -581,6 +627,7 @@ challenges:
         value:
           material: COAL
           amount: 8
+          to-inventory: true
   SLAY_WRAITH:
     needed-amount: 3
     action: SLAY
@@ -592,38 +639,45 @@ challenges:
         value:
           material: ENDER_PEARL
           amount: 2
+          to-inventory: true
 
   # -------- LEVELUP CHALLENGES --------
   LEVELUP_HELLBLOCK_50:
-    needed-amount: 1
+    needed-amount: 50
     action: LEVELUP
     data:
       level: 50
+      relative: true
     rewards:
       item_action:
         type: 'give-vanilla-item'
         value:
           material: GOLD_BLOCK
           amount: 1
+          to-inventory: true
   LEVELUP_HELLBLOCK_100:
-    needed-amount: 1
+    needed-amount: 100
     action: LEVELUP
     data:
       level: 100
+      relative: true
     rewards:
       item_action:
         type: 'give-vanilla-item'
         value:
           material: DIAMOND_BLOCK
           amount: 1
+          to-inventory: true
   LEVELUP_HELLBLOCK_250:
-    needed-amount: 1
+    needed-amount: 250
     action: LEVELUP
     data:
       level: 250
+      relative: true
     rewards:
       item_action:
         type: 'give-vanilla-item'
         value:
           material: NETHERITE_INGOT
           amount: 1
+          to-inventory: true

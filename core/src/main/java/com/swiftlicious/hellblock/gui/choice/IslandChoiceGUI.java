@@ -4,17 +4,23 @@ import java.util.HashMap;
 import java.util.Map;
 
 import org.bukkit.Bukkit;
+import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.Nullable;
 
 import com.swiftlicious.hellblock.context.Context;
 import com.swiftlicious.hellblock.context.ContextKeys;
+import com.swiftlicious.hellblock.creation.item.CustomItem;
 import com.swiftlicious.hellblock.generation.IslandOptions;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.handlers.VersionHelper;
 import com.swiftlicious.hellblock.player.HellblockData;
+import com.swiftlicious.hellblock.player.UserData;
+import com.swiftlicious.hellblock.utils.extras.Action;
+import com.swiftlicious.hellblock.utils.extras.Pair;
 
 public class IslandChoiceGUI {
 
@@ -23,13 +29,18 @@ public class IslandChoiceGUI {
 	private final IslandChoiceGUIManager manager;
 	protected final Inventory inventory;
 	protected final Context<Player> context;
+	protected final UserData userData;
 	protected final HellblockData hellblockData;
 	protected final boolean isReset;
 
-	public IslandChoiceGUI(IslandChoiceGUIManager manager, Context<Player> context, HellblockData hellblockData,
-			boolean isReset) {
+	private volatile boolean refreshInProgress = false;
+	private volatile boolean refreshQueued = false;
+
+	public IslandChoiceGUI(IslandChoiceGUIManager manager, Context<Player> context, UserData userData,
+			HellblockData hellblockData, boolean isReset) {
 		this.manager = manager;
 		this.context = context;
+		this.userData = userData;
 		this.hellblockData = hellblockData;
 		this.isReset = isReset;
 		this.itemsCharMap = new HashMap<>();
@@ -99,35 +110,114 @@ public class IslandChoiceGUI {
 	 * @return The IslandChoiceGUI instance.
 	 */
 	public IslandChoiceGUI refresh() {
-		context.arg(ContextKeys.RESET_COOLDOWN, hellblockData.getResetCooldown()).arg(
-				ContextKeys.RESET_COOLDOWN_FORMATTED,
-				manager.instance.getFormattedCooldown(hellblockData.getResetCooldown()));
-		if (manager.instance.getConfigManager().islandOptions().contains(IslandOptions.DEFAULT)) {
-			IslandChoiceDynamicGUIElement defaultElement = (IslandChoiceDynamicGUIElement) getElement(
-					manager.defaultSlot);
-			if (defaultElement != null && !defaultElement.getSlots().isEmpty()) {
-				defaultElement.setItemStack(manager.defaultIcon.build(context));
-			}
+		if (refreshInProgress) {
+			refreshQueued = true;
+			return this;
 		}
-		if (manager.instance.getConfigManager().islandOptions().contains(IslandOptions.CLASSIC)) {
-			IslandChoiceDynamicGUIElement classicElement = (IslandChoiceDynamicGUIElement) getElement(
-					manager.classicSlot);
-			if (classicElement != null && !classicElement.getSlots().isEmpty()) {
-				classicElement.setItemStack(manager.classicIcon.build(context));
-			}
-		}
-		if (manager.instance.getSchematicGUIManager().checkForSchematics()) {
-			IslandChoiceDynamicGUIElement schematicElement = (IslandChoiceDynamicGUIElement) getElement(
-					manager.schematicSlot);
-			if (schematicElement != null && !schematicElement.getSlots().isEmpty()) {
-				schematicElement.setItemStack(manager.schematicIcon.build(context));
-			}
-		}
-		itemsSlotMap.entrySet().stream().filter(entry -> entry.getValue() instanceof IslandChoiceDynamicGUIElement)
-				.forEach(entry -> {
-					IslandChoiceDynamicGUIElement dynamicGUIElement = (IslandChoiceDynamicGUIElement) entry.getValue();
-					this.inventory.setItem(entry.getKey(), dynamicGUIElement.getItemStack().clone());
+		refreshInProgress = true;
+		refreshQueued = false;
+
+		manager.instance.getScheduler().executeSync(() -> {
+			try {
+				// Update context
+				context.arg(ContextKeys.RESET_COOLDOWN, hellblockData.getResetCooldown()).arg(
+						ContextKeys.RESET_COOLDOWN_FORMATTED,
+						manager.instance.getCooldownManager().getFormattedCooldown(hellblockData.getResetCooldown()));
+
+				// Default icon
+				if (manager.instance.getConfigManager().islandOptions().contains(IslandOptions.DEFAULT)) {
+					IslandChoiceDynamicGUIElement defaultElement = (IslandChoiceDynamicGUIElement) getElement(
+							manager.defaultSlot);
+					if (defaultElement != null && !defaultElement.getSlots().isEmpty()) {
+						defaultElement.setItemStack(manager.defaultIcon.build(context));
+					}
+				} else {
+					IslandChoiceDynamicGUIElement defaultElement = (IslandChoiceDynamicGUIElement) getElement(
+							manager.defaultSlot);
+					if (defaultElement != null && !defaultElement.getSlots().isEmpty()) {
+						defaultElement.setItemStack(getDecorativePlaceholderForSlot(manager.defaultSlot));
+					}
+				}
+
+				// Classic icon
+				if (manager.instance.getConfigManager().islandOptions().contains(IslandOptions.CLASSIC)) {
+					IslandChoiceDynamicGUIElement classicElement = (IslandChoiceDynamicGUIElement) getElement(
+							manager.classicSlot);
+					if (classicElement != null && !classicElement.getSlots().isEmpty()) {
+						classicElement.setItemStack(manager.classicIcon.build(context));
+					}
+				} else {
+					IslandChoiceDynamicGUIElement classicElement = (IslandChoiceDynamicGUIElement) getElement(
+							manager.classicSlot);
+					if (classicElement != null && !classicElement.getSlots().isEmpty()) {
+						classicElement.setItemStack(getDecorativePlaceholderForSlot(manager.classicSlot));
+					}
+				}
+
+				// Schematic icon
+				if (manager.instance.getConfigManager().islandOptions().contains(IslandOptions.SCHEMATIC)
+						&& manager.instance.getSchematicGUIManager().checkForSchematics()) {
+					IslandChoiceDynamicGUIElement schematicElement = (IslandChoiceDynamicGUIElement) getElement(
+							manager.schematicSlot);
+					if (schematicElement != null && !schematicElement.getSlots().isEmpty()) {
+						schematicElement.setItemStack(manager.schematicIcon.build(context));
+					}
+				} else {
+					IslandChoiceDynamicGUIElement schematicElement = (IslandChoiceDynamicGUIElement) getElement(
+							manager.schematicSlot);
+					if (schematicElement != null && !schematicElement.getSlots().isEmpty()) {
+						schematicElement.setItemStack(getDecorativePlaceholderForSlot(manager.schematicSlot));
+					}
+				}
+
+				// Inject
+				itemsSlotMap.forEach((slot, element) -> {
+					if (element instanceof IslandChoiceDynamicGUIElement dynamic) {
+						inventory.setItem(slot, dynamic.getItemStack().clone());
+					}
 				});
+			} finally {
+				refreshInProgress = false;
+				if (refreshQueued) {
+					refreshQueued = false;
+					manager.instance.getScheduler().sync().run(this::refresh, context.holder().getLocation());
+				}
+			}
+		}, context.holder().getLocation());
+
 		return this;
+	}
+
+	/**
+	 * Returns an ItemStack to use as the decorative placeholder for `slot`.
+	 * Preferred order: 1) decorativeIcons.get(symbolForSlot) if present 2) first
+	 * entry in decorativeIcons 3) hard fallback gray pane
+	 */
+	private ItemStack getDecorativePlaceholderForSlot(int slot) {
+		final IslandChoiceGUIElement element = getElement(slot);
+		if (element != null) {
+			final char symbol = element.getSymbol();
+			final Pair<CustomItem, Action<Player>[]> mapped = manager.decorativeIcons.get(symbol);
+			if (mapped != null && mapped.left() != null) {
+				try {
+					return mapped.left().build(context);
+				} catch (Exception ignored) {
+					/* fall through to next option */ }
+			}
+		}
+
+		// fallback: use the first decorative icon configured (if any)
+		for (Pair<CustomItem, Action<Player>[]> pair : manager.decorativeIcons.values()) {
+			if (pair != null && pair.left() != null) {
+				try {
+					return pair.left().build(context);
+				} catch (Exception ignored) {
+					/* try next */ }
+			}
+		}
+
+		// final fallback: a plain black pane so slot isn't empty
+		final ItemStack fallback = new ItemStack(Material.BLACK_STAINED_GLASS_PANE);
+		return fallback;
 	}
 }

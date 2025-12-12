@@ -1,10 +1,10 @@
 package com.swiftlicious.hellblock.utils.adapters;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.lang.reflect.Field;
+import java.util.HashMap;
+import java.util.Map;
 
-import com.google.common.collect.BiMap;
-import com.google.common.collect.HashBiMap;
 import com.google.gson.TypeAdapter;
 import com.google.gson.annotations.SerializedName;
 import com.google.gson.stream.JsonReader;
@@ -12,44 +12,50 @@ import com.google.gson.stream.JsonToken;
 import com.google.gson.stream.JsonWriter;
 
 public final class EnumAdapter<T extends Enum<T>> extends TypeAdapter<T> {
-
-	/**
-	 * Bimap to store name,enum pair references
-	 */
-	private final BiMap<String, T> enumMap = HashBiMap.create();
+	
+	private final Map<String, T> nameToEnum = new HashMap<>();
+	private final Map<T, String> enumToName = new HashMap<>();
 
 	public EnumAdapter(Class<T> enumClass) {
-		for (T value : enumClass.getEnumConstants()) {
+		if (!enumClass.getPackage().getName().startsWith("com.swiftlicious.hellblock")) {
+			throw new IllegalArgumentException(
+					"Only plugin-specific enums in 'com.swiftlicious.hellblock' are supported.");
+		}
 
+		for (T value : enumClass.getEnumConstants()) {
 			String name = value.name();
 			try {
-				final SerializedName annotation = enumClass.getField(name).getAnnotation(SerializedName.class);
-
+				Field field = enumClass.getField(name);
+				SerializedName annotation = field.getAnnotation(SerializedName.class);
 				if (annotation != null) {
-					Arrays.stream(annotation.alternate()).forEach(s -> enumMap.put(s, value));
-					// Reset name
 					name = annotation.value();
+					for (String alt : annotation.alternate()) {
+						nameToEnum.put(alt, value);
+					}
 				}
-
-			} catch (NoSuchFieldException e) {
-				// Ignore
+			} catch (NoSuchFieldException ignored) {
 			}
 
-			enumMap.put(name, value);
+			nameToEnum.put(name, value);
+			enumToName.put(value, name);
 		}
 	}
 
 	@Override
-	public T read(JsonReader input) throws IOException {
-		if (JsonToken.NULL != input.peek()) {
-			return enumMap.get(input.nextString());
+	public void write(JsonWriter out, T value) throws IOException {
+		if (value == null) {
+			out.nullValue();
+		} else {
+			out.value(enumToName.get(value));
 		}
-		input.nextNull();
-		return null;
 	}
 
 	@Override
-	public void write(JsonWriter output, T enumValue) throws IOException {
-		output.value(enumValue != null ? enumMap.inverse().get(enumValue) : null);
+	public T read(JsonReader in) throws IOException {
+		if (in.peek() == JsonToken.NULL) {
+			in.nextNull();
+			return null;
+		}
+		return nameToEnum.get(in.nextString());
 	}
 }

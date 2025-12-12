@@ -1,19 +1,26 @@
 package com.swiftlicious.hellblock.listeners;
 
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
-import java.util.function.BiConsumer;
+import java.util.Objects;
+import java.util.Set;
 import java.util.function.Consumer;
-import java.util.function.Function;
 
 import org.bukkit.Bukkit;
 import org.bukkit.GameRule;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
+import org.bukkit.entity.HumanEntity;
 import org.bukkit.entity.Player;
-import org.bukkit.event.Event.Result;
+import org.bukkit.event.Event;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
@@ -24,14 +31,12 @@ import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.PrepareItemCraftEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerItemBreakEvent;
-import org.bukkit.inventory.CraftingRecipe;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.Recipe;
 import org.bukkit.inventory.RecipeChoice;
 import org.bukkit.inventory.ShapedRecipe;
-import org.bukkit.inventory.recipe.CraftingBookCategory;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import com.saicone.rtag.RtagItem;
@@ -41,24 +46,53 @@ import com.swiftlicious.hellblock.challenges.HellblockChallenge.ActionType;
 import com.swiftlicious.hellblock.config.parser.SingleItemParser;
 import com.swiftlicious.hellblock.context.Context;
 import com.swiftlicious.hellblock.creation.item.CustomItem;
-import com.swiftlicious.hellblock.creation.item.Item;
 import com.swiftlicious.hellblock.player.UserData;
+import com.swiftlicious.hellblock.utils.HellblockRecipe;
+import com.swiftlicious.hellblock.utils.RecipeDiscoveryUtil;
+import com.swiftlicious.hellblock.utils.RecipeHelper;
 
+import dev.dejvokep.boostedyaml.YamlDocument;
 import dev.dejvokep.boostedyaml.block.implementation.Section;
+import dev.dejvokep.boostedyaml.libs.org.snakeyaml.engine.v2.common.ScalarStyle;
+import dev.dejvokep.boostedyaml.libs.org.snakeyaml.engine.v2.nodes.Tag;
+import dev.dejvokep.boostedyaml.settings.dumper.DumperSettings;
+import dev.dejvokep.boostedyaml.settings.general.GeneralSettings;
+import dev.dejvokep.boostedyaml.settings.loader.LoaderSettings;
+import dev.dejvokep.boostedyaml.utils.format.NodeRole;
 
 public class ArmorHandler implements Listener, Reloadable {
 
-	protected final HellblockPlugin instance;
+	private final HellblockPlugin instance;
 
-	protected final Map<Material, ArmorData> armorMap = new HashMap<>();
+	private final RecipeHelper recipeHelper;
+
+	private YamlDocument armorConfig;
+
+	private final Set<NamespacedKey> registeredRecipes = new HashSet<>();
+
+	private final Map<Material, ArmorData> armorMap = new HashMap<>();
+	private final Set<String> loggedInvalidRecipes = new HashSet<>();
 
 	public ArmorHandler(HellblockPlugin plugin) {
-		instance = plugin;
+		this.instance = plugin;
+		this.recipeHelper = new RecipeHelper();
 	}
 
 	@Override
 	public void load() {
-		addArmor();
+		loadArmorConfig();
+
+		// Register all recipes immediately on startup
+		Section armorSection = getArmorConfig().getSection("armor");
+		if (armorSection != null) {
+			List<HellblockRecipe> recipes = registerNetherArmor(Context.playerEmpty(), armorSection);
+			applyArmorRecipes(recipes);
+			instance.debug("A total of " + recipes.size() + " armor recipe" + (recipes.size() == 1 ? "" : "s")
+					+ " have been registered!");
+		} else {
+			instance.getPluginLogger().warn("Missing 'armor' section in armor.yml");
+		}
+
 		Bukkit.getPluginManager().registerEvents(this, instance);
 	}
 
@@ -66,332 +100,347 @@ public class ArmorHandler implements Listener, Reloadable {
 	public void unload() {
 		HandlerList.unregisterAll(this);
 		this.armorMap.clear();
+		this.loggedInvalidRecipes.clear();
 	}
 
-	/**
-	 * Registers custom Nether armor recipes from config.
-	 */
-	public void addArmor() {
-		try {
-			final Function<Object, BiConsumer<Item<ItemStack>, Context<Player>>> f1 = arg -> (item, context) -> {
-				final Map<NamespacedKey, ShapedRecipe> recipes = registerNetherArmor(context,
-						instance.getConfigManager().getMainConfig().getSection("armor"));
-				recipes.entrySet().forEach(recipe -> {
-					Bukkit.removeRecipe(recipe.getKey());
-					if (recipe.getValue() != null) {
-						Bukkit.addRecipe(recipe.getValue());
-					}
-				});
-			};
-			instance.getConfigManager().registerItemParser(f1, 6800, "armor");
-		} catch (IllegalStateException ignored) {
-			// ignored
+	@Override
+	public void disable() {
+		unload();
+		registeredRecipes.forEach(Bukkit::removeRecipe);
+		registeredRecipes.clear();
+	}
+
+	@NotNull
+	public YamlDocument getArmorConfig() {
+		return this.armorConfig;
+	}
+
+	private void loadArmorConfig() {
+		try (InputStream inputStream = new FileInputStream(
+				instance.getConfigManager().resolveConfig("armor.yml").toFile())) {
+			armorConfig = YamlDocument.create(inputStream, instance.getConfigManager().getResourceMaybeGz("armor.yml"),
+					GeneralSettings.builder().setRouteSeparator('.').setUseDefaults(false).build(),
+					LoaderSettings.builder().setAutoUpdate(true).build(),
+					DumperSettings.builder().setScalarFormatter((tag, value, role, def) -> {
+						if (role == NodeRole.KEY) {
+							return ScalarStyle.PLAIN;
+						} else {
+							return tag == Tag.STR ? ScalarStyle.DOUBLE_QUOTED : ScalarStyle.PLAIN;
+						}
+					}).build());
+			armorConfig.save(instance.getConfigManager().resolveConfig("armor.yml").toFile());
+		} catch (IOException ex) {
+			throw new RuntimeException(ex);
 		}
 	}
 
-	/**
-	 * Builds armor recipes from configuration.
-	 */
-	private Map<NamespacedKey, ShapedRecipe> registerNetherArmor(Context<Player> context, Section section) {
-		final Map<NamespacedKey, ShapedRecipe> recipes = new HashMap<>();
+	private void applyArmorRecipes(@NotNull List<HellblockRecipe> recipes) {
+		List<String> unregisteredTypes = new ArrayList<>();
+		List<String> registeredTypes = new ArrayList<>();
+		List<String> existingTypes = new ArrayList<>();
+		for (HellblockRecipe recipe : recipes) {
+			try {
+				if (recipe instanceof HellblockRecipe.Disabled disabled) {
+					Bukkit.removeRecipe(disabled.key());
+					registeredRecipes.remove(disabled.key());
+					unregisteredTypes.add(disabled.key().asString());
+				} else if (recipe instanceof HellblockRecipe.Enabled enabled) {
+					NamespacedKey key = enabled.key();
+					if (Bukkit.getRecipe(key) == null) {
+						Bukkit.addRecipe(enabled.recipe());
+						registeredRecipes.add(key);
+						registeredTypes.add(key.asString());
+					} else {
+						existingTypes.add(key.asString());
+					}
+				}
+			} catch (IllegalStateException ignored) {
+			}
+		}
+
+		if (!registeredTypes.isEmpty()) {
+			instance.debug(
+					"Registered armor recipe" + (registeredTypes.size() == 1 ? "" : "s") + ": " + registeredTypes);
+		}
+		if (!unregisteredTypes.isEmpty()) {
+			instance.debug("Removed disabled armor recipe" + (unregisteredTypes.size() == 1 ? "" : "s") + ": "
+					+ unregisteredTypes);
+		}
+		if (!existingTypes.isEmpty()) {
+			instance.debug(
+					"Skipped existing armor recipe" + (existingTypes.size() == 1 ? "" : "s") + ": " + existingTypes);
+		}
+	}
+
+	@NotNull
+	private List<HellblockRecipe> registerNetherArmor(@NotNull Context<Player> context, @NotNull Section section) {
+		List<HellblockRecipe> result = new ArrayList<>();
+
+		instance.debug("Scanning armor.yml for recipes...");
 
 		for (Map.Entry<String, Object> entry : section.getStringRouteMappedValues(false).entrySet()) {
 			if (!(entry.getValue() instanceof Section inner)) {
+				instance.getPluginLogger().warn("Armor '" + entry.getValue() + "' is not a valid section, skipping.");
 				continue;
 			}
 
+			instance.debug("Found armor category entry: " + entry.getKey());
+
+			List<String> foundTypes = new ArrayList<>();
+
 			for (ArmorType type : ArmorType.values()) {
-				final Section typeSection = inner.getSection(type.toString().toLowerCase());
-				if (typeSection == null) {
+				Section typeSection = inner.getSection(type.toString().toLowerCase());
+				if (typeSection == null)
 					continue;
-				}
 
-				final String materialName = typeSection.getString("material");
+				foundTypes.add(type.toString().toLowerCase());
+
+				String materialName = typeSection.getString("material");
 				if (materialName == null) {
-					instance.getPluginLogger()
-							.warn("Armor entry " + entry.getKey() + " (" + type + ") missing 'material'.");
+					warnInvalidArmor("missing 'material'", entry.getKey(), type);
 					continue;
 				}
 
-				final Material material = Material.matchMaterial(materialName.toUpperCase(Locale.ROOT));
+				Material material = Material.matchMaterial(materialName.toUpperCase(Locale.ROOT));
 				if (material == null) {
-					instance.getPluginLogger().warn("Invalid armor material: " + materialName);
+					warnInvalidArmor("invalid material: " + materialName, entry.getKey(), type);
 					continue;
 				}
 
-				final boolean enabled = typeSection.getBoolean("enable", true);
-				final boolean nightVision = typeSection.getBoolean("night-vision", false);
-				final NamespacedKey key = new NamespacedKey(instance, materialName.toLowerCase());
-
+				boolean enabled = typeSection.getBoolean("enable", true);
+				boolean nightVision = typeSection.getBoolean("night-vision", false);
+				NamespacedKey key = new NamespacedKey(instance, materialName.toLowerCase());
 				armorMap.putIfAbsent(material, new ArmorData(enabled, nightVision));
 
 				if (!enabled) {
-					recipes.putIfAbsent(key, null);
+					result.add(new HellblockRecipe.Disabled(key));
 					continue;
 				}
 
-				// Build armor item
-				final CustomItem item = new SingleItemParser(entry.getKey(), inner,
-						instance.getConfigManager().getItemFormatFunctions()).getItem();
-				ItemStack data = setArmorData(item.build(context), true);
-				data = setNightVisionArmorStatus(data, nightVision);
-
-				// Build recipe
-				final ShapedRecipe recipe = new ShapedRecipe(key, data);
-				recipe.setCategory(CraftingBookCategory.EQUIPMENT);
-
-				final String[] shape = typeSection.getStringList("crafting.recipe").toArray(new String[0]);
-				if (shape.length != 3) {
-					instance.getPluginLogger()
-							.warn("Recipe for " + entry.getKey() + " (" + type + ") must have 3 rows.");
-					continue;
+				CustomItem item = new SingleItemParser(entry.getKey() + "_" + type.toString().toLowerCase(),
+						typeSection, instance.getConfigManager().getItemFormatFunctions()).getItem();
+				ItemStack resultItem = setNightVisionArmorStatus(setArmorData(item.build(context), true), nightVision);
+				if (resultItem != null) {
+					Map<NamespacedKey, ShapedRecipe> built = buildShiftedArmorRecipes(
+							entry.getKey() + "_" + type.toString().toLowerCase(), typeSection, resultItem);
+					if (built != null)
+						built.forEach((k, v) -> result.add(new HellblockRecipe.Enabled(k, v)));
+				} else {
+					warnInvalidArmor("invalid armor result: " + item.id(), entry.getKey(), type);
 				}
-				recipe.shape(shape);
-
-				final Section craftingIngredients = typeSection.getSection("crafting.materials");
-				if (craftingIngredients != null) {
-					final Map<ItemStack, Character> craftingMaterials = instance.getConfigManager()
-							.getCraftingMaterials(craftingIngredients);
-
-					craftingMaterials.entrySet().forEach(ingredient -> recipe.setIngredient(ingredient.getValue(),
-							new RecipeChoice.ExactChoice(ingredient.getKey())));
-				}
-
-				recipes.putIfAbsent(key, recipe);
 			}
+
+			// After finishing the type loop, print all found types in one line
+			if (!foundTypes.isEmpty()) {
+				instance.debug("Found armor type value" + (foundTypes.size() == 1 ? "" : "s") + ": " + foundTypes);
+			}
+		}
+
+		return result;
+	}
+
+	@Nullable
+	private Map<NamespacedKey, ShapedRecipe> buildShiftedArmorRecipes(@NotNull String keyName, @NotNull Section section,
+			@NotNull ItemStack result) {
+		List<String> originalShape = section.getStringList("crafting.recipe", new ArrayList<>());
+		if (originalShape.size() != 3) {
+			warnInvalidRecipe("Invalid recipe shape", keyName);
+			return null;
+		}
+
+		Section ingredientSection = section.getSection("crafting.ingredients");
+		if (ingredientSection == null) {
+			warnInvalidRecipe("Missing ingredients section", keyName);
+			return null;
+		}
+
+		Map<ItemStack, Character> ingredients = instance.getConfigManager().getCraftingIngredients(ingredientSection);
+		List<String> trimmed = recipeHelper.trimShape(originalShape);
+		List<String[][]> variants = recipeHelper.generateShiftedShapes(trimmed);
+
+		Map<NamespacedKey, ShapedRecipe> recipes = new HashMap<>();
+		int variantIndex = 0;
+
+		for (String[][] shapeGrid : variants) {
+			String variantSuffix = variantIndex > 0 ? "_" + variantIndex : "";
+			NamespacedKey variantKey = new NamespacedKey(instance, keyName.toLowerCase(Locale.ROOT) + variantSuffix);
+			ShapedRecipe recipe = new ShapedRecipe(variantKey, result);
+			RecipeDiscoveryUtil.trySetRecipeCategory(recipe, "EQUIPMENT");
+
+			String[] shapeLines = Arrays.stream(shapeGrid).map(row -> String.join("", row)).toArray(String[]::new);
+			recipe.shape(shapeLines);
+
+			for (Map.Entry<ItemStack, Character> entry : ingredients.entrySet()) {
+				if (entry.getKey() == null || entry.getKey().getType().isAir())
+					continue;
+				recipe.setIngredient(entry.getValue(), new RecipeChoice.MaterialChoice(entry.getKey().getType()));
+			}
+
+			recipes.put(variantKey, recipe);
 		}
 
 		return recipes;
 	}
 
-	@EventHandler
+	@EventHandler(ignoreCancelled = true)
 	public void onCrafting(CraftItemEvent event) {
-		if (!(event.getView().getPlayer() instanceof Player player)) {
+		Player player = getValidPlayer(event.getView().getPlayer());
+		if (player == null)
 			return;
-		}
-		if (!instance.getHellblockHandler().isInCorrectWorld(player)) {
-			return;
-		}
 
-		handleRecipeDiscovery(player, event.getRecipe());
-		final ItemStack result = event.getRecipe().getResult().clone();
-		instance.getStorageManager().getOnlineUser(player.getUniqueId())
-				.ifPresent(user -> instance.getChallengeManager().handleChallengeProgression(player, ActionType.CRAFT,
-						result, result.getAmount()));
+		RecipeDiscoveryUtil.handleRecipeDiscovery(player, event.getRecipe(), this::isNetherArmorEnabled,
+				this::getArmorData);
+
+		ItemStack result = event.getRecipe().getResult().clone();
+		instance.getStorageManager().getOnlineUser(player.getUniqueId()).ifPresent(userData -> {
+			if (instance.getCooldownManager().shouldUpdateActivity(player.getUniqueId(), 5000)) {
+				userData.getHellblockData().updateLastIslandActivity();
+			}
+			instance.getChallengeManager().handleChallengeProgression(userData, ActionType.CRAFT, result,
+					result.getAmount());
+		});
 	}
 
 	@EventHandler
 	public void onLimitedCrafting(PrepareItemCraftEvent event) {
-		if (!(event.getView().getPlayer() instanceof Player player)) {
+		Player player = getValidPlayer(event.getView().getPlayer());
+		if (player == null || !player.getWorld().getGameRuleValue(GameRule.DO_LIMITED_CRAFTING))
 			return;
-		}
-		if (!instance.getHellblockHandler().isInCorrectWorld(player)) {
-			return;
-		}
-		if (!player.getWorld().getGameRuleValue(GameRule.DO_LIMITED_CRAFTING)) {
-			return;
-		}
 
-		handleRecipeDiscovery(player, event.getRecipe());
+		RecipeDiscoveryUtil.handleRecipeDiscovery(player, event.getRecipe(), this::isNetherArmorEnabled,
+				this::getArmorData);
 	}
 
 	@EventHandler
 	public void onArmorChange(InventoryCloseEvent event) {
-		if (!(event.getPlayer() instanceof Player player)) {
+		Player player = getValidPlayer(event.getPlayer());
+		if (player == null)
 			return;
-		}
-		if (!instance.getHellblockHandler().isInCorrectWorld(player)) {
-			return;
-		}
 
-		final Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
-		if (onlineUser.isEmpty()) {
-			return;
-		}
-
-		handleArmorEffect(player, onlineUser.get());
+		instance.getStorageManager().getOnlineUser(player.getUniqueId())
+				.ifPresent(data -> handleArmorEffect(player, data));
 	}
 
-	@EventHandler
+	@EventHandler(ignoreCancelled = true)
 	public void onArmorEquip(PlayerInteractEvent event) {
-		if (event.useItemInHand() == Result.DENY) {
+		if (event.useItemInHand() == Event.Result.DENY)
 			return;
-		}
-		if (!(event.getPlayer() instanceof Player player)) {
-			return;
-		}
-		if (!instance.getHellblockHandler().isInCorrectWorld(player)) {
-			return;
-		}
-		if (!(event.getAction() == Action.RIGHT_CLICK_AIR || event.getAction() == Action.RIGHT_CLICK_BLOCK)) {
-			return;
-		}
 
-		final Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
-		if (onlineUser.isEmpty()) {
+		Player player = getValidPlayer(event.getPlayer());
+		if (player == null)
 			return;
-		}
 
-		handleArmorEffect(player, onlineUser.get());
+		if (event.getAction() != Action.RIGHT_CLICK_AIR && event.getAction() != Action.RIGHT_CLICK_BLOCK)
+			return;
+
+		instance.getStorageManager().getOnlineUser(player.getUniqueId())
+				.ifPresent(data -> handleArmorEffect(player, data));
 	}
 
 	@EventHandler
 	public void onArmorBreak(PlayerItemBreakEvent event) {
-		final Player player = event.getPlayer();
-		if (!instance.getHellblockHandler().isInCorrectWorld(player)) {
+		Player player = getValidPlayer(event.getPlayer());
+		if (player == null)
 			return;
-		}
 
-		final Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
-		if (onlineUser.isEmpty()) {
-			return;
-		}
-
-		handleArmorEffect(player, onlineUser.get());
+		instance.getStorageManager().getOnlineUser(player.getUniqueId())
+				.ifPresent(data -> handleArmorEffect(player, data));
 	}
 
-	@EventHandler
+	@EventHandler(ignoreCancelled = true)
 	public void onDispenseArmor(BlockDispenseArmorEvent event) {
-		if (!(event.getTargetEntity() instanceof Player player)) {
+		if (!(event.getTargetEntity() instanceof Player target))
 			return;
-		}
-		if (!instance.getHellblockHandler().isInCorrectWorld(player)) {
+		Player player = getValidPlayer(target);
+		if (player == null)
 			return;
-		}
 
-		final Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(player.getUniqueId());
-		if (onlineUser.isEmpty()) {
-			return;
-		}
-
-		handleArmorEffect(player, onlineUser.get());
+		instance.getStorageManager().getOnlineUser(player.getUniqueId())
+				.ifPresent(data -> handleArmorEffect(player, data));
 	}
 
-	private void handleRecipeDiscovery(Player player, @Nullable Recipe recipe) {
-		if (recipe == null) {
-			return;
-		}
-		if (!(recipe instanceof CraftingRecipe craft)) {
-			return;
-		}
+	private void handleArmorEffect(@NotNull Player player, @NotNull UserData userData) {
+		boolean hasGlowArmor = Arrays.stream(player.getInventory().getArmorContents()).filter(Objects::nonNull)
+				.filter(item -> item.getType() != Material.AIR).anyMatch(item -> isNetherArmorEnabled(item)
+						&& isNetherArmorNightVisionAllowed(item) && getNightVisionArmorStatus(item));
 
-		final ItemStack result = recipe.getResult();
-
-		if (!isNetherArmorEnabled(result)) {
-			return;
-		}
-		if (!checkArmorData(result)) {
-			return;
-		}
-		if (!getArmorData(result)) {
-			return;
-		}
-
-		if (!player.hasDiscoveredRecipe(craft.getKey())) {
-			player.discoverRecipe(craft.getKey());
-		}
-	}
-
-	private void handleArmorEffect(Player player, UserData onlineUser) {
-		if (hasValidGlowstoneArmor(player)) {
+		if (hasGlowArmor) {
 			player.addPotionEffect(new PotionEffect(PotionEffectType.NIGHT_VISION, Integer.MAX_VALUE, 1));
-			onlineUser.isWearingGlowstoneArmor(true);
-		} else {
-			if (onlineUser.hasGlowstoneArmorEffect() && player.hasPotionEffect(PotionEffectType.NIGHT_VISION)) {
-				onlineUser.isWearingGlowstoneArmor(false);
-				if (!onlineUser.hasGlowstoneToolEffect()) {
-					player.removePotionEffect(PotionEffectType.NIGHT_VISION);
-				}
+			userData.isWearingGlowstoneArmor(true);
+		} else if (userData.hasGlowstoneArmorEffect() && player.hasPotionEffect(PotionEffectType.NIGHT_VISION)) {
+			userData.isWearingGlowstoneArmor(false);
+			if (!userData.hasGlowstoneToolEffect()) {
+				player.removePotionEffect(PotionEffectType.NIGHT_VISION);
 			}
 		}
 	}
 
-	private boolean hasValidGlowstoneArmor(Player player) {
-		for (ItemStack item : player.getInventory().getArmorContents()) {
-			if (item == null || item.getType() == Material.AIR) {
-				continue;
-			}
-			if (!isNetherArmorEnabled(item)) {
-				continue;
-			}
-			if (!isNetherArmorNightVisionAllowed(item)) {
-				continue;
-			}
-			if (checkNightVisionArmorStatus(item) && getNightVisionArmorStatus(item)) {
-				return true;
-			}
+	@Nullable
+	private Player getValidPlayer(@NotNull HumanEntity entity) {
+		if (!(entity instanceof Player player))
+			return null;
+		return instance.getHellblockHandler().isInCorrectWorld(player) ? player : null;
+	}
+
+	private void warnInvalidArmor(@NotNull String reason, @NotNull String key, @NotNull ArmorType type) {
+		instance.getPluginLogger().warn("Armor entry " + key + " (" + type + "): " + reason);
+	}
+
+	private void warnInvalidRecipe(@NotNull String reason, @NotNull String keyName) {
+		if (loggedInvalidRecipes.add(keyName)) {
+			instance.getPluginLogger().warn("Invalid recipe for " + keyName + ": " + reason);
 		}
-		return false;
 	}
 
 	public boolean checkArmorData(@Nullable ItemStack item) {
-		if (item == null || item.getType() == Material.AIR) {
-			return false;
-		}
-
-		return new RtagItem(item).hasTag("HellblockRecipe", "isNetherArmor");
+		return item != null && item.getType() != Material.AIR
+				&& new RtagItem(item).hasTag("HellblockRecipe", "isNetherArmor");
 	}
 
 	public boolean getArmorData(@Nullable ItemStack item) {
-		if (item == null || item.getType() == Material.AIR) {
-			return false;
-		}
-
-		return new RtagItem(item).getOptional("HellblockRecipe", "isNetherArmor").asBoolean();
+		return item != null && item.getType() != Material.AIR
+				&& new RtagItem(item).getOptional("HellblockRecipe", "isNetherArmor").asBoolean();
 	}
 
-	public @Nullable ItemStack setArmorData(@Nullable ItemStack item, boolean data) {
-		if (item == null || item.getType() == Material.AIR) {
+	@Nullable
+	public ItemStack setArmorData(@Nullable ItemStack item, boolean data) {
+		if (item == null || item.getType() == Material.AIR)
 			return null;
-		}
 
-		final Consumer<RtagItem> rtag = tag -> tag.set(data, "HellblockRecipe", "isNetherArmor");
-		return RtagItem.edit(item, rtag);
-	}
-
-	public boolean isNetherArmorEnabled(@Nullable ItemStack item) {
-		if (item == null || item.getType() == Material.AIR) {
-			return false;
-		}
-
-		return armorMap.containsKey(item.getType()) && armorMap.get(item.getType()).isEnabled();
+		return RtagItem.<ItemStack>edit(item,
+				(Consumer<RtagItem>) tag -> tag.set(data, "HellblockRecipe", "isNetherArmor"));
 	}
 
 	public boolean checkNightVisionArmorStatus(@Nullable ItemStack item) {
-		if (item == null || item.getType() == Material.AIR) {
-			return false;
-		}
-
-		return new RtagItem(item).hasTag("HellblockRecipe", "wearsNightVision");
+		return item != null && item.getType() != Material.AIR
+				&& new RtagItem(item).hasTag("HellblockRecipe", "wearsNightVision");
 	}
 
 	public boolean getNightVisionArmorStatus(@Nullable ItemStack item) {
-		if (item == null || item.getType() == Material.AIR) {
-			return false;
-		}
-
-		return new RtagItem(item).getOptional("HellblockRecipe", "wearsNightVision").asBoolean();
+		return item != null && item.getType() != Material.AIR
+				&& new RtagItem(item).getOptional("HellblockRecipe", "wearsNightVision").asBoolean();
 	}
 
-	public @Nullable ItemStack setNightVisionArmorStatus(@Nullable ItemStack item, boolean data) {
-		if (item == null || item.getType() == Material.AIR) {
+	@Nullable
+	public ItemStack setNightVisionArmorStatus(@Nullable ItemStack item, boolean data) {
+		if (item == null || item.getType() == Material.AIR)
 			return null;
-		}
 
-		final Consumer<RtagItem> rtag = tag -> tag.set(data, "HellblockRecipe", "wearsNightVision");
-		return RtagItem.edit(item, rtag);
+		return RtagItem.<ItemStack>edit(item,
+				(Consumer<RtagItem>) tag -> tag.set(data, "HellblockRecipe", "wearsNightVision"));
+	}
+
+	public boolean isNetherArmorEnabled(@Nullable ItemStack item) {
+		return item != null && item.getType() != Material.AIR && armorMap.containsKey(item.getType())
+				&& armorMap.get(item.getType()).isEnabled();
 	}
 
 	public boolean isNetherArmorNightVisionAllowed(@Nullable ItemStack item) {
-		if (item == null || item.getType() == Material.AIR) {
-			return false;
-		}
-
-		return armorMap.containsKey(item.getType()) && armorMap.get(item.getType()).hasGlowstoneAbility();
+		return item != null && item.getType() != Material.AIR && armorMap.containsKey(item.getType())
+				&& armorMap.get(item.getType()).hasGlowstoneAbility();
 	}
 
 	protected class ArmorData {
-
 		private final boolean enabled;
 		private final boolean glowstone;
 
@@ -401,11 +450,11 @@ public class ArmorHandler implements Listener, Reloadable {
 		}
 
 		public boolean isEnabled() {
-			return this.enabled;
+			return enabled;
 		}
 
 		public boolean hasGlowstoneAbility() {
-			return this.glowstone;
+			return glowstone;
 		}
 	}
 

@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -14,14 +15,17 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.zip.GZIPInputStream;
 
 import org.bukkit.Material;
-import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventPriority;
 import org.bukkit.inventory.ItemStack;
+
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.api.Reloadable;
+import com.swiftlicious.hellblock.config.ConfigManager.HellEnchantmentData;
+import com.swiftlicious.hellblock.config.ConfigManager.IslandEventData;
 import com.swiftlicious.hellblock.config.ConfigManager.TitleScreenInfo;
 import com.swiftlicious.hellblock.config.node.Node;
 import com.swiftlicious.hellblock.config.parser.function.BaseEffectParserFunction;
@@ -42,6 +46,7 @@ import com.swiftlicious.hellblock.effects.Effect;
 import com.swiftlicious.hellblock.effects.EffectModifier;
 import com.swiftlicious.hellblock.generation.IslandOptions;
 import com.swiftlicious.hellblock.handlers.EventCarrier;
+import com.swiftlicious.hellblock.listeners.weather.WeatherType;
 import com.swiftlicious.hellblock.loot.Loot;
 import com.swiftlicious.hellblock.loot.LootBaseEffect;
 import com.swiftlicious.hellblock.loot.operation.WeightOperation;
@@ -50,7 +55,6 @@ import com.swiftlicious.hellblock.utils.extras.MathValue;
 import com.swiftlicious.hellblock.utils.extras.Pair;
 import com.swiftlicious.hellblock.utils.extras.Requirement;
 import com.swiftlicious.hellblock.utils.extras.TriConsumer;
-import com.swiftlicious.hellblock.utils.extras.Tuple;
 
 import dev.dejvokep.boostedyaml.YamlDocument;
 import dev.dejvokep.boostedyaml.dvs.versioning.BasicVersioning;
@@ -96,16 +100,20 @@ public abstract class ConfigHandler implements ConfigLoader, Reloadable {
 	protected int finalLavaMaxTime;
 	protected int multipleLootSpawnDelay;
 	protected boolean restrictedSizeRange;
-	protected List<String> durabilityLore;
-	protected String magmaWalkerBookName;
-	protected List<String> magmaWalkerBookLore;
-	protected List<String> magmaWalkerBootsLore;
+	protected List<String> durabilityLore = new ArrayList<>();
 	protected EventPriority eventPriority;
-	protected Requirement<Player>[] fishingRequirements;
-	protected Requirement<Player>[] autoFishingRequirements;
+	protected Requirement<Player>[] fishingPlayerRequirements;
+	protected Requirement<Player>[] autoFishingPlayerRequirements;
+	protected Requirement<Integer>[] fishingIslandRequirements;
+	protected Requirement<Integer>[] autoFishingIslandRequirements;
 	protected boolean baitAnimation;
 	protected boolean antiAutoFishingMod;
-	protected List<TriConsumer<Effect, Context<Player>, Integer>> globalEffects;
+	protected List<TriConsumer<Effect, Context<Player>, Integer>> globalEffects = new ArrayList<>();
+
+	protected HellEnchantmentData lavaVisionEnchantData;
+	protected HellEnchantmentData crimsonThornsEnchantData;
+	protected HellEnchantmentData moltenCoreEnchantData;
+	protected HellEnchantmentData magmaWalkerEnchantData;
 
 	protected boolean worldguardProtect;
 	protected boolean disableGenerationAnimation;
@@ -134,11 +142,14 @@ public abstract class ConfigHandler implements ConfigLoader, Reloadable {
 	protected int maxColorCodes;
 	protected int maxNewLines;
 	protected int wrapLength;
-	protected List<String> bannedWords;
+	protected Set<String> commandWhitelist = new HashSet<>();
+	protected List<String> bannedWords = new ArrayList<>();
 	protected Set<IslandOptions> islandOptions = new HashSet<>();
 	protected Map<Integer, Pair<Integer, CustomItem>> chestItems = new HashMap<>();
 
-	protected Map<Integer, Tuple<Material, EntityType, MathValue<Player>>> levelSystem = new HashMap<>();
+	protected IslandEventData invasionEvent;
+	protected IslandEventData witherEvent;
+	protected IslandEventData skysiegeEvent;
 
 	protected boolean clearDefaultOutcome;
 	protected Map<CustomItem, MathValue<Player>> barteringItems = new HashMap<>();
@@ -153,7 +164,10 @@ public abstract class ConfigHandler implements ConfigLoader, Reloadable {
 
 	protected boolean infiniteLavaEnabled;
 
-	protected boolean lavaRainEnabled;
+	protected boolean weatherEnabled;
+	protected Set<WeatherType> supportedWeatherTypes = new HashSet<>();
+	protected int minTime;
+	protected int maxTime;
 	protected int radius;
 	protected int fireChance;
 	protected int delay;
@@ -285,16 +299,16 @@ public abstract class ConfigHandler implements ConfigLoader, Reloadable {
 		return wrapLength;
 	}
 
+	public Set<String> commandWhitelist() {
+		return commandWhitelist;
+	}
+
 	public List<String> bannedWords() {
 		return bannedWords;
 	}
 
 	public Set<IslandOptions> islandOptions() {
 		return islandOptions;
-	}
-
-	public Map<Integer, Tuple<Material, EntityType, MathValue<Player>>> levelSystem() {
-		return levelSystem;
 	}
 
 	public boolean clearDefaultOutcome() {
@@ -337,8 +351,20 @@ public abstract class ConfigHandler implements ConfigLoader, Reloadable {
 		return defaultStrength;
 	}
 
-	public boolean lavaRainEnabled() {
-		return lavaRainEnabled;
+	public boolean weatherEnabled() {
+		return weatherEnabled;
+	}
+	
+	public Set<WeatherType> supportedWeatherTypes() {
+		return supportedWeatherTypes;
+	}
+	
+	public int minWeatherTime() {
+		return minTime;
+	}
+	
+	public int maxWeatherTime() {
+		return maxTime;
 	}
 
 	public int radius() {
@@ -413,6 +439,18 @@ public abstract class ConfigHandler implements ConfigLoader, Reloadable {
 		return creationTitleScreen;
 	}
 
+	public IslandEventData invasionEventSettings() {
+		return invasionEvent;
+	}
+
+	public IslandEventData witherEventSettings() {
+		return witherEvent;
+	}
+
+	public IslandEventData skysiegeEventSettings() {
+		return skysiegeEvent;
+	}
+
 	public int dataSaveInterval() {
 		return dataSaveInterval;
 	}
@@ -473,28 +511,40 @@ public abstract class ConfigHandler implements ConfigLoader, Reloadable {
 		return durabilityLore;
 	}
 
-	public String bookName() {
-		return magmaWalkerBookName;
+	public HellEnchantmentData lavaVisionData() {
+		return lavaVisionEnchantData;
 	}
 
-	public List<String> bookLore() {
-		return magmaWalkerBookLore;
+	public HellEnchantmentData crimsonThornsData() {
+		return crimsonThornsEnchantData;
 	}
 
-	public List<String> bootsLore() {
-		return magmaWalkerBootsLore;
+	public HellEnchantmentData moltenCoreData() {
+		return moltenCoreEnchantData;
+	}
+
+	public HellEnchantmentData magmaWalkerData() {
+		return magmaWalkerEnchantData;
 	}
 
 	public EventPriority eventPriority() {
 		return eventPriority;
 	}
 
-	public Requirement<Player>[] fishingRequirements() {
-		return fishingRequirements;
+	public Requirement<Player>[] fishingPlayerRequirements() {
+		return fishingPlayerRequirements;
 	}
 
-	public Requirement<Player>[] autoFishingRequirements() {
-		return autoFishingRequirements;
+	public Requirement<Integer>[] fishingIslandRequirements() {
+		return fishingIslandRequirements;
+	}
+
+	public Requirement<Player>[] autoFishingPlayerRequirements() {
+		return autoFishingPlayerRequirements;
+	}
+
+	public Requirement<Integer>[] autoFishingIslandRequirements() {
+		return autoFishingIslandRequirements;
 	}
 
 	public List<TriConsumer<Effect, Context<Player>, Integer>> globalEffects() {
@@ -575,31 +625,80 @@ public abstract class ConfigHandler implements ConfigLoader, Reloadable {
 		}
 	}
 
-	protected Path resolveConfig(String filePath) {
+	@Override
+	public Path resolveConfig(String filePath) {
 		if (filePath == null || filePath.isEmpty()) {
 			throw new IllegalArgumentException("ResourcePath cannot be null or empty");
 		}
+
 		filePath = filePath.replace('\\', '/');
 		final Path configFile = instance.getDataFolder().toPath().toAbsolutePath().resolve(filePath);
-		// if the config doesn't exist, create it based on the template in the resources
-		// dir
+
+		// Create parent directories if missing
+		try {
+			Files.createDirectories(configFile.getParent());
+		} catch (IOException ignored) {
+		}
+
+		// If the file doesn't exist yet, copy it from resources
 		if (!Files.exists(configFile)) {
-			try {
-				Files.createDirectories(configFile.getParent());
-			} catch (IOException ignored) {
-				// ignore
-			}
-			try (InputStream is = instance.getResource(filePath.replace("\\", "/"))) {
-				if (is == null) {
-					throw new IllegalArgumentException(
-							"The embedded resource '%s' cannot be found".formatted(filePath));
+			String resourcePath = filePath;
+			InputStream is = instance.getResource(resourcePath);
+
+			// fallback to .gz
+			boolean gzipped = false;
+			if (is == null) {
+				is = instance.getResource(resourcePath + ".gz");
+				if (is != null) {
+					gzipped = true;
 				}
-				Files.copy(is, configFile);
+			}
+
+			if (is == null) {
+				throw new IllegalArgumentException("The embedded resource '%s' cannot be found".formatted(filePath));
+			}
+
+			try (InputStream in = gzipped ? new java.util.zip.GZIPInputStream(is) : is) {
+				Files.copy(in, configFile);
 			} catch (IOException ex) {
-				throw new RuntimeException(ex);
+				throw new RuntimeException("Failed to copy resource: " + filePath, ex);
 			}
 		}
+
 		return configFile;
+	}
+
+	@Override
+	public InputStream getResourceMaybeGz(String filePath) {
+		// Normalize slashes
+		filePath = filePath.replace('\\', '/');
+
+		// If caller already included ".gz", use as-is
+		if (filePath.endsWith(".gz")) {
+			InputStream in = instance.getResource(filePath);
+			if (in != null) {
+				try {
+					return new GZIPInputStream(in);
+				} catch (IOException e) {
+					instance.getPluginLogger().warn("Failed to read compressed resource: " + filePath);
+				}
+			}
+			return null;
+		}
+
+		// Try .gz first
+		InputStream in = instance.getResource(filePath + ".gz");
+		if (in != null) {
+			try {
+				return new GZIPInputStream(in);
+			} catch (IOException e) {
+				instance.getPluginLogger()
+						.warn("Failed to read compressed resource: " + filePath + ".gz, using plain version.");
+			}
+		}
+
+		// Then fallback to plain
+		return instance.getResource(filePath);
 	}
 
 	@Override
@@ -610,7 +709,7 @@ public abstract class ConfigHandler implements ConfigLoader, Reloadable {
 	@Override
 	public YamlDocument loadConfig(String filePath, char routeSeparator) {
 		try (InputStream inputStream = new FileInputStream(resolveConfig(filePath).toFile())) {
-			return YamlDocument.create(inputStream, instance.getResource(filePath.replace("\\", "/")),
+			return YamlDocument.create(inputStream, getResourceMaybeGz(filePath),
 					GeneralSettings.builder().setRouteSeparator(routeSeparator).build(),
 					LoaderSettings.builder().setAutoUpdate(true).build(),
 					DumperSettings.builder().setScalarFormatter((tag, value, role, def) -> {

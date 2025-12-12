@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -13,7 +14,6 @@ import java.util.concurrent.ConcurrentMap;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
-import org.bukkit.event.Event.Result;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
@@ -44,7 +44,6 @@ import com.swiftlicious.hellblock.utils.extras.Tuple;
 
 import dev.dejvokep.boostedyaml.block.implementation.Section;
 import net.kyori.adventure.sound.Sound;
-import net.kyori.adventure.text.Component;
 
 public class UpgradeGUIManager implements UpgradeGUIManagerInterface, Listener {
 
@@ -80,9 +79,19 @@ public class UpgradeGUIManager implements UpgradeGUIManagerInterface, Listener {
 	}
 
 	private void loadConfig() {
-		Section config = instance.getConfigManager().getGuiConfig().getSection("upgrade.gui");
+		Section configFile = instance.getConfigManager().getGUIConfig("upgrades.yml");
+		if (configFile == null) {
+			instance.getPluginLogger().severe("GUI for upgrades.yml was unable to load correctly!");
+			return;
+		}
+		Section config = configFile.getSection("upgrade.gui");
+		if (config == null) {
+			instance.getPluginLogger()
+					.severe("upgrade.gui returned null, please regenerate your upgrades.yml GUI file.");
+			return;
+		}
 
-		this.layout = config.getStringList("layout").toArray(new String[0]);
+		this.layout = config.getStringList("layout", new ArrayList<>()).toArray(new String[0]);
 		this.title = TextValue.auto(config.getString("title", "upgrade.title"));
 		this.highlightMaxUpgrades = config.getBoolean("hightlight-max-tier-upgrades", true);
 
@@ -126,7 +135,7 @@ public class UpgradeGUIManager implements UpgradeGUIManagerInterface, Listener {
 
 						upgradeIcons.add(Tuple.of(symbol, innerSection,
 								Tuple.of(
-										new SingleItemParser("upgrade", innerSection,
+										new SingleItemParser(upgrade.toString().toLowerCase(), innerSection,
 												instance.getConfigManager().getItemFormatFunctions()).getItem(),
 										upgrade, instance.getActionManager(Player.class)
 												.parseActions(innerSection.getSection("action")))));
@@ -167,14 +176,8 @@ public class UpgradeGUIManager implements UpgradeGUIManagerInterface, Listener {
 		}
 	}
 
-	/**
-	 * Open the Upgrade GUI for a player
-	 *
-	 * @param player  player
-	 * @param isOwner is owner of hellblock
-	 */
 	@Override
-	public boolean openUpgradeGUI(Player player, boolean isOwner) {
+	public boolean openUpgradeGUI(Player player, int islandId, boolean isOwner) {
 		Optional<UserData> optionalUserData = instance.getStorageManager().getOnlineUser(player.getUniqueId());
 		if (optionalUserData.isEmpty()) {
 			instance.getPluginLogger()
@@ -182,10 +185,12 @@ public class UpgradeGUIManager implements UpgradeGUIManagerInterface, Listener {
 			return false;
 		}
 		Context<Player> context = Context.player(player);
-		UpgradeGUI gui = new UpgradeGUI(this, context, optionalUserData.get().getHellblockData(), isOwner);
+		Context<Integer> islandContext = Context.island(islandId);
+		UpgradeGUI gui = new UpgradeGUI(this, context, islandContext, optionalUserData.get().getHellblockData(),
+				isOwner);
 		gui.addElement(new UpgradeDynamicGUIElement(backSlot, new ItemStack(Material.AIR)));
 		upgradeIcons.forEach(
-				flag -> gui.addElement(new UpgradeDynamicGUIElement(flag.left(), new ItemStack(Material.AIR))));
+				upgrade -> gui.addElement(new UpgradeDynamicGUIElement(upgrade.left(), new ItemStack(Material.AIR))));
 		decorativeIcons.entrySet().forEach(
 				entry -> gui.addElement(new UpgradeGUIElement(entry.getKey(), entry.getValue().left().build(context))));
 		gui.build().show();
@@ -238,7 +243,17 @@ public class UpgradeGUIManager implements UpgradeGUIManagerInterface, Listener {
 			return;
 		}
 
-		event.setResult(Result.DENY);
+		// Check if any dragged slot is in the GUI (top inventory)
+		for (int slot : event.getRawSlots()) {
+			if (slot < event.getInventory().getSize()) {
+				event.setCancelled(true);
+				return;
+			}
+		}
+
+		// If the drag is only in the player inventory, do nothing special
+		// but still make sure no ghost items appear
+		event.setCancelled(true);
 
 		// Refresh the GUI
 		instance.getScheduler().sync().runLater(gui::refresh, 1, player.getLocation());
@@ -257,7 +272,7 @@ public class UpgradeGUIManager implements UpgradeGUIManagerInterface, Listener {
 
 		Player player = (Player) event.getWhoClicked();
 
-		// Check if the clicked inventory is a SchematicGUI
+		// Check if the clicked inventory is a UpgradeGUI
 		if (!(event.getInventory().getHolder() instanceof UpgradeGUIHolder))
 			return;
 
@@ -268,7 +283,13 @@ public class UpgradeGUIManager implements UpgradeGUIManagerInterface, Listener {
 			return;
 		}
 
-		if (clickedInv != player.getInventory()) {
+		// Handle shift-clicks, number keys, or clicking outside GUI
+		if (event.getClick().isShiftClick() || event.getClick().isKeyboardClick()) {
+			event.setCancelled(true);
+			return;
+		}
+
+		if (!Objects.equals(clickedInv, player.getInventory())) {
 			int slot = event.getSlot();
 			UpgradeGUIElement element = gui.getElement(slot);
 			if (element == null) {
@@ -287,13 +308,14 @@ public class UpgradeGUIManager implements UpgradeGUIManagerInterface, Listener {
 
 			Pair<CustomItem, Action<Player>[]> decorativeIcon = this.decorativeIcons.get(element.getSymbol());
 			if (decorativeIcon != null) {
+				event.setCancelled(true);
 				ActionManager.trigger(gui.context, decorativeIcon.right());
 				return;
 			}
 
 			if (element.getSymbol() == backSlot) {
 				event.setCancelled(true);
-				instance.getHellblockGUIManager().openHellblockGUI(player, gui.isOwner);
+				instance.getHellblockGUIManager().openHellblockGUI(player, gui.islandContext.holder(), gui.isOwner);
 				ActionManager.trigger(gui.context, backActions);
 				return;
 			}
@@ -325,7 +347,7 @@ public class UpgradeGUIManager implements UpgradeGUIManagerInterface, Listener {
 					if (!gui.hellblockData.canUpgrade(upgradeType)) {
 						audience.sendMessage(instance.getTranslationManager()
 								.render(MessageConstants.MSG_HELLBLOCK_UPGRADE_MAX_TIER
-										.arguments(Component.text(
+										.arguments(AdventureHelper.miniMessageToComponent(
 												StringUtils.toProperCase(upgradeType.toString().replace("_", " "))))
 										.build()));
 						AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
@@ -344,20 +366,20 @@ public class UpgradeGUIManager implements UpgradeGUIManagerInterface, Listener {
 						return;
 					}
 					if (instance.getUpgradeManager().attemptPurchase(gui.hellblockData, player, upgradeType)) {
-						gui.context
-								.arg(ContextKeys.HELLBLOCK_RANGE_TIER,
+						gui.islandContext
+								.arg(ContextKeys.ISLAND_RANGE_TIER,
 										gui.hellblockData.getUpgradeLevel(IslandUpgradeType.PROTECTION_RANGE))
-								.arg(ContextKeys.HELLBLOCK_HOPPER_TIER,
+								.arg(ContextKeys.ISLAND_HOPPER_TIER,
 										gui.hellblockData.getUpgradeLevel(IslandUpgradeType.HOPPER_LIMIT))
-								.arg(ContextKeys.HELLBLOCK_PARTY_TIER,
+								.arg(ContextKeys.ISLAND_PARTY_TIER,
 										gui.hellblockData.getUpgradeLevel(IslandUpgradeType.PARTY_SIZE))
-								.arg(ContextKeys.HELLBLOCK_GENERATOR_TIER,
+								.arg(ContextKeys.ISLAND_GENERATOR_TIER,
 										gui.hellblockData.getUpgradeLevel(IslandUpgradeType.GENERATOR_CHANCE))
-								.arg(ContextKeys.HELLBLOCK_BARTERING_TIER,
+								.arg(ContextKeys.ISLAND_BARTERING_TIER,
 										gui.hellblockData.getUpgradeLevel(IslandUpgradeType.PIGLIN_BARTERING))
-								.arg(ContextKeys.HELLBLOCK_CROP_TIER,
+								.arg(ContextKeys.ISLAND_CROP_TIER,
 										gui.hellblockData.getUpgradeLevel(IslandUpgradeType.CROP_GROWTH))
-								.arg(ContextKeys.HELLBLOCK_MOB_TIER,
+								.arg(ContextKeys.ISLAND_MOB_TIER,
 										gui.hellblockData.getUpgradeLevel(IslandUpgradeType.MOB_SPAWN_RATE));
 					}
 					ActionManager.trigger(gui.context, upgrade.right().right());
@@ -367,6 +389,9 @@ public class UpgradeGUIManager implements UpgradeGUIManagerInterface, Listener {
 		}
 
 		// Refresh the GUI
+		if (instance.getCooldownManager().shouldUpdateActivity(player.getUniqueId(), 15000)) {
+			gui.hellblockData.updateLastIslandActivity();
+		}
 		instance.getScheduler().sync().runLater(gui::refresh, 1, player.getLocation());
 	}
 }

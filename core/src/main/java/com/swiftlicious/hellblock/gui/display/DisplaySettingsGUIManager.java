@@ -1,8 +1,10 @@
 package com.swiftlicious.hellblock.gui.display;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -12,7 +14,6 @@ import java.util.concurrent.ConcurrentMap;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
-import org.bukkit.event.Event.Result;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
@@ -24,7 +25,6 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
-import com.swiftlicious.hellblock.commands.sub.HellblockIslandBioCommand;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
 import com.swiftlicious.hellblock.config.parser.SingleItemParser;
 import com.swiftlicious.hellblock.context.Context;
@@ -43,8 +43,6 @@ import com.swiftlicious.hellblock.utils.extras.TextValue;
 
 import dev.dejvokep.boostedyaml.block.implementation.Section;
 import net.kyori.adventure.sound.Sound;
-import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
-import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 
 public class DisplaySettingsGUIManager implements DisplaySettingsGUIManagerInterface, Listener {
 
@@ -93,9 +91,19 @@ public class DisplaySettingsGUIManager implements DisplaySettingsGUIManagerInter
 	}
 
 	private void loadConfig() {
-		Section config = instance.getConfigManager().getGuiConfig().getSection("display.gui");
+		Section configFile = instance.getConfigManager().getGUIConfig("display.yml");
+		if (configFile == null) {
+			instance.getPluginLogger().severe("GUI for display.yml was unable to load correctly!");
+			return;
+		}
+		Section config = configFile.getSection("display.gui");
+		if (config == null) {
+			instance.getPluginLogger()
+					.severe("display.gui returned null, please regenerate your display.yml GUI file.");
+			return;
+		}
 
-		this.layout = config.getStringList("layout").toArray(new String[0]);
+		this.layout = config.getStringList("layout", new ArrayList<>()).toArray(new String[0]);
 		this.title = TextValue.auto(config.getString("title", "display.title"));
 
 		Section backSection = config.getSection("back-icon");
@@ -165,14 +173,8 @@ public class DisplaySettingsGUIManager implements DisplaySettingsGUIManagerInter
 		}
 	}
 
-	/**
-	 * Open the DisplaySettings GUI for a player
-	 *
-	 * @param player  player
-	 * @param isOwner is player owner
-	 */
 	@Override
-	public boolean openDisplaySettingsGUI(Player player, boolean isOwner) {
+	public boolean openDisplaySettingsGUI(Player player, int islandId, boolean isOwner) {
 		Optional<UserData> optionalUserData = instance.getStorageManager().getOnlineUser(player.getUniqueId());
 		if (optionalUserData.isEmpty()) {
 			instance.getPluginLogger()
@@ -180,8 +182,9 @@ public class DisplaySettingsGUIManager implements DisplaySettingsGUIManagerInter
 			return false;
 		}
 		Context<Player> context = Context.player(player);
-		DisplaySettingsGUI gui = new DisplaySettingsGUI(this, context, optionalUserData.get().getHellblockData(),
-				isOwner);
+		Context<Integer> islandContext = Context.island(islandId);
+		DisplaySettingsGUI gui = new DisplaySettingsGUI(this, context, islandContext,
+				optionalUserData.get().getHellblockData(), isOwner);
 		gui.addElement(new DisplaySettingsDynamicGUIElement(backSlot, new ItemStack(Material.AIR)));
 		gui.addElement(new DisplaySettingsDynamicGUIElement(nameSlot, new ItemStack(Material.AIR)));
 		gui.addElement(new DisplaySettingsDynamicGUIElement(bioSlot, new ItemStack(Material.AIR)));
@@ -238,7 +241,17 @@ public class DisplaySettingsGUIManager implements DisplaySettingsGUIManagerInter
 			return;
 		}
 
-		event.setResult(Result.DENY);
+		// Check if any dragged slot is in the GUI (top inventory)
+		for (int slot : event.getRawSlots()) {
+			if (slot < event.getInventory().getSize()) {
+				event.setCancelled(true);
+				return;
+			}
+		}
+
+		// If the drag is only in the player inventory, do nothing special
+		// but still make sure no ghost items appear
+		event.setCancelled(true);
 
 		// Refresh the GUI
 		instance.getScheduler().sync().runLater(gui::refresh, 1, player.getLocation());
@@ -268,7 +281,13 @@ public class DisplaySettingsGUIManager implements DisplaySettingsGUIManagerInter
 			return;
 		}
 
-		if (clickedInv != player.getInventory()) {
+		// Handle shift-clicks, number keys, or clicking outside GUI
+		if (event.getClick().isShiftClick() || event.getClick().isKeyboardClick()) {
+			event.setCancelled(true);
+			return;
+		}
+
+		if (!Objects.equals(clickedInv, player.getInventory())) {
 			int slot = event.getSlot();
 			DisplaySettingsGUIElement element = gui.getElement(slot);
 			if (element == null) {
@@ -287,13 +306,15 @@ public class DisplaySettingsGUIManager implements DisplaySettingsGUIManagerInter
 
 			Pair<CustomItem, Action<Player>[]> decorativeIcon = this.decorativeIcons.get(element.getSymbol());
 			if (decorativeIcon != null) {
+				event.setCancelled(true);
 				ActionManager.trigger(gui.context, decorativeIcon.right());
 				return;
 			}
 
 			if (element.getSymbol() == backSlot) {
 				event.setCancelled(true);
-				instance.getHellblockGUIManager().openHellblockGUI(gui.context.holder(), gui.isOwner);
+				instance.getHellblockGUIManager().openHellblockGUI(gui.context.holder(), gui.islandContext.holder(),
+						gui.isOwner);
 				ActionManager.trigger(gui.context, backActions);
 				return;
 			}
@@ -346,13 +367,16 @@ public class DisplaySettingsGUIManager implements DisplaySettingsGUIManagerInter
 				// Toggle between CHAT and TITLE
 				DisplayChoice newChoice = (current == DisplayChoice.CHAT) ? DisplayChoice.TITLE : DisplayChoice.CHAT;
 				displaySettings.setDisplayChoice(newChoice);
-				gui.context.arg(ContextKeys.HELLBLOCK_DISPLAY_CHOICE, displaySettings.getDisplayChoice());
+				gui.islandContext.arg(ContextKeys.ISLAND_DISPLAY_CHOICE, displaySettings.getDisplayChoice());
 				ActionManager.trigger(gui.context, toggleActions);
 				return;
 			}
 		}
 
 		// Refresh the GUI
+		if (instance.getCooldownManager().shouldUpdateActivity(player.getUniqueId(), 15000)) {
+			gui.hellblockData.updateLastIslandActivity();
+		}
 		instance.getScheduler().sync().runLater(gui::refresh, 1, player.getLocation());
 	}
 
@@ -382,8 +406,9 @@ public class DisplaySettingsGUIManager implements DisplaySettingsGUIManagerInter
 			if ("reset".equalsIgnoreCase(name) || "clear".equalsIgnoreCase(name)) {
 				data.getDisplaySettings().setIslandName(data.getDefaultIslandName());
 				data.getDisplaySettings().setAsDefaultIslandName();
-				gui.context.arg(ContextKeys.HELLBLOCK_NAME, data.getDisplaySettings().getIslandName());
-				instance.getScheduler().executeSync(() -> openDisplaySettingsGUI(player, gui.isOwner));
+				gui.islandContext.arg(ContextKeys.ISLAND_NAME, data.getDisplaySettings().getIslandName());
+				instance.getScheduler()
+						.executeSync(() -> openDisplaySettingsGUI(player, gui.islandContext.holder(), gui.isOwner));
 				return;
 			}
 
@@ -409,7 +434,7 @@ public class DisplaySettingsGUIManager implements DisplaySettingsGUIManagerInter
 			}
 
 			// Banned word detection
-			Set<String> detected = HellblockIslandBioCommand.findBannedWords(name, bannedWords);
+			Set<String> detected = plugin.getCommandManager().getBioPatternHelper().findBannedWords(name, bannedWords);
 			if (!detected.isEmpty()) {
 				updateInputDisplay(nameSection.getString("anvil-settings.banned").replace("{banned}",
 						String.join(", ", detected)));
@@ -426,15 +451,17 @@ public class DisplaySettingsGUIManager implements DisplaySettingsGUIManagerInter
 			// Save new name
 			data.getDisplaySettings().setIslandName(name);
 			data.getDisplaySettings().isNotDefaultIslandName();
-			gui.context.arg(ContextKeys.HELLBLOCK_NAME, data.getDisplaySettings().getIslandName());
+			gui.islandContext.arg(ContextKeys.ISLAND_NAME, data.getDisplaySettings().getIslandName());
 
 			// Reopen settings GUI
-			instance.getScheduler().executeSync(() -> openDisplaySettingsGUI(player, gui.isOwner));
+			instance.getScheduler()
+					.executeSync(() -> openDisplaySettingsGUI(player, gui.islandContext.holder(), gui.isOwner));
 		}
 
 		@Override
 		protected void onCancel() {
-			instance.getScheduler().executeSync(() -> openDisplaySettingsGUI(player, gui.isOwner));
+			instance.getScheduler()
+					.executeSync(() -> openDisplaySettingsGUI(player, gui.islandContext.holder(), gui.isOwner));
 		}
 	}
 
@@ -462,8 +489,9 @@ public class DisplaySettingsGUIManager implements DisplaySettingsGUIManagerInter
 			if ("reset".equalsIgnoreCase(rawBio) || "clear".equalsIgnoreCase(rawBio)) {
 				data.getDisplaySettings().setIslandBio(data.getDefaultIslandBio());
 				data.getDisplaySettings().setAsDefaultIslandBio();
-				gui.context.arg(ContextKeys.HELLBLOCK_BIO, data.getDisplaySettings().getIslandBio());
-				instance.getScheduler().executeSync(() -> openDisplaySettingsGUI(player, gui.isOwner));
+				gui.islandContext.arg(ContextKeys.ISLAND_BIO, data.getDisplaySettings().getIslandBio());
+				instance.getScheduler()
+						.executeSync(() -> openDisplaySettingsGUI(player, gui.islandContext.holder(), gui.isOwner));
 				return;
 			}
 
@@ -474,11 +502,10 @@ public class DisplaySettingsGUIManager implements DisplaySettingsGUIManagerInter
 
 			String preProcessed = rawBio.replace("\\n", "\n").trim();
 
-			String formattedBio = AdventureHelper.getMiniMessage()
-					.serialize(LegacyComponentSerializer.legacyAmpersand().deserialize(preProcessed));
+			String formattedBio = AdventureHelper
+					.componentToMiniMessage(AdventureHelper.legacyToComponent(preProcessed));
 
-			String plain = PlainTextComponentSerializer.plainText()
-					.serialize(AdventureHelper.getMiniMessage().deserialize(preProcessed));
+			String plain = AdventureHelper.componentToPlainText(AdventureHelper.miniMessageToComponent(preProcessed));
 
 			// Line count
 			if (preProcessed.split("\n").length > maxLines) {
@@ -515,7 +542,7 @@ public class DisplaySettingsGUIManager implements DisplaySettingsGUIManagerInter
 			}
 
 			// Banned words
-			Set<String> detected = HellblockIslandBioCommand.findBannedWords(plain, bannedWords);
+			Set<String> detected = plugin.getCommandManager().getBioPatternHelper().findBannedWords(plain, bannedWords);
 			if (!detected.isEmpty()) {
 				updateInputDisplay(
 						bioSection.getString("anvil-settings.banned").replace("{banned}", String.join(", ", detected)));
@@ -532,14 +559,16 @@ public class DisplaySettingsGUIManager implements DisplaySettingsGUIManagerInter
 			// Save
 			data.getDisplaySettings().setIslandBio(formattedBio);
 			data.getDisplaySettings().isNotDefaultIslandBio();
-			gui.context.arg(ContextKeys.HELLBLOCK_BIO, data.getDisplaySettings().getIslandBio());
-			
-			instance.getScheduler().executeSync(() -> openDisplaySettingsGUI(player, gui.isOwner));
+			gui.islandContext.arg(ContextKeys.ISLAND_BIO, data.getDisplaySettings().getIslandBio());
+
+			instance.getScheduler()
+					.executeSync(() -> openDisplaySettingsGUI(player, gui.islandContext.holder(), gui.isOwner));
 		}
 
 		@Override
 		protected void onCancel() {
-			instance.getScheduler().executeSync(() -> openDisplaySettingsGUI(player, gui.isOwner));
+			instance.getScheduler()
+					.executeSync(() -> openDisplaySettingsGUI(player, gui.islandContext.holder(), gui.isOwner));
 		}
 
 		private int countColorCodes(String input) {

@@ -1,0 +1,132 @@
+# =========================================================
+#                    🧪 Potion Configuration 🧪
+# =========================================================
+# This file defines custom potion recipes and their brewing
+# behavior for the Hellblock plugin.
+#
+# Each potion entry can define display properties, potion effects,
+# NBT tags, and a custom brewing chain that determines how it’s made.
+#
+# ───────────────
+# 🔧 Structure
+# ───────────────
+# potions:
+#   <potion-id>:
+#     enable: true|false          # Whether this potion is active
+#     material: POTION|SPLASH_POTION|LINGERING_POTION
+#     glowing: true|false         # (Optional) Makes potion item glow
+#
+#     display:
+#       name: '<color>Potion Name'
+#       lore:
+#         - '<gray>Description line'
+#
+#     components:                 # Vanilla potion NBT data
+#       minecraft:potion_contents:
+#         custom_color: <RGB>     # Integer RGB color value
+#         custom_effects:         # Optional list of potion effects
+#           - type: <EFFECT_TYPE> # Example: INSTANT_HEALTH, SPEED, etc.
+#             amplifier: <level>
+#             duration: <ticks>
+#
+#     tags:                       # Custom NBT tags for internal logic
+#       HellblockRecipe:
+#         isNetherBottle: true|false
+#         brewInputTag: <STRING>  # Identifier for potion brewing input
+#         chainStage: <INT>       # Brewing chain order stage
+#
+#     brewing:                    # Brewing recipes for this potion
+#       - ingredient: <ITEM>      # The ingredient used
+#         input: <TAG>            # Input potion tag (from brewInputTag)
+#         fuel: <ITEM>            # (Optional) Required brewing fuel
+#         result: <TAG>           # Resulting potion tag
+#         inputType: POTION       # Input item type
+#         outputType: POTION      # Resulting item type
+#
+# ───────────────
+# 🧱 Example
+# ───────────────
+# potions:
+#   custom-healing:
+#     enable: true
+#     material: SPLASH_POTION
+#     display:
+#       name: '<light_purple>Glow Heal'
+#       lore:
+#         - '<gray>Heals with a sparkle'
+#     components:
+#       minecraft:potion_contents:
+#         custom_color: 14548991
+#         custom_effects:
+#           - type: INSTANT_HEALTH
+#             amplifier: 1
+#             duration: 1
+#     tags:
+#       HellblockRecipe:
+#         isNetherBottle: false
+#         brewInputTag: WATER
+#         chainStage: 1
+#     brewing:
+#       - ingredient: GHAST_TEAR
+#         input: WATER
+#         inputType: POTION
+#         outputType: SPLASH_POTION
+#
+# ───────────────
+# 💡 Notes
+# ───────────────
+# • MiniMessage color tags are supported in potion names and lore.
+# • `components` follow the vanilla data structure for potions.
+# • Brewing recipes chain together using `brewInputTag` and `chainStage`.
+# • Set "enable: false" to disable a potion entirely.
+# • The plugin automatically registers all enabled potions on startup.
+# =========================================================
+
+potions:
+  lava-bottle:
+    enable: true
+    material: POTION
+    glowing: true
+    display:
+      name: '<red>Lava Bottle'
+      lore:
+        - '<dark_red>Scorching hot!'
+    components:
+      minecraft:potion_contents:
+        custom_color: 16711680
+    tags:
+      HellblockRecipe:
+        isNetherBottle: true
+        brewInputTag: LAVA
+        chainStage: 0
+    brewing:
+      - ingredient: ICE
+        input: LAVA
+        fuel: BLAZE_POWDER
+        result: AWKWARD
+        inputType: POTION
+        outputType: POTION
+  custom-healing:
+    enable: true
+    material: SPLASH_POTION
+    display:
+      name: '<light_purple>Glow Heal'
+      lore:
+        - '<gray>Heals with a sparkle'
+    components:
+      minecraft:potion_contents:
+        custom_effects:
+          - id: instant_health
+            amplifier: 1
+            duration: 1
+        custom_color: 14548991
+    tags:
+      HellblockRecipe:
+        isNetherBottle: false
+        brewInputTag: WATER
+        chainStage: 1
+    brewing:
+      - ingredient: GHAST_TEAR
+        input: WATER
+        inputType: POTION
+        outputType: SPLASH_POTION

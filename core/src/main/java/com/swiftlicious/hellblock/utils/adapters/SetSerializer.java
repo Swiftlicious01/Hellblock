@@ -2,9 +2,9 @@ package com.swiftlicious.hellblock.utils.adapters;
 
 import java.lang.reflect.Type;
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.Set;
 
-import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonDeserializationContext;
 import com.google.gson.JsonDeserializer;
@@ -12,8 +12,6 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonNull;
 import com.google.gson.JsonSerializationContext;
 import com.google.gson.JsonSerializer;
-
-import com.swiftlicious.hellblock.HellblockPlugin;
 
 public class SetSerializer<T> implements JsonSerializer<Set<T>>, JsonDeserializer<Set<T>> {
 
@@ -37,14 +35,12 @@ public class SetSerializer<T> implements JsonSerializer<Set<T>>, JsonDeserialize
 	 * @return the serialized object
 	 */
 	@Override
-	public JsonElement serialize(Set<T> set, Type type, JsonSerializationContext jsonSerializationContext) {
+	public JsonElement serialize(Set<T> set, Type type, JsonSerializationContext context) {
 		if (set == null || set.isEmpty()) {
 			return JsonNull.INSTANCE;
 		}
-		final JsonArray jsonArray = new JsonArray();
-
-		set.forEach(entry -> jsonArray.add(jsonSerializationContext.serialize(entry)));
-
+		JsonArray jsonArray = new JsonArray();
+		set.stream().filter(Objects::nonNull).forEach(entry -> jsonArray.add(context.serialize(entry)));
 		return jsonArray;
 	}
 
@@ -57,18 +53,15 @@ public class SetSerializer<T> implements JsonSerializer<Set<T>>, JsonDeserialize
 	 * @return deserialized hashmap
 	 */
 	@Override
-	public Set<T> deserialize(JsonElement jsonElement, Type type,
-			JsonDeserializationContext jsonDeserializationContext) {
-		final Gson gson = HellblockPlugin.getInstance().getStorageManager().getGson();
-
-		final JsonArray JsonArray = (JsonArray) jsonElement;
-
-		final JsonArray collection = JsonArray.getAsJsonArray();
-
-		final Set<T> reAssembledHashSet = new HashSet<>();
-		for (int i = 0; i < collection.size(); i++) {
-			reAssembledHashSet.add(gson.fromJson(collection.get(i), collectionClassType));
+	public Set<T> deserialize(JsonElement json, Type type, JsonDeserializationContext context) {
+		if (json == null || json.isJsonNull()) {
+			return new HashSet<>();
 		}
-		return reAssembledHashSet;
+		JsonArray jsonArray = json.getAsJsonArray();
+		Set<T> result = new HashSet<>();
+		for (JsonElement element : jsonArray) {
+			result.add(context.deserialize(element, collectionClassType));
+		}
+		return result;
 	}
 }

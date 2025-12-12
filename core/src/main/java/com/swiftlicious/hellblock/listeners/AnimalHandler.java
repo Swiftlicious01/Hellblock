@@ -1,192 +1,231 @@
 package com.swiftlicious.hellblock.listeners;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Stream;
 
-import org.bukkit.Bukkit;
-import org.bukkit.Chunk;
 import org.bukkit.Location;
-import org.bukkit.Material;
-import org.bukkit.World;
-import org.bukkit.block.Block;
-import org.bukkit.block.BlockFace;
+import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Animals;
-import org.bukkit.entity.EntityType;
-import org.bukkit.entity.Player;
+import org.bukkit.entity.Entity;
+import org.bukkit.persistence.PersistentDataContainer;
+import org.bukkit.persistence.PersistentDataType;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
-import com.swiftlicious.hellblock.listeners.rain.LavaRainTask;
 import com.swiftlicious.hellblock.player.HellblockData;
 import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.protection.HellblockFlag;
 import com.swiftlicious.hellblock.protection.HellblockFlag.AccessType;
 import com.swiftlicious.hellblock.scheduler.SchedulerTask;
 import com.swiftlicious.hellblock.utils.RandomUtils;
+import com.swiftlicious.hellblock.world.BlockPos;
+import com.swiftlicious.hellblock.world.ChunkPos;
+import com.swiftlicious.hellblock.world.CustomBlockState;
+import com.swiftlicious.hellblock.world.CustomChunk;
 import com.swiftlicious.hellblock.world.HellblockWorld;
+import com.swiftlicious.hellblock.world.Pos3;
 
 public final class AnimalHandler implements Runnable {
 
-	private final UUID playerUUID;
-	private final SchedulerTask cancellableTask;
+	private final int islandId;
+	private SchedulerTask spawnTask;
 
-	private final Set<Location> spawnCache = ConcurrentHashMap.newKeySet();
+	private final HellblockPlugin plugin;
+
+	private final Set<Pos3> spawnCache = ConcurrentHashMap.newKeySet();
+
+	private static final NamespacedKey OWNER_KEY = new NamespacedKey(HellblockPlugin.getInstance(), "hellblock_owner");
 
 	private static final int MIN_LIGHT_LEVEL = 9;
 
-	public AnimalHandler(@NotNull UUID playerUUID) {
-		this.playerUUID = playerUUID;
-		this.cancellableTask = HellblockPlugin.getInstance().getScheduler().asyncRepeating(this::run,
-				RandomUtils.generateRandomInt(1, 3), RandomUtils.generateRandomInt(1, 15), TimeUnit.MINUTES);
+	public AnimalHandler(@NotNull HellblockPlugin plugin, int islandId) {
+		this.plugin = plugin;
+		this.islandId = islandId;
+		this.spawnTask = plugin.getScheduler().asyncRepeating(this::run, RandomUtils.generateRandomInt(1, 3),
+				RandomUtils.generateRandomInt(1, 15), TimeUnit.MINUTES);
 
 		// schedule cache clear once
-		HellblockPlugin.getInstance().getScheduler().asyncRepeating(spawnCache::clear, 15, 30, TimeUnit.MINUTES);
+		plugin.getScheduler().asyncRepeating(spawnCache::clear, 15, 30, TimeUnit.MINUTES);
 	}
 
 	@Override
 	public void run() {
-		final Player player = Bukkit.getPlayer(playerUUID);
-		if (player == null || !player.isOnline()) {
-			return;
-		}
-		if (!HellblockPlugin.getInstance().getHellblockHandler().isInCorrectWorld(player)) {
-			return;
-		}
-		if (player.getLocation() == null) {
+		Set<UUID> players = plugin.getIslandManager().getPlayersOnIsland(islandId);
+		if (players.isEmpty()) {
 			return;
 		}
 
-		HellblockPlugin.getInstance().getCoopManager().getHellblockOwnerOfVisitingIsland(player)
-				.thenAccept(ownerUUID -> {
-					if (ownerUUID == null) {
+		plugin.getStorageManager().getOfflineUserDataByIslandId(islandId, plugin.getConfigManager().lockData())
+				.thenAccept(result -> {
+					if (result.isEmpty()) {
 						return;
 					}
-					HellblockPlugin.getInstance().getStorageManager()
-							.getOfflineUserData(ownerUUID, HellblockPlugin.getInstance().getConfigManager().lockData())
-							.thenAccept((result) -> {
-								if (result.isEmpty()) {
-									return;
-								}
-								final UserData offlineUser = result.get();
-								final Optional<HellblockWorld<?>> world = HellblockPlugin.getInstance()
-										.getWorldManager().getWorld(HellblockPlugin.getInstance().getWorldManager()
-												.getHellblockWorldFormat(offlineUser.getHellblockData().getID()));
-								if (world.isEmpty()) {
-									throw new NullPointerException(
-											"World returned null, please try to regenerate the world before reporting this issue.");
-								}
-								final World bukkitWorld = world.get().bukkitWorld();
-								final Optional<LavaRainTask> lavaRain = HellblockPlugin.getInstance()
-										.getLavaRainHandler().getLavaRainingWorlds().stream().filter(task -> bukkitWorld
-												.getName().equalsIgnoreCase(task.getWorld().worldName()))
-										.findAny();
-								if (lavaRain.isPresent() && lavaRain.get().isLavaRaining()) {
-									return;
-								}
-								if (offlineUser.getHellblockData().isAbandoned()) {
-									return;
-								}
-								if (offlineUser.getHellblockData()
-										.getProtectionValue(HellblockFlag.FlagType.MOB_SPAWNING) != AccessType.ALLOW) {
-									return;
-								}
 
-								HellblockPlugin.getInstance().getBiomeHandler()
-										.getHellblockChunks(bukkitWorld,
-												offlineUser.getHellblockData().getBoundingBox())
-										.thenAccept(chunks -> HellblockPlugin.getInstance().getScheduler()
-												.executeSync(() -> {
-													final int maxAnimalCount = getMaxAnimalCount(
-															offlineUser.getHellblockData());
-													handleAnimals(bukkitWorld, chunks, offlineUser.getHellblockData(),
-															maxAnimalCount);
-												}));
+					final UserData ownerData = result.get();
+					final HellblockData hellblockData = ownerData.getHellblockData();
 
-							}).exceptionally(ex -> {
-								HellblockPlugin.getInstance().getPluginLogger()
-										.severe("Error fetching offline user data", ex);
-								return null;
-							});
+					if (hellblockData.isAbandoned()) {
+						return;
+					}
+					if (hellblockData.getProtectionValue(HellblockFlag.FlagType.MOB_SPAWNING) != AccessType.ALLOW) {
+						return;
+					}
+
+					final Optional<HellblockWorld<?>> worldOpt = plugin.getWorldManager()
+							.getWorld(plugin.getWorldManager().getHellblockWorldFormat(islandId));
+
+					if (worldOpt.isEmpty() || worldOpt.get().bukkitWorld() == null) {
+						throw new NullPointerException(
+								"World returned null, please try to regenerate the world before reporting this issue.");
+					}
+
+					if (plugin.getNetherWeatherManager().isWeatherActive(islandId)) {
+						return;
+					}
+
+					final HellblockWorld<?> hellWorld = worldOpt.get();
+					plugin.getProtectionManager().getHellblockChunks(hellWorld, islandId)
+							.thenAccept(chunkPositions -> plugin.getScheduler().executeSync(() -> {
+								final int maxAnimalCount = getMaxAnimalCount(hellblockData);
+								handleAnimals(hellWorld, chunkPositions, hellblockData, maxAnimalCount);
+							}));
+
 				}).exceptionally(ex -> {
-					HellblockPlugin.getInstance().getPluginLogger().severe("Error resolving owner for animal spawn",
-							ex);
+					plugin.getPluginLogger().severe("Error fetching offline user data from islandId=" + islandId, ex);
 					return null;
 				});
 	}
 
-	private void handleAnimals(World world, List<Chunk> chunks, HellblockData hellblockData, int maxAnimalCount) {
-		double bonus = HellblockPlugin.getInstance().getMobSpawnHandler().getCachedMobSpawnBonus(hellblockData);
+	private CompletableFuture<Void> handleAnimals(@NotNull HellblockWorld<?> world,
+			@NotNull Set<ChunkPos> chunkPositions, @NotNull HellblockData hellblockData, int maxAnimalCount) {
 
-		for (Chunk chunk : chunks) {
-			final long currentCount = Stream.of(chunk.getEntities()).filter(e -> e instanceof Animals)
-					.limit(maxAnimalCount + 1).count();
+		double bonus = plugin.getMobSpawnHandler().getCachedMobSpawnBonus(hellblockData);
+		int islandId = hellblockData.getIslandId();
 
-			if (currentCount > maxAnimalCount) {
+		long animalCount = world.bukkitWorld().getEntities().stream().filter(e -> e instanceof Animals).filter(e -> {
+			PersistentDataContainer container = e.getPersistentDataContainer();
+			Integer storedId = container.get(OWNER_KEY, PersistentDataType.INTEGER);
+			return storedId != null && storedId.equals(islandId);
+		}).count();
+
+		if (animalCount >= maxAnimalCount) {
+			return CompletableFuture.completedFuture(null);
+		}
+
+		List<CompletableFuture<Void>> tasks = new ArrayList<>();
+
+		for (ChunkPos chunkPos : chunkPositions) {
+			Optional<CustomChunk> optionalChunk = world.getLoadedChunk(chunkPos);
+			if (optionalChunk.isEmpty())
 				continue;
-			}
 
+			CustomChunk chunk = optionalChunk.get();
 			int attempts = Math.min(1 + (int) Math.floor(bonus), 5);
+
 			for (int i = 0; i < attempts; i++) {
-				final Block block = findAnimalSpawnBlock(chunk);
-				if (block == null)
-					continue;
-
-				final Location spawn = block.getLocation().add(0.5, 1, 0.5);
-				if (isValidSpawnLocation(spawn, block)) {
-					final int level = (int) hellblockData.getLevel();
-
-					if (rollSpawnChance(level, bonus)) {
-						EntityType toSpawn = RandomUtils.spawnRandomAnimal(world, chunk, bonus, spawnCache);
-						if (toSpawn != null) {
-							world.spawnEntity(spawn, toSpawn, true);
-							spawnCache.add(block.getLocation());
-						}
+				CompletableFuture<Void> task = findAnimalSpawnPos(chunk, world).thenCompose(pos -> {
+					if (pos == null || spawnCache.contains(pos)) {
+						return CompletableFuture.completedFuture(null);
 					}
-				}
+
+					return isValidSpawnLocation(world, pos).thenCompose(valid -> {
+						if (!valid)
+							return CompletableFuture.completedFuture(null);
+
+						if (!rollSpawnChance((int) hellblockData.getIslandLevel(), bonus)) {
+							return CompletableFuture.completedFuture(null);
+						}
+
+						return RandomUtils.spawnRandomAnimal(world, chunkPos, bonus, spawnCache).thenAccept(type -> {
+							if (type != null) {
+								Location spawn = pos.toLocation(world.bukkitWorld()).clone().add(0.5, 1, 0.5);
+								Entity entity = world.bukkitWorld().spawnEntity(spawn, type);
+								entity.getPersistentDataContainer().set(OWNER_KEY, PersistentDataType.INTEGER,
+										islandId);
+								spawnCache.add(pos);
+							}
+						});
+					});
+				});
+
+				tasks.add(task);
 			}
 		}
+
+		return CompletableFuture.allOf(tasks.toArray(CompletableFuture[]::new));
 	}
 
-	private Block findAnimalSpawnBlock(Chunk chunk) {
-		Set<Material> validSpawnBlocks = Set.of(Material.GRASS_BLOCK, Material.MOSS_BLOCK, Material.MYCELIUM,
-				Material.PODZOL, Material.WARPED_NYLIUM, Material.CRIMSON_NYLIUM, Material.SOUL_SAND,
-				Material.SOUL_SOIL);
+	@Nullable
+	private CompletableFuture<Pos3> findAnimalSpawnPos(@NotNull CustomChunk chunk, @NotNull HellblockWorld<?> world) {
+		Set<String> validKeys = Set.of("minecraft:grass_block", "minecraft:moss_block", "minecraft:mycelium",
+				"minecraft:podzol", "minecraft:warped_nylium", "minecraft:crimson_nylium", "minecraft:soul_sand",
+				"minecraft:soul_soil");
 
-		for (int attempts = 0; attempts < 50; attempts++) {
-			final Block block = chunk.getBlock(RandomUtils.generateRandomInt(16),
-					RandomUtils.generateRandomInt(chunk.getWorld().getMaxHeight() - 1),
-					RandomUtils.generateRandomInt(16));
+		List<CompletableFuture<Pos3>> attempts = new ArrayList<>();
 
-			if (validSpawnBlocks.contains(block.getType()) && !spawnCache.contains(block.getLocation())) {
-				return block;
-			}
+		for (int i = 0; i < 50; i++) {
+			int x = RandomUtils.generateRandomInt(16);
+			int y = RandomUtils.generateRandomInt(world.bukkitWorld().getMaxHeight());
+			int z = RandomUtils.generateRandomInt(16);
+
+			BlockPos local = BlockPos.fromSection(chunk.chunkPos(), x, y, z);
+			Pos3 pos = local.toPos3(chunk.chunkPos());
+
+			attempts.add(world.getBlockState(pos).thenApply(stateOpt -> {
+				if (stateOpt.isEmpty())
+					return null;
+				String key = stateOpt.get().type().type().value().toLowerCase();
+				return validKeys.contains(key) && !spawnCache.contains(pos) ? pos : null;
+			}));
 		}
 
-		return null;
+		return CompletableFuture.allOf(attempts.toArray(CompletableFuture[]::new)).thenApply(
+				v -> attempts.stream().map(CompletableFuture::join).filter(Objects::nonNull).findFirst().orElse(null));
 	}
 
-	private boolean isValidSpawnLocation(Location spawn, Block block) {
-		return (spawn.getBlock().isEmpty() || spawn.getBlock().isPassable())
-				&& (spawn.getBlock().getRelative(BlockFace.UP).isEmpty()
-						|| spawn.getBlock().getRelative(BlockFace.UP).isPassable())
-				&& block.getLightLevel() > MIN_LIGHT_LEVEL;
+	@NotNull
+	private CompletableFuture<Boolean> isValidSpawnLocation(@NotNull HellblockWorld<?> world, @NotNull Pos3 pos) {
+		Pos3 above = pos.up();
+		Pos3 twoAbove = above.up();
+
+		CompletableFuture<Boolean> baseSolidFuture = world.getBlockState(pos)
+				.thenApply(state -> state.map(s -> !s.isAir()).orElse(false));
+
+		CompletableFuture<Boolean> aboveClearFuture = world.getBlockState(above)
+				.thenApply(state -> state.map(CustomBlockState::isAir).orElse(true));
+
+		CompletableFuture<Boolean> headClearFuture = world.getBlockState(twoAbove)
+				.thenApply(state -> state.map(CustomBlockState::isAir).orElse(true));
+
+		return CompletableFuture.allOf(baseSolidFuture, aboveClearFuture, headClearFuture).thenApply(v -> {
+			boolean baseSolid = baseSolidFuture.join();
+			boolean aboveClear = aboveClearFuture.join();
+			boolean headClear = headClearFuture.join();
+
+			int lightLevel = world.bukkitWorld().getBlockAt(pos.x(), pos.y(), pos.z()).getLightLevel();
+			return baseSolid && aboveClear && headClear && lightLevel > MIN_LIGHT_LEVEL;
+		});
 	}
 
 	public void stopAnimalSpawning() {
-		if (!this.cancellableTask.isCancelled()) {
-			this.cancellableTask.cancel();
+		if (this.spawnTask != null && !this.spawnTask.isCancelled()) {
+			this.spawnTask.cancel();
+			this.spawnTask = null;
 		}
 	}
 
-	private int getMaxAnimalCount(HellblockData hellblockData) {
+	private int getMaxAnimalCount(@NotNull HellblockData hellblockData) {
 		final int base = 25;
 		// Apply upgrade boost
-		double bonus = HellblockPlugin.getInstance().getMobSpawnHandler().getCachedMobSpawnBonus(hellblockData);
+		double bonus = plugin.getMobSpawnHandler().getCachedMobSpawnBonus(hellblockData);
 		// Treat bonus as a multiplier: base + percent bonus (e.g., +20% for 0.2)
 		int boosted = (int) Math.floor(base + (base * bonus));
 		return Math.min(boosted, 150); // Apply cap

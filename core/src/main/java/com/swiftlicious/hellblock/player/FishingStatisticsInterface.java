@@ -137,6 +137,6 @@ public interface FishingStatisticsInterface {
 	}
 
 	enum Type {
-		MAX_SIZE, AMOUNT_OF_FISH_CAUGHT
+		MAX_SIZE, AMOUNT_OF_FISH_CAUGHT;
 	}
 }

@@ -4,28 +4,28 @@ import java.time.Instant;
 import java.util.UUID;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
-import com.swiftlicious.hellblock.listeners.NetherGeneratorHandler.LocationKey;
+import com.swiftlicious.hellblock.world.Pos3;
 
 public class GenBlock {
-	
-	private final LocationKey location;
+
+	private final Pos3 pos;
 	private final UUID uuid;
 	private final Instant timestamp;
 	private boolean pistonPowered = false;
 
-	public GenBlock(LocationKey l, UUID uuid) {
-		this(l, uuid, false);
+	public GenBlock(Pos3 pos, UUID uuid) {
+		this(pos, uuid, false);
 	}
 
-	public GenBlock(LocationKey l, UUID uuid, boolean pistonPowered) {
-		this.location = l;
+	public GenBlock(Pos3 pos, UUID uuid, boolean pistonPowered) {
+		this.pos = pos;
 		this.uuid = uuid;
 		this.timestamp = Instant.now();
 		this.pistonPowered = pistonPowered;
 	}
 
-	public LocationKey getLocation() {
-		return location;
+	public Pos3 getPosition() {
+		return pos;
 	}
 
 	public UUID getUUID() {

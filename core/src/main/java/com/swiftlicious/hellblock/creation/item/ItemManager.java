@@ -1,6 +1,15 @@
 package com.swiftlicious.hellblock.creation.item;
 
-import java.util.*;
+import static java.util.Objects.requireNonNull;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.stream.Stream;
 
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
@@ -10,7 +19,6 @@ import org.bukkit.NamespacedKey;
 import org.bukkit.Registry;
 import org.bukkit.block.Block;
 import org.bukkit.block.Skull;
-import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.FishHook;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Cancellable;
@@ -47,13 +55,12 @@ import com.swiftlicious.hellblock.creation.item.damage.VanillaDurabilityItem;
 import com.swiftlicious.hellblock.creation.item.factory.BukkitItemFactory;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.handlers.VersionHelper;
+import com.swiftlicious.hellblock.utils.EnchantmentUtils;
 import com.swiftlicious.hellblock.utils.EventUtils;
 import com.swiftlicious.hellblock.utils.ItemStackUtils;
 import com.swiftlicious.hellblock.utils.LocationUtils;
-import net.kyori.adventure.sound.Sound;
 
-import static java.util.Objects.requireNonNull;
-import java.util.stream.Stream;
+import net.kyori.adventure.sound.Sound;
 
 public class ItemManager implements ItemManagerInterface, Listener {
 
@@ -68,7 +75,7 @@ public class ItemManager implements ItemManagerInterface, Listener {
 		this.factory = BukkitItemFactory.create(plugin);
 	}
 
-	public void init() {
+	public void registerProviders() {
 		this.registerItemProvider(new ItemProvider() {
 			@NotNull
 			@Override
@@ -106,9 +113,12 @@ public class ItemManager implements ItemManagerInterface, Listener {
 		Bukkit.getPluginManager().registerEvents(this, instance);
 		this.resetItemDetectionOrder();
 		itemProviders.values().forEach(provider -> instance.debug("Registered ItemProvider: " + provider.identifier()));
-		instance.debug("Loaded " + items.size() + " items");
-		instance.debug("Item order: " + Arrays.toString(
-				Arrays.stream(itemDetectArray).map(ExternalProvider::identifier).toList().toArray(new String[0])));
+		instance.debug(items.size() > 0 ? "Loaded " + items.size() + " item" + (items.size() == 1 ? "" : "s")
+				: "No items found to load");
+		if (itemDetectArray.length > 0) {
+			instance.debug("Item order: " + Arrays.toString(
+					Arrays.stream(itemDetectArray).map(ExternalProvider::identifier).toList().toArray(new String[0])));
+		}
 	}
 
 	@Override
@@ -343,7 +353,8 @@ public class ItemManager implements ItemManagerInterface, Listener {
 			return;
 		}
 		if (!incorrectUsage) {
-			final int unBreakingLevel = itemStack.getEnchantmentLevel(Enchantment.UNBREAKING);
+			final int unBreakingLevel = itemStack
+					.getEnchantmentLevel(EnchantmentUtils.getCompatibleEnchantment("unbreaking", "durability"));
 			if (Math.random() > (double) 1 / (unBreakingLevel + 1)) {
 				return;
 			}

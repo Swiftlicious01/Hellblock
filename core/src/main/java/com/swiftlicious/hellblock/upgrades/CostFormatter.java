@@ -9,6 +9,18 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
+import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.utils.StringUtils;
+
+/**
+ * Utility class for formatting and describing upgrade costs.
+ * <p>
+ * Handles conversion of raw item names to readable formats, pluralization, and
+ * construction of combined cost descriptions for display in chat or UI.
+ */
 public class CostFormatter {
 
 	private static final Set<String> UNCOUNTABLE_SUFFIXES = Set.of("STONE", "COBBLESTONE", "NETHERRACK", "BASALT",
@@ -22,22 +34,32 @@ public class CostFormatter {
 			"SHOVEL", "HOE", "EGG", "COOKIE", "PEARL", "EYE", "DYE", "BEEF", "MUTTON", "RABBIT", "CHOP", "FISH",
 			"ARROW", "BOAT", "MINECART", "BRICK", "BOOK");
 
-	protected static final NumberFormat MONEY_FORMAT = NumberFormat.getCurrencyInstance(Locale.getDefault());
+	/** Currency formatter based on the plugin's configured locale */
+	public static final NumberFormat MONEY_FORMAT = NumberFormat
+			.getCurrencyInstance(HellblockPlugin.getInstance().getTranslationManager().getForcedLocale());
 
-	public static String format(List<UpgradeCost> costs, Map<String, CostHandler> handlers) {
-		// Separate item costs vs others
+	/**
+	 * Formats a list of {@link UpgradeCost}s into a single human-readable string.
+	 * <p>
+	 * Item-based costs are listed first, followed by others (e.g., money, XP).
+	 *
+	 * @param costs    the list of costs to format
+	 * @param handlers map of registered cost handlers for describing costs
+	 * @return a formatted string of all costs, e.g., "2 × Iron Ingots & 50 XP"
+	 */
+	@NotNull
+	public static String format(@NotNull List<UpgradeCost> costs, @NotNull Map<UpgradeCostType, CostHandler> handlers) {
 		List<String> itemDescriptions = new ArrayList<>();
 		List<String> otherDescriptions = new ArrayList<>();
 
 		for (UpgradeCost cost : costs) {
-			String type = cost.getType().toUpperCase(Locale.ROOT);
+			UpgradeCostType type = cost.getType();
 			CostHandler handler = handlers.get(type);
 
 			String desc;
 			if (handler != null) {
 				desc = handler.describe(cost);
-			} else if ("ITEM".equals(type)) {
-				// Handle multiple or single items
+			} else if (type == UpgradeCostType.ITEM) {
 				List<String> itemNames = Arrays.stream(cost.getItem().split(",")).map(String::trim)
 						.map(CostFormatter::toPrettyName).map(name -> pluralizeIfNeeded(name, cost.getAmount()))
 						.toList();
@@ -53,18 +75,19 @@ public class CostFormatter {
 				desc = String.format("%.0f × %s", cost.getAmount(), itemPart);
 				itemDescriptions.add(desc);
 				continue;
-			} else if ("MONEY".equals(type)) {
+			} else if (type == UpgradeCostType.MONEY) {
 				desc = MONEY_FORMAT.format(cost.getAmount());
-			} else if ("EXP".equals(type) || "EXPERIENCE".equals(type) || "XP".equals(type)) {
+			} else if (type == UpgradeCostType.POINTS) {
+				desc = String.format("%.0f Points", (int) cost.getAmount());
+			} else if (UpgradeCostType.isExpUpgradeCostType(type)) {
 				desc = String.format("%.0f XP", cost.getAmount());
 			} else {
-				desc = String.format("%.0f %s", cost.getAmount(), type);
+				desc = String.format("%.0f %s", cost.getAmount(), StringUtils.toProperCase(type.toString()));
 			}
 
 			otherDescriptions.add(desc);
 		}
 
-		// Combine all descriptions (items first, others next)
 		List<String> allParts = new ArrayList<>();
 		if (!itemDescriptions.isEmpty())
 			allParts.addAll(itemDescriptions);
@@ -73,8 +96,6 @@ public class CostFormatter {
 
 		if (allParts.isEmpty())
 			return "";
-
-		// Format with "&" for 2 entries, commas + "&" for 3+
 		if (allParts.size() == 1)
 			return allParts.get(0);
 		if (allParts.size() == 2)
@@ -83,36 +104,54 @@ public class CostFormatter {
 		return String.join(", ", allParts.subList(0, allParts.size() - 1)) + " & " + allParts.get(allParts.size() - 1);
 	}
 
-	/** Parses raw item list definitions (single, inline, or multi-line) */
-	public static List<String> parseItems(String rawItemData) {
+	/**
+	 * Parses a comma- or newline-separated string of item names into a list.
+	 *
+	 * @param rawItemData the raw item string
+	 * @return a list of trimmed item names
+	 */
+	@NotNull
+	public static List<String> parseItems(@Nullable String rawItemData) {
 		if (rawItemData == null || rawItemData.isBlank()) {
 			return List.of();
 		}
-
 		return Arrays.stream(rawItemData.split("[,\\n]")).map(String::trim).filter(s -> !s.isEmpty()).toList();
 	}
 
-	/** Nicely formats multiple item names in human-readable English */
-	public static String formatItemList(List<String> items, double amount) {
+	/**
+	 * Formats a list of item names into a human-readable phrase. Handles
+	 * pluralization and conjunctions (e.g., "Iron Ingots & Gold Ingots").
+	 *
+	 * @param items  the list of item names
+	 * @param amount the amount to determine singular/plural
+	 * @return a formatted item string
+	 */
+	@NotNull
+	public static String formatItemList(@NotNull List<String> items, double amount) {
 		if (items.isEmpty())
 			return "items";
 
 		List<String> prettyItems = items.stream().map(CostFormatter::toPrettyName)
 				.map(name -> pluralizeIfNeeded(name, amount)).toList();
 
-		if (prettyItems.size() == 1) {
+		if (prettyItems.size() == 1)
 			return prettyItems.get(0);
-		}
-		if (prettyItems.size() == 2) {
+		if (prettyItems.size() == 2)
 			return prettyItems.get(0) + " & " + prettyItems.get(1);
-		}
 
 		return String.join(", ", prettyItems.subList(0, prettyItems.size() - 1)) + " & "
 				+ prettyItems.get(prettyItems.size() - 1);
 	}
 
-	/** Converts "IRON_INGOT" → "Iron Ingot" */
-	public static String toPrettyName(String rawName) {
+	/**
+	 * Converts a raw material name like {@code IRON_INGOT} to a nicely formatted
+	 * name like {@code Iron Ingot}.
+	 *
+	 * @param rawName the raw enum-style material name
+	 * @return a human-readable version of the name
+	 */
+	@NotNull
+	public static String toPrettyName(@Nullable String rawName) {
 		if (rawName == null || rawName.isEmpty()) {
 			return "";
 		}
@@ -121,36 +160,44 @@ public class CostFormatter {
 				.collect(Collectors.joining(" "));
 	}
 
-	// replace your pluralizeIfNeeded with this:
-	private static String pluralizeIfNeeded(String prettyName, double amount) {
+	/**
+	 * Pluralizes the name if the amount is greater than 1 and the item is
+	 * considered countable.
+	 *
+	 * @param prettyName the item name (e.g., "Iron Ingot")
+	 * @param amount     the quantity of items
+	 * @return pluralized name if needed
+	 */
+	@NotNull
+	private static String pluralizeIfNeeded(@NotNull String prettyName, double amount) {
 		if (amount <= 1)
 			return prettyName;
 
 		String rawKey = prettyName.replace(" ", "_").toUpperCase(Locale.ROOT);
 		org.bukkit.Material mat = org.bukkit.Material.matchMaterial(rawKey);
-
-		// Use the material enum tokens if we can; otherwise fall back to the raw key
 		String enumName = (mat != null ? mat.name() : rawKey);
-		String[] tokens = enumName.split("_");
-		String last = tokens[tokens.length - 1]; // last token (e.g., INGOT, COBBLESTONE, NETHERRACK)
 
-		// Already plural or known mass/uncountable → don't pluralize
+		String[] tokens = enumName.split("_");
+		String last = tokens[tokens.length - 1];
+
 		if (last.endsWith("S") || UNCOUNTABLE_SUFFIXES.contains(last)) {
 			return prettyName;
 		}
-
-		// Known countable nouns → pluralize the last word only (e.g., "Oak Log" → "Oak
-		// Logs")
 		if (COUNTABLE_SUFFIXES.contains(last)) {
 			return pluralizeLastWord(prettyName);
 		}
-
-		// Safe default: don't pluralize unknowns (prevents "Cobblestones",
-		// "Netherracks", etc.)
 		return prettyName;
 	}
 
-	private static String pluralizeLastWord(String prettyName) {
+	/**
+	 * Adds an "s" or converts "y" to "ies" for the last word of a name (e.g.,
+	 * "Berry" → "Berries").
+	 *
+	 * @param prettyName the original name
+	 * @return the pluralized name
+	 */
+	@NotNull
+	private static String pluralizeLastWord(@NotNull String prettyName) {
 		int idx = prettyName.lastIndexOf(' ');
 		String head = (idx == -1) ? "" : prettyName.substring(0, idx + 1);
 		String lastWord = (idx == -1) ? prettyName : prettyName.substring(idx + 1);
@@ -158,7 +205,6 @@ public class CostFormatter {
 		if (lastWord.endsWith("s"))
 			return prettyName;
 
-		// handle consonant + y → ies (e.g., "Berry" → "Berries")
 		if (lastWord.length() > 1 && lastWord.endsWith("y") && !isVowel(lastWord.charAt(lastWord.length() - 2))) {
 			lastWord = lastWord.substring(0, lastWord.length() - 1) + "ies";
 		} else {
@@ -167,16 +213,11 @@ public class CostFormatter {
 		return head + lastWord;
 	}
 
+	/** Helper for vowel check during pluralization logic */
 	private static boolean isVowel(char c) {
-		switch (Character.toLowerCase(c)) {
-		case 'a':
-		case 'e':
-		case 'i':
-		case 'o':
-		case 'u':
-			return true;
-		default:
-			return false;
-		}
+		return switch (Character.toLowerCase(c)) {
+		case 'a', 'e', 'i', 'o', 'u' -> true;
+		default -> false;
+		};
 	}
 }

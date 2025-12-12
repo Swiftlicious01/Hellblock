@@ -1,23 +1,32 @@
 package com.swiftlicious.hellblock.config.locale;
 
-import dev.dejvokep.boostedyaml.YamlDocument;
-import net.kyori.adventure.key.Key;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.translation.Translator;
-import org.jetbrains.annotations.Nullable;
-
-import com.swiftlicious.hellblock.HellblockPlugin;
-import com.swiftlicious.hellblock.database.dependency.HellblockProperties;
-import com.swiftlicious.hellblock.handlers.AdventureHelper;
-import com.swiftlicious.hellblock.utils.extras.Pair;
-
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.StringJoiner;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
+
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
+import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.database.dependency.HellblockProperties;
+import com.swiftlicious.hellblock.handlers.AdventureDependencyHelper;
+import com.swiftlicious.hellblock.handlers.AdventureHelper;
+import com.swiftlicious.hellblock.utils.extras.Pair;
+
+import dev.dejvokep.boostedyaml.YamlDocument;
+import net.kyori.adventure.key.Key;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.translation.Translator;
 
 public class TranslationManager {
 
@@ -34,7 +43,7 @@ public class TranslationManager {
 		this.translationsDirectory = this.plugin.getDataFolder().toPath().toAbsolutePath().resolve("messages");
 	}
 
-	public void forceLocale(Locale locale) {
+	public void forceLocale(@NotNull Locale locale) {
 		FORCE_LOCALE = locale;
 	}
 
@@ -57,11 +66,13 @@ public class TranslationManager {
 		MiniMessageTranslatorInterface.translator().addSource(this.registry);
 	}
 
-	public String miniMessageTranslation(String key) {
+	@NotNull
+	public String miniMessageTranslation(@NotNull String key) {
 		return miniMessageTranslation(key, null);
 	}
 
-	public String miniMessageTranslation(String key, @Nullable Locale locale) {
+	@NotNull
+	public String miniMessageTranslation(@NotNull String key, @Nullable Locale locale) {
 		if (FORCE_LOCALE != null) {
 			return registry.miniMessageTranslation(key, FORCE_LOCALE);
 		}
@@ -74,11 +85,13 @@ public class TranslationManager {
 		return registry.miniMessageTranslation(key, locale);
 	}
 
-	public Component render(Component component) {
+	@NotNull
+	public Component render(@NotNull Component component) {
 		return render(component, null);
 	}
 
-	public Component render(Component component, @Nullable Locale locale) {
+	@NotNull
+	public Component render(@NotNull Component component, @Nullable Locale locale) {
 		if (FORCE_LOCALE != null) {
 			return MiniMessageTranslatorInterface.render(component, FORCE_LOCALE);
 		}
@@ -91,7 +104,7 @@ public class TranslationManager {
 		return MiniMessageTranslatorInterface.render(component, locale);
 	}
 
-	public void loadFromFileSystem(Path directory, boolean suppressDuplicatesError) {
+	public void loadFromFileSystem(@NotNull Path directory, boolean suppressDuplicatesError) {
 		List<Path> translationFiles;
 		try (Stream<Path> stream = Files.list(directory)) {
 			translationFiles = stream.filter(this::isTranslationFile).toList();
@@ -131,22 +144,24 @@ public class TranslationManager {
 
 		final Locale localLocale = Locale.getDefault();
 		if (!this.installed.contains(localLocale) && FORCE_LOCALE == null) {
-			plugin.getPluginLogger().warn(localLocale.toString().toLowerCase(Locale.ENGLISH) + ".yml doesn't exist, using "
-					+ DEFAULT_LOCALE.toString().toLowerCase(Locale.ENGLISH) + ".yml as default locale.");
+			plugin.getPluginLogger()
+					.warn(localLocale.toString().toLowerCase(Locale.ENGLISH) + ".yml doesn't exist, using "
+							+ DEFAULT_LOCALE.toString().toLowerCase(Locale.ENGLISH) + ".yml as default locale.");
 		}
 	}
 
-	public boolean isTranslationFile(Path path) {
+	public boolean isTranslationFile(@NotNull Path path) {
 		return path.getFileName().toString().endsWith(".yml");
 	}
 
-	private boolean isAdventureDuplicatesException(Exception e) {
+	private boolean isAdventureDuplicatesException(@NotNull Exception e) {
 		return e instanceof IllegalArgumentException && (e.getMessage().startsWith("Invalid key")
 				|| e.getMessage().startsWith("Translation already exists"));
 	}
 
+	@NotNull
 	@SuppressWarnings("unchecked")
-	private Pair<Locale, Map<String, String>> loadTranslationFile(Path translationFile) {
+	private Pair<Locale, Map<String, String>> loadTranslationFile(@NotNull Path translationFile) {
 		final String fileName = translationFile.getFileName().toString();
 		final String localeString = fileName.substring(0, fileName.length() - ".yml".length());
 		final Locale locale = parseLocale(localeString);
@@ -183,7 +198,39 @@ public class TranslationManager {
 		return Pair.of(locale, bundle);
 	}
 
-	public @Nullable Locale parseLocale(@Nullable String locale) {
-		return locale == null || locale.isEmpty() ? null : Translator.parseLocale(locale);
+	@NotNull
+	public List<String> getRawStringList(@NotNull String key) {
+		YamlDocument document = plugin.getConfigManager().loadConfig("messages/" + getCurrentLocale() + ".yml", '@');
+
+		Object val = document.get(key);
+		if (val instanceof List<?> list) {
+			return list.stream().filter(String.class::isInstance).map(String.class::cast).toList();
+		}
+		return Collections.emptyList();
+	}
+
+	@NotNull
+	public Locale getForcedLocale() {
+		if (FORCE_LOCALE != null)
+			return FORCE_LOCALE;
+		return Locale.getDefault();
+	}
+
+	@NotNull
+	private String getCurrentLocale() {
+		if (FORCE_LOCALE != null)
+			return FORCE_LOCALE.toString().toLowerCase(Locale.ENGLISH);
+		return Locale.getDefault().toString().toLowerCase(Locale.ENGLISH);
+	}
+
+	@Nullable
+	public Locale parseLocale(@Nullable String locale) {
+		if (locale == null || locale.isEmpty()) {
+			return null;
+		}
+
+		// Return the result from the loader call
+		return plugin.getDependencyManager().runWithLoader(AdventureDependencyHelper.ADVENTURE_DEPENDENCIES,
+				() -> Translator.parseLocale(locale));
 	}
 }

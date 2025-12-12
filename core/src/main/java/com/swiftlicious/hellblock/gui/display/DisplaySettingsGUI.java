@@ -1,6 +1,5 @@
 package com.swiftlicious.hellblock.gui.display;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,13 +27,18 @@ public class DisplaySettingsGUI {
 	private final DisplaySettingsGUIManager manager;
 	protected final Inventory inventory;
 	protected final Context<Player> context;
+	protected final Context<Integer> islandContext;
 	protected final HellblockData hellblockData;
 	protected final boolean isOwner;
 
-	public DisplaySettingsGUI(DisplaySettingsGUIManager manager, Context<Player> context, HellblockData hellblockData,
-			boolean isOwner) {
+	private volatile boolean refreshInProgress = false;
+	private volatile boolean refreshQueued = false;
+
+	public DisplaySettingsGUI(DisplaySettingsGUIManager manager, Context<Player> context,
+			Context<Integer> islandContext, HellblockData hellblockData, boolean isOwner) {
 		this.manager = manager;
 		this.context = context;
+		this.islandContext = islandContext;
 		this.hellblockData = hellblockData;
 		this.isOwner = isOwner;
 		this.itemsCharMap = new HashMap<>();
@@ -104,61 +108,91 @@ public class DisplaySettingsGUI {
 	 * @return The DisplaySettingsGUI instance.
 	 */
 	public DisplaySettingsGUI refresh() {
-		DisplaySettings displaySettings = hellblockData.getDisplaySettings();
-		context.arg(ContextKeys.HELLBLOCK_NAME, displaySettings.getIslandName())
-				.arg(ContextKeys.HELLBLOCK_BIO, displaySettings.getIslandBio())
-				.arg(ContextKeys.HELLBLOCK_DISPLAY_CHOICE, displaySettings.getDisplayChoice());
-		DisplaySettingsDynamicGUIElement backElement = (DisplaySettingsDynamicGUIElement) getElement(manager.backSlot);
-		if (backElement != null && !backElement.getSlots().isEmpty()) {
-			backElement.setItemStack(manager.backIcon.build(context));
+		if (refreshInProgress) {
+			refreshQueued = true;
+			return this;
 		}
+		refreshInProgress = true;
+		refreshQueued = false;
 
-		String currentName = displaySettings.getIslandName();
-		String currentBio = displaySettings.getIslandBio();
-		String currentSetting = displaySettings.getDisplayChoice().name();
-		String nextSetting = displaySettings.getDisplayChoice() == DisplayChoice.CHAT ? "TITLE" : "CHAT";
+		manager.instance.getScheduler().executeSync(() -> {
+			try {
+				DisplaySettings displaySettings = hellblockData.getDisplaySettings();
 
-		DisplaySettingsDynamicGUIElement nameElement = (DisplaySettingsDynamicGUIElement) getElement(manager.nameSlot);
-		if (nameElement != null && !nameElement.getSlots().isEmpty()) {
-			Item<ItemStack> item = manager.instance.getItemManager().wrap(manager.nameIcon.build(context));
+				// Update context with current values
+				islandContext.arg(ContextKeys.ISLAND_NAME, displaySettings.getIslandName())
+						.arg(ContextKeys.ISLAND_BIO, displaySettings.getIslandBio())
+						.arg(ContextKeys.ISLAND_DISPLAY_CHOICE, displaySettings.getDisplayChoice());
 
-			List<String> newLore = new ArrayList<>();
-			manager.nameSection.getStringList("display.lore").forEach(lore -> newLore
-					.add(AdventureHelper.miniMessageToJson(lore.replace("{current_name}", currentName))));
-			item.lore(newLore);
+				String currentName = displaySettings.getIslandName();
+				String currentBio = displaySettings.getIslandBio();
+				String currentSetting = displaySettings.getDisplayChoice().name();
+				String nextSetting = displaySettings.getDisplayChoice() == DisplayChoice.CHAT
+						? DisplayChoice.TITLE.name()
+						: DisplayChoice.CHAT.name();
 
-			nameElement.setItemStack(item.load());
-		}
-		DisplaySettingsDynamicGUIElement bioElement = (DisplaySettingsDynamicGUIElement) getElement(manager.bioSlot);
-		if (bioElement != null && !bioElement.getSlots().isEmpty()) {
-			Item<ItemStack> item = manager.instance.getItemManager().wrap(manager.bioIcon.build(context));
+				// Back button
+				DisplaySettingsDynamicGUIElement backElement = (DisplaySettingsDynamicGUIElement) getElement(
+						manager.backSlot);
+				if (backElement != null && !backElement.getSlots().isEmpty()) {
+					backElement.setItemStack(manager.backIcon.build(context));
+				}
 
-			List<String> newLore = new ArrayList<>();
-			manager.bioSection.getStringList("display.lore").forEach(
-					lore -> newLore.add(AdventureHelper.miniMessageToJson(lore.replace("{current_bio}", currentBio))));
-			item.lore(newLore);
+				Context<Player> combinedCtx = context.merge(islandContext);
 
-			bioElement.setItemStack(item.load());
-		}
-		DisplaySettingsDynamicGUIElement toggleElement = (DisplaySettingsDynamicGUIElement) getElement(
-				manager.toggleSlot);
-		if (toggleElement != null && !toggleElement.getSlots().isEmpty()) {
-			Item<ItemStack> item = manager.instance.getItemManager().wrap(manager.toggleIcon.build(context));
+				// Name
+				DisplaySettingsDynamicGUIElement nameElement = (DisplaySettingsDynamicGUIElement) getElement(
+						manager.nameSlot);
+				if (nameElement != null && !nameElement.getSlots().isEmpty()) {
+					Item<ItemStack> item = manager.instance.getItemManager().wrap(manager.nameIcon.build(combinedCtx));
+					List<String> newLore = manager.nameSection.getStringList("display.lore").stream()
+							.map(lore -> AdventureHelper.miniMessageToJson(lore.replace("{current_name}", currentName)))
+							.toList();
+					item.lore(newLore);
+					nameElement.setItemStack(item.loadCopy());
+				}
 
-			List<String> newLore = new ArrayList<>();
-			manager.toggleSection.getStringList("display.lore")
-					.forEach(lore -> newLore.add(AdventureHelper.miniMessageToJson(
-							lore.replace("{current_setting}", currentSetting).replace("{setting}", nextSetting))));
-			item.lore(newLore);
+				// Bio
+				DisplaySettingsDynamicGUIElement bioElement = (DisplaySettingsDynamicGUIElement) getElement(
+						manager.bioSlot);
+				if (bioElement != null && !bioElement.getSlots().isEmpty()) {
+					Item<ItemStack> item = manager.instance.getItemManager().wrap(manager.bioIcon.build(combinedCtx));
+					List<String> newLore = manager.bioSection.getStringList("display.lore").stream()
+							.map(lore -> AdventureHelper.miniMessageToJson(lore.replace("{current_bio}", currentBio)))
+							.toList();
+					item.lore(newLore);
+					bioElement.setItemStack(item.loadCopy());
+				}
 
-			toggleElement.setItemStack(item.load());
-		}
-		itemsSlotMap.entrySet().stream().filter(entry -> entry.getValue() instanceof DisplaySettingsDynamicGUIElement)
-				.forEach(entry -> {
-					DisplaySettingsDynamicGUIElement dynamicGUIElement = (DisplaySettingsDynamicGUIElement) entry
-							.getValue();
-					this.inventory.setItem(entry.getKey(), dynamicGUIElement.getItemStack().clone());
+				// Toggle
+				DisplaySettingsDynamicGUIElement toggleElement = (DisplaySettingsDynamicGUIElement) getElement(
+						manager.toggleSlot);
+				if (toggleElement != null && !toggleElement.getSlots().isEmpty()) {
+					Item<ItemStack> item = manager.instance.getItemManager()
+							.wrap(manager.toggleIcon.build(combinedCtx));
+					List<String> newLore = manager.toggleSection.getStringList("display.lore").stream()
+							.map(lore -> AdventureHelper.miniMessageToJson(lore
+									.replace("{current_setting}", currentSetting).replace("{setting}", nextSetting)))
+							.toList();
+					item.lore(newLore);
+					toggleElement.setItemStack(item.loadCopy());
+				}
+
+				// Final slot injection
+				itemsSlotMap.forEach((slot, element) -> {
+					if (element instanceof DisplaySettingsDynamicGUIElement dynamic) {
+						inventory.setItem(slot, dynamic.getItemStack().clone());
+					}
 				});
+			} finally {
+				refreshInProgress = false;
+				if (refreshQueued) {
+					refreshQueued = false;
+					manager.instance.getScheduler().sync().run(this::refresh, context.holder().getLocation());
+				}
+			}
+		}, context.holder().getLocation());
+
 		return this;
 	}
 }

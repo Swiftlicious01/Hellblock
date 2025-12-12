@@ -14,17 +14,20 @@ import org.incendo.cloud.CommandManager;
 import org.incendo.cloud.context.CommandContext;
 import org.incendo.cloud.parser.standard.StringParser;
 import org.incendo.cloud.suggestion.Suggestion;
+import org.jetbrains.annotations.NotNull;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
-import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.commands.BukkitCommandFeature;
 import com.swiftlicious.hellblock.commands.HellblockCommandManager;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
+import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.player.HellblockData;
 import com.swiftlicious.hellblock.player.UserData;
 
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.event.ClickEvent;
+import net.kyori.adventure.text.event.HoverEvent;
 
 public class HellblockResetCommand extends BukkitCommandFeature<CommandSender> {
 
@@ -63,15 +66,72 @@ public class HellblockResetCommand extends BukkitCommandFeature<CommandSender> {
 							return;
 						}
 
-						HellblockPlugin.getInstance().getHellblockHandler().resetHellblock(player.getUniqueId(), false,
-								null);
+						final Optional<UserData> onlineUserOpt = plugin.getStorageManager()
+								.getOnlineUser(player.getUniqueId());
+
+						if (onlineUserOpt.isEmpty()) {
+							handleFeedback(context, MessageConstants.COMMAND_DATA_FAILURE_NOT_LOADED);
+							return;
+						}
+
+						final UserData user = onlineUserOpt.get();
+						final HellblockData data = user.getHellblockData();
+
+						if (!data.hasHellblock()) {
+							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_NOT_FOUND);
+							return;
+						}
+
+						final UUID ownerUUID = data.getOwnerUUID();
+						if (ownerUUID == null) {
+							plugin.getPluginLogger()
+									.severe("Hellblock owner UUID was null for player " + player.getName() + " ("
+											+ player.getUniqueId()
+											+ "). This indicates corrupted data or a serious bug.");
+							throw new IllegalStateException(
+									"Owner reference was null — please report to the developer.");
+						}
+
+						if (!data.isOwner(ownerUUID)) {
+							handleFeedback(context, MessageConstants.MSG_NOT_OWNER_OF_HELLBLOCK);
+							return;
+						}
+
+						if (data.isAbandoned()) {
+							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_IS_ABANDONED);
+							return;
+						}
+
+						if (data.getResetCooldown() > 0) {
+							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_RESET_ON_COOLDOWN,
+									AdventureHelper.miniMessageToComponent(
+											plugin.getCooldownManager().getFormattedCooldown(data.getResetCooldown())));
+							return;
+						}
+
+						plugin.getHellblockHandler().resetHellblock(player.getUniqueId(), false, null);
 						confirmCache.invalidate(player.getUniqueId());
 						handleFeedback(context, MessageConstants.MSG_HELLBLOCK_RESET_IN_PROCESS);
 						return;
 					}
 
 					// if no “confirm” argument
-					handleFeedback(context, MessageConstants.MSG_HELLBLOCK_RESET_CONFIRMATION);
+					final String rawInput = context.rawInput().input();
+					final String confirmCommand = "/" + rawInput + " confirm";
+
+					// Create the clickable confirmation button
+					Component clickableConfirm = MessageConstants.MSG_HELLBLOCK_RESET_CONFIRMATION_BUTTON
+							.clickEvent(ClickEvent.runCommand(confirmCommand))
+							.hoverEvent(HoverEvent.showText(MessageConstants.MSG_HELLBLOCK_RESET_CONFIRMATION_HOVER))
+							.build();
+
+					// Join the base confirmation message with the button
+					Component fullMessage = MessageConstants.MSG_HELLBLOCK_RESET_CONFIRMATION.build()
+							.append(Component.space()) // optional spacing
+							.append(clickableConfirm);
+
+					// Send the composed message to the user
+					handleFeedbackRaw(context, fullMessage);
 					confirmCache.put(player.getUniqueId(), true);
 				});
 	}
@@ -81,10 +141,9 @@ public class HellblockResetCommand extends BukkitCommandFeature<CommandSender> {
 		return "hellblock_reset";
 	}
 
-	private boolean canReset(CommandContext<Player> context) {
+	private boolean canReset(@NotNull CommandContext<Player> context) {
 		final Player player = context.sender();
-		final Optional<UserData> onlineUserOpt = HellblockPlugin.getInstance().getStorageManager()
-				.getOnlineUser(player.getUniqueId());
+		final Optional<UserData> onlineUserOpt = plugin.getStorageManager().getOnlineUser(player.getUniqueId());
 
 		if (onlineUserOpt.isEmpty()) {
 			handleFeedback(context, MessageConstants.COMMAND_DATA_FAILURE_NOT_LOADED);
@@ -101,9 +160,8 @@ public class HellblockResetCommand extends BukkitCommandFeature<CommandSender> {
 
 		final UUID ownerUUID = data.getOwnerUUID();
 		if (ownerUUID == null) {
-			HellblockPlugin.getInstance().getPluginLogger()
-					.severe("Hellblock owner UUID was null for player " + player.getName() + " (" + player.getUniqueId()
-							+ "). This indicates corrupted data or a serious bug.");
+			plugin.getPluginLogger().severe("Hellblock owner UUID was null for player " + player.getName() + " ("
+					+ player.getUniqueId() + "). This indicates corrupted data or a serious bug.");
 			throw new IllegalStateException("Owner reference was null — please report to the developer.");
 		}
 
@@ -118,8 +176,8 @@ public class HellblockResetCommand extends BukkitCommandFeature<CommandSender> {
 		}
 
 		if (data.getResetCooldown() > 0) {
-			handleFeedback(context, MessageConstants.MSG_HELLBLOCK_RESET_ON_COOLDOWN.arguments(
-					Component.text(HellblockPlugin.getInstance().getFormattedCooldown(data.getResetCooldown()))));
+			handleFeedback(context, MessageConstants.MSG_HELLBLOCK_RESET_ON_COOLDOWN, AdventureHelper
+					.miniMessageToComponent(plugin.getCooldownManager().getFormattedCooldown(data.getResetCooldown())));
 			return false;
 		}
 

@@ -107,9 +107,7 @@ public class MarketManager implements MarketManagerInterface, Listener {
 			int now = getRealTimeDate();
 			if (this.cachedDate != now) {
 				this.cachedDate = now;
-				for (UserData userData : instance.getStorageManager().getOnlineUsers()) {
-					userData.getEarningData().refresh();
-				}
+				instance.getStorageManager().getOnlineUsers().forEach(userData -> userData.getEarningData().refresh());
 			}
 		}, 1, 1, TimeUnit.SECONDS);
 	}
@@ -131,11 +129,20 @@ public class MarketManager implements MarketManagerInterface, Listener {
 	}
 
 	private void loadConfig() {
-		Section config = instance.getConfigManager().getMainConfig().getSection("lava-fishing-options.market");
+		Section configFile = instance.getConfigManager().getGUIConfig("market.yml");
+		if (configFile == null) {
+			instance.getPluginLogger().severe("GUI for market.yml was unable to load correctly!");
+			return;
+		}
+		Section config = configFile.getSection("market.gui");
+		if (config == null) {
+			instance.getPluginLogger().severe("market.gui returned null, please regenerate your market.yml GUI file.");
+			return;
+		}
 
 		this.formula = config.getString("price-formula", "{base} + {bonus} * {size}");
-		this.layout = config.getStringList("layout").toArray(new String[0]);
-		String defaultTitle = config.getString("title", "mechanics.market.title");
+		this.layout = config.getStringList("layout", new ArrayList<>()).toArray(new String[0]);
+		String defaultTitle = config.getString("title", "market.title");
 		this.title = TextValue.auto(defaultTitle);
 		this.itemSlot = config.getString("item-slot.symbol", "I").charAt(0);
 		this.allowItemWithNoPrice = config.getBoolean("item-slot.allow-items-with-no-price", true);
@@ -203,9 +210,8 @@ public class MarketManager implements MarketManagerInterface, Listener {
 		// Load item prices from the configuration
 		Section priceSection = config.getSection("item-price");
 		if (priceSection != null) {
-			for (Map.Entry<String, Object> entry : priceSection.getStringRouteMappedValues(false).entrySet()) {
-				this.priceMap.put(entry.getKey(), MathValue.auto(entry.getValue()));
-			}
+			priceSection.getStringRouteMappedValues(false).entrySet()
+					.forEach(entry -> this.priceMap.put(entry.getKey(), MathValue.auto(entry.getValue())));
 		}
 
 		// Load decorative icons from the configuration
@@ -237,11 +243,6 @@ public class MarketManager implements MarketManagerInterface, Listener {
 		}
 	}
 
-	/**
-	 * Open the market GUI for a player
-	 *
-	 * @param player player
-	 */
 	@Override
 	public boolean openMarketGUI(Player player) {
 		Optional<UserData> optionalUserData = instance.getStorageManager().getOnlineUser(player.getUniqueId());
@@ -250,13 +251,13 @@ public class MarketManager implements MarketManagerInterface, Listener {
 			return false;
 		}
 		Context<Player> context = Context.player(player);
-		MarketGUI gui = new MarketGUI(this, context, optionalUserData.get().getEarningData());
+		MarketGUI gui = new MarketGUI(this, context, optionalUserData.get().getHellblockData(),
+				optionalUserData.get().getEarningData());
 		gui.addElement(new MarketGUIElement(itemSlot, new ItemStack(Material.AIR)));
 		gui.addElement(new MarketDynamicGUIElement(sellSlot, new ItemStack(Material.AIR)));
 		gui.addElement(new MarketDynamicGUIElement(sellAllSlot, new ItemStack(Material.AIR)));
-		for (Map.Entry<Character, Pair<CustomItem, Action<Player>[]>> entry : decorativeIcons.entrySet()) {
-			gui.addElement(new MarketGUIElement(entry.getKey(), entry.getValue().left().build(context)));
-		}
+		decorativeIcons.entrySet().forEach(
+				entry -> gui.addElement(new MarketGUIElement(entry.getKey(), entry.getValue().left().build(context))));
 		gui.build().show();
 		gui.refresh();
 		marketGUICache.put(player.getUniqueId(), gui);
@@ -356,7 +357,7 @@ public class MarketManager implements MarketManagerInterface, Listener {
 		earningData.refresh();
 		double earningLimit = earningLimit(gui.context);
 
-		if (clickedInv != player.getInventory()) {
+		if (!Objects.equals(clickedInv, player.getInventory())) {
 			int slot = event.getSlot();
 			MarketGUIElement element = gui.getElement(slot);
 			if (element == null) {
@@ -486,6 +487,9 @@ public class MarketManager implements MarketManagerInterface, Listener {
 		}
 
 		// Refresh the GUI
+		if (instance.getCooldownManager().shouldUpdateActivity(player.getUniqueId(), 15000)) {
+			gui.hellblockData.updateLastIslandActivity();
+		}
 		instance.getScheduler().sync().runLater(gui::refresh, 1, player.getLocation());
 	}
 

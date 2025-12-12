@@ -1,0 +1,1628 @@
+challenges:
+  gui:
+    # The title for the challenges menu
+    title: '<center><gradient:#A52A2A:#800000:#A52A2A>Hellblock Challenges</gradient>'
+    # The layout for the challenges menu
+    layout:
+      - 'BCDEFGHIJ'
+      - 'KLMNOPQRS'
+      - 'TUVWYZ123'
+      - '4567890ab'
+      - 'cdefghiAA'
+      - 'jklmnopAX'
+    # Make completed and claimed challenges glow?
+    highlight-completed-challenges: true
+    # Back icon to return to main menu
+    back-icon:
+      symbol: 'X'
+      material: RED_STAINED_GLASS_PANE
+      display:
+        name: '<red>Return to Main Menu'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_additional_tooltip: {}
+    close-icon:
+      symbol: 'X'
+      material: RED_STAINED_GLASS_PANE
+      display:
+        name: '<red>Close Menu'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+        close_action:
+          type: close-inv
+      components:
+        minecraft:hide_additional_tooltip: {}
+    # Challenge icons for each different challenge type
+    challenge-icons:
+      break-netherrack-1:
+        symbol: 'B'
+        material: WOODEN_PICKAXE
+        challenge-type: BREAK_NETHERRACK_1
+        display:
+          completed-name: '<green>Crumbly Rock Rookie'
+          uncompleted-name: '<red>Crumbly Rock Rookie'
+          unclaimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - ' '
+            - '<yellow>Click to claim your reward!'
+          claimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - '<yellow><bold>REWARD CLAIMED!'
+          uncompleted-lore:
+            - '<aqua>Break {needed_amount} netherrack!'
+            - ' '
+            - '<dark_red>Progress: <gray>({current_amount}/{needed_amount})'
+            - '{progress_bar}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      break-netherrack-2:
+        symbol: 'C'
+        material: IRON_PICKAXE
+        challenge-type: BREAK_NETHERRACK_2
+        display:
+          completed-name: '<green>Iron Miner Supreme'
+          uncompleted-name: '<red>Iron Miner Supreme'
+          unclaimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - ' '
+            - '<yellow>Click to claim your reward!'
+          claimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - '<yellow><bold>REWARD CLAIMED!'
+          uncompleted-lore:
+            - '<aqua>Break {needed_amount} netherrack!'
+            - ' '
+            - '<dark_red>Progress: <gray>({current_amount}/{needed_amount})'
+            - '{progress_bar}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      break-basalt:
+        symbol: 'D'
+        material: BASALT
+        challenge-type: BREAK_BASALT
+        display:
+          completed-name: '<green>Basalt Basher'
+          uncompleted-name: '<red>Basalt Basher'
+          unclaimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - ' '
+            - '<yellow>Click to claim your reward!'
+          claimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - '<yellow><bold>REWARD CLAIMED!'
+          uncompleted-lore:
+            - '<aqua>Break {needed_amount} basalt!'
+            - ' '
+            - '<dark_red>Progress: <gray>({current_amount}/{needed_amount})'
+            - '{progress_bar}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      break-blackstone:
+        symbol: 'E'
+        material: BLACKSTONE
+        challenge-type: BREAK_BLACKSTONE
+        display:
+          completed-name: '<green>Dark Stone Demolisher'
+          uncompleted-name: '<red>Dark Stone Demolisher'
+          unclaimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - ' '
+            - '<yellow>Click to claim your reward!'
+          claimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - '<yellow><bold>REWARD CLAIMED!'
+          uncompleted-lore:
+            - '<aqua>Break {needed_amount} blackstone!'
+            - ' '
+            - '<dark_red>Progress: <gray>({current_amount}/{needed_amount})'
+            - '{progress_bar}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      break-ancient-debris:
+        symbol: 'F'
+        material: ANCIENT_DEBRIS
+        challenge-type: BREAK_ANCIENT_DEBRIS
+        display:
+          completed-name: '<green>Ancient Treasure Hunter'
+          uncompleted-name: '<red>Ancient Treasure Hunter'
+          unclaimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - ' '
+            - '<yellow>Click to claim your reward!'
+          claimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - '<yellow><bold>REWARD CLAIMED!'
+          uncompleted-lore:
+            - '<aqua>Break {needed_amount} ancient debris!'
+            - ' '
+            - '<dark_red>Progress: <gray>({current_amount}/{needed_amount})'
+            - '{progress_bar}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      grow-oak:
+        symbol: 'G'
+        material: OAK_SAPLING
+        challenge-type: GROW_OAK
+        display:
+          completed-name: '<green>Mighty Oak Whisperer'
+          uncompleted-name: '<red>Mighty Oak Whisperer'
+          unclaimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - ' '
+            - '<yellow>Click to claim your reward!'
+          claimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - '<yellow><bold>REWARD CLAIMED!'
+          uncompleted-lore:
+            - '<aqua>Grow {needed_amount} oak trees!'
+            - ' '
+            - '<dark_red>Progress: <gray>({current_amount}/{needed_amount})'
+            - '{progress_bar}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      grow-birch:
+        symbol: 'H'
+        material: BIRCH_SAPLING
+        challenge-type: GROW_BIRCH
+        display:
+          completed-name: '<green>Birch Hugger Extraordinaire'
+          uncompleted-name: '<red>Birch Hugger Extraordinaire'
+          unclaimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - ' '
+            - '<yellow>Click to claim your reward!'
+          claimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - '<yellow><bold>REWARD CLAIMED!'
+          uncompleted-lore:
+            - '<aqua>Grow {needed_amount} birch trees!'
+            - ' '
+            - '<dark_red>Progress: <gray>({current_amount}/{needed_amount})'
+            - '{progress_bar}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      grow-spruce:
+        symbol: 'I'
+        material: SPRUCE_SAPLING
+        challenge-type: GROW_SPRUCE
+        display:
+          completed-name: '<green>Spruce Goose Cultivator'
+          uncompleted-name: '<red>Spruce Goose Cultivator'
+          unclaimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - ' '
+            - '<yellow>Click to claim your reward!'
+          claimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - '<yellow><bold>REWARD CLAIMED!'
+          uncompleted-lore:
+            - '<aqua>Grow {needed_amount} spruce trees!'
+            - ' '
+            - '<dark_red>Progress: <gray>({current_amount}/{needed_amount})'
+            - '{progress_bar}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      grow-glowstone:
+        symbol: 'J'
+        material: GLOWSTONE
+        challenge-type: GROW_GLOWSTONE
+        display:
+          completed-name: '<green>Glowstone Gardener'
+          uncompleted-name: '<red>Glowstone Gardener'
+          unclaimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - ' '
+            - '<yellow>Click to claim your reward!'
+          claimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - '<yellow><bold>REWARD CLAIMED!'
+          uncompleted-lore:
+            - '<aqua>Grow {needed_amount} glowstone trees!'
+            - ' '
+            - '<dark_red>Progress: <gray>({current_amount}/{needed_amount})'
+            - '{progress_bar}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      grow-crimson:
+        symbol: 'K'
+        material: CRIMSON_FUNGUS
+        challenge-type: GROW_CRIMSON
+        display:
+          completed-name: '<green>Crimson Root Wrangler'
+          uncompleted-name: '<red>Crimson Root Wrangler'
+          unclaimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - ' '
+            - '<yellow>Click to claim your reward!'
+          claimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - '<yellow><bold>REWARD CLAIMED!'
+          uncompleted-lore:
+            - '<aqua>Grow {needed_amount} crimson trees!'
+            - ' '
+            - '<dark_red>Progress: <gray>({current_amount}/{needed_amount})'
+            - '{progress_bar}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      grow-warped:
+        symbol: 'L'
+        material: WARPED_FUNGUS
+        challenge-type: GROW_WARPED
+        display:
+          completed-name: '<green>Warped Forest Farmer'
+          uncompleted-name: '<red>Warped Forest Farmer'
+          unclaimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - ' '
+            - '<yellow>Click to claim your reward!'
+          claimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - '<yellow><bold>REWARD CLAIMED!'
+          uncompleted-lore:
+            - '<aqua>Grow {needed_amount} warped trees!'
+            - ' '
+            - '<dark_red>Progress: <gray>({current_amount}/{needed_amount})'
+            - '{progress_bar}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      fish-rubbish:
+        symbol: 'M'
+        material: COD
+        challenge-type: FISH_RUBBISH
+        display:
+          completed-name: '<green>Trash Fisher Deluxe'
+          uncompleted-name: '<red>Trash Fisher Deluxe'
+          unclaimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - ' '
+            - '<yellow>Click to claim your reward!'
+          claimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - '<yellow><bold>REWARD CLAIMED!'
+          uncompleted-lore:
+            - '<aqua>Fish out of lava {needed_amount} rubbish!'
+            - ' '
+            - '<dark_red>Progress: <gray>({current_amount}/{needed_amount})'
+            - '{progress_bar}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      fish-rainbow:
+        symbol: 'N'
+        material: TROPICAL_FISH
+        challenge-type: FISH_RAINBOW
+        display:
+          completed-name: '<green>Rainbow Scale Snagger'
+          uncompleted-name: '<red>Rainbow Scale Snagger'
+          unclaimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - ' '
+            - '<yellow>Click to claim your reward!'
+          claimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - '<yellow><bold>REWARD CLAIMED!'
+          uncompleted-lore:
+            - '<aqua>Fish out of lava {needed_amount} rainbow fish!'
+            - ' '
+            - '<dark_red>Progress: <gray>({current_amount}/{needed_amount})'
+            - '{progress_bar}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      fish-tuna:
+        symbol: 'O'
+        material: SALMON
+        challenge-type: FISH_TUNA
+        display:
+          completed-name: '<green>Tuna Terminator'
+          uncompleted-name: '<red>Tuna Terminator'
+          unclaimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - ' '
+            - '<yellow>Click to claim your reward!'
+          claimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - '<yellow><bold>REWARD CLAIMED!'
+          uncompleted-lore:
+            - '<aqua>Fish out of lava {needed_amount} tuna fish!'
+            - ' '
+            - '<dark_red>Progress: <gray>({current_amount}/{needed_amount})'
+            - '{progress_bar}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      fish-skeleton:
+        symbol: 'P'
+        material: BONE
+        challenge-type: FISH_SKELETON
+        display:
+          completed-name: '<green>Skeletal Angler'
+          uncompleted-name: '<red>Skeletal Angler'
+          unclaimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - ' '
+            - '<yellow>Click to claim your reward!'
+          claimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - '<yellow><bold>REWARD CLAIMED!'
+          uncompleted-lore:
+            - '<aqua>Fish out of lava {needed_amount} skeletons!'
+            - ' '
+            - '<dark_red>Progress: <gray>({current_amount}/{needed_amount})'
+            - '{progress_bar}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      fish-mythic-knight:
+        symbol: 'Q'
+        material: IRON_SWORD
+        challenge-type: FISH_MYTHIC_KNIGHT
+        display:
+          completed-name: '<green>Knight of the Deep'
+          uncompleted-name: '<red>Knight of the Deep'
+          unclaimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - ' '
+            - '<yellow>Click to claim your reward!'
+          claimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - '<yellow><bold>REWARD CLAIMED!'
+          uncompleted-lore:
+            - '<aqua>Fish out of lava {needed_amount} mythic knights!'
+            - ' '
+            - '<dark_red>Progress: <gray>({current_amount}/{needed_amount})'
+            - '{progress_bar}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      craft-stone-pickaxe:
+        symbol: 'R'
+        material: STONE_PICKAXE
+        challenge-type: CRAFT_STONE_PICKAXE
+        display:
+          completed-name: '<green>Stone Age Engineer'
+          uncompleted-name: '<red>Stone Age Engineer'
+          unclaimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - ' '
+            - '<yellow>Click to claim your reward!'
+          claimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - '<yellow><bold>REWARD CLAIMED!'
+          uncompleted-lore:
+            - '<aqua>Craft {needed_amount} stone pickaxe!'
+            - ' '
+            - '<dark_red>Progress: <gray>({current_amount}/{needed_amount})'
+            - '{progress_bar}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      craft-golden-sword:
+        symbol: 'S'
+        material: GOLDEN_SWORD
+        challenge-type: CRAFT_GOLDEN_SWORD
+        display:
+          completed-name: '<green>Golden Toothpick Crafter'
+          uncompleted-name: '<red>Golden Toothpick Crafter'
+          unclaimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - ' '
+            - '<yellow>Click to claim your reward!'
+          claimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - '<yellow><bold>REWARD CLAIMED!'
+          uncompleted-lore:
+            - '<aqua>Craft {needed_amount} golden sword!'
+            - ' '
+            - '<dark_red>Progress: <gray>({current_amount}/{needed_amount})'
+            - '{progress_bar}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      craft-netherite-helmet:
+        symbol: 'T'
+        material: NETHERITE_HELMET
+        challenge-type: CRAFT_NETHERITE_HELMET
+        display:
+          completed-name: '<green>Helmet of Doom'
+          uncompleted-name: '<red>Helmet of Doom'
+          unclaimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - ' '
+            - '<yellow>Click to claim your reward!'
+          claimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - '<yellow><bold>REWARD CLAIMED!'
+          uncompleted-lore:
+            - '<aqua>Craft {needed_amount} netherite helmet!'
+            - ' '
+            - '<dark_red>Progress: <gray>({current_amount}/{needed_amount})'
+            - '{progress_bar}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      craft-netherstar-pickaxe:
+        symbol: 'U'
+        material: DIAMOND_PICKAXE
+        challenge-type: CRAFT_NETHERSTAR_PICKAXE
+        display:
+          completed-name: '<green>Starlit Pickaxe Forger'
+          uncompleted-name: '<red>Starlit Pickaxe Forger'
+          unclaimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - ' '
+            - '<yellow>Click to claim your reward!'
+          claimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - '<yellow><bold>REWARD CLAIMED!'
+          uncompleted-lore:
+            - '<aqua>Craft {needed_amount} netherstar pickaxe!'
+            - ' '
+            - '<dark_red>Progress: <gray>({current_amount}/{needed_amount})'
+            - '{progress_bar}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      craft-netherstar-chestplate:
+        symbol: 'V'
+        material: DIAMOND_CHESTPLATE
+        challenge-type: CRAFT_NETHERSTAR_CHESTPLATE
+        display:
+          completed-name: '<green>Cosmic Chestplate Crafter'
+          uncompleted-name: '<red>Cosmic Chestplate Crafter'
+          unclaimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - ' '
+            - '<yellow>Click to claim your reward!'
+          claimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - '<yellow><bold>REWARD CLAIMED!'
+          uncompleted-lore: 
+            - '<aqua>Craft {needed_amount} netherstar chestplate!'
+            - ' '
+            - '<dark_red>Progress: <gray>({current_amount}/{needed_amount})'
+            - '{progress_bar}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      brew-strength-2:
+        symbol: 'W'
+        material: POTION
+        challenge-type: BREW_STRENGTH_2
+        display:
+          completed-name: '<green>Potion Powerlifter'
+          uncompleted-name: '<red>Potion Powerlifter'
+          unclaimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - ' '
+            - '<yellow>Click to claim your reward!'
+          claimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - '<yellow><bold>REWARD CLAIMED!'
+          uncompleted-lore:
+            - '<aqua>Brew {needed_amount} strength potions!'
+            - ' '
+            - '<dark_red>Progress: <gray>({current_amount}/{needed_amount})'
+            - '{progress_bar}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+          minecraft:potion_contents: 
+            custom_effects:
+              - id: strength
+                amplifier: 1
+      brew-swiftness-2:
+        symbol: 'Y'
+        material: SPLASH_POTION
+        challenge-type: BREW_SWIFTNESS_2
+        display:
+          completed-name: '<green>Zoom Juice Brewer'
+          uncompleted-name: '<red>Zoom Juice Brewer'
+          unclaimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - ' '
+            - '<yellow>Click to claim your reward!'
+          claimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - '<yellow><bold>REWARD CLAIMED!'
+          uncompleted-lore:
+            - '<aqua>Brew {needed_amount} swiftness potions!'
+            - ' '
+            - '<dark_red>Progress: <gray>({current_amount}/{needed_amount})'
+            - '{progress_bar}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+          minecraft:potion_contents: 
+            custom_effects:
+              - id: speed
+                amplifier: 1
+      brew-healing-2:
+        symbol: 'Z'
+        material: POTION
+        challenge-type: BREW_HEALING_2
+        display:
+          completed-name: '<green>Healing Splash Master'
+          uncompleted-name: '<red>Healing Splash Master'
+          unclaimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - ' '
+            - '<yellow>Click to claim your reward!'
+          claimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - '<yellow><bold>REWARD CLAIMED!'
+          uncompleted-lore:
+            - '<aqua>Brew {needed_amount} healing potion!'
+            - ' '
+            - '<dark_red>Progress: <gray>({current_amount}/{needed_amount})'
+            - '{progress_bar}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+          minecraft:potion_contents: 
+            custom_effects:
+              - id: instant_health
+                amplifier: 1
+      brew-fire-resistance:
+        symbol: '1'
+        material: LINGERING_POTION
+        challenge-type: BREW_FIRE_RESISTANCE
+        display:
+          completed-name: '<green>Flameproof Chemist'
+          uncompleted-name: '<red>Flameproof Chemist'
+          unclaimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - ' '
+            - '<yellow>Click to claim your reward!'
+          claimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - '<yellow><bold>REWARD CLAIMED!'
+          uncompleted-lore:
+            - '<aqua>Brew {needed_amount} fire resistance potions!'
+            - ' '
+            - '<dark_red>Progress: <gray>({current_amount}/{needed_amount})'
+            - '{progress_bar}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+          minecraft:potion_contents: 
+            custom_effects:
+              - id: fire_resistance
+                amplifier: 0
+      brew-regeneration:
+        symbol: '2'
+        material: POTION
+        challenge-type: BREW_REGENERATION
+        display:
+          completed-name: '<green>Regeneration Wizard'
+          uncompleted-name: '<red>Regeneration Wizard'
+          unclaimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - ' '
+            - '<yellow>Click to claim your reward!'
+          claimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - '<yellow><bold>REWARD CLAIMED!'
+          uncompleted-lore:
+            - '<aqua>Brew {needed_amount} regeneration potion!'
+            - ' '
+            - '<dark_red>Progress: <gray>({current_amount}/{needed_amount})'
+            - '{progress_bar}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+          minecraft:potion_contents: 
+            custom_effects:
+              - id: regeneration
+                amplifier: 0
+      barter-obsidian:
+        symbol: '3'
+        material: OBSIDIAN
+        challenge-type: BARTER_OBSIDIAN
+        display:
+          completed-name: '<green>Piglin Obsidian Dealer'
+          uncompleted-name: '<red>Piglin Obsidian Dealer'
+          unclaimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - ' '
+            - '<yellow>Click to claim your reward!'
+          claimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - '<yellow><bold>REWARD CLAIMED!'
+          uncompleted-lore:
+            - '<aqua>Barter with piglins for {needed_amount} obsidian!'
+            - ' '
+            - '<dark_red>Progress: <gray>({current_amount}/{needed_amount})'
+            - '{progress_bar}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      barter-quartz:
+        symbol: '4'
+        material: QUARTZ
+        challenge-type: BARTER_QUARTZ
+        display:
+          completed-name: '<green>Quartz Collector'
+          uncompleted-name: '<red>Quartz Collector'
+          unclaimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - ' '
+            - '<yellow>Click to claim your reward!'
+          claimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - '<yellow><bold>REWARD CLAIMED!'
+          uncompleted-lore:
+            - '<aqua>Barter with piglins for {needed_amount} quartz!'
+            - ' '
+            - '<dark_red>Progress: <gray>({current_amount}/{needed_amount})'
+            - '{progress_bar}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      barter-dirt:
+        symbol: '5'
+        material: DIRT
+        challenge-type: BARTER_DIRT
+        display:
+          completed-name: '<green>Dirt-for-Gold Trader'
+          uncompleted-name: '<red>Dirt-for-Gold Trader'
+          unclaimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - ' '
+            - '<yellow>Click to claim your reward!'
+          claimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - '<yellow><bold>REWARD CLAIMED!'
+          uncompleted-lore:
+            - '<aqua>Barter with piglins for {needed_amount} dirt!'
+            - ' '
+            - '<dark_red>Progress: <gray>({current_amount}/{needed_amount})'
+            - '{progress_bar}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      barter-custom-magma-block:
+        symbol: '6'
+        material: MAGMA_BLOCK
+        challenge-type: BARTER_CUSTOM_MAGMA_BLOCK
+        display:
+          completed-name: '<green>Magma Cube Merchant'
+          uncompleted-name: '<red>Magma Cube Merchant'
+          unclaimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - ' '
+            - '<yellow>Click to claim your reward!'
+          claimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - '<yellow><bold>REWARD CLAIMED!'
+          uncompleted-lore:
+            - '<aqua>Barter with piglins for {needed_amount} magma block!'
+            - ' '
+            - '<dark_red>Progress: <gray>({current_amount}/{needed_amount})'
+            - '{progress_bar}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      barter-wither-rose:
+        symbol: '7'
+        material: WITHER_ROSE
+        challenge-type: BARTER_WITHER_ROSE
+        display:
+          completed-name: '<green>Rose of Wither Trade'
+          uncompleted-name: '<red>Rose of Wither Trade'
+          unclaimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - ' '
+            - '<yellow>Click to claim your reward!'
+          claimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - '<yellow><bold>REWARD CLAIMED!'
+          uncompleted-lore:
+            - '<aqua>Barter with piglins for {needed_amount} wither rose!'
+            - ' '
+            - '<dark_red>Progress: <gray>({current_amount}/{needed_amount})'
+            - '{progress_bar}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      breed-cow:
+        symbol: '8'
+        material: LEATHER
+        challenge-type: BREED_COW
+        display:
+          completed-name: '<green>Cow Love Specialist'
+          uncompleted-name: '<red>Cow Love Specialist'
+          unclaimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - ' '
+            - '<yellow>Click to claim your reward!'
+          claimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - '<yellow><bold>REWARD CLAIMED!'
+          uncompleted-lore:
+            - '<aqua>Breed {needed_amount} cows!'
+            - ' '
+            - '<dark_red>Progress: <gray>({current_amount}/{needed_amount})'
+            - '{progress_bar}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      breed-sheep:
+        symbol: '9'
+        material: WHITE_WOOL
+        challenge-type: BREED_SHEEP
+        display:
+          completed-name: '<green>Wooly Matchmaker'
+          uncompleted-name: '<red>Wooly Matchmaker'
+          unclaimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - ' '
+            - '<yellow>Click to claim your reward!'
+          claimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - '<yellow><bold>REWARD CLAIMED!'
+          uncompleted-lore:
+            - '<aqua>Breed {needed_amount} sheep!'
+            - ' '
+            - '<dark_red>Progress: <gray>({current_amount}/{needed_amount})'
+            - '{progress_bar}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      breed-pig:
+        symbol: '0'
+        material: PORKCHOP
+        challenge-type: BREED_PIG
+        display:
+          completed-name: '<green>Pork Producer'
+          uncompleted-name: '<red>Pork Producer'
+          unclaimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - ' '
+            - '<yellow>Click to claim your reward!'
+          claimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - '<yellow><bold>REWARD CLAIMED!'
+          uncompleted-lore:
+            - '<aqua>Breed {needed_amount} pigs!'
+            - ' '
+            - '<dark_red>Progress: <gray>({current_amount}/{needed_amount})'
+            - '{progress_bar}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      breed-chicken:
+        symbol: 'a'
+        material: EGG
+        challenge-type: BREED_CHICKEN
+        display:
+          completed-name: '<green>Chicken Cupid'
+          uncompleted-name: '<red>Chicken Cupid'
+          unclaimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - ' '
+            - '<yellow>Click to claim your reward!'
+          claimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - '<yellow><bold>REWARD CLAIMED!'
+          uncompleted-lore:
+            - '<aqua>Breed {needed_amount} chickens!'
+            - ' '
+            - '<dark_red>Progress: <gray>({current_amount}/{needed_amount})'
+            - '{progress_bar}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      breed-horse:
+        symbol: 'b'
+        material: SADDLE
+        challenge-type: BREED_HORSE
+        display:
+          completed-name: '<green>Horse Whisperer'
+          uncompleted-name: '<red>Horse Whisperer'
+          unclaimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - ' '
+            - '<yellow>Click to claim your reward!'
+          claimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - '<yellow><bold>REWARD CLAIMED!'
+          uncompleted-lore:
+            - '<aqua>Breed {needed_amount} horses!'
+            - ' '
+            - '<dark_red>Progress: <gray>({current_amount}/{needed_amount})'
+            - '{progress_bar}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      farm-wheat:
+        symbol: 'c'
+        material: WHEAT
+        challenge-type: FARM_WHEAT
+        display:
+          completed-name: '<green>Wheat Reaper'
+          uncompleted-name: '<red>Wheat Reaper'
+          unclaimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - ' '
+            - '<yellow>Click to claim your reward!'
+          claimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - '<yellow><bold>REWARD CLAIMED!'
+          uncompleted-lore:
+            - '<aqua>Grow & harvest {needed_amount} wheat!'
+            - ' '
+            - '<dark_red>Progress: <gray>({current_amount}/{needed_amount})'
+            - '{progress_bar}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      farm-carrots:
+        symbol: 'd'
+        material: CARROT
+        challenge-type: FARM_CARROTS
+        display:
+          completed-name: '<green>Golden Carrot Farmer'
+          uncompleted-name: '<red>Golden Carrot Farmer'
+          unclaimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - ' '
+            - '<yellow>Click to claim your reward!'
+          claimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - '<yellow><bold>REWARD CLAIMED!'
+          uncompleted-lore:
+            - '<aqua>Grow & harvest {needed_amount} carrots!'
+            - ' '
+            - '<dark_red>Progress: <gray>({current_amount}/{needed_amount})'
+            - '{progress_bar}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      farm-potatoes:
+        symbol: 'e'
+        material: POTATO
+        challenge-type: FARM_POTATOES
+        display:
+          completed-name: '<green>Tater Chef'
+          uncompleted-name: '<red>Tater Chef'
+          unclaimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - ' '
+            - '<yellow>Click to claim your reward!'
+          claimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - '<yellow><bold>REWARD CLAIMED!'
+          uncompleted-lore:
+            - '<aqua>Grow & harvest {needed_amount} potatoes!'
+            - ' '
+            - '<dark_red>Progress: <gray>({current_amount}/{needed_amount})'
+            - '{progress_bar}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      farm-beetroots:
+        symbol: 'f'
+        material: BEETROOT
+        challenge-type: FARM_BEETROOTS
+        display:
+          completed-name: '<green>Soup Kitchen Boss'
+          uncompleted-name: '<red>Soup Kitchen Boss'
+          unclaimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - ' '
+            - '<yellow>Click to claim your reward!'
+          claimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - '<yellow><bold>REWARD CLAIMED!'
+          uncompleted-lore:
+            - '<aqua>Grow & harvest {needed_amount} beetroots!'
+            - ' '
+            - '<dark_red>Progress: <gray>({current_amount}/{needed_amount})'
+            - '{progress_bar}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      farm-sugar-cane:
+        symbol: 'g'
+        material: SUGAR_CANE
+        challenge-type: FARM_SUGAR_CANE
+        display:
+          completed-name: '<green>Paper Crafter'
+          uncompleted-name: '<red>Paper Crafter'
+          unclaimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - ' '
+            - '<yellow>Click to claim your reward!'
+          claimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - '<yellow><bold>REWARD CLAIMED!'
+          uncompleted-lore:
+            - '<aqua>Grow & harvest {needed_amount} sugar cane!'
+            - ' '
+            - '<dark_red>Progress: <gray>({current_amount}/{needed_amount})'
+            - '{progress_bar}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      farm-nether-wart:
+        symbol: 'h'
+        material: NETHER_WART
+        challenge-type: FARM_NETHER_WART
+        display:
+          completed-name: '<green>Nether Wart Alchemist'
+          uncompleted-name: '<red>Nether Wart Alchemist'
+          unclaimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - ' '
+            - '<yellow>Click to claim your reward!'
+          claimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - '<yellow><bold>REWARD CLAIMED!'
+          uncompleted-lore:
+            - '<aqua>Grow & harvest {needed_amount} nether warts!'
+            - ' '
+            - '<dark_red>Progress: <gray>({current_amount}/{needed_amount})'
+            - '{progress_bar}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      slay-zombie:
+        symbol: 'i'
+        material: ROTTEN_FLESH
+        challenge-type: SLAY_ZOMBIE
+        display:
+          completed-name: '<green>Rotten Brawler'
+          uncompleted-name: '<red>Rotten Brawler'
+          unclaimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - ' '
+            - '<yellow>Click to claim your reward!'
+          claimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - '<yellow><bold>REWARD CLAIMED!'
+          uncompleted-lore:
+            - '<aqua>Slay {needed_amount} zombies!'
+            - ' '
+            - '<dark_red>Progress: <gray>({current_amount}/{needed_amount})'
+            - '{progress_bar}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      slay-skeleton:
+        symbol: 'j'
+        material: ARROW
+        challenge-type: SLAY_SKELETON
+        display:
+          completed-name: '<green>Bone Shooter Slayer'
+          uncompleted-name: '<red>Bone Shooter Slayer'
+          unclaimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - ' '
+            - '<yellow>Click to claim your reward!'
+          claimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - '<yellow><bold>REWARD CLAIMED!'
+          uncompleted-lore:
+            - '<aqua>Slay {needed_amount} skeletons!'
+            - ' '
+            - '<dark_red>Progress: <gray>({current_amount}/{needed_amount})'
+            - '{progress_bar}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      slay-blaze:
+        symbol: 'k'
+        material: BLAZE_ROD
+        challenge-type: SLAY_BLAZE
+        display:
+          completed-name: '<green>Blaze Blaster'
+          uncompleted-name: '<red>Blaze Blaster'
+          unclaimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - ' '
+            - '<yellow>Click to claim your reward!'
+          claimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - '<yellow><bold>REWARD CLAIMED!'
+          uncompleted-lore:
+            - '<aqua>Slay {needed_amount} blazes!'
+            - ' '
+            - '<dark_red>Progress: <gray>({current_amount}/{needed_amount})'
+            - '{progress_bar}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      slay-wither-skeleton:
+        symbol: 'l'
+        material: COAL
+        challenge-type: SLAY_WITHER_SKELETON
+        display:
+          completed-name: '<green>Coal Collector Skeleton'
+          uncompleted-name: '<red>Coal Collector Skeleton'
+          unclaimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - ' '
+            - '<yellow>Click to claim your reward!'
+          claimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - '<yellow><bold>REWARD CLAIMED!'
+          uncompleted-lore:
+            - '<aqua>Slay {needed_amount} wither skeletons!'
+            - ' '
+            - '<dark_red>Progress: <gray>({current_amount}/{needed_amount})'
+            - '{progress_bar}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      slay-wraith:
+        symbol: 'm'
+        material: ENDER_PEARL
+        challenge-type: SLAY_WRAITH
+        display:
+          completed-name: '<green>Ethereal Wraith Killer'
+          uncompleted-name: '<red>Ethereal Wraith Killer'
+          unclaimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - ' '
+            - '<yellow>Click to claim your reward!'
+          claimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - '<yellow><bold>REWARD CLAIMED!'
+          uncompleted-lore:
+            - '<aqua>Slay {needed_amount} wraiths!'
+            - ' '
+            - '<dark_red>Progress: <gray>({current_amount}/{needed_amount})'
+            - '{progress_bar}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      levelup-hellblock-50:
+        symbol: 'n'
+        material: GOLD_BLOCK
+        challenge-type: LEVELUP_HELLBLOCK_50
+        display:
+          completed-name: '<green>Level 50 Legend'
+          uncompleted-name: '<red>Level 50 Legend'
+          unclaimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - ' '
+            - '<yellow>Click to claim your reward!'
+          claimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - '<yellow><bold>REWARD CLAIMED!'
+          uncompleted-lore:
+            - '<aqua>Gain {needed_amount} additional levels to your hellblock!'
+            - ' '
+            - '<dark_red>Progress: <gray>({current_amount}/{needed_amount})'
+            - '{progress_bar}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      levelup-hellblock-100:
+        symbol: 'o'
+        material: DIAMOND_BLOCK
+        challenge-type: LEVELUP_HELLBLOCK_100
+        display:
+          completed-name: '<green>Centurion Miner'
+          uncompleted-name: '<red>Centurion Miner'
+          unclaimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - ' '
+            - '<yellow>Click to claim your reward!'
+          claimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - '<yellow><bold>REWARD CLAIMED!'
+          uncompleted-lore:
+            - '<aqua>Gain {needed_amount} additional levels to your hellblock!'
+            - ' '
+            - '<dark_red>Progress: <gray>({current_amount}/{needed_amount})'
+            - '{progress_bar}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      levelup-hellblock-250:
+        symbol: 'p'
+        material: EMERALD_BLOCK
+        challenge-type: LEVELUP_HELLBLOCK_250
+        display:
+          completed-name: '<green>Quarter-K Nether Hero'
+          uncompleted-name: '<red>Quarter-K Nether Hero'
+          unclaimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - ' '
+            - '<yellow>Click to claim your reward!'
+          claimed-lore:
+            - '<dark_green>Completed!: <gray>({current_amount}/{needed_amount})'
+            - ' '
+            - '<yellow><bold>REWARD CLAIMED!'
+          uncompleted-lore:
+            - '<aqua>Gain {needed_amount} additional levels to your hellblock!'
+            - ' '
+            - '<dark_red>Progress: <gray>({current_amount}/{needed_amount})'
+            - '{progress_bar}'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+    # Decorative icons for visual enhancement
+    decorative-icons:
+      glass-pane:
+        symbol: 'A'
+        material: BROWN_STAINED_GLASS_PANE
+        display:
+          name: ' '
+        components:
+          minecraft:hide_tooltip: {}

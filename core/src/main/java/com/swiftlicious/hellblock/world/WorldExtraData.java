@@ -3,6 +3,7 @@ package com.swiftlicious.hellblock.world;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import com.google.gson.annotations.SerializedName;
@@ -62,6 +63,19 @@ public class WorldExtraData {
 	@Nullable
 	public Object getExtraData(String key) {
 		return this.extra.get(key);
+	}
+
+	/**
+	 * Copies all extra data entries from another WorldExtraData instance into this
+	 * one. Existing keys will be overwritten.
+	 *
+	 * @param other The WorldExtraData instance to copy from.
+	 */
+	public void copyFrom(@NotNull WorldExtraData other) {
+		if (other == null)
+			return;
+		this.extra.clear();
+		this.extra.putAll(other.extra);
 	}
 
 	/**

@@ -12,11 +12,6 @@ public class MythicMobsItemProvider implements ItemProvider {
 
 	private MythicBukkit mythicBukkit;
 
-	@Override
-	public String identifier() {
-		return "MythicMobs";
-	}
-
 	@NotNull
 	@Override
 	public ItemStack buildItem(@NotNull Context<Player> player, @NotNull String id) {
@@ -32,5 +27,10 @@ public class MythicMobsItemProvider implements ItemProvider {
 			this.mythicBukkit = MythicBukkit.inst();
 		}
 		return mythicBukkit.getItemManager().getMythicTypeFromItem(itemStack);
+	}
+
+	@Override
+	public String identifier() {
+		return "MythicMobs";
 	}
 }

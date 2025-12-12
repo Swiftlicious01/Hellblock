@@ -1,11 +1,12 @@
 package com.swiftlicious.hellblock.mechanics.fishing;
 
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 
-import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
@@ -18,9 +19,9 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.persistence.PersistentDataType;
+import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.jetbrains.annotations.ApiStatus;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.challenges.HellblockChallenge.ActionType;
@@ -235,7 +236,7 @@ public class CustomFishingHook {
 			return;
 		}
 		this.valid = false;
-		if (!this.task.isCancelled()) {
+		if (this.task != null && !this.task.isCancelled()) {
 			this.task.cancel();
 		}
 		if (this.hook.isValid()) {
@@ -369,17 +370,24 @@ public class CustomFishingHook {
 		if (!hook.isValid()) {
 			return;
 		}
-		context.arg(ContextKeys.OTHER_LOCATION, hook.getLocation());
-		instance.getEventManager().trigger(context, nextLoot.id(), MechanicType.LOOT, ActionTrigger.BITE);
-		gears.trigger(ActionTrigger.BITE, context);
-		if (!RequirementManager.isSatisfied(context, instance.getConfigManager().autoFishingRequirements())) {
+		final Optional<Integer> optIslandId = instance.getIslandManager()
+				.getLastTrackedIsland(context.holder().getUniqueId());
+		optIslandId.filter(Objects::nonNull).ifPresent(islandId -> {
+			final Context<Integer> islandContext = Context.island(islandId);
+			context.arg(ContextKeys.OTHER_LOCATION, hook.getLocation());
+			instance.getEventManager().trigger(context, nextLoot.id(), MechanicType.LOOT, ActionTrigger.BITE);
+			gears.trigger(ActionTrigger.BITE, context);
+			if (!RequirementManager.isSatisfied(context, instance.getConfigManager().autoFishingPlayerRequirements())
+					|| !RequirementManager.isSatisfied(islandContext,
+							instance.getConfigManager().autoFishingIslandRequirements())) {
+				return;
+			}
+			handleSuccessfulFishing();
+			VersionHelper.getNMSManager().swingHand(context.holder(), gears.getRodSlot());
+			destroy();
+			scheduleNextFishing();
 			return;
-		}
-		handleSuccessfulFishing();
-		VersionHelper.getNMSManager().swingHand(context.holder(), gears.getRodSlot());
-		destroy();
-		scheduleNextFishing();
-		return;
+		});
 	}
 
 	/**
@@ -391,6 +399,30 @@ public class CustomFishingHook {
 		}
 		context.arg(ContextKeys.OTHER_LOCATION, hook.getLocation());
 		gears.trigger(ActionTrigger.LAND, context);
+	}
+
+	/**
+	 * Called when the hook is triggered while something is caught.
+	 */
+	public void onHook() {
+		if (!hook.isValid()) {
+			return;
+		}
+
+		context.arg(ContextKeys.OTHER_LOCATION, hook.getLocation());
+
+		// Trigger the HOOK event
+		EventUtils.fireAndForget(new FishingHookStateEvent(context.holder(), hook, FishingHookStateEvent.State.HOOK));
+
+		// Trigger the mechanic hook (gear, loot system, etc.)
+		if (nextLoot != null) {
+			instance.getEventManager().trigger(context, nextLoot.id(), MechanicType.LOOT, ActionTrigger.HOOK);
+		}
+
+		gears.trigger(ActionTrigger.HOOK, context);
+
+		// Perform the catch
+		startFishing();
 	}
 
 	/**
@@ -445,7 +477,6 @@ public class CustomFishingHook {
 	/**
 	 * Handles a successful fishing attempt.
 	 */
-	@SuppressWarnings("removal")
 	public void handleSuccessfulFishing() {
 
 		if (!valid) {
@@ -503,14 +534,21 @@ public class CustomFishingHook {
 								if (displayName.isPresent()) {
 									context.arg(ContextKeys.NICK, AdventureHelper.jsonToMiniMessage(displayName.get()));
 								} else {
-									context.arg(ContextKeys.NICK, "<lang:" + stack.getType().getTranslationKey() + ">");
+									context.arg(ContextKeys.NICK,
+											"<lang:" + getMaterialTranslationKey(stack.getType()) + ">");
 								}
 							}
 							PlayerUtils.giveItem(context.holder(), stack, stack.getAmount());
 						}
 						instance.getStorageManager().getOnlineUser(context.holder().getUniqueId())
-								.ifPresent(user -> instance.getChallengeManager()
-										.handleChallengeProgression(context.holder(), ActionType.FISH, stack));
+								.ifPresent(userData -> {
+									if (instance.getCooldownManager()
+											.shouldUpdateActivity(context.holder().getUniqueId(), 5000)) {
+										userData.getHellblockData().updateLastIslandActivity();
+									}
+									instance.getChallengeManager().handleChallengeProgression(userData, ActionType.FISH,
+											stack);
+								});
 					} else {
 						final Item item = instance.getItemManager().dropItemLoot(context,
 								gears.getItem(FishingGears.GearType.ROD).stream().findAny().orElseThrow().right(),
@@ -521,13 +559,14 @@ public class CustomFishingHook {
 							if (displayName.isPresent()) {
 								context.arg(ContextKeys.NICK, AdventureHelper.jsonToMiniMessage(displayName.get()));
 							} else {
-								context.arg(ContextKeys.NICK, "<lang:" + stack.getType().getTranslationKey() + ">");
+								context.arg(ContextKeys.NICK,
+										"<lang:" + getMaterialTranslationKey(stack.getType()) + ">");
 							}
 						}
 						if (item != null) {
 							final FishingLootSpawnEvent spawnEvent = new FishingLootSpawnEvent(context, hookLocation,
 									nextLoot, item);
-							Bukkit.getPluginManager().callEvent(spawnEvent);
+							EventUtils.fireAndForget(spawnEvent);
 							if (!spawnEvent.summonEntity()) {
 								item.remove();
 							}
@@ -541,8 +580,14 @@ public class CustomFishingHook {
 							}
 						}
 						instance.getStorageManager().getOnlineUser(context.holder().getUniqueId())
-								.ifPresent(user -> instance.getChallengeManager()
-										.handleChallengeProgression(context.holder(), ActionType.FISH, item));
+								.ifPresent(userData -> {
+									if (instance.getCooldownManager()
+											.shouldUpdateActivity(context.holder().getUniqueId(), 5000)) {
+										userData.getHellblockData().updateLastIslandActivity();
+									}
+									instance.getChallengeManager().handleChallengeProgression(userData, ActionType.FISH,
+											item);
+								});
 					}
 					doSuccessActions();
 				}, (long) instance.getConfigManager().multipleLootSpawnDelay() * i, hookLocation);
@@ -553,16 +598,20 @@ public class CustomFishingHook {
 			final FallingBlock fallingBlock = instance.getBlockManager().summonBlockLoot(context);
 			final FishingLootSpawnEvent spawnEvent = new FishingLootSpawnEvent(context, hook.getLocation(), nextLoot,
 					fallingBlock);
-			Bukkit.getPluginManager().callEvent(spawnEvent);
+			EventUtils.fireAndForget(spawnEvent);
 			if (!spawnEvent.summonEntity()) {
 				fallingBlock.remove();
 			}
 			if (spawnEvent.skipActions()) {
 				return;
 			}
-			instance.getStorageManager().getOnlineUser(context.holder().getUniqueId())
-					.ifPresent(user -> instance.getChallengeManager().handleChallengeProgression(context.holder(),
-							ActionType.FISH, fallingBlock.getBlockData()));
+			instance.getStorageManager().getOnlineUser(context.holder().getUniqueId()).ifPresent(userData -> {
+				if (instance.getCooldownManager().shouldUpdateActivity(context.holder().getUniqueId(), 5000)) {
+					userData.getHellblockData().updateLastIslandActivity();
+				}
+				instance.getChallengeManager().handleChallengeProgression(userData, ActionType.FISH,
+						fallingBlock.getBlockData());
+			});
 			doSuccessActions();
 		}
 		case ENTITY -> {
@@ -570,15 +619,19 @@ public class CustomFishingHook {
 			final Entity entity = instance.getEntityManager().summonEntityLoot(context);
 			final FishingLootSpawnEvent spawnEvent = new FishingLootSpawnEvent(context, hook.getLocation(), nextLoot,
 					entity);
-			Bukkit.getPluginManager().callEvent(spawnEvent);
+			EventUtils.fireAndForget(spawnEvent);
 			if (!spawnEvent.summonEntity()) {
 				entity.remove();
 			}
 			if (spawnEvent.skipActions()) {
 				return;
 			}
-			instance.getStorageManager().getOnlineUser(context.holder().getUniqueId()).ifPresent(user -> instance
-					.getChallengeManager().handleChallengeProgression(context.holder(), ActionType.FISH, entity));
+			instance.getStorageManager().getOnlineUser(context.holder().getUniqueId()).ifPresent(userData -> {
+				if (instance.getCooldownManager().shouldUpdateActivity(context.holder().getUniqueId(), 5000)) {
+					userData.getHellblockData().updateLastIslandActivity();
+				}
+				instance.getChallengeManager().handleChallengeProgression(userData, ActionType.FISH, entity);
+			});
 			doSuccessActions();
 		}
 		}
@@ -590,6 +643,10 @@ public class CustomFishingHook {
 
 		if (!nextLoot.disableStats()) {
 			instance.getStorageManager().getOnlineUser(player.getUniqueId()).ifPresent(userData -> {
+				int amount = userData.getStatisticData().getAmount(nextLoot.statisticKey().amountKey());
+				if (amount == 0) {
+					context.arg(ContextKeys.FIRST_CAPTURE, true);
+				}
 				final Pair<Integer, Integer> result = userData.getStatisticData()
 						.addAmount(nextLoot.statisticKey().amountKey(), 1);
 				userData.getStatisticData().addAmount(nextLoot.statisticKey().amountKey(), 1);
@@ -617,5 +674,19 @@ public class CustomFishingHook {
 
 		instance.getEventManager().trigger(context, id, MechanicType.LOOT, ActionTrigger.SUCCESS);
 		player.setStatistic(Statistic.FISH_CAUGHT, player.getStatistic(Statistic.FISH_CAUGHT) + 1);
+	}
+
+	@NotNull
+	public String getMaterialTranslationKey(@NotNull Material material) {
+		if (VersionHelper.isVersionNewerThan1_19_2()) {
+			try {
+				Method method = Material.class.getMethod("getTranslationKey");
+				return (String) method.invoke(material);
+			} catch (Throwable ignored) {
+				// fall through to fallback
+			}
+		}
+		// Fallback: simulate the key (based on Minecraft naming convention)
+		return "item.minecraft." + material.name().toLowerCase(Locale.ROOT);
 	}
 }

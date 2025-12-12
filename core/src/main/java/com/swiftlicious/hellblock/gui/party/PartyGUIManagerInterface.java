@@ -12,9 +12,10 @@ public interface PartyGUIManagerInterface extends Reloadable {
 	/**
 	 * Opens the party GUI for the specified player.
 	 *
-	 * @param player  the {@link Player} for whom the party GUI will be opened
-	 * @param isOwner whether the player opening the menu is the owner or not.
+	 * @param player   the {@link Player} for whom the party GUI will be opened.
+	 * @param islandId the islandId of the island owner.
+	 * @param isOwner  whether the player opening the menu is the owner or not.
 	 * @return true if the party GUI was successfully opened, false otherwise
 	 */
-	boolean openPartyGUI(Player player, boolean isOwner);
+	boolean openPartyGUI(Player player, int islandId, boolean isOwner);
 }

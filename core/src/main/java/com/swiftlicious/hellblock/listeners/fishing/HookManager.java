@@ -63,7 +63,8 @@ public class HookManager implements Listener, HookManagerInterface {
 	@Override
 	public void load() {
 		Bukkit.getPluginManager().registerEvents(this, instance);
-		instance.debug("Loaded " + hooks.size() + " hooks");
+		instance.debug(hooks.size() > 0 ? "Loaded " + hooks.size() + " hook" + (hooks.size() == 1 ? "" : "s")
+				: "No hooks found to load");
 	}
 
 	@Override
@@ -229,7 +230,7 @@ public class HookManager implements Listener, HookManagerInterface {
 		}
 		hookConfig.lore().forEach(lore -> {
 			final ScoreComponent.Builder builder = Component.score().name("hb").objective("hook");
-			builder.append(AdventureHelper.miniMessage(
+			builder.append(AdventureHelper.miniMessageToComponent(
 					lore.replace("{dur}", String.valueOf(durabilityItem.maxDamage() - durabilityItem.damage()))
 							.replace("{max}", String.valueOf(durabilityItem.maxDamage()))));
 			newLore.add(AdventureHelper.componentToJson(builder.build()));

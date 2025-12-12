@@ -1,6 +1,7 @@
 package com.swiftlicious.hellblock.world.adapter;
 
 import java.lang.reflect.Method;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Optional;
@@ -32,7 +33,6 @@ import com.swiftlicious.hellblock.handlers.VersionHelper;
 import com.swiftlicious.hellblock.protection.HellblockFlag;
 import com.swiftlicious.hellblock.utils.TagUtils;
 import com.swiftlicious.hellblock.utils.extras.Either;
-import com.swiftlicious.hellblock.utils.extras.QuadFunction;
 import com.swiftlicious.hellblock.world.BlockPos;
 import com.swiftlicious.hellblock.world.ChunkPos;
 import com.swiftlicious.hellblock.world.CustomBlock;
@@ -45,9 +45,12 @@ import com.swiftlicious.hellblock.world.CustomSectionInterface;
 import com.swiftlicious.hellblock.world.CustomWorldInterface;
 import com.swiftlicious.hellblock.world.DelayedTickTask;
 import com.swiftlicious.hellblock.world.HellblockWorld;
+import com.swiftlicious.hellblock.world.HellblockWorldException;
 import com.swiftlicious.hellblock.world.RegionPos;
 import com.swiftlicious.hellblock.world.SerializableChunk;
 import com.swiftlicious.hellblock.world.WorldExtraData;
+import com.swiftlicious.hellblock.world.WorldManager;
+import com.swiftlicious.hellblock.world.WorldSetting;
 
 import net.kyori.adventure.nbt.BinaryTag;
 import net.kyori.adventure.nbt.CompoundBinaryTag;
@@ -56,12 +59,14 @@ import net.kyori.adventure.nbt.StringBinaryTag;
 
 public class SlimeWorldAdapter extends AbstractWorldAdapter<SlimeWorld> implements Listener {
 
-	private final Function<String, SlimeWorld> getSlimeWorldFunction;
-	private final Function<String, SlimeLoader> getSlimeLoaderFunction;
-	private final Function<String, Void> deleteSlimeWorldFunction;
-	private final Function<String, Boolean> worldExistsFunction;
-	private final Function<SlimeWorld, Either<SlimeWorld, Void>> generateSlimeWorldFunction;
-	private final QuadFunction<String, Boolean, SlimePropertyMap, SlimeLoader, SlimeWorld> createSlimeWorldFunction;
+	private final HellblockPlugin instance;
+
+	private final GetSlimeWorldFunction getSlimeWorldFunction;
+	private final GetSlimeLoaderFunction getSlimeLoaderFunction;
+	private final DeleteSlimeWorldFunction deleteSlimeWorldFunction;
+	private final WorldExistsFunction worldExistsFunction;
+	private final GenerateSlimeWorldFunction generateSlimeWorldFunction;
+	private final CreateSlimeWorldFunction createSlimeWorldFunction;
 
 	private final Method getWorldMethod;
 	private final Method getLoaderMethod;
@@ -72,14 +77,19 @@ public class SlimeWorldAdapter extends AbstractWorldAdapter<SlimeWorld> implemen
 
 	private SlimeLoader cachedLoader;
 
+	private static final String TAG_HELLBLOCK_DATA = "hellblock";
+	private static final String TAG_WORLD_INFO = "world-info";
+	private static final String TAG_WORLD_VERSION = "hellblock-version";
+
 	private static final String[] LOADERS = new String[] { "api-loader", "mysql-loader", "mongo-loader", "file-loader",
 			"redis-loader" };
 
-	public SlimeWorldAdapter(int version) {
+	public SlimeWorldAdapter(HellblockPlugin plugin, int version) {
+		instance = plugin;
 		try {
 			if (version == 1) {
-				final Plugin plugin = Bukkit.getPluginManager().getPlugin("SlimeWorldManager");
-				if (plugin == null) {
+				final Plugin slimePlugin = Bukkit.getPluginManager().getPlugin("SlimeWorldManager");
+				if (slimePlugin == null) {
 					throw new IllegalStateException("SlimeWorldManager plugin not found");
 				}
 				final Class<?> slimeClass = Class.forName("com.infernalsuite.aswm.api.SlimePlugin");
@@ -91,55 +101,56 @@ public class SlimeWorldAdapter extends AbstractWorldAdapter<SlimeWorld> implemen
 				final Class<?> loaderClass = Class.forName("com.infernalsuite.aswm.api.loaders.SlimeLoader");
 				this.worldExistsMethod = loaderClass.getMethod("worldExists", String.class);
 				this.deleteWorldMethod = loaderClass.getMethod("deleteWorld", String.class);
-				this.getSlimeWorldFunction = (name) -> {
+				this.getSlimeWorldFunction = (worldName) -> {
 					try {
-						return (SlimeWorld) this.getWorldMethod.invoke(plugin, name);
+						return (SlimeWorld) this.getWorldMethod.invoke(slimePlugin, worldName);
 					} catch (ReflectiveOperationException e) {
-						throw new RuntimeException(e);
+						throw new HellblockWorldException(e);
 					}
 				};
 				this.getSlimeLoaderFunction = (data) -> {
 					try {
-						return (SlimeLoader) this.getLoaderMethod.invoke(plugin, data);
+						return (SlimeLoader) this.getLoaderMethod.invoke(slimePlugin, data);
 					} catch (ReflectiveOperationException e) {
-						throw new RuntimeException(e);
+						throw new HellblockWorldException(e);
 					}
 				};
-				this.createSlimeWorldFunction = (name, read, properties, loader) -> {
+				this.createSlimeWorldFunction = (worldName, readOnly, properties, loader) -> {
 					try {
-						return (SlimeWorld) this.createEmptyWorldMethod.invoke(plugin, loader, name, read, properties);
+						return (SlimeWorld) this.createEmptyWorldMethod.invoke(slimePlugin, loader, worldName, readOnly,
+								properties);
 					} catch (ReflectiveOperationException e) {
-						throw new RuntimeException(e);
+						throw new HellblockWorldException(e);
 					}
 				};
 				this.generateSlimeWorldFunction = (slime) -> {
 					try {
-						return Either.ofFallback((Void) this.generateWorldMethod.invoke(plugin, slime));
+						return Either.ofFallback((Void) this.generateWorldMethod.invoke(slimePlugin, slime));
 					} catch (ReflectiveOperationException e) {
-						throw new RuntimeException(e);
+						throw new HellblockWorldException(e);
 					}
 				};
-				this.worldExistsFunction = (name) -> {
+				this.worldExistsFunction = (worldName) -> {
 					try {
 						SlimeLoader loader = this.getSlimeLoader();
 						if (loader == null)
 							return false;
-						return (Boolean) this.worldExistsMethod.invoke(loader, name);
+						return (Boolean) this.worldExistsMethod.invoke(loader, worldName);
 					} catch (ReflectiveOperationException e) {
-						throw new RuntimeException(e);
+						throw new HellblockWorldException(e);
 					}
 				};
-				this.deleteSlimeWorldFunction = (name) -> {
+				this.deleteSlimeWorldFunction = (worldName) -> {
 					try {
 						SlimeLoader loader = this.getSlimeLoader();
 						if (loader == null)
-							return null;
-						return (Void) this.deleteWorldMethod.invoke(loader, name);
+							return;
+						this.deleteWorldMethod.invoke(loader, worldName);
 					} catch (ReflectiveOperationException e) {
-						throw new RuntimeException(e);
+						throw new HellblockWorldException(e);
 					}
 				};
-			} else if (version == 2 && VersionHelper.isPaper()) {
+			} else if (version == 2 && VersionHelper.isPaperFork()) {
 				final Class<?> apiClass = Class.forName("com.infernalsuite.aswm.api.AdvancedSlimePaperAPI");
 				final Object apiInstance = apiClass.getMethod("instance").invoke(null);
 				this.getWorldMethod = apiClass.getMethod("getLoadedWorld", String.class);
@@ -151,93 +162,101 @@ public class SlimeWorldAdapter extends AbstractWorldAdapter<SlimeWorld> implemen
 				final Class<?> loaderClass = Class.forName("com.infernalsuite.aswm.api.loaders.SlimeLoader");
 				this.worldExistsMethod = loaderClass.getMethod("worldExists", String.class);
 				this.deleteWorldMethod = loaderClass.getMethod("deleteWorld", String.class);
-				this.getSlimeWorldFunction = (name) -> {
+				this.getSlimeWorldFunction = (worldName) -> {
 					try {
-						return (SlimeWorld) this.getWorldMethod.invoke(apiInstance, name);
+						return (SlimeWorld) this.getWorldMethod.invoke(apiInstance, worldName);
 					} catch (ReflectiveOperationException e) {
-						throw new RuntimeException(e);
+						throw new HellblockWorldException(e);
 					}
 				};
 				this.getSlimeLoaderFunction = (data) -> {
 					try {
 						return (SlimeLoader) this.getLoaderMethod.invoke(apiInstance, data);
 					} catch (ReflectiveOperationException e) {
-						throw new RuntimeException(e);
+						throw new HellblockWorldException(e);
 					}
 				};
-				this.createSlimeWorldFunction = (name, read, properties, loader) -> {
+				this.createSlimeWorldFunction = (worldName, readOnly, properties, loader) -> {
 					try {
-						return (SlimeWorld) this.createEmptyWorldMethod.invoke(apiInstance, name, read, properties,
-								loader);
+						return (SlimeWorld) this.createEmptyWorldMethod.invoke(apiInstance, worldName, readOnly,
+								properties, loader);
 					} catch (ReflectiveOperationException e) {
-						throw new RuntimeException(e);
+						throw new HellblockWorldException(e);
 					}
 				};
 				this.generateSlimeWorldFunction = (slime) -> {
 					try {
 						return Either.ofPrimary((SlimeWorld) this.generateWorldMethod.invoke(apiInstance, slime, true));
 					} catch (ReflectiveOperationException e) {
-						throw new RuntimeException(e);
+						throw new HellblockWorldException(e);
 					}
 				};
-				this.worldExistsFunction = (name) -> {
+				this.worldExistsFunction = (worldName) -> {
 					try {
 						SlimeLoader loader = this.getSlimeLoader();
 						if (loader == null)
 							return false;
-						return (Boolean) this.worldExistsMethod.invoke(loader, name);
+						return (Boolean) this.worldExistsMethod.invoke(loader, worldName);
 					} catch (ReflectiveOperationException e) {
-						throw new RuntimeException(e);
+						throw new HellblockWorldException(e);
 					}
 				};
-				this.deleteSlimeWorldFunction = (name) -> {
+
+				this.deleteSlimeWorldFunction = (worldName) -> {
 					try {
 						SlimeLoader loader = this.getSlimeLoader();
 						if (loader == null)
-							return null;
-						return (Void) this.deleteWorldMethod.invoke(loader, name);
+							return;
+						this.deleteWorldMethod.invoke(loader, worldName);
 					} catch (ReflectiveOperationException e) {
-						throw new RuntimeException(e);
+						throw new HellblockWorldException(e);
 					}
 				};
 			} else {
 				throw new IllegalArgumentException("Unsupported version: " + version);
 			}
 		} catch (ReflectiveOperationException e) {
-			throw new RuntimeException(e);
+			throw new HellblockWorldException(e);
 		}
 	}
 
 	@EventHandler
 	public void onWorldLoad(LoadSlimeWorldEvent event) {
 		final String worldName = event.getSlimeWorld().getName();
-		HellblockPlugin.getInstance().getWorldManager().markWorldAccess(worldName);
+		instance.getWorldManager().markWorldAccess(worldName);
 		final World world = Bukkit.getWorld(worldName);
 
 		if (world == null) {
-			HellblockPlugin.getInstance().getPluginLogger().warn(
+			instance.getPluginLogger().warn(
 					"LoadSlimeWorldEvent triggered, but Bukkit world '%s' is not yet loaded.".formatted(worldName));
 			return;
 		}
 
-		if (!HellblockPlugin.getInstance().getWorldManager().isMechanicEnabled(world)) {
+		if (!instance.getWorldManager().isMechanicEnabled(world)) {
 			return;
 		}
 
-		HellblockPlugin.getInstance().getWorldManager().loadWorld(world);
+		instance.getWorldManager().loadWorld(world);
 	}
 
 	@Override
 	public HellblockWorld<SlimeWorld> adapt(Object world) {
-		if (!(world instanceof SlimeWorld)) {
-			throw new IllegalArgumentException("Expected Slime World, but got: " + world.getClass().getName());
+		if (!(world instanceof SlimeWorld slimeWorld)) {
+			throw new HellblockWorldException("Expected Slime World, but got: " + world.getClass().getName());
 		}
-		return CustomWorldInterface.create((SlimeWorld) world, this);
+		HellblockWorld<SlimeWorld> adaptedWorld = CustomWorldInterface.create(slimeWorld, this);
+
+		// Ensure setting is applied immediately
+		WorldSetting setting = Optional.ofNullable(instance.getWorldManager().getWorldSetting(slimeWorld.getName()))
+				.orElse(instance.getWorldManager().getDefaultWorldSetting());
+
+		adaptedWorld.setting(setting);
+		return adaptedWorld;
 	}
 
 	@Override
 	public Optional<SlimeWorld> getWorld(String worldName) {
-		SlimeWorld world = this.getSlimeWorldFunction.apply(worldName);
+		SlimeWorld world = this.getSlimeWorldFunction.getWorld(worldName);
 		return Optional.ofNullable(world);
 	}
 
@@ -247,26 +266,11 @@ public class SlimeWorldAdapter extends AbstractWorldAdapter<SlimeWorld> implemen
 		Optional<SlimeWorld> slimeOpt = getWorld(worldName);
 
 		if (slimeOpt.isPresent()) {
-			HellblockPlugin.getInstance().getWorldManager().markWorldAccess(worldName);
+			instance.getWorldManager().markWorldAccess(worldName);
 			return adapt(slimeOpt.get());
 		}
 
 		return null;
-	}
-
-	@SuppressWarnings("unused")
-	private CompoundBinaryTag createOrGetDataTag(SlimeWorld world) {
-		final ConcurrentMap<String, BinaryTag> extraData = world.getExtraData();
-
-		final BinaryTag tag = extraData.get("hellblock");
-
-		if (tag instanceof CompoundBinaryTag compound) {
-			return compound;
-		}
-
-		final CompoundBinaryTag newTag = CompoundBinaryTag.empty();
-		extraData.put("hellblock", newTag);
-		return newTag;
 	}
 
 	private SlimeLoader getSlimeLoader() {
@@ -275,21 +279,19 @@ public class SlimeWorldAdapter extends AbstractWorldAdapter<SlimeWorld> implemen
 
 		for (String loaderName : LOADERS) {
 			try {
-				final SlimeLoader worldLoader = this.getSlimeLoaderFunction.apply(loaderName);
+				final SlimeLoader worldLoader = this.getSlimeLoaderFunction.getLoader(loaderName);
 				if (worldLoader != null) {
 					cachedLoader = worldLoader;
-					HellblockPlugin.getInstance().debug("Using SlimeLoader: " + loaderName);
+					instance.debug("Using SlimeLoader: " + loaderName);
 					break;
 				}
-			} catch (Exception e) {
-				HellblockPlugin.getInstance().getPluginLogger()
-						.warn("Failed to load SlimeLoader: " + loaderName + " - " + e.getMessage());
+			} catch (HellblockWorldException e) {
+				instance.getPluginLogger().warn("Failed to load SlimeLoader: " + loaderName + " - " + e.getMessage());
 			}
 		}
 
 		if (cachedLoader == null) {
-			HellblockPlugin.getInstance().getPluginLogger()
-					.severe("No working SlimeLoader could be found. SlimeWorlds cannot be created.");
+			instance.getPluginLogger().severe("No working SlimeLoader could be found. SlimeWorlds cannot be created.");
 		}
 
 		return cachedLoader;
@@ -298,51 +300,67 @@ public class SlimeWorldAdapter extends AbstractWorldAdapter<SlimeWorld> implemen
 	@Override
 	public CompletableFuture<HellblockWorld<SlimeWorld>> createWorld(String worldName) {
 		CompletableFuture<HellblockWorld<SlimeWorld>> resultFuture = new CompletableFuture<>();
-		HellblockPlugin.getInstance().getWorldManager().markWorldAccess(worldName);
+		instance.getWorldManager().markWorldAccess(worldName);
 
 		CompletableFuture.runAsync(() -> {
 			SlimeWorld slimeWorld = getWorld(worldName).orElse(null);
-			boolean exists = this.worldExistsFunction.apply(worldName);
+			boolean exists = this.worldExistsFunction.exists(worldName);
 
-			if (!exists || slimeWorld == null) {
-				SlimePropertyMap properties = new SlimePropertyMap();
-				properties.setValue(SlimeProperties.SPAWN_X, 0);
-				properties.setValue(SlimeProperties.SPAWN_Y, HellblockPlugin.getInstance().getConfigManager().height());
-				properties.setValue(SlimeProperties.SPAWN_Z, 0);
-				properties.setValue(SlimeProperties.DEFAULT_BIOME,
-						HellBiome.NETHER_WASTES.getConvertedBiome().getKey().getKey().toLowerCase(Locale.ROOT));
-				properties.setValue(SlimeProperties.ALLOW_ANIMALS,
-						HellblockFlag.FlagType.MOB_SPAWNING.getDefaultValue());
-				properties.setValue(SlimeProperties.ALLOW_MONSTERS,
-						HellblockFlag.FlagType.MOB_SPAWNING.getDefaultValue());
-				properties.setValue(SlimeProperties.PVP, HellblockFlag.FlagType.PVP.getDefaultValue());
-				properties.setValue(SlimeProperties.DIFFICULTY, Difficulty.NORMAL.toString().toLowerCase(Locale.ROOT));
-				properties.setValue(SlimeProperties.ENVIRONMENT,
-						Environment.NETHER.toString().toLowerCase(Locale.ROOT));
+			// === Build world properties ===
+			SlimePropertyMap properties = new SlimePropertyMap();
+			properties.setValue(SlimeProperties.SPAWN_X, 0);
+			properties.setValue(SlimeProperties.SPAWN_Y, instance.getConfigManager().height());
+			properties.setValue(SlimeProperties.SPAWN_Z, 0);
+			properties.setValue(SlimeProperties.DEFAULT_BIOME,
+					HellBiome.NETHER_WASTES.getConvertedBiome().getKey().getKey().toLowerCase(Locale.ROOT));
+			properties.setValue(SlimeProperties.ALLOW_ANIMALS, HellblockFlag.FlagType.MOB_SPAWNING.getDefaultValue());
+			properties.setValue(SlimeProperties.ALLOW_MONSTERS, HellblockFlag.FlagType.MOB_SPAWNING.getDefaultValue());
+			properties.setValue(SlimeProperties.PVP, HellblockFlag.FlagType.PVP.getDefaultValue());
+			properties.setValue(SlimeProperties.DIFFICULTY, Difficulty.NORMAL.toString().toLowerCase(Locale.ROOT));
+			properties.setValue(SlimeProperties.ENVIRONMENT, Environment.NETHER.toString().toLowerCase(Locale.ROOT));
 
-				slimeWorld = this.createSlimeWorldFunction.apply(worldName, false, properties, getSlimeLoader());
-				this.generateSlimeWorldFunction.apply(slimeWorld);
+			// === Load or Create Behavior ===
+			final SlimeLoader loader = getSlimeLoader();
+			if (loader == null) {
+				instance.getPluginLogger()
+						.severe("No valid SlimeLoader available — cannot create or load world: " + worldName);
+				resultFuture.completeExceptionally(new HellblockWorldException("SlimeLoader unavailable"));
+				return;
 			}
 
-			final SlimeWorld finalWorld = slimeWorld;
+			try {
+				if (exists) {
+					// load existing world (readOnly=true)
+					slimeWorld = this.createSlimeWorldFunction.create(worldName, true, properties, loader);
+					instance.debug("Loaded existing Hellblock Slime World: %s".formatted(worldName));
+				} else {
+					// create new world (readOnly=false + generate)
+					slimeWorld = this.createSlimeWorldFunction.create(worldName, false, properties, loader);
+					this.generateSlimeWorldFunction.generate(slimeWorld);
+					instance.debug("Created new Hellblock Slime World: %s".formatted(worldName));
+				}
 
-			HellblockPlugin.getInstance().getScheduler().executeSync(() -> {
-				HellblockWorld<SlimeWorld> adapted = adapt(finalWorld);
-				HellblockPlugin.getInstance().getLavaRainHandler().startLavaRainProcess(adapted);
-				resultFuture.complete(adapted);
-			});
+				final SlimeWorld finalWorld = slimeWorld;
+				instance.getScheduler().executeSync(() -> {
+					HellblockWorld<SlimeWorld> adapted = adapt(finalWorld);
+					resultFuture.complete(adapted);
+				});
+
+			} catch (HellblockWorldException e) {
+				instance.getPluginLogger()
+						.severe("Failed to create/load SlimeWorld: " + worldName + " (" + e.getMessage() + ")");
+				resultFuture.completeExceptionally(e);
+			}
 		});
 
 		return resultFuture;
 	}
 
 	@Override
-	public CompletableFuture<HellblockWorld<SlimeWorld>> getOrLoadIslandWorld(int islandId) {
-		String worldName = HellblockPlugin.getInstance().getWorldManager().getHellblockWorldFormat(islandId);
-
+	public CompletableFuture<HellblockWorld<SlimeWorld>> getOrLoadIslandWorld(String worldName) {
 		// Attempt to get already-loaded world
 		HellblockWorld<SlimeWorld> existing = getLoadedHellblockWorld(worldName);
-		if (existing != null) {
+		if (existing != null && existing.bukkitWorld() != null) {
 			return CompletableFuture.completedFuture(existing);
 		}
 
@@ -351,48 +369,126 @@ public class SlimeWorldAdapter extends AbstractWorldAdapter<SlimeWorld> implemen
 	}
 
 	@Override
-	public void deleteWorld(String world) {
-		HellblockPlugin.getInstance().getLavaRainHandler().stopLavaRainProcess(world);
-		this.deleteSlimeWorldFunction.apply(world);
-		HellblockPlugin.getInstance().debug("Deleted Hellblock World: %s".formatted(world));
+	public CompletableFuture<HellblockWorld<SlimeWorld>> getOrLoadIslandWorld(int islandId) {
+		String worldName = instance.getWorldManager().getHellblockWorldFormat(islandId);
+
+		// Attempt to get already-loaded world
+		HellblockWorld<SlimeWorld> existing = getLoadedHellblockWorld(worldName);
+		if (existing != null && existing.bukkitWorld() != null) {
+			return CompletableFuture.completedFuture(existing);
+		}
+
+		// Otherwise, load or create it
+		return createWorld(worldName);
+	}
+
+	@Override
+	public void deleteWorld(String worldName) {
+		this.deleteSlimeWorldFunction.delete(worldName);
+		instance.debug("Deleted Hellblock Slime World: %s".formatted(worldName));
+	}
+
+	private CompoundBinaryTag createOrGetDataTag(SlimeWorld world) {
+		final ConcurrentMap<String, BinaryTag> extraData = world.getExtraData();
+
+		final BinaryTag tag = extraData.get(TAG_HELLBLOCK_DATA);
+
+		if (tag instanceof CompoundBinaryTag compound) {
+			return compound;
+		}
+
+		final CompoundBinaryTag newTag = CompoundBinaryTag.empty();
+		extraData.put(TAG_HELLBLOCK_DATA, newTag);
+		return newTag;
 	}
 
 	@Override
 	public WorldExtraData loadExtraData(SlimeWorld world) {
-		final ConcurrentMap<String, BinaryTag> extraData = world.getExtraData();
-		final String json = Optional.ofNullable(extraData.get("world-info"))
-				.filter(tag -> tag instanceof StringBinaryTag).map(tag -> ((StringBinaryTag) tag).value()).orElse(null);
+		CompoundBinaryTag tag = createOrGetDataTag(world);
+
+		// Read version if present (default to 0 if missing)
+		int version = tag.getInt(TAG_WORLD_VERSION);
+		if (version < WorldManager.CURRENT_WORLD_VERSION) {
+			migrateWorld(world, version);
+		}
+
+		tag.putInt(TAG_WORLD_VERSION, WorldManager.CURRENT_WORLD_VERSION);
+
+		// Load extraData JSON
+		final String json = Optional.ofNullable(tag.get(TAG_WORLD_INFO))
+				.filter(tagData -> tagData instanceof StringBinaryTag)
+				.map(tagData -> ((StringBinaryTag) tagData).value()).orElse(null);
+
 		return (json == null || "null".equals(json)) ? WorldExtraData.empty()
-				: AdventureHelper.getGson().serializer().fromJson(json, WorldExtraData.class);
+				: AdventureHelper.getGsonComponentSerializer().serializer().fromJson(json, WorldExtraData.class);
+	}
+
+	@SuppressWarnings("unused")
+	@Override
+	public void migrateWorld(SlimeWorld world, int oldVersion) {
+		int newVersion = WorldManager.CURRENT_WORLD_VERSION;
+
+		instance.getPluginLogger().info(
+				"Migrating SlimeWorld '" + world.getName() + "' from version " + oldVersion + " to " + newVersion);
+
+		try {
+			HellblockWorld<SlimeWorld> wrapper = getLoadedHellblockWorld(world.getName());
+
+			if (wrapper != null) {
+				WorldSetting setting = wrapper.setting();
+
+				// TODO: Add any migration-specific logic here
+				// e.g. patch default values, enable new flags, adjust tick settings
+
+				// Save patched world if needed
+				wrapper.save(false, false);
+			}
+
+			// Update version in tag
+			CompoundBinaryTag tag = createOrGetDataTag(world);
+			tag.putInt(TAG_WORLD_VERSION, newVersion);
+
+			instance.getPluginLogger()
+					.info("Migration complete for SlimeWorld '" + world.getName() + "' (now at v" + newVersion + ")");
+		} catch (Exception e) {
+			instance.getPluginLogger().severe("Migration failed for SlimeWorld '" + world.getName() + "'", e);
+		}
 	}
 
 	@Override
 	public void saveExtraData(HellblockWorld<SlimeWorld> world) {
-		world.world().getExtraData().put("world-info",
-				StringBinaryTag.stringBinaryTag(AdventureHelper.getGson().serializer().toJson(world.extraData())));
+		CompoundBinaryTag tag = createOrGetDataTag(world.world());
+
+		// Save extra data JSON
+		String json = AdventureHelper.getGsonComponentSerializer().serializer().toJson(world.extraData());
+		tag.put(TAG_WORLD_INFO, StringBinaryTag.stringBinaryTag(json));
+
+		// Save version number as a separate NBT tag
+		tag.putInt(TAG_WORLD_VERSION, WorldManager.CURRENT_WORLD_VERSION);
 	}
 
 	@Nullable
 	@Override
 	public CustomRegion loadRegion(HellblockWorld<SlimeWorld> world, RegionPos pos, boolean createIfNotExists) {
-		// Regions are not stored in SlimeWorldManager
-		return null;
+		// Return a mock region with empty cache, if createIfNotExists is true
+		return createIfNotExists ? world.createRegion(pos) : null;
 	}
 
 	@Nullable
 	@Override
 	public CustomChunk loadChunk(HellblockWorld<SlimeWorld> world, ChunkPos pos, boolean createIfNotExists) {
 		final long time1 = System.currentTimeMillis();
-		HellblockPlugin.getInstance().getWorldManager().markWorldAccess(world.worldName());
-		final BinaryTag tag = world.world().getExtraData().get(pos.asString());
+		instance.getWorldManager().markWorldAccess(world.worldName());
+		CompoundBinaryTag tag = createOrGetDataTag(world.world());
+		final BinaryTag binaryTag = tag.get(pos.asString());
 
-		if (!(tag instanceof CompoundBinaryTag compoundTag)) {
+		if (!(binaryTag instanceof CompoundBinaryTag compoundTag)) {
 			return createIfNotExists ? world.createChunk(pos) : null;
 		}
 
 		final CustomChunk chunk = tagToChunk(world, compoundTag);
 		final long time2 = System.currentTimeMillis();
-		HellblockPlugin.getInstance().debug(() -> "Took " + (time2 - time1) + "ms to load chunk " + pos);
+		instance.debug(() -> "[" + world.worldName() + "] Loaded chunk " + pos + " in " + (time2 - time1) + "ms");
 		return chunk;
 	}
 
@@ -403,25 +499,29 @@ public class SlimeWorldAdapter extends AbstractWorldAdapter<SlimeWorld> implemen
 
 	@Override
 	public void saveChunk(HellblockWorld<SlimeWorld> world, CustomChunk chunk) {
-		final ConcurrentMap<String, BinaryTag> extraData = world.world().getExtraData();
+		CompoundBinaryTag tag = createOrGetDataTag(world.world());
 		final SerializableChunk serializableChunk = toSerializableChunk(chunk);
 
 		final Runnable runnable = () -> {
 			final String key = chunk.chunkPos().asString();
 
 			if (serializableChunk.canPrune()) {
-				extraData.remove(key);
+				tag.remove(key);
 			} else {
-				final CompoundBinaryTag tag = chunkToTag(serializableChunk);
-				extraData.put(key, tag);
+				final CompoundBinaryTag binaryTag = chunkToTag(serializableChunk);
+				tag.put(key, binaryTag);
 			}
 		};
 
 		if (Bukkit.isPrimaryThread()) {
 			runnable.run();
 		} else {
-			HellblockPlugin.getInstance().getScheduler().sync().run(runnable, null);
+			instance.getScheduler().sync().run(runnable, null);
 		}
+	}
+
+	public void saveAllChunks(HellblockWorld<SlimeWorld> world) {
+		Arrays.asList(world.loadedChunks()).stream().forEach(chunk -> saveChunk(world, chunk));
 	}
 
 	@Override
@@ -459,7 +559,7 @@ public class SlimeWorldAdapter extends AbstractWorldAdapter<SlimeWorld> implemen
 	private CustomChunk tagToChunk(HellblockWorld<SlimeWorld> world, CompoundBinaryTag tag) {
 		final int versionNumber = tag.getInt("version", 1); // default to 1
 		final Function<String, net.kyori.adventure.key.Key> keyFunction = versionNumber < 2
-				? s -> net.kyori.adventure.key.Key.key("hellblock", s.toLowerCase(Locale.ROOT))
+				? s -> net.kyori.adventure.key.Key.key(TAG_HELLBLOCK_DATA, s.toLowerCase(Locale.ROOT))
 				: net.kyori.adventure.key.Key::key;
 
 		final int x = tag.getInt("x");
@@ -521,5 +621,35 @@ public class SlimeWorldAdapter extends AbstractWorldAdapter<SlimeWorld> implemen
 		}
 
 		return world.restoreChunk(coordinate, loadedSeconds, lastLoadedTime, sectionMap, queue, tickedSet);
+	}
+
+	@FunctionalInterface
+	public interface CreateSlimeWorldFunction {
+		SlimeWorld create(String worldName, boolean readOnly, SlimePropertyMap properties, SlimeLoader loader);
+	}
+
+	@FunctionalInterface
+	public interface GetSlimeWorldFunction {
+		SlimeWorld getWorld(String worldName);
+	}
+
+	@FunctionalInterface
+	public interface GetSlimeLoaderFunction {
+		SlimeLoader getLoader(String loaderName);
+	}
+
+	@FunctionalInterface
+	public interface DeleteSlimeWorldFunction {
+		void delete(String worldName);
+	}
+
+	@FunctionalInterface
+	public interface WorldExistsFunction {
+		boolean exists(String worldName);
+	}
+
+	@FunctionalInterface
+	public interface GenerateSlimeWorldFunction {
+		Either<SlimeWorld, Void> generate(SlimeWorld world);
 	}
 }

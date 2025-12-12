@@ -2,20 +2,28 @@ package com.swiftlicious.hellblock.database;
 
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileWriter;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
+import java.util.zip.GZIPInputStream;
+import java.util.zip.GZIPOutputStream;
 
 import org.bukkit.Bukkit;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import com.google.common.io.Files;
-
+import com.google.gson.JsonSyntaxException;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.player.PlayerData;
 
@@ -24,11 +32,21 @@ import com.swiftlicious.hellblock.player.PlayerData;
  */
 public class JsonHandler extends AbstractStorage {
 
+	private final File dataFolder;
+
+	private final ConcurrentHashMap<UUID, CompletableFuture<Optional<PlayerData>>> loadingCache = new ConcurrentHashMap<>();
+	private final ConcurrentHashMap<UUID, CompletableFuture<Boolean>> updatingCache = new ConcurrentHashMap<>();
+
+	private final Cache<Integer, UUID> islandIdToUUIDCache = Caffeine.newBuilder()
+			.expireAfterWrite(30, TimeUnit.MINUTES).maximumSize(10_000).build();
+
+	private final Cache<UUID, PlayerData> memoryCache = Caffeine.newBuilder().maximumSize(500).build();
+
 	public JsonHandler(HellblockPlugin plugin) {
 		super(plugin);
-		final File folder = new File(plugin.getDataFolder(), "data");
-		if (!folder.exists()) {
-			folder.mkdirs();
+		this.dataFolder = new File(plugin.getDataFolder(), "data");
+		if (!dataFolder.exists() && !dataFolder.mkdirs()) {
+			plugin.getPluginLogger().warn("Failed to create data folder for JSON storage.");
 		}
 	}
 
@@ -39,22 +57,167 @@ public class JsonHandler extends AbstractStorage {
 
 	@Override
 	public CompletableFuture<Optional<PlayerData>> getPlayerData(UUID uuid, boolean lock, Executor executor) {
-		final File file = getPlayerDataFile(uuid);
-		final PlayerData playerData;
-		if (file.exists()) {
-			playerData = readFromJsonFile(file, PlayerData.class);
-		} else if (Bukkit.getPlayer(uuid) != null) {
-			playerData = PlayerData.empty();
-		} else {
-			playerData = null;
+		final Executor finalExecutor = executor != null ? executor : plugin.getScheduler().async();
+
+		return loadingCache.computeIfAbsent(uuid, id -> {
+			plugin.debug("getPlayerData: starting new load for " + id);
+			final CompletableFuture<Optional<PlayerData>> future = new CompletableFuture<>();
+
+			// Ensure the entry is only removed after the future completes (success or
+			// failure)
+			future.whenComplete((result, throwable) -> loadingCache.remove(uuid));
+
+			finalExecutor.execute(() -> {
+				try {
+					// Check memory cache first
+					PlayerData cached = memoryCache.getIfPresent(uuid);
+					if (cached != null) {
+						plugin.debug("JSON cache hit for " + uuid);
+						future.complete(Optional.of(cached));
+						return;
+					}
+
+					plugin.debug("JSON cache miss for " + uuid);
+
+					File file = getPlayerDataFile(uuid);
+					PlayerData data = null;
+
+					if (file.exists()) {
+						try (GZIPInputStream gzipIn = new GZIPInputStream(new FileInputStream(file));
+								InputStreamReader reader = new InputStreamReader(gzipIn, StandardCharsets.UTF_8)) {
+							data = plugin.getStorageManager().getGson().fromJson(reader, PlayerData.class);
+						} catch (IOException | JsonSyntaxException ex) {
+							plugin.getPluginLogger().warn("Failed to parse JSON data for " + uuid, ex);
+						}
+					} else if (Bukkit.getPlayer(uuid) != null) {
+						data = PlayerData.empty();
+					}
+
+					if (data != null) {
+						data.setUUID(uuid);
+						memoryCache.put(uuid, data);
+
+						// Index by island ID
+						int islandId = data.getHellblockData().getIslandId();
+						if (islandId > 0)
+							islandIdToUUIDCache.put(islandId, uuid);
+					}
+
+					future.complete(Optional.ofNullable(data));
+				} catch (Exception ex) {
+					plugin.getPluginLogger().warn("Failed to load JSON for " + uuid, ex);
+					future.completeExceptionally(ex);
+				}
+			});
+
+			return future;
+		});
+	}
+
+	@Override
+	public CompletableFuture<Optional<PlayerData>> getPlayerDataByIslandId(int islandId, boolean lock,
+			Executor executor) {
+		UUID uuid = islandIdToUUIDCache.getIfPresent(islandId);
+
+		if (uuid != null) {
+			return getPlayerData(uuid, lock, executor);
 		}
-		return CompletableFuture.completedFuture(Optional.ofNullable(playerData));
+
+		// UUID not yet known: scan files and populate index
+		return scanJsonFilesForIslandId(islandId, lock, executor);
+	}
+
+	private CompletableFuture<Optional<PlayerData>> scanJsonFilesForIslandId(int islandId, boolean lock,
+			Executor executor) {
+		final Executor finalExecutor = executor != null ? executor : plugin.getScheduler().async();
+		final CompletableFuture<Optional<PlayerData>> future = new CompletableFuture<>();
+
+		finalExecutor.execute(() -> {
+			try {
+				File dataDir = getPlayerDataFolder();
+				File[] files = dataDir.listFiles((dir, name) -> name.endsWith(".json.gz"));
+
+				if (files == null) {
+					future.complete(Optional.empty());
+					return;
+				}
+
+				for (File file : files) {
+					UUID fileUUID;
+					try {
+						fileUUID = UUID.fromString(file.getName().replace(".json.gz", ""));
+					} catch (IllegalArgumentException e) {
+						continue;
+					}
+
+					// Fast path: already in memory
+					PlayerData cached = memoryCache.getIfPresent(fileUUID);
+					if (cached != null && cached.getHellblockData().getIslandId() == islandId) {
+						islandIdToUUIDCache.put(islandId, fileUUID);
+						future.complete(Optional.of(cached));
+						return;
+					}
+
+					// Load from file
+					try (GZIPInputStream gzipIn = new GZIPInputStream(new FileInputStream(file));
+							InputStreamReader reader = new InputStreamReader(gzipIn, StandardCharsets.UTF_8)) {
+
+						PlayerData data = plugin.getStorageManager().getGson().fromJson(reader, PlayerData.class);
+
+						if (data != null && data.getHellblockData().getIslandId() == islandId) {
+							data.setUUID(fileUUID);
+							memoryCache.put(fileUUID, data);
+							islandIdToUUIDCache.put(islandId, fileUUID);
+							future.complete(Optional.of(data));
+							return;
+						}
+					} catch (Exception e) {
+						plugin.getPluginLogger().warn("Failed to read JSON for file " + file.getName(), e);
+					}
+				}
+
+				future.complete(Optional.empty());
+			} catch (Exception ex) {
+				plugin.getPluginLogger().warn("Failed to scan JSON files for islandId=" + islandId, ex);
+				future.completeExceptionally(ex);
+			}
+		});
+
+		return future;
 	}
 
 	@Override
 	public CompletableFuture<Boolean> updatePlayerData(UUID uuid, PlayerData playerData, boolean ignore) {
-		this.saveToJsonFile(playerData, getPlayerDataFile(uuid));
-		return CompletableFuture.completedFuture(true);
+		return updatingCache.computeIfAbsent(uuid, id -> {
+			final CompletableFuture<Boolean> future = new CompletableFuture<>();
+			final Executor executor = plugin.getScheduler().async();
+
+			// Ensure cleanup happens only once after complete
+			future.whenComplete((result, throwable) -> updatingCache.remove(uuid));
+
+			executor.execute(() -> {
+				try {
+					File file = getPlayerDataFile(uuid);
+
+					try (GZIPOutputStream gzipOut = new GZIPOutputStream(new FileOutputStream(file, false));
+							OutputStreamWriter writer = new OutputStreamWriter(gzipOut, StandardCharsets.UTF_8)) {
+
+						plugin.getStorageManager().getGson().toJson(playerData, writer);
+						memoryCache.put(uuid, playerData);
+						future.complete(true);
+
+					} catch (IOException ex) {
+						plugin.getPluginLogger().warn("Failed to save JSON data for " + uuid, ex);
+						future.completeExceptionally(ex);
+					}
+				} catch (Exception outerEx) {
+					plugin.getPluginLogger().warn("Unexpected error while saving JSON for " + uuid, outerEx);
+					future.completeExceptionally(outerEx);
+				}
+			});
+
+			return future;
+		});
 	}
 
 	/**
@@ -64,67 +227,67 @@ public class JsonHandler extends AbstractStorage {
 	 * @return The file for the player's data.
 	 */
 	public File getPlayerDataFile(UUID uuid) {
-		return new File(plugin.getDataFolder(), "data" + File.separator + uuid + ".json");
+		return new File(dataFolder, uuid + ".json.gz");
 	}
 
-	/**
-	 * Save an object to a JSON file.
-	 *
-	 * @param obj      The object to be saved as JSON.
-	 * @param filepath The file path where the JSON file should be saved.
-	 */
-	public void saveToJsonFile(Object obj, File filepath) {
-		try (FileWriter file = new FileWriter(filepath, false)) {
-			plugin.getStorageManager().getGson().toJson(obj, file);
-		} catch (IOException ex) {
-			ex.printStackTrace();
-		}
-	}
-
-	/**
-	 * Read JSON content from a file and parse it into an object of the specified
-	 * class.
-	 *
-	 * @param file     The JSON file to read.
-	 * @param classOfT The class of the object to parse the JSON into.
-	 * @param <T>      The type of the object.
-	 * @return The parsed object.
-	 */
-	public <T> T readFromJsonFile(File file, Class<T> classOfT) {
-		final String jsonContent = new String(readFileToByteArray(file), StandardCharsets.UTF_8);
-		return plugin.getStorageManager().getGson().fromJson(jsonContent, classOfT);
-	}
-
-	/**
-	 * Read the contents of a file and return them as a byte array.
-	 *
-	 * @param file The file to read.
-	 * @return The byte array representing the file's content.
-	 */
-	public byte[] readFileToByteArray(File file) {
-		final byte[] fileBytes = new byte[(int) file.length()];
-		try (FileInputStream fis = new FileInputStream(file)) {
-			fis.read(fileBytes);
-		} catch (IOException ex) {
-			ex.printStackTrace();
-		}
-		return fileBytes;
+	public File getPlayerDataFolder() {
+		return this.dataFolder;
 	}
 
 	// Retrieve a set of unique user UUIDs based on JSON data files in the 'data'
 	// folder.
 	@Override
 	public Set<UUID> getUniqueUsers() {
-		final File folder = new File(plugin.getDataFolder(), "data");
 		final Set<UUID> uuids = new HashSet<>();
-		if (folder.exists()) {
-			final File[] files = folder.listFiles();
+		if (dataFolder.exists()) {
+			File[] files = dataFolder.listFiles((dir, name) -> name.endsWith(".json.gz"));
 			if (files != null) {
 				for (File file : files) {
-					uuids.add(UUID.fromString(Files.getNameWithoutExtension(file.getName())));
+					try {
+						String uuidStr = Files.getNameWithoutExtension(file.getName());
+						uuids.add(UUID.fromString(uuidStr));
+					} catch (IllegalArgumentException ex) {
+						plugin.getPluginLogger().warn("Invalid UUID filename in JSON data: " + file.getName());
+						file.delete(); // optional cleanup
+					}
 				}
 			}
 		}
 		return uuids;
+	}
+
+	@Override
+	public void invalidateCache(UUID uuid) {
+		memoryCache.invalidate(uuid);
+	}
+
+	@Override
+	public void clearCache() {
+		memoryCache.invalidateAll();
+	}
+
+	@Override
+	public void invalidateIslandCache(int islandId) {
+		islandIdToUUIDCache.invalidate(islandId);
+	}
+
+	@Override
+	public boolean isPendingInsert(UUID uuid) {
+		return false;
+	}
+
+	@Override
+	public boolean isInsertStillRecent(UUID uuid) {
+		return false;
+	}
+
+	@Override
+	public Long getInsertAge(UUID uuid) {
+		return null;
+	}
+
+	@Override
+	public CompletableFuture<Void> getInsertFuture(UUID uuid) {
+		return CompletableFuture.completedFuture(null);
 	}
 }

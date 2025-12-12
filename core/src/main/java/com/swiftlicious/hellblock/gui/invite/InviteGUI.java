@@ -7,6 +7,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
@@ -38,6 +39,8 @@ import com.swiftlicious.hellblock.utils.LocationUtils;
 import com.swiftlicious.hellblock.utils.extras.Action;
 import com.swiftlicious.hellblock.utils.extras.Pair;
 
+import net.kyori.adventure.text.Component;
+
 public class InviteGUI {
 
 	private final Map<Character, InviteGUIElement> itemsCharMap;
@@ -47,6 +50,7 @@ public class InviteGUI {
 	private final InviteGUIManager manager;
 	protected final AnvilInventory inventory;
 	protected final Context<Player> context;
+	protected final Context<Integer> islandContext;
 	protected final HellblockData hellblockData;
 	protected final boolean isOwner;
 
@@ -65,9 +69,11 @@ public class InviteGUI {
 	private SchedulerTask searchPollingTask;
 	protected String searchedName = null;
 
-	public InviteGUI(InviteGUIManager manager, Context<Player> context, HellblockData hellblockData, boolean isOwner) {
+	public InviteGUI(InviteGUIManager manager, Context<Player> context, Context<Integer> islandContext,
+			HellblockData hellblockData, boolean isOwner) {
 		this.manager = manager;
 		this.context = context;
+		this.islandContext = islandContext;
 		this.searchedName = manager.instance.getItemManager().wrap(manager.searchIcon.build(context)).displayName()
 				.orElse("<Type Name Here>");
 		this.hellblockData = hellblockData;
@@ -257,7 +263,7 @@ public class InviteGUI {
 	 * Cancel search polling if running.
 	 */
 	public void cancelSearchPolling() {
-		if (this.searchPollingTask == null) {
+		if (this.searchPollingTask == null || this.searchPollingTask.isCancelled()) {
 			return;
 		}
 		try {
@@ -278,12 +284,9 @@ public class InviteGUI {
 		final InviteDynamicGUIElement searchElement = (InviteDynamicGUIElement) this.inviteSlotsMap.get(0);
 		if (searchElement != null && !searchElement.getSlots().isEmpty()) {
 			final Item<ItemStack> search = manager.instance.getItemManager().wrap(manager.searchIcon.build(context));
-			final String username = getInputText(context.holder());
-			if (username != null) {
-				search.displayName(AdventureHelper.miniMessageToJson(username));
-			} else {
-				search.displayName(AdventureHelper.miniMessageToJson(""));
-			}
+			final Component username = getInputText(context.holder());
+			final String plainName = AdventureHelper.componentToPlainText(username);
+			search.displayName(AdventureHelper.miniMessageToJson("<gray>" + plainName));
 			searchElement.setItemStack(search.load());
 			// Also place into the actual anvil inventory top, if needed:
 			searchElement.getSlots().stream().mapToInt(Integer::valueOf)
@@ -292,69 +295,52 @@ public class InviteGUI {
 
 		// update the result icon (slot 2)
 		final InviteDynamicGUIElement headElement = (InviteDynamicGUIElement) this.inviteSlotsMap.get(2);
-		final String renameText = getInputText(context.holder());
+		final Component renameText = getInputText(context.holder());
+		final String plainInput = AdventureHelper.componentToPlainText(renameText);
+
 		if (headElement != null && !headElement.getSlots().isEmpty()) {
 			// Quick check if username is syntactically valid
-			final boolean syntacticallyValid = renameText != null && renameText.matches("^[a-zA-Z0-9_]+$");
+			final boolean syntacticallyValid = !plainInput.isEmpty() && plainInput.matches("^[a-zA-Z0-9_]+$");
+
 			if (!syntacticallyValid) {
 				// show not found icon immediately
-				headElement.setItemStack(manager.playerNotFoundIcon.build(context));
-				headElement.setUUID(null);
-				headElement.getSlots().stream().mapToInt(Integer::valueOf)
-						.forEach(slot -> this.inventory.setItem(slot, headElement.getItemStack()));
-			} else {
-				// check online user presence (synchronous, cheap)
-				final boolean playerFound = manager.instance.getStorageManager().getOnlineUsers().stream()
-						.anyMatch(u -> u.getName().equalsIgnoreCase(renameText));
-				if (!playerFound) {
-					headElement.setItemStack(manager.playerNotFoundIcon.build(context));
-					headElement.setUUID(null);
-					headElement.getSlots().stream().mapToInt(Integer::valueOf)
-							.forEach(slot -> this.inventory.setItem(slot, headElement.getItemStack()));
-				} else {
-					// fetch UUID & profile async then update slot sync
-					CompletableFuture.runAsync(() -> {
-						try {
-							final UUID id = UUIDFetcher.getUUID(renameText);
-							if (id == null) {
-								// not found fallback
-								manager.instance.getScheduler().sync().run(() -> {
-									headElement.setItemStack(manager.playerNotFoundIcon.build(context));
-									headElement.setUUID(null);
-									headElement.getSlots().stream().mapToInt(Integer::valueOf)
-											.forEach(slot -> this.inventory.setItem(slot, headElement.getItemStack()));
-								});
-								return;
-							}
-							final GameProfile profile = GameProfileBuilder.fetch(id);
-							final String texture = profile.getProperties().get("textures").iterator().next().getValue();
-
-							final Item<ItemStack> head = manager.instance.getItemManager()
-									.wrap(manager.playerFoundIcon.build(context));
-							final String display = AdventureHelper
-									.miniMessageToJson(manager.playerFoundName.replace("{player}", renameText));
-							head.displayName(display);
-							head.skull(texture);
-							final ItemStack loaded = head.loadCopy();
-
-							manager.instance.getScheduler().sync().run(() -> {
-								headElement.setUUID(id);
-								headElement.setItemStack(loaded);
-								headElement.getSlots().stream().mapToInt(Integer::valueOf)
-										.forEach(slot -> this.inventory.setItem(slot, loaded));
-							});
-						} catch (IllegalArgumentException | IOException ex) {
-							manager.instance.getPluginLogger().warn("Error fetching profile for search", ex);
-							manager.instance.getScheduler().sync().run(() -> {
-								headElement.setItemStack(manager.playerNotFoundIcon.build(context));
-								headElement.setUUID(null);
-								headElement.getSlots().stream().mapToInt(Integer::valueOf)
-										.forEach(slot -> this.inventory.setItem(slot, headElement.getItemStack()));
-							});
-						}
-					});
-				}
+				runFallbackUI(headElement);
+				return this;
 			}
+
+			// check online user presence (synchronous, cheap)
+			final boolean playerFound = manager.instance.getStorageManager().getOnlineUsers().stream()
+					.filter(Objects::nonNull).map(UserData::getName)
+					.anyMatch(userName -> userName.equalsIgnoreCase(plainInput));
+
+			if (!playerFound) {
+				runFallbackUI(headElement);
+				return this;
+			}
+
+			// Fetch UUID & profile async, then update inventory sync
+			CompletableFuture.runAsync(() -> UUIDFetcher.getUUID(plainInput).ifPresentOrElse(uuid -> {
+				try {
+					GameProfile profile = GameProfileBuilder.fetch(uuid);
+					String texture = profile.getProperties().get("textures").iterator().next().getValue();
+					Item<ItemStack> head = manager.instance.getItemManager()
+							.wrap(manager.playerFoundIcon.build(context));
+					String displayName = AdventureHelper
+							.miniMessageToJson(manager.playerFoundName.replace("{player}", plainInput));
+					head.displayName(displayName);
+					head.skull(texture);
+					ItemStack loaded = head.loadCopy();
+					manager.instance.getScheduler().sync().run(() -> {
+						headElement.setUUID(uuid);
+						headElement.setItemStack(loaded);
+						headElement.getSlots().stream().mapToInt(Integer::valueOf)
+								.forEach(slot -> this.inventory.setItem(slot, loaded));
+					});
+				} catch (IOException | IllegalArgumentException ex) {
+					manager.instance.getPluginLogger().warn("Error fetching profile for search", ex);
+					runFallbackUI(headElement);
+				}
+			}, () -> runFallbackUI(headElement)));
 		}
 
 		// Update cached online heads displayed: this keeps displayed items in-sync with
@@ -362,6 +348,18 @@ public class InviteGUI {
 		refreshOnlineHeads();
 
 		return this;
+	}
+
+	/**
+	 * Fallback UI update on sync thread if UUID/profile could not be loaded.
+	 */
+	private void runFallbackUI(InviteDynamicGUIElement headElement) {
+		manager.instance.getScheduler().sync().run(() -> {
+			headElement.setItemStack(manager.playerNotFoundIcon.build(context));
+			headElement.setUUID(null);
+			headElement.getSlots().stream().mapToInt(Integer::valueOf)
+					.forEach(slot -> this.inventory.setItem(slot, headElement.getItemStack()));
+		});
 	}
 
 	public void refreshOnlineHeads() {
@@ -599,21 +597,44 @@ public class InviteGUI {
 	}
 
 	@SuppressWarnings("removal")
-	public String getInputText(Player player) {
-		final InventoryView view = player.getOpenInventory();
-		try {
-			// Only available on Paper 1.20.5+
-			final Method getInputText = view.getClass().getMethod("getInputText");
-			return (String) getInputText.invoke(view);
-		} catch (NoSuchMethodException ignored) {
-			// Use fallback for Spigot or older Paper versions
-			final Inventory top = view.getTopInventory();
-			if (top instanceof AnvilInventory anvilInventory) {
-				return anvilInventory.getRenameText(); // deprecated
+	@NotNull
+	public Component getInputText(@NotNull Player player) {
+		InventoryView view = player.getOpenInventory();
+		if (view == null)
+			return Component.empty();
+
+		String raw = null;
+
+		// Try using org.bukkit.inventory.view.AnvilView#getRenameText (1.21+)
+		if (VersionHelper.isVersionNewerThan1_21()) {
+			try {
+				Class<?> anvilViewClass = Class.forName("org.bukkit.inventory.view.AnvilView");
+				if (anvilViewClass.isInstance(view)) {
+					Method getRenameText = anvilViewClass.getMethod("getRenameText");
+					Object result = getRenameText.invoke(view);
+					if (result instanceof String str) {
+						raw = str;
+					}
+				}
+			} catch (ClassNotFoundException e) {
+				// <1.21 — class doesn’t exist, ignore
+			} catch (Throwable t) {
+				manager.instance.getPluginLogger().warn("Failed to access AnvilView#getRenameText", t);
 			}
-		} catch (Exception ex) {
-			manager.instance.getPluginLogger().warn("Failed to retrieve input text for anvil: ", ex);
+		} else {
+			// Fallback to older API (1.20 and below)
+			if (raw == null) {
+				try {
+					raw = inventory.getRenameText();
+				} catch (Throwable ignored) {
+				}
+			}
 		}
-		return "";
+
+		if (raw == null || raw.isEmpty())
+			return Component.empty();
+
+		// Deserialize into a Component (plain text or MiniMessage)
+		return AdventureHelper.miniMessageToComponent(raw);
 	}
 }

@@ -3,6 +3,7 @@ package com.swiftlicious.hellblock.events.hellblock;
 import org.bukkit.block.Biome;
 import org.bukkit.event.Event;
 import org.bukkit.event.HandlerList;
+import org.jetbrains.annotations.Nullable;
 
 import com.swiftlicious.hellblock.generation.HellBiome;
 import com.swiftlicious.hellblock.player.HellblockData;
@@ -31,6 +32,7 @@ public class HellblockBiomeChangedEvent extends Event {
 		return hellblockData;
 	}
 
+	@Nullable
 	public Biome getOldBiome() {
 		return oldBiome;
 	}

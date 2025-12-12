@@ -1,0 +1,51 @@
+confirm-reset:
+  gui:
+    # The title for the reset confirm menu
+    title: '<center><gradient:#A52A2A:#800000:#A52A2A>Confirmation Menu</gradient>'
+    # The layout for the reset confirm menu
+    # One row with 5 characters will result in a hopper inventory menu being used instead of a regular one.
+    layout:
+      - 'AAAAAAAAA'
+      - 'AADAAACAA'
+      - 'AAAAAAAAA'
+    # Deny icon for denying reset action
+    deny-icon:
+      symbol: 'D'
+      material: RED_WOOL
+      display:
+        name: '<red>Deny Reset Action'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_additional_tooltip: {}
+    # Confirm icon for confirming reset action
+    confirm-icon:
+      symbol: 'C'
+      material: LIME_WOOL
+      display:
+        name: '<green>Confirm Reset Action'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_additional_tooltip: {}
+    # Decorative icons for visual enhancement 
+    decorative-icons:
+      glass-pane:
+        symbol: 'A'
+        material: BLACK_STAINED_GLASS_PANE
+        display:
+          name: ' '  
+        components:
+          minecraft:hide_tooltip: {}

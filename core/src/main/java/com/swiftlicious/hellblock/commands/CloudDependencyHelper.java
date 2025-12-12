@@ -8,23 +8,32 @@ import com.swiftlicious.hellblock.database.dependency.Dependency;
 
 public final class CloudDependencyHelper {
 
-	private static final Set<Dependency> CLOUD_DEPENDENCIES = EnumSet.of(Dependency.CLOUD_CORE,
+	public static final Set<Dependency> CLOUD_DEPENDENCIES = EnumSet.of(Dependency.CLOUD_CORE,
 			Dependency.CLOUD_BRIGADIER, Dependency.CLOUD_PAPER, Dependency.CLOUD_BUKKIT,
 			Dependency.CLOUD_MINECRAFT_EXTRAS, Dependency.CLOUD_SERVICES);
 
+	private final HellblockPlugin plugin;
 	private ClassLoader loader;
+	private boolean loaded;
 
 	public CloudDependencyHelper(HellblockPlugin plugin) {
-		// Load all Cloud dependencies as one group
-		plugin.getDependencyManager().loadDependencies(CLOUD_DEPENDENCIES);
-		ClassLoader cloudLoader = plugin.getDependencyManager().obtainClassLoaderWith(CLOUD_DEPENDENCIES);
-
-		// Store for later use
-		setClassLoader(cloudLoader);
+		this.plugin = plugin;
 	}
 
-	public void setClassLoader(ClassLoader cl) {
-		loader = cl;
+	public void load() {
+		try {
+			plugin.getDependencyManager().loadDependencies(CLOUD_DEPENDENCIES);
+			loader = plugin.getDependencyManager().obtainClassLoaderWith(CLOUD_DEPENDENCIES);
+			loaded = true;
+			plugin.getPluginLogger().info("Cloud command framework libraries loaded successfully.");
+		} catch (Exception ex) {
+			loaded = false;
+			plugin.getPluginLogger().warn("Failed to load Cloud command framework dependencies.", ex);
+		}
+	}
+
+	public boolean isLoaded() {
+		return loaded;
 	}
 
 	public ClassLoader getClassLoader() {

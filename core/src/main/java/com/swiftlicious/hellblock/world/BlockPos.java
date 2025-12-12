@@ -1,5 +1,7 @@
 package com.swiftlicious.hellblock.world;
 
+import org.jetbrains.annotations.NotNull;
+
 /**
  * Represents a position within a chunk in the world. The position is encoded
  * into a single integer for compact storage. The position is constructed using
@@ -32,6 +34,36 @@ public class BlockPos {
 	}
 
 	/**
+	 * Adds the specified x, y, z deltas to this position and returns a new
+	 * {@link BlockPos}.
+	 *
+	 * <p>
+	 * This is useful for relative translations such as offsetting all block
+	 * coordinates when copying data between different world origins (e.g., shared ↔
+	 * per-player).
+	 * </p>
+	 *
+	 * @param dx the x-axis offset
+	 * @param dy the y-axis offset
+	 * @param dz the z-axis offset
+	 * @return a new {@link BlockPos} representing the shifted coordinates
+	 */
+	public BlockPos add(int dx, int dy, int dz) {
+		return new BlockPos(this.x() + dx, this.y() + dy, this.z() + dz);
+	}
+
+	/**
+	 * Adds another {@link BlockPos} to this one, component-wise.
+	 *
+	 * @param other the position to add
+	 * @return a new {@link BlockPos} with coordinates (x + other.x, y + other.y, z
+	 *         + other.z)
+	 */
+	public BlockPos add(@NotNull BlockPos other) {
+		return new BlockPos(this.x() + other.x(), this.y() + other.y(), this.z() + other.z());
+	}
+
+	/**
 	 * Creates a BlockPos from a Pos3 object, adjusting x and z to be within the
 	 * chunk.
 	 *
@@ -40,6 +72,22 @@ public class BlockPos {
 	 */
 	public static BlockPos fromPos3(Pos3 location) {
 		return new BlockPos(location.x() % 16, location.y(), location.z() % 16);
+	}
+
+	/**
+	 * Converts relative block coordinates within a chunk section to an absolute
+	 * BlockPos.
+	 *
+	 * @param chunkPos the chunk position
+	 * @param x        the local X coordinate (0-15)
+	 * @param y        the absolute Y coordinate
+	 * @param z        the local Z coordinate (0-15)
+	 * @return the global BlockPos
+	 */
+	public static BlockPos fromSection(ChunkPos chunkPos, int x, int y, int z) {
+		int globalX = (chunkPos.x() << 4) + x; // chunkX * 16 + local x
+		int globalZ = (chunkPos.z() << 4) + z; // chunkZ * 16 + local z
+		return new BlockPos(globalX, y, globalZ);
 	}
 
 	/**

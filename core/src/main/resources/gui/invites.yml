@@ -1,0 +1,127 @@
+invitation:
+  gui:
+    # The title for the invite menu
+    title: '<center><gradient:#A52A2A:#800000:#A52A2A>Hellblock Invitations</gradient>'
+    # The layout for the invite menu
+    # This layout is for the player's actual inventory. Do not edit this to be anything but 4x9 rows.
+    layout:
+      - 'PPPPPPPPP'
+      - 'PPPPPPPPP'
+      - 'PPPPPPPPP'
+      - 'LAAAXAAAR'
+    # Search icon for typing in the player's icon (Actions aren't acceptable here)
+    # The only things that can be changed are what are shown below. name represents what will come up if nothing is typed in.
+    # Otherwise what is typed in the anvil's search bar will be set to the name of the item below.
+    search-icon:
+      material: NAME_TAG
+      display:
+        name: '<Type Name Here>'
+      components:
+        minecraft:hide_additional_tooltip: {}
+    # No player found icon
+    player-not-found-icon:
+      material: BARRIER
+      display:
+        name: '<red>No Player Found'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:entity.villager.no'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_additional_tooltip: {}
+    # Player found icon
+    player-found-icon:
+      material: PLAYER_HEAD
+      display:
+        name: '<green>{player}'
+        lore:
+          - '<dark_green>Click to send invite!'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:block.note_block.pling'
+            source: 'player'
+            volume: 1
+            pitch: 1
+    components:
+        minecraft:hide_additional_tooltip: {}
+    # Player icon for each different player to invite
+    player-icon:
+      symbol: 'P' 
+      material: PLAYER_HEAD
+      display:
+        name: '<yellow>{player}'
+        lore:
+          - '<gold>Click to invite them!'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_additional_tooltip: {}
+    # Scroll left icon
+    scroll-left-icon:
+      symbol: 'L'
+      material: ORANGE_STAINED_GLASS_PANE
+      display:
+        name: '<gold>Previous Page'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_additional_tooltip: {}
+    # Scroll right icon
+    scroll-right-icon:
+      symbol: 'R'
+      material: ORANGE_STAINED_GLASS_PANE
+      display:
+        name: '<gold>Next Page'
+      action: 
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_additional_tooltip: {}
+    # Back icon to return to party menu
+    back-icon:
+      symbol: 'X'
+      material: RED_STAINED_GLASS_PANE
+      display: 
+        name: '<red>Return to Party Menu'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_additional_tooltip: {}
+    # Decorative icons for visual enhancement
+    decorative-icons:
+      glass-pane:
+        symbol: 'A'
+        material: BLACK_STAINED_GLASS_PANE
+        display:
+          name: ' '
+        components:
+          minecraft:hide_tooltip: {}

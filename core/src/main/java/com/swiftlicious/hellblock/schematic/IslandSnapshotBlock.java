@@ -6,7 +6,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -15,7 +17,6 @@ import org.bukkit.DyeColor;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
-import org.bukkit.Registry;
 import org.bukkit.World;
 import org.bukkit.block.Banner;
 import org.bukkit.block.Beacon;
@@ -24,7 +25,6 @@ import org.bukkit.block.Block;
 import org.bukkit.block.BlockState;
 import org.bukkit.block.BrewingStand;
 import org.bukkit.block.Campfire;
-import org.bukkit.block.ChiseledBookshelf;
 import org.bukkit.block.CommandBlock;
 import org.bukkit.block.Container;
 import org.bukkit.block.CreatureSpawner;
@@ -39,8 +39,6 @@ import org.bukkit.block.Skull;
 import org.bukkit.block.Structure;
 import org.bukkit.block.banner.Pattern;
 import org.bukkit.block.banner.PatternType;
-import org.bukkit.block.sign.Side;
-import org.bukkit.block.sign.SignSide;
 import org.bukkit.block.structure.UsageMode;
 import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.EntityType;
@@ -49,12 +47,20 @@ import org.bukkit.entity.Shulker;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.BlockStateMeta;
+import org.bukkit.potion.PotionEffectType;
 import org.bukkit.util.BoundingBox;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.swiftlicious.hellblock.HellblockPlugin;
+import com.swiftlicious.hellblock.handlers.PotionEffectResolver;
 import com.swiftlicious.hellblock.handlers.VersionHelper;
+import com.swiftlicious.hellblock.world.CustomBlock;
+import com.swiftlicious.hellblock.world.CustomBlockState;
+import com.swiftlicious.hellblock.world.CustomBlockTypes;
+import com.swiftlicious.hellblock.world.Pos3;
 
+import net.kyori.adventure.key.Key;
 import net.kyori.adventure.nbt.BinaryTag;
 import net.kyori.adventure.nbt.BinaryTagType;
 import net.kyori.adventure.nbt.BinaryTagTypes;
@@ -140,14 +146,36 @@ public record IslandSnapshotBlock(@JsonProperty("x") int x, @JsonProperty("y") i
 		// Sign
 		if (state instanceof Sign sign) {
 			CompoundBinaryTag.Builder signSides = CompoundBinaryTag.builder();
-			for (Side side : Side.values()) {
-				SignSide signSide = sign.getSide(side);
-				List<Component> lines = AdventureMetadata.getSignLines(signSide);
+
+			if (SignReflectionHelper.isDualSided()) {
+				// 1.20+: Save both sides
+				for (Object side : SignReflectionHelper.getSideEnumConstants()) {
+					try {
+						Object signSide = SignReflectionHelper.invokeGetSide(sign, side);
+						ListBinaryTag.Builder<StringBinaryTag> sideLines = ListBinaryTag.builder(BinaryTagTypes.STRING);
+
+						for (int i = 0; i < 4; i++) {
+							Component line = SignReflectionHelper.invokeGetLine(signSide, i);
+							sideLines.add(StringBinaryTag.stringBinaryTag(AdventureMetadata.serialize(line)));
+						}
+
+						signSides.put(side.toString(), sideLines.build());
+
+					} catch (Exception ex) {
+						HellblockPlugin.getInstance().getPluginLogger()
+								.warn("Failed to serialize sign side " + side + ": " + ex.getMessage());
+					}
+				}
+			} else {
+				// 1.19.4 or earlier: Save single side
 				ListBinaryTag.Builder<StringBinaryTag> sideLines = ListBinaryTag.builder(BinaryTagTypes.STRING);
-				lines.forEach(
-						line -> sideLines.add(StringBinaryTag.stringBinaryTag(AdventureMetadata.serialize(line))));
-				signSides.put(side.name(), sideLines.build());
+				for (int i = 0; i < 4; i++) {
+					Component line = SignReflectionHelper.getLine(sign, i);
+					sideLines.add(StringBinaryTag.stringBinaryTag(AdventureMetadata.serialize(line)));
+				}
+				signSides.put("FRONT", sideLines.build()); // Use "FRONT" as default name
 			}
+
 			tileBuilder.put("signSides", signSides.build());
 		}
 
@@ -184,7 +212,7 @@ public record IslandSnapshotBlock(@JsonProperty("x") int x, @JsonProperty("y") i
 		}
 
 		// Jukebox
-		if (state instanceof Jukebox jukebox && jukebox.hasRecord()) {
+		if (state instanceof Jukebox jukebox && JukeboxReflectionHelper.hasRecord(jukebox)) {
 			tileBuilder.put("jukeboxRecord", itemStackToNBT(jukebox.getRecord()));
 		}
 
@@ -206,10 +234,16 @@ public record IslandSnapshotBlock(@JsonProperty("x") int x, @JsonProperty("y") i
 		// Beacon
 		if (state instanceof Beacon beacon) {
 			if (beacon.getPrimaryEffect() != null) {
-				tileBuilder.putString("primaryEffect", beacon.getPrimaryEffect().getType().getKey().getKey());
+				NamespacedKey primaryEffect = PotionEffectResolver
+						.getPotionEffectKey(beacon.getPrimaryEffect().getType());
+				if (primaryEffect != null)
+					tileBuilder.putString("primaryEffect", primaryEffect.getKey());
 			}
 			if (beacon.getSecondaryEffect() != null) {
-				tileBuilder.putString("secondaryEffect", beacon.getSecondaryEffect().getType().getKey().getKey());
+				NamespacedKey secondaryEffect = PotionEffectResolver
+						.getPotionEffectKey(beacon.getSecondaryEffect().getType());
+				if (secondaryEffect != null)
+					tileBuilder.putString("secondaryEffect", secondaryEffect.getKey());
 			}
 		}
 
@@ -225,8 +259,8 @@ public record IslandSnapshotBlock(@JsonProperty("x") int x, @JsonProperty("y") i
 		if (state instanceof CommandBlock cmd) {
 			tileBuilder.putString("command", cmd.getCommand());
 			tileBuilder.putString("name", AdventureMetadata.serialize(AdventureMetadata.getCommandBlockName(cmd)));
-			if (VersionHelper.isPaper()) {
-				tileBuilder.putInt("successCount", cmd.getSuccessCount());
+			if (VersionHelper.isPaperFork()) {
+				tileBuilder.putInt("successCount", PaperReflection.getCommandBlockSuccessCount(cmd));
 			}
 		}
 
@@ -272,9 +306,9 @@ public record IslandSnapshotBlock(@JsonProperty("x") int x, @JsonProperty("y") i
 			tileBuilder.put("campfireCookTimesTotal", cookTimesTotal.build());
 		}
 
-		// Chiseled Bookshelf
-		if (state instanceof ChiseledBookshelf bookshelf) {
-			tileBuilder.put("bookshelfInv", inventoryToNBT(bookshelf.getInventory()));
+		// Chiseled Bookshelf (Only available in 1.19.3+)
+		if (VersionHelper.isVersionNewerThan1_19_3() && PaperReflection.isChiseledBookshelf(state)) {
+			tileBuilder.put("bookshelfInv", inventoryToNBT(PaperReflection.getChiseledBookshelfInventory(state)));
 		}
 
 		// End Gateway
@@ -284,6 +318,13 @@ public record IslandSnapshotBlock(@JsonProperty("x") int x, @JsonProperty("y") i
 			}
 			tileBuilder.putBoolean("exactTeleport", gateway.isExactTeleport());
 		}
+
+		HellblockPlugin.getInstance().getWorldManager().getWorld(state.getWorld()).ifPresent(hellblockWorld -> {
+			CompletableFuture<Optional<CustomBlockState>> customState = hellblockWorld
+					.getBlockState(Pos3.from(state.getLocation()));
+			customState.thenAccept(blockState -> blockState
+					.ifPresent(cs -> tileBuilder.putString("customBlockId", cs.type().type().key().asString())));
+		});
 
 		// Entities attached to the block
 		final List<EntitySnapshot> entitySnapshots = findAttachedEntities(state.getLocation());
@@ -326,21 +367,39 @@ public record IslandSnapshotBlock(@JsonProperty("x") int x, @JsonProperty("y") i
 
 			// Restore sign
 			if (state instanceof Sign sign && tileData.get("signSides") instanceof CompoundBinaryTag signTag) {
-				for (Side side : Side.values()) {
-					if (signTag.get(side.name()) instanceof ListBinaryTag sideLines) {
-						SignSide signSide = sign.getSide(side);
+				if (SignReflectionHelper.isDualSided()) {
+					// 1.20+: Restore each side
+					for (Object side : SignReflectionHelper.getSideEnumConstants()) {
+						if (signTag.get(side.toString()) instanceof ListBinaryTag sideLines) {
+							try {
+								Object signSide = SignReflectionHelper.invokeGetSide(sign, side);
+								for (int i = 0; i < sideLines.size(); i++) {
+									String json = ((StringBinaryTag) sideLines.get(i)).value();
+									Component component = AdventureMetadata.deserialize(json);
+									SignReflectionHelper.invokeSetLine(signSide, i, component);
+								}
+							} catch (Exception ex) {
+								HellblockPlugin.getInstance().getPluginLogger()
+										.warn("Failed to restore sign side " + side + ": " + ex.getMessage());
+							}
+						}
+					}
+				} else {
+					// legacy fallback: restore only one side (use FRONT or any available key)
+					if (signTag.get("FRONT") instanceof ListBinaryTag sideLines) {
 						for (int i = 0; i < sideLines.size(); i++) {
 							String json = ((StringBinaryTag) sideLines.get(i)).value();
 							Component component = AdventureMetadata.deserialize(json);
-							AdventureMetadata.setSignLine(signSide, i, component);
+							SignReflectionHelper.setLine(sign, i, component);
 						}
 					}
 				}
+
 				sign.update(true, false);
 			}
 
 			// Skull
-			if (state instanceof Skull skull && tileData.getString("owner") != null) {
+			if (state instanceof Skull skull && tileData.contains("owner")) {
 				final UUID ownerId = UUID.fromString(tileData.getString("owner"));
 				skull.setOwningPlayer(Bukkit.getOfflinePlayer(ownerId));
 				skull.update(true, false);
@@ -348,7 +407,7 @@ public record IslandSnapshotBlock(@JsonProperty("x") int x, @JsonProperty("y") i
 
 			// Banner
 			if (state instanceof Banner banner) {
-				if (tileData.getString("baseColor") != null) {
+				if (tileData.contains("baseColor")) {
 					banner.setBaseColor(DyeColor.valueOf(tileData.getString("baseColor")));
 				}
 				if (tileData.get("patterns") instanceof ListBinaryTag patternList) {
@@ -356,7 +415,7 @@ public record IslandSnapshotBlock(@JsonProperty("x") int x, @JsonProperty("y") i
 							.map(entry -> entry.split("\\|")).filter(parts -> parts.length == 2).map(parts -> {
 								try {
 									final DyeColor color = DyeColor.valueOf(parts[0]);
-									final PatternType type = ItemRegistry.getBannerPattern(parts[1]);
+									final PatternType type = VariantRegistry.getBannerPattern(parts[1]);
 									return type != null ? new Pattern(color, type) : null;
 								} catch (IllegalArgumentException e) {
 									return null;
@@ -430,23 +489,23 @@ public record IslandSnapshotBlock(@JsonProperty("x") int x, @JsonProperty("y") i
 
 			// Beacon
 			if (state instanceof Beacon beacon) {
-				if (tileData.getString("primaryEffect") != null) {
-					final var key = NamespacedKey.fromString(tileData.getString("primaryEffect"));
-					if (key != null) {
-						beacon.setPrimaryEffect(Registry.EFFECT.get(key));
+				if (tileData.contains("primaryEffect")) {
+					PotionEffectType effect = PotionEffectResolver.resolve(tileData.getString("primaryEffect"));
+					if (effect != null) {
+						beacon.setPrimaryEffect(effect);
 					}
 				}
-				if (tileData.getString("secondaryEffect") != null) {
-					final var key = NamespacedKey.fromString(tileData.getString("secondaryEffect"));
-					if (key != null) {
-						beacon.setSecondaryEffect(Registry.EFFECT.get(key));
+				if (tileData.contains("secondaryEffect")) {
+					PotionEffectType effect = PotionEffectResolver.resolve(tileData.getString("secondaryEffect"));
+					if (effect != null) {
+						beacon.setSecondaryEffect(effect);
 					}
 				}
 				beacon.update(true, false);
 			}
 
 			// Enchanting Table
-			if (state instanceof EnchantingTable table && tileData.getString("customName") != null) {
+			if (state instanceof EnchantingTable table && tileData.contains("customName")) {
 				Component name = AdventureMetadata.deserialize(tileData.getString("customName"));
 				AdventureMetadata.setEnchantingTableName(table, name);
 				table.update(true, false);
@@ -454,28 +513,28 @@ public record IslandSnapshotBlock(@JsonProperty("x") int x, @JsonProperty("y") i
 
 			// Command Block
 			if (state instanceof CommandBlock cmd) {
-				if (tileData.getString("command") != null) {
+				if (tileData.contains("command")) {
 					cmd.setCommand(tileData.getString("command"));
 				}
-				if (tileData.getString("name") != null) {
+				if (tileData.contains("name")) {
 					Component name = AdventureMetadata.deserialize(tileData.getString("name"));
 					AdventureMetadata.setCommandBlockName(cmd, name);
 				}
-				if (VersionHelper.isPaper() && tileData.get("successCount") instanceof IntBinaryTag success) {
-					cmd.setSuccessCount(success.intValue());
+				if (VersionHelper.isPaperFork() && tileData.get("successCount") instanceof IntBinaryTag success) {
+					PaperReflection.setCommandBlockSuccessCount(cmd, success.intValue());
 				}
 				cmd.update(true, false);
 			}
 
 			// Structure Block
 			if (state instanceof Structure structure) {
-				if (tileData.getString("structureData") != null) {
+				if (tileData.contains("structureData")) {
 					structure.setStructureName(tileData.getString("structureData"));
 				}
-				if (tileData.getString("usageMode") != null) {
+				if (tileData.contains("usageMode")) {
 					structure.setUsageMode(UsageMode.valueOf(tileData.getString("usageMode")));
 				}
-				if (tileData.getString("author") != null) {
+				if (tileData.contains("author")) {
 					structure.setAuthor(tileData.getString("author"));
 				}
 				if (tileData.get("integrity") instanceof FloatBinaryTag integrity) {
@@ -488,7 +547,7 @@ public record IslandSnapshotBlock(@JsonProperty("x") int x, @JsonProperty("y") i
 			}
 
 			// Spawner
-			if (state instanceof CreatureSpawner spawner && tileData.getString("spawnedType") != null) {
+			if (state instanceof CreatureSpawner spawner && tileData.contains("spawnedType")) {
 				spawner.setSpawnedType(EntityType.valueOf(tileData.getString("spawnedType")));
 				spawner.setDelay(tileData.getInt("spawnDelay"));
 				spawner.setMinSpawnDelay(tileData.getInt("minSpawnDelay"));
@@ -517,11 +576,14 @@ public record IslandSnapshotBlock(@JsonProperty("x") int x, @JsonProperty("y") i
 			}
 
 			// Chiseled Bookshelf
-			if (state instanceof ChiseledBookshelf bookshelf
+			if (VersionHelper.isVersionNewerThan1_19_3() && PaperReflection.isChiseledBookshelf(state)
 					&& tileData.get("bookshelfInv") instanceof CompoundBinaryTag booksTag) {
-				bookshelf.getInventory().clear();
-				inventoryFromNBT(booksTag, bookshelf.getInventory());
-				bookshelf.update(true, false);
+				Inventory bookshelfInv = PaperReflection.getChiseledBookshelfInventory(state);
+				if (bookshelfInv != null) {
+					bookshelfInv.clear();
+					inventoryFromNBT(booksTag, bookshelfInv);
+					PaperReflection.updateChiseledBookshelf(state);
+				}
 			}
 
 			// End Gateway
@@ -537,6 +599,19 @@ public record IslandSnapshotBlock(@JsonProperty("x") int x, @JsonProperty("y") i
 					gateway.setExactTeleport(boolTag.byteValue() != 0);
 				}
 				gateway.update(true, false);
+			}
+		}
+
+		if (tileData != null && tileData.contains("customBlockId")) {
+			String id = tileData.getString("customBlockId");
+			Key key = Key.key(id);
+			if (key != null) {
+				CustomBlock customBlock = CustomBlockTypes.registry().get(key);
+				if (customBlock != null) {
+					CustomBlockState blockState = customBlock.createBlockState();
+					HellblockPlugin.getInstance().getWorldManager().getWorld(world)
+							.ifPresent(hbWorld -> hbWorld.updateBlockState(Pos3.from(block.getLocation()), blockState));
+				}
 			}
 		}
 
@@ -610,13 +685,26 @@ public record IslandSnapshotBlock(@JsonProperty("x") int x, @JsonProperty("y") i
 
 			// --- Sign (Adventure components, both sides) ---
 			else if (state instanceof Sign sign) {
-				for (Side side : Side.values()) {
-					SignSide signSide = sign.getSide(side);
+				if (SignReflectionHelper.isDualSided()) {
+					try {
+						for (Object side : SignReflectionHelper.getSideEnumConstants()) {
+							Object signSide = SignReflectionHelper.invokeGetSide(sign, side);
+							for (int i = 0; i < 4; i++) {
+								Component line = SignReflectionHelper.invokeGetLine(signSide, i);
+								SignReflectionHelper.invokeSetLine(signSide, i, line); // rewrite line for consistency
+							}
+						}
+					} catch (Exception ex) {
+						HellblockPlugin.getInstance().getPluginLogger()
+								.warn("Failed to clone sign metadata: " + ex.getMessage());
+					}
+				} else {
 					for (int i = 0; i < 4; i++) {
-						Component comp = AdventureMetadata.getSignLines(signSide).get(i);
-						AdventureMetadata.setSignLine(signSide, i, comp);
+						Component line = SignReflectionHelper.getLine(sign, i);
+						SignReflectionHelper.setLine(sign, i, line); // rewrite for consistency
 					}
 				}
+
 				meta.setBlockState(sign);
 				clone.setItemMeta(meta);
 			}
@@ -638,8 +726,8 @@ public record IslandSnapshotBlock(@JsonProperty("x") int x, @JsonProperty("y") i
 					AdventureMetadata.setCommandBlockName(cmd, name); // Paper/Spigot safe
 				}
 				cmd.setCommand(cmd.getCommand()); // preserve command
-				if (VersionHelper.isPaper()) {
-					cmd.setSuccessCount(cmd.getSuccessCount());
+				if (VersionHelper.isPaperFork()) {
+					PaperReflection.setCommandBlockSuccessCount(cmd, PaperReflection.getCommandBlockSuccessCount(cmd));
 				}
 				meta.setBlockState(cmd);
 				clone.setItemMeta(meta);
@@ -675,7 +763,7 @@ public record IslandSnapshotBlock(@JsonProperty("x") int x, @JsonProperty("y") i
 			}
 
 			// --- Jukebox ---
-			else if (state instanceof Jukebox jukebox && jukebox.hasRecord()) {
+			else if (state instanceof Jukebox jukebox && JukeboxReflectionHelper.hasRecord(jukebox)) {
 				jukebox.setRecord(deepCloneItem(jukebox.getRecord()));
 				meta.setBlockState(jukebox);
 				clone.setItemMeta(meta);
@@ -695,16 +783,19 @@ public record IslandSnapshotBlock(@JsonProperty("x") int x, @JsonProperty("y") i
 				clone.setItemMeta(meta);
 			}
 
-			// --- Chiseled Bookshelf ---
-			else if (state instanceof ChiseledBookshelf bookshelf) {
-				final ItemStack[] contents = bookshelf.getInventory().getContents();
-				for (int i = 0; i < contents.length; i++) {
-					if (contents[i] != null) {
-						bookshelf.getInventory().setItem(i, deepCloneItem(contents[i]));
+			// --- Chiseled Bookshelf (1.19.3+) ---
+			else if (VersionHelper.isVersionNewerThan1_19_3() && PaperReflection.isChiseledBookshelf(state)) {
+				Inventory bookshelfInv = PaperReflection.getChiseledBookshelfInventory(state);
+				if (bookshelfInv != null) {
+					final ItemStack[] contents = bookshelfInv.getContents();
+					for (int i = 0; i < contents.length; i++) {
+						if (contents[i] != null) {
+							bookshelfInv.setItem(i, deepCloneItem(contents[i]));
+						}
 					}
 				}
-				meta.setBlockState(bookshelf);
-				clone.setItemMeta(meta);
+				meta.setBlockState(state); // applies the state (inventory) to item meta
+				clone.setItemMeta(meta); // finalizes the clone
 			}
 
 			// --- Fallback ---

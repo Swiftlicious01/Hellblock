@@ -1,28 +1,29 @@
 package com.swiftlicious.hellblock.listeners;
 
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
-import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.CreatureSpawner;
-import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -38,22 +39,56 @@ import org.jetbrains.annotations.Nullable;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.api.Reloadable;
 import com.swiftlicious.hellblock.challenges.HellblockChallenge.ActionType;
-import com.swiftlicious.hellblock.config.locale.MessageConstants;
 import com.swiftlicious.hellblock.context.Context;
 import com.swiftlicious.hellblock.player.HellblockData;
 import com.swiftlicious.hellblock.player.UserData;
-import com.swiftlicious.hellblock.utils.StringUtils;
+import com.swiftlicious.hellblock.scheduler.SchedulerTask;
+import com.swiftlicious.hellblock.utils.EntityTypeUtils;
 import com.swiftlicious.hellblock.utils.extras.MathValue;
 import com.swiftlicious.hellblock.utils.extras.Pair;
+import com.swiftlicious.hellblock.utils.extras.Tuple;
+import com.swiftlicious.hellblock.world.BlockPos;
+import com.swiftlicious.hellblock.world.ChunkPos;
+import com.swiftlicious.hellblock.world.CustomBlockState;
+import com.swiftlicious.hellblock.world.CustomChunk;
+import com.swiftlicious.hellblock.world.CustomSection;
+import com.swiftlicious.hellblock.world.HellblockWorld;
+import com.swiftlicious.hellblock.world.Pos3;
+
+import dev.dejvokep.boostedyaml.YamlDocument;
+import dev.dejvokep.boostedyaml.block.implementation.Section;
+import dev.dejvokep.boostedyaml.libs.org.snakeyaml.engine.v2.common.ScalarStyle;
+import dev.dejvokep.boostedyaml.libs.org.snakeyaml.engine.v2.nodes.Tag;
+import dev.dejvokep.boostedyaml.settings.dumper.DumperSettings;
+import dev.dejvokep.boostedyaml.settings.general.GeneralSettings;
+import dev.dejvokep.boostedyaml.settings.loader.LoaderSettings;
+import dev.dejvokep.boostedyaml.utils.format.NodeRole;
+import net.kyori.adventure.nbt.BinaryTag;
+import net.kyori.adventure.nbt.CompoundBinaryTag;
+import net.kyori.adventure.nbt.StringBinaryTag;
 
 public class LevelHandler implements Listener, Reloadable {
 
 	protected final HellblockPlugin instance;
 
-	private final Map<UUID, Set<LevelBlockCache>> placedByPlayerCache = new HashMap<>();
+	private YamlDocument levelWorthConfig;
 
-	private final Map<UUID, Integer> levelRankCache = new HashMap<>();
-	private LinkedHashMap<UUID, Float> topCache = new LinkedHashMap<>();
+	protected Map<Integer, Tuple<Material, EntityType, MathValue<Player>>> levelSystem = new HashMap<>();
+
+	private SchedulerTask updateCacheTask;
+	private SchedulerTask clearCacheTask;
+
+	private final Map<Integer, Map<ChunkCoord, Map<BlockKey, Map<BlockPosition, Boolean>>>> placedBlockCounts = new HashMap<>();
+	private final Set<Integer> loadedPlacedBlockCaches = ConcurrentHashMap.newKeySet();
+
+	// Tracks recently counted block positions to prevent place/break exploits
+	private final Map<Integer, Map<BlockPosition, Long>> recentPlacements = new ConcurrentHashMap<>();
+	private static final long PLACEMENT_COOLDOWN_MS = 30_000; // 30 seconds
+
+	// Mapping Island Id -> Level Rank Placement
+	private final Map<Integer, Integer> levelRankCache = new HashMap<>();
+	// Mapping Island Id -> Island Level Placement
+	private LinkedHashMap<Integer, Float> topCache = new LinkedHashMap<>();
 
 	// Cached lookup for block -> level value
 	private Map<Pair<Material, EntityType>, Float> levelBlockValues = new HashMap<>();
@@ -71,108 +106,215 @@ public class LevelHandler implements Listener, Reloadable {
 
 	@Override
 	public void load() {
+		loadLevelWorthConfig();
+
+		final Section levelSystemSection = getLevelWorthConfig().getSection("level-system.blocks");
+		if (levelSystemSection != null) {
+			int i = 0;
+			int spawnerCount = 0;
+			int normalCount = 0;
+			final Set<String> spawnerEntities = new HashSet<>();
+
+			for (Map.Entry<String, Object> entry : levelSystemSection.getStringRouteMappedValues(false).entrySet()) {
+				if (!(entry.getValue() instanceof Number value)) {
+					return;
+				}
+				if (value.doubleValue() <= 0) {
+					instance.getPluginLogger().warn("Invalid level worth for " + entry.getKey() + ": must be > 0");
+					return;
+				}
+
+				final String key = entry.getKey();
+				final MathValue<Player> level = MathValue.auto(value);
+				final Material material;
+				EntityType entity = null;
+
+				if (key.contains(":")) {
+					final String[] split = key.split(":");
+					material = Material.matchMaterial(split[0].toUpperCase(Locale.ROOT));
+					if (material != null && material == Material.SPAWNER) {
+						entity = EntityTypeUtils.getCompatibleEntityType(split[1].toUpperCase(Locale.ROOT));
+					}
+				} else {
+					material = Material.matchMaterial(key.toUpperCase(Locale.ROOT));
+				}
+
+				if (material != null && material.isBlock()) {
+					this.levelSystem.putIfAbsent(i++, Tuple.of(material, entity, level));
+
+					if (material == Material.SPAWNER) {
+						spawnerCount++;
+						if (entity != null) {
+							spawnerEntities.add(entity.name());
+						}
+					} else {
+						normalCount++;
+					}
+				}
+			}
+
+			// Build debug message dynamically
+			final int total = normalCount + spawnerCount;
+			final StringBuilder debugMessage = new StringBuilder(
+					"Loaded " + total + " block" + (total == 1 ? "" : "s"));
+
+			final List<String> details = new ArrayList<>();
+			if (normalCount > 0) {
+				details.add(normalCount + " normal block" + (normalCount == 1 ? "" : "s"));
+			}
+			if (spawnerCount > 0) {
+				String spawnerText = spawnerCount + " spawner" + (spawnerCount == 1 ? "" : "s");
+				if (!spawnerEntities.isEmpty()) {
+					spawnerText += " [" + String.join(", ", spawnerEntities) + "]";
+				}
+				details.add(spawnerText);
+			}
+
+			if (!details.isEmpty()) {
+				debugMessage.append(" (").append(String.join(", ", details)).append(")");
+			}
+
+			debugMessage.append(" from level-worth.yml.");
+
+			instance.debug(debugMessage.toString());
+		}
+
 		Bukkit.getPluginManager().registerEvents(this, instance);
-		clearCache();
+
+		this.updateCacheTask = instance.getScheduler().asyncRepeating(this::clearAndUpdateCache, 1, 10,
+				TimeUnit.MINUTES);
+
 		loadLevelBlockValues();
-		instance.getScheduler().asyncRepeating(() -> {
+
+		// Preload placed block caches for all existing islands
+		instance.getCoopManager().getCachedIslandOwnerData().thenAcceptAsync(allOwners -> {
+			if (allOwners == null || allOwners.isEmpty())
+				return;
+
+			allOwners.forEach(ownerData -> {
+				int islandId = ownerData.getHellblockData().getIslandId();
+				if (islandId <= 0)
+					return;
+
+				loadIslandPlacedBlocksIfNeeded(islandId);
+			});
+		});
+
+		this.clearCacheTask = instance.getScheduler().asyncRepeating(() -> {
 			this.levelRankCache.clear();
 			this.topCache.clear();
-		}, 1, 30, TimeUnit.MINUTES);
+		}, 30, 30, TimeUnit.MINUTES);
 	}
 
 	@Override
 	public void unload() {
 		HandlerList.unregisterAll(this);
+		this.levelSystem.clear();
+		this.loadedPlacedBlockCaches.clear();
+		this.levelRankCache.clear();
+		this.topCache.clear();
+		this.recentPlacements.clear();
+		this.placedBlockCounts.clear();
+		if (this.updateCacheTask != null && !this.updateCacheTask.isCancelled()) {
+			this.updateCacheTask.cancel();
+			this.updateCacheTask = null;
+		}
+		if (this.clearCacheTask != null && !this.clearCacheTask.isCancelled()) {
+			this.clearCacheTask.cancel();
+			this.clearCacheTask = null;
+		}
 	}
 
-	private void clearCache() {
-		this.placedByPlayerCache.clear();
+	@Override
+	public void disable() {
+		unload();
+		// Save all currently tracked islands
+		placedBlockCounts.keySet().forEach(islandId -> {
+			Map<String, Map<String, Integer>> serialized = serializePlacedBlocks(islandId);
+
+			instance.getStorageManager().getOfflineUserDataByIslandId(islandId, instance.getConfigManager().lockData())
+					.thenAccept(result -> {
+						if (result.isPresent()) {
+							UserData userData = result.get();
+							userData.getLocationCacheData().setPlacedBlocks(serialized);
+						}
+					});
+		});
 	}
 
-	public void saveCache(@NotNull UUID id) {
-		final Set<LevelBlockCache> cacheSet = this.placedByPlayerCache.get(id);
-		if (cacheSet == null || cacheSet.isEmpty()) {
-			return;
-		}
-
-		// Deduplicate by material+entity+coords+placement
-		final List<String> locations = cacheSet.stream().map(this::serializeCache).distinct().toList();
-
-		this.placedByPlayerCache.remove(id);
-		if (locations.isEmpty()) {
-			return;
-		}
-
-		instance.getStorageManager().getOnlineUser(id)
-				.ifPresent(user -> user.getLocationCacheData().setLevelBlockLocations(locations));
+	@NotNull
+	public YamlDocument getLevelWorthConfig() {
+		return this.levelWorthConfig;
 	}
 
-	public void loadCache(@NotNull UUID id) {
-		final Optional<UserData> onlineUserOpt = instance.getStorageManager().getOnlineUser(id);
-		if (onlineUserOpt.isEmpty()) {
-			return;
+	private void loadLevelWorthConfig() {
+		try (InputStream inputStream = new FileInputStream(
+				instance.getConfigManager().resolveConfig("level-worth.yml").toFile())) {
+			levelWorthConfig = YamlDocument.create(inputStream,
+					instance.getConfigManager().getResourceMaybeGz("level-worth.yml"),
+					GeneralSettings.builder().setRouteSeparator('.').setUseDefaults(false).build(),
+					LoaderSettings.builder().setAutoUpdate(true).build(),
+					DumperSettings.builder().setScalarFormatter((tag, value, role, def) -> {
+						if (role == NodeRole.KEY) {
+							return ScalarStyle.PLAIN;
+						} else {
+							return tag == Tag.STR ? ScalarStyle.DOUBLE_QUOTED : ScalarStyle.PLAIN;
+						}
+					}).build());
+			levelWorthConfig.save(instance.getConfigManager().resolveConfig("level-worth.yml").toFile());
+		} catch (IOException ex) {
+			throw new RuntimeException(ex);
 		}
+	}
 
-		final UserData onlineUser = onlineUserOpt.get();
-		final List<String> locations = onlineUser.getLocationCacheData().getLevelBlockLocations();
-		if (locations == null || locations.isEmpty()) {
-			return;
-		}
+	public Map<Integer, Tuple<Material, EntityType, MathValue<Player>>> getLevelWorthMap() {
+		return levelSystem;
+	}
 
-		final Set<LevelBlockCache> cacheCollection = new HashSet<>();
-		for (String raw : locations) {
-			final LevelBlockCache cache = deserializeCache(raw);
-			if (cache == null) {
-				instance.getPluginLogger().warn("Failed to deserialize cache for UUID: %s -> %s".formatted(id, raw));
-				continue;
+	private void clearAndUpdateCache() {
+		placedBlockCounts.entrySet().stream().mapToInt(Map.Entry::getKey).forEach(islandId -> {
+			Map<String, Map<String, Integer>> serialized = serializePlacedBlocks(islandId);
+			// Save to storage — only for island owner
+			instance.getStorageManager().getOfflineUserDataByIslandId(islandId, instance.getConfigManager().lockData())
+					.thenAccept(result -> {
+						if (result.isPresent()) {
+							UserData userData = result.get();
+							HellblockData hellblockData = userData.getHellblockData();
+							UUID ownerId = hellblockData.getOwnerUUID();
+
+							if (ownerId != null && ownerId.equals(userData.getUUID())) {
+								userData.getLocationCacheData().setPlacedBlocks(serialized);
+							}
+						}
+					});
+		});
+
+		placedBlockCounts.clear();
+	}
+
+	public void clearIslandCache(int islandId) {
+		// Remove placed block count cache
+		placedBlockCounts.remove(islandId);
+
+		// Remove loaded state
+		loadedPlacedBlockCaches.remove(islandId);
+
+		// Remove rank cache entries
+		instance.getCoopManager().getOwnerUserDataByIslandId(islandId).thenAccept(ownerDataOpt -> {
+			if (ownerDataOpt.isEmpty()) {
+				return;
 			}
 
-			final Block checkBlock = cache.getWorld().getBlockAt(cache.getX(), cache.getY(), cache.getZ());
-			final EntityType checkEntity = (checkBlock.getType() == Material.SPAWNER)
-					? ((CreatureSpawner) checkBlock.getState()).getSpawnedType()
-					: null;
-			if (checkBlock.getType() == cache.getMaterial() && ((checkEntity == null && cache.getEntity() == null)
-					|| (checkEntity != null && cache.getEntity() != null && cache.getEntity() == checkEntity))) {
-				cacheCollection.add(cache);
+			UserData ownerData = ownerDataOpt.get();
+			HellblockData data = ownerData.getHellblockData();
+			int targetIslandId = data.getIslandId();
+			if (targetIslandId > 0) {
+				levelRankCache.remove(targetIslandId);
+				topCache.remove(targetIslandId);
 			}
-		}
+		});
 
-		onlineUser.getLocationCacheData().setLevelBlockLocations(new ArrayList<>()); // clear old
-		this.placedByPlayerCache.put(id, cacheCollection);
-	}
-
-	private @NotNull String serializeCache(@NotNull LevelBlockCache cache) {
-		return cache.getMaterial().toString().toUpperCase() + "|"
-				+ (cache.getEntity() != null ? cache.getEntity().toString().toUpperCase() : "NONE") + "|"
-				+ StringUtils.serializeLoc(cache.getLocation()) + "|" + cache.isPlacedByPlayer();
-	}
-
-	private @Nullable LevelBlockCache deserializeCache(@NotNull String cacheString) {
-		final String[] parts = cacheString.split(Pattern.quote("|"));
-		if (parts.length != 4) {
-			return null;
-		}
-		final Material mat = Material.matchMaterial(parts[0].toUpperCase(Locale.ROOT));
-		if (mat == null) {
-			return null;
-		}
-
-		EntityType ent = null;
-		if (!("NONE".equalsIgnoreCase(parts[1].toUpperCase()))) {
-			ent = EntityType.fromName(parts[1].toUpperCase());
-			if (ent == null) {
-				return null;
-			}
-		}
-
-		final Location loc = StringUtils.deserializeLoc(parts[2]);
-		if (loc == null || loc.getWorld() == null) {
-			return null;
-		}
-
-		final boolean placed = Boolean.parseBoolean(parts[3]);
-
-		return new LevelBlockCache(mat, ent, loc.getWorld(), loc.getBlockX(), loc.getBlockY(), loc.getBlockZ(), placed);
+		instance.debug("Cleared level cache for island ID= " + islandId);
 	}
 
 	@EventHandler
@@ -182,26 +324,20 @@ public class LevelHandler implements Listener, Reloadable {
 			return;
 		}
 
-		final Player player = event.getPlayer();
-		final UUID id = player.getUniqueId();
-
-		instance.getCoopManager().getHellblockOwnerOfVisitingIsland(player).thenAccept(ownerUUID -> {
+		instance.getCoopManager().getHellblockOwnerOfBlock(block).thenAccept(ownerUUID -> {
 			if (ownerUUID == null) {
 				return;
 			}
 
-			instance.getStorageManager().getOfflineUserData(ownerUUID, instance.getConfigManager().lockData())
+			instance.getStorageManager()
+					.getCachedUserDataWithFallback(ownerUUID, instance.getConfigManager().lockData())
 					.thenAccept(result -> {
 						if (result.isEmpty()) {
 							return;
 						}
 
-						final UserData offlineUser = result.get();
-						if (!offlineUser.getHellblockData().getIslandMembers().contains(id)) {
-							return;
-						}
-
-						handleBlockPlacement(id, block, offlineUser);
+						final UserData ownerData = result.get();
+						handleBlockPlacement(block, ownerData.getHellblockData());
 					});
 		});
 	}
@@ -213,26 +349,20 @@ public class LevelHandler implements Listener, Reloadable {
 			return;
 		}
 
-		final Player player = event.getPlayer();
-		final UUID id = player.getUniqueId();
-
-		instance.getCoopManager().getHellblockOwnerOfVisitingIsland(player).thenAccept(ownerUUID -> {
+		instance.getCoopManager().getHellblockOwnerOfBlock(block).thenAccept(ownerUUID -> {
 			if (ownerUUID == null) {
 				return;
 			}
 
-			instance.getStorageManager().getOfflineUserData(ownerUUID, instance.getConfigManager().lockData())
+			instance.getStorageManager()
+					.getCachedUserDataWithFallback(ownerUUID, instance.getConfigManager().lockData())
 					.thenAccept(result -> {
 						if (result.isEmpty()) {
 							return;
 						}
 
-						final UserData offlineUser = result.get();
-						if (!offlineUser.getHellblockData().getIslandMembers().contains(id)) {
-							return;
-						}
-
-						handleBlockRemoval(id, block, offlineUser);
+						final UserData ownerData = result.get();
+						handleBlockRemoval(block, ownerData.getHellblockData());
 					});
 		});
 	}
@@ -244,33 +374,20 @@ public class LevelHandler implements Listener, Reloadable {
 				continue;
 			}
 
-			final Collection<Entity> playersNearby = block.getWorld().getNearbyEntities(block.getLocation(), 25, 25, 25)
-					.stream().filter(e -> e.getType() == EntityType.PLAYER).toList();
-
-			final Player player = instance.getNetherrackGeneratorHandler().getClosestPlayer(block.getLocation(),
-					playersNearby);
-			if (player == null) {
-				continue;
-			}
-
-			final UUID id = player.getUniqueId();
-			instance.getCoopManager().getHellblockOwnerOfVisitingIsland(player).thenAccept(ownerUUID -> {
+			instance.getCoopManager().getHellblockOwnerOfBlock(block).thenAccept(ownerUUID -> {
 				if (ownerUUID == null) {
 					return;
 				}
 
-				instance.getStorageManager().getOfflineUserData(ownerUUID, instance.getConfigManager().lockData())
+				instance.getStorageManager()
+						.getCachedUserDataWithFallback(ownerUUID, instance.getConfigManager().lockData())
 						.thenAccept(result -> {
 							if (result.isEmpty()) {
 								return;
 							}
 
-							final UserData offlineUser = result.get();
-							if (!offlineUser.getHellblockData().getIslandMembers().contains(id)) {
-								return;
-							}
-
-							handleBlockRemoval(id, block, offlineUser);
+							final UserData ownerData = result.get();
+							handleBlockRemoval(block, ownerData.getHellblockData());
 						});
 			});
 		}
@@ -283,115 +400,109 @@ public class LevelHandler implements Listener, Reloadable {
 			return;
 		}
 
-		final Collection<Entity> playersNearby = block.getWorld().getNearbyEntities(block.getLocation(), 25, 25, 25)
-				.stream().filter(e -> e.getType() == EntityType.PLAYER).toList();
-
-		final Player player = instance.getNetherrackGeneratorHandler().getClosestPlayer(block.getLocation(),
-				playersNearby);
-		if (player == null) {
-			return;
-		}
-
-		final UUID id = player.getUniqueId();
-		instance.getCoopManager().getHellblockOwnerOfVisitingIsland(player).thenAccept(ownerUUID -> {
+		instance.getCoopManager().getHellblockOwnerOfBlock(block).thenAccept(ownerUUID -> {
 			if (ownerUUID == null) {
 				return;
 			}
 
-			instance.getStorageManager().getOfflineUserData(ownerUUID, instance.getConfigManager().lockData())
+			instance.getStorageManager()
+					.getCachedUserDataWithFallback(ownerUUID, instance.getConfigManager().lockData())
 					.thenAccept(result -> {
 						if (result.isEmpty()) {
 							return;
 						}
 
-						final UserData offlineUser = result.get();
-						if (!offlineUser.getHellblockData().getIslandMembers().contains(id)) {
-							return;
-						}
-
-						handleBlockRemoval(id, block, offlineUser);
+						final UserData ownerData = result.get();
+						handleBlockRemoval(block, ownerData.getHellblockData());
 					});
 		});
 	}
 
-	public CompletableFuture<Integer> getLevelRank(@NotNull UUID playerID) {
-		final CompletableFuture<Integer> futureRank = new CompletableFuture<>();
-
-		if (this.levelRankCache.containsKey(playerID)) {
-			futureRank.complete(this.levelRankCache.get(playerID));
-			return futureRank;
+	public CompletableFuture<Integer> getLevelRank(int islandId) {
+		// Use cache if available
+		if (this.levelRankCache.containsKey(islandId)) {
+			return CompletableFuture.completedFuture(this.levelRankCache.get(islandId));
 		}
 
-		Set<UUID> allUsers = instance.getStorageManager().getDataSource().getUniqueUsers();
-		List<CompletableFuture<Optional<UserData>>> futures = allUsers.stream().map(
-				uuid -> instance.getStorageManager().getOfflineUserData(uuid, instance.getConfigManager().lockData()))
-				.toList();
+		// Step 1: Get all cached island owner data
+		return instance.getCoopManager().getCachedIslandOwnerData().thenCompose(allOwners -> {
+			if (allOwners == null || allOwners.isEmpty()) {
+				return CompletableFuture.completedFuture(-1);
+			}
 
-		CompletableFuture<Void> allDone = CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new));
+			// Step 2: Collect all valid island levels by island ID
+			Map<Integer, Float> levels = new HashMap<>();
+			allOwners.forEach(owner -> {
+				int id = owner.getHellblockData().getIslandId();
+				float level = owner.getHellblockData().getIslandLevel();
 
-		return allDone.thenApply(__ -> {
-			Map<UUID, Float> levels = new HashMap<>();
-			futures.forEach(future -> future.join().ifPresent(user -> {
-				UUID ownerUUID = user.getHellblockData().getOwnerUUID();
-				float level = user.getHellblockData().getLevel();
-				if (ownerUUID != null) {
-					levels.put(ownerUUID, level);
+				if (level > HellblockData.DEFAULT_LEVEL) {
+					levels.put(id, level);
 				}
-			}));
-			return levels;
-		}).thenApply(levels -> {
-			Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(playerID);
-			if (onlineUser.isEmpty() || onlineUser.get().getHellblockData().getOwnerUUID() == null) {
-				return -1;
-			}
+			});
 
-			UUID owner = onlineUser.get().getHellblockData().getOwnerUUID();
-			Float ownerLevel = levels.get(owner);
-
-			if (ownerLevel == null || ownerLevel <= HellblockData.DEFAULT_LEVEL) {
-				return -1;
-			}
-
-			List<Map.Entry<UUID, Float>> sorted = levels.entrySet().stream()
-					.sorted(Map.Entry.<UUID, Float>comparingByValue().reversed()).toList();
-
-			for (int i = 0; i < sorted.size(); i++) {
-				if (sorted.get(i).getKey().equals(owner)) {
-					int rank = i + 1;
-					this.levelRankCache.put(playerID, rank);
-					return rank;
+			// Step 3: Get the island's own data from storage
+			return instance.getStorageManager().getOfflineUserDataByIslandId(islandId, false).thenApply(userData -> {
+				if (userData.isEmpty() || !userData.get().getHellblockData().hasHellblock()
+						|| userData.get().getHellblockData().isAbandoned()) {
+					return -1;
 				}
-			}
-			return -1;
+
+				int targetIslandId = userData.get().getHellblockData().getIslandId();
+				Float targetLevel = levels.get(targetIslandId);
+
+				if (targetLevel == null) {
+					return -1;
+				}
+
+				// Step 4: Sort all island levels in descending order
+				List<Map.Entry<Integer, Float>> sorted = levels.entrySet().stream()
+						.sorted(Map.Entry.<Integer, Float>comparingByValue().reversed()).toList();
+
+				// Step 5: Find the rank of the target island
+				for (int i = 0; i < sorted.size(); i++) {
+					if (sorted.get(i).getKey().equals(targetIslandId)) {
+						int rank = i + 1;
+						this.levelRankCache.put(targetIslandId, rank);
+						return rank;
+					}
+				}
+
+				return -1;
+			});
 		});
 	}
 
-	public CompletableFuture<LinkedHashMap<UUID, Float>> getTopHellblocks(int limit) {
+	public CompletableFuture<LinkedHashMap<Integer, Float>> getTopHellblocks(int limit) {
 		if (!this.topCache.isEmpty()) {
 			return CompletableFuture.completedFuture(this.topCache);
 		}
 
-		Set<UUID> allUsers = instance.getStorageManager().getDataSource().getUniqueUsers();
-		List<CompletableFuture<Optional<UserData>>> futures = allUsers.stream().map(
-				uuid -> instance.getStorageManager().getOfflineUserData(uuid, instance.getConfigManager().lockData()))
-				.toList();
+		return instance.getCoopManager().getCachedIslandOwnerData().thenApply(allOwners -> {
+			if (allOwners == null || allOwners.isEmpty()) {
+				return new LinkedHashMap<>();
+			}
 
-		CompletableFuture<Void> allDone = CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new));
+			// Collect valid island levels by islandId
+			Map<Integer, Float> levels = new HashMap<>();
 
-		return allDone.thenApply(__ -> {
-			Map<UUID, Float> levels = new HashMap<>();
+			allOwners.forEach(owner -> {
+				HellblockData data = owner.getHellblockData();
+				int islandId = data.getIslandId();
+				float level = data.getIslandLevel();
+				boolean abandoned = data.isAbandoned();
 
-			futures.forEach(future -> future.join().ifPresent(user -> {
-				UUID ownerUUID = user.getHellblockData().getOwnerUUID();
-				float level = user.getHellblockData().getLevel();
-				if (ownerUUID != null && level > HellblockData.DEFAULT_LEVEL) {
-					levels.put(ownerUUID, level);
+				if (!abandoned && level > HellblockData.DEFAULT_LEVEL) {
+					levels.put(islandId, level);
 				}
-			}));
+			});
 
-			return levels.entrySet().stream().sorted(Map.Entry.<UUID, Float>comparingByValue().reversed()).limit(limit)
+			// Sort by level descending and limit results
+			LinkedHashMap<Integer, Float> sorted = levels.entrySet().stream()
+					.sorted(Map.Entry.<Integer, Float>comparingByValue().reversed()).limit(limit)
 					.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> a, LinkedHashMap::new));
-		}).thenApply(sorted -> {
+
+			// Cache result
 			this.topCache = sorted;
 			return sorted;
 		});
@@ -404,11 +515,11 @@ public class LevelHandler implements Listener, Reloadable {
 	private void loadLevelBlockValues() {
 		this.levelBlockValues = new HashMap<>();
 
-		instance.getConfigManager().levelSystem().forEach((id, tuple) -> {
+		getLevelWorthMap().forEach((id, tuple) -> {
 			final Material mat = tuple.left(); // Material from config
 			final EntityType ent = tuple.mid(); // Optional entity
 			final MathValue<Player> levelValue = tuple.right(); // Level value
-			final float level = ((Number) levelValue.evaluate(Context.empty())).floatValue();
+			final float level = ((Number) levelValue.evaluate(Context.playerEmpty())).floatValue();
 
 			if (mat == null || !mat.isBlock() || level <= 0.0F) {
 				return;
@@ -469,34 +580,270 @@ public class LevelHandler implements Listener, Reloadable {
 		return new HashSet<>(this.levelBlockValues.keySet());
 	}
 
-	public void updateLevelFromBlockChange(@NotNull UUID playerID, @NotNull HellblockData ownerData,
-			@NotNull LevelBlockCache cache, boolean placed) {
+	public CompletableFuture<Float> recalculateIslandLevel(int islandId) {
+		CompletableFuture<Float> recalcFuture = new CompletableFuture<>();
+		instance.getStorageManager().getOfflineUserDataByIslandId(islandId, instance.getConfigManager().lockData())
+				.thenAccept(result -> {
+					if (result.isEmpty()) {
+						recalcFuture.completeExceptionally(new IllegalStateException(
+								"Recalculation failed: No user data found for island ID " + islandId));
+					}
+
+					Optional<HellblockWorld<?>> hellblockWorldOpt = instance.getWorldManager()
+							.getWorld(instance.getWorldManager().getHellblockWorldFormat(islandId));
+
+					if (hellblockWorldOpt.isEmpty() || hellblockWorldOpt.get().bukkitWorld() == null) {
+						recalcFuture.completeExceptionally(new IllegalStateException(
+								"Recalculation failed: No world found for island ID " + islandId));
+					}
+
+					HellblockWorld<?> world = hellblockWorldOpt.get();
+
+					if (!instance.getHellblockHandler().isInCorrectWorld(world.bukkitWorld())) {
+						recalcFuture.completeExceptionally(new IllegalStateException(
+								"Recalculation skipped: Not a valid Hellblock world for island " + islandId));
+					}
+
+					UserData data = result.get();
+					HellblockData hellblockData = data.getHellblockData();
+
+					if (hellblockData.getOwnerUUID() == null) {
+						recalcFuture.completeExceptionally(new IllegalStateException(
+								"Recalculation failed: Hellblock owner UUID is null for island ID " + islandId));
+					}
+
+					// Reset
+					placedBlockCounts.remove(islandId);
+					Map<ChunkCoord, Map<BlockKey, Map<BlockPosition, Boolean>>> newChunkMap = new HashMap<>();
+
+					instance.getProtectionManager().getHellblockChunks(world, islandId).thenAccept(islandChunks -> {
+						List<CompletableFuture<Void>> futures = new ArrayList<>();
+
+						for (ChunkPos chunkPos : islandChunks) {
+							Optional<CustomChunk> opt = world.getChunk(chunkPos);
+							if (opt.isEmpty())
+								continue;
+
+							CustomChunk chunk = opt.get();
+
+							CompletableFuture<Void> future = chunk.load(true).thenAccept(success -> {
+								if (!success)
+									return;
+
+								Map<BlockKey, Map<BlockPosition, Boolean>> blockCount = new HashMap<>();
+
+								for (CustomSection section : chunk.sections()) {
+									for (Map.Entry<BlockPos, CustomBlockState> entry : section.blockMap().entrySet()) {
+										BlockPos blockPos = entry.getKey();
+										CustomBlockState state = entry.getValue();
+
+										String key = state.type().type().value();
+										Material material = Material.matchMaterial(key.toUpperCase(Locale.ROOT));
+
+										if (material == null || !material.isBlock())
+											continue;
+
+										EntityType entity = null;
+										if (material == Material.SPAWNER) {
+											BinaryTag tag = state.get("SpawnData");
+											if (tag instanceof CompoundBinaryTag compound
+													&& compound.get("id") instanceof StringBinaryTag idTag) {
+												try {
+													entity = EntityTypeUtils.getCompatibleEntityType(
+															idTag.value().toUpperCase(Locale.ROOT));
+												} catch (Exception ignored) {
+												}
+											}
+										}
+
+										Pair<Material, EntityType> keyPair = Pair.of(material, entity);
+										if (!levelBlockValues.containsKey(keyPair))
+											continue;
+
+										BlockKey blockKey = BlockKey.from(material, entity);
+										blockCount.putIfAbsent(blockKey, new HashMap<>());
+
+										Pos3 absolute = blockPos.toPos3(chunkPos);
+										// not player placed
+										blockCount.get(blockKey).put(
+												new BlockPosition(absolute.x(), absolute.y(), absolute.z()), false);
+									}
+								}
+
+								if (!blockCount.isEmpty()) {
+									newChunkMap.put(new ChunkCoord(chunkPos.x(), chunkPos.z()), blockCount);
+								}
+							});
+
+							futures.add(future);
+						}
+
+						CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new)).thenRun(() -> {
+							// Done loading all chunks
+							placedBlockCounts.put(islandId, newChunkMap);
+
+							float newLevel = 0.0F;
+							for (Map<BlockKey, Map<BlockPosition, Boolean>> blockMap : newChunkMap.values()) {
+								for (Map.Entry<BlockKey, Map<BlockPosition, Boolean>> entry : blockMap.entrySet()) {
+									Float value = levelBlockValues
+											.get(Pair.of(entry.getKey().material(), entry.getKey().entity()));
+									if (value == null)
+										continue;
+
+									for (boolean placed : entry.getValue().values()) {
+										if (placed)
+											newLevel += value;
+									}
+								}
+							}
+
+							hellblockData.setIslandLevel(newLevel);
+							clearIslandCache(islandId);
+							instance.getPluginLogger()
+									.info("Recalculated level for island ID " + islandId + ": " + newLevel);
+							recalcFuture.complete(newLevel);
+
+						}).exceptionally(ex -> {
+							recalcFuture.completeExceptionally(ex);
+							return null;
+						});
+					});
+				});
+		return recalcFuture;
+	}
+
+	public Map<String, Map<String, Integer>> serializePlacedBlocks(int islandId) {
+		Map<String, Map<String, Integer>> data = new HashMap<>();
+
+		Map<ChunkCoord, Map<BlockKey, Map<BlockPosition, Boolean>>> chunkMap = placedBlockCounts.get(islandId);
+		if (chunkMap == null)
+			return data;
+
+		chunkMap.entrySet().forEach(chunkEntry -> {
+			String chunkKey = chunkEntry.getKey().x() + "," + chunkEntry.getKey().z();
+			Map<String, Integer> blockData = new HashMap<>();
+
+			chunkEntry.getValue().entrySet().forEach(blockEntry -> {
+				BlockKey key = blockEntry.getKey();
+				blockEntry.getValue().entrySet().forEach(posEntry -> {
+					// e.g., "IRON_BLOCK|NONE|12,65,9"
+					String fullKey = key.toString() + "|" + posEntry.getKey().toString();
+					blockData.put(fullKey, posEntry.getValue() ? 1 : 0); // 1 = player placed
+				});
+			});
+			data.put(chunkKey, blockData);
+		});
+
+		return data;
+	}
+
+	public void deserializePlacedBlocks(int islandId, Map<String, Map<String, Integer>> serialized) {
+		Map<ChunkCoord, Map<BlockKey, Map<BlockPosition, Boolean>>> chunkMap = new HashMap<>();
+
+		for (Map.Entry<String, Map<String, Integer>> chunkEntry : serialized.entrySet()) {
+			String[] chunkParts = chunkEntry.getKey().split(",");
+			if (chunkParts.length != 2)
+				continue;
+
+			int chunkX;
+			int chunkZ;
+
+			try {
+				chunkX = Integer.parseInt(chunkParts[0]);
+				chunkZ = Integer.parseInt(chunkParts[1]);
+			} catch (NumberFormatException ex) {
+				instance.getPluginLogger().warn("Invalid chunk key format: " + chunkEntry.getKey());
+				continue; // Skip malformed chunk keys
+			}
+
+			ChunkCoord coord = new ChunkCoord(chunkX, chunkZ);
+
+			Map<BlockKey, Map<BlockPosition, Boolean>> blockMap = new HashMap<>();
+
+			for (Map.Entry<String, Integer> blockEntry : chunkEntry.getValue().entrySet()) {
+				String[] split = blockEntry.getKey().split("\\|");
+				// must include material|entity|x,y,z
+				if (split.length < 3)
+					continue;
+
+				Material material = Material.matchMaterial(split[0].toUpperCase(Locale.ROOT));
+				EntityType entity = (!"NONE".equals(split[1])) ? EntityType.fromName(split[1]) : null;
+				BlockPosition pos = BlockPosition.fromString(split[2]);
+
+				boolean placedByPlayer = blockEntry.getValue() == 1;
+
+				if (material != null && pos != null) {
+					BlockKey blockKey = new BlockKey(material, entity);
+					blockMap.putIfAbsent(blockKey, new HashMap<>());
+					blockMap.get(blockKey).put(pos, placedByPlayer);
+				}
+			}
+
+			chunkMap.put(coord, blockMap);
+		}
+
+		placedBlockCounts.put(islandId, chunkMap);
+	}
+
+	public void loadIslandPlacedBlocksIfNeeded(int islandId) {
+		if (loadedPlacedBlockCaches.contains(islandId))
+			return;
+
+		instance.getStorageManager().getOfflineUserDataByIslandId(islandId, instance.getConfigManager().lockData())
+				.thenAccept(optUser -> {
+					if (optUser.isEmpty())
+						return;
+
+					UserData data = optUser.get();
+					Map<String, Map<String, Integer>> placedBlocks = data.getLocationCacheData().getPlacedBlocks();
+
+					if (placedBlocks != null && !placedBlocks.isEmpty()) {
+						deserializePlacedBlocks(islandId, placedBlocks);
+					}
+
+					loadedPlacedBlockCaches.add(islandId);
+					instance.debug("Loaded placed blocks for island ID: " + islandId);
+				});
+	}
+
+	public void updateLevelFromBlockChange(@NotNull HellblockData ownerData, @NotNull LevelBlockCache cache,
+			boolean placed) {
 		if (!cache.isPlacedByPlayer()) {
 			return;
 		}
 
-		final Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(playerID);
-		if (onlineUser.isEmpty()) {
-			return;
-		}
-
-		final Player player = onlineUser.get().getPlayer();
-
 		if (ownerData.isAbandoned()) {
-			if (player != null) {
-				instance.getSenderFactory().wrap(player).sendMessage(
-						instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_IS_ABANDONED.build()));
-			}
 			return;
 		}
 
-		// Direct lookup instead of looping
-		// adjust if spawners use entity
 		final Pair<Material, EntityType> key = Pair.of(cache.getMaterial(), cache.getEntity());
 		final Float levelValue = levelBlockValues.get(key);
 
-		if (levelValue == null) {
-			return; // not a level block
+		if (levelValue == null)
+			return;
+
+		// Ensure cache consistency for this island
+		loadIslandPlacedBlocksIfNeeded(ownerData.getIslandId());
+
+		int islandId = ownerData.getIslandId();
+		BlockPosition pos = new BlockPosition(cache.getX(), cache.getY(), cache.getZ());
+
+		// get or create island map
+		recentPlacements.putIfAbsent(islandId, new ConcurrentHashMap<>());
+		Map<BlockPosition, Long> islandPlacements = recentPlacements.get(islandId);
+
+		// clean up old entries
+		long now = System.currentTimeMillis();
+		islandPlacements.entrySet().removeIf(e -> now - e.getValue() > PLACEMENT_COOLDOWN_MS);
+
+		// if recently placed, ignore this to prevent duping
+		if (placed && islandPlacements.containsKey(pos)) {
+			return;
+		}
+
+		// record new placement
+		if (placed) {
+			islandPlacements.put(pos, now);
 		}
 
 		if (levelValue == HellblockData.DEFAULT_LEVEL) {
@@ -507,79 +854,110 @@ public class LevelHandler implements Listener, Reloadable {
 			}
 		} else {
 			if (placed) {
-				ownerData.addToLevel(levelValue);
+				ownerData.addToIslandLevel(levelValue);
 			} else {
-				ownerData.removeFromLevel(levelValue);
+				ownerData.removeFromIslandLevel(levelValue);
 			}
 		}
+		clearIslandCache(ownerData.getIslandId());
 
-		if (player != null) {
-			instance.getChallengeManager().handleChallengeProgression(player, ActionType.LEVELUP, levelValue);
+		if (placed && cache.isPlacedByPlayer()) {
+			// Only award progression for a new placement of a player-placed block
+			ownerData.getPartyPlusOwner().stream().map(Bukkit::getPlayer).filter(Objects::nonNull)
+					.filter(Player::isOnline).forEach(member -> instance.getStorageManager()
+							.getOnlineUser(member.getUniqueId()).ifPresent(memberData -> {
+								if (instance.getCooldownManager().shouldUpdateActivity(member.getUniqueId(), 5000)) {
+									memberData.getHellblockData().updateLastIslandActivity();
+								}
+
+								// only trigger challenge progression if this is a new placement event
+								instance.getChallengeManager().handleChallengeProgression(memberData,
+										ActionType.LEVELUP, levelValue, levelValue.intValue());
+							}));
 		}
 	}
 
-	private void handleBlockPlacement(UUID id, Block block, UserData offlineUser) {
+	private void handleBlockPlacement(Block block, HellblockData ownerData) {
 		final Material material = block.getType();
 		final EntityType entity = (material == Material.SPAWNER) ? ((CreatureSpawner) block.getState()).getSpawnedType()
 				: null;
+
+		BlockKey key = BlockKey.from(material, entity);
 
 		if (!getLevelBlockList().contains(Pair.of(material, entity))) {
 			return;
 		}
 
-		final LevelBlockCache newCache = new LevelBlockCache(material, entity, block.getWorld(), block.getX(),
-				block.getY(), block.getZ(), true // placedByPlayer
-		);
+		int islandId = ownerData.getIslandId();
+		ChunkCoord coord = ChunkCoord.fromLocation(block.getLocation());
 
-		this.placedByPlayerCache.putIfAbsent(id, new HashSet<>());
-		final Set<LevelBlockCache> cacheSet = this.placedByPlayerCache.get(id);
+		placedBlockCounts.putIfAbsent(islandId, new HashMap<>());
+		Map<ChunkCoord, Map<BlockKey, Map<BlockPosition, Boolean>>> islandChunks = placedBlockCounts.get(islandId);
+		islandChunks.putIfAbsent(coord, new HashMap<>());
+		Map<BlockKey, Map<BlockPosition, Boolean>> blockMap = islandChunks.get(coord);
 
-		if (!(cacheSet != null && !cacheSet.contains(newCache))) {
-			return;
-		}
-		cacheSet.add(newCache);
-		updateLevelFromBlockChange(id, offlineUser.getHellblockData(), newCache, true);
+		blockMap.putIfAbsent(key, new HashMap<>());
+		blockMap.get(key).put(BlockPosition.fromLocation(block.getLocation()), true); // true = player placed
+
+		instance.getWorldManager().getWorld(block.getWorld()).ifPresent(world -> updateLevelFromBlockChange(ownerData,
+				new LevelBlockCache(material, entity, world, block.getX(), block.getY(), block.getZ(), true), true));
 	}
 
-	private void handleBlockRemoval(UUID id, Block block, UserData offlineUser) {
+	private void handleBlockRemoval(Block block, HellblockData ownerData) {
 		final Material material = block.getType();
 		final EntityType entity = (material == Material.SPAWNER) ? ((CreatureSpawner) block.getState()).getSpawnedType()
 				: null;
+
+		BlockKey key = BlockKey.from(material, entity);
 
 		if (!getLevelBlockList().contains(Pair.of(material, entity))) {
 			return;
 		}
 
-		final Set<LevelBlockCache> cacheSet = this.placedByPlayerCache.get(id);
-		if (cacheSet == null) {
+		int islandId = ownerData.getIslandId();
+		ChunkCoord coord = ChunkCoord.fromLocation(block.getLocation());
+
+		Map<ChunkCoord, Map<BlockKey, Map<BlockPosition, Boolean>>> islandChunks = placedBlockCounts.get(islandId);
+		if (islandChunks == null)
 			return;
+
+		Map<BlockKey, Map<BlockPosition, Boolean>> blockMap = islandChunks.get(coord);
+		if (blockMap == null)
+			return;
+
+		BlockPosition pos = BlockPosition.fromLocation(block.getLocation());
+		Map<BlockPosition, Boolean> positions = blockMap.get(key);
+		if (positions == null || !positions.containsKey(pos))
+			return;
+
+		boolean wasPlacedByPlayer = positions.get(pos);
+		positions.remove(pos);
+		if (positions.isEmpty()) {
+			blockMap.remove(key);
+		}
+		if (blockMap.isEmpty()) {
+			islandChunks.remove(coord);
 		}
 
-		final LevelBlockCache match = cacheSet.stream()
-				.filter(c -> c.getMaterial() == material
-						&& (entity == null || (entity != null && c.getEntity() != null && c.getEntity() == entity))
-						&& c.getX() == block.getX() && c.getY() == block.getY() && c.getZ() == block.getZ())
-				.findFirst().orElse(null);
-
-		if (match == null) {
-			return;
+		if (wasPlacedByPlayer) {
+			instance.getWorldManager().getWorld(block.getWorld()).ifPresent(world -> updateLevelFromBlockChange(
+					ownerData,
+					new LevelBlockCache(material, entity, world, block.getX(), block.getY(), block.getZ(), true),
+					false));
 		}
-		updateLevelFromBlockChange(id, offlineUser.getHellblockData(), match, false);
-		cacheSet.remove(match);
 	}
 
 	protected class LevelBlockCache {
-
 		private final Material type;
 		private final EntityType entity;
-		private final World world;
+		private final HellblockWorld<?> world;
 		private final int x;
 		private final int y;
 		private final int z;
 		private boolean placedByPlayer;
 
-		public LevelBlockCache(@NotNull Material type, @Nullable EntityType entity, @NotNull World world, int x, int y,
-				int z, boolean placedByPlayer) {
+		public LevelBlockCache(@NotNull Material type, @Nullable EntityType entity, @NotNull HellblockWorld<?> world,
+				int x, int y, int z, boolean placedByPlayer) {
 			this.type = type;
 			this.entity = entity;
 			this.world = world;
@@ -589,19 +967,22 @@ public class LevelHandler implements Listener, Reloadable {
 			this.placedByPlayer = placedByPlayer;
 		}
 
-		public LevelBlockCache(@NotNull Material type, @NotNull World world, int x, int y, int z) {
+		public LevelBlockCache(@NotNull Material type, @NotNull HellblockWorld<?> world, int x, int y, int z) {
 			this(type, null, world, x, y, z, false);
 		}
 
-		public @NotNull Material getMaterial() {
+		@NotNull
+		public Material getMaterial() {
 			return this.type;
 		}
 
-		public @Nullable EntityType getEntity() {
+		@Nullable
+		public EntityType getEntity() {
 			return this.entity;
 		}
 
-		public @NotNull World getWorld() {
+		@NotNull
+		public HellblockWorld<?> getWorld() {
 			return this.world;
 		}
 
@@ -617,8 +998,9 @@ public class LevelHandler implements Listener, Reloadable {
 			return this.z;
 		}
 
-		public @NotNull Location getLocation() {
-			return new Location(this.world, this.x, this.y, this.z);
+		@NotNull
+		public Pos3 getPosition() {
+			return new Pos3(this.x, this.y, this.z);
 		}
 
 		public boolean isPlacedByPlayer() {
@@ -628,5 +1010,44 @@ public class LevelHandler implements Listener, Reloadable {
 		public void setIfPlacedByPlayer(boolean placedByPlayer) {
 			this.placedByPlayer = placedByPlayer;
 		}
+	}
+
+	public record ChunkCoord(int x, int z) {
+		public static ChunkCoord fromLocation(Location loc) {
+			return new ChunkCoord(loc.getChunk().getX(), loc.getChunk().getZ());
+		}
+	}
+
+	public record BlockKey(Material material, @Nullable EntityType entity) {
+		@Override
+		public String toString() {
+			return material.name() + "|" + (entity != null ? entity.name() : "NONE");
+		}
+
+		public static BlockKey from(Material material, @Nullable EntityType entity) {
+			return new BlockKey(material, entity);
+		}
+	}
+
+	public record BlockPosition(int x, int y, int z) {
+		public static BlockPosition fromLocation(Location loc) {
+			return new BlockPosition(loc.getBlockX(), loc.getBlockY(), loc.getBlockZ());
+		}
+
+		@Override
+		public String toString() {
+			return x + "," + y + "," + z;
+		}
+
+		public static BlockPosition fromString(String s) {
+			String[] parts = s.split(",");
+			if (parts.length != 3)
+				throw new IllegalArgumentException("Invalid block position: " + s);
+			return new BlockPosition(Integer.parseInt(parts[0]), Integer.parseInt(parts[1]),
+					Integer.parseInt(parts[2]));
+		}
+	}
+
+	public record LevelProgressContext(double startLevel, double currentLevel) {
 	}
 }

@@ -49,6 +49,18 @@ public abstract class AbstractContext<T> implements Context<T> {
 
 	@Override
 	@SuppressWarnings("unchecked")
+	public AbstractContext<T> merge(Context<?> other) {
+		if (other == null)
+			return this;
+
+		other.args().forEach((key, value) -> this.args.put((ContextKeys<Object>) key, value));
+		this.placeholderMap.putAll(other.placeholderMap());
+
+		return this;
+	}
+
+	@Override
+	@SuppressWarnings("unchecked")
 	public <C> C arg(ContextKeys<C> key) {
 		return (C) args.get(key);
 	}

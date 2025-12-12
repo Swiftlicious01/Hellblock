@@ -1,9 +1,11 @@
 package com.swiftlicious.hellblock.gui.biome;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -12,7 +14,6 @@ import java.util.concurrent.ConcurrentMap;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
-import org.bukkit.event.Event.Result;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
@@ -35,8 +36,10 @@ import com.swiftlicious.hellblock.generation.HellBiome;
 import com.swiftlicious.hellblock.handlers.ActionManager;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.handlers.RequirementManager;
+import com.swiftlicious.hellblock.player.HellblockData;
 import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.sender.Sender;
+import com.swiftlicious.hellblock.utils.StringUtils;
 import com.swiftlicious.hellblock.utils.extras.Action;
 import com.swiftlicious.hellblock.utils.extras.Pair;
 import com.swiftlicious.hellblock.utils.extras.Requirement;
@@ -80,9 +83,18 @@ public class BiomeGUIManager implements BiomeGUIManagerInterface, Listener {
 	}
 
 	private void loadConfig() {
-		Section config = instance.getConfigManager().getGuiConfig().getSection("biome.gui");
+		Section configFile = instance.getConfigManager().getGUIConfig("biomes.yml");
+		if (configFile == null) {
+			instance.getPluginLogger().severe("GUI for biomes.yml was unable to load correctly!");
+			return;
+		}
+		Section config = configFile.getSection("biome.gui");
+		if (config == null) {
+			instance.getPluginLogger().severe("biome.gui returned null, please regenerate your biomes.yml GUI file.");
+			return;
+		}
 
-		this.layout = config.getStringList("layout").toArray(new String[0]);
+		this.layout = config.getStringList("layout", new ArrayList<>()).toArray(new String[0]);
 		this.title = TextValue.auto(config.getString("title", "biome.title"));
 		this.highlightSelection = config.getBoolean("highlight-selected-biome", true);
 
@@ -123,7 +135,7 @@ public class BiomeGUIManager implements BiomeGUIManagerInterface, Listener {
 
 						// Only proceed if all above are valid
 						biomeIcons.put(symbol, Tuple.of(innerSection, biome, Tuple.of(
-								new SingleItemParser("biome", innerSection,
+								new SingleItemParser(biome.toString().toLowerCase(), innerSection,
 										instance.getConfigManager().getItemFormatFunctions()).getItem(),
 								instance.getActionManager(Player.class).parseActions(innerSection.getSection("action")),
 								instance.getRequirementManager(Player.class)
@@ -165,30 +177,26 @@ public class BiomeGUIManager implements BiomeGUIManagerInterface, Listener {
 		}
 	}
 
-	/**
-	 * Open the Biome GUI for a player
-	 *
-	 * @param player  player
-	 * @param isOwner is owner or not
-	 */
 	@Override
-	public boolean openBiomeGUI(Player player, boolean isOwner) {
+	public boolean openBiomeGUI(Player player, int islandId, boolean isOwner) {
 		Optional<UserData> optionalUserData = instance.getStorageManager().getOnlineUser(player.getUniqueId());
 		if (optionalUserData.isEmpty()) {
 			instance.getPluginLogger()
 					.warn("Player " + player.getName() + "'s hellblock data has not been loaded yet.");
 			return false;
 		}
-		if (optionalUserData.get().getHellblockData().getBiomeCooldown() > 0) {
+		HellblockData hellblockData = optionalUserData.get().getHellblockData();
+		if (hellblockData.getBiomeCooldown() > 0) {
 			Sender audience = instance.getSenderFactory().wrap(player);
-			audience.sendMessage(instance.getTranslationManager().render(
-					MessageConstants.MSG_HELLBLOCK_BIOME_ON_COOLDOWN.arguments(AdventureHelper.miniMessage(instance
-							.getFormattedCooldown(optionalUserData.get().getHellblockData().getBiomeCooldown())))
+			audience.sendMessage(instance.getTranslationManager()
+					.render(MessageConstants.MSG_HELLBLOCK_BIOME_ON_COOLDOWN.arguments(AdventureHelper.miniMessageToComponent(
+							instance.getCooldownManager().getFormattedCooldown(hellblockData.getBiomeCooldown())))
 							.build()));
 			return false;
 		}
 		Context<Player> context = Context.player(player);
-		BiomeGUI gui = new BiomeGUI(this, context, optionalUserData.get().getHellblockData(), isOwner);
+		Context<Integer> islandContext = Context.island(islandId);
+		BiomeGUI gui = new BiomeGUI(this, context, islandContext, hellblockData, isOwner);
 		gui.addElement(new BiomeDynamicGUIElement(backSlot, new ItemStack(Material.AIR)));
 		biomeIcons.entrySet().forEach(
 				entry -> gui.addElement(new BiomeDynamicGUIElement(entry.getKey(), new ItemStack(Material.AIR))));
@@ -244,7 +252,17 @@ public class BiomeGUIManager implements BiomeGUIManagerInterface, Listener {
 			return;
 		}
 
-		event.setResult(Result.DENY);
+		// Check if any dragged slot is in the GUI (top inventory)
+		for (int slot : event.getRawSlots()) {
+			if (slot < event.getInventory().getSize()) {
+				event.setCancelled(true);
+				return;
+			}
+		}
+
+		// If the drag is only in the player inventory, do nothing special
+		// but still make sure no ghost items appear
+		event.setCancelled(true);
 
 		// Refresh the GUI
 		instance.getScheduler().sync().runLater(gui::refresh, 1, player.getLocation());
@@ -274,7 +292,13 @@ public class BiomeGUIManager implements BiomeGUIManagerInterface, Listener {
 			return;
 		}
 
-		if (clickedInv != player.getInventory()) {
+		// Handle shift-clicks, number keys, or clicking outside GUI
+		if (event.getClick().isShiftClick() || event.getClick().isKeyboardClick()) {
+			event.setCancelled(true);
+			return;
+		}
+
+		if (!Objects.equals(clickedInv, player.getInventory())) {
 			int slot = event.getSlot();
 			BiomeGUIElement element = gui.getElement(slot);
 			if (element == null) {
@@ -293,13 +317,15 @@ public class BiomeGUIManager implements BiomeGUIManagerInterface, Listener {
 
 			Pair<CustomItem, Action<Player>[]> decorativeIcon = this.decorativeIcons.get(element.getSymbol());
 			if (decorativeIcon != null) {
+				event.setCancelled(true);
 				ActionManager.trigger(gui.context, decorativeIcon.right());
 				return;
 			}
 
 			if (element.getSymbol() == backSlot) {
 				event.setCancelled(true);
-				instance.getHellblockGUIManager().openHellblockGUI(gui.context.holder(), gui.isOwner);
+				instance.getHellblockGUIManager().openHellblockGUI(gui.context.holder(), gui.islandContext.holder(),
+						gui.isOwner);
 				ActionManager.trigger(gui.context, backActions);
 				return;
 			}
@@ -325,12 +351,13 @@ public class BiomeGUIManager implements BiomeGUIManagerInterface, Listener {
 			}
 
 			if (gui.hellblockData.getBiomeCooldown() > 0) {
-				gui.context.arg(ContextKeys.BIOME_COOLDOWN, gui.hellblockData.getBiomeCooldown()).arg(
+				gui.islandContext.arg(ContextKeys.BIOME_COOLDOWN, gui.hellblockData.getBiomeCooldown()).arg(
 						ContextKeys.BIOME_COOLDOWN_FORMATTED,
-						instance.getFormattedCooldown(gui.hellblockData.getBiomeCooldown()));
+						instance.getCooldownManager().getFormattedCooldown(gui.hellblockData.getBiomeCooldown()));
 				audience.sendMessage(instance.getTranslationManager()
-						.render(MessageConstants.MSG_HELLBLOCK_BIOME_ON_COOLDOWN.arguments(AdventureHelper
-								.miniMessage(instance.getFormattedCooldown(gui.hellblockData.getBiomeCooldown())))
+						.render(MessageConstants.MSG_HELLBLOCK_BIOME_ON_COOLDOWN
+								.arguments(AdventureHelper.miniMessageToComponent(instance.getCooldownManager()
+										.getFormattedCooldown(gui.hellblockData.getBiomeCooldown())))
 								.build()));
 				AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
 						Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
@@ -345,9 +372,11 @@ public class BiomeGUIManager implements BiomeGUIManagerInterface, Listener {
 				if (element.getSymbol() == entry.getKey()) {
 					event.setCancelled(true);
 					if (biome == entry.getValue().mid()) {
-						audience.sendMessage(
-								instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_BIOME_SAME_BIOME
-										.arguments(AdventureHelper.miniMessage(biome.getName())).build()));
+						audience.sendMessage(instance.getTranslationManager()
+								.render(MessageConstants.MSG_HELLBLOCK_BIOME_SAME_BIOME
+										.arguments(
+												AdventureHelper.miniMessageToComponent(StringUtils.toCamelCase(biome.toString())))
+										.build()));
 						AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
 								Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
 										net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
@@ -356,7 +385,7 @@ public class BiomeGUIManager implements BiomeGUIManagerInterface, Listener {
 					if (RequirementManager.isSatisfied(gui.context, entry.getValue().right().right())) {
 						instance.getBiomeHandler().changeHellblockBiome(userData.get(), entry.getValue().mid(), true,
 								false);
-						gui.context.arg(ContextKeys.HELLBLOCK_BIOME, gui.hellblockData.getBiome());
+						gui.islandContext.arg(ContextKeys.ISLAND_BIOME, gui.hellblockData.getBiome());
 						ActionManager.trigger(gui.context, entry.getValue().right().mid());
 						break;
 					}
@@ -365,6 +394,9 @@ public class BiomeGUIManager implements BiomeGUIManagerInterface, Listener {
 		}
 
 		// Refresh the GUI
+		if (instance.getCooldownManager().shouldUpdateActivity(player.getUniqueId(), 15000)) {
+			gui.hellblockData.updateLastIslandActivity();
+		}
 		instance.getScheduler().sync().runLater(gui::refresh, 1, player.getLocation());
 	}
 

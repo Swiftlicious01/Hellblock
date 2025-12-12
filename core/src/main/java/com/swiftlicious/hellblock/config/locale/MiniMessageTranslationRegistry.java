@@ -191,9 +191,8 @@ public class MiniMessageTranslationRegistry implements Examinable, MiniMessageTr
 			if (format == null) {
 				format = this.formats.get(Locale.of(locale.getLanguage())); // try without country
 				if (format == null) {
-					format = this.formats.get(MiniMessageTranslationRegistry.this.defaultLocale); // try local
-																									// default
-																									// locale
+					// try local default locale
+					format = this.formats.get(MiniMessageTranslationRegistry.this.defaultLocale);
 				}
 			}
 			return format;

@@ -2,6 +2,7 @@ package com.swiftlicious.hellblock.handlers;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -90,7 +91,7 @@ public class PlayerActionManager extends AbstractActionManager<Player> {
 				final List<String> replaced = instance.getPlaceholderManager().parse(player, messages,
 						context.placeholderMap());
 				final Sender audience = instance.getSenderFactory().wrap(player);
-				replaced.forEach(text -> audience.sendMessage(AdventureHelper.miniMessage(text)));
+				replaced.forEach(text -> audience.sendMessage(AdventureHelper.miniMessageToComponent(text)));
 			};
 		}, "message");
 		registerAction((args, chance) -> {
@@ -103,7 +104,7 @@ public class PlayerActionManager extends AbstractActionManager<Player> {
 				final Player player = context.holder();
 				random = instance.getPlaceholderManager().parse(player, random, context.placeholderMap());
 				final Sender audience = instance.getSenderFactory().wrap(player);
-				audience.sendMessage(AdventureHelper.miniMessage(random));
+				audience.sendMessage(AdventureHelper.miniMessageToComponent(random));
 			};
 		}, "random-message");
 	}
@@ -157,7 +158,7 @@ public class PlayerActionManager extends AbstractActionManager<Player> {
 						temp = instance.getPlaceholderManager().parse(context.holder(), title,
 								context.placeholderMap());
 						VersionHelper.getNMSManager().sendToast(player, itemStack,
-								AdventureHelper.componentToJson(AdventureHelper.getMiniMessage().deserialize(temp)),
+								AdventureHelper.componentToJson(AdventureHelper.miniMessageToComponent(temp)),
 								advancementType.name());
 					}
 				};
@@ -253,8 +254,8 @@ public class PlayerActionManager extends AbstractActionManager<Player> {
 					return;
 				}
 				final Player player = context.holder();
-				final Component component = AdventureHelper
-						.miniMessage(instance.getPlaceholderManager().parse(player, text, context.placeholderMap()));
+				final Component component = AdventureHelper.miniMessageToComponent(
+						instance.getPlaceholderManager().parse(player, text, context.placeholderMap()));
 				VersionHelper.getNMSManager().sendActionBar(player, AdventureHelper.componentToJson(component));
 			};
 		}, "actionbar");
@@ -268,7 +269,7 @@ public class PlayerActionManager extends AbstractActionManager<Player> {
 				final Player player = context.holder();
 				random = instance.getPlaceholderManager().parse(player, random, context.placeholderMap());
 				VersionHelper.getNMSManager().sendActionBar(player,
-						AdventureHelper.componentToJson(AdventureHelper.miniMessage(random)));
+						AdventureHelper.componentToJson(AdventureHelper.miniMessageToComponent(random)));
 			};
 		}, "random-actionbar");
 	}
@@ -421,8 +422,12 @@ public class PlayerActionManager extends AbstractActionManager<Player> {
 				final String material = section.getString("material");
 				final String displayName = section.getString("display.name");
 				final List<String> displayLore = section.getStringList("display.lore");
-				final Map<com.swiftlicious.hellblock.utils.extras.Key, Short> enchantments = instance.getConfigManager()
-						.getEnchantments(section);
+				final Map<com.swiftlicious.hellblock.utils.extras.Key, Short> enchantments;
+				if (section.contains("enchantments")) {
+					enchantments = instance.getConfigManager().getEnchantments(section.getSection("enchantments"));
+				} else {
+					enchantments = Collections.emptyMap();
+				}
 				final boolean unbreakable = section.getBoolean("unbreakable", false);
 				final int damage = section.getInt("damage");
 				final int amount = section.getInt("amount", 1);
@@ -624,8 +629,10 @@ public class PlayerActionManager extends AbstractActionManager<Player> {
 					}
 					final Player player = context.holder();
 					VersionHelper.getNMSManager().sendTitle(player,
-							AdventureHelper.componentToJson(AdventureHelper.miniMessage(title.render(context))),
-							AdventureHelper.componentToJson(AdventureHelper.miniMessage(subtitle.render(context))),
+							AdventureHelper
+									.componentToJson(AdventureHelper.miniMessageToComponent(title.render(context))),
+							AdventureHelper
+									.componentToJson(AdventureHelper.miniMessageToComponent(subtitle.render(context))),
 							fadeIn, stay, fadeOut);
 				};
 			} else {
@@ -657,8 +664,10 @@ public class PlayerActionManager extends AbstractActionManager<Player> {
 							.auto(subtitles.get(RandomUtils.generateRandomInt(0, subtitles.size() - 1)));
 					final Player player = context.holder();
 					VersionHelper.getNMSManager().sendTitle(player,
-							AdventureHelper.componentToJson(AdventureHelper.miniMessage(title.render(context))),
-							AdventureHelper.componentToJson(AdventureHelper.miniMessage(subtitle.render(context))),
+							AdventureHelper
+									.componentToJson(AdventureHelper.miniMessageToComponent(title.render(context))),
+							AdventureHelper
+									.componentToJson(AdventureHelper.miniMessageToComponent(subtitle.render(context))),
 							fadeIn, stay, fadeOut);
 				};
 			} else {
@@ -724,9 +733,10 @@ public class PlayerActionManager extends AbstractActionManager<Player> {
 					audience.sendMessage(instance.getTranslationManager()
 							.render(MessageConstants.COMMAND_FISH_FINDER_NO_LOOT.build()));
 				} else {
-					audience.sendMessage(
-							instance.getTranslationManager().render(MessageConstants.COMMAND_FISH_FINDER_POSSIBLE_LOOTS
-									.arguments(AdventureHelper.miniMessage(stringJoiner.toString())).build()));
+					audience.sendMessage(instance.getTranslationManager()
+							.render(MessageConstants.COMMAND_FISH_FINDER_POSSIBLE_LOOTS
+									.arguments(AdventureHelper.miniMessageToComponent(stringJoiner.toString()))
+									.build()));
 				}
 			};
 		}, "fish-finder");

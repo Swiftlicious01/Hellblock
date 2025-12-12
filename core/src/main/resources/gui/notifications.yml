@@ -1,0 +1,70 @@
+notification:
+  gui:
+    # The title for the notification menu
+    title: '<center><gradient:#A52A2A:#800000:#A52A2A>Hellblock Notifications</gradient>'
+    # The layout of the notification menu
+    layout:
+      - 'AAAAAAAAA'
+      - 'AAJAAAIAA'
+      - 'AAAAAAAAX'
+    # Back icon to return to main menu
+    back-icon:
+      symbol: 'X'
+      material: RED_STAINED_GLASS_PANE
+      display:
+        name: '<red>Return to Main Menu'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_additional_tooltip: {}
+    # Join notification icon
+    join-icon:
+      symbol: 'J'
+      material: EMERALD
+      display:
+        name: '<aqua>Coop Join Notifications'
+        lore:
+          - '<yellow><bold>ENABLED: <reset><gold>{status}'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:block.note_block.pling'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_additional_tooltip: {}
+    # Invitation notification icon
+    invitation-icon:
+      symbol: 'I'
+      material: PAPER
+      display:
+        name: '<aqua>Invitation Notifications'   
+        lore:
+          - '<yellow><bold>ENABLED: <reset><gold>{status}'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:block.note_block.pling'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_additional_tooltip: {}
+    # Decorative icons for visual enhancement
+    decorative-icons:
+      glass-pane:
+        symbol: 'A'
+        material: BLACK_STAINED_GLASS_PANE
+        display:
+          name: ' '
+        components:
+          minecraft:hide_tooltip: {}

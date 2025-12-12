@@ -14,11 +14,14 @@ import org.jetbrains.annotations.Nullable;
 
 import com.swiftlicious.hellblock.context.Context;
 import com.swiftlicious.hellblock.context.ContextKeys;
+import com.swiftlicious.hellblock.creation.item.CustomItem;
 import com.swiftlicious.hellblock.creation.item.Item;
 import com.swiftlicious.hellblock.generation.HellBiome;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.handlers.VersionHelper;
 import com.swiftlicious.hellblock.player.HellblockData;
+
+import dev.dejvokep.boostedyaml.block.implementation.Section;
 
 public class BiomeGUI {
 
@@ -27,12 +30,18 @@ public class BiomeGUI {
 	private final BiomeGUIManager manager;
 	protected final Inventory inventory;
 	protected final Context<Player> context;
+	protected final Context<Integer> islandContext;
 	protected final HellblockData hellblockData;
 	protected final boolean isOwner;
 
-	public BiomeGUI(BiomeGUIManager manager, Context<Player> context, HellblockData hellblockData, boolean isOwner) {
+	private volatile boolean refreshInProgress = false;
+	private volatile boolean refreshQueued = false;
+
+	public BiomeGUI(BiomeGUIManager manager, Context<Player> context, Context<Integer> islandContext,
+			HellblockData hellblockData, boolean isOwner) {
 		this.manager = manager;
 		this.context = context;
+		this.islandContext = islandContext;
 		this.hellblockData = hellblockData;
 		this.isOwner = isOwner;
 		this.itemsCharMap = new HashMap<>();
@@ -102,47 +111,72 @@ public class BiomeGUI {
 	 * @return The BiomeGUI instance.
 	 */
 	public BiomeGUI refresh() {
-		HellBiome biome = hellblockData.getBiome();
-		context.arg(ContextKeys.BIOME_COOLDOWN, hellblockData.getBiomeCooldown())
-				.arg(ContextKeys.BIOME_COOLDOWN_FORMATTED,
-						manager.instance.getFormattedCooldown(hellblockData.getBiomeCooldown()))
-				.arg(ContextKeys.HELLBLOCK_BIOME, biome);
-		BiomeDynamicGUIElement backElement = (BiomeDynamicGUIElement) getElement(manager.backSlot);
-		if (backElement != null && !backElement.getSlots().isEmpty()) {
-			backElement.setItemStack(manager.backIcon.build(context));
+		if (refreshInProgress) {
+			refreshQueued = true;
+			return this;
 		}
-		manager.biomeIcons.entrySet().forEach(biomes -> {
-			if (biome == biomes.getValue().mid()) {
-				BiomeDynamicGUIElement biomeElement = (BiomeDynamicGUIElement) getElement(biomes.getKey());
-				if (biomeElement != null && !biomeElement.getSlots().isEmpty()) {
-					Item<ItemStack> item = manager.instance.getItemManager()
-							.wrap(biomes.getValue().right().left().build(context));
-					List<String> newLore = new ArrayList<>();
-					biomes.getValue().left().getStringList("display.selected-lore")
-							.forEach(lore -> newLore.add(AdventureHelper.miniMessageToJson(lore)));
-					item.lore(newLore);
-					if (manager.highlightSelection)
-						item.glint(true);
-					biomeElement.setItemStack(item.load());
+		refreshInProgress = true;
+		refreshQueued = false;
+
+		manager.instance.getScheduler().executeSync(() -> {
+			try {
+				// Provide biome data to context
+				HellBiome biome = hellblockData.getBiome();
+				islandContext.arg(ContextKeys.BIOME_COOLDOWN, hellblockData.getBiomeCooldown())
+						.arg(ContextKeys.BIOME_COOLDOWN_FORMATTED,
+								manager.instance.getCooldownManager()
+										.getFormattedCooldown(hellblockData.getBiomeCooldown()))
+						.arg(ContextKeys.ISLAND_BIOME, biome);
+
+				// Back icon
+				BiomeDynamicGUIElement backElement = (BiomeDynamicGUIElement) getElement(manager.backSlot);
+				if (backElement != null && !backElement.getSlots().isEmpty()) {
+					backElement.setItemStack(manager.backIcon.build(context));
 				}
-			} else {
-				BiomeDynamicGUIElement biomeElement = (BiomeDynamicGUIElement) getElement(biomes.getKey());
-				if (biomeElement != null && !biomeElement.getSlots().isEmpty()) {
-					Item<ItemStack> item = manager.instance.getItemManager()
-							.wrap(biomes.getValue().right().left().build(context));
-					List<String> newLore = new ArrayList<>();
-					biomes.getValue().left().getStringList("display.unselected-lore")
-							.forEach(lore -> newLore.add(AdventureHelper.miniMessageToJson(lore)));
-					item.lore(newLore);
-					biomeElement.setItemStack(item.load());
+
+				// Biome icons
+				for (var entry : manager.biomeIcons.entrySet()) {
+					char symbol = entry.getKey();
+					Section config = entry.getValue().left();
+					CustomItem itemDef = entry.getValue().right().left();
+					HellBiome type = entry.getValue().mid();
+
+					BiomeDynamicGUIElement biomeElement = (BiomeDynamicGUIElement) getElement(symbol);
+					if (biomeElement == null || biomeElement.getSlots().isEmpty())
+						continue;
+
+					Context<Player> combinedCtx = context.merge(islandContext);
+					
+					Item<ItemStack> item = manager.instance.getItemManager().wrap(itemDef.build(combinedCtx));
+					List<String> lore = new ArrayList<>();
+					List<String> rawLore = biome == type ? config.getStringList("display.selected-lore")
+							: config.getStringList("display.unselected-lore");
+
+					rawLore.forEach(raw -> lore.add(AdventureHelper.miniMessageToJson(raw)));
+					item.lore(lore);
+
+					if (biome == type && manager.highlightSelection) {
+						item.glint(true);
+					}
+
+					biomeElement.setItemStack(item.loadCopy());
+				}
+
+				// Update inventory
+				itemsSlotMap.entrySet().stream().filter(entry -> entry.getValue() instanceof BiomeDynamicGUIElement)
+						.forEach(entry -> {
+							BiomeDynamicGUIElement dynamicElement = (BiomeDynamicGUIElement) entry.getValue();
+							this.inventory.setItem(entry.getKey(), dynamicElement.getItemStack().clone());
+						});
+			} finally {
+				refreshInProgress = false;
+				if (refreshQueued) {
+					refreshQueued = false;
+					manager.instance.getScheduler().sync().run(this::refresh, context.holder().getLocation());
 				}
 			}
-		});
-		itemsSlotMap.entrySet().stream().filter(entry -> entry.getValue() instanceof BiomeDynamicGUIElement)
-				.forEach(entry -> {
-					BiomeDynamicGUIElement dynamicGUIElement = (BiomeDynamicGUIElement) entry.getValue();
-					this.inventory.setItem(entry.getKey(), dynamicGUIElement.getItemStack().clone());
-				});
+		}, context.holder().getLocation());
+
 		return this;
 	}
 }

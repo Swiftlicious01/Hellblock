@@ -40,8 +40,7 @@ public class CustomRegion implements CustomRegionInterface {
 
 	@Override
 	public void load() {
-		final boolean loadCondition = !this.isLoaded && ((HellblockWorld<?>) world).loadRegion(this);
-		if (loadCondition) {
+		if (!this.isLoaded && ((HellblockWorld<?>) world).loadRegion(this)) {
 			this.isLoaded = true;
 		}
 	}

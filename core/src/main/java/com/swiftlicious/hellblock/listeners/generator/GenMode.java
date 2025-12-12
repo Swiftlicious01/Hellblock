@@ -10,6 +10,7 @@ public class GenMode {
 
 	private boolean searchForPlayersNearby = false;
 	private boolean canGenWhileLavaRaining = true;
+	private boolean requiresSignToGenerate = true;
 
 	private String genSound = null;
 	private Particle particleEffect = null;
@@ -93,5 +94,13 @@ public class GenMode {
 
 	public void setCanGenWhileLavaRaining(boolean canGenWhileLavaRaining) {
 		this.canGenWhileLavaRaining = canGenWhileLavaRaining;
+	}
+
+	public boolean requiresSignToGenerate() {
+		return this.requiresSignToGenerate;
+	}
+
+	public void setSignRequirementToGenerate(boolean requiresSignToGenerate) {
+		this.requiresSignToGenerate = requiresSignToGenerate;
 	}
 }

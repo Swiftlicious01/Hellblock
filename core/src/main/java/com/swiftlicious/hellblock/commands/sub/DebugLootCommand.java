@@ -11,15 +11,9 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
 import org.incendo.cloud.CommandManager;
-import org.incendo.cloud.context.CommandContext;
-import org.incendo.cloud.context.CommandInput;
-import org.incendo.cloud.parser.standard.IntegerParser;
 import org.incendo.cloud.parser.standard.StringParser;
 import org.incendo.cloud.suggestion.Suggestion;
-import org.incendo.cloud.suggestion.SuggestionProvider;
-import org.jetbrains.annotations.NotNull;
 
-import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.commands.BukkitCommandFeature;
 import com.swiftlicious.hellblock.commands.HellblockCommandManager;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
@@ -27,9 +21,8 @@ import com.swiftlicious.hellblock.context.Context;
 import com.swiftlicious.hellblock.context.ContextKeys;
 import com.swiftlicious.hellblock.effects.Effect;
 import com.swiftlicious.hellblock.effects.EffectInterface;
-import com.swiftlicious.hellblock.effects.EffectModifier;
+import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.mechanics.fishing.FishingGears;
-import com.swiftlicious.hellblock.utils.extras.TriConsumer;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickEvent;
@@ -45,21 +38,17 @@ public class DebugLootCommand extends BukkitCommandFeature<CommandSender> {
 	public Command.Builder<? extends CommandSender> assembleCommand(CommandManager<CommandSender> manager,
 			Command.Builder<CommandSender> builder) {
 		return builder.senderType(Player.class)
-				.required("surrounding", StringParser.stringComponent().suggestionProvider(new SuggestionProvider<>() {
-					@Override
-					public @NotNull CompletableFuture<? extends @NotNull Iterable<? extends @NotNull Suggestion>> suggestionsFuture(
-							@NotNull CommandContext<Object> context, @NotNull CommandInput input) {
-						return CompletableFuture
-								.completedFuture(Stream.of("lava").map(Suggestion::suggestion).toList());
-					}
-				})).optional("page", IntegerParser.integerParser(1)).handler(context -> {
+				.required("surrounding",
+						StringParser.stringComponent()
+								.suggestionProvider((context, input) -> CompletableFuture
+										.completedFuture(Stream.of("lava").map(Suggestion::suggestion).toList())))
+				.optional("page", StringParser.stringParser()).handler(context -> {
 					String surrounding = context.get("surrounding");
 					if (context.sender().getInventory().getItemInMainHand().getType() != Material.FISHING_ROD) {
 						handleFeedback(context, MessageConstants.COMMAND_DEBUG_LOOT_FAILURE_ROD);
 						return;
 					}
 					final Player player = context.sender();
-					int page = (int) context.optional("page").orElse(1) - 1;
 
 					Context<Player> playerContext = Context.player(player);
 					FishingGears gears = new FishingGears();
@@ -67,27 +56,20 @@ public class DebugLootCommand extends BukkitCommandFeature<CommandSender> {
 
 					Effect effect = EffectInterface.newInstance();
 					// The effects impact mechanism at this stage
-					for (EffectModifier modifier : gears.effectModifiers()) {
-						for (TriConsumer<Effect, Context<Player>, Integer> consumer : modifier.modifiers()) {
-							consumer.accept(effect, playerContext, 0);
-						}
-					}
+					gears.effectModifiers().forEach(modifier -> modifier.modifiers()
+							.forEach(consumer -> consumer.accept(effect, playerContext, 0)));
 
 					playerContext.arg(ContextKeys.SURROUNDING, surrounding);
 					Effect tempEffect = effect.copy();
-					for (EffectModifier modifier : gears.effectModifiers()) {
-						for (TriConsumer<Effect, Context<Player>, Integer> consumer : modifier.modifiers()) {
-							consumer.accept(tempEffect, playerContext, 1);
-						}
-					}
+					gears.effectModifiers().forEach(modifier -> modifier.modifiers()
+							.forEach(consumer -> consumer.accept(tempEffect, playerContext, 1)));
 
 					playerContext.arg(ContextKeys.OTHER_LOCATION, player.getLocation());
 					playerContext.arg(ContextKeys.OTHER_X, player.getLocation().getBlockX());
 					playerContext.arg(ContextKeys.OTHER_Y, player.getLocation().getBlockY());
 					playerContext.arg(ContextKeys.OTHER_Z, player.getLocation().getBlockZ());
 
-					Map<String, Double> weightMap = HellblockPlugin.getInstance().getLootManager()
-							.getWeightedLoots(tempEffect, playerContext);
+					Map<String, Double> weightMap = plugin.getLootManager().getWeightedLoots(tempEffect, playerContext);
 
 					if (weightMap.isEmpty()) {
 						handleFeedback(context, MessageConstants.COMMAND_DEBUG_LOOT_FAILURE_NO_LOOT);
@@ -106,41 +88,68 @@ public class DebugLootCommand extends BukkitCommandFeature<CommandSender> {
 					}
 					LootWithWeight[] lootArray = loots.toArray(new LootWithWeight[0]);
 					int maxPages = (int) Math.ceil((double) lootArray.length / 10) - 1;
-					if (page > maxPages)
+
+					int page;
+					// Extract the page argument as a string (if present), or default to "1"
+					String pageInput = context.<String>optional("page").orElse("1");
+					try {
+						page = Integer.parseInt(pageInput) - 1;
+					} catch (NumberFormatException e) {
+						handleFeedback(context, MessageConstants.COMMAND_INVALID_PAGE_ARGUMENT,
+								AdventureHelper.miniMessageToComponent(pageInput),
+								AdventureHelper.miniMessageToComponent(String.valueOf(maxPages)));
 						return;
+					}
+
+					if (page < 1 || page > maxPages) {
+						handleFeedback(context, MessageConstants.COMMAND_INVALID_PAGE_ARGUMENT,
+								AdventureHelper.miniMessageToComponent(String.valueOf(page)),
+								AdventureHelper.miniMessageToComponent(String.valueOf(maxPages)));
+						return;
+					}
+
 					quickSort(lootArray, 0, lootArray.length - 1);
 					Component component = Component.empty();
 					List<Component> children = new ArrayList<>();
 					int i = 0;
 					for (LootWithWeight loot : lootArray) {
 						if (i >= page * 10 && i < page * 10 + 10) {
-							children.add(Component.newline()
-									.append(Component.text(loot.key + ": ").color(NamedTextColor.WHITE))
-									.append(Component.text(String.format("%.4f", loot.weight * 100 / sum) + "% ")
-											.color(NamedTextColor.GOLD))
-									.append(Component.text("(" + loot.weight + ")").color(NamedTextColor.GRAY)));
+							children.add(
+									Component
+											.newline().append(
+													AdventureHelper
+															.miniMessageToComponent(loot.key + ": ").color(
+																	NamedTextColor.WHITE))
+											.append(AdventureHelper
+													.miniMessageToComponent(
+															String.format("%.4f", loot.weight * 100 / sum) + "% ")
+													.color(NamedTextColor.GOLD))
+											.append(AdventureHelper.miniMessageToComponent("(" + loot.weight + ")")
+													.color(NamedTextColor.GRAY)));
 						}
 						i++;
 					}
 					handleFeedback(context, MessageConstants.COMMAND_DEBUG_LOOT_SUCCESS, component.children(children));
-					Component previous = Component.text("( <<< )");
+					Component previous = AdventureHelper.miniMessageToComponent("( <<< )");
 					if (page > 0) {
 						previous = previous.color(NamedTextColor.GREEN).clickEvent(ClickEvent
 								.runCommand(commandConfig.getUsages().get(0) + " " + surrounding + " " + (page)));
 					} else {
 						previous = previous.color(NamedTextColor.GRAY);
 					}
-					Component next = Component.text("( >>> )");
+					Component next = AdventureHelper.miniMessageToComponent("( >>> )");
 					if (page < maxPages) {
 						next = next.color(NamedTextColor.GREEN).clickEvent(ClickEvent
 								.runCommand(commandConfig.getUsages().get(0) + " " + surrounding + " " + (page + 2)));
 					} else {
 						next = next.color(NamedTextColor.GRAY);
 					}
-					HellblockPlugin.getInstance().getSenderFactory().wrap(player).sendMessage(Component.empty()
-							.children(List.of(previous, Component.text("   "), Component
-									.text("[" + (page + 1) + "/" + (maxPages + 1) + "]").color(NamedTextColor.AQUA),
-									Component.text("   "), next)));
+					plugin.getSenderFactory().wrap(player)
+							.sendMessage(Component.empty()
+									.children(List.of(previous, AdventureHelper.miniMessageToComponent("   "),
+											Component.text("[" + (page + 1) + "/" + (maxPages + 1) + "]")
+													.color(NamedTextColor.AQUA),
+											AdventureHelper.miniMessageToComponent("   "), next)));
 				});
 	}
 

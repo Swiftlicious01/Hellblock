@@ -1,7 +1,6 @@
 package com.swiftlicious.hellblock.handlers.builtin;
 
 import java.util.List;
-import java.util.concurrent.ThreadLocalRandom;
 
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
@@ -11,6 +10,7 @@ import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.context.Context;
 import com.swiftlicious.hellblock.context.ContextKeys;
 import com.swiftlicious.hellblock.utils.ListUtils;
+import com.swiftlicious.hellblock.utils.RandomUtils;
 import com.swiftlicious.hellblock.utils.extras.MathValue;
 
 public class ActionRandomCommand<T> extends AbstractBuiltInAction<T> {
@@ -31,7 +31,7 @@ public class ActionRandomCommand<T> extends AbstractBuiltInAction<T> {
 		if (context.holder() instanceof Player player) {
 			owner = player;
 		}
-		String random = commands.get(ThreadLocalRandom.current().nextInt(commands.size()));
+		String random = commands.get(RandomUtils.generateRandomInt(commands.size()));
 		random = plugin.getPlaceholderManager().parse(owner, random, context.placeholderMap());
 		final String finalRandom = random;
 		plugin.getScheduler().sync().run(() -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), finalRandom), null);

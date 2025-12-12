@@ -29,14 +29,12 @@ import org.incendo.cloud.CommandManager;
 
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
-import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.commands.BukkitCommandFeature;
 import com.swiftlicious.hellblock.commands.HellblockCommandManager;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
 import com.swiftlicious.hellblock.database.DataStorageProvider;
+import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.utils.extras.CompletableFutures;
-
-import net.kyori.adventure.text.Component;
 
 public class ExportDataCommand extends BukkitCommandFeature<CommandSender> {
 
@@ -54,7 +52,6 @@ public class ExportDataCommand extends BukkitCommandFeature<CommandSender> {
 						return;
 					}
 
-					HellblockPlugin plugin = HellblockPlugin.getInstance();
 					handleFeedback(context, MessageConstants.COMMAND_DATA_EXPORT_START);
 					plugin.getScheduler().async().execute(() -> {
 
@@ -66,14 +63,13 @@ public class ExportDataCommand extends BukkitCommandFeature<CommandSender> {
 						Map<UUID, String> out = Collections.synchronizedMap(new TreeMap<>());
 
 						int amount = uuids.size();
-						for (UUID uuid : uuids) {
-							futures.add(storageProvider.getPlayerData(uuid, false, null).thenAccept(it -> {
-								if (it.isPresent()) {
-									out.put(uuid, plugin.getStorageManager().toJson(it.get()));
-									userCount.incrementAndGet();
-								}
-							}));
-						}
+						uuids.forEach(
+								uuid -> futures.add(storageProvider.getPlayerData(uuid, false, null).thenAccept(it -> {
+									if (it.isPresent()) {
+										out.put(uuid, plugin.getStorageManager().toJson(it.get()));
+										userCount.incrementAndGet();
+									}
+								})));
 
 						CompletableFuture<Void> overallFuture = CompletableFutures.allOf(futures);
 
@@ -85,16 +81,16 @@ public class ExportDataCommand extends BukkitCommandFeature<CommandSender> {
 								break;
 							} catch (TimeoutException e) {
 								handleFeedback(context, MessageConstants.COMMAND_DATA_EXPORT_PROGRESS,
-										Component.text(userCount.get()), Component.text(amount));
+										AdventureHelper.miniMessageToComponent(String.valueOf(userCount.get())),
+										AdventureHelper.miniMessageToComponent(String.valueOf(amount)));
 								continue;
 							}
 							break;
 						}
 
 						JsonObject outJson = new JsonObject();
-						for (Map.Entry<UUID, String> entry : out.entrySet()) {
-							outJson.addProperty(entry.getKey().toString(), entry.getValue());
-						}
+						out.entrySet()
+								.forEach(entry -> outJson.addProperty(entry.getKey().toString(), entry.getValue()));
 						SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd-HH-mm");
 						String formattedDate = formatter.format(new Date());
 						File outFile = new File(plugin.getDataFolder(), "exported-" + formattedDate + ".json.gz");

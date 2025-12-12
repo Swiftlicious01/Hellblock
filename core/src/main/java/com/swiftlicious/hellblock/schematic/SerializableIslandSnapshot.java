@@ -4,6 +4,7 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -126,9 +127,9 @@ public record SerializableIslandSnapshot(@JsonProperty("blocks") List<IslandSnap
 
 			// finish
 			if (!removeIt.hasNext() && !blockIt.hasNext() && !entityIt.hasNext()) {
-				final SchedulerTask t = taskRef.get();
-				if (t != null) {
-					t.cancel();
+				final SchedulerTask scheduled = taskRef.get();
+				if (scheduled != null && !scheduled.isCancelled()) {
+					scheduled.cancel();
 				}
 				if (whenDone != null) {
 					plugin.getScheduler().async().execute(whenDone);
@@ -182,7 +183,8 @@ public record SerializableIslandSnapshot(@JsonProperty("blocks") List<IslandSnap
 	 * @param box   Bounding box to clear
 	 */
 	private void clearAreaImmediate(World world, BoundingBox box) {
-		world.getEntities().stream().filter(entity -> box.contains(entity.getLocation().toVector()))
+		world.getEntities().stream().filter(Objects::nonNull)
+				.filter(entity -> entity.isValid() && !entity.isDead() && box.contains(entity.getLocation().toVector()))
 				.forEach(Entity::remove);
 
 		for (int x = (int) box.getMinX(); x <= (int) box.getMaxX(); x++) {

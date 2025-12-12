@@ -7,7 +7,6 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -25,18 +24,15 @@ import org.incendo.cloud.CommandManager;
 import org.incendo.cloud.parser.standard.StringParser;
 
 import com.google.gson.GsonBuilder;
-import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
-import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.commands.BukkitCommandFeature;
 import com.swiftlicious.hellblock.commands.HellblockCommandManager;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
 import com.swiftlicious.hellblock.database.DataStorageProvider;
+import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.player.PlayerData;
 import com.swiftlicious.hellblock.utils.extras.CompletableFutures;
-
-import net.kyori.adventure.text.Component;
 
 public class ImportDataCommand extends BukkitCommandFeature<CommandSender> {
 
@@ -55,7 +51,6 @@ public class ImportDataCommand extends BukkitCommandFeature<CommandSender> {
 						return;
 					}
 					String fileName = context.get("file");
-					HellblockPlugin plugin = HellblockPlugin.getInstance();
 					File file = new File(plugin.getDataFolder(), fileName);
 					if (!file.exists()) {
 						handleFeedback(context, MessageConstants.COMMAND_DATA_IMPORT_FAILURE_NOT_EXISTS);
@@ -83,14 +78,14 @@ public class ImportDataCommand extends BukkitCommandFeature<CommandSender> {
 						AtomicInteger userCount = new AtomicInteger(0);
 						Set<CompletableFuture<Void>> futures = new HashSet<>();
 
-						for (Map.Entry<String, JsonElement> entry : entrySet) {
+						entrySet.forEach(entry -> {
 							UUID uuid = UUID.fromString(entry.getKey());
 							if (entry.getValue() instanceof JsonPrimitive primitive) {
 								PlayerData playerData = plugin.getStorageManager().fromJson(primitive.getAsString());
 								futures.add(storageProvider.updateOrInsertPlayerData(uuid, playerData, true)
 										.thenAccept(it -> userCount.incrementAndGet()));
 							}
-						}
+						});
 
 						CompletableFuture<Void> overallFuture = CompletableFutures.allOf(futures);
 
@@ -102,7 +97,8 @@ public class ImportDataCommand extends BukkitCommandFeature<CommandSender> {
 								break;
 							} catch (TimeoutException e) {
 								handleFeedback(context, MessageConstants.COMMAND_DATA_IMPORT_PROGRESS,
-										Component.text(userCount.get()), Component.text(amount));
+										AdventureHelper.miniMessageToComponent(String.valueOf(userCount.get())),
+										AdventureHelper.miniMessageToComponent(String.valueOf(amount)));
 								continue;
 							}
 							break;

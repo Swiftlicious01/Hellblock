@@ -22,12 +22,20 @@ public class ResetConfirmGUI {
 	private final ResetConfirmGUIManager manager;
 	protected final Inventory inventory;
 	protected final Context<Player> context;
+	protected final Context<Integer> islandContext;
 	protected final HellblockData hellblockData;
+	protected final boolean isOwner;
 
-	public ResetConfirmGUI(ResetConfirmGUIManager manager, Context<Player> context, HellblockData hellblockData) {
+	private volatile boolean refreshInProgress = false;
+	private volatile boolean refreshQueued = false;
+
+	public ResetConfirmGUI(ResetConfirmGUIManager manager, Context<Player> context, Context<Integer> islandContext,
+			HellblockData hellblockData, boolean isOwner) {
 		this.manager = manager;
 		this.context = context;
+		this.islandContext = islandContext;
 		this.hellblockData = hellblockData;
+		this.isOwner = isOwner;
 		this.itemsCharMap = new HashMap<>();
 		this.itemsSlotMap = new HashMap<>();
 		var holder = new ResetConfirmGUIHolder();
@@ -95,22 +103,49 @@ public class ResetConfirmGUI {
 	 * @return The ResetConfirmGUI instance.
 	 */
 	public ResetConfirmGUI refresh() {
-		context.arg(ContextKeys.RESET_COOLDOWN, hellblockData.getResetCooldown()).arg(
-				ContextKeys.RESET_COOLDOWN_FORMATTED,
-				manager.instance.getFormattedCooldown(hellblockData.getResetCooldown()));
-		ResetConfirmDynamicGUIElement denyElement = (ResetConfirmDynamicGUIElement) getElement(manager.denySlot);
-		if (denyElement != null && !denyElement.getSlots().isEmpty()) {
-			denyElement.setItemStack(manager.denyIcon.build(context));
+		if (refreshInProgress) {
+			refreshQueued = true;
+			return this;
 		}
-		ResetConfirmDynamicGUIElement confirmElement = (ResetConfirmDynamicGUIElement) getElement(manager.confirmSlot);
-		if (confirmElement != null && !confirmElement.getSlots().isEmpty()) {
-			confirmElement.setItemStack(manager.confirmIcon.build(context));
-		}
-		itemsSlotMap.entrySet().stream().filter(entry -> entry.getValue() instanceof ResetConfirmDynamicGUIElement)
-				.forEach(entry -> {
-					ResetConfirmDynamicGUIElement dynamicGUIElement = (ResetConfirmDynamicGUIElement) entry.getValue();
-					this.inventory.setItem(entry.getKey(), dynamicGUIElement.getItemStack().clone());
+		refreshInProgress = true;
+		refreshQueued = false;
+
+		manager.instance.getScheduler().executeSync(() -> {
+			try {
+				// Update context with reset cooldown
+				context.arg(ContextKeys.RESET_COOLDOWN, hellblockData.getResetCooldown()).arg(
+						ContextKeys.RESET_COOLDOWN_FORMATTED,
+						manager.instance.getCooldownManager().getFormattedCooldown(hellblockData.getResetCooldown()));
+
+				// Deny icon
+				ResetConfirmDynamicGUIElement denyElement = (ResetConfirmDynamicGUIElement) getElement(
+						manager.denySlot);
+				if (denyElement != null && !denyElement.getSlots().isEmpty()) {
+					denyElement.setItemStack(manager.denyIcon.build(context));
+				}
+
+				// Confirm icon
+				ResetConfirmDynamicGUIElement confirmElement = (ResetConfirmDynamicGUIElement) getElement(
+						manager.confirmSlot);
+				if (confirmElement != null && !confirmElement.getSlots().isEmpty()) {
+					confirmElement.setItemStack(manager.confirmIcon.build(context));
+				}
+
+				// Inject
+				itemsSlotMap.forEach((slot, element) -> {
+					if (element instanceof ResetConfirmDynamicGUIElement dynamic) {
+						inventory.setItem(slot, dynamic.getItemStack().clone());
+					}
 				});
+			} finally {
+				refreshInProgress = false;
+				if (refreshQueued) {
+					refreshQueued = false;
+					manager.instance.getScheduler().sync().run(this::refresh, context.holder().getLocation());
+				}
+			}
+		}, context.holder().getLocation());
+
 		return this;
 	}
 }

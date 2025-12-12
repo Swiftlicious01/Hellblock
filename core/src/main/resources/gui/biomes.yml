@@ -1,0 +1,183 @@
+biome:
+  gui:
+    # The title for the biome menu
+    title: '<center><gradient:#A52A2A:#800000:#A52A2A>Hellblock Biomes</gradient>'
+    # The layout for the biome menu
+    layout:
+      - 'AAAAAAAAA'
+      - 'AAASWCAAA'
+      - 'AAANBFAAA'
+      - 'AAAAAAAAX'
+    # Make the biome that is currently selected glow?
+    highlight-selected-biome: true
+    # Biome icons
+    biome-icons:
+      # Soul sand valley icon
+      soul-sand-valley-icon:
+        symbol: 'S'
+        material: SOUL_SOIL
+        # The biome defined for this icon. The options are all listed out below:
+        # [SOUL_SAND_VALLEY, WARPED_FOREST, CRIMSON_FOREST, NETHER_WASTES, BASALT_DELTAS, NETHER_FORTRESS]
+        biome: SOUL_SAND_VALLEY
+        display:
+          name: '<red>Soul Sand Valley'
+          unselected-lore:
+            - '<dark_red>Click to change to this biome!'
+          selected-lore:
+            - '<dark_red>Click to change to this biome!'
+            - ' '
+            - '<yellow>This is your current selection!'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+      # You can also have requirements per biome, for example charging them using Vault economy.
+      # requirement:
+      #   money_requirement:
+      #     type: money
+      #     value: 500
+        components:
+          minecraft:hide_additional_tooltip: {}
+      # Warped forest icon
+      warped-forest-icon:
+        symbol: 'W'
+        material: WARPED_STEM
+        biome: WARPED_FOREST
+        display:
+          name: '<red>Warped Forest'
+          unselected-lore:
+            - '<dark_red>Click to change to this biome!'
+          selected-lore:
+            - '<dark_red>Click to change to this biome!'
+            - ' '
+            - '<yellow>This is your current selection!'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      # Crimson forest icon
+      crimson-forest-icon:
+        symbol: 'C'
+        material: CRIMSON_STEM
+        biome: CRIMSON_FOREST
+        display:
+          name: '<red>Crimson Forest'
+          unselected-lore:
+            - '<dark_red>Click to change to this biome!'
+          selected-lore:
+            - '<dark_red>Click to change to this biome!'
+            - ' '
+            - '<yellow>This is your current selection!'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      # Nether wastes icon
+      nether-wastes-icon:
+        symbol: 'N'
+        material: NETHERRACK
+        biome: NETHER_WASTES
+        display:
+          name: '<red>Nether Wastes'
+          unselected-lore:
+            - '<dark_red>Click to change to this biome!'
+          selected-lore:
+            - '<dark_red>Click to change to this biome!'
+            - ' '
+            - '<yellow>This is your current selection!'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      # Basalt deltas icon
+      basalt-deltas-icon:
+        symbol: 'B'
+        material: NETHERITE_BLOCK
+        biome: BASALT_DELTAS
+        display:
+          name: '<red>Basalt Deltas'
+          unselected-lore:
+            - '<dark_red>Click to change to this biome!'
+          selected-lore:
+            - '<dark_red>Click to change to this biome!'
+            - ' '
+            - '<yellow>This is your current selection!'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      # Nether fortress icon
+      nether-fortress-icon:
+        symbol: 'F'
+        material: NETHER_BRICK
+        biome: NETHER_FORTRESS
+        display:
+          name: '<red>Nether Fortress'
+          unselected-lore:
+            - '<dark_red>Click to change to this biome!'
+          selected-lore:
+            - '<dark_red>Click to change to this biome!'
+            - ' '
+            - '<yellow>This is your current selection!'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+    # Back icon to return to main menu
+    back-icon:
+      symbol: 'X'
+      material: RED_STAINED_GLASS_PANE
+      display:
+        name: '<red>Return to Main Menu'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_additional_tooltip: {}
+    decorative-icons:
+      glass-pane:
+        symbol: 'A'
+        material: BLACK_STAINED_GLASS_PANE
+        display:
+          name: ' '
+        components:
+          minecraft:hide_tooltip: {}

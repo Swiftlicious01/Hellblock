@@ -12,7 +12,6 @@ import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Particle;
 import org.bukkit.World;
-import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
@@ -34,6 +33,8 @@ import com.swiftlicious.hellblock.challenges.HellblockChallenge.ActionType;
 import com.swiftlicious.hellblock.creation.item.Item;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.scheduler.SchedulerTask;
+import com.swiftlicious.hellblock.utils.EnchantmentUtils;
+import com.swiftlicious.hellblock.utils.ParticleUtils;
 import com.swiftlicious.hellblock.utils.extras.Key;
 
 import net.kyori.adventure.sound.Sound;
@@ -79,7 +80,8 @@ public class WraithHandler implements Listener, Reloadable {
 		final ItemStack hoe = new ItemStack(Material.IRON_HOE);
 		final Item<ItemStack> editedHoe = instance.getItemManager().wrap(hoe);
 		// Extract enchantment key dynamically
-		final NamespacedKey unbreakingKey = Enchantment.UNBREAKING.getKey();
+		final NamespacedKey unbreakingKey = EnchantmentUtils.getCompatibleEnchantment("unbreaking", "durability")
+				.getKey();
 		editedHoe.addEnchantment(Key.of(unbreakingKey.getNamespace(), unbreakingKey.getKey()), 3);
 		editedHoe.unbreakable(true); // optional: make it unbreakable
 		return editedHoe;
@@ -125,7 +127,8 @@ public class WraithHandler implements Listener, Reloadable {
 				skeleton.setFireTicks(0); // stop any visual fire damage
 
 				// Show "shield bubble" effect at mob's location
-				skeleton.getWorld().spawnParticle(Particle.BLOCK, skeleton.getLocation().add(0, 1, 0), 20, // count
+				skeleton.getWorld().spawnParticle(ParticleUtils.getParticle("BLOCK_DUST"),
+						skeleton.getLocation().clone().add(0, 1, 0), 20, // count
 						0.5, 0.5, 0.5, // offsets
 						0.1, // speed
 						Material.SHIELD.createBlockData() // Use shield-like block particles
@@ -193,8 +196,10 @@ public class WraithHandler implements Listener, Reloadable {
 
 					// Transformation burst
 					world.spawnParticle(Particle.SOUL_FIRE_FLAME, loc.clone().add(0, 1, 0), 50, 0.5, 1, 0.5, 0.05);
-					world.spawnParticle(Particle.LARGE_SMOKE, loc.clone().add(0, 1, 0), 30, 0.4, 0.6, 0.4, 0.01);
-					world.spawnParticle(Particle.EXPLOSION, loc.clone().add(0, 1, 0), 10, 0.2, 0.2, 0.2, 0.01);
+					world.spawnParticle(ParticleUtils.getParticle("SMOKE_LARGE"), loc.clone().add(0, 1, 0), 30, 0.4,
+							0.6, 0.4, 0.01);
+					world.spawnParticle(ParticleUtils.getParticle("EXPLOSION_LARGE"), loc.clone().add(0, 1, 0), 10, 0.2,
+							0.2, 0.2, 0.01);
 
 					// Sound burst to nearby players
 					world.getNearbyEntities(loc, 16, 16, 16, e -> e instanceof Player).stream().map(e -> (Player) e)
@@ -204,7 +209,8 @@ public class WraithHandler implements Listener, Reloadable {
 													net.kyori.adventure.key.Key.key("minecraft:entity.wither.spawn"),
 													Sound.Source.HOSTILE, 1.0f, 0.6f)));
 				}
-				taskHolder[0].cancel();
+				if (taskHolder[0] != null && !taskHolder[0].isCancelled())
+					taskHolder[0].cancel();
 				return;
 			}
 
@@ -214,8 +220,8 @@ public class WraithHandler implements Listener, Reloadable {
 
 			// Periodic bubble/shield particle
 			if (ticks[0] % 5 == 0) { // every 5 ticks
-				world.spawnParticle(Particle.BLOCK, loc.clone().add(0, 1, 0), 10, 0.4, 0.4, 0.4, 0.1,
-						Material.SHIELD.createBlockData());
+				world.spawnParticle(ParticleUtils.getParticle("BLOCK_DUST"), loc.clone().add(0, 1, 0), 10, 0.4, 0.4,
+						0.4, 0.1, Material.SHIELD.createBlockData());
 			}
 
 			if (ticks[0] % 10 == 0) {
@@ -250,8 +256,12 @@ public class WraithHandler implements Listener, Reloadable {
 			return;
 		}
 
-		instance.getStorageManager().getOnlineUser(killer.getUniqueId()).ifPresent(user -> instance
-				.getChallengeManager().handleChallengeProgression(killer, ActionType.SLAY, witherSkeleton));
+		instance.getStorageManager().getOnlineUser(killer.getUniqueId()).ifPresent(userData -> {
+			if (instance.getCooldownManager().shouldUpdateActivity(killer.getUniqueId(), 5000)) {
+				userData.getHellblockData().updateLastIslandActivity();
+			}
+			instance.getChallengeManager().handleChallengeProgression(userData, ActionType.SLAY, witherSkeleton);
+		});
 	}
 
 	public boolean isWraith(@NotNull WitherSkeleton ws) {

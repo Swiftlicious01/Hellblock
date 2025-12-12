@@ -5,7 +5,6 @@ import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
 import org.incendo.cloud.CommandManager;
 
-import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.commands.BukkitCommandFeature;
 import com.swiftlicious.hellblock.commands.HellblockCommandManager;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
@@ -24,7 +23,6 @@ public class AboutCommand extends BukkitCommandFeature<CommandSender> {
 			Command.Builder<CommandSender> builder) {
 		return builder.senderType(Player.class).handler(context -> {
 			final Player player = context.sender();
-			final HellblockPlugin plugin = HellblockPlugin.getInstance();
 			final Sender audience = plugin.getSenderFactory().wrap(player);
 
 			// Gather plugin metadata
@@ -36,14 +34,14 @@ public class AboutCommand extends BukkitCommandFeature<CommandSender> {
 
 			// Messages
 			audience.sendMessage(AdventureHelper
-					.miniMessage("<#00BFFF>\uD83C\uDFDD Hellblock <gray>- <#87CEEB>%s".formatted(version)));
-			audience.sendMessage(AdventureHelper.miniMessage("<#B0C4DE>%s".formatted(description)));
-			audience.sendMessage(
-					AdventureHelper.miniMessage("<#DA70D6>\uD83E\uDDEA Author: <#FFC0CB>%s".formatted(author)));
+					.miniMessageToComponent("<#00BFFF>\uD83C\uDFDD Hellblock <gray>- <#87CEEB>%s".formatted(version)));
+			audience.sendMessage(AdventureHelper.miniMessageToComponent("<#B0C4DE>%s".formatted(description)));
+			audience.sendMessage(AdventureHelper
+					.miniMessageToComponent("<#DA70D6>\uD83E\uDDEA Author: <#FFC0CB>%s".formatted(author)));
 
 			if (website != null && !website.isBlank()) {
-				audience.sendMessage(
-						AdventureHelper.miniMessage("<#FAFAD2>⛏ <click:open_url:%s>Github</click>".formatted(website)));
+				audience.sendMessage(AdventureHelper
+						.miniMessageToComponent("<#FAFAD2>⛏ <click:open_url:%s>Github</click>".formatted(website)));
 			}
 		});
 	}

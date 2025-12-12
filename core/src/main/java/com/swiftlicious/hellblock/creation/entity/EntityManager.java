@@ -28,7 +28,7 @@ public class EntityManager implements EntityManagerInterface {
 		this.instance = plugin;
 	}
 
-	public void init() {
+	public void registerProviders() {
 		this.registerEntityProvider(new EntityProvider() {
 			@Override
 			public String identifier() {
@@ -48,7 +48,9 @@ public class EntityManager implements EntityManagerInterface {
 	public void load() {
 		entityProviders.values()
 				.forEach(provider -> instance.debug("Registered EntityProvider: " + provider.identifier()));
-		instance.debug("Loaded " + entities.size() + " entities");
+		instance.debug(
+				entities.size() > 0 ? "Loaded " + entities.size() + " entit" + (entities.size() == 1 ? "y" : "ies")
+						: "No entities found to load");
 	}
 
 	@Override

@@ -13,16 +13,16 @@ import com.swiftlicious.hellblock.utils.extras.Pair;
 public class VanillaEnchantmentsProvider implements EnchantmentProvider {
 
 	@Override
-	public String identifier() {
-		return "vanilla";
-	}
-
-	@Override
 	public List<Pair<String, Short>> getEnchants(@NotNull ItemStack itemStack) {
 		final Map<Enchantment, Integer> enchantments = itemStack.getEnchantments();
 		final List<Pair<String, Short>> enchants = new ArrayList<>(enchantments.size());
 		enchantments.entrySet()
 				.forEach(en -> enchants.add(Pair.of(en.getKey().getKey().toString(), en.getValue().shortValue())));
 		return enchants;
+	}
+
+	@Override
+	public String identifier() {
+		return "vanilla";
 	}
 }

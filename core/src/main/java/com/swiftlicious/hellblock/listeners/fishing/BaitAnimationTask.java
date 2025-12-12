@@ -49,7 +49,8 @@ public final class BaitAnimationTask implements Runnable {
 	 * Cancels the bait animation and cleans up resources.
 	 */
 	public void cancelAnimation() {
-		task.cancel();
+		if (task != null && !task.isCancelled())
+			task.cancel();
 		VersionHelper.getNMSManager().removeClientSideEntity(player, entityID);
 	}
 }

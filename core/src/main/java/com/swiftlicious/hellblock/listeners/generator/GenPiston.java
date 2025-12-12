@@ -1,34 +1,32 @@
 package com.swiftlicious.hellblock.listeners.generator;
 
-import java.util.UUID;
-
-import com.swiftlicious.hellblock.listeners.NetherGeneratorHandler.LocationKey;
+import com.swiftlicious.hellblock.world.Pos3;
 
 public class GenPiston {
 
-	private UUID uuid;
-	private LocationKey loc;
+	private int islandId;
+	private Pos3 pos;
 	private boolean hasBeenUsed = false;
 
-	public GenPiston(LocationKey loc, UUID uuid) {
-		this.uuid = uuid;
-		this.loc = loc;
+	public GenPiston(Pos3 pos, int islandId) {
+		this.islandId = islandId;
+		this.pos = pos;
 	}
 
-	public UUID getUUID() {
-		return uuid;
+	public int getIslandId() {
+		return islandId;
 	}
 
-	public void setUUID(UUID uuid) {
-		this.uuid = uuid;
+	public void setIslandId(int islandId) {
+		this.islandId = islandId;
 	}
 
-	public LocationKey getLoc() {
-		return loc;
+	public Pos3 getPos() {
+		return pos;
 	}
 
-	public void setLoc(LocationKey loc) {
-		this.loc = loc;
+	public void setPos(Pos3 pos) {
+		this.pos = pos;
 	}
 
 	public boolean hasBeenUsed() {

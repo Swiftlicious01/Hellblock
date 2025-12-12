@@ -6,7 +6,6 @@ import org.bukkit.World;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.scheduler.BukkitTask;
 
-@SuppressWarnings("deprecation")
 public class BukkitExecutor implements RegionExecutor<Location, World> {
 
 	private final Plugin plugin;

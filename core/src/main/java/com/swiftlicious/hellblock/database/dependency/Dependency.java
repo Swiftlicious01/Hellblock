@@ -17,6 +17,103 @@ public enum Dependency {
 	// no relocations needed as this is only used to relocate jars
 	ASM("org.ow2.asm", "asm", "maven", "asm"), ASM_COMMONS("org.ow2.asm", "asm-commons", "maven", "asm-commons"),
 	JAR_RELOCATOR("me.lucko", "jar-relocator", "maven", "jar-relocator"),
+	ADVENTURE_API("net{}kyori", "adventure-api", "maven", "adventure-api", // Full relocation here
+			Relocation.of("adventure", "net{}kyori{}adventure"), Relocation.of("option", "net{}kyori{}option"),
+			Relocation.of("examination", "net{}kyori{}examination")),
+	ADVENTURE_EXAMINATION_API("net{}kyori", "examination-api", "maven", "adventure-examination-api",
+			Relocation.of("examination", "net{}kyori{}examination")),
+	ADVENTURE_EXAMINATION_STRING("net{}kyori", "examination-string", "maven", "adventure-examination-string",
+			Relocation.of("examination", "net{}kyori{}examination")) {
+		@Override
+		public String getVersion() {
+			return Dependency.ADVENTURE_EXAMINATION_API.getVersion();
+		}
+	},
+	ADVENTURE_OPTION("net{}kyori", "option", "maven", "adventure-option",
+			Relocation.of("option", "net{}kyori{}option")),
+	ADVENTURE_MINIMESSAGE("net{}kyori", "adventure-text-minimessage", "maven", "adventure-minimessage",
+			Relocation.of("adventure", "net{}kyori{}adventure"), Relocation.of("option", "net{}kyori{}option"),
+			Relocation.of("examination", "net{}kyori{}examination")) {
+		@Override
+		public String getVersion() {
+			return Dependency.ADVENTURE_API.getVersion();
+		}
+	},
+	ADVENTURE_PLATFORM_API("net{}kyori", "adventure-platform-api", "maven", "adventure-platform-api",
+			Relocation.of("adventure", "net{}kyori{}adventure"), Relocation.of("option", "net{}kyori{}option"),
+			Relocation.of("examination", "net{}kyori{}examination")),
+	ADVENTURE_PLATFORM_BUKKIT("net{}kyori", "adventure-platform-bukkit", "maven", "adventure-platform-bukkit",
+			Relocation.of("adventure", "net{}kyori{}adventure"), Relocation.of("option", "net{}kyori{}option"),
+			Relocation.of("examination", "net{}kyori{}examination")) {
+		@Override
+		public String getVersion() {
+			return Dependency.ADVENTURE_PLATFORM_API.getVersion();
+		}
+	},
+	ADVENTURE_PLATFORM_FACET("net{}kyori", "adventure-platform-facet", "maven", "adventure-platform-facet",
+			Relocation.of("adventure", "net{}kyori{}adventure"), Relocation.of("option", "net{}kyori{}option"),
+			Relocation.of("examination", "net{}kyori{}examination")) {
+		@Override
+		public String getVersion() {
+			return Dependency.ADVENTURE_PLATFORM_API.getVersion();
+		}
+	},
+	ADVENTURE_TEXT_JSON_LEGACY("net{}kyori", "adventure-text-serializer-json-legacy-impl", "maven",
+			"adventure-jsonlegacy", Relocation.of("adventure", "net{}kyori{}adventure"),
+			Relocation.of("option", "net{}kyori{}option"), Relocation.of("examination", "net{}kyori{}examination")) {
+		@Override
+		public String getVersion() {
+			return Dependency.ADVENTURE_API.getVersion();
+		}
+	},
+	ADVENTURE_TEXT_LEGACY("net{}kyori", "adventure-text-serializer-legacy", "maven", "adventure-legacy",
+			Relocation.of("adventure", "net{}kyori{}adventure"), Relocation.of("option", "net{}kyori{}option"),
+			Relocation.of("examination", "net{}kyori{}examination")) {
+		@Override
+		public String getVersion() {
+			return Dependency.ADVENTURE_API.getVersion();
+		}
+	},
+	ADVENTURE_TEXT_JSON("net{}kyori", "adventure-text-serializer-json", "maven", "adventure-json",
+			Relocation.of("adventure", "net{}kyori{}adventure"), Relocation.of("option", "net{}kyori{}option"),
+			Relocation.of("examination", "net{}kyori{}examination")) {
+		@Override
+		public String getVersion() {
+			return Dependency.ADVENTURE_API.getVersion();
+		}
+	},
+	ADVENTURE_TEXT_GSON("net{}kyori", "adventure-text-serializer-gson", "maven", "adventure-gson",
+			Relocation.of("adventure", "net{}kyori{}adventure"), Relocation.of("option", "net{}kyori{}option"),
+			Relocation.of("examination", "net{}kyori{}examination")) {
+		@Override
+		public String getVersion() {
+			return Dependency.ADVENTURE_API.getVersion();
+		}
+	},
+	ADVENTURE_TEXT_PLAIN("net{}kyori", "adventure-text-serializer-plain", "maven", "adventure-plain",
+			Relocation.of("adventure", "net{}kyori{}adventure"), Relocation.of("option", "net{}kyori{}option"),
+			Relocation.of("examination", "net{}kyori{}examination")) {
+		@Override
+		public String getVersion() {
+			return Dependency.ADVENTURE_API.getVersion();
+		}
+	},
+	ADVENTURE_NBT("net{}kyori", "adventure-nbt", "maven", "adventure-nbt",
+			Relocation.of("adventure", "net{}kyori{}adventure"), Relocation.of("option", "net{}kyori{}option"),
+			Relocation.of("examination", "net{}kyori{}examination")) {
+		@Override
+		public String getVersion() {
+			return Dependency.ADVENTURE_API.getVersion();
+		}
+	},
+	ADVENTURE_KEY("net{}kyori", "adventure-key", "maven", "adventure-key",
+			Relocation.of("adventure", "net{}kyori{}adventure"), Relocation.of("option", "net{}kyori{}option"),
+			Relocation.of("examination", "net{}kyori{}examination")) {
+		@Override
+		public String getVersion() {
+			return Dependency.ADVENTURE_API.getVersion();
+		}
+	},
 	// no relocations for sqlite or h2
 	H2_DRIVER("com.h2database", "h2", "maven", "h2-driver"),
 	SQLITE_DRIVER("org.xerial", "sqlite-jdbc", "maven", "sqlite-driver"),
@@ -34,6 +131,7 @@ public enum Dependency {
 			Relocation.of("cloud", "org{}incendo{}cloud"), Relocation.of("adventure", "net{}kyori{}adventure"),
 			Relocation.of("option", "net{}kyori{}option"), Relocation.of("examination", "net{}kyori{}examination"),
 			Relocation.of("geantyref", "io{}leangen{}geantyref")),
+	BYTE_BUDDY("net{}bytebuddy", "byte-buddy", "maven", "byte-buddy", Relocation.of("bytebuddy", "net{}bytebuddy")),
 	GEANTY_REF("io{}leangen{}geantyref", "geantyref", "maven", "geantyref",
 			Relocation.of("geantyref", "io{}leangen{}geantyref")),
 	BOOSTED_YAML("dev{}dejvokep", "boosted-yaml", "maven", "boosted-yaml",

@@ -1,13 +1,13 @@
 package com.swiftlicious.hellblock.mechanics.fishing.hook;
 
 import java.util.Objects;
-import java.util.concurrent.ThreadLocalRandom;
 
 import org.bukkit.Fluid;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Particle;
+import org.bukkit.World;
 import org.bukkit.block.BlockFace;
 import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.FishHook;
@@ -210,7 +210,7 @@ public class LavaFishingMechanic implements HookMechanic {
 		if (this.tempEntity != null && this.tempEntity.isValid()) {
 			this.tempEntity.remove();
 		}
-		if (!this.task.isCancelled()) {
+		if (this.task != null && !this.task.isCancelled()) {
 			this.task.cancel();
 		}
 		freeze = false;
@@ -227,8 +227,8 @@ public class LavaFishingMechanic implements HookMechanic {
 	}
 
 	private void setWaitTime(Effect effect) {
-		int before = ThreadLocalRandom.current()
-				.nextInt(HellblockPlugin.getInstance().getConfigManager().lavaMaxTime()
+		int before = RandomUtils
+				.generateRandomInt(HellblockPlugin.getInstance().getConfigManager().lavaMaxTime()
 						- HellblockPlugin.getInstance().getConfigManager().lavaMinTime() + 1)
 				+ HellblockPlugin.getInstance().getConfigManager().lavaMinTime();
 		int after = Math.min(
@@ -258,5 +258,41 @@ public class LavaFishingMechanic implements HookMechanic {
 
 	public void onFailedAttempt() {
 		EventUtils.fireAndForget(new FishingHookStateEvent(context.holder(), hook, FishingHookStateEvent.State.ESCAPE));
+	}
+
+	public void onLured() {
+		if (hook.isDead() || !hook.isValid()) {
+			return;
+		}
+
+		final Location loc = hook.getLocation();
+		final World world = loc.getWorld();
+		if (world == null) {
+			return;
+		}
+
+		// Subtle flame particles — signal "nearby" activity
+		world.spawnParticle(Particle.FLAME, loc.getX(), loc.getY() + 0.1, loc.getZ(), 4, // Fewer particles
+				0.1, 0.02, 0.1, 0.005);
+
+		// Subtle sizzling sound (different from BITE pitch/volume)
+		world.getNearbyEntities(loc, 16, 16, 16, e -> e instanceof Player).stream().map(e -> (Player) e)
+				.forEach(player -> AdventureHelper.playSound(
+						HellblockPlugin.getInstance().getSenderFactory().getAudience(player),
+						net.kyori.adventure.sound.Sound.sound(
+								net.kyori.adventure.key.Key.key("minecraft:block.lava.pop"),
+								net.kyori.adventure.sound.Sound.Source.BLOCK, 0.2f, // Lower volume
+								0.9f + RandomUtils.generateRandomFloat(0, 0.3f) // Slight random pitch
+						)));
+
+		// Fire custom event for tracking
+		EventUtils.fireAndForget(new FishingHookStateEvent(context.holder(), hook, FishingHookStateEvent.State.LURE));
+
+		// Set hook countdown only if not already active
+		if (this.timeUntilHooked <= 0) {
+			this.fishAngle = RandomUtils.generateRandomFloat(0F, 360F);
+			this.timeUntilHooked = RandomUtils.generateRandomInt(20, 80); // 1–4 seconds
+			HellblockPlugin.getInstance().debug("LavaFishingMechanic: LURE effect triggered; waiting for bite.");
+		}
 	}
 }

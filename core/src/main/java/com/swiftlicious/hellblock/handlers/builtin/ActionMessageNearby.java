@@ -46,7 +46,7 @@ public class ActionMessageNearby<T> extends AbstractBuiltInAction<T> {
 				context.arg(ContextKeys.TEMP_NEAR_PLAYER, player.getName());
 				final List<String> replaced = plugin.getPlaceholderManager().parse(owner, messages, context.placeholderMap());
 				final Sender audience = plugin.getSenderFactory().wrap(player);
-				replaced.forEach(text -> audience.sendMessage(AdventureHelper.miniMessage(text)));
+				replaced.forEach(text -> audience.sendMessage(AdventureHelper.miniMessageToComponent(text)));
 			}
 		}
 	}

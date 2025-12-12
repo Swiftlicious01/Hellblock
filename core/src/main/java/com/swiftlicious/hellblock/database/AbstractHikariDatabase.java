@@ -10,6 +10,8 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import org.jetbrains.annotations.NotNull;
+
 import com.google.common.collect.ImmutableList;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.database.dependency.Dependency;
@@ -51,6 +53,7 @@ public abstract class AbstractHikariDatabase extends AbstractSQLDatabase {
 			Class.forName(driverClass);
 		} catch (ClassNotFoundException e) {
 			plugin.getPluginLogger().warn("No JDBC driver found for " + sqlBrand + ".");
+			throw new IllegalStateException("Missing JDBC driver for " + sqlBrand, e);
 		}
 	}
 
@@ -80,49 +83,73 @@ public abstract class AbstractHikariDatabase extends AbstractSQLDatabase {
 		default -> throw new IllegalArgumentException("Unknown database type: " + sqlBrand);
 		});
 
-		plugin.getDependencyManager().runWithLoader(sqlDeps, () -> {
-			// Now we can safely use Hikari classes
-			final HikariConfig hikariConfig = new HikariConfig();
+		try {
+			plugin.getDependencyManager().runWithLoader(sqlDeps, () -> {
+				// Now we can safely use Hikari classes
+				final HikariConfig hikariConfig = new HikariConfig();
 
-			super.tablePrefix = section.getString("table-prefix", "hellblock");
+				super.tablePrefix = section.getString("table-prefix", "hellblock");
 
-			hikariConfig.setUsername(section.getString("user", "root"));
-			hikariConfig.setPassword(section.getString("password", "pa55w0rd"));
-			hikariConfig.setJdbcUrl("jdbc:%s://%s:%s/%s%s".formatted(sqlBrand.toLowerCase(Locale.ENGLISH),
-					section.getString("host", "localhost"), section.getString("port", "3306"),
-					section.getString("database", "minecraft"), section.getString("connection-parameters")));
+				hikariConfig.setUsername(section.getString("user", "root"));
+				hikariConfig.setPassword(section.getString("password", "pa55w0rd"));
 
-			hikariConfig.setDriverClassName(driverClass);
-			hikariConfig.setMaximumPoolSize(section.getInt("Pool-Settings.max-pool-size", 10));
-			hikariConfig.setMinimumIdle(section.getInt("Pool-Settings.min-idle", 10));
-			hikariConfig.setMaxLifetime(section.getLong("Pool-Settings.max-lifetime", 180000L));
-			hikariConfig.setConnectionTimeout(section.getLong("Pool-Settings.time-out", 20000L));
-			hikariConfig.setPoolName("HellblockHikariPool");
+				String parameters = section.getString("connection-parameters", "");
+				if (!parameters.startsWith("?") && !parameters.isEmpty()) {
+					parameters = "?" + parameters;
+				}
 
-			try {
-				hikariConfig.setKeepaliveTime(section.getLong("Pool-Settings.keep-alive-time", 60000L));
-			} catch (NoSuchMethodError ignored) {
-			}
+				hikariConfig.setJdbcUrl("jdbc:%s://%s:%s/%s%s".formatted(sqlBrand.toLowerCase(Locale.ENGLISH),
+						section.getString("host", "localhost"), section.getString("port", "3306"),
+						section.getString("database", "minecraft"), parameters));
 
-			// don't perform any initial connection validation - we subsequently call
-			// #getConnection
-			// to setup the schema anyways
-			hikariConfig.setInitializationFailTimeout(-1);
+				hikariConfig.setDriverClassName(driverClass);
+				hikariConfig.setMaximumPoolSize(section.getInt("Pool-Settings.max-pool-size", 10));
+				hikariConfig.setMinimumIdle(section.getInt("Pool-Settings.min-idle", 10));
+				hikariConfig.setMaxLifetime(section.getLong("Pool-Settings.max-lifetime", 180000L));
+				hikariConfig.setConnectionTimeout(section.getLong("Pool-Settings.time-out", 20000L));
+				hikariConfig.setPoolName(section.getString("Pool-Settings.pool-name", "HellblockHikariPool"));
 
-			final Properties properties = new Properties();
-			properties.putAll(Map.of("socketTimeout", String.valueOf(TimeUnit.SECONDS.toMillis(30)), "cachePrepStmts",
-					"true", "prepStmtCacheSize", "250", "prepStmtCacheSqlLimit", "2048", "useServerPrepStmts", "true",
-					"useLocalSessionState", "true", "useLocalTransactionState", "true"));
-			properties.putAll(Map.of("rewriteBatchedStatements", "true", "cacheResultSetMetadata", "true",
-					"cacheServerConfiguration", "true", "elideSetAutoCommits", "true", "maintainTimeStats", "false"));
-			hikariConfig.setDataSourceProperties(properties);
+				try {
+					hikariConfig.setKeepaliveTime(section.getLong("Pool-Settings.keep-alive-time", 60000L));
+				} catch (NoSuchMethodError ignored) {
+				}
 
-			// Now that the classloader context is correct, this will work fine
-			dataSource = new HikariDataSource(hikariConfig);
+				// don't perform any initial connection validation - we subsequently call
+				// #getConnection
+				// to setup the schema anyways
+				hikariConfig.setInitializationFailTimeout(-1);
 
-			super.createTableIfNotExist();
-			return null;
-		});
+				final Properties properties = new Properties();
+				properties.putAll(
+						Map.of("socketTimeout", String.valueOf(TimeUnit.SECONDS.toMillis(30)), "cachePrepStmts", "true",
+								"prepStmtCacheSize", "250", "prepStmtCacheSqlLimit", "2048", "useServerPrepStmts",
+								"true", "useLocalSessionState", "true", "useLocalTransactionState", "true"));
+				properties.putAll(Map.of("rewriteBatchedStatements", "true", "cacheResultSetMetadata", "true",
+						"cacheServerConfiguration", "true", "elideSetAutoCommits", "true", "maintainTimeStats",
+						"false"));
+				hikariConfig.setDataSourceProperties(properties);
+
+				// Now that the classloader context is correct, this will work fine
+				try {
+					dataSource = new HikariDataSource(hikariConfig);
+				} catch (Exception e) {
+					plugin.getPluginLogger().severe("Failed to initialize Hikari connection pool for " + sqlBrand, e);
+					throw e;
+				}
+
+				try {
+					super.createTableIfNotExist();
+					plugin.getPluginLogger().info(
+							"%s database initialized and schema validated/created successfully.".formatted(sqlBrand));
+				} catch (Exception ex) {
+					plugin.getPluginLogger().severe("Failed to initialize %s schema.".formatted(sqlBrand), ex);
+					throw new RuntimeException("Could not create %s schema.".formatted(sqlBrand), ex);
+				}
+				return null;
+			});
+		} catch (Throwable t) {
+			handleClassloadingError(t, plugin);
+		}
 	}
 
 	/**
@@ -141,12 +168,12 @@ public abstract class AbstractHikariDatabase extends AbstractSQLDatabase {
 	 * @return A database connection.
 	 * @throws SQLException If there is an error establishing a connection.
 	 */
+	@NotNull
 	@Override
 	public Connection getConnection() throws SQLException {
 		return dataSource.getConnection();
 	}
 
-	@SuppressWarnings("unused")
 	private static void handleClassloadingError(Throwable throwable, HellblockPlugin plugin) {
 		final List<String> noteworthyClasses = ImmutableList.of("org.slf4j.LoggerFactory", "org.slf4j.ILoggerFactory",
 				"org.apache.logging.slf4j.Log4jLoggerFactory", "org.apache.logging.log4j.spi.LoggerContext",

@@ -17,7 +17,6 @@ import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
-import org.bukkit.event.Event.Result;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
@@ -33,7 +32,9 @@ import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
 import com.swiftlicious.hellblock.config.parser.SingleItemParser;
 import com.swiftlicious.hellblock.context.Context;
+import com.swiftlicious.hellblock.context.ContextKeys;
 import com.swiftlicious.hellblock.creation.item.CustomItem;
+import com.swiftlicious.hellblock.creation.item.Item;
 import com.swiftlicious.hellblock.handlers.ActionManager;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.player.HellblockData;
@@ -61,16 +62,27 @@ public class PartyGUIManager implements PartyGUIManagerInterface, Listener {
 
 	protected char backSlot;
 	protected char ownerSlot;
+	protected char trustedSlot;
+	protected char bannedSlot;
 
 	protected String ownerName;
 	protected List<String> ownerLore;
 	protected String onlineStatus;
 	protected String offlineStatus;
 
+	protected Section bannedSection;
+	protected Section trustedSection;
+	protected Section banIconSection;
+	protected Section trustIconSection;
+
 	protected CustomItem backIcon;
 	protected CustomItem ownerIcon;
+	protected CustomItem trustedIcon;
+	protected CustomItem bannedIcon;
 	protected Action<Player>[] backActions;
 	protected Action<Player>[] ownerActions;
+	protected Action<Player>[] trustedActions;
+	protected Action<Player>[] bannedActions;
 
 	public PartyGUIManager(HellblockPlugin plugin) {
 		this.instance = plugin;
@@ -91,13 +103,25 @@ public class PartyGUIManager implements PartyGUIManagerInterface, Listener {
 	}
 
 	private void loadConfig() {
-		Section config = instance.getConfigManager().getGuiConfig().getSection("party.gui");
+		Section configFile = instance.getConfigManager().getGUIConfig("party.yml");
+		if (configFile == null) {
+			instance.getPluginLogger().severe("GUI for party.yml was unable to load correctly!");
+			return;
+		}
+		Section config = configFile.getSection("party.gui");
+		if (config == null) {
+			instance.getPluginLogger().severe("party.gui returned null, please regenerate your party.yml GUI file.");
+			return;
+		}
 
-		this.layout = config.getStringList("layout").toArray(new String[0]);
+		this.layout = config.getStringList("layout", new ArrayList<>()).toArray(new String[0]);
 		this.title = TextValue.auto(config.getString("title", "party.title"));
 
-		this.onlineStatus = config.getString("login-status-placeholders.online");
-		this.offlineStatus = config.getString("login-status-placeholders.offline");
+		this.onlineStatus = config.getString("login-status-placeholders.online", "<green><bold>ONLINE");
+		this.offlineStatus = config.getString("login-status-placeholders.offline", "<red><bold>OFFLINE");
+
+		this.trustedSection = config.getSection("trusted-members");
+		this.bannedSection = config.getSection("banned-members");
 
 		Section backSection = config.getSection("back-icon");
 		if (backSection != null) {
@@ -106,6 +130,26 @@ public class PartyGUIManager implements PartyGUIManagerInterface, Listener {
 			backIcon = new SingleItemParser("back", backSection, instance.getConfigManager().getItemFormatFunctions())
 					.getItem();
 			backActions = instance.getActionManager(Player.class).parseActions(backSection.getSection("action"));
+		}
+
+		Section trustedSection = config.getSection("trusted-icon");
+		if (trustedSection != null) {
+			trustIconSection = trustedSection;
+			trustedSlot = trustedSection.getString("symbol", "T").charAt(0);
+
+			trustedIcon = new SingleItemParser("trusted", trustedSection,
+					instance.getConfigManager().getItemFormatFunctions()).getItem();
+			trustedActions = instance.getActionManager(Player.class).parseActions(trustedSection.getSection("action"));
+		}
+
+		Section bannedSection = config.getSection("banned-icon");
+		if (bannedSection != null) {
+			banIconSection = bannedSection;
+			bannedSlot = bannedSection.getString("symbol", "B").charAt(0);
+
+			bannedIcon = new SingleItemParser("banned", bannedSection,
+					instance.getConfigManager().getItemFormatFunctions()).getItem();
+			bannedActions = instance.getActionManager(Player.class).parseActions(bannedSection.getSection("action"));
 		}
 
 		Section ownerSection = config.getSection("owner-icon");
@@ -170,39 +214,34 @@ public class PartyGUIManager implements PartyGUIManagerInterface, Listener {
 		}
 	}
 
-	/**
-	 * Open the Party GUI for a player
-	 *
-	 * @param player  player
-	 * @param isOwner is owner or not
-	 */
 	@Override
-	public boolean openPartyGUI(Player player, boolean isOwner) {
+	public boolean openPartyGUI(Player player, int islandId, boolean isOwner) {
 		Optional<UserData> optionalUserData = instance.getStorageManager().getOnlineUser(player.getUniqueId());
 		if (optionalUserData.isEmpty()) {
 			instance.getPluginLogger()
 					.warn("Player " + player.getName() + "'s hellblock data has not been loaded yet.");
 			return false;
 		}
-		if (optionalUserData.get().getHellblockData().getOwnerUUID() == null) {
+		HellblockData hellblockData = optionalUserData.get().getHellblockData();
+		if (hellblockData.getOwnerUUID() == null) {
 			instance.getPluginLogger()
 					.warn("Owner UUID for player " + player.getName() + " was unable to be retrieved.");
 			return false;
 		}
 
 		Context<Player> context = Context.player(player);
-		PartyGUI gui = new PartyGUI(this, context, optionalUserData.get().getHellblockData(), isOwner);
+		Context<Integer> islandContext = Context.island(islandId);
+		PartyGUI gui = new PartyGUI(this, context, islandContext, hellblockData, isOwner);
 
-		Optional<UserData> optionalOwnerData = instance.getStorageManager()
-				.getOnlineUser(optionalUserData.get().getHellblockData().getOwnerUUID());
+		Optional<UserData> optionalOwnerData = instance.getStorageManager().getOnlineUser(hellblockData.getOwnerUUID());
 		if (optionalOwnerData.isEmpty()) {
-			instance.getPluginLogger().warn("Hellblock owner data for "
-					+ optionalUserData.get().getHellblockData().getOwnerUUID() + " not loaded.");
+			instance.getPluginLogger()
+					.warn("Hellblock owner data for " + hellblockData.getOwnerUUID() + " not loaded.");
 			return false;
 		}
 
 		int maxSize = instance.getCoopManager().getMaxPartySize(optionalOwnerData.orElseThrow());
-		Set<UUID> partyMembers = optionalOwnerData.get().getHellblockData().getParty();
+		Set<UUID> partyMembers = optionalOwnerData.get().getHellblockData().getPartyMembers();
 		if (partyMembers == null)
 			partyMembers = Collections.emptySet();
 		Iterator<UUID> memberIt = partyMembers.iterator();
@@ -249,9 +288,12 @@ public class PartyGUIManager implements PartyGUIManagerInterface, Listener {
 		decorativeIcons.entrySet().forEach(
 				entry -> gui.addElement(new PartyGUIElement(entry.getKey(), entry.getValue().left().build(context))));
 
-		// 5) Back + Owner placeholders (dynamic so refresh() can populate them)
+		// 5) Back, Owner, Trusted + Banned placeholders (dynamic so refresh() can
+		// populate them)
 		gui.addElement(new PartyDynamicGUIElement(backSlot, new ItemStack(Material.AIR)));
 		gui.addElement(new PartyDynamicGUIElement(ownerSlot, new ItemStack(Material.AIR)));
+		gui.addElement(new PartyDynamicGUIElement(trustedSlot, new ItemStack(Material.AIR)));
+		gui.addElement(new PartyDynamicGUIElement(bannedSlot, new ItemStack(Material.AIR)));
 
 		gui.build().show();
 		gui.refresh();
@@ -338,7 +380,17 @@ public class PartyGUIManager implements PartyGUIManagerInterface, Listener {
 			return;
 		}
 
-		event.setResult(Result.DENY);
+		// Check if any dragged slot is in the GUI (top inventory)
+		for (int slot : event.getRawSlots()) {
+			if (slot < event.getInventory().getSize()) {
+				event.setCancelled(true);
+				return;
+			}
+		}
+
+		// If the drag is only in the player inventory, do nothing special
+		// but still make sure no ghost items appear
+		event.setCancelled(true);
 
 		// Refresh the GUI
 		instance.getScheduler().sync().runLater(gui::refresh, 1, player.getLocation());
@@ -368,7 +420,13 @@ public class PartyGUIManager implements PartyGUIManagerInterface, Listener {
 			return;
 		}
 
-		if (clickedInv != player.getInventory()) {
+		// Handle shift-clicks, number keys, or clicking outside GUI
+		if (event.getClick().isShiftClick() || event.getClick().isKeyboardClick()) {
+			event.setCancelled(true);
+			return;
+		}
+
+		if (!Objects.equals(clickedInv, player.getInventory())) {
 			int slot = event.getSlot();
 			PartyGUIElement element = gui.getElement(slot);
 			if (element == null) {
@@ -388,18 +446,97 @@ public class PartyGUIManager implements PartyGUIManagerInterface, Listener {
 
 			Pair<CustomItem, Action<Player>[]> decorativeIcon = this.decorativeIcons.get(element.getSymbol());
 			if (decorativeIcon != null) {
+				event.setCancelled(true);
 				ActionManager.trigger(gui.context, decorativeIcon.right());
 				return;
 			}
 
 			if (element.getSymbol() == backSlot) {
 				event.setCancelled(true);
-				instance.getHellblockGUIManager().openHellblockGUI(gui.context.holder(), gui.isOwner);
+				instance.getHellblockGUIManager().openHellblockGUI(gui.context.holder(), gui.islandContext.holder(),
+						gui.isOwner);
 				ActionManager.trigger(gui.context, backActions);
 				return;
 			}
 
+			if (element.getSymbol() == ownerSlot) {
+				event.setCancelled(true);
+				ActionManager.trigger(gui.context, ownerActions);
+			}
+
 			Sender audience = instance.getSenderFactory().wrap(gui.context.holder());
+
+			if (element.getSymbol() == trustedSlot) {
+				event.setCancelled(true);
+
+				List<UUID> trusted = new ArrayList<>(hellblockData.getTrustedMembers());
+
+				// If not the island owner
+				if (!gui.isOwner) {
+					if (trusted.isEmpty()) {
+						instance.getSenderFactory().wrap(player).sendMessage(instance.getTranslationManager()
+								.render(MessageConstants.MSG_HELLBLOCK_NO_TRUSTED_FOUND.build()));
+						AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
+								Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
+										net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
+						return;
+					}
+
+					new TrustedMembersGUI(instance, player, gui.islandContext, trustedSection, hellblockData,
+							gui.isOwner).open();
+					ActionManager.trigger(gui.context, trustedActions);
+					return;
+				}
+
+				// If owner but no trusted members
+				if (trusted.isEmpty()) {
+					new AnvilTrustInputGUI(instance, player, gui.islandContext, hellblockData, gui.isOwner).open();
+					ActionManager.trigger(gui.context, trustedActions);
+					return;
+				}
+
+				// Owner and trusted members exist → open interactive GUI
+				new TrustedMembersGUI(instance, player, gui.islandContext, trustedSection, hellblockData, gui.isOwner)
+						.open();
+				ActionManager.trigger(gui.context, trustedActions);
+				return;
+			}
+
+			if (element.getSymbol() == bannedSlot) {
+				event.setCancelled(true);
+
+				List<UUID> banned = new ArrayList<>(hellblockData.getBannedMembers());
+
+				// If not the island owner
+				if (!gui.isOwner) {
+					if (banned.isEmpty()) {
+						instance.getSenderFactory().wrap(player).sendMessage(instance.getTranslationManager()
+								.render(MessageConstants.MSG_HELLBLOCK_NO_BANNED_FOUND.build()));
+						AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
+								Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
+										net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
+						return;
+					}
+
+					new BannedMembersGUI(instance, player, gui.islandContext, bannedSection, hellblockData, gui.isOwner)
+							.open();
+					ActionManager.trigger(gui.context, bannedActions);
+					return;
+				}
+
+				// If owner but no banned members
+				if (banned.isEmpty()) {
+					new AnvilBanInputGUI(instance, player, gui.islandContext, hellblockData, gui.isOwner).open();
+					ActionManager.trigger(gui.context, bannedActions);
+					return;
+				}
+
+				// Owner and banned members exist → open interactive GUI
+				new BannedMembersGUI(instance, player, gui.islandContext, bannedSection, hellblockData, gui.isOwner)
+						.open();
+				ActionManager.trigger(gui.context, bannedActions);
+				return;
+			}
 
 			if (!hellblockData.getOwnerUUID().equals(gui.context.holder().getUniqueId())) {
 				audience.sendMessage(
@@ -417,11 +554,6 @@ public class PartyGUIManager implements PartyGUIManagerInterface, Listener {
 						Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
 								net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
 				return;
-			}
-
-			if (element.getSymbol() == ownerSlot) {
-				event.setCancelled(true);
-				ActionManager.trigger(gui.context, ownerActions);
 			}
 
 			for (Tuple<Character, Section, Tuple<CustomItem, UUID, Action<Player>[]>> memberIcon : memberIcons) {
@@ -444,25 +576,51 @@ public class PartyGUIManager implements PartyGUIManagerInterface, Listener {
 					if (username != null) {
 						if (event.isLeftClick()) {
 							instance.getCoopManager().removeMemberFromHellblock(userData.get(), username, memberUUID);
+							ActionManager.trigger(gui.context, memberIcon.right().right());
 						} else {
 							if (event.isShiftClick()) {
+								if (!instance.getConfigManager().transferIslands()) {
+									audience.sendMessage(instance.getTranslationManager().render(
+											MessageConstants.MSG_HELLBLOCK_COOP_TRANSFER_OWNERSHIP_DISABLED.build()));
+									AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
+											Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
+													net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
+									return;
+								}
+								if (hellblockData.getTransferCooldown() > 0) {
+									gui.islandContext
+											.arg(ContextKeys.TRANSFER_COOLDOWN, hellblockData.getTransferCooldown())
+											.arg(ContextKeys.TRANSFER_COOLDOWN_FORMATTED, instance.getCooldownManager()
+													.getFormattedCooldown(hellblockData.getTransferCooldown()));
+									audience.sendMessage(instance.getTranslationManager()
+											.render(MessageConstants.MSG_HELLBLOCK_TRANSFER_ON_COOLDOWN
+													.arguments(AdventureHelper.miniMessageToComponent(instance.getCooldownManager()
+															.getFormattedCooldown(hellblockData.getTransferCooldown())))
+													.build()));
+									AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
+											Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
+													net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
+									return;
+								}
 								// Load target user data async
-								HellblockPlugin.getInstance().getStorageManager()
-										.getOfflineUserData(memberUUID,
-												HellblockPlugin.getInstance().getConfigManager().lockData())
-										.thenAccept(result -> {
+								instance.getStorageManager().getCachedUserDataWithFallback(memberUUID,
+										instance.getConfigManager().lockData()).thenAccept(result -> {
 											if (result.isEmpty()) {
 												event.setCancelled(true);
 												return;
 											}
 
 											final UserData targetUser = result.get();
-											instance.getCoopManager().transferOwnershipOfHellblock(userData.get(),
-													targetUser, false);
+											if (instance.getCoopManager().transferOwnershipOfHellblock(userData.get(),
+													targetUser, false)) {
+												gui.isOwner = false;
+												ActionManager.trigger(gui.context, memberIcon.right().right());
+												instance.getHellblockGUIManager().openHellblockGUI(gui.context.holder(),
+														gui.islandContext.holder(), gui.isOwner);
+											}
 										});
 							}
 						}
-						ActionManager.trigger(gui.context, memberIcon.right().right());
 						break;
 					}
 				}
@@ -475,7 +633,7 @@ public class PartyGUIManager implements PartyGUIManagerInterface, Listener {
 				if (slotIndex >= 0 && slotIndex < maxSize) {
 					// within allowed party size -> interactive invite
 					event.setCancelled(true);
-					instance.getInviteGUIManager().openInvitationGUI(player, gui.isOwner);
+					instance.getInviteGUIManager().openInvitationGUI(player, gui.islandContext.holder(), gui.isOwner);
 					ActionManager.trigger(gui.context, newMemberIcon.right());
 				} else {
 					// beyond allowed slots => non-interactive filler (still cancel the click)
@@ -486,7 +644,15 @@ public class PartyGUIManager implements PartyGUIManagerInterface, Listener {
 		}
 
 		// Refresh the GUI
+		if (instance.getCooldownManager().shouldUpdateActivity(player.getUniqueId(), 15000)) {
+			gui.hellblockData.updateLastIslandActivity();
+		}
 		instance.getScheduler().sync().runLater(gui::refresh, 1, player.getLocation());
+	}
+
+	public void openCustomBook(Player player, Item<ItemStack> book, Runnable onClose) {
+		player.openBook(book.getItem());
+		BookCloseListener.registerCallback(player.getUniqueId(), onClose);
 	}
 
 	/**
@@ -523,5 +689,23 @@ public class PartyGUIManager implements PartyGUIManagerInterface, Listener {
 		}
 
 		return -1;
+	}
+
+	public class BookCloseListener implements Listener {
+
+		private static final Map<UUID, Runnable> closeCallbacks = new HashMap<>();
+
+		public static void registerCallback(UUID uuid, Runnable callback) {
+			closeCallbacks.put(uuid, callback);
+		}
+
+		@EventHandler
+		public void onInventoryClose(InventoryCloseEvent event) {
+			UUID uuid = event.getPlayer().getUniqueId();
+			Runnable callback = closeCallbacks.remove(uuid);
+			if (callback != null) {
+				callback.run();
+			}
+		}
 	}
 }

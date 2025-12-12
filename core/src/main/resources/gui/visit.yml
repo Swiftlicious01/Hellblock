@@ -1,0 +1,206 @@
+visit:
+  gui:
+    # The title for the visit menu
+    title: '<center><gradient:#A52A2A:#800000:#A52A2A>Hellblock {sort_type} Islands</gradient>'
+    # The layout of the visit menu
+    layout:
+      - 'AAFDWMOAA'
+      - 'ASSSSSSSA'
+      - 'ASSSSSSSA'
+      - 'ASSSSSSSA'
+      - 'ASSSSSSSA'
+      - 'AAAAAAAAX'
+    # Back icon to return to main menu
+    back-icon:
+      symbol: 'X'
+      material: RED_STAINED_GLASS_PANE
+      display:
+        name: '<red>Return to Main Menu'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_additional_tooltip: {}
+    sorting-icons:
+      featured-icon:
+        symbol: 'F'
+        material: ENDER_CHEST
+        sort-type: FEATURED
+        display:
+          name: '<dark_red><bold>TOP FEATURED HELLBLOCK ISLANDS'
+          lore:
+            - '<red>See the most <gold><bold>Featured</bold></gold> Hellblock islands!'
+            - '<gray>These islands have paid to stand out among the rest.'
+            - ' '
+            - '<light_purple>Click to view featured islands.'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      daily-icon:
+        symbol: 'D'
+        material: CLOCK
+        sort-type: DAILY
+        display:
+          name: '<dark_red><bold>TOP DAILY VISITED HELLBLOCK ISLANDS'
+          lore:
+            - '<red>Discover the <gold><bold>Most Visited</bold></gold> islands today!'
+            - '<gray>Ranked by visits within the last 24 hours.'
+            - ' '
+            - '<light_purple>Click to view daily top islands.'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      weekly-icon:
+        symbol: 'W'
+        material: PAPER
+        sort-type: WEEKLY
+        display:
+          name: '<dark_red><bold>TOP WEEKLY VISITED HELLBLOCK ISLANDS'
+          lore:
+            - '<red>Check out the <gold><bold>Weekly Favorites</bold></gold>!'
+            - '<gray>These islands ruled the past 7 days of visits.'
+            - ' '
+            - '<light_purple>Click to view weekly rankings.'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      monthly-icon:
+        symbol: 'M'
+        material: WRITABLE_BOOK
+        sort-type: MONTHLY
+        display:
+          name: '<dark_red><bold>TOP MONTHLY VISITED HELLBLOCK ISLANDS'
+          lore:
+            - '<red>Witness the <gold><bold>Monthly Champions</bold></gold>!'
+            - '<gray>The most popular Hellblock islands this month.'
+            - ' '
+            - '<light_purple>Click to view monthly rankings.'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+      overall-icon:
+        symbol: 'O'
+        material: BEACON
+        sort-type: OVERALL
+        display:
+          name: '<dark_red><bold>TOP OVERALL VISITED HELLBLOCK ISLANDS'
+          lore:
+            - '<red>Explore the <gold><bold>Legends of Hellblock</bold></gold>!'
+            - '<gray>The all-time most visited and admired islands.'
+            - ' '
+            - '<light_purple>Click to view overall rankings.'
+        action:
+          sound_action:
+            type: sound
+            value:
+              key: 'minecraft:ui.button.click'
+              source: 'player'
+              volume: 1
+              pitch: 1
+        components:
+          minecraft:hide_additional_tooltip: {}
+    filled-icon:
+      symbol: 'S'
+      material: PLAYER_HEAD
+      display:
+        name: '<gold>{rank}. <red>{player}<dark_red>''s Hellblock <gray>(Lvl {level})'
+        lore:
+          - '<gray>Visits: <green>{visits}'
+          - '<gray>Island Name: <reset>{island_name}'
+          - '<gray>Island Bio:'
+          - '<dark_gray> -<reset> {island_bio}'
+          - ' '
+          - '<red><bold>CLICK TO VISIT!'
+        featured-additional-lore:
+          - ' '
+          - '<yellow>Expires in <gold>{featured_time}'
+        self-indicator-additional-lore:
+          - ' '
+          - '<light_purple>You own this island.'
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_additional_tooltip: {}
+    empty-icon:
+      symbol: 'S'
+      material: OAK_SIGN
+      display:
+        name: '<gold><bold>EMPTY SLOT'
+        lore:
+          - '<gray>Requirement:<yellow> $10,000'
+          - '<gray>Featured Time:<yellow> 24 hours'
+          - ' '
+          - '<aqua><bold>CLICK TO PURCHASE THIS SLOT!'
+      requirement:
+        money_requirement:
+          type: money
+          value: 10000
+          action:
+            message_action:
+              type: message
+              value: "<red>You're required to have</red> <dark_red>$10,000</dark_red> <red>for this purchase!</red>"
+            sound_action:
+              type: sound
+              value:
+                key: 'minecraft:entity.villager.no'
+                source: 'player'
+                volume: 1
+                pitch: 1
+      action:
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_additional_tooltip: {}
+    # Decorative icons for visual enhancement
+    decorative-icons:
+      glass-pane:
+        symbol: 'A'
+        material: YELLOW_STAINED_GLASS_PANE
+        display:
+          name: ' '
+        components:
+          minecraft:hide_tooltip: {}

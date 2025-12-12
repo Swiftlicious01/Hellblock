@@ -61,7 +61,7 @@ public final class TextWrapUtils {
 			return List.of();
 
 		try {
-			if (VersionHelper.isPaper()) {
+			if (VersionHelper.isPaperFork()) {
 				return wrapLinePixelAccurate(player, text, indent);
 			}
 		} catch (Throwable ignored) {
@@ -121,7 +121,7 @@ public final class TextWrapUtils {
 		// --- Paper FontWidthCalculator (reflection cached) ---
 		if (FONT_WIDTH_AVAILABLE && FONT_WIDTH_CALCULATOR_INSTANCE != null && FONT_WIDTH_CALCULATE_METHOD != null) {
 			try {
-				Component component = AdventureHelper.getMiniMessage().deserialize(text);
+				Component component = AdventureHelper.miniMessageToComponent(text);
 				return (int) FONT_WIDTH_CALCULATE_METHOD.invoke(FONT_WIDTH_CALCULATOR_INSTANCE, component);
 			} catch (Throwable ignored) {
 				// fallback if reflection or Paper API call fails

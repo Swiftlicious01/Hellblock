@@ -1,6 +1,10 @@
 package com.swiftlicious.hellblock.commands.sub;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -12,15 +16,13 @@ import org.incendo.cloud.CommandManager;
 import org.incendo.cloud.parser.standard.StringParser;
 import org.incendo.cloud.suggestion.Suggestion;
 
-import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.commands.BukkitCommandFeature;
 import com.swiftlicious.hellblock.commands.HellblockCommandManager;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
+import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.player.HellblockData;
 import com.swiftlicious.hellblock.player.UUIDFetcher;
 import com.swiftlicious.hellblock.player.UserData;
-
-import net.kyori.adventure.text.Component;
 
 public class AdminForceHomeCommand extends BukkitCommandFeature<CommandSender> {
 
@@ -33,80 +35,102 @@ public class AdminForceHomeCommand extends BukkitCommandFeature<CommandSender> {
 			Command.Builder<CommandSender> builder) {
 		return builder.senderType(Player.class)
 				.required("player", StringParser.stringComponent().suggestionProvider((context, input) -> {
-					List<String> suggestions = HellblockPlugin.getInstance().getStorageManager().getOnlineUsers()
-							.stream().filter(user -> user.isOnline() && user.getHellblockData().hasHellblock())
-							.map(UserData::getName).toList();
+					if (!(context.sender() instanceof Player)) {
+						return CompletableFuture.completedFuture(Collections.emptyList());
+					}
+
+					final Set<UUID> allKnownUUIDs = plugin.getStorageManager().getDataSource().getUniqueUsers();
+
+					final List<String> suggestions = allKnownUUIDs.stream()
+							.map(uuid -> plugin.getStorageManager().getCachedUserData(uuid)).filter(Optional::isPresent)
+							.map(Optional::get).filter(user -> user.getHellblockData().hasHellblock())
+							.map(UserData::getName).filter(Objects::nonNull).toList();
+
 					return CompletableFuture.completedFuture(suggestions.stream().map(Suggestion::suggestion).toList());
 				})).handler(context -> {
-					final String userArg = context.get("player");
+					final String targetName = context.get("player");
 
-					final UUID id = Bukkit.getPlayer(userArg) != null ? Bukkit.getPlayer(userArg).getUniqueId()
-							: UUIDFetcher.getUUID(userArg);
+					UUID targetId;
 
-					if (id == null || !Bukkit.getOfflinePlayer(id).hasPlayedBefore()) {
+					Player onlinePlayer = Bukkit.getPlayer(targetName);
+					if (onlinePlayer != null) {
+						targetId = onlinePlayer.getUniqueId();
+					} else {
+						Optional<UUID> fetchedId = UUIDFetcher.getUUID(targetName);
+						if (fetchedId.isEmpty()) {
+							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_PLAYER_OFFLINE);
+							return;
+						}
+						targetId = fetchedId.get();
+					}
+
+					if (!Bukkit.getOfflinePlayer(targetId).hasPlayedBefore()) {
 						handleFeedback(context, MessageConstants.MSG_HELLBLOCK_PLAYER_OFFLINE);
 						return;
 					}
 
-					HellblockPlugin.getInstance().getStorageManager()
-							.getOfflineUserData(id, HellblockPlugin.getInstance().getConfigManager().lockData())
-							.thenAccept(result -> {
-								if (result.isEmpty()) {
-									handleFeedback(context, MessageConstants.MSG_HELLBLOCK_PLAYER_DATA_FAILURE_LOAD
-											.arguments(Component.text(userArg)));
-									return;
-								}
+					plugin.getStorageManager().getCachedUserDataWithFallback(targetId, false).thenAccept(result -> {
+						if (result.isEmpty()) {
+							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_PLAYER_DATA_FAILURE_LOAD,
+									AdventureHelper.miniMessageToComponent(targetName));
+							return;
+						}
 
-								final UserData targetUser = result.get();
-								final HellblockData data = targetUser.getHellblockData();
+						final UserData targetUser = result.get();
+						final HellblockData data = targetUser.getHellblockData();
 
-								if (!data.hasHellblock()) {
-									handleFeedback(context, MessageConstants.MSG_HELLBLOCK_NO_ISLAND_FOUND);
-									return;
-								}
+						if (!data.hasHellblock()) {
+							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_NO_ISLAND_FOUND);
+							return;
+						}
 
-								final UUID ownerUUID = data.getOwnerUUID();
-								if (ownerUUID == null) {
-									HellblockPlugin.getInstance().getPluginLogger()
-											.severe("Hellblock owner UUID was null for player " + targetUser.getName()
-													+ " (" + targetUser.getUUID()
-													+ "). This indicates corrupted data.");
-									throw new IllegalStateException(
-											"Owner reference was null. This should never happen — please report to the developer.");
-								}
+						final UUID ownerUUID = data.getOwnerUUID();
+						if (ownerUUID == null) {
+							plugin.getPluginLogger()
+									.severe("Hellblock owner UUID was null for player " + targetUser.getName() + " ("
+											+ targetUser.getUUID() + "). This indicates corrupted data.");
+							throw new IllegalStateException(
+									"Owner reference was null. This should never happen — please report to the developer.");
+						}
 
-								HellblockPlugin.getInstance().getStorageManager()
-										.getOfflineUserData(ownerUUID,
-												HellblockPlugin.getInstance().getConfigManager().lockData())
-										.thenAccept(ownerOpt -> {
-											if (ownerOpt.isEmpty()) {
-												final String username = Bukkit.getOfflinePlayer(ownerUUID).getName();
-												handleFeedback(context,
-														MessageConstants.MSG_HELLBLOCK_PLAYER_DATA_FAILURE_LOAD
-																.arguments(Component
-																		.text(username != null ? username : "???")));
-												return;
-											}
+						plugin.getStorageManager().getCachedUserDataWithFallback(ownerUUID, false)
+								.thenAccept(ownerOpt -> {
+									if (ownerOpt.isEmpty()) {
+										final String username = Bukkit.getOfflinePlayer(ownerUUID).getName();
+										handleFeedback(context, MessageConstants.MSG_HELLBLOCK_PLAYER_DATA_FAILURE_LOAD,
+												AdventureHelper.miniMessageToComponent(username != null ? username
+														: plugin.getTranslationManager().miniMessageTranslation(
+																MessageConstants.FORMAT_UNKNOWN.build().key())));
+										return;
+									}
 
-											final UserData ownerData = ownerOpt.get();
+									final UserData ownerData = ownerOpt.get();
 
-											HellblockPlugin.getInstance().getHellblockHandler().locateBedrock(ownerUUID)
-													.thenAccept(bedrock -> {
-														bedrock.setY(bedrock.getWorld().getHighestBlockYAt(bedrock));
-														ownerData.getHellblockData().setHomeLocation(bedrock);
+									plugin.getHellblockHandler().locateNearestBedrock(ownerData).thenAccept(bedrock -> {
+										if (bedrock == null) {
+											handleFeedback(context, MessageConstants.MSG_HELLBLOCK_BEDROCK_ERROR);
+											plugin.getPluginLogger()
+													.warn("Bedrock was not found for: "
+															+ ownerData.getHellblockData().getHellblockLocation()
+																	.getWorld().getName()
+															+ " (Island ID: "
+															+ ownerData.getHellblockData().getIslandId()
+															+ ", Owner UUID: " + ownerUUID + ")");
+											return;
+										}
+										bedrock.setY(bedrock.getWorld().getHighestBlockYAt(bedrock));
+										ownerData.getHellblockData().setHomeLocation(bedrock);
 
-														// Save
-														HellblockPlugin.getInstance().getStorageManager()
-																.saveUserData(ownerData, HellblockPlugin.getInstance()
-																		.getConfigManager().lockData());
+										// Save
+										plugin.getStorageManager().saveUserData(ownerData,
+												plugin.getConfigManager().lockData());
 
-														// Feedback
-														handleFeedback(context,
-																MessageConstants.MSG_HELLBLOCK_ADMIN_SETHOME.arguments(
-																		Component.text(targetUser.getName())));
-													});
-										});
-							});
+										// Feedback
+										handleFeedback(context, MessageConstants.MSG_HELLBLOCK_ADMIN_SETHOME,
+												AdventureHelper.miniMessageToComponent(targetUser.getName()));
+									});
+								});
+					});
 				});
 	}
 

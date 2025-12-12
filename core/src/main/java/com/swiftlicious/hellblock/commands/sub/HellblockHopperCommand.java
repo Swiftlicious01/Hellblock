@@ -9,13 +9,11 @@ import org.bukkit.util.BoundingBox;
 import org.incendo.cloud.Command;
 import org.incendo.cloud.CommandManager;
 
-import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.commands.BukkitCommandFeature;
 import com.swiftlicious.hellblock.commands.HellblockCommandManager;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
+import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.player.UserData;
-
-import net.kyori.adventure.text.Component;
 
 public class HellblockHopperCommand extends BukkitCommandFeature<CommandSender> {
 
@@ -29,8 +27,7 @@ public class HellblockHopperCommand extends BukkitCommandFeature<CommandSender> 
 		return builder.senderType(Player.class).handler(context -> {
 			final Player player = context.sender();
 			final UUID playerUUID = player.getUniqueId();
-			final Optional<UserData> onlineUser = HellblockPlugin.getInstance().getStorageManager()
-					.getOnlineUser(playerUUID);
+			final Optional<UserData> onlineUser = plugin.getStorageManager().getOnlineUser(playerUUID);
 
 			if (onlineUser.isEmpty()) {
 				handleFeedback(context, MessageConstants.COMMAND_DATA_FAILURE_NOT_LOADED);
@@ -45,9 +42,8 @@ public class HellblockHopperCommand extends BukkitCommandFeature<CommandSender> 
 
 			final UUID ownerUUID = user.getHellblockData().getOwnerUUID();
 			if (ownerUUID == null) {
-				HellblockPlugin.getInstance().getPluginLogger()
-						.severe("Hellblock owner UUID was null for player " + player.getName() + " ("
-								+ player.getUniqueId() + "). This indicates corrupted data or a serious bug.");
+				plugin.getPluginLogger().severe("Hellblock owner UUID was null for player " + player.getName() + " ("
+						+ player.getUniqueId() + "). This indicates corrupted data or a serious bug.");
 				throw new IllegalStateException(
 						"Owner reference was null. This should never happen — please report to the developer.");
 			}
@@ -57,8 +53,7 @@ public class HellblockHopperCommand extends BukkitCommandFeature<CommandSender> 
 				return;
 			}
 
-			HellblockPlugin.getInstance().getStorageManager()
-					.getOfflineUserData(ownerUUID, HellblockPlugin.getInstance().getConfigManager().lockData())
+			plugin.getStorageManager().getCachedUserDataWithFallback(ownerUUID, plugin.getConfigManager().lockData())
 					.thenAccept(userDataOpt -> {
 						if (userDataOpt.isEmpty()) {
 							return;
@@ -70,16 +65,15 @@ public class HellblockHopperCommand extends BukkitCommandFeature<CommandSender> 
 							return;
 						}
 
-						final int placed = HellblockPlugin.getInstance().getHopperHandler().countHoppers(bounds);
+						final int placed = plugin.getHopperHandler().countHoppers(bounds);
 						final int max = owner.getHellblockData().getMaxHopperLimit();
 
-						HellblockPlugin.getInstance().getSenderFactory().wrap(player)
-								.sendMessage(MessageConstants.MSG_HELLBLOCK_HOPPER_INFO
-										.arguments(Component.text(placed), Component.text(max)).build());
+						handleFeedback(context, MessageConstants.MSG_HELLBLOCK_HOPPER_INFO,
+								AdventureHelper.miniMessageToComponent(String.valueOf(placed)),
+								AdventureHelper.miniMessageToComponent(String.valueOf(max)));
 					}).exceptionally(ex -> {
-						HellblockPlugin.getInstance().getPluginLogger()
-								.warn("getOfflineUserData failed for hopper check of " + player.getName() + ": "
-										+ ex.getMessage());
+						plugin.getPluginLogger().warn("getCachedUserDataWithFallback failed for hopper check of "
+								+ player.getName() + ": " + ex.getMessage());
 						return null;
 					});
 		});

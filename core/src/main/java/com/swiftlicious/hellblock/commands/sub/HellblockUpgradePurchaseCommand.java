@@ -1,6 +1,8 @@
 package com.swiftlicious.hellblock.commands.sub;
 
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -12,17 +14,16 @@ import org.incendo.cloud.CommandManager;
 import org.incendo.cloud.parser.standard.StringParser;
 import org.incendo.cloud.suggestion.Suggestion;
 
-import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.commands.BukkitCommandFeature;
 import com.swiftlicious.hellblock.commands.HellblockCommandManager;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
+import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.player.HellblockData;
 import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.upgrades.IslandUpgradeType;
 import com.swiftlicious.hellblock.upgrades.UpgradeCostProcessor;
+import com.swiftlicious.hellblock.upgrades.UpgradeManager;
 import com.swiftlicious.hellblock.utils.StringUtils;
-
-import net.kyori.adventure.text.Component;
 
 public class HellblockUpgradePurchaseCommand extends BukkitCommandFeature<CommandSender> {
 
@@ -34,16 +35,52 @@ public class HellblockUpgradePurchaseCommand extends BukkitCommandFeature<Comman
 	public Command.Builder<? extends CommandSender> assembleCommand(CommandManager<CommandSender> manager,
 			Command.Builder<CommandSender> builder) {
 		return builder.senderType(Player.class)
-				.required("upgrade",
-						StringParser.stringComponent().suggestionProvider((context,
-								input) -> CompletableFuture.completedFuture(Arrays.stream(IslandUpgradeType.values())
-										.map(Enum::toString).map(Suggestion::suggestion).toList())))
-				.handler(context -> {
+				.required("upgrade", StringParser.stringComponent().suggestionProvider((context, input) -> {
+					if (!(context.sender() instanceof Player player)) {
+						return CompletableFuture.completedFuture(Collections.emptyList());
+					}
+
+					Optional<UserData> userOpt = plugin.getStorageManager().getOnlineUser(player.getUniqueId());
+
+					if (userOpt.isEmpty()) {
+						// No data loaded — show nothing
+						return CompletableFuture.completedFuture(Collections.emptyList());
+					}
+
+					final UserData userData = userOpt.get();
+					final HellblockData data = userData.getHellblockData();
+
+					if (!data.hasHellblock()) {
+						return CompletableFuture.completedFuture(Collections.emptyList());
+					}
+
+					final UUID ownerUUID = data.getOwnerUUID();
+					if (ownerUUID == null) {
+						return CompletableFuture.completedFuture(Collections.emptyList());
+					}
+
+					if (!data.isOwner(ownerUUID)) {
+						return CompletableFuture.completedFuture(Collections.emptyList());
+					}
+
+					if (data.isAbandoned()) {
+						return CompletableFuture.completedFuture(Collections.emptyList());
+					}
+
+					UpgradeManager upgradeManager = plugin.getUpgradeManager();
+
+					List<Suggestion> availableUpgrades = Arrays.stream(IslandUpgradeType.values()).filter(type -> {
+						int currentTier = data.getUpgradeLevel(type);
+						int maxTier = upgradeManager.getMaxTierFor(type);
+						return currentTier < maxTier;
+					}).map(Enum::name).map(Suggestion::suggestion).toList();
+
+					return CompletableFuture.completedFuture(availableUpgrades);
+				})).handler(context -> {
 					final Player player = context.sender();
 					final UUID playerUUID = player.getUniqueId();
 
-					final Optional<UserData> onlineUserOpt = HellblockPlugin.getInstance().getStorageManager()
-							.getOnlineUser(playerUUID);
+					final Optional<UserData> onlineUserOpt = plugin.getStorageManager().getOnlineUser(playerUUID);
 
 					if (onlineUserOpt.isEmpty()) {
 						handleFeedback(context, MessageConstants.COMMAND_DATA_FAILURE_NOT_LOADED);
@@ -60,9 +97,8 @@ public class HellblockUpgradePurchaseCommand extends BukkitCommandFeature<Comman
 
 					final UUID ownerUUID = data.getOwnerUUID();
 					if (ownerUUID == null) {
-						HellblockPlugin.getInstance().getPluginLogger()
-								.severe("Hellblock owner UUID was null for player " + player.getName() + " ("
-										+ player.getUniqueId() + "). This indicates corrupted data or a serious bug.");
+						plugin.getPluginLogger().severe("Hellblock owner UUID was null for player " + player.getName()
+								+ " (" + player.getUniqueId() + "). This indicates corrupted data or a serious bug.");
 						throw new IllegalStateException(
 								"Owner reference was null. This should never happen — please report to the developer.");
 					}
@@ -90,8 +126,8 @@ public class HellblockUpgradePurchaseCommand extends BukkitCommandFeature<Comman
 					final IslandUpgradeType upgrade = upgradeOpt.get();
 
 					if (!data.canUpgrade(upgrade)) {
-						handleFeedback(context, MessageConstants.MSG_HELLBLOCK_UPGRADE_MAX_TIER.arguments(
-								Component.text(StringUtils.toProperCase(upgrade.toString().replace("_", " ")))));
+						handleFeedback(context, MessageConstants.MSG_HELLBLOCK_UPGRADE_MAX_TIER,
+								AdventureHelper.miniMessageToComponent(StringUtils.toCamelCase(upgrade.toString())));
 						return;
 					}
 
@@ -101,7 +137,7 @@ public class HellblockUpgradePurchaseCommand extends BukkitCommandFeature<Comman
 						return;
 					}
 
-					HellblockPlugin.getInstance().getUpgradeManager().attemptPurchase(data, player, upgrade);
+					plugin.getUpgradeManager().attemptPurchase(data, player, upgrade);
 				});
 	}
 

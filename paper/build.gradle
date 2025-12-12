@@ -15,3 +15,8 @@ description = "Paper versioned NMS aggregator for Hellblock"
 subprojects {
     group = "com.swiftlicious.hellblock.paper"
 }
+
+sourceSets.all {
+    allSource.exclude("**/.DS_Store")
+    resources.exclude("**/.DS_Store")
+}

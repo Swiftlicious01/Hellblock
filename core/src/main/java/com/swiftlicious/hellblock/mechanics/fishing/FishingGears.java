@@ -59,6 +59,10 @@ public class FishingGears {
 		triggers.put(ActionTrigger.BITE, ((type, context, itemStack) -> type.biteFunction.accept(context, itemStack)));
 		triggers.put(ActionTrigger.HOOK, ((type, context, itemStack) -> type.hookFunction.accept(context, itemStack)));
 	}
+	
+	private static final String HELLBLOCK_TAG = "hb";
+	private static final String DURABILITY_TAG = "durability";
+	private static final String HOOK_TAG = "hook";
 
 	private static BiConsumer<Context<Player>, FishingGears> fishingGearsConsumers = defaultFishingGearsConsumers();
 	private final Map<GearType, List<Pair<String, ItemStack>>> gears = new HashMap<>();
@@ -112,15 +116,13 @@ public class FishingGears {
 	 * @param context the context of the player.
 	 */
 	public void trigger(ActionTrigger trigger, Context<Player> context) {
-		for (Map.Entry<GearType, List<Pair<String, ItemStack>>> entry : gears.entrySet()) {
-			for (Pair<String, ItemStack> itemPair : entry.getValue()) {
-				HellblockPlugin.getInstance().debug(entry.getKey() + " | " + itemPair.left() + " | " + trigger);
-				Optional.ofNullable(triggers.get(trigger))
-						.ifPresent(tri -> tri.accept(entry.getKey(), context, itemPair.right()));
-				HellblockPlugin.getInstance().getEventManager().trigger(context, itemPair.left(),
-						entry.getKey().getType(), trigger);
-			}
-		}
+		gears.entrySet().forEach(entry -> entry.getValue().forEach(itemPair -> {
+			HellblockPlugin.getInstance().debug(entry.getKey() + " | " + itemPair.left() + " | " + trigger);
+			Optional.ofNullable(triggers.get(trigger))
+					.ifPresent(tri -> tri.accept(entry.getKey(), context, itemPair.right()));
+			HellblockPlugin.getInstance().getEventManager().trigger(context, itemPair.left(), entry.getKey().getType(),
+					trigger);
+		}));
 	}
 
 	/**
@@ -177,11 +179,9 @@ public class FishingGears {
 			// set enchantments
 			List<Pair<String, Short>> enchants = HellblockPlugin.getInstance().getIntegrationManager()
 					.getEnchantments(rodItem);
-			for (Pair<String, Short> enchantment : enchants) {
-				String effectID = enchantment.left() + ":" + enchantment.right();
-				HellblockPlugin.getInstance().getEffectManager().getEffectModifier(effectID, MechanicType.ENCHANT)
-						.ifPresent(fishingGears.modifiers::add);
-			}
+			enchants.stream().map(enchantment -> enchantment.left() + ":" + enchantment.right())
+					.forEach(effectID -> HellblockPlugin.getInstance().getEffectManager()
+							.getEffectModifier(effectID, MechanicType.ENCHANT).ifPresent(fishingGears.modifiers::add));
 
 			// set hook
 			HellblockPlugin.getInstance().getHookManager().getHookID(rodItem).ifPresent(hookID -> {
@@ -230,11 +230,9 @@ public class FishingGears {
 			}
 
 			// check requirements before checking totems
-			for (EffectModifier modifier : fishingGears.modifiers) {
-				if (!RequirementManager.isSatisfied(context, modifier.requirements())) {
-					fishingGears.canFish = false;
-				}
-			}
+			fishingGears.modifiers.stream()
+					.filter(modifier -> !RequirementManager.isSatisfied(context, modifier.requirements()))
+					.forEach(modifier -> fishingGears.canFish = false);
 
 			// add global effects
 			fishingGears.modifiers.add(EffectModifierInterface.builder().id("__GLOBAL__")
@@ -314,10 +312,10 @@ public class FishingGears {
 						for (String previous : previousLore) {
 							Component component = AdventureHelper.jsonToComponent(previous);
 							if (component instanceof ScoreComponent scoreComponent
-									&& scoreComponent.name().equals("hb")) {
-								if (scoreComponent.objective().equals("hook")) {
+									&& HELLBLOCK_TAG.equals(scoreComponent.name())) {
+								if (HOOK_TAG.equals(scoreComponent.objective())) {
 									continue;
-								} else if (scoreComponent.objective().equals("durability")) {
+								} else if (DURABILITY_TAG.equals(scoreComponent.objective())) {
 									durabilityLore.add(previous);
 									continue;
 								}
@@ -339,23 +337,23 @@ public class FishingGears {
 						for (String previous : previousLore) {
 							Component component = AdventureHelper.jsonToComponent(previous);
 							if (component instanceof ScoreComponent scoreComponent
-									&& scoreComponent.name().equals("hb")) {
-								if (scoreComponent.objective().equals("hook")) {
+									&& HELLBLOCK_TAG.equals(scoreComponent.name())) {
+								if (HOOK_TAG.equals(scoreComponent.objective())) {
 									continue;
-								} else if (scoreComponent.objective().equals("durability")) {
+								} else if (DURABILITY_TAG.equals(scoreComponent.objective())) {
 									durabilityLore.add(previous);
 									continue;
 								}
 							}
 							newLore.add(previous);
 						}
-						for (String lore : hookConfig.lore()) {
-							ScoreComponent.Builder builder = Component.score().name("hb").objective("hook");
+						hookConfig.lore().forEach(lore -> {
+							ScoreComponent.Builder builder = Component.score().name(HELLBLOCK_TAG).objective(HOOK_TAG);
 							builder.append(AdventureHelper
 									.jsonToComponent(lore.replace("{dur}", String.valueOf(maxDamage - hookDamage))
 											.replace("{max}", String.valueOf(maxDamage))));
 							newLore.add(AdventureHelper.componentToJson(builder.build()));
-						}
+						});
 						newLore.addAll(durabilityLore);
 						wrapped.lore(newLore);
 					}
@@ -388,23 +386,23 @@ public class FishingGears {
 						for (String previous : previousLore) {
 							Component component = AdventureHelper.jsonToComponent(previous);
 							if (component instanceof ScoreComponent scoreComponent
-									&& scoreComponent.name().equals("hb")) {
-								if (scoreComponent.objective().equals("hook")) {
+									&& HELLBLOCK_TAG.equals(scoreComponent.name())) {
+								if (HOOK_TAG.equals(scoreComponent.objective())) {
 									continue;
-								} else if (scoreComponent.objective().equals("durability")) {
+								} else if (DURABILITY_TAG.equals(scoreComponent.objective())) {
 									durabilityLore.add(previous);
 									continue;
 								}
 							}
 							newLore.add(previous);
 						}
-						for (String lore : hookConfig.lore()) {
-							ScoreComponent.Builder builder = Component.score().name("hb").objective("hook");
+						hookConfig.lore().forEach(lore -> {
+							ScoreComponent.Builder builder = Component.score().name(HELLBLOCK_TAG).objective(HOOK_TAG);
 							builder.append(AdventureHelper
 									.jsonToComponent(lore.replace("{dur}", String.valueOf(maxDamage - hookDamage))
 											.replace("{max}", String.valueOf(maxDamage))));
 							newLore.add(AdventureHelper.componentToJson(builder.build()));
-						}
+						});
 						newLore.addAll(durabilityLore);
 						wrapped.lore(newLore);
 					}

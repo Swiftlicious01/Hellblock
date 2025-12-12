@@ -9,14 +9,12 @@ import org.bukkit.entity.Player;
 import org.incendo.cloud.Command;
 import org.incendo.cloud.CommandManager;
 
-import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.commands.BukkitCommandFeature;
 import com.swiftlicious.hellblock.commands.HellblockCommandManager;
 import com.swiftlicious.hellblock.config.locale.MessageConstants;
+import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.player.HellblockData;
 import com.swiftlicious.hellblock.player.UserData;
-
-import net.kyori.adventure.text.Component;
 
 public class HellblockCommand extends BukkitCommandFeature<CommandSender> {
 
@@ -30,8 +28,7 @@ public class HellblockCommand extends BukkitCommandFeature<CommandSender> {
 		return builder.senderType(Player.class).handler(context -> {
 			final Player player = context.sender();
 
-			final Optional<UserData> onlineUserOpt = HellblockPlugin.getInstance().getStorageManager()
-					.getOnlineUser(player.getUniqueId());
+			final Optional<UserData> onlineUserOpt = plugin.getStorageManager().getOnlineUser(player.getUniqueId());
 
 			if (onlineUserOpt.isEmpty()) {
 				handleFeedback(context, MessageConstants.COMMAND_DATA_FAILURE_NOT_LOADED);
@@ -43,26 +40,26 @@ public class HellblockCommand extends BukkitCommandFeature<CommandSender> {
 
 			if (!data.hasHellblock()) {
 				// Player doesn’t have an island yet → open island choice GUI
-				HellblockPlugin.getInstance().getIslandChoiceGUIManager().openIslandChoiceGUI(player, false);
+				plugin.getIslandChoiceGUIManager().openIslandChoiceGUI(player, false);
 				return;
 			}
 
 			final UUID ownerUUID = data.getOwnerUUID();
 			if (ownerUUID == null) {
-				HellblockPlugin.getInstance().getPluginLogger()
-						.severe("Hellblock owner UUID was null for player " + player.getName() + " ("
-								+ player.getUniqueId() + "). This indicates corrupted data or a serious bug.");
+				plugin.getPluginLogger().severe("Hellblock owner UUID was null for player " + player.getName() + " ("
+						+ player.getUniqueId() + "). This indicates corrupted data or a serious bug.");
 				throw new IllegalStateException(
 						"Owner reference was null. This should never happen — please report to the developer.");
 			}
 
-			HellblockPlugin.getInstance().getStorageManager()
-					.getOfflineUserData(ownerUUID, HellblockPlugin.getInstance().getConfigManager().lockData())
+			plugin.getStorageManager().getCachedUserDataWithFallback(ownerUUID, plugin.getConfigManager().lockData())
 					.thenAccept(result -> {
 						if (result.isEmpty()) {
 							final String username = Bukkit.getOfflinePlayer(ownerUUID).getName();
 							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_OWNER_DATA_NOT_LOADED,
-									username != null ? Component.text(username) : Component.empty());
+									AdventureHelper.miniMessageToComponent(username != null ? username
+											: plugin.getTranslationManager().miniMessageTranslation(
+													MessageConstants.FORMAT_UNKNOWN.build().key())));
 							return;
 						}
 
@@ -73,20 +70,21 @@ public class HellblockCommand extends BukkitCommandFeature<CommandSender> {
 						}
 
 						final boolean isOwner = data.isOwner(ownerUUID);
-						final boolean opened = HellblockPlugin.getInstance().getHellblockGUIManager()
-								.openHellblockGUI(player, isOwner);
+						final int islandId = data.getIslandId();
+						final boolean opened = plugin.getHellblockGUIManager().openHellblockGUI(player, islandId,
+								isOwner);
 
 						if (opened) {
 							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_OPEN_SUCCESS,
-									Component.text(player.getName()));
+									AdventureHelper.miniMessageToComponent(player.getName()));
 						} else {
 							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_OPEN_FAILURE_NOT_LOADED,
-									Component.text(player.getName()));
+									AdventureHelper.miniMessageToComponent(player.getName()));
 						}
 					}).exceptionally(ex -> {
-						HellblockPlugin.getInstance().getPluginLogger()
-								.warn("getOfflineUserData failed for opening hellblock GUI of " + player.getName() + ": "
-										+ ex.getMessage());
+						plugin.getPluginLogger()
+								.warn("getCachedUserDataWithFallback failed for opening hellblock GUI of "
+										+ player.getName() + ": " + ex.getMessage());
 						return null;
 					});
 		});

@@ -21,17 +21,17 @@ import com.google.gson.JsonDeserializationContext;
 import com.google.gson.JsonDeserializer;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonPrimitive;
 import com.google.gson.JsonSerializationContext;
 import com.google.gson.JsonSerializer;
 import com.mojang.authlib.GameProfile;
 import com.mojang.authlib.properties.Property;
 import com.mojang.authlib.properties.PropertyMap;
-import com.mojang.util.UUIDTypeAdapter;
 
 public class GameProfileBuilder {
 
 	private static final Gson gson = new GsonBuilder().disableHtmlEscaping()
-			.registerTypeAdapter(UUID.class, new UUIDTypeAdapter())
+			.registerTypeAdapter(UUID.class, new SimpleUUIDAdapter())
 			.registerTypeAdapter(GameProfile.class, new GameProfileSerializer())
 			.registerTypeAdapter(PropertyMap.class, new PropertyMap.Serializer()).create();
 	private static final Map<UUID, CachedProfile> cache = Collections.unmodifiableMap(new HashMap<>());
@@ -51,7 +51,7 @@ public class GameProfileBuilder {
 		synchronized (sync) {
 			connection = (HttpURLConnection) URI
 					.create("https://sessionserver.mojang.com/session/minecraft/profile/%s?unsigned=false"
-							.formatted(UUIDTypeAdapter.fromUUID(uuid)))
+							.formatted(SimpleUUIDAdapter.fromUUID(uuid)))
 					.toURL().openConnection();
 			connection.setReadTimeout(5000);
 		}
@@ -79,7 +79,7 @@ public class GameProfileBuilder {
 
 		final List<Object> args = new ArrayList<>();
 		args.add(Long.valueOf(System.currentTimeMillis()));
-		args.add(UUIDTypeAdapter.fromUUID(uuid));
+		args.add(SimpleUUIDAdapter.fromUUID(uuid));
 		args.add(name);
 		args.add(skinUrl);
 		if (cape) {
@@ -130,6 +130,31 @@ public class GameProfileBuilder {
 	private record CachedProfile(GameProfile profile) {
 		public boolean isValid() {
 			return GameProfileBuilder.cacheTime < 0L;
+		}
+	}
+
+	private static final class SimpleUUIDAdapter implements JsonSerializer<UUID>, JsonDeserializer<UUID> {
+
+		@Override
+		public JsonElement serialize(UUID src, Type typeOfSrc, JsonSerializationContext context) {
+			return new JsonPrimitive(fromUUID(src));
+		}
+
+		@Override
+		public UUID deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context) {
+			return fromString(json.getAsString());
+		}
+
+		public static String fromUUID(UUID uuid) {
+			return uuid.toString().replace("-", "");
+		}
+
+		public static UUID fromString(String id) {
+			StringBuilder sb = new StringBuilder(id.trim());
+			if (sb.length() != 32)
+				throw new IllegalArgumentException("Invalid UUID string: " + id);
+			sb.insert(8, '-').insert(13, '-').insert(18, '-').insert(23, '-');
+			return UUID.fromString(sb.toString());
 		}
 	}
 }

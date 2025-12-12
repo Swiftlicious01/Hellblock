@@ -1,19 +1,18 @@
 package com.swiftlicious.hellblock.paper.v1_18_r1;
 
-import com.google.common.base.Preconditions;
-
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
 
 import org.bukkit.Location;
+import org.bukkit.NamespacedKey;
 import org.bukkit.Registry;
 import org.bukkit.craftbukkit.v1_18_R1.CraftWorld;
 import org.bukkit.craftbukkit.v1_18_R1.util.CraftVector;
-import org.bukkit.NamespacedKey;
 import org.bukkit.util.Vector;
 import org.jetbrains.annotations.NotNull;
 
+import com.google.common.base.Preconditions;
 import com.swiftlicious.hellblock.nms.fluid.FluidData;
 
 import net.minecraft.core.BlockPos;
@@ -32,7 +31,8 @@ public class FluidDataInstance implements FluidData {
 	}
 
 	public static FluidData createData(final FluidState state) {
-		return MAP.getOrDefault(state.getType().getClass(), FluidDataInstance::new).apply(state);
+		net.minecraft.world.level.material.Fluid type = state.getType();
+		return MAP.getOrDefault(type.getClass(), FluidDataInstance::new).apply(state);
 	}
 
 	private final FluidState state;

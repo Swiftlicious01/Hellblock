@@ -1,20 +1,16 @@
 package com.swiftlicious.hellblock.generation;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashSet;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
-import org.bukkit.Bukkit;
-import org.bukkit.Chunk;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.block.Biome;
-import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.bukkit.util.BoundingBox;
 import org.jetbrains.annotations.NotNull;
@@ -26,11 +22,41 @@ import com.swiftlicious.hellblock.events.hellblock.HellblockBiomeChangeEvent;
 import com.swiftlicious.hellblock.events.hellblock.HellblockBiomeChangedEvent;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.handlers.RequirementManager;
+import com.swiftlicious.hellblock.handlers.VersionHelper;
 import com.swiftlicious.hellblock.player.HellblockData;
 import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.sender.Sender;
+import com.swiftlicious.hellblock.utils.EventUtils;
+import com.swiftlicious.hellblock.utils.StringUtils;
+import com.swiftlicious.hellblock.world.ChunkPos;
 import com.swiftlicious.hellblock.world.HellblockWorld;
+import com.swiftlicious.hellblock.world.Pos3;
 
+/**
+ * Handles all biome-related operations within the Hellblock system, including
+ * both online and offline biome changes, validation, and world updates.
+ * <p>
+ * This class manages biome transformations for a player's hellblock island,
+ * ensuring proper checks such as ownership, cooldowns, location validation, and
+ * event triggering. It also provides asynchronous biome updates across chunks
+ * and supports safe biome modification even when the player is offline.
+ * </p>
+ * 
+ * <h2>Responsibilities:</h2>
+ * <ul>
+ * <li>Initiate biome changes for online and offline players.</li>
+ * <li>Validate ownership, cooldowns, and biome change conditions.</li>
+ * <li>Apply biome transformations safely across multiple chunks.</li>
+ * <li>Trigger pre- and post-biome change events for plugin extensibility.</li>
+ * </ul>
+ * 
+ * <h2>Threading Notes:</h2>
+ * <p>
+ * Biome updates are performed asynchronously to prevent blocking the main
+ * server thread. Unloaded chunks are loaded as needed, and chunk refreshes are
+ * triggered post-update to ensure visual consistency for players.
+ * </p>
+ */
 public class BiomeHandler {
 
 	protected final HellblockPlugin instance;
@@ -43,18 +69,19 @@ public class BiomeHandler {
 	 * Initiates a biome change for the user's hellblock, handling both online and
 	 * offline scenarios.
 	 *
-	 * @param user           The user whose hellblock biome is to be changed.
+	 * @param ownerData      The island owner whose hellblock biome is to be
+	 *                       changed.
 	 * @param biome          The new biome to set.
 	 * @param performedByGUI Whether the change was initiated via GUI.
 	 * @param forceChange    If true, bypasses ownership, location, and cooldown
 	 *                       checks.
 	 */
-	public void changeHellblockBiome(@NotNull UserData user, @NotNull HellBiome biome, boolean performedByGUI,
+	public void changeHellblockBiome(@NotNull UserData ownerData, @NotNull HellBiome biome, boolean performedByGUI,
 			boolean forceChange) {
-		if (user.isOnline()) {
-			changeHellblockBiomeOnline(user, biome, performedByGUI, forceChange);
+		if (ownerData.isOnline()) {
+			changeHellblockBiomeOnline(ownerData, biome, performedByGUI, forceChange);
 		} else {
-			changeHellblockBiomeOffline(user, biome, forceChange);
+			changeHellblockBiomeOffline(ownerData, biome, forceChange);
 		}
 	}
 
@@ -62,16 +89,18 @@ public class BiomeHandler {
 	 * Handles biome changes for online users, including all necessary checks and
 	 * messaging.
 	 * 
-	 * @param user
-	 * @param biome
-	 * @param performedByGUI
-	 * @param forceChange
+	 * @param ownerData      The island owner whose hellblock biome is to be
+	 *                       changed.
+	 * @param biome          The new biome to set.
+	 * @param performedByGUI Whether the change was initiated via GUI.
+	 * @param forceChange    If true, bypasses ownership, location, and cooldown
+	 *                       checks.
 	 */
-	private void changeHellblockBiomeOnline(@NotNull UserData user, @NotNull HellBiome biome, boolean performedByGUI,
-			boolean forceChange) {
-		final Player player = user.getPlayer();
+	private void changeHellblockBiomeOnline(@NotNull UserData ownerData, @NotNull HellBiome biome,
+			boolean performedByGUI, boolean forceChange) {
+		final Player player = ownerData.getPlayer();
 		final Sender audience = instance.getSenderFactory().wrap(player);
-		final HellblockData data = user.getHellblockData();
+		final HellblockData data = ownerData.getHellblockData();
 
 		// Validate island existence
 		if (!data.hasHellblock()) {
@@ -89,7 +118,10 @@ public class BiomeHandler {
 		// Ownership check
 		final UUID ownerId = data.getOwnerUUID();
 		if (ownerId == null) {
-			throw new IllegalStateException("Hellblock owner UUID is missing.");
+			instance.getPluginLogger().severe("Hellblock owner UUID was null for player " + player.getName() + " ("
+					+ player.getUniqueId() + "). This indicates corrupted data.");
+			throw new IllegalStateException(
+					"Owner reference was null. This should never happen — please report to the developer.");
 		}
 		if (!forceChange && !ownerId.equals(player.getUniqueId())) {
 			audience.sendMessage(
@@ -99,28 +131,34 @@ public class BiomeHandler {
 
 		// Cooldown check
 		if (!forceChange && data.getBiomeCooldown() > 0) {
-			final String formatted = instance.getFormattedCooldown(data.getBiomeCooldown());
+			final String formatted = instance.getCooldownManager().getFormattedCooldown(data.getBiomeCooldown());
 			audience.sendMessage(
 					instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_BIOME_ON_COOLDOWN
-							.arguments(AdventureHelper.miniMessage(formatted)).build()));
+							.arguments(AdventureHelper.miniMessageToComponent(formatted)).build()));
 			return;
 		}
 
 		// Location check
 		if (!forceChange) {
 			final Location loc = player.getLocation();
-			if (loc == null || !data.getBoundingBox().contains(loc.getBlockX(), loc.getBlockY(), loc.getBlockZ())) {
+			if (loc == null || !data.getBoundingBox().contains(loc.toVector())) {
 				audience.sendMessage(instance.getTranslationManager()
 						.render(MessageConstants.MSG_HELLBLOCK_MUST_BE_ON_ISLAND.build()));
 				return;
 			}
 		}
 
+		// Determine current biome (safe null handling)
+		final Location homeLocation = data.getHomeLocation();
+		final Biome currentBiome = (homeLocation != null) ? homeLocation.getBlock().getBiome() : null;
+
 		// Prevent same-biome change
-		final Biome currentBiome = data.getHomeLocation().getBlock().getBiome();
-		if (currentBiome == biome.getConvertedBiome()) {
-			audience.sendMessage(instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_BIOME_SAME_BIOME
-					.arguments(AdventureHelper.miniMessage(biome.getName())).build()));
+		if (currentBiome != null && currentBiome == biome.getConvertedBiome()) {
+			audience.sendMessage(instance.getTranslationManager()
+					.render(MessageConstants.MSG_HELLBLOCK_BIOME_SAME_BIOME
+							.arguments(
+									AdventureHelper.miniMessageToComponent(StringUtils.toCamelCase(biome.toString())))
+							.build()));
 			return;
 		}
 
@@ -132,10 +170,10 @@ public class BiomeHandler {
 			}
 		}
 
-		final HellblockBiomeChangeEvent changeEvent = new HellblockBiomeChangeEvent(user, data, currentBiome, biome,
-				performedByGUI, forceChange);
-		Bukkit.getPluginManager().callEvent(changeEvent);
-		if (changeEvent.isCancelled()) {
+		// Fire pre-change event
+		final HellblockBiomeChangeEvent changeEvent = new HellblockBiomeChangeEvent(ownerData, data, currentBiome,
+				biome, performedByGUI, forceChange);
+		if (EventUtils.fireAndCheckCancel(changeEvent)) {
 			return;
 		}
 
@@ -144,22 +182,26 @@ public class BiomeHandler {
 
 		// Success message
 		audience.sendMessage(instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_BIOME_CHANGED
-				.arguments(AdventureHelper.miniMessage(biome.getName())).build()));
+				.arguments(AdventureHelper.miniMessageToComponent(StringUtils.toCamelCase(biome.toString()))).build()));
 
-		final HellblockBiomeChangedEvent changedEvent = new HellblockBiomeChangedEvent(user, data, currentBiome, biome);
-		Bukkit.getPluginManager().callEvent(changedEvent);
+		// Fire post-change event
+		final HellblockBiomeChangedEvent changedEvent = new HellblockBiomeChangedEvent(ownerData, data, currentBiome,
+				biome);
+		EventUtils.fireAndForget(changedEvent);
 	}
 
 	/**
 	 * Handles biome changes for offline users, applying the change directly if
 	 * valid.
 	 * 
-	 * @param user
-	 * @param biome
-	 * @param forceChange
+	 * @param ownerData   The island owner whose hellblock biome is to be changed.
+	 * @param biome       The new biome to set.
+	 * @param forceChange If true, bypasses ownership, location, and cooldown
+	 *                    checks.
 	 */
-	private void changeHellblockBiomeOffline(@NotNull UserData user, @NotNull HellBiome biome, boolean forceChange) {
-		final HellblockData data = user.getHellblockData();
+	private void changeHellblockBiomeOffline(@NotNull UserData ownerData, @NotNull HellBiome biome,
+			boolean forceChange) {
+		final HellblockData data = ownerData.getHellblockData();
 
 		if (!data.hasHellblock() || data.isAbandoned()) {
 			return; // silently ignore for offline users
@@ -171,44 +213,69 @@ public class BiomeHandler {
 			return; // nothing to do
 		}
 
-		final HellblockBiomeChangeEvent changeEvent = new HellblockBiomeChangeEvent(user, data, currentBiome, biome,
-				false, forceChange);
-		Bukkit.getPluginManager().callEvent(changeEvent);
-		if (changeEvent.isCancelled()) {
+		final HellblockBiomeChangeEvent changeEvent = new HellblockBiomeChangeEvent(ownerData, data, currentBiome,
+				biome, false, forceChange);
+		if (EventUtils.fireAndCheckCancel(changeEvent)) {
 			return;
 		}
 
 		// Apply the biome change (no messages, no cooldown unless forceChange is false)
 		applyHellblockBiomeChange(data, biome, !forceChange);
 
-		final HellblockBiomeChangedEvent changedEvent = new HellblockBiomeChangedEvent(user, data, currentBiome, biome);
-		Bukkit.getPluginManager().callEvent(changedEvent);
+		final HellblockBiomeChangedEvent changedEvent = new HellblockBiomeChangedEvent(ownerData, data, currentBiome,
+				biome);
+		EventUtils.fireAndForget(changedEvent);
 	}
 
 	/**
 	 * Applies the biome change to the hellblock world and updates the
 	 * HellblockData.
 	 * 
-	 * @param data          The HellblockData representing the user's hellblock.
+	 * @param ownerData     The HellblockData representing the user's hellblock.
 	 * @param biome         The new biome to set.
 	 * @param applyCooldown If true, sets a cooldown on future biome changes.
 	 */
-	private void applyHellblockBiomeChange(@NotNull HellblockData data, @NotNull HellBiome biome,
+	public void applyHellblockBiomeChange(@NotNull HellblockData ownerData, @NotNull HellBiome newBiome,
 			boolean applyCooldown) {
 		final Optional<HellblockWorld<?>> worldOpt = instance.getWorldManager()
-				.getWorld(instance.getWorldManager().getHellblockWorldFormat(data.getID()));
-		if (worldOpt.isEmpty()) {
+				.getWorld(instance.getWorldManager().getHellblockWorldFormat(ownerData.getIslandId()));
+		if (worldOpt.isEmpty() || worldOpt.get().bukkitWorld() == null) {
 			throw new IllegalStateException("Hellblock world not found. Try regenerating the world.");
 		}
 
-		final World bukkitWorld = worldOpt.get().bukkitWorld();
+		final HellblockWorld<?> world = worldOpt.get();
 
-		setHellblockBiome(bukkitWorld, data.getBoundingBox(), biome.getConvertedBiome());
-		data.setBiome(biome);
+		BoundingBox bounds = ownerData.getBoundingBox();
+		if (bounds == null) {
+			throw new IllegalStateException(
+					"Hellblock bounding box returned null for islandID=" + ownerData.getIslandId());
+		}
+
+		// --- Capture the previous biome BEFORE changing ---
+		HellBiome previousBiome = Objects.requireNonNullElse(ownerData.getBiome(), HellBiome.NETHER_WASTES);
+
+		setHellblockBiome(world, bounds, newBiome.getConvertedBiome());
 
 		if (applyCooldown) {
-			data.setBiomeCooldown(TimeUnit.SECONDS.toDays(86400)); // 24h cooldown
+			ownerData.setBiomeCooldown(TimeUnit.DAYS.toSeconds(1)); // 24h cooldown
 		}
+
+		instance.getScheduler().executeSync(() -> {
+			// fortress logic
+			if (newBiome == HellBiome.NETHER_FORTRESS) {
+				VersionHelper.getNMSManager().injectFakeFortress(world.bukkitWorld(), bounds);
+				instance.debug("Injected fake fortress for islandID=" + ownerData.getIslandId() + " in world "
+						+ world.worldName() + " bounds=" + bounds);
+			} else if (previousBiome == HellBiome.NETHER_FORTRESS) {
+				// Only remove the fake fortress if the *previous* biome had one
+				VersionHelper.getNMSManager().removeFakeFortress(world.bukkitWorld(), bounds);
+				instance.debug("Removed fake fortress for islandID=" + ownerData.getIslandId() + " in world "
+						+ world.worldName() + " bounds=" + bounds);
+			}
+		});
+
+		// Finally, update the biome in the player data
+		ownerData.setBiome(newBiome);
 	}
 
 	/**
@@ -220,16 +287,18 @@ public class BiomeHandler {
 	 * @param bounds the bounding box defining the area to change.
 	 * @param biome  the new biome to set.
 	 **/
-	public void setHellblockBiome(@NotNull World world, @NotNull BoundingBox bounds, @NotNull Biome biome) {
+	public void setHellblockBiome(@NotNull HellblockWorld<?> world, @NotNull BoundingBox bounds, @NotNull Biome biome) {
 		Objects.requireNonNull(biome, () -> "Unsupported biome: " + biome.toString());
 		Objects.requireNonNull(world, "Cannot set biome of null world");
 		Objects.requireNonNull(bounds, "Cannot set biome of null bounding box");
 
-		getHellblockChunks(world, bounds).thenAccept(chunks -> {
-			final Location min = new Location(world, bounds.getMinX(), bounds.getMinY(), bounds.getMinZ());
-			final Location max = new Location(world, bounds.getMaxX(), bounds.getMaxY(), bounds.getMaxZ());
-			setBiome(min, max, biome)
-					.thenRun(() -> chunks.forEach(chunk -> chunk.getWorld().refreshChunk(chunk.getX(), chunk.getZ())));
+		getHellblockChunks(world, bounds).thenAccept(chunkPositions -> {
+			Pos3 min = Pos3.toMinPos3(bounds, world.bukkitWorld().getMinHeight());
+			Pos3 max = Pos3.toMaxPos3(bounds, world.bukkitWorld().getMaxHeight());
+
+			// Refresh chunks in Bukkit world
+			setBiome(world, min, max, biome)
+					.thenRun(() -> chunkPositions.forEach(pos -> world.bukkitWorld().refreshChunk(pos.x(), pos.z())));
 		}).exceptionally(throwable -> {
 			throwable.printStackTrace();
 			return null;
@@ -244,33 +313,35 @@ public class BiomeHandler {
 	 * @param end   the end position.
 	 **/
 	@NotNull
-	public CompletableFuture<Void> setBiome(@NotNull Location start, @NotNull Location end, @NotNull Biome biome) {
-		Objects.requireNonNull(start, "Start location cannot be null");
-		Objects.requireNonNull(end, "End location cannot be null");
+	public CompletableFuture<Void> setBiome(@NotNull HellblockWorld<?> world, @NotNull Pos3 start, @NotNull Pos3 end,
+			@NotNull Biome biome) {
+		Objects.requireNonNull(start, "Start position cannot be null");
+		Objects.requireNonNull(end, "End position cannot be null");
 		Objects.requireNonNull(biome, () -> "Unsupported biome: " + biome.toString());
-		final World world = start.getWorld(); // Avoid getting from weak reference in a loop.
-		if (!world.getUID().equals(end.getWorld().getUID())) {
-			throw new IllegalArgumentException("Location worlds mismatch");
-		}
-		final int heightMax = world.getMaxHeight();
-		final int heightMin = world.getMinHeight();
+		Objects.requireNonNull(world, "Hellblock world cannot be null");
 
-		// Apparently setBiome is thread-safe.
+		final World bukkitWorld = world.bukkitWorld();
+		final int minX = Math.min(start.x(), end.x());
+		final int maxX = Math.max(start.x(), end.x());
+		final int minZ = Math.min(start.z(), end.z());
+		final int maxZ = Math.max(start.z(), end.z());
+		final int sampleY = Math.max(bukkitWorld.getMinHeight(), bukkitWorld.getSeaLevel()); // use mid height
+
 		return CompletableFuture.runAsync(() -> {
-			for (int x = start.getBlockX(); x < end.getBlockX(); x++) {
-				// As of now increasing it by 4 seems to work.
-				// This should be the minimal size of the vertical biomes.
-				for (int y = heightMin; y < heightMax; y += 4) {
-					for (int z = start.getBlockZ(); z < end.getBlockZ(); z++) {
-						final Block block = new Location(world, x, y, z).getBlock();
-						if (block.getBiome() != biome) {
-							block.setBiome(biome);
+			for (int x = minX; x <= maxX; x++) {
+				for (int z = minZ; z <= maxZ; z++) {
+					// Sample one Y-level per column to check current biome
+					Biome current = bukkitWorld.getBiome(x, sampleY, z);
+					if (current != biome) {
+						// Set the entire column biome — Paper applies internally to all Y-levels
+						for (int y = bukkitWorld.getMinHeight(); y < bukkitWorld.getMaxHeight(); y += 4) {
+							bukkitWorld.setBiome(x, y, z, biome);
 						}
 					}
 				}
 			}
-		}).exceptionally((result) -> {
-			result.printStackTrace();
+		}).exceptionally(ex -> {
+			ex.printStackTrace();
 			return null;
 		});
 	}
@@ -287,22 +358,25 @@ public class BiomeHandler {
 	 *         the bounding box.
 	 */
 	@NotNull
-	public CompletableFuture<List<Chunk>> getHellblockChunks(@NotNull World world, @NotNull BoundingBox bounds) {
+	public CompletableFuture<Set<ChunkPos>> getHellblockChunks(@NotNull HellblockWorld<?> world,
+			@NotNull BoundingBox bounds) {
 		Objects.requireNonNull(bounds, "Cannot get chunks of null bounding box");
-		final CompletableFuture<List<Chunk>> chunkData = new CompletableFuture<>();
-		final List<Chunk> chunks = new ArrayList<>();
 
-		final int minX = (int) bounds.getMinX() >> 4;
-		final int minZ = (int) bounds.getMinZ() >> 4;
-		final int maxX = (int) bounds.getMaxX() >> 4;
-		final int maxZ = (int) bounds.getMaxZ() >> 4;
+		final CompletableFuture<Set<ChunkPos>> chunkData = new CompletableFuture<>();
+		final Set<ChunkPos> chunkPositions = new HashSet<>();
 
-		for (int x = minX; x <= maxX; x++) {
-			for (int z = minZ; z <= maxZ; z++) {
-				chunks.add(world.getChunkAt(x, z));
+		final int minChunkX = (int) bounds.getMinX() >> 4;
+		final int maxChunkX = (int) bounds.getMaxX() >> 4;
+		final int minChunkZ = (int) bounds.getMinZ() >> 4;
+		final int maxChunkZ = (int) bounds.getMaxZ() >> 4;
+
+		for (int x = minChunkX; x <= maxChunkX; x++) {
+			for (int z = minChunkZ; z <= maxChunkZ; z++) {
+				chunkPositions.add(ChunkPos.of(x, z));
 			}
 		}
-		chunkData.complete(chunks.stream().collect(Collectors.toList()));
+
+		chunkData.complete(chunkPositions);
 		return chunkData;
 	}
 }

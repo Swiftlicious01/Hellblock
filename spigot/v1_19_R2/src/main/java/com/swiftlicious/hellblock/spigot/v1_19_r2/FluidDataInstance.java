@@ -34,7 +34,8 @@ public class FluidDataInstance implements FluidData {
 	}
 
 	public static FluidData createData(final FluidState state) {
-		return MAP.getOrDefault(state.getType().getClass(), FluidDataInstance::new).apply(state);
+		net.minecraft.world.level.material.Fluid type = state.getType();
+		return MAP.getOrDefault(type.getClass(), FluidDataInstance::new).apply(state);
 	}
 
 	private final FluidState state;

@@ -1,7 +1,9 @@
 package com.swiftlicious.hellblock.gui.reset;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -10,7 +12,6 @@ import java.util.concurrent.ConcurrentMap;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
-import org.bukkit.event.Event.Result;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
@@ -29,6 +30,7 @@ import com.swiftlicious.hellblock.context.ContextKeys;
 import com.swiftlicious.hellblock.creation.item.CustomItem;
 import com.swiftlicious.hellblock.handlers.ActionManager;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
+import com.swiftlicious.hellblock.player.HellblockData;
 import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.sender.Sender;
 import com.swiftlicious.hellblock.utils.extras.Action;
@@ -72,9 +74,19 @@ public class ResetConfirmGUIManager implements ResetConfirmGUIManagerInterface, 
 	}
 
 	private void loadConfig() {
-		Section config = instance.getConfigManager().getGuiConfig().getSection("confirm-reset.gui");
+		Section configFile = instance.getConfigManager().getGUIConfig("reset.yml");
+		if (configFile == null) {
+			instance.getPluginLogger().severe("GUI for reset.yml was unable to load correctly!");
+			return;
+		}
+		Section config = configFile.getSection("confirm-reset.gui");
+		if (config == null) {
+			instance.getPluginLogger()
+					.severe("confirm-reset.gui returned null, please regenerate your reset.yml GUI file.");
+			return;
+		}
 
-		this.layout = config.getStringList("layout").toArray(new String[0]);
+		this.layout = config.getStringList("layout", new ArrayList<>()).toArray(new String[0]);
 		this.title = TextValue.auto(config.getString("title", "confirm-reset.title"));
 
 		Section denySection = config.getSection("deny-icon");
@@ -124,29 +136,26 @@ public class ResetConfirmGUIManager implements ResetConfirmGUIManagerInterface, 
 		}
 	}
 
-	/**
-	 * Open the ResetConfirm GUI for a player
-	 *
-	 * @param player player
-	 */
 	@Override
-	public boolean openResetConfirmGUI(Player player) {
+	public boolean openResetConfirmGUI(Player player, int islandId, boolean isOwner) {
 		Optional<UserData> optionalUserData = instance.getStorageManager().getOnlineUser(player.getUniqueId());
 		if (optionalUserData.isEmpty()) {
 			instance.getPluginLogger()
 					.warn("Player " + player.getName() + "'s hellblock data has not been loaded yet.");
 			return false;
 		}
-		if (optionalUserData.get().getHellblockData().getResetCooldown() > 0) {
+		HellblockData hellblockData = optionalUserData.get().getHellblockData();
+		if (hellblockData.getResetCooldown() > 0) {
 			Sender audience = instance.getSenderFactory().wrap(player);
-			audience.sendMessage(instance.getTranslationManager().render(
-					MessageConstants.MSG_HELLBLOCK_RESET_ON_COOLDOWN.arguments(AdventureHelper.miniMessage(instance
-							.getFormattedCooldown(optionalUserData.get().getHellblockData().getResetCooldown())))
+			audience.sendMessage(instance.getTranslationManager()
+					.render(MessageConstants.MSG_HELLBLOCK_RESET_ON_COOLDOWN.arguments(AdventureHelper.miniMessageToComponent(
+							instance.getCooldownManager().getFormattedCooldown(hellblockData.getResetCooldown())))
 							.build()));
 			return false;
 		}
 		Context<Player> context = Context.player(player);
-		ResetConfirmGUI gui = new ResetConfirmGUI(this, context, optionalUserData.get().getHellblockData());
+		Context<Integer> islandContext = Context.island(islandId);
+		ResetConfirmGUI gui = new ResetConfirmGUI(this, context, islandContext, hellblockData, isOwner);
 		gui.addElement(new ResetConfirmDynamicGUIElement(denySlot, new ItemStack(Material.AIR)));
 		gui.addElement(new ResetConfirmDynamicGUIElement(confirmSlot, new ItemStack(Material.AIR)));
 		decorativeIcons.entrySet().forEach(entry -> gui
@@ -201,7 +210,17 @@ public class ResetConfirmGUIManager implements ResetConfirmGUIManagerInterface, 
 			return;
 		}
 
-		event.setResult(Result.DENY);
+		// Check if any dragged slot is in the GUI (top inventory)
+		for (int slot : event.getRawSlots()) {
+			if (slot < event.getInventory().getSize()) {
+				event.setCancelled(true);
+				return;
+			}
+		}
+
+		// If the drag is only in the player inventory, do nothing special
+		// but still make sure no ghost items appear
+		event.setCancelled(true);
 
 		// Refresh the GUI
 		instance.getScheduler().sync().runLater(gui::refresh, 1, player.getLocation());
@@ -231,7 +250,13 @@ public class ResetConfirmGUIManager implements ResetConfirmGUIManagerInterface, 
 			return;
 		}
 
-		if (clickedInv != player.getInventory()) {
+		// Handle shift-clicks, number keys, or clicking outside GUI
+		if (event.getClick().isShiftClick() || event.getClick().isKeyboardClick()) {
+			event.setCancelled(true);
+			return;
+		}
+
+		if (!Objects.equals(clickedInv, player.getInventory())) {
 			int slot = event.getSlot();
 			ResetConfirmGUIElement element = gui.getElement(slot);
 			if (element == null) {
@@ -241,21 +266,23 @@ public class ResetConfirmGUIManager implements ResetConfirmGUIManagerInterface, 
 
 			Pair<CustomItem, Action<Player>[]> decorativeIcon = this.decorativeIcons.get(element.getSymbol());
 			if (decorativeIcon != null) {
+				event.setCancelled(true);
 				ActionManager.trigger(gui.context, decorativeIcon.right());
 				return;
 			}
 
 			if (element.getSymbol() == denySlot) {
 				event.setCancelled(true);
-				instance.getHellblockGUIManager().openHellblockGUI(gui.context.holder(),
-						gui.hellblockData.getOwnerUUID().equals(gui.context.holder().getUniqueId()));
+				instance.getHellblockGUIManager().openHellblockGUI(gui.context.holder(), gui.islandContext.holder(),
+						gui.isOwner);
 				ActionManager.trigger(gui.context, denyActions);
 				return;
 			}
-			
+
 			Sender audience = instance.getSenderFactory().wrap(gui.context.holder());
 
-			if (gui.hellblockData.getOwnerUUID() != null && !gui.hellblockData.getOwnerUUID().equals(gui.context.holder().getUniqueId())) {
+			if (gui.hellblockData.getOwnerUUID() != null
+					&& !gui.hellblockData.getOwnerUUID().equals(gui.context.holder().getUniqueId())) {
 				audience.sendMessage(
 						instance.getTranslationManager().render(MessageConstants.MSG_NOT_OWNER_OF_HELLBLOCK.build()));
 				AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
@@ -276,10 +303,11 @@ public class ResetConfirmGUIManager implements ResetConfirmGUIManagerInterface, 
 			if (gui.hellblockData.getResetCooldown() > 0) {
 				gui.context.arg(ContextKeys.RESET_COOLDOWN, gui.hellblockData.getResetCooldown()).arg(
 						ContextKeys.RESET_COOLDOWN_FORMATTED,
-						instance.getFormattedCooldown(gui.hellblockData.getResetCooldown()));
+						instance.getCooldownManager().getFormattedCooldown(gui.hellblockData.getResetCooldown()));
 				audience.sendMessage(instance.getTranslationManager()
-						.render(MessageConstants.MSG_HELLBLOCK_RESET_ON_COOLDOWN.arguments(AdventureHelper
-								.miniMessage(instance.getFormattedCooldown(gui.hellblockData.getResetCooldown())))
+						.render(MessageConstants.MSG_HELLBLOCK_RESET_ON_COOLDOWN
+								.arguments(AdventureHelper.miniMessageToComponent(instance.getCooldownManager()
+										.getFormattedCooldown(gui.hellblockData.getResetCooldown())))
 								.build()));
 				AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
 						Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
@@ -297,6 +325,9 @@ public class ResetConfirmGUIManager implements ResetConfirmGUIManagerInterface, 
 		}
 
 		// Refresh the GUI
+		if (instance.getCooldownManager().shouldUpdateActivity(player.getUniqueId(), 15000)) {
+			gui.hellblockData.updateLastIslandActivity();
+		}
 		instance.getScheduler().sync().runLater(gui::refresh, 1, player.getLocation());
 	}
 }

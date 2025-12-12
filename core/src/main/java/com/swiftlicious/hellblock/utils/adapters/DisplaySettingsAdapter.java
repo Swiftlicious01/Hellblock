@@ -13,17 +13,36 @@ public class DisplaySettingsAdapter extends TypeAdapter<DisplaySettings> {
 
 	@Override
 	public void write(JsonWriter out, DisplaySettings display) throws IOException {
-		if (display == null) {
+		if (display == null || display.isEmpty()) {
 			out.nullValue();
 			return;
 		}
 
 		out.beginObject();
-		out.name("islandName").value(display.getIslandName());
-		out.name("islandBio").value(display.getIslandBio());
-		out.name("displayChoice").value(display.getDisplayChoice().name());
-		out.name("defaultIslandName").value(display.isDefaultIslandName());
-		out.name("defaultIslandBio").value(display.isDefaultIslandBio());
+
+		// Only serialize non-empty island name
+		if (!display.getIslandName().isEmpty()) {
+			out.name("islandName").value(display.getIslandName());
+		}
+
+		// Only serialize non-empty island bio
+		if (!display.getIslandBio().isEmpty()) {
+			out.name("islandBio").value(display.getIslandBio());
+		}
+
+		if (display.getDisplayChoice() != DisplayChoice.CHAT) {
+			out.name("displayChoice").value(display.getDisplayChoice().name());
+		}
+
+		// Only serialize booleans if false
+		if (!display.isDefaultIslandName()) {
+			out.name("defaultIslandName").value(false);
+		}
+
+		if (!display.isDefaultIslandBio()) {
+			out.name("defaultIslandBio").value(false);
+		}
+
 		out.endObject();
 	}
 

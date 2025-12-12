@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -37,12 +38,18 @@ public class PartyGUI {
 	private final PartyGUIManager manager;
 	protected final Inventory inventory;
 	protected final Context<Player> context;
+	protected final Context<Integer> islandContext;
 	protected final HellblockData hellblockData;
-	protected final boolean isOwner;
+	protected boolean isOwner;
 
-	public PartyGUI(PartyGUIManager manager, Context<Player> context, HellblockData hellblockData, boolean isOwner) {
+	private volatile boolean refreshInProgress = false;
+	private volatile boolean refreshQueued = false;
+
+	public PartyGUI(PartyGUIManager manager, Context<Player> context, Context<Integer> islandContext,
+			HellblockData hellblockData, boolean isOwner) {
 		this.manager = manager;
 		this.context = context;
+		this.islandContext = islandContext;
 		this.hellblockData = hellblockData;
 		this.isOwner = isOwner;
 		this.itemsCharMap = new HashMap<>();
@@ -111,99 +118,153 @@ public class PartyGUI {
 	 * 
 	 * @return The PartyGUI instance.
 	 */
-	/**
-	 * Refresh the GUI, updating the display based on current data.
-	 *
-	 * @return The PartyGUI instance.
-	 */
 	public PartyGUI refresh() {
-		// --- Back button ---
-		PartyDynamicGUIElement backElement = (PartyDynamicGUIElement) getElement(manager.backSlot);
-		if (backElement != null && !backElement.getSlots().isEmpty()) {
-			backElement.setItemStack(manager.backIcon.build(context));
+		if (refreshInProgress) {
+			refreshQueued = true;
+			return this;
+		}
+		refreshInProgress = true;
+		refreshQueued = false;
+
+		UUID ownerUUID = hellblockData.getOwnerUUID();
+		if (ownerUUID == null) {
+			refreshInProgress = false;
+			return this;
 		}
 
-		manager.instance.getStorageManager()
-				.getOfflineUserData(hellblockData.getOwnerUUID(), manager.instance.getConfigManager().lockData())
-				.thenAccept(result -> {
-					if (result.isEmpty()) {
-						// Close inventory on the main thread
-						manager.instance.getScheduler().executeSync(() -> context.holder().closeInventory());
-						return;
-					}
-
-					UserData ownerData = result.get();
-
-					context.arg(ContextKeys.HELLBLOCK_PARTY_COUNT, ownerData.getHellblockData().getParty().size());
-
-					// --- Owner icon ---
-					PartyDynamicGUIElement ownerElement = (PartyDynamicGUIElement) getElement(manager.ownerSlot);
-					if (ownerElement != null && !ownerElement.getSlots().isEmpty()) {
-						try {
-							UUID ownerUUID = ownerData.getUUID();
-							Item<ItemStack> item = manager.instance.getItemManager()
-									.wrap(manager.ownerIcon.build(context));
-
-							String username = Bukkit.getPlayer(ownerUUID) != null
-									? Bukkit.getPlayer(ownerUUID).getName()
-									: Bukkit.getOfflinePlayer(ownerUUID).hasPlayedBefore()
-											&& Bukkit.getOfflinePlayer(ownerUUID).getName() != null
-													? Bukkit.getOfflinePlayer(ownerUUID).getName()
-													: null;
-
-							boolean isOnline = Bukkit.getPlayer(ownerUUID) != null
-									&& Bukkit.getPlayer(ownerUUID).isOnline();
-
-							if (username != null) {
-								item.displayName(AdventureHelper.miniMessageToJson(
-										manager.ownerName.replace("{player}", username).replace("{login_status}",
-												isOnline ? manager.onlineStatus : manager.offlineStatus)));
-
-								List<String> newLore = new ArrayList<>();
-								manager.ownerLore.forEach(lore -> newLore.add(AdventureHelper
-										.miniMessageToJson(lore.replace("{player}", username).replace("{login_status}",
-												isOnline ? manager.onlineStatus : manager.offlineStatus))));
-								item.lore(newLore);
+		manager.instance.getScheduler().executeAsync(() -> {
+			try {
+				// --- Load Owner Data Asynchronously ---
+				manager.instance.getStorageManager()
+						.getCachedUserDataWithFallback(ownerUUID, manager.instance.getConfigManager().lockData())
+						.thenAccept(result -> {
+							if (result.isEmpty()) {
+								manager.instance.getScheduler().executeSync(() -> context.holder().closeInventory());
+								finishRefresh();
+								return;
 							}
 
-							GameProfile profile = GameProfileBuilder.fetch(ownerUUID);
-							item.skull(profile.getProperties().get("textures").iterator().next().getValue());
+							UserData ownerData = result.get();
+							islandContext.arg(ContextKeys.ISLAND_PARTY_COUNT,
+									ownerData.getHellblockData().getPartyMembers().size());
 
-							ownerElement.setUUID(ownerUUID);
-							ownerElement.setItemStack(item.load());
-						} catch (IllegalArgumentException | IOException ex) {
-							// ignored
-						}
-					}
+							manager.instance.getScheduler().executeSync(() -> {
+								try {
+									// --- Back button ---
+									PartyDynamicGUIElement backElement = (PartyDynamicGUIElement) getElement(
+											manager.backSlot);
+									if (backElement != null && !backElement.getSlots().isEmpty()) {
+										backElement.setItemStack(manager.backIcon.build(context));
+									}
 
-					// --- Party members ---
-					Set<UUID> party = ownerData.getHellblockData().getParty();
-					if (party.isEmpty())
-						party = Collections.emptySet();
+									// --- Trusted icon ---
+									PartyDynamicGUIElement trustedElement = (PartyDynamicGUIElement) getElement(
+											manager.trustedSlot);
+									if (trustedElement != null && !trustedElement.getSlots().isEmpty()) {
+										trustedElement.setItemStack(manager.trustedIcon.build(context));
+									}
 
-					// Render existing members
-					party.forEach(id -> manager.memberIcons
-							.forEach(entry -> renderSlot(entry.left(), entry.right().left(), entry.mid(), id, false)));
+									// --- Banned icon ---
+									PartyDynamicGUIElement bannedElement = (PartyDynamicGUIElement) getElement(
+											manager.bannedSlot);
+									if (bannedElement != null && !bannedElement.getSlots().isEmpty()) {
+										bannedElement.setItemStack(manager.bannedIcon.build(context));
+									}
 
-					// Fill newMemberIcons: interactive up to maxSize, filler beyond maxSize
-					int maxSize = manager.instance.getCoopManager().getMaxPartySize(ownerData);
+									// --- Owner icon ---
+									PartyDynamicGUIElement ownerElement = (PartyDynamicGUIElement) getElement(
+											manager.ownerSlot);
+									if (ownerElement != null && !ownerElement.getSlots().isEmpty()) {
+										try {
+											UUID ownerID = ownerData.getUUID();
+											Item<ItemStack> item = manager.instance.getItemManager()
+													.wrap(manager.ownerIcon.build(context));
 
-					manager.newMemberIcons.entrySet().forEach(entry -> {
-						Character symbol = entry.getKey();
-						int index = manager.getMemberSlotIndex(symbol);
-						boolean beyondLimit = index >= maxSize;
+											String username = Bukkit.getPlayer(ownerID) != null
+													? Bukkit.getPlayer(ownerID).getName()
+													: Bukkit.getOfflinePlayer(ownerID).hasPlayedBefore()
+															&& Bukkit.getOfflinePlayer(ownerID).getName() != null
+																	? Bukkit.getOfflinePlayer(ownerID).getName()
+																	: null;
 
-						renderSlot(symbol, entry.getValue().left(), null, null, beyondLimit);
-					});
+											boolean isOnline = Bukkit.getPlayer(ownerID) != null
+													&& Bukkit.getPlayer(ownerID).isOnline();
 
-					// --- Push all dynamic elements into inventory ---
-					itemsSlotMap.entrySet().stream().filter(entry -> entry.getValue() instanceof PartyDynamicGUIElement)
-							.forEach(entry -> {
-								PartyDynamicGUIElement dynamicGUIElement = (PartyDynamicGUIElement) entry.getValue();
-								this.inventory.setItem(entry.getKey(), dynamicGUIElement.getItemStack().clone());
+											if (username != null) {
+												item.displayName(AdventureHelper.miniMessageToJson(
+														manager.ownerName.replace("{player}", username).replace(
+																"{login_status}", isOnline ? manager.onlineStatus
+																		: manager.offlineStatus)));
+
+												List<String> newLore = new ArrayList<>();
+												manager.ownerLore
+														.forEach(
+																lore -> newLore.add(AdventureHelper.miniMessageToJson(
+																		lore.replace("{player}", username)
+																				.replace("{login_status}", isOnline
+																						? manager.onlineStatus
+																						: manager.offlineStatus))));
+												item.lore(newLore);
+											}
+
+											GameProfile profile = GameProfileBuilder.fetch(ownerID);
+											item.skull(profile.getProperties().get("textures").iterator().next()
+													.getValue());
+
+											ownerElement.setUUID(ownerID);
+											ownerElement.setItemStack(item.load());
+										} catch (IllegalArgumentException | IOException ignored) {
+										}
+									}
+
+									// --- Party Members ---
+									Set<UUID> party = new HashSet<>(ownerData.getHellblockData().getPartyMembers());
+									int maxSize = manager.instance.getCoopManager().getMaxPartySize(ownerData);
+
+									// Render members
+									party.forEach(id -> manager.memberIcons.forEach(entry -> renderSlot(entry.left(),
+											entry.right().left(), entry.mid(), id, false)));
+
+									// Render new-member slots
+									manager.newMemberIcons.forEach((symbol, tuple) -> {
+										int index = manager.getMemberSlotIndex(symbol);
+										boolean beyondLimit = index >= maxSize;
+										renderSlot(symbol, tuple.left(), null, null, beyondLimit);
+									});
+
+									// --- Apply Updated Elements ---
+									itemsSlotMap.forEach((slot, element) -> {
+										if (element instanceof PartyDynamicGUIElement dynamic) {
+											inventory.setItem(slot, dynamic.getItemStack().clone());
+										}
+									});
+								} finally {
+									finishRefresh();
+								}
 							});
-				});
+						}).exceptionally(ex -> {
+							manager.instance.getPluginLogger().severe("Failed to refresh PartyGUI: " + ex.getMessage());
+							finishRefresh();
+							return null;
+						});
+			} catch (Exception ex) {
+				manager.instance.getPluginLogger().severe("Error during PartyGUI refresh: " + ex.getMessage());
+				finishRefresh();
+			}
+		});
+
 		return this;
+	}
+
+	/**
+	 * Helper to handle debounce finalization and queued refreshes.
+	 */
+	private void finishRefresh() {
+		refreshInProgress = false;
+		if (refreshQueued) {
+			refreshQueued = false;
+			manager.instance.getScheduler().sync().run(this::refresh, context.holder().getLocation());
+		}
 	}
 
 	/**
@@ -215,8 +276,10 @@ public class PartyGUI {
 		PartyDynamicGUIElement element = (PartyDynamicGUIElement) getElement(symbol);
 		if (element == null || element.getSlots().isEmpty())
 			return;
+		
+		Context<Player> combinedCtx = context.merge(islandContext);
 
-		Item<ItemStack> item = manager.instance.getItemManager().wrap(baseItem.build(context));
+		Item<ItemStack> item = manager.instance.getItemManager().wrap(baseItem.build(combinedCtx));
 
 		// username (if member)
 		String username = null;
@@ -283,6 +346,6 @@ public class PartyGUI {
 			element.setUUID(null);
 		}
 
-		element.setItemStack(item.load());
+		element.setItemStack(item.loadCopy());
 	}
 }

@@ -2,6 +2,7 @@ package com.swiftlicious.hellblock.world;
 
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.util.stream.Stream;
 
@@ -39,7 +40,7 @@ public interface CustomChunkInterface {
 	 * @param loadBukkitChunk Whether to temporarily load the Bukkit chunk if it is
 	 *                        not already loaded.
 	 */
-	void load(boolean loadBukkitChunk);
+	CompletableFuture<Boolean> load(boolean loadBukkitChunk);
 
 	/**
 	 * Unloads the chunk, with an option for a lazy unload. Lazy unloading delays
@@ -135,8 +136,8 @@ public interface CustomChunkInterface {
 	 * Removes any custom block state at a specific location.
 	 *
 	 * @param location The location from which to remove the block state.
-	 * @return An {@link Optional} containing the removed
-	 *         {@link CustomBlockState} if present, otherwise empty.
+	 * @return An {@link Optional} containing the removed {@link CustomBlockState}
+	 *         if present, otherwise empty.
 	 */
 	@NotNull
 	Optional<CustomBlockState> removeBlockState(Pos3 location);
@@ -146,8 +147,8 @@ public interface CustomChunkInterface {
 	 *
 	 * @param location The location to add the block state.
 	 * @param block    The custom block state to add.
-	 * @return An {@link Optional} containing the previous
-	 *         {@link CustomBlockState} if replaced, otherwise empty.
+	 * @return An {@link Optional} containing the previous {@link CustomBlockState}
+	 *         if replaced, otherwise empty.
 	 */
 	@NotNull
 	Optional<CustomBlockState> addBlockState(Pos3 location, CustomBlockState block);
@@ -164,8 +165,8 @@ public interface CustomChunkInterface {
 	 * Retrieves a loaded section by its ID.
 	 *
 	 * @param sectionID The ID of the section to retrieve.
-	 * @return An {@link Optional} containing the {@link CustomSection} if
-	 *         loaded, otherwise empty.
+	 * @return An {@link Optional} containing the {@link CustomSection} if loaded,
+	 *         otherwise empty.
 	 */
 	@NotNull
 	Optional<CustomSection> getLoadedSection(int sectionID);
@@ -189,8 +190,8 @@ public interface CustomChunkInterface {
 	 * Removes a section by its ID.
 	 *
 	 * @param sectionID The ID of the section to remove.
-	 * @return An {@link Optional} containing the removed {@link CustomSection}
-	 *         if present, otherwise empty.
+	 * @return An {@link Optional} containing the removed {@link CustomSection} if
+	 *         present, otherwise empty.
 	 */
 	Optional<CustomSection> removeSection(int sectionID);
 

@@ -22,8 +22,12 @@ public class MiniMessageTranslator implements MiniMessageTranslatorInterface {
 
 	private static final Key NAME = Key.key("hellblock", "main");
 	static final MiniMessageTranslator INSTANCE = new MiniMessageTranslator();
-	final TranslatableComponentRenderer<Locale> renderer = TranslatableComponentRenderer.usingTranslationSource(this);
+	final TranslatableComponentRenderer<Locale> renderer;
 	private final Set<Translator> sources = Collections.newSetFromMap(new ConcurrentHashMap<>());
+
+	private MiniMessageTranslator() {
+		this.renderer = TranslatableComponentRenderer.usingTranslationSource(this);
+	}
 
 	@Override
 	public @NotNull Key name() {

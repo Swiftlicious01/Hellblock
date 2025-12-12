@@ -37,9 +37,9 @@ public class PlayerUtils {
 			final double d1 = Math.sin(location.getPitch() * (Math.PI / 180));
 			final double d2 = RandomUtils.generateRandomDouble(0, 0.02);
 			final double d3 = RandomUtils.generateRandomDouble(0, 1) * (Math.PI * 2);
-			final Vector vector = location.getDirection().multiply(0.3).setY(-d1 * 0.3 + 0.1
+			final Vector vector = location.getDirection().clone().multiply(0.3).setY(-d1 * 0.3 + 0.1
 					+ (RandomUtils.generateRandomDouble(0, 1) - RandomUtils.generateRandomDouble(0, 1)) * 0.1);
-			vector.add(new Vector(Math.cos(d3) * d2, 0, Math.sin(d3) * d2));
+			vector.clone().add(new Vector(Math.cos(d3) * d2, 0, Math.sin(d3) * d2));
 			item.setVelocity(vector);
 		}
 	}
