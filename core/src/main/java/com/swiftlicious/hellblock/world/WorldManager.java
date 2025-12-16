@@ -362,7 +362,7 @@ public class WorldManager implements WorldManagerInterface, Listener {
 				instance.getIntegrationManager().isHooked("SlimeWorldManager");
 			} catch (ClassNotFoundException ignored) {
 			}
-			if (Bukkit.getPluginManager().isPluginEnabled("SlimeWorldPlugin")) {
+			if (instance.isHookedPluginEnabled("SlimeWorldPlugin")) {
 				final SlimeWorldAdapter adapter = new SlimeWorldAdapter(instance, 2);
 				adapters.add(adapter);
 				Bukkit.getPluginManager().registerEvents(adapter, instance);

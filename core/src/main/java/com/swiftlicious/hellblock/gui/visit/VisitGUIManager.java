@@ -100,8 +100,16 @@ public class VisitGUIManager implements VisitGUIManagerInterface, Listener {
 	public void unload() {
 		HandlerList.unregisterAll(this);
 		this.decorativeIcons.clear();
+		this.sortingIcons.clear();
 		this.pageLayouts.clear();
 		this.pageTitles.clear();
+	}
+
+	@Override
+	public void disable() {
+		unload();
+		this.guiUpdateTasks.values().stream().filter(Objects::nonNull).filter(task -> !task.isCancelled())
+				.forEach(SchedulerTask::cancel);
 	}
 
 	private void loadConfig() {
@@ -172,7 +180,9 @@ public class VisitGUIManager implements VisitGUIManagerInterface, Listener {
 
 		filledSection = config.getSection("filled-icon");
 		if (filledSection != null) {
-			filledSlot = filledSection.getString("symbol", "S").charAt(0);
+			char symbol = filledSection.getString("symbol", "S").charAt(0);
+			filledSlot = symbol;
+			emptySlot = symbol;
 
 			filledIcon = new SingleItemParser("filled", filledSection,
 					instance.getConfigManager().getItemFormatFunctions()).getItem();
@@ -181,8 +191,6 @@ public class VisitGUIManager implements VisitGUIManagerInterface, Listener {
 
 		emptySection = config.getSection("empty-icon");
 		if (emptySection != null) {
-			emptySlot = emptySection.getString("symbol", "S").charAt(0);
-
 			emptyIcon = new SingleItemParser("empty", emptySection,
 					instance.getConfigManager().getItemFormatFunctions()).getItem();
 			emptyActions = instance.getActionManager(Player.class).parseActions(emptySection.getSection("action"));
@@ -268,12 +276,6 @@ public class VisitGUIManager implements VisitGUIManagerInterface, Listener {
 		if (optionalUserData.isEmpty()) {
 			instance.getPluginLogger()
 					.warn("Player " + player.getName() + "'s hellblock data has not been loaded yet.");
-			return false;
-		}
-		boolean checkFilledSlots = Objects.equals(filledSlot, emptySlot);
-		if (!checkFilledSlots) {
-			instance.getPluginLogger().warn(
-					"Filled and empty slots don't equal the same variable. Please update them to the same symbols.");
 			return false;
 		}
 		Context<Player> context = Context.player(player);
@@ -445,7 +447,7 @@ public class VisitGUIManager implements VisitGUIManagerInterface, Listener {
 					int limit = getFilledSlotCount();
 
 					Consumer<List<VisitEntry>> callback = entries -> instance.getScheduler().executeSync(() -> {
-						gui.populateVisitEntries(entries, sortType);
+						gui.populateVisitEntries(entries, sortType, gui.getCurrentPage());
 						gui.refresh();
 					});
 
@@ -604,13 +606,36 @@ public class VisitGUIManager implements VisitGUIManagerInterface, Listener {
 
 	public int getFilledSlotCount() {
 		int count = 0;
-		for (String row : layout) {
-			for (char c : row.toCharArray()) {
-				if (c == filledSlot)
-					count++;
+
+		if (hasPageLayouts()) {
+			for (String[] page : getActiveLayouts()) {
+				for (String row : page) {
+					for (char c : row.toCharArray()) {
+						if (c == filledSlot)
+							count++;
+					}
+				}
+			}
+		} else {
+			for (String row : layout) {
+				for (char c : row.toCharArray()) {
+					if (c == filledSlot)
+						count++;
+				}
 			}
 		}
 		return count;
+	}
+
+	public boolean hasPageLayouts() {
+		return !this.pageLayouts.isEmpty();
+	}
+
+	public String[][] getActiveLayouts() {
+		if (this.pageLayouts.isEmpty()) {
+			return new String[][] { this.layout }; // single layout wrapped in 2D array
+		}
+		return this.pageLayouts.values().toArray(new String[0][]); // multi-page layouts
 	}
 
 	private void startFeaturedGUIUpdate(Player player) {

@@ -65,6 +65,8 @@ public class PartyGUIManager implements PartyGUIManagerInterface, Listener {
 	protected char trustedSlot;
 	protected char bannedSlot;
 
+	protected char memberSlot;
+
 	protected String ownerName;
 	protected List<String> ownerLore;
 	protected String onlineStatus;
@@ -165,9 +167,9 @@ public class PartyGUIManager implements PartyGUIManagerInterface, Listener {
 
 		Section memberSection = config.getSection("member-icon");
 		if (memberSection != null) {
-			char symbol = memberSection.getString("symbol", "M").charAt(0);
+			memberSlot = memberSection.getString("symbol", "M").charAt(0);
 
-			memberIcons.add(Tuple.of(symbol, memberSection, Tuple.of(
+			memberIcons.add(Tuple.of(memberSlot, memberSection, Tuple.of(
 					new SingleItemParser("member", memberSection, instance.getConfigManager().getItemFormatFunctions())
 							.getItem(),
 					null, instance.getActionManager(Player.class).parseActions(memberSection.getSection("action")))));
@@ -175,14 +177,16 @@ public class PartyGUIManager implements PartyGUIManagerInterface, Listener {
 
 		Section newMemberSection = config.getSection("new-member-icon");
 		if (newMemberSection != null) {
-			char symbol = newMemberSection.getString("symbol", "M").charAt(0);
+			if (memberSlot == '\u0000') {
+				memberSlot = newMemberSection.getString("symbol", "M").charAt(0);
+			}
 
-			newMemberIcons.put(symbol, Pair.of(
+			newMemberIcons.put(memberSlot, Pair.of(
 					new SingleItemParser("new_member", newMemberSection,
 							instance.getConfigManager().getItemFormatFunctions()).getItem(),
 					instance.getActionManager(Player.class).parseActions(newMemberSection.getSection("action"))));
 
-			newMemberIconSections.put(symbol, newMemberSection);
+			newMemberIconSections.put(memberSlot, newMemberSection);
 		}
 
 		// Load decorative icons from the configuration
@@ -592,11 +596,13 @@ public class PartyGUIManager implements PartyGUIManagerInterface, Listener {
 											.arg(ContextKeys.TRANSFER_COOLDOWN, hellblockData.getTransferCooldown())
 											.arg(ContextKeys.TRANSFER_COOLDOWN_FORMATTED, instance.getCooldownManager()
 													.getFormattedCooldown(hellblockData.getTransferCooldown()));
-									audience.sendMessage(instance.getTranslationManager()
-											.render(MessageConstants.MSG_HELLBLOCK_TRANSFER_ON_COOLDOWN
-													.arguments(AdventureHelper.miniMessageToComponent(instance.getCooldownManager()
-															.getFormattedCooldown(hellblockData.getTransferCooldown())))
-													.build()));
+									audience.sendMessage(
+											instance.getTranslationManager()
+													.render(MessageConstants.MSG_HELLBLOCK_TRANSFER_ON_COOLDOWN
+															.arguments(AdventureHelper.miniMessageToComponent(
+																	instance.getCooldownManager().getFormattedCooldown(
+																			hellblockData.getTransferCooldown())))
+															.build()));
 									AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
 											Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
 													net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));

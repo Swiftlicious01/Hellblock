@@ -205,8 +205,8 @@ public final class ConfigManager extends ConfigHandler {
 
 		// Ensure default GUI files exist
 		String[] defaultGuiFiles = { "main_menu.yml", "biomes.yml", "upgrades.yml", "flags.yml", "party.yml",
-				"invites.yml", "challenges.yml", "choices.yml", "notifications.yml", "display.yml", "schematics.yml",
-				"visit.yml", "events.yml", "reset.yml", "market.yml" };
+				"invites.yml", "challenges.yml", "choices.yml", "notifications.yml", "leaderboard.yml", "display.yml",
+				"schematics.yml", "visit.yml", "events.yml", "reset.yml", "market.yml" };
 
 		for (String name : defaultGuiFiles) {
 			// This automatically extracts the .yml.gz resource from the JAR if missing
@@ -289,6 +289,7 @@ public final class ConfigManager extends ConfigHandler {
 
 		transferIslands = config.getBoolean("hellblock.can-transfer-islands", true);
 		disableGenerationAnimation = config.getBoolean("hellblock.disable-generation-animation", false);
+		disableForcedIslandDecision = config.getBoolean("hellblock.disable-force-island-decision", false);
 		linkHellblocks = config.getBoolean("hellblock.can-link-hellblocks", true);
 		schematicPaster = config.getString("hellblock.schematic-paster", "worldedit");
 		config.getStringList("hellblock.island-options", new ArrayList<>()).stream()

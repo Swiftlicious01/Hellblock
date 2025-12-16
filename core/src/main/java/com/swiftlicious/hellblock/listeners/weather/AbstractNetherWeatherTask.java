@@ -31,7 +31,7 @@ public abstract class AbstractNetherWeatherTask implements NetherWeather {
 	 * Starts this weather repeating on the scheduler.
 	 */
 	public void schedule(long delayTicks, long periodTicks) {
-		this.repeatingTask = instance.getScheduler().sync().runRepeating(this::tick, delayTicks, periodTicks,
+		this.repeatingTask = instance.getScheduler().sync().runRepeating(this::runInternal, delayTicks, periodTicks,
 				LocationUtils.getAnyLocationInstance());
 		this.isActive = true;
 	}

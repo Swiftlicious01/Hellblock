@@ -77,10 +77,19 @@ public class VisitGUI extends PaginatedGUI<VisitGUIElement> {
 		this.itemsCharMap = new HashMap<>();
 		this.itemsSlotMap = new HashMap<>();
 		var holder = new VisitGUIHolder();
-		if (manager.layout.length == 1 && manager.layout[0].length() == 4) {
+		int rows;
+		if (manager.hasPageLayouts()) {
+			// assume all pages have equal row count for consistency
+			String[] firstPage = manager.getActiveLayouts()[0];
+			rows = firstPage.length;
+		} else {
+			rows = manager.layout.length;
+		}
+
+		if (rows == 1 && manager.layout[0].length() == 4) {
 			this.inventory = Bukkit.createInventory(holder, InventoryType.HOPPER);
 		} else {
-			this.inventory = Bukkit.createInventory(holder, manager.layout.length * 9);
+			this.inventory = Bukkit.createInventory(holder, rows * 9);
 		}
 		holder.setInventory(this.inventory);
 
@@ -222,7 +231,7 @@ public class VisitGUI extends PaginatedGUI<VisitGUIElement> {
 		this.refreshReason = refreshReason;
 	}
 
-	public void populateVisitEntries(@NotNull List<VisitEntry> entries, @NotNull VisitSorter sorter) {
+	public void populateVisitEntries(@NotNull List<VisitEntry> entries, @NotNull VisitSorter sorter, int pageIndex) {
 		// Prevent redundant sort triggers
 		setCurrentSorter(sorter);
 
@@ -243,179 +252,186 @@ public class VisitGUI extends PaginatedGUI<VisitGUIElement> {
 				existingSlotAssignments.put(entry.ownerId(), assignedIndex++);
 			}
 
+			String[][] layouts = manager.hasPageLayouts() ? new String[][] { manager.getActiveLayouts()[pageIndex] }
+					: new String[][] { manager.layout };
+
 			int layoutSlotIndex = 0;
 
-			for (int row = 0; row < manager.layout.length; row++) {
-				for (int col = 0; col < manager.layout[row].length(); col++) {
-					char symbol = manager.layout[row].charAt(col);
-					if (symbol != manager.filledSlot)
-						continue;
+			for (String[] pageLayout : layouts) {
+				for (int row = 0; row < pageLayout.length; row++) {
+					for (int col = 0; col < pageLayout[row].length(); col++) {
+						char symbol = pageLayout[row].charAt(col);
+						if (symbol != manager.filledSlot)
+							continue;
 
-					final int currentIndex = layoutSlotIndex;
-					Item<ItemStack> baseEmptyItem = manager.instance.getItemManager()
-							.wrap(manager.emptyIcon.build(context));
+						final int currentIndex = layoutSlotIndex;
+						Item<ItemStack> baseEmptyItem = manager.instance.getItemManager()
+								.wrap(manager.emptyIcon.build(context));
 
-					boolean isFeatured = sorter == VisitSorter.FEATURED;
+						boolean isFeatured = sorter == VisitSorter.FEATURED;
 
-					// Only retain lore if FEATURED view and player is island owner
-					if (!(isFeatured && isOwner)) {
-						baseEmptyItem.lore(Collections.emptyList());
-					}
-
-					final VisitDynamicGUIElement element = new VisitDynamicGUIElement(symbol, baseEmptyItem.loadCopy());
-
-					// Skip if we've assigned all entries already
-					if (currentIndex >= entries.size()) {
-						futures.add(CompletableFuture.completedFuture(element));
-						layoutSlotIndex++;
-						continue;
-					}
-
-					VisitEntry entry = entries.get(currentIndex);
-					UUID uuid = entry.ownerId();
-
-					// Ensure this entry is supposed to be placed in this layout slot
-					if (existingSlotAssignments.get(uuid) != currentIndex) {
-						layoutSlotIndex++;
-						continue;
-					}
-
-					int rank = currentIndex + 1;
-
-					UserData user = ownerMap.get(uuid);
-					if (user == null || !user.getHellblockData().hasHellblock()
-							|| user.getHellblockData().getOwnerUUID() == null) {
-						futures.add(CompletableFuture.completedFuture(element));
-						layoutSlotIndex++;
-						continue;
-					}
-
-					HellblockData data = user.getHellblockData();
-
-					if (data.isLocked()) {
-						futures.add(CompletableFuture.completedFuture(element));
-						layoutSlotIndex++;
-						continue;
-					}
-
-					element.setFeaturedUntil(data.getVisitData().getFeaturedUntil());
-
-					String playerName = data.getResolvedOwnerName();
-					String islandName = data.getDisplaySettings().getIslandName();
-					String islandBio = data.getDisplaySettings().getIslandBio();
-
-					// Set context args
-					Context<Integer> perIslandCtx = Context.island(data.getIslandId())
-							.arg(ContextKeys.VISIT_UUID, uuid.toString()).arg(ContextKeys.VISIT_NAME, playerName)
-							.arg(ContextKeys.VISIT_LEVEL, data.getIslandLevel())
-							.arg(ContextKeys.VISIT_COUNT, entry.visits()).arg(ContextKeys.VISIT_RANK, rank)
-							.arg(ContextKeys.VISIT_ISLAND_NAME, islandName)
-							.arg(ContextKeys.VISIT_ISLAND_BIO, islandBio);
-
-					Context<Player> combinedCtx = context.merge(perIslandCtx);
-					Item<ItemStack> filledItem = manager.instance.getItemManager()
-							.wrap(manager.filledIcon.build(combinedCtx));
-
-					// Check if this entry belongs to the current player
-					boolean isOwnerEntry = uuid.equals(context.holder().getUniqueId());
-
-					if (isOwnerEntry) {
-						// Tag the item for identification
-						filledItem.setTag("custom", "visit_gui", "owner_entry", 1);
-
-						// Append custom lore if defined
-						if (manager.filledSection.contains("display.self-indicator-additional-lore")) {
-							List<String> extraLore = manager.filledSection
-									.getStringList("display.self-indicator-additional-lore");
-							List<String> existingLore = new ArrayList<>(filledItem.lore().orElseGet(ArrayList::new));
-							extraLore.forEach(line -> existingLore.add(AdventureHelper.miniMessageToJson(line)));
-							filledItem.lore(existingLore);
+						// Only retain lore if FEATURED view and player is island owner
+						if (!(isFeatured && isOwner)) {
+							baseEmptyItem.lore(Collections.emptyList());
 						}
-					}
 
-					List<String> newLore = new ArrayList<>();
+						final VisitDynamicGUIElement element = new VisitDynamicGUIElement(symbol,
+								baseEmptyItem.loadCopy());
 
-					// Use plain text version of the bio for wrapping
-					String plainBio = AdventureHelper
-							.componentToPlainText(AdventureHelper.miniMessageToComponent(islandBio));
-
-					// Determine max characters per line (or use pixel-accurate wrapping if needed)
-					int wrapWidth = manager.instance.getConfigManager().wrapLength(); // or any appropriate width
-
-					for (String line : manager.filledSection.getStringList("display.lore")) {
-						if (!line.contains("{island_bio}")) {
-							// Simple replace for all other lines
-							newLore.add(AdventureHelper.miniMessageToJson(line.replace("{player}", playerName)
-									.replace("{visits}", String.valueOf(entry.visits()))
-									.replace("{uuid}", uuid.toString()).replace("{rank}", String.valueOf(rank))
-									.replace("{level}", String.valueOf(data.getIslandLevel()))
-									.replace("{island_name}", islandName)));
+						// Skip if we've assigned all entries already
+						if (currentIndex >= entries.size()) {
+							futures.add(CompletableFuture.completedFuture(element));
+							layoutSlotIndex++;
 							continue;
 						}
 
-						// --- Special case: line contains {island_bio} ---
-						String[] split = line.split("\\{island_bio\\}", 2);
-						String prefix = split[0];
-						String suffix = split.length > 1 ? split[1] : "";
+						VisitEntry entry = entries.get(currentIndex);
+						UUID uuid = entry.ownerId();
 
-						// Wrap the plain text bio into lines
-						List<String> wrapped = TextWrapUtils.wrapLineWithIndent(plainBio, wrapWidth, 0);
-
-						for (int i = 0; i < wrapped.size(); i++) {
-							String wrappedLine = wrapped.get(i);
-
-							// Only append suffix on first line (if needed)
-							String fullLine = prefix + wrappedLine + (i == 0 ? suffix : "");
-							// Re-apply placeholders
-							fullLine = fullLine.replace("{player}", playerName)
-									.replace("{visits}", String.valueOf(entry.visits()))
-									.replace("{uuid}", uuid.toString()).replace("{rank}", String.valueOf(rank))
-									.replace("{level}", String.valueOf(data.getIslandLevel()))
-									.replace("{island_name}", islandName);
-
-							newLore.add(AdventureHelper.miniMessageToJson(fullLine));
+						// Ensure this entry is supposed to be placed in this layout slot
+						if (existingSlotAssignments.get(uuid) != currentIndex) {
+							layoutSlotIndex++;
+							continue;
 						}
-					}
 
-					String name = manager.filledSection.getString("display.name").replace("{player}", playerName)
-							.replace("{visits}", String.valueOf(entry.visits())).replace("{uuid}", uuid.toString())
-							.replace("{rank}", String.valueOf(rank))
-							.replace("{level}", String.valueOf(data.getIslandLevel()))
-							.replace("{island_name}", islandName).replace("{island_bio}", islandBio);
+						int rank = currentIndex + 1;
 
-					filledItem.displayName(AdventureHelper.miniMessageToJson(name));
-					filledItem.lore(newLore);
+						UserData user = ownerMap.get(uuid);
+						if (user == null || !user.getHellblockData().hasHellblock()
+								|| user.getHellblockData().getOwnerUUID() == null) {
+							futures.add(CompletableFuture.completedFuture(element));
+							layoutSlotIndex++;
+							continue;
+						}
 
-					CompletableFuture<VisitDynamicGUIElement> future = CompletableFuture.supplyAsync(() -> {
-						try {
-							if (filledItem.getItem().getType() == Material.PLAYER_HEAD) {
-								String texture = cachedSkullTextures.computeIfAbsent(uuid, id -> {
-									try {
-										GameProfile profile = GameProfileBuilder.fetch(id);
-										return profile.getProperties().get("textures").iterator().next().getValue();
-									} catch (Exception ex) {
-										manager.instance.getPluginLogger().warn("Failed to fetch profile for " + id,
-												ex);
-										return null;
-									}
-								});
+						HellblockData data = user.getHellblockData();
 
-								if (texture != null) {
-									filledItem.skull(texture);
-									element.setSkullTexture(texture); // <- store for reuse
-								}
+						if (data.isLocked()) {
+							futures.add(CompletableFuture.completedFuture(element));
+							layoutSlotIndex++;
+							continue;
+						}
+
+						element.setFeaturedUntil(data.getVisitData().getFeaturedUntil());
+
+						String playerName = data.getResolvedOwnerName();
+						String islandName = data.getDisplaySettings().getIslandName();
+						String islandBio = data.getDisplaySettings().getIslandBio();
+
+						// Set context args
+						Context<Integer> perIslandCtx = Context.island(data.getIslandId())
+								.arg(ContextKeys.VISIT_UUID, uuid.toString()).arg(ContextKeys.VISIT_NAME, playerName)
+								.arg(ContextKeys.VISIT_LEVEL, data.getIslandLevel())
+								.arg(ContextKeys.VISIT_COUNT, entry.visits()).arg(ContextKeys.VISIT_RANK, rank)
+								.arg(ContextKeys.VISIT_ISLAND_NAME, islandName)
+								.arg(ContextKeys.VISIT_ISLAND_BIO, islandBio);
+
+						Context<Player> combinedCtx = context.merge(perIslandCtx);
+						Item<ItemStack> filledItem = manager.instance.getItemManager()
+								.wrap(manager.filledIcon.build(combinedCtx));
+
+						// Check if this entry belongs to the current player
+						boolean isOwnerEntry = uuid.equals(context.holder().getUniqueId());
+
+						if (isOwnerEntry) {
+							// Tag the item for identification
+							filledItem.setTag("custom", "visit_gui", "owner_entry", 1);
+
+							// Append custom lore if defined
+							if (manager.filledSection.contains("display.self-indicator-additional-lore")) {
+								List<String> extraLore = manager.filledSection
+										.getStringList("display.self-indicator-additional-lore");
+								List<String> existingLore = new ArrayList<>(
+										filledItem.lore().orElseGet(ArrayList::new));
+								extraLore.forEach(line -> existingLore.add(AdventureHelper.miniMessageToJson(line)));
+								filledItem.lore(existingLore);
+							}
+						}
+
+						List<String> newLore = new ArrayList<>();
+
+						// Use plain text version of the bio for wrapping
+						String plainBio = AdventureHelper
+								.componentToPlainText(AdventureHelper.miniMessageToComponent(islandBio));
+
+						// Determine max characters per line (or use pixel-accurate wrapping if needed)
+						int wrapWidth = manager.instance.getConfigManager().wrapLength(); // or any appropriate width
+
+						for (String line : manager.filledSection.getStringList("display.lore")) {
+							if (!line.contains("{island_bio}")) {
+								// Simple replace for all other lines
+								newLore.add(AdventureHelper.miniMessageToJson(line.replace("{player}", playerName)
+										.replace("{visits}", String.valueOf(entry.visits()))
+										.replace("{uuid}", uuid.toString()).replace("{rank}", String.valueOf(rank))
+										.replace("{level}", String.valueOf(data.getIslandLevel()))
+										.replace("{island_name}", islandName)));
+								continue;
 							}
 
-							ItemStack loaded = filledItem.loadCopy();
-							element.setItemStack(loaded);
-							element.setUUID(uuid);
-						} catch (Exception e) {
-							manager.instance.getPluginLogger().warn("Error processing skull for " + uuid, e);
+							// --- Special case: line contains {island_bio} ---
+							String[] split = line.split("\\{island_bio\\}", 2);
+							String prefix = split[0];
+							String suffix = split.length > 1 ? split[1] : "";
+
+							// Wrap the plain text bio into lines
+							List<String> wrapped = TextWrapUtils.wrapLineWithIndent(plainBio, wrapWidth, 0);
+
+							for (int i = 0; i < wrapped.size(); i++) {
+								String wrappedLine = wrapped.get(i);
+
+								// Only append suffix on first line (if needed)
+								String fullLine = prefix + wrappedLine + (i == 0 ? suffix : "");
+								// Re-apply placeholders
+								fullLine = fullLine.replace("{player}", playerName)
+										.replace("{visits}", String.valueOf(entry.visits()))
+										.replace("{uuid}", uuid.toString()).replace("{rank}", String.valueOf(rank))
+										.replace("{level}", String.valueOf(data.getIslandLevel()))
+										.replace("{island_name}", islandName);
+
+								newLore.add(AdventureHelper.miniMessageToJson(fullLine));
+							}
 						}
-						return element;
-					});
-					futures.add(future);
-					layoutSlotIndex++;
+
+						String name = manager.filledSection.getString("display.name").replace("{player}", playerName)
+								.replace("{visits}", String.valueOf(entry.visits())).replace("{uuid}", uuid.toString())
+								.replace("{rank}", String.valueOf(rank))
+								.replace("{level}", String.valueOf(data.getIslandLevel()))
+								.replace("{island_name}", islandName).replace("{island_bio}", islandBio);
+
+						filledItem.displayName(AdventureHelper.miniMessageToJson(name));
+						filledItem.lore(newLore);
+
+						CompletableFuture<VisitDynamicGUIElement> future = CompletableFuture.supplyAsync(() -> {
+							try {
+								if (filledItem.getItem().getType() == Material.PLAYER_HEAD) {
+									String texture = cachedSkullTextures.computeIfAbsent(uuid, id -> {
+										try {
+											GameProfile profile = GameProfileBuilder.fetch(id);
+											return profile.getProperties().get("textures").iterator().next().getValue();
+										} catch (Exception ex) {
+											manager.instance.getPluginLogger().warn("Failed to fetch profile for " + id,
+													ex);
+											return null;
+										}
+									});
+
+									if (texture != null) {
+										filledItem.skull(texture);
+										element.setSkullTexture(texture); // <- store for reuse
+									}
+								}
+
+								ItemStack loaded = filledItem.loadCopy();
+								element.setItemStack(loaded);
+								element.setUUID(uuid);
+							} catch (Exception e) {
+								manager.instance.getPluginLogger().warn("Error processing skull for " + uuid, e);
+							}
+							return element;
+						});
+						futures.add(future);
+						layoutSlotIndex++;
+					}
 				}
 			}
 
@@ -596,7 +612,7 @@ public class VisitGUI extends PaginatedGUI<VisitGUIElement> {
 	public void refreshAndRepopulate() {
 		Consumer<List<VisitEntry>> callback = entries -> manager.instance.getScheduler().executeSync(() -> {
 			setRefreshReason(RefreshReason.REPOPULATE);
-			populateVisitEntries(entries, currentSorter);
+			populateVisitEntries(entries, currentSorter, getCurrentPage());
 			refresh();
 		});
 

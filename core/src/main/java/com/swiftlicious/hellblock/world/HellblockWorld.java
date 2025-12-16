@@ -41,6 +41,8 @@ public class HellblockWorld<W> implements CustomWorldInterface<W> {
 	private final WorldExtraData extraData;
 	private final WorldScheduler scheduler;
 
+	private final long worldInitTime = System.currentTimeMillis();
+
 	public HellblockWorld(W world, WorldAdapter<W> adapter) {
 		this.world = new WeakReference<>(world);
 		this.worldName = adapter.getName(world);
@@ -618,7 +620,8 @@ public class HellblockWorld<W> implements CustomWorldInterface<W> {
 	@NotNull
 	@Override
 	public Optional<CustomRegion> getRegion(RegionPos regionPos) {
-		return Optional.ofNullable(getLoadedRegion(regionPos).orElse(this.adapter.loadRegion(this, regionPos, false)));
+		return getLoadedRegion(regionPos)
+				.or(() -> Optional.ofNullable(this.adapter.loadRegion(this, regionPos, false)));
 	}
 
 	@NotNull
@@ -629,6 +632,11 @@ public class HellblockWorld<W> implements CustomWorldInterface<W> {
 	}
 
 	private boolean shouldUnloadRegion(RegionPos regionPos) {
+		// Don't unload immediately after world creation
+		if (System.currentTimeMillis() - worldInitTime < 5000L) {
+			return false;
+		}
+
 		final World bukkitWorld = bukkitWorld();
 		for (int chunkX = regionPos.x() * 32; chunkX < regionPos.x() * 32 + 32; chunkX++) {
 			for (int chunkZ = regionPos.z() * 32; chunkZ < regionPos.z() * 32 + 32; chunkZ++) {

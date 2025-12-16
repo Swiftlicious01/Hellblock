@@ -142,7 +142,7 @@ public class NetherGeneratorHandler implements Listener, Reloadable {
 			List<CompletableFuture<Pair<HellblockWorld<?>, Boolean>>> futures = new ArrayList<>();
 
 			for (HellblockWorld<?> world : worlds) {
-				if (world == null)
+				if (world == null || world.bukkitWorld() == null)
 					continue;
 
 				CompletableFuture<Pair<HellblockWorld<?>, Boolean>> future = getGeneratorManager()
@@ -648,7 +648,22 @@ public class NetherGeneratorHandler implements Listener, Reloadable {
 		}
 	}
 
-	private CompletableFuture<Boolean> isLavaSource(@NotNull HellblockWorld<?> world, @NotNull Pos3 pos) {
+	/**
+	 * Determines whether a block is a stationary lava source.
+	 *
+	 * This method inspects the block’s fluid data to confirm that: - It contains
+	 * lava or flowing lava. - The fluid is currently marked as a *source* (i.e.,
+	 * not flowing or falling).
+	 *
+	 * Source blocks represent the "origin" of lava flow and can be used as anchors
+	 * for detecting infinite lava patterns or other generation features.
+	 *
+	 * @param world the Hellblock world context
+	 * @param pos   the block position to evaluate
+	 * @return a {@link CompletableFuture} resolving to {@code true} if the block is
+	 *         a lava source, otherwise {@code false}
+	 */
+	public CompletableFuture<Boolean> isLavaSource(@NotNull HellblockWorld<?> world, @NotNull Pos3 pos) {
 		if (world.bukkitWorld() == null)
 			return CompletableFuture.completedFuture(false);
 
@@ -664,7 +679,20 @@ public class NetherGeneratorHandler implements Listener, Reloadable {
 		});
 	}
 
-	private CompletableFuture<Boolean> isLavaFlowing(@NotNull HellblockWorld<?> world, @NotNull Pos3 pos) {
+	/**
+	 * Determines whether a block contains horizontally flowing (non-source,
+	 * non-falling) lava.
+	 *
+	 * This excludes source and falling states and is used for identifying the “side
+	 * flow” behavior of lava streams — e.g., how lava travels outward from source
+	 * blocks.
+	 *
+	 * @param world the Hellblock world context
+	 * @param pos   the block position to evaluate
+	 * @return a {@link CompletableFuture} resolving to {@code true} if the block is
+	 *         a flowing lava block, otherwise {@code false}
+	 */
+	public CompletableFuture<Boolean> isLavaFlowing(@NotNull HellblockWorld<?> world, @NotNull Pos3 pos) {
 		if (world.bukkitWorld() == null)
 			return CompletableFuture.completedFuture(false);
 
@@ -681,8 +709,22 @@ public class NetherGeneratorHandler implements Listener, Reloadable {
 		});
 	}
 
+	/**
+	 * Computes the directional vector of lava flow at a given position.
+	 *
+	 * This uses the internal fluid data to determine how lava moves across blocks —
+	 * i.e., its velocity direction in 3D space.
+	 *
+	 * Useful for verifying flow direction consistency in patterned structures, such
+	 * as infinite lava formations or lava stream generation.
+	 *
+	 * @param world the Hellblock world context
+	 * @param pos   the block position to evaluate
+	 * @return a {@link CompletableFuture} resolving to a {@link Vector}
+	 *         representing the flow direction, or {@code null} if not applicable
+	 */
 	@Nullable
-	private CompletableFuture<Vector> getLavaFlowDirection(@NotNull HellblockWorld<?> world, @NotNull Pos3 pos) {
+	public CompletableFuture<Vector> getLavaFlowDirection(@NotNull HellblockWorld<?> world, @NotNull Pos3 pos) {
 		if (world.bukkitWorld() == null)
 			return CompletableFuture.completedFuture(null);
 
@@ -701,6 +743,21 @@ public class NetherGeneratorHandler implements Listener, Reloadable {
 		});
 	}
 
+	/**
+	 * Checks whether the lava flow direction deviates too strongly from the
+	 * intended target direction.
+	 *
+	 * This is used to validate whether the lava is flowing correctly between two
+	 * points in structured formations (e.g., infinite lava setups).
+	 *
+	 * A dot product below a defined threshold indicates that the flow direction is
+	 * “wrong” (i.e., misaligned).
+	 *
+	 * @param from    origin position of the flow
+	 * @param to      intended destination position
+	 * @param flowDir the lava’s computed flow direction
+	 * @return {@code true} if the direction is incorrect, otherwise {@code false}
+	 */
 	private boolean isLavaFlowingDirectionWrong(Pos3 from, Pos3 to, Vector flowDir) {
 		Vector toTarget = new Vector(to.x() + 0.5 - (from.x() + 0.5), to.y() + 0.5 - (from.y() + 0.5),
 				to.z() + 0.5 - (from.z() + 0.5));

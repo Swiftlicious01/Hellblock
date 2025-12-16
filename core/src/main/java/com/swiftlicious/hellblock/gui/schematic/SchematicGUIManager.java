@@ -289,7 +289,8 @@ public class SchematicGUIManager implements SchematicGUIManagerInterface, Listen
 			return;
 		}
 
-		if (!gui.hellblockData.hasHellblock() && !instance.getIslandGenerator().isGenerating(player.getUniqueId())
+		if (!instance.getConfigManager().disableForcedIslandDecision() && !gui.hellblockData.hasHellblock()
+				&& !instance.getIslandGenerator().isGenerating(player.getUniqueId())
 				&& !Boolean.TRUE.equals(gui.context.arg(ContextKeys.HELLBLOCK_GENERATION))) {
 			instance.getScheduler().sync().runLater(() -> {
 				if (!player.isOnline())
@@ -515,5 +516,16 @@ public class SchematicGUIManager implements SchematicGUIManagerInterface, Listen
 		AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
 				Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
 						net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
+	}
+
+	public boolean hasPageLayouts() {
+		return !this.pageLayouts.isEmpty();
+	}
+
+	public String[][] getActiveLayouts() {
+		if (this.pageLayouts.isEmpty()) {
+			return new String[][] { this.layout }; // single layout wrapped in 2D array
+		}
+		return this.pageLayouts.values().toArray(new String[0][]); // multi-page layouts
 	}
 }

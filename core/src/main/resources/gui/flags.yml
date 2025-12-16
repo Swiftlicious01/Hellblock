@@ -1,7 +1,7 @@
 flags:
   gui:
     # The title for the flags menu
-    title: '<center><gradient:#A52A2A:#800000:#A52A2A>Hellblock Flags</gradient>'
+    title: '<center><gradient:#8B0000:#B22222:#5C0000>Protection Settings</gradient>'
     # The layout for the flags menu
     layout:
       - 'BPDFMCSTV'
@@ -35,9 +35,11 @@ flags:
         material: STONE_PICKAXE
         flag-type: BLOCK_BREAK
         display:
-          name: '<yellow>Block Break Flag'
+          name: '<gradient:#8B4513:#D2691E><bold>Block Breaking</bold></gradient>'
           lore: 
-            - '<gold>Allowed: <yellow>{flag_value}'
+            - '<gray>Status: <yellow>{flag_value}'
+            - ' '
+            - '<dark_gray>» <gray>Controls who can break blocks'
         action:  
           sound_action: 
             type: sound
@@ -53,9 +55,11 @@ flags:
         material: COBBLESTONE
         flag-type: BLOCK_PLACE
         display:
-          name: '<yellow>Block Place Flag'
+          name: '<gradient:#708090:#A9A9A9><bold>Block Placement</bold></gradient>'
           lore:
-            - '<gold>Allowed: <yellow>{flag_value}'
+            - '<gray>Status: <yellow>{flag_value}'
+            - ' '
+            - '<dark_gray>» <gray>Controls who can place blocks'
         action:
           sound_action:
             type: sound
@@ -71,9 +75,11 @@ flags:
         material: BEEF
         flag-type: DAMAGE_ANIMALS
         display:
-          name: '<yellow>Damage Animals Flag'
+          name: '<gradient:#FF6B6B:#FF8E8E><bold>Animal Damage</bold></gradient>'
           lore:
-            - '<gold>Allowed: <yellow>{flag_value}'
+            - '<gray>Status: <yellow>{flag_value}'
+            - ' '
+            - '<dark_gray>» <gray>Controls damage to passive mobs'
         action:
           sound_action:
             type: sound
@@ -89,9 +95,11 @@ flags:
         material: ZOMBIE_HEAD
         flag-type: MOB_DAMAGE
         display:
-          name: '<yellow>Mob Damage Flag'
+          name: '<gradient:#DC143C:#8B0000><bold>Hostile Mob Damage</bold></gradient>'
           lore:
-            - '<gold>Allowed: <yellow>{flag_value}'
+            - '<gray>Status: <yellow>{flag_value}'
+            - ' '
+            - '<dark_gray>» <gray>Controls damage to hostile mobs'
         action:
           sound_action:
             type: sound
@@ -107,9 +115,11 @@ flags:
         material: MOB_SPAWNER
         flag-type: MOB_SPAWNING
         display:
-          name: '<yellow>Mob Spawning Flag'
+          name: '<gradient:#4B0082:#8B008B><bold>Mob Spawning</bold></gradient>'
           lore:
-            - '<gold>Allowed: <yellow>{flag_value}'
+            - '<gray>Status: <yellow>{flag_value}'
+            - ' '
+            - '<dark_gray>» <gray>Controls natural mob spawns'
         action:
           sound_action:
             type: sound
@@ -125,9 +135,11 @@ flags:
         material: DIAMOND_SWORD
         flag-type: PVP
         display:
-          name: '<yellow>PvP Flag'
+          name: '<gradient:#FF0000:#8B0000><bold>Player Combat</bold></gradient>'
           lore:
-            - '<gold>Allowed: <yellow>{flag_value}'
+            - '<gray>Status: <yellow>{flag_value}'
+            - ' '
+            - '<dark_gray>» <gray>Controls player vs player combat'
         action:
           sound_action:
             type: sound
@@ -143,9 +155,11 @@ flags:
         material: TNT
         flag-type: TNT
         display:
-          name: '<yellow>TNT Flag'
+          name: '<gradient:#FF4500:#DC143C><bold>TNT Explosions</bold></gradient>'
           lore:
-            - '<gold>Allowed: <yellow>{flag_value}'
+            - '<gray>Status: <yellow>{flag_value}'
+            - ' ' 
+            - '<dark_gray>» <gray>Controls TNT block damage'
         action:
           sound_action:
             type: sound
@@ -161,9 +175,11 @@ flags:
         material: CHEST
         flag-type: CHEST_ACCESS
         display:
-          name: '<yellow>Chest Access Flag'
+          name: '<gradient:#8B4513:#CD853F><bold>Container Access</bold></gradient>'
           lore:
-            - '<gold>Allowed: <yellow>{flag_value}'
+            - '<gray>Status: <yellow>{flag_value}'
+            - ' '
+            - '<dark_gray>» <gray>Controls access to chests & storage'
         action:
           sound_action:
             type: sound
@@ -179,9 +195,11 @@ flags:
         material: LEVER
         flag-type: USE
         display:
-          name: '<yellow>Use Flag'
+          name: '<gradient:#696969:#A9A9A9><bold>Interaction</bold></gradient>'
           lore:
-            - '<gold>Allowed: <yellow>{flag_value}'
+            - '<gray>Status: <yellow>{flag_value}'
+            - ' '
+            - '<dark_gray>» <gray>Controls general block interactions'
         action:
           sound_action:
             type: sound
@@ -197,9 +215,11 @@ flags:
         material: ANVIL
         flag-type: USE_ANVIL
         display:
-          name: '<yellow>Use Anvil Flag'
+          name: '<gradient:#36454F:#708090><bold>Anvil Usage</bold></gradient>'
           lore:
-            - '<gold>Allowed: <yellow>{flag_value}'
+            - '<gray>Status: <yellow>{flag_value}'
+            - ' '
+            - '<dark_gray>» <gray>Controls anvil interactions'
         action:
           sound_action:
             type: sound
@@ -215,9 +235,11 @@ flags:
         material: BIG_DRIPLEAF
         flag-type: USE_DRIPLEAF
         display:
-          name: '<yellow>Use Dripleaf Flag'
+          name: '<gradient:#228B22:#32CD32><bold>Dripleaf Usage</bold></gradient>'
           lore:
-            - '<gold>Allowed: <yellow>{flag_value}'
+            - '<gray>Status: <yellow>{flag_value}'
+            - ' '
+            - '<dark_gray>» <gray>Controls dripleaf interactions'
         action:
           sound_action:
             type: sound
@@ -233,9 +255,11 @@ flags:
         material: MINECART
         flag-type: PLACE_VEHICLE
         display:
-          name: '<yellow>Place Vehicle Flag'
+          name: '<gradient:#4682B4:#87CEEB><bold>Vehicle Placement</bold></gradient>'
           lore:
-            - '<gold>Allowed: <yellow>{flag_value}'
+            - '<gray>Status: <yellow>{flag_value}'
+            - ' '
+            - '<dark_gray>» <gray>Controls placing boats & minecarts'
         action:
           sound_action:
             type: sound
@@ -251,9 +275,11 @@ flags:
         material: OAK_BOAT
         flag-type: DESTROY_VEHICLE
         display:
-          name: '<yellow>Destroy Vehicle Flag'
+          name: '<gradient:#8B0000:#DC143C><bold>Vehicle Destruction</bold></gradient>'
           lore:
-            - '<gold>Allowed: <yellow>{flag_value}'
+            - '<gray>Status: <yellow>{flag_value}'
+            - ' '
+            - '<dark_gray>» <gray>Controls breaking boats & minecarts'
         action:
           sound_action:
             type: sound
@@ -269,9 +295,11 @@ flags:
         material: SADDLE
         flag-type: RIDE
         display:
-          name: '<yellow>Ride Flag'
+          name: '<gradient:#DEB887:#D2691E><bold>Mount Entities</bold></gradient>'
           lore:
-            - '<gold>Allowed: <yellow>{flag_value}'
+            - '<gray>Status: <yellow>{flag_value}'
+            - ' '
+            - '<dark_gray>» <gray>Controls riding animals & vehicles'
         action:
           sound_action:
             type: sound
@@ -287,9 +315,11 @@ flags:
         material: ENDER_PEARL
         flag-type: ENDERPEARL
         display:
-          name: '<yellow>Enderpearl Flag'
+          name: '<gradient:#008B8B:#20B2AA><bold>Ender Pearl Teleport</bold></gradient>'
           lore:
-            - '<gold>Allowed: <yellow>{flag_value}'
+            - '<gray>Status: <yellow>{flag_value}'
+            - ' '
+            - '<dark_gray>» <gray>Controls ender pearl usage'
         action:
           sound_action:
             type: sound
@@ -305,9 +335,11 @@ flags:
         material: WHEAT
         flag-type: TRAMPLE_BLOCKS
         display:
-          name: '<yellow>Trample Blocks Flag'
+          name: '<gradient:#DAA520:#FFD700><bold>Crop Trampling</bold></gradient>'
           lore:
-            - '<gold>Allowed: <yellow>{flag_value}'
+            - '<gray>Status: <yellow>{flag_value}'
+            - ' '
+            - '<dark_gray>» <gray>Controls farmland trampling'
         action:
           sound_action:
             type: sound
@@ -323,9 +355,11 @@ flags:
         material: CLOCK
         flag-type: ITEM_FRAME_ROTATE
         display:
-          name: '<yellow>Item Frame Rotation Flag'
+          name: '<gradient:#CD853F:#DEB887><bold>Item Frame Rotation</bold></gradient>'
           lore:
-            - '<gold>Allowed: <yellow>{flag_value}'
+            - '<gray>Status: <yellow>{flag_value}'
+            - ' '
+            - '<dark_gray>» <gray>Controls rotating items in frames'
         action:
           sound_action:
             type: sound
@@ -341,9 +375,11 @@ flags:
         material: CHORUS_FRUIT
         flag-type: CHORUS_TELEPORT
         display:
-          name: '<yellow>Chorus Fruit Teleport Flag'
+          name: '<gradient:#9370DB:#BA55D3><bold>Chorus Fruit Teleport</bold></gradient>'
           lore:
-            - '<gold>Allowed: <yellow>{flag_value}'
+            - '<gray>Status: <yellow>{flag_value}'
+            - ' '
+            - '<dark_gray>» <gray>Controls chorus fruit teleportation'
         action:
           sound_action:
             type: sound
@@ -359,9 +395,11 @@ flags:
         material: FLINT_AND_STEEL
         flag-type: LIGHTER
         display:
-          name: '<yellow>Lighter Flag'
+          name: '<gradient:#FF6347:#FF4500><bold>Fire Starting</bold></gradient>'
           lore:
-            - '<gold>Allowed: <yellow>{flag_value}'
+            - '<gray>Status: <yellow>{flag_value}'
+            - ' '
+            - '<dark_gray>» <gray>Controls flint & steel usage'
         action:
           sound_action:
             type: sound
@@ -377,9 +415,11 @@ flags:
         material: FIREWORK_ROCKET
         flag-type: FIREWORK_DAMAGE
         display:
-          name: '<yellow>Firework Damage Flag'
+          name: '<gradient:#FF1493:#FF69B4><bold>Firework Explosions</bold></gradient>'
           lore:
-            - '<gold>Allowed: <yellow>{flag_value}'
+            - '<gray>Status: <yellow>{flag_value}'
+            - ' '
+            - '<dark_gray>» <gray>Controls firework rocket damage'
         action:
           sound_action:
             type: sound
@@ -395,9 +435,11 @@ flags:
         material: RESPAWN_ANCHOR
         flag-type: RESPAWN_ANCHORS
         display:
-          name: '<yellow>Respawn Anchors Flag'
+          name: '<gradient:#9B30FF:#8A2BE2><bold>Respawn Anchor Usage</bold></gradient>'
           lore:
-            - '<gold>Allowed: <yellow>{flag_value}'
+            - '<gray>Status: <yellow>{flag_value}'
+            - ' '
+            - '<dark_gray>» <gray>Controls respawn anchor explosions'
         action:
           sound_action:
             type: sound
@@ -413,9 +455,11 @@ flags:
         material: PHANTOM_MEMBRANE
         flag-type: WIND_CHARGE_BURST
         display:
-          name: '<yellow>Wind Charge Burst Flag'
+          name: '<gradient:#E0FFFF:#B0E0E6><bold>Wind Charge Burst</bold></gradient>'
           lore:
-            - '<gold>Allowed: <yellow>{flag_value}'
+            - '<gray>Status: <yellow>{flag_value}'
+            - ' '
+            - '<dark_gray>» <gray>Controls wind charge knockback'
         action:
           sound_action:
             type: sound
@@ -431,9 +475,11 @@ flags:
         material: SPLASH_POTION
         flag-type: POTION_SPLASH
         display:
-          name: '<yellow>Potion Splash Flag'
+          name: '<gradient:#9932CC:#BA55D3><bold>Potion Splash</bold></gradient>'
           lore:
-            - '<gold>Allowed: <yellow>{flag_value}'
+            - '<gray>Status: <yellow>{flag_value}'
+            - ' '
+            - '<dark_gray>» <gray>Controls splash potion effects'
         action:
           sound_action:
             type: sound
@@ -453,9 +499,11 @@ flags:
         material: STICK
         flag-type: INTERACT
         display:
-          name: '<yellow>Interact Flag'
+          name: '<gradient:#8B7355:#A0826D><bold>Entity Interaction</bold></gradient>'
           lore:
-            - '<gold>Allowed: <yellow>{flag_value}'
+            - '<gray>Status: <yellow>{flag_value}'
+            - ' '
+            - '<dark_gray>» <gray>Controls entity interactions'
         action:
           sound_action:
             type: sound
@@ -471,9 +519,11 @@ flags:
         material: RED_BED
         flag-type: SLEEP
         display:
-          name: '<yellow>Sleep Flag'
+          name: '<gradient:#4169E1:#1E90FF><bold>Bed Usage</bold></gradient>'
           lore:
-            - '<gold>Allowed: <yellow>{flag_value}'
+            - '<gray>Status: <yellow>{flag_value}'
+            - ' '
+            - '<dark_gray>» <gray>Controls sleeping in beds'
         action:
           sound_action:
             type: sound
@@ -489,9 +539,11 @@ flags:
         material: SNOWBALL
         flag-type: SNOWMAN_TRAILS
         display:
-          name: '<yellow>Snowman Trails Flag'
+          name: '<gradient:#F0F8FF:#E0FFFF><bold>Snow Golem Trails</bold></gradient>'
           lore:
-            - '<gold>Allowed: <yellow>{flag_value}'
+            - '<gray>Status: <yellow>{flag_value}'
+            - ' '
+            - '<dark_gray>» <gray>Controls snow golem snow trails'
         action:
           sound_action:
             type: sound
@@ -507,9 +559,11 @@ flags:
         material: ENDER_EYE
         flag-type: ENDER_BUILD
         display:
-          name: '<yellow>Enderman Build Flag'
+          name: '<gradient:#4B0082:#8B008B><bold>Enderman Griefing</bold></gradient>'
           lore:
-            - '<gold>Allowed: <yellow>{flag_value}'
+            - '<gray>Status: <yellow>{flag_value}'
+            - ' ' 
+            - '<dark_gray>» <gray>Controls enderman block movement'
         action:
           sound_action:
             type: sound
@@ -525,9 +579,11 @@ flags:
         material: FIRE_CHARGE
         flag-type: GHAST_FIREBALL
         display:
-          name: '<yellow>Ghast Fireball Flag'
+          name: '<gradient:#FF4500:#FF6347><bold>Ghast Fireballs</bold></gradient>'
           lore:
-            - '<gold>Allowed: <yellow>{flag_value}'
+            - '<gray>Status: <yellow>{flag_value}'
+            - ' '
+            - '<dark_gray>» <gray>Controls ghast fireball damage'
         action:
           sound_action:
             type: sound
@@ -543,9 +599,11 @@ flags:
         material: FEATHER
         flag-type: FALL_DAMAGE
         display:
-          name: '<yellow>Fall Damage Flag'
+          name: '<gradient:#FFFFFF:#F5F5F5><bold>Fall Damage</bold></gradient>'
           lore:
-            - '<gold>Allowed: <yellow>{flag_value}'
+            - '<gray>Status: <yellow>{flag_value}'
+            - ' '
+            - '<dark_gray>» <gray>Controls fall damage to players'
         action:
           sound_action:
             type: sound
@@ -561,9 +619,11 @@ flags:
         material: GOLDEN_APPLE
         flag-type: HEALTH_REGEN
         display:
-          name: '<yellow>Health Regen Flag'
+          name: '<gradient:#FF6B6B:#FFD700><bold>Health Regeneration</bold></gradient>'
           lore:
-            - '<gold>Allowed: <yellow>{flag_value}'
+            - '<gray>Status: <yellow>{flag_value}'
+            - ' '
+            - '<dark_gray>» <gray>Controls natural health regeneration'
         action:
           sound_action:
             type: sound
@@ -579,9 +639,11 @@ flags:
         material: BREAD
         flag-type: HUNGER_DRAIN
         display:
-          name: '<yellow>Hunger Drain Flag'
+          name: '<gradient:#D2691E:#CD853F><bold>Hunger Depletion</bold></gradient>'
           lore:
-            - '<gold>Allowed: <yellow>{flag_value}'
+            - '<gray>Status: <yellow>{flag_value}'
+            - ' '
+            - '<dark_gray>» <gray>Controls hunger bar depletion'
         action:
           sound_action:
             type: sound
@@ -597,9 +659,11 @@ flags:
         material: TOTEM_OF_UNDYING
         flag-type: INVINCIBILITY
         display:
-          name: '<yellow>Invincibility Flag'
+          name: '<gradient:#FFD700:#FFA500><bold>God Mode</bold></gradient>'
           lore:
-            - '<gold>Allowed: <yellow>{flag_value}'
+            - '<gray>Status: <yellow>{flag_value}'
+            - ' '
+            - '<dark_gray>» <gray>Makes players invulnerable'
         action:
           sound_action:
             type: sound
@@ -615,9 +679,11 @@ flags:
         material: OAK_PLANKS
         flag-type: BUILD
         display:
-          name: '<yellow>Build Flag'
+          name: '<gradient:#8B4513:#DEB887><bold>Building</bold></gradient>'
           lore:
-            - '<gold>Allowed: <yellow>{flag_value}'
+            - '<gray>Status: <yellow>{flag_value}'
+            - ' '
+            - '<dark_gray>» <gray>Master switch for building'
         action:
           sound_action:
             type: sound
@@ -633,9 +699,11 @@ flags:
         material: IRON_AXE
         flag-type: RAVAGER_RAVAGE
         display:
-          name: '<yellow>Ravager Ravage Flag'
+          name: '<gradient:#2F4F4F:#696969><bold>Ravager Griefing</bold></gradient>'
           lore:
-            - '<gold>Allowed: <yellow>{flag_value}'
+            - '<gray>Status: <yellow>{flag_value}'
+            - ' '
+            - '<dark_gray>» <gray>Controls ravager block destruction'
         action:
           sound_action:
             type: sound
@@ -651,9 +719,11 @@ flags:
         material: HOPPER
         flag-type: ITEM_PICKUP
         display:
-          name: '<yellow>Item Pickup Flag'
+          name: '<gradient:#CD853F:#DEB887><bold>Item Collection</bold></gradient>'
           lore:
-            - '<gold>Allowed: <yellow>{flag_value}'
+            - '<gray>Status: <yellow>{flag_value}'
+            - ' '
+            - '<dark_gray>» <gray>Controls picking up items'
         action:
           sound_action:
             type: sound
@@ -669,9 +739,11 @@ flags:
         material: DROPPER
         flag-type: ITEM_DROP
         display:
-          name: '<yellow>Item Drop Flag'
+          name: '<gradient:#8B4513:#A0522D><bold>Item Dropping</bold></gradient>'
           lore:
-            - '<gold>Allowed: <yellow>{flag_value}'
+            - '<gray>Status: <yellow>{flag_value}'
+            - ' '
+            - '<dark_gray>» <gray>Controls dropping items'
         action:
           sound_action:
             type: sound
@@ -687,9 +759,11 @@ flags:
         material: HEART_OF_THE_SEA
         flag-type: BREEZE_WIND_CHARGE
         display:
-          name: '<yellow>Breeze Wind Charge Flag'
+          name: '<gradient:#87CEEB:#B0E0E6><bold>Breeze Wind Charge</bold></gradient>'
           lore:
-            - '<gold>Allowed: <yellow>{flag_value}'
+            - '<gray>Status: <yellow>{flag_value}'
+            - ' '
+            - '<dark_gray>» <gray>Controls breeze wind charge damage'
         action:
           sound_action:
             type: sound
@@ -705,9 +779,11 @@ flags:
         material: PAINTING
         flag-type: ENTITY_PAINTING_DESTROY
         display:
-          name: '<yellow>Painting Destroy Flag'
+          name: '<gradient:#8B4513:#CD853F><bold>Painting Destruction</bold></gradient>'
           lore:
-            - '<gold>Allowed: <yellow>{flag_value}'
+            - '<gray>Status: <yellow>{flag_value}'
+            - ' '
+            - '<dark_gray>» <gray>Controls breaking paintings'
         action:
           sound_action:
             type: sound
@@ -723,9 +799,11 @@ flags:
         material: ITEM_FRAME
         flag-type: ENTITY_ITEM_FRAME_DESTROY
         display:
-          name: '<yellow>Item Frame Destroy Flag'
+          name: '<gradient:#8B7355:#CD853F><bold>Item Frame Destruction</bold></gradient>'
           lore:
-            - '<gold>Allowed: <yellow>{flag_value}'
+            - '<gray>Status: <yellow>{flag_value}'
+            - ' '
+            - '<dark_gray>» <gray>Controls breaking item frames'
         action:
           sound_action:
             type: sound
@@ -741,9 +819,11 @@ flags:
         material: CREEPER_HEAD
         flag-type: CREEPER_EXPLOSION
         display:
-          name: '<yellow>Creeper Explosion Flag'
+          name: '<gradient:#00FF00:#32CD32><bold>Creeper Explosions</bold></gradient>'
           lore:
-            - '<gold>Allowed: <yellow>{flag_value}'
+            - '<gray>Status: <yellow>{flag_value}'
+            - ' '
+            - '<dark_gray>» <gray>Controls creeper block damage'
         action:
           sound_action:
             type: sound
@@ -759,9 +839,11 @@ flags:
         material: EXPERIENCE_BOTTLE
         flag-type: EXP_DROPS
         display:
-          name: '<yellow>Exp Drops Flag'
+          name: '<gradient:#7FFF00:#00FF7F><bold>Experience Drops</bold></gradient>'
           lore:
-            - '<gold>Allowed: <yellow>{flag_value}'
+            - '<gray>Status: <yellow>{flag_value}'
+            - ' '
+            - '<dark_gray>» <gray>Controls XP orb drops'
         action:
           sound_action:
             type: sound

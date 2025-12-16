@@ -165,8 +165,8 @@ public class IslandChoiceGUIManager implements IslandChoiceGUIManagerInterface, 
 		if (isReset && hellblockData.getResetCooldown() > 0) {
 			instance.debug("Reset denied: cooldown = " + hellblockData.getResetCooldown());
 			Sender audience = instance.getSenderFactory().wrap(player);
-			audience.sendMessage(instance.getTranslationManager()
-					.render(MessageConstants.MSG_HELLBLOCK_RESET_ON_COOLDOWN.arguments(AdventureHelper.miniMessageToComponent(
+			audience.sendMessage(instance.getTranslationManager().render(
+					MessageConstants.MSG_HELLBLOCK_RESET_ON_COOLDOWN.arguments(AdventureHelper.miniMessageToComponent(
 							instance.getCooldownManager().getFormattedCooldown(hellblockData.getResetCooldown())))
 							.build()));
 			return false;
@@ -184,15 +184,16 @@ public class IslandChoiceGUIManager implements IslandChoiceGUIManagerInterface, 
 			context.clearCustomData();
 			context.arg(ContextKeys.HELLBLOCK_GENERATION, true);
 			instance.getHellblockHandler().createHellblock(userData, IslandOptions.CLASSIC, isReset)
-					.thenRun(() -> context.arg(ContextKeys.HELLBLOCK_GENERATION, false));
+					.thenRun(() -> context.remove(ContextKeys.HELLBLOCK_GENERATION));
 			ActionManager.trigger(context, classicActions);
 			return false;
 		}
 
 		if (noDefaultOrClassicChoiceAvailable()) {
 			instance.debug("Only schematic island is available → opening schematic GUI.");
-			instance.getSchematicGUIManager().openSchematicGUI(context.holder(), isReset);
-			ActionManager.trigger(context, schematicActions);
+			boolean opened = instance.getSchematicGUIManager().openSchematicGUI(context.holder(), isReset);
+			if (opened)
+				ActionManager.trigger(context, schematicActions);
 			return false;
 		}
 
@@ -239,7 +240,8 @@ public class IslandChoiceGUIManager implements IslandChoiceGUIManagerInterface, 
 			return;
 		}
 
-		if (!gui.hellblockData.hasHellblock() && !instance.getIslandGenerator().isGenerating(player.getUniqueId())
+		if (!instance.getConfigManager().disableForcedIslandDecision() && !gui.hellblockData.hasHellblock()
+				&& !instance.getIslandGenerator().isGenerating(player.getUniqueId())
 				&& !Boolean.TRUE.equals(gui.context.arg(ContextKeys.HELLBLOCK_GENERATION))) {
 			instance.getScheduler().sync().runLater(() -> {
 				if (!player.isOnline())
@@ -418,8 +420,9 @@ public class IslandChoiceGUIManager implements IslandChoiceGUIManagerInterface, 
 
 				if (!opened) {
 					gui.context.remove(ContextKeys.HELLBLOCK_GUI_SWITCHING);
+				} else {
+					ActionManager.trigger(gui.context, schematicActions);
 				}
-				ActionManager.trigger(gui.context, schematicActions);
 				return;
 			}
 		}

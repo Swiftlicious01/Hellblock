@@ -655,8 +655,8 @@ public class WitherHandler implements Listener, Reloadable {
 		return new WitherStats(randomHealth, randomStrength);
 	}
 
-	public void trySpawnEnhancedWither(@NotNull UserData user) {
-		final HellblockData data = user.getHellblockData();
+	public void trySpawnEnhancedWither(@NotNull UserData userData) {
+		final HellblockData data = userData.getHellblockData();
 		IslandEventData eventData = instance.getConfigManager().witherEventSettings();
 
 		if (!data.hasHellblock()) {

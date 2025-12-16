@@ -37,6 +37,7 @@ import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.scheduler.SchedulerTask;
 import com.swiftlicious.hellblock.utils.ChunkUtils;
 import com.swiftlicious.hellblock.utils.LocationUtils;
+import com.swiftlicious.hellblock.utils.RandomUtils;
 import com.swiftlicious.hellblock.world.ChunkPos;
 import com.swiftlicious.hellblock.world.HellblockWorld;
 import com.swiftlicious.hellblock.world.Pos3;
@@ -69,6 +70,8 @@ public class IslandManager implements Listener, Reloadable {
 	private static final long MAX_IDLE_TIME_MILLIS = TimeUnit.MINUTES.toMillis(15); // configurable
 
 	private final Map<Integer, Long> lastIslandActivity = new ConcurrentHashMap<>();
+
+	private final Map<Integer, Long> weatherCooldowns = new ConcurrentHashMap<>();
 
 	// Island tracking
 	private final Map<Integer, Set<UUID>> activeIslandPlayers = new HashMap<>();
@@ -117,6 +120,10 @@ public class IslandManager implements Listener, Reloadable {
 		animalTasks.values().stream().filter(Objects::nonNull).filter(task -> !task.isCancelled())
 				.forEach(SchedulerTask::cancel);
 		animalTasks.clear();
+	}
+
+	public Map<Integer, Long> getWeatherCooldowns() {
+		return this.weatherCooldowns;
 	}
 
 	/**
@@ -320,8 +327,6 @@ public class IslandManager implements Listener, Reloadable {
 //					fortressTask.cancel();
 //				}
 
-				instance.getNetherWeatherManager().stopWeather(islandId);
-
 				// Stop events
 				if (instance.getInvasionHandler().isInvasionRunning(islandId))
 					instance.getInvasionHandler().endInvasion(islandId);
@@ -471,12 +476,19 @@ public class IslandManager implements Listener, Reloadable {
 		instance.getIslandLevelManager().loadIslandPlacedBlocksIfNeeded(islandId);
 		instance.getNetherrackGeneratorHandler().loadIslandPistonsIfNeeded(islandId);
 
+		// Add weather cooldown (5–10 minutes)
+		long now = System.currentTimeMillis();
+		long delayMinutes = RandomUtils.generateRandomLong(5, 10);
+		long nextAllowed = now + TimeUnit.MINUTES.toMillis(delayMinutes);
+		weatherCooldowns.put(islandId, nextAllowed);
+
 		getIslandBoundingBox(islandId).thenAccept(box -> {
 			if (box.isEmpty())
 				return;
 
 			loadExistingIslandChunks(worldOpt.get(), box.get()).thenRun(() -> {
 				startIslandTasks(islandId); // only after chunks are loaded
+				instance.getNetherWeatherManager().scheduleRandomWeatherForIsland(islandId);
 				instance.debug("Restarted all tasks and repopulated caches for created island ID: " + islandId);
 			});
 		});
@@ -550,8 +562,6 @@ public class IslandManager implements Listener, Reloadable {
 				.asyncRepeating(new AnimalHandler(instance, islandId), 0, 3, TimeUnit.MINUTES));
 //		fortressTasks.computeIfAbsent(islandId, id -> instance.getScheduler()
 //				.asyncRepeating(new FortressHandler(instance, islandId), 0, 3, TimeUnit.MINUTES));
-
-		instance.getNetherWeatherManager().scheduleRandomWeatherForIsland(islandId);
 	}
 
 	/**

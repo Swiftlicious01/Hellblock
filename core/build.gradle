@@ -108,10 +108,7 @@ dependencies {
     }
 
     implementation hellblockLibs.paperlib
-    implementation(hellblockLibs.authlib) {
-    	exclude group: 'commons-io', module: 'commons-io'
-    	exclude group: 'com.google.code.findbugs', module: 'jsr305'
-	}
+    implementation hellblockLibs.authlib
     compileOnly hellblockLibs.bytebuddy
     compileOnly hellblockLibs.spotbugs
     compileOnly hellblockLibs.jackson
@@ -168,6 +165,7 @@ dependencies {
     compileOnly hellblockLibs.openinv
     compileOnly hellblockLibs.jsonconfiguration
     compileOnly hellblockLibs.jsonsmart
+    compileOnly hellblockLibs.protocollib
  
     // Local libs
     compileOnly files("libs/AdvancedEnchantments-api.jar")
@@ -240,15 +238,37 @@ sourceSets.all {
 }
 
 configurations.all {
-    resolutionStrategy.force 'com.google.guava:guava-mini:33.3.1-jre'
-    resolutionStrategy.force 'org.ow2.asm:asm:9.7'
-    resolutionStrategy.force 'org.ow2.asm:asm-commons:9.7'
-    resolutionStrategy.force 'org.ow2.asm:asm-tree:9.7'
-    resolutionStrategy.force 'org.ow2.asm:asm-util:9.7'
+    resolutionStrategy {
+        preferProjectModules()
+        cacheChangingModulesFor 0, 'seconds'
+
+        // --- Explicitly override conflicting transitive deps ---
+        eachDependency { details ->
+            if (details.requested.group == 'com.google.code.gson') {
+                // Force WorldEdit/WorldGuard to align to your preferred Gson
+                details.useVersion '2.13.2'
+            }
+            if (details.requested.group == 'com.google.guava') {
+                details.useVersion '33.5.0-jre'
+            }
+            if (details.requested.group == 'it.unimi.dsi') { // fastutil
+                details.useVersion '8.5.18'
+            }
+        }
+
+        force 'com.google.guava:guava-mini:33.5.0-jre'
+        force 'org.ow2.asm:asm:9.7'
+        force 'org.ow2.asm:asm-commons:9.7'
+        force 'org.ow2.asm:asm-tree:9.7'
+        force 'org.ow2.asm:asm-util:9.7'
+    }
+
     exclude group: 'org.apache.maven.plugins', module: 'maven-javadoc-plugin'
     exclude group: 'org.checkerframework', module: 'checker-qual'
     exclude group: 'org.apache.commons', module: 'commons-lang3'
     exclude group: 'org.apache.commons', module: 'commons-io'
+    exclude group: 'com.google.guava', module: 'failureaccess'
+    exclude group: 'com.google.guava', module: 'listenablefuture'
 }
 
 tasks.named("assemble") {
@@ -332,6 +352,7 @@ tasks.named("shadowJar") { task ->
     relocate 'com.zaxxer.hikari', 'com.swiftlicious.hellblock.libraries.hikari'
     relocate 'redis.clients.jedis', 'com.swiftlicious.hellblock.libraries.jedis'
     relocate 'com.mongodb', 'com.swiftlicious.hellblock.libraries.mongodb'
+    relocate 'net.dmulloy2', 'com.swiftlicious.hellblock.libraries.protocollib'
     relocate 'org.bson', 'com.swiftlicious.hellblock.libraries.bson'
     relocate 'org.apache.commons.pool2', 'com.swiftlicious.hellblock.libraries.commonspool2'
     relocate 'net.objecthunter.exp4j', 'com.swiftlicious.hellblock.libraries.exp4j'

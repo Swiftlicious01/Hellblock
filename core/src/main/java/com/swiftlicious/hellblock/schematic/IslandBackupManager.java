@@ -54,6 +54,8 @@ public class IslandBackupManager implements Reloadable {
 	private final Map<UUID, Long> lastSnapshotTime = new ConcurrentHashMap<>();
 	private static final long SNAPSHOT_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
 
+	private static final int BATCH_SIZE = 500;
+
 	public IslandBackupManager(HellblockPlugin plugin) {
 		this.instance = plugin;
 	}
@@ -288,73 +290,74 @@ public class IslandBackupManager implements Reloadable {
 						return;
 					}
 
-					final HellblockData hb = optionalUserData.get().getHellblockData();
-					final Optional<HellblockWorld<?>> optWorld = instance.getWorldManager()
-							.getWorld(instance.getWorldManager().getHellblockWorldFormat(hb.getIslandId()));
+					instance.getScheduler().executeSync(() -> {
+						final HellblockData hellblockData = optionalUserData.get().getHellblockData();
+						final Optional<HellblockWorld<?>> optWorld = instance.getWorldManager().getWorld(
+								instance.getWorldManager().getHellblockWorldFormat(hellblockData.getIslandId()));
 
-					if (optWorld.isEmpty() || optWorld.get().bukkitWorld() == null) {
-						future.complete(null);
-						return;
-					}
-
-					final World world = optWorld.get().bukkitWorld();
-					final BoundingBox box = hb.getBoundingBox();
-
-					if (box == null) {
-						future.complete(null);
-						return;
-					}
-
-					final List<IslandSnapshotBlock> blocks = Collections.synchronizedList(new ArrayList<>());
-					final List<EntitySnapshot> entities = Collections.synchronizedList(new ArrayList<>());
-
-					// Collect all entities inside bounding box
-					world.getEntities().forEach(entity -> {
-						if (box.contains(entity.getLocation().toVector())) {
-							entities.add(EntitySnapshot.fromEntity(entity));
+						if (optWorld.isEmpty() || optWorld.get().bukkitWorld() == null) {
+							future.complete(null);
+							return;
 						}
+
+						final World world = optWorld.get().bukkitWorld();
+						final BoundingBox box = hellblockData.getBoundingBox();
+
+						if (box == null) {
+							future.complete(null);
+							return;
+						}
+
+						final List<IslandSnapshotBlock> blocks = Collections.synchronizedList(new ArrayList<>());
+						final List<EntitySnapshot> entities = Collections.synchronizedList(new ArrayList<>());
+
+						// Collect all entities inside bounding box
+						for (Entity entity : world.getEntities()) {
+							if (box.contains(entity.getLocation().toVector())) {
+								entities.add(EntitySnapshot.fromEntity(entity));
+							}
+						}
+
+						// Collect block states in batches
+						final List<Location> locations = new ArrayList<>();
+
+						for (int x = (int) box.getMinX(); x <= (int) box.getMaxX(); x++) {
+							for (int y = (int) box.getMinY(); y <= (int) box.getMaxY(); y++) {
+								for (int z = (int) box.getMinZ(); z <= (int) box.getMaxZ(); z++) {
+									locations.add(new Location(world, x, y, z));
+								}
+							}
+						}
+
+						final Iterator<Location> it = locations.iterator();
+
+						final AtomicReference<SchedulerTask> taskRef = new AtomicReference<>();
+
+						final SchedulerTask task = instance.getScheduler().sync().runRepeating(() -> {
+							int processed = 0;
+							while (processed < BATCH_SIZE && it.hasNext()) {
+								final Location loc = it.next();
+								final Block block = loc.getBlock();
+								if (!block.getType().isAir()) {
+									// Capture attached entities near this block (optional, can be empty list)
+									final List<EntitySnapshot> nearby = findAttachedEntities(loc);
+									blocks.add(IslandSnapshotBlock.fromBlockState(block.getState(), nearby));
+								}
+								processed++;
+							}
+
+							if (!it.hasNext()) {
+								final SchedulerTask scheduled = taskRef.get();
+								if (scheduled != null && !scheduled.isCancelled()) {
+									scheduled.cancel();
+								}
+								future.complete(new IslandSnapshot(blocks, entities));
+							}
+						}, 1L, 1L, LocationUtils.getAnyLocationInstance());
+
+						// assign after scheduling so it's available inside the lambda
+						taskRef.set(task);
 					});
-
-					// Collect block states in batches
-					final int BATCH_SIZE = 500;
-					final List<Location> locations = new ArrayList<>();
-
-					for (int x = (int) box.getMinX(); x <= (int) box.getMaxX(); x++) {
-						for (int y = (int) box.getMinY(); y <= (int) box.getMaxY(); y++) {
-							for (int z = (int) box.getMinZ(); z <= (int) box.getMaxZ(); z++) {
-								locations.add(new Location(world, x, y, z));
-							}
-						}
-					}
-
-					final Iterator<Location> it = locations.iterator();
-
-					final AtomicReference<SchedulerTask> taskRef = new AtomicReference<>();
-
-					final SchedulerTask task = instance.getScheduler().sync().runRepeating(() -> {
-						int processed = 0;
-						while (processed < BATCH_SIZE && it.hasNext()) {
-							final Location loc = it.next();
-							final Block block = loc.getBlock();
-							if (!block.getType().isAir()) {
-								// Capture attached entities near this block (optional, can be empty list)
-								final List<EntitySnapshot> nearby = findAttachedEntities(loc);
-								blocks.add(IslandSnapshotBlock.fromBlockState(block.getState(), nearby));
-							}
-							processed++;
-						}
-
-						if (!it.hasNext()) {
-							final SchedulerTask scheduled = taskRef.get();
-							if (scheduled != null && !scheduled.isCancelled()) {
-								scheduled.cancel();
-							}
-							future.complete(new IslandSnapshot(blocks, entities));
-						}
-					}, 1L, 1L, LocationUtils.getAnyLocationInstance());
-
-					// assign after scheduling so it's available inside the lambda
-					taskRef.set(task);
 				});
 
 		return future;

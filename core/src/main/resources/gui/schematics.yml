@@ -1,15 +1,15 @@
 schematic:
   gui:
     # The title for the schematic menu
-    title: '<center><gradient:#A52A2A:#800000:#A52A2A>Choose a template!</gradient>'
+    title: '<center><gradient:#B22222:#FF8C00:#FFD700>Choose a Template</gradient>'
     # The layout for the schematic menu
     layout:
-      - 'AAAAAAAAA'
+      - 'CACACACAC'
       - 'A1XXXXXXA'
-      - 'AXXXXXXXA' 
+      - 'CXXXXXXXC' 
       - 'AXXXXXXXA'
-      - 'AXXXXXXXA'
-      - 'AAAAAAAAB'
+      - 'CXXXXXXXC'
+      - 'ACACACACB'
     # The schematic format for each schematic to be viewed in the menu
     schematic-icons:
       schematic-1:
@@ -33,7 +33,14 @@ schematic:
             action:
               message_action: 
                 type: message
-                value: "<red>You require the permission</red <dark_red>hellblock.schematic.custom</dark_red> <red>to generate this island type!</red>"
+                value: "<red>You require the permission</red> <dark_red>hellblock.schematic.custom</dark_red> <red>to generate this island type!</red>"
+              sound_action:
+                type: sound
+                value:
+                  key: 'minecraft:entity.villager.no'
+                  source: 'player'
+                  volume: 1
+                  pitch: 1
         action:
           sound_action:
             type: sound
@@ -47,14 +54,14 @@ schematic:
     # The back icon to choose a default island format
     back-icon:
       symbol: 'B'
-      material: RED_STAINED_GLASS_PANE
+      material: NETHER_STAR
       display:
-        name: '<red>Back to Choice Selections'
+        name: '<gradient:#FF4500:#B22222:#8B0000>Return to Selection Menu</gradient>'
       action:
         sound_action:
           type: sound
           value:
-            key: 'minecraft:ui.button.click'
+            key: 'minecraft:block.portal.travel'
             source: 'player'
             volume: 1
             pitch: 1
@@ -67,7 +74,14 @@ schematic:
         material: AIR
       glass-pane:
         symbol: 'A'
-        material: ORANGE_STAINED_GLASS_PANE
+        material: BLACK_STAINED_GLASS_PANE
+        display:
+          name: ' '
+        components:
+          minecraft:hide_tooltip: {}
+      glass-pane-2:
+        symbol: 'C'
+        material: RED_STAINED_GLASS_PANE
         display:
           name: ' '
         components:

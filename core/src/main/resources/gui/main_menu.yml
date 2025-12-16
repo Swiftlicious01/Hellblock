@@ -1,15 +1,15 @@
 hellblock: 
   gui:
     # Title for the hellblock menu
-    title: '<center><gradient:#A52A2A:#800000:#A52A2A>Hellblock Menu</gradient>'
+    title: '<center><gradient:#B22222:#8B0000:#5C0000>Main Control Panel</gradient>'
     # Layout for the hellblock menu
     owner-layout:
       - 'IAAAAAAAN'
       - 'AATEPUDAA'
       - 'AACBLFRAA'
-      - 'VAAAAAAAX'
+      - 'VAAAXAAA!'
     member-layout:
-      - 'AAAAAAAAN'
+      - '!AAAAAAAN'
       - 'AATEPICAA'
       - 'VAAAAAAAX'
     # Teleport icon to teleport to hellblock
@@ -17,9 +17,10 @@ hellblock:
       symbol: 'T'
       material: ENDER_PEARL
       display:
-        name: '<green>Teleport to your Hellblock!'
+        name: '<light_purple>Teleport to Your Hellblock'
         lore:
-          - '<aqua>Click to go to your home island!'
+          - '<gray>Return to your island sanctuary instantly.'
+          - '<aqua>Click to teleport home.'
       action:
         sound_action:
           type: sound
@@ -35,7 +36,7 @@ hellblock:
             count: 5
         message_action:
           type: message
-          value: '<red>Teleporting you to your hellblock!'
+          value: "<red>Teleporting you to your hellblock!</red>"
       components:
         minecraft:hide_additional_tooltip: {}
     # Notifications icon to change notifications
@@ -43,10 +44,30 @@ hellblock:
       symbol: 'N'
       material: BOOK
       display:
-        name: '<green>Change Notifications!'
+        name: '<yellow>Manage Notifications'
         lore:
-          - '<aqua>Click to update your personal notifications!'
+          - '<gray>Toggle updates received in chat about your hellblock.'
+          - '<aqua>Click to adjust your preferences.'
       action: 
+        sound_action:
+          type: sound
+          value:
+            key: 'minecraft:ui.button.click'
+            source: 'player'
+            volume: 1
+            pitch: 1
+      components:
+        minecraft:hide_additional_tooltip: {}
+    # Leaderboards icon to view top islands
+    leaderboard-icon:
+      symbol: '!'
+      material: GOLD_BLOCK
+      display:
+        name: '<gold>View Top Hellblock Islands'
+        lore:
+          - '<gray>See who reigns above the Nether skies.'
+          - '<aqua>Click to open the leaderboard.'
+      action:
         sound_action:
           type: sound
           value:
@@ -61,9 +82,10 @@ hellblock:
       symbol: 'C'
       material: KNOWLEDGE_BOOK
       display:
-        name: '<green>View all Hellblock Challenges!'
+        name: '<green>View Hellblock Challenges'
         lore:
-          - '<aqua>Click to view a list of challenges for you to complete!'
+          - '<gray>Track your active challenges and rewards.'
+          - '<aqua>Click to view available objectives.'
       action:
         sound_action:
           type: sound
@@ -79,9 +101,10 @@ hellblock:
       symbol: 'D'
       material: NAME_TAG
       display:
-        name: '<green>Change your Display Settings!'
+        name: '<light_purple>Edit Display Settings'
         lore:
-          - '<aqua>Click to change your island bio or name for visiting purposes!'
+          - '<gray>Customize your island name and bio.'
+          - '<aqua>Click to update how others see you.'
       action:
         sound_action:
           type: sound
@@ -97,9 +120,10 @@ hellblock:
       symbol: 'U'
       material: EMERALD_ORE
       display:
-        name: '<green>View all Hellblock Upgrades!'
+        name: '<green>View Hellblock Upgrades'
         lore:
-          - '<aqua>Click to view all of the available upgrades to purchase!'
+          - '<gray>Enhance your island with unique boosts.'
+          - '<aqua>Click to browse available upgrades.'
       action:
         sound_action:
           type: sound
@@ -115,11 +139,12 @@ hellblock:
       symbol: 'E'
       material: EXPERIENCE_BOTTLE
       display:
-        name: '<green>View your Hellblock Level!'
+        name: '<gold>Your Hellblock Level'
         lore:
-          - '<gold>Level: <yellow>{hellblock_level}'
+          - '<gray>Current Level:</gray> <yellow>{hellblock_level}'
+          - '<gray>Global Rank:</gray> <yellow>#{hellblock_rank}'
           - ' '
-          - '<gold>Your overall rank is <yellow><bold>{hellblock_rank}'
+          - '<aqua>Click to attempt refreshing your level!'
       action:
         sound_action:
           type: sound
@@ -135,9 +160,10 @@ hellblock:
       symbol: 'P'
       material: BEACON
       display:
-        name: '<green>View your Party Members!'
+        name: '<light_purple>View Party Members'
         lore:
-          - '<aqua>Click to see a list of your party members!'
+          - '<gray>See who shares your island journey.'
+          - '<aqua>Click to manage your party.'
       action:
         sound_action:
           type: sound
@@ -153,9 +179,10 @@ hellblock:
       symbol: 'B'
       material: WARPED_FUNGUS
       display:
-        name: '<green>Change your Hellblock Biome!'
+        name: '<green>Change Island Biome'
         lore:
-          - '<aqua>Click to view all of the biome options!'
+          - '<gray>Transform your island environment.'
+          - '<aqua>Click to view available biomes.'
       action:
         sound_action:
           type: sound
@@ -171,9 +198,10 @@ hellblock:
       symbol: 'F'
       material: REPEATER
       display:
-        name: '<green>Change your Hellblock Protection Flags!'
+        name: '<red>Edit Island Protection Flags'
         lore:
-          - '<aqua>Click to change your hellblock protection flags!'
+          - '<gray>Control what visitors can do.'
+          - '<aqua>Click to manage protection rules.'
       action:
         sound_action:
           type: sound
@@ -189,9 +217,10 @@ hellblock:
       symbol: 'L'
       material: ENDER_CHEST
       display:
-        name: '<green>Lock your Hellblock!'
+        name: '<dark_red>Lock Your Hellblock'
         lore:
-          - '<aqua>Click to change the visitor status of your hellblock!'
+          - '<gray>Prevent visitors from entering your island.'
+          - '<aqua>Click to secure your domain.'
       action:
         sound_action:
           type: sound
@@ -202,17 +231,18 @@ hellblock:
             pitch: 1
         message_action:
           type: message
-          value: "<red>You've just <dark_red>locked <red>your hellblock island!"
+          value: "<red>You've just</red> <dark_red>locked</dark_red> <red>your hellblock island!</red>"
       components:
         minecraft:hide_additional_tooltip: {}
     # Unlock icon to change visitor status
+    # This icon uses the same symbol as the lock symbol and will update to this when hellblock is locked.
     unlock-icon:
-      symbol: 'L'
       material: CHEST
       display:
-        name: '<green>Unlock your Hellblock!'
+        name: '<green>Unlock Your Hellblock'
         lore:
-          - '<aqua>Click to change the visitor status of your hellblock!'
+          - '<gray>Allow visitors to explore your island.'
+          - '<aqua>Click to open your gates.'
       action:
         sound_action:
           type: sound
@@ -223,7 +253,7 @@ hellblock:
             pitch: 1
         message_action:
           type: message
-          value: "<red>You've just <dark_red>unlocked <red>your hellblock island!"
+          value: "<red>You've just</red> <dark_red>unlocked</dark_red> <red>your hellblock island!</red>"
       components:
         minecraft:hide_additional_tooltip: {}
     # Reset icon to restart hellblock
@@ -231,9 +261,10 @@ hellblock:
       symbol: 'R'
       material: NETHER_BRICKS
       display:
-        name: '<green>Reset your Hellblock'
+        name: '<red>Reset Your Hellblock'
         lore:
-          - '<aqua>Click to reset your hellblock island!'
+          - '<gray>Start fresh with a brand new island.'
+          - '<aqua>Click to confirm your decision.'
       action:
         sound_action:
           type: sound
@@ -248,9 +279,9 @@ hellblock:
     reset-cooldown-icon:
       material: BARRIER
       display:
-        name: '<red>Reset is on cooldown!'
+        name: '<dark_red>Reset Cooldown Active'
         lore:
-          - '<dark_red>Your ability to reset is on cooldown for:'
+          - '<gray>Your reset will be available in:'
           - '<red>{reset_cooldown_formatted}'
       action:
         sound_action:
@@ -262,16 +293,16 @@ hellblock:
             pitch: 1
         message_action:
           type: message
-          value: "<red>You've recently reset your hellblock already, you must wait for <dark_red>{reset_cooldown_formatted}<red>!"
+          value: "<red>You've recently reset your hellblock already, you must wait for</red> <dark_red>{reset_cooldown_formatted}</dark_red><red>!</red>"
       components:
         minecraft:hide_additional_tooltip: {}
     # Cooldown icon for biome
     biome-cooldown-icon:
       material: BARRIER
       display:
-        name: '<red>Biome Change is on cooldown!'
+        name: '<dark_red>Biome Change Cooldown'
         lore:
-          - '<dark_red>Your ability to change the biome is on cooldown for:'
+          - '<gray>You can change your biome again in:'
           - '<red>{biome_cooldown_formatted}'
       action:
         sound_action:
@@ -283,7 +314,7 @@ hellblock:
             pitch: 1
         message_action:
           type: message
-          value: "<red>You've recently changed your biome already, you must wait for <dark_red>{biome_cooldown_formatted}<red>!"
+          value: "<red>You've recently changed your biome already, you must wait for</red> <dark_red>{biome_cooldown_formatted}</dark_red><red>!</red>"
       components:
         minecraft:hide_additional_tooltip: {}
     # Island event icon
@@ -291,9 +322,10 @@ hellblock:
       symbol: 'I'
       material: NETHER_STAR
       display:
-        name: '<green>View Island Event Data'
+        name: '<light_purple>View Island Events'
         lore:
-          - '<aqua>Click to view your island event data!'
+          - '<gray>Track event data that occurred on your island.'
+          - '<aqua>Click to see event statistics.'
       action:
         sound_action:
           type: sound
@@ -309,9 +341,10 @@ hellblock:
       symbol: 'V'
       material: OAK_SIGN
       display:
-        name: '<green>View other Hellblock Islands to Visit!'
+        name: '<gold>Visit Public Hellblocks'
         lore:
-          - '<aqua>Click to view other publicly advertised hellblocks!'
+          - '<gray>Explore other players'' creations.'
+          - '<aqua>Click to browse public islands.'
       action:
         sound_action:
           type: sound
@@ -326,9 +359,9 @@ hellblock:
     decorative-icons:
       glass-pane:
         symbol: 'A'
-        material: BLACK_STAINED_GLASS_PANE
+        material: LIME_STAINED_GLASS_PANE
         display:
-          name: ' '  
+          name: ' '
         components:
           minecraft:hide_tooltip: {}
       close-icon:

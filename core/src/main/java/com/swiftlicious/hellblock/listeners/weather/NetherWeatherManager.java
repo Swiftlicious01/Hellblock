@@ -32,6 +32,7 @@ import com.swiftlicious.hellblock.listeners.weather.events.AshStormWeather;
 import com.swiftlicious.hellblock.listeners.weather.events.EmberFogWeather;
 import com.swiftlicious.hellblock.listeners.weather.events.LavaRainWeather;
 import com.swiftlicious.hellblock.listeners.weather.events.MagmaWindWeather;
+import com.swiftlicious.hellblock.scheduler.SchedulerTask;
 import com.swiftlicious.hellblock.utils.LocationUtils;
 import com.swiftlicious.hellblock.utils.RandomUtils;
 import com.swiftlicious.hellblock.world.HellblockWorld;
@@ -91,6 +92,8 @@ public class NetherWeatherManager implements Reloadable {
 
 	private final HellblockPlugin instance;
 	private final Map<Integer, AbstractNetherWeatherTask> activeWeather = new ConcurrentHashMap<>();
+	
+	private SchedulerTask cooldownTask;
 
 	public NetherWeatherManager(HellblockPlugin plugin) {
 		this.instance = plugin;
@@ -99,11 +102,19 @@ public class NetherWeatherManager implements Reloadable {
 	@Override
 	public void load() {
 		startWeatherForAllIslands();
+		this.cooldownTask = instance.getScheduler().sync().runRepeating(
+				() -> instance.getIslandManager().getWeatherCooldowns().entrySet()
+						.removeIf(e -> e.getValue() < System.currentTimeMillis()),
+				0L, 20L, LocationUtils.getAnyLocationInstance());
 	}
 
 	@Override
 	public void unload() {
 		stopAllWeather();
+		if (this.cooldownTask != null && !this.cooldownTask.isCancelled()) {
+			this.cooldownTask.cancel();
+			this.cooldownTask = null;
+		}
 	}
 
 	@Override
@@ -197,6 +208,23 @@ public class NetherWeatherManager implements Reloadable {
 		// Prevent starting if one is already running
 		if (isWeatherActive(islandId))
 			return;
+
+		// Check cooldown
+		long now = System.currentTimeMillis();
+		long nextAllowed = instance.getIslandManager().getWeatherCooldowns().getOrDefault(islandId, now);
+
+		if (now < nextAllowed) {
+			// Delay the actual scheduling until cooldown expires
+			long delayMs = nextAllowed - now;
+			long delayMin = Math.max(1, TimeUnit.MILLISECONDS.toMinutes(delayMs));
+
+			instance.debug(
+					"Island " + islandId + " is under weather cooldown. Scheduling weather in " + delayMin + " min");
+
+			instance.getScheduler().asyncLater(() -> scheduleRandomWeatherForIsland(islandId), delayMin,
+					TimeUnit.MINUTES);
+			return;
+		}
 
 		instance.getIslandManager().getWorldForIsland(islandId).thenAccept(optWorld -> {
 			if (optWorld.isEmpty())
@@ -310,7 +338,7 @@ public class NetherWeatherManager implements Reloadable {
 
 				// Clear previous context flags
 				synchronized (Context.island(islandId)) {
-				    clearAllWeatherContext(islandId);
+					clearAllWeatherContext(islandId);
 				}
 
 				AbstractNetherWeatherTask nextTask = createWeatherTask(next, islandId, world);

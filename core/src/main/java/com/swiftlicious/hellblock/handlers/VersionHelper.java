@@ -185,7 +185,8 @@ public class VersionHelper {
 	@NotNull
 	public static String resolveInternalVersion(@NotNull String bukkitVersion) {
 		return switch (bukkitVersion) {
-		case "1.21.11", "1.21.10", "1.21.9" -> "1_21_R6";
+		case "1.21.11" -> "1_21_R7";
+		case "1.21.10", "1.21.9" -> "1_21_R6";
 		case "1.21.8", "1.21.7", "1.21.6" -> "1_21_R5";
 		case "1.21.5" -> "1_21_R4";
 		case "1.21.4" -> "1_21_R3";

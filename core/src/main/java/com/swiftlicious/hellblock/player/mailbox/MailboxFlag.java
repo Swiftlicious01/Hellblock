@@ -50,6 +50,10 @@ public enum MailboxFlag {
 	@SerializedName("showTitleScreen")
 	SHOW_TITLE,
 
+	/** Resets player's gamemode to original */
+	@SerializedName("resetGameMode")
+	RESET_GAMEMODE,
+
 	/** Plays a sound */
 	@SerializedName("playSound")
 	PLAY_SOUND;

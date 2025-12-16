@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
+import org.bukkit.GameMode;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 
@@ -136,6 +137,9 @@ public class MailboxManager {
 					instance.getScheduler()
 							.executeSync(() -> instance.getIslandChoiceGUIManager().openIslandChoiceGUI(player, true));
 					sender.sendMessage(tm.render(MessageConstants.MSG_HELLBLOCK_UNSAFE_CONDITIONS.build()));
+				}
+				case RESET_GAMEMODE -> {
+					instance.getScheduler().executeSync(() -> player.setGameMode(GameMode.SURVIVAL));
 				}
 				default -> {
 					// no-op

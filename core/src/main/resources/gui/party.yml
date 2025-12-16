@@ -1,7 +1,7 @@
 party:
   gui:
     # The title for the coop party menu
-    title: '<center><gradient:#A52A2A:#800000:#A52A2A>Hellblock Party</gradient>'
+    title: '<center><gradient:#A52A2A:#B22222:#FF6347>Party Management</gradient>'
     # The layout for the party menu
     layout:
       - 'TAAAAAAAB'
@@ -12,7 +12,7 @@ party:
       online: '<green><bold>ONLINE'
       offline: '<red><bold>OFFLINE'
     trusted-members:
-      title: '<center><green>Trusted Members</green>'
+      title: '<center><gradient:#32CD32:#006400:#228B22>Trusted Members</gradient>'
       layout:
         - 'LAAAAAAAR'
         - 'AMMMMMMMA'
@@ -25,11 +25,11 @@ party:
         display:
           name: '<aqua>{player}'
           lore:
-            - '<yellow>Status: {login_status}'
+            - '<yellow>Status:<reset> {login_status}'
             - ' '
             - '<gray>Click to remove trust!'
           read-only-lore:
-            - '<yellow>Status: {login_status}'
+            - '<yellow>Status:<reset> {login_status}'
         action:
           sound_action:
             type: sound
@@ -46,7 +46,8 @@ party:
         display:
           name: '<green>Add Trusted Member'
           lore:
-            - '<gray>Click to add a new member!'
+            - '<gray>Grant trust to another player.'
+            - '<aqua>They’ll gain limited island access.'
         action:
           sound_action:
             type: sound
@@ -61,9 +62,10 @@ party:
         symbol: 'V'
         material: BOOK_AND_QUILL
         display:
-          name: '<green>View Islands Trusted On'
+          name: '<aqua>View Trusted Islands'
           lore:
-            - '<gray>Click view the islands you''re trusted on!'
+            - '<gray>See which islands have trusted you.'
+            - '<aqua>Click to view your alliances.'
         action:
           sound_action:
             type: sound
@@ -120,7 +122,7 @@ party:
         components:
           minecraft:hide_additional_tooltip: {}
     banned-members:
-      title: '<center><red>Banned Members</red>'
+      title: '<center><gradient:#FF0000:#8B0000:#B22222>Banned Members</gradient>'
       layout:
         - 'LAAAAAAAR'
         - 'AMMMMMMMA'
@@ -133,11 +135,11 @@ party:
         display:
           name: <red>{player}
           lore:
-            - '<yellow>Status: {login_status}'
+            - '<yellow>Status:<reset> {login_status}'
             - ' '
             - '<gray>Click to unban!'
           read-only-lore:
-            - '<yellow>Status: {login_status}'
+            - '<yellow>Status:<reset> {login_status}'
         action:
           sound_action:
             type: sound
@@ -154,7 +156,8 @@ party:
         display:
           name: '<red>Ban Player'
           lore:
-            - '<gray>Click to ban a new player!'
+            - '<gray>Exile a player from your Hellblock.'
+            - '<aqua>Click to issue a ban!'
         action:
           sound_action:
             type: sound
@@ -169,9 +172,10 @@ party:
         symbol: 'V'
         material: BOOK_AND_QUILL
         display:
-          name: '<red>View Islands Banned On'
+          name: '<dark_red>View Banned Islands'
           lore:
-            - '<gray>Click view the islands you''re banned on!'
+            - '<gray>See which islands you’ve been banned from.'
+            - '<aqua>Click to review your ban list.'
         action:
           sound_action:
             type: sound
@@ -264,7 +268,9 @@ party:
       display:
         name: '<gold>Trusted Members'
         lore:
-          - '<yellow>Click to view trusted members!'
+          - '<gray>View and manage those you trust most.'
+          - ' '
+          - '<yellow>Click to open trusted members list!'
       action:
         sound_action:
           type: sound
@@ -294,9 +300,11 @@ party:
       book-settings:
         no-banned-found: "You're not banned on any islands."
       display:
-        name: '<gold>Banned Members'
+        name: '<red>Banned Members'
         lore:
-          - '<yellow>Click to view banned members!'
+          - '<gray>View those forbidden from your Hellblock.'
+          - ' '
+          - '<yellow>Click to manage banned players!'
       action:
         sound_action:
           type: sound
@@ -312,9 +320,9 @@ party:
       symbol: 'O'
       material: PLAYER_HEAD
       display:
-        name: '<aqua>{player}'
+        name: '<gold>Island Owner: <aqua>{player}'
         lore:
-          - '<yellow>Role: <gold>Owner'
+          - '<gray>The ruler of this Hellblock realm.'
           - '<yellow>Status:<reset> {login_status}'
       action:
         sound_action:
@@ -333,13 +341,14 @@ party:
       display:
         name: '<aqua>{player}'
         owner-lore: 
-          - '<yellow>Role: <gold>Member'
+          - '<yellow>Role:</yellow> <gold>Member'
           - '<yellow>Status:<reset> {login_status}'
           - ' '
-          - '<red>Left-click to kick them!'
-          - '<red>Shift right-click to transfer ownership to them!'
+          - '<red>Left-Click:</red> Kick member'
+          - '<red>Shift + Right-Click:</red> Transfer ownership'
         member-lore:
-          - '<yellow>Role: <gold>Member'
+          - '<yellow>Role:</yellow> <gold>Member'
+          - '<yellow>Status:<reset> {login_status}'
       action:
         sound_action:
           type: sound
@@ -351,14 +360,16 @@ party:
       components:
         minecraft:hide_additional_tooltip: {}
     # New member icon to add new players to the hellblock
+    # Uses the same symbol as member icon as they're interchangeable on the menu
     new-member-icon:
-      symbol: 'M'
       material: PLAYER_HEAD
       head64: 'eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvYmFkYzA0OGE3Y2U3OGY3ZGFkNzJhMDdkYTI3ZDg1YzA5MTY4ODFlNTUyMmVlZWQxZTNkYWYyMTdhMzhjMWEifX19'
       display:
-        name: '<dark_green>Empty Slot'
+        name: '<green>Invite New Member'
         owner-lore: 
-          - '<green>Click to invite a new member!'
+          - '<gray>Recruit a new ally to your Hellblock.'
+          - ' '
+          - '<green>Click to send an invitation!'
       action:
         sound_action:
           type: sound

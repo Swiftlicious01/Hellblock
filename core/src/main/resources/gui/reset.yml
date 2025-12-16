@@ -1,7 +1,7 @@
 confirm-reset:
   gui:
     # The title for the reset confirm menu
-    title: '<center><gradient:#A52A2A:#800000:#A52A2A>Confirmation Menu</gradient>'
+    title: '<center><gradient:#DC143C:#FF0000:#8B0000>Reset Your Island</gradient>'
     # The layout for the reset confirm menu
     # One row with 5 characters will result in a hopper inventory menu being used instead of a regular one.
     layout:
@@ -13,7 +13,10 @@ confirm-reset:
       symbol: 'D'
       material: RED_WOOL
       display:
-        name: '<red>Deny Reset Action'
+        name: '<dark_red>Cancel Reset'
+        lore:
+          - '<gray>Back out and keep your current island.'
+          - '<aqua>Click to return without resetting.'
       action:
         sound_action:
           type: sound
@@ -29,7 +32,10 @@ confirm-reset:
       symbol: 'C'
       material: LIME_WOOL
       display:
-        name: '<green>Confirm Reset Action'
+        name: '<green>Confirm Island Reset'
+        lore:
+          - '<gray>Start over with a fresh island.'
+          - '<aqua>This action <red>cannot</red> be undone!'
       action:
         sound_action:
           type: sound

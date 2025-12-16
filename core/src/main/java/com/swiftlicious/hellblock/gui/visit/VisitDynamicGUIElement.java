@@ -7,7 +7,8 @@ import org.jetbrains.annotations.Nullable;
 
 public class VisitDynamicGUIElement extends VisitGUIElement {
 
-	private @Nullable String skullTexture;
+	@Nullable
+	private String skullTexture;
 	private long featuredUntil;
 
 	public VisitDynamicGUIElement(char symbol, ItemStack itemStack, UUID uuid) {
@@ -38,8 +39,8 @@ public class VisitDynamicGUIElement extends VisitGUIElement {
 		this.skullTexture = texture;
 	}
 
-	public @Nullable String getSkullTexture() {
+	@Nullable
+	public String getSkullTexture() {
 		return this.skullTexture;
 	}
-
 }

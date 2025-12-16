@@ -61,6 +61,8 @@ public class ProtectionManager implements ProtectionManagerInterface, Reloadable
 	private IslandProtection<?> islandProtection;
 	private ProtectionEvents protectionEvents;
 
+	private final static int BATCH_SIZE = 500;
+
 	private final Map<UUID, CompletableFuture<Set<Pos3>>> activeBlockScans = new ConcurrentHashMap<>();
 	private final Map<UUID, Set<ChunkPos>> skippedChunksPerIsland = new ConcurrentHashMap<>();
 
@@ -180,9 +182,9 @@ public class ProtectionManager implements ProtectionManagerInterface, Reloadable
 	}
 
 	@Override
-	public CompletableFuture<Void> changeProtectionFlag(@NotNull HellblockWorld<?> world, @NotNull UUID islandOwnerId,
+	public CompletableFuture<Void> changeProtectionFlag(@NotNull HellblockWorld<?> world, @NotNull UUID ownerId,
 			@NotNull HellblockFlag flag) {
-		return validateUser(islandOwnerId).thenAccept(userOpt -> {
+		return validateUser(ownerId).thenAccept(userOpt -> {
 			userOpt.ifPresent(ownerData -> {
 				ownerData.getHellblockData().setProtectionValue(flag);
 				islandProtection.changeHellblockFlag(world, ownerData, flag);
@@ -191,8 +193,8 @@ public class ProtectionManager implements ProtectionManagerInterface, Reloadable
 	}
 
 	@Override
-	public CompletableFuture<Void> changeLockStatus(@NotNull HellblockWorld<?> world, @NotNull UUID islandOwnerId) {
-		return validateUser(islandOwnerId).thenAccept(userOpt -> {
+	public CompletableFuture<Void> changeLockStatus(@NotNull HellblockWorld<?> world, @NotNull UUID ownerId) {
+		return validateUser(ownerId).thenAccept(userOpt -> {
 			userOpt.ifPresent(ownerData -> {
 				final HellblockData hellblockData = ownerData.getHellblockData();
 				final boolean locked = hellblockData.isLocked();
@@ -242,18 +244,17 @@ public class ProtectionManager implements ProtectionManagerInterface, Reloadable
 	 * Validates that the given UUID corresponds to a valid, non-abandoned Hellblock
 	 * island owner.
 	 *
-	 * @param islandOwnerId the UUID of the potential island owner
+	 * @param ownerId the UUID of the potential island owner
 	 * @return a CompletableFuture with the validated UserData, or an empty Optional
 	 *         if invalid
 	 */
-	private CompletableFuture<Optional<UserData>> validateUser(@NotNull UUID islandOwnerId) {
-		return instance.getStorageManager()
-				.getCachedUserDataWithFallback(islandOwnerId, instance.getConfigManager().lockData())
+	private CompletableFuture<Optional<UserData>> validateUser(@NotNull UUID ownerId) {
+		return instance.getStorageManager().getCachedUserDataWithFallback(ownerId, false)
 				.thenApplyAsync(userOpt -> userOpt.filter(userData -> {
 					HellblockData data = userData.getHellblockData();
 					UUID owner = data.getOwnerUUID();
 
-					return data.hasHellblock() && !data.isAbandoned() && owner != null && owner.equals(islandOwnerId);
+					return data.hasHellblock() && !data.isAbandoned() && owner != null && owner.equals(ownerId);
 				}));
 	}
 
@@ -265,16 +266,19 @@ public class ProtectionManager implements ProtectionManagerInterface, Reloadable
 				.forEach(Entity::remove));
 	}
 
+	@Nullable
 	@Override
-	public CompletableFuture<@Nullable BoundingBox> getHellblockBounds(@NotNull HellblockWorld<?> world,
-			@NotNull UUID islandOwnerId) {
+	public CompletableFuture<BoundingBox> getHellblockBounds(@NotNull HellblockWorld<?> world, @NotNull UUID ownerId) {
 		if (world.bukkitWorld() == null || !instance.getHellblockHandler().isInCorrectWorld(world.bukkitWorld())) {
 			return CompletableFuture.completedFuture(null);
 		}
 
-		return instance.getStorageManager()
-				.getCachedUserDataWithFallback(islandOwnerId, instance.getConfigManager().lockData())
-				.thenApply(result -> {
+		return instance.getStorageManager().getCachedUserDataWithFallback(ownerId, false).orTimeout(5, TimeUnit.SECONDS)
+				.exceptionally(ex -> {
+					instance.getPluginLogger()
+							.warn("Failed to get bounds for island with owner " + ownerId + ": " + ex.getMessage());
+					return Optional.empty();
+				}).thenApply(result -> {
 					if (result.isEmpty()) {
 						return null;
 					}
@@ -296,7 +300,7 @@ public class ProtectionManager implements ProtectionManagerInterface, Reloadable
 	}
 
 	@Override
-	public CompletableFuture<Boolean> isInsideIsland(@NotNull UUID islandOwnerId, @NotNull Location location) {
+	public CompletableFuture<Boolean> isInsideIsland(@NotNull UUID ownerId, @NotNull Location location) {
 		final World bukkitWorld = location.getWorld();
 
 		// Fail early if world isn't valid
@@ -310,7 +314,7 @@ public class ProtectionManager implements ProtectionManagerInterface, Reloadable
 		}
 
 		HellblockWorld<?> world = hellWorld.get();
-		return getHellblockBounds(world, islandOwnerId).thenApply(bounds -> {
+		return getHellblockBounds(world, ownerId).thenApply(bounds -> {
 			if (bounds == null)
 				return false;
 
@@ -323,7 +327,7 @@ public class ProtectionManager implements ProtectionManagerInterface, Reloadable
 	}
 
 	@Override
-	public CompletableFuture<Boolean> isInsideIsland2D(@NotNull UUID islandOwnerId, @NotNull Location location) {
+	public CompletableFuture<Boolean> isInsideIsland2D(@NotNull UUID ownerId, @NotNull Location location) {
 		final World bukkitWorld = location.getWorld();
 
 		// Fail early if world isn't valid
@@ -337,7 +341,7 @@ public class ProtectionManager implements ProtectionManagerInterface, Reloadable
 		}
 
 		HellblockWorld<?> world = hellWorld.get();
-		return getHellblockBounds(world, islandOwnerId).thenApply(bounds -> {
+		return getHellblockBounds(world, ownerId).thenApply(bounds -> {
 			if (bounds == null)
 				return false;
 
@@ -348,6 +352,7 @@ public class ProtectionManager implements ProtectionManagerInterface, Reloadable
 		});
 	}
 
+	@NotNull
 	@Override
 	public CompletableFuture<Set<ChunkPos>> getHellblockChunks(@NotNull HellblockWorld<?> world, int islandId) {
 		CompletableFuture<Set<ChunkPos>> chunkFuture = new CompletableFuture<>();
@@ -358,8 +363,12 @@ public class ProtectionManager implements ProtectionManagerInterface, Reloadable
 			return chunkFuture;
 		}
 
-		instance.getStorageManager().getOfflineUserDataByIslandId(islandId, instance.getConfigManager().lockData())
-				.thenAccept(result -> {
+		instance.getStorageManager().getOfflineUserDataByIslandId(islandId, false).orTimeout(5, TimeUnit.SECONDS)
+				.exceptionally(ex -> {
+					instance.getPluginLogger()
+							.warn("Failed to get chunks for island " + islandId + ": " + ex.getMessage());
+					return Optional.empty();
+				}).thenAccept(result -> {
 					if (result.isEmpty()) {
 						chunkFuture.complete(Collections.emptySet());
 						return;
@@ -398,12 +407,16 @@ public class ProtectionManager implements ProtectionManagerInterface, Reloadable
 		return chunkFuture;
 	}
 
+	@NotNull
 	@Override
 	public CompletableFuture<Set<ChunkPos>> getHellblockChunks(@NotNull HellblockWorld<?> world,
-			@NotNull UUID islandOwnerId) {
-		return instance.getStorageManager()
-				.getCachedUserDataWithFallback(islandOwnerId, instance.getConfigManager().lockData())
-				.thenCompose(result -> {
+			@NotNull UUID ownerId) {
+		return instance.getStorageManager().getCachedUserDataWithFallback(ownerId, false).orTimeout(5, TimeUnit.SECONDS)
+				.exceptionally(ex -> {
+					instance.getPluginLogger()
+							.warn("Failed to get chunks for island with owner " + ownerId + ": " + ex.getMessage());
+					return Optional.empty();
+				}).thenCompose(result -> {
 					if (result.isEmpty()) {
 						return CompletableFuture.completedFuture(Collections.emptySet());
 					}
@@ -415,21 +428,24 @@ public class ProtectionManager implements ProtectionManagerInterface, Reloadable
 				});
 	}
 
+	@NotNull
 	@Override
-	public CompletableFuture<Set<Pos3>> getHellblockBlocks(@NotNull HellblockWorld<?> world,
-			@NotNull UUID islandOwnerId) {
-		cancelBlockScan(islandOwnerId);
+	public CompletableFuture<Set<Pos3>> getHellblockBlocks(@NotNull HellblockWorld<?> world, @NotNull UUID ownerId) {
+		cancelBlockScan(ownerId);
 
 		final CompletableFuture<Set<Pos3>> blockSupplier = new CompletableFuture<>();
-		activeBlockScans.put(islandOwnerId, blockSupplier);
-		skippedChunksPerIsland.put(islandOwnerId, ConcurrentHashMap.newKeySet());
+		activeBlockScans.put(ownerId, blockSupplier);
+		skippedChunksPerIsland.put(ownerId, ConcurrentHashMap.newKeySet());
 
-		instance.getStorageManager()
-				.getCachedUserDataWithFallback(islandOwnerId, instance.getConfigManager().lockData())
-				.thenAccept(result -> {
+		instance.getStorageManager().getCachedUserDataWithFallback(ownerId, false).orTimeout(5, TimeUnit.SECONDS)
+				.exceptionally(ex -> {
+					instance.getPluginLogger()
+							.warn("Failed to get blocks for island with owner " + ownerId + ": " + ex.getMessage());
+					return Optional.empty();
+				}).thenAccept(result -> {
 					if (result.isEmpty()) {
 						blockSupplier.complete(Collections.emptySet());
-						activeBlockScans.remove(islandOwnerId);
+						activeBlockScans.remove(ownerId);
 						return;
 					}
 
@@ -442,7 +458,7 @@ public class ProtectionManager implements ProtectionManagerInterface, Reloadable
 							|| instance.getIslandChoiceGUIManager().isGeneratingIsland(userData.getUUID())
 							|| instance.getSchematicGUIManager().isGeneratingSchematic(userData.getUUID())) {
 						blockSupplier.complete(Collections.emptySet());
-						activeBlockScans.remove(islandOwnerId);
+						activeBlockScans.remove(ownerId);
 						return;
 					}
 
@@ -467,7 +483,7 @@ public class ProtectionManager implements ProtectionManagerInterface, Reloadable
 									}
 								}
 								instance.getScheduler().executeSync(
-										() -> processBatch(islandOwnerId, world, positions, collected, blockSupplier));
+										() -> processBatch(ownerId, world, positions, collected, blockSupplier));
 							}));
 				});
 
@@ -498,6 +514,19 @@ public class ProtectionManager implements ProtectionManagerInterface, Reloadable
 					allChunkPositions.add(pos);
 				}
 			}
+		}
+
+		if (allChunkPositions.isEmpty()) {
+			instance.debug(() -> "preloadIslandBounds: all chunks already loaded for bounds " + bounds);
+
+			if (onCompleteCallback != null) {
+				try {
+					onCompleteCallback.run();
+				} catch (Exception ignored) {
+				}
+			}
+
+			return CompletableFuture.completedFuture(Collections.emptyList());
 		}
 
 		instance.debug(
@@ -649,18 +678,17 @@ public class ProtectionManager implements ProtectionManagerInterface, Reloadable
 	 * @param future          the CompletableFuture to complete when the scan is
 	 *                        done
 	 */
-	private void processBatch(UUID islandOwnerId, HellblockWorld<?> world, Queue<Pos3> positions,
-			Set<Pos3> collectedBlocks, CompletableFuture<Set<Pos3>> future) {
-		if (!activeBlockScans.containsKey(islandOwnerId) || future.isCancelled()) {
-			skippedChunksPerIsland.remove(islandOwnerId);
+	private void processBatch(UUID ownerId, HellblockWorld<?> world, Queue<Pos3> positions, Set<Pos3> collectedBlocks,
+			CompletableFuture<Set<Pos3>> future) {
+		if (!activeBlockScans.containsKey(ownerId) || future.isCancelled()) {
+			skippedChunksPerIsland.remove(ownerId);
 			return;
 		}
 
-		final int batchSize = 500;
 		int processed = 0;
-		AtomicInteger remaining = new AtomicInteger(batchSize);
+		AtomicInteger remaining = new AtomicInteger(BATCH_SIZE);
 
-		while (processed < batchSize && !positions.isEmpty()) {
+		while (processed < BATCH_SIZE && !positions.isEmpty()) {
 			final Pos3 pos = positions.poll();
 			world.getBlockState(pos).thenAccept(stateOpt -> {
 				if (stateOpt.isPresent() && !stateOpt.get().isAir()) {
@@ -670,7 +698,7 @@ public class ProtectionManager implements ProtectionManagerInterface, Reloadable
 				if (!stateOpt.isPresent()) {
 					ChunkPos chunkPos = ChunkPos.fromPos3(pos);
 					if (!world.isChunkLoaded(chunkPos)) {
-						Set<ChunkPos> skippedChunks = skippedChunksPerIsland.get(islandOwnerId);
+						Set<ChunkPos> skippedChunks = skippedChunksPerIsland.get(ownerId);
 						if (skippedChunks != null && skippedChunks.add(chunkPos)) {
 							instance.debug(() -> "Skipping blocks in chunk " + chunkPos + " because it is not loaded");
 						}
@@ -680,14 +708,14 @@ public class ProtectionManager implements ProtectionManagerInterface, Reloadable
 				// After processing, schedule next batch if needed
 				if (remaining.decrementAndGet() == 0) {
 					if (positions.isEmpty()) {
-						instance.debug(() -> "Finished block scan for island " + islandOwnerId + ". Collected "
+						instance.debug(() -> "Finished block scan for island " + ownerId + ". Collected "
 								+ collectedBlocks.size() + " blocks.");
 						future.complete(collectedBlocks);
-						activeBlockScans.remove(islandOwnerId);
-						skippedChunksPerIsland.remove(islandOwnerId);
+						activeBlockScans.remove(ownerId);
+						skippedChunksPerIsland.remove(ownerId);
 					} else {
-						instance.getScheduler().executeSync(
-								() -> processBatch(islandOwnerId, world, positions, collectedBlocks, future));
+						instance.getScheduler()
+								.executeSync(() -> processBatch(ownerId, world, positions, collectedBlocks, future));
 					}
 				}
 			});
@@ -700,10 +728,12 @@ public class ProtectionManager implements ProtectionManagerInterface, Reloadable
 	 * @param islandOwnerId the UUID of the island owner whose scan should be
 	 *                      cancelled
 	 */
-	public void cancelBlockScan(@NotNull UUID islandOwnerId) {
-		final CompletableFuture<Set<Pos3>> future = activeBlockScans.remove(islandOwnerId);
+	public void cancelBlockScan(@NotNull UUID ownerId) {
+		final CompletableFuture<Set<Pos3>> future = activeBlockScans.remove(ownerId);
 		if (future != null && !future.isDone()) {
-			future.cancel(true);
+			// Gracefully complete the future instead of cancelling
+			future.complete(Collections.emptySet());
+			instance.debug(() -> "cancelBlockScan: gracefully completed block scan for " + ownerId);
 		}
 	}
 

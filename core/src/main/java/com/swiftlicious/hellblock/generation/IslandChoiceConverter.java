@@ -150,9 +150,8 @@ public class IslandChoiceConverter {
 					+ ", x=" + location.getBlockX() + ", y=" + location.getBlockY() + ", z=" + location.getBlockZ()
 					+ "]");
 
-			return instance.getIslandGenerator()
-					.generateHellblockSchematic(request, world, location, ownerData, request.schematicName(), true, animate)
-					.thenAccept(safeSpawn -> {
+			return instance.getIslandGenerator().generateHellblockSchematic(request, world, location, ownerData,
+					request.schematicName(), true, animate).thenAccept(safeSpawn -> {
 						if (safeSpawn != null) {
 							ownerData.getHellblockData().setHomeLocation(safeSpawn);
 							instance.debug("generateVariantIsland: Schematic island generated for " + playerName
@@ -177,17 +176,14 @@ public class IslandChoiceConverter {
 		if (animate) {
 			instance.debug("generateVariantIsland: Starting animated island generation for " + playerName + " (variant="
 					+ request.options().name() + ")");
-			return instance.getIslandGenerator().generateAnimatedHellblockIsland(
-					request, world, location, ownerData).thenRun(postGen);
+			return instance.getIslandGenerator().generateAnimatedHellblockIsland(request, world, location, ownerData)
+					.thenRun(postGen);
 		}
 
 		// Instant generation (fallback)
 		instance.debug("generateVariantIsland: Running instant island generation for " + playerName + " (variant="
 				+ request.options().name() + ")");
-		return CompletableFuture.runAsync(() -> {
-			instance.getIslandGenerator().generateInstantHellblockIsland(
-					request, world, location, ownerData);
-			postGen.run();
-		});
+		return instance.getIslandGenerator().generateInstantHellblockIsland(request, world, location, ownerData)
+				.thenRun(postGen);
 	}
 }

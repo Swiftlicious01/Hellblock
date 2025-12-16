@@ -6,6 +6,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
+import java.io.EOFException;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -14,6 +15,9 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
@@ -214,7 +218,8 @@ public class BukkitWorldAdapter extends AbstractWorldAdapter<World> {
 
 			org.mvplugins.multiverse.core.world.options.ImportWorldOptions worldOptions = org.mvplugins.multiverse.core.world.options.ImportWorldOptions
 					.worldName(worldName);
-			worldOptions.generator(pluginName).biome(pluginName).environment(Environment.NETHER).useSpawnAdjust(false);
+			worldOptions.generator(pluginName).biome(pluginName).environment(Environment.NETHER).useSpawnAdjust(false)
+					.doFolderCheck(true);
 
 			org.mvplugins.multiverse.core.utils.result.Attempt<org.mvplugins.multiverse.core.world.LoadedMultiverseWorld, org.mvplugins.multiverse.core.world.reasons.ImportFailureReason> importedWorldResult = worldManager
 					.importWorld(worldOptions);
@@ -431,25 +436,72 @@ public class BukkitWorldAdapter extends AbstractWorldAdapter<World> {
 	@Override
 	public CustomRegion loadRegion(HellblockWorld<World> world, RegionPos pos, boolean createIfNotExist) {
 		final File data = getRegionDataFile(world.world(), pos);
-		// if the data file doesn't exist
+		final File tempFile = new File(data.getParentFile(), data.getName() + ".tmp");
+
+		// --- Step 1: Cleanup leftover temp file (crash recovery)
+		if (tempFile.exists()) {
+			instance.getPluginLogger().warn("Found leftover temp file for " + pos + ", deleting...");
+			tempFile.delete();
+		}
+
+		// --- Step 2: Region file doesn't exist
 		if (!data.exists()) {
 			return createIfNotExist ? world.createRegion(pos) : null;
-		} else {
-			// load region from local files
-			try (BufferedInputStream bis = new BufferedInputStream(new FileInputStream(data));
-					DataInputStream dataStream = new DataInputStream(bis)) {
-				return deserializeRegion(world, dataStream, pos);
-			} catch (Exception e) {
-				instance.getPluginLogger().severe("[" + world.worldName() + "] Failed to load Hellblock region data at "
-						+ pos + ". Deleting the corrupted region.", e);
-				final boolean success = data.delete();
-				if (success) {
-					return createIfNotExist ? world.createRegion(pos) : null;
-				} else {
-					throw new RuntimeException(
-							"[" + world.worldName() + "] Failed to delete corrupted Hellblock region data at " + pos);
+		}
+
+		// --- Step 3: Try normal load ---
+		try (BufferedInputStream bis = new BufferedInputStream(new FileInputStream(data));
+				DataInputStream in = new DataInputStream(bis)) {
+
+			return deserializeRegion(world, in, pos);
+
+		} catch (EOFException eof) {
+			instance.getPluginLogger().warn(
+					"[" + world.worldName() + "] Region file truncated at " + pos + " — deleting corrupted file.");
+
+		} catch (IOException io) {
+			instance.getPluginLogger().severe("[" + world.worldName() + "] I/O error while loading region " + pos, io);
+
+			// Try partial recovery
+			try {
+				try (BufferedInputStream bis2 = new BufferedInputStream(new FileInputStream(data));
+						DataInputStream ds2 = new DataInputStream(bis2)) {
+
+					CustomRegion recovered = tryPartialRecovery(world, ds2, pos, data);
+					if (recovered != null) {
+						instance.getPluginLogger()
+								.warn("[" + world.worldName() + "] Successfully recovered part of region " + pos + ".");
+						return recovered;
+					}
 				}
+			} catch (Exception ignored) {
 			}
+		} catch (Exception ex) {
+			instance.getPluginLogger().severe("[" + world.worldName() + "] Unexpected error loading region " + pos, ex);
+		}
+
+		// --- Step 4: Delete corrupted file ---
+		if (data.exists() && !data.delete()) {
+			instance.getPluginLogger().warn("Failed to delete corrupted region file: " + data.getAbsolutePath());
+		}
+
+		// --- Step 5: Recreate clean region if needed ---
+		return createIfNotExist ? world.createRegion(pos) : null;
+	}
+
+	@Nullable
+	private CustomRegion tryPartialRecovery(HellblockWorld<World> world, DataInputStream dataStream, RegionPos pos,
+			File file) {
+		try {
+			CustomRegion region = deserializeRegion(world, dataStream, pos);
+			saveRegion(world, region); // re-save clean version
+			return region;
+		} catch (EOFException ignored) {
+			return null; // can't recover anything
+		} catch (Exception ex) {
+			instance.getPluginLogger().warn(
+					"[" + world.worldName() + "] Partial recovery failed for region " + pos + ": " + ex.getMessage());
+			return null;
 		}
 	}
 
@@ -493,26 +545,55 @@ public class BukkitWorldAdapter extends AbstractWorldAdapter<World> {
 	@Override
 	public void saveRegion(HellblockWorld<World> world, CustomRegion region) {
 		final File file = getRegionDataFile(world.world(), region.regionPos());
+
+		// --- Step 1: Prune empty regions ---
 		if (region.canPrune()) {
-			if (file.exists()) {
-				file.delete();
+			if (file.exists() && !file.delete()) {
+				instance.getPluginLogger()
+						.warn("saveRegion: Failed to delete pruned region file: " + file.getAbsolutePath());
 			}
 			return;
 		}
-		final long time1 = System.currentTimeMillis();
+
+		// --- Step 2: Ensure directory exists ---
 		final File parentDir = file.getParentFile();
-		if (parentDir != null && !parentDir.exists()) {
-			parentDir.mkdirs();
+		if (parentDir != null && !parentDir.exists() && !parentDir.mkdirs()) {
+			instance.getPluginLogger()
+					.severe("saveRegion: Failed to create region directory: " + parentDir.getAbsolutePath());
+			return;
 		}
-		try (FileOutputStream fos = new FileOutputStream(file);
-				BufferedOutputStream bos = new BufferedOutputStream(fos)) {
-			bos.write(serializeRegion(region));
-			final long time2 = System.currentTimeMillis();
-			instance.debug(() -> "[" + world.worldName() + "] Took " + (time2 - time1) + "ms to save region "
-					+ region.regionPos());
+
+		final long start = System.currentTimeMillis();
+		final File tempFile = new File(parentDir, file.getName() + ".tmp");
+
+		try {
+			final byte[] bytes = serializeRegion(region);
+
+			try (FileOutputStream fos = new FileOutputStream(tempFile);
+					BufferedOutputStream bos = new BufferedOutputStream(fos)) {
+
+				bos.write(bytes);
+				bos.flush();
+				fos.getFD().sync(); // force OS flush
+			}
+
+			try {
+				Files.move(tempFile.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING,
+						StandardCopyOption.ATOMIC_MOVE);
+			} catch (AtomicMoveNotSupportedException ex) {
+				Files.move(tempFile.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING);
+				instance.getPluginLogger().warn("Atomic move not supported for region " + region.regionPos());
+			}
+
+			long elapsed = System.currentTimeMillis() - start;
+			instance.debug(
+					() -> "[" + world.worldName() + "] Took " + elapsed + "ms to save region " + region.regionPos());
+
 		} catch (IOException e) {
-			instance.getPluginLogger().severe(
-					"[" + world.worldName() + "] Failed to save Hellblock region data." + region.regionPos(), e);
+			instance.getPluginLogger()
+					.severe("[" + world.worldName() + "] Failed to save Hellblock region at " + region.regionPos(), e);
+			if (tempFile.exists())
+				tempFile.delete();
 		}
 	}
 
@@ -544,41 +625,88 @@ public class BukkitWorldAdapter extends AbstractWorldAdapter<World> {
 		return BUKKIT_WORLD_PRIORITY;
 	}
 
-	private CustomRegion deserializeRegion(HellblockWorld<World> world, DataInputStream dataStream, RegionPos pos)
+	private CustomRegion deserializeRegion(HellblockWorld<World> world, DataInputStream in, RegionPos pos)
 			throws IOException {
 		final ConcurrentMap<ChunkPos, byte[]> map = new ConcurrentHashMap<>();
-		final int chunkAmount = dataStream.readInt();
-		for (int i = 0; i < chunkAmount; i++) {
-			final int chunkX = dataStream.readInt();
-			final int chunkZ = dataStream.readInt();
-			final ChunkPos chunkPos = ChunkPos.of(chunkX, chunkZ);
-			final byte[] chunkData = new byte[dataStream.readInt()];
-			dataStream.read(chunkData);
-			map.put(chunkPos, chunkData);
+
+		// --- Header check ---
+		byte version = in.readByte();
+		if (version != REGION_VERSION) {
+			throw new IOException("Unsupported region version: " + version + " (expected " + REGION_VERSION + ")");
 		}
-		return world.restoreRegion(pos, map);
+
+		int regionX = in.readInt();
+		int regionZ = in.readInt();
+		if (regionX != pos.x() || regionZ != pos.z()) {
+			throw new IOException("Region header mismatch! File=" + regionX + "," + regionZ + " Expected=" + pos);
+		}
+
+		int chunkCount = in.readInt();
+		int chunksRead = 0;
+
+		for (int i = 0; i < chunkCount; i++) {
+			try {
+				int chunkX = in.readInt();
+				int chunkZ = in.readInt();
+				int len = in.readInt();
+
+				if (len <= 0 || len > 4 * 1024 * 1024)
+					throw new IOException("Invalid chunk data length: " + len);
+
+				byte[] data = new byte[len];
+				in.readFully(data);
+				map.put(ChunkPos.of(chunkX, chunkZ), data);
+				chunksRead++;
+
+			} catch (EOFException eof) {
+				instance.getPluginLogger().warn("[" + world.worldName() + "] Truncated region " + pos
+						+ " after reading " + i + "/" + chunkCount + " chunks.");
+				break;
+			}
+		}
+
+		CustomRegion region = world.restoreRegion(pos, map);
+
+		// Auto-resave if truncated
+		if (chunksRead < chunkCount) {
+			instance.getPluginLogger()
+					.warn("[" + world.worldName() + "] Region " + pos + " was truncated — re-saving repaired data...");
+			saveRegion(world, region);
+		}
+
+		return region;
 	}
 
-	private byte[] serializeRegion(CustomRegion region) {
-		final ByteArrayOutputStream outByteStream = new ByteArrayOutputStream();
-		final DataOutputStream outStream = new DataOutputStream(outByteStream);
-		try {
-			outStream.writeByte(REGION_VERSION);
-			outStream.writeInt(region.regionPos().x());
-			outStream.writeInt(region.regionPos().z());
+	private byte[] serializeRegion(@NotNull CustomRegion region) {
+		final ByteArrayOutputStream baos = new ByteArrayOutputStream();
+		try (DataOutputStream out = new DataOutputStream(baos)) {
+
+			out.writeByte(REGION_VERSION);
+			out.writeInt(region.regionPos().x());
+			out.writeInt(region.regionPos().z());
+
 			final Map<ChunkPos, byte[]> map = region.dataToSave();
-			outStream.writeInt(map.size());
+			out.writeInt(map.size());
+
 			for (Map.Entry<ChunkPos, byte[]> entry : map.entrySet()) {
-				outStream.writeInt(entry.getKey().x());
-				outStream.writeInt(entry.getKey().z());
-				final byte[] dataArray = entry.getValue();
-				outStream.writeInt(dataArray.length);
-				outStream.write(dataArray);
+				ChunkPos pos = entry.getKey();
+				byte[] data = entry.getValue();
+				if (data == null)
+					continue;
+
+				out.writeInt(pos.x());
+				out.writeInt(pos.z());
+				out.writeInt(data.length);
+				out.write(data);
 			}
+
+			out.flush();
+			return baos.toByteArray();
+
 		} catch (IOException e) {
-			instance.getPluginLogger().severe("Failed to serialize Hellblock region data." + region.regionPos(), e);
+			instance.getPluginLogger().severe("serializeRegion: Failed to serialize region " + region.regionPos(), e);
+			return new byte[0];
 		}
-		return outByteStream.toByteArray();
 	}
 
 	private CustomChunk deserializeChunk(HellblockWorld<World> world, DataInputStream dataStream) throws IOException {

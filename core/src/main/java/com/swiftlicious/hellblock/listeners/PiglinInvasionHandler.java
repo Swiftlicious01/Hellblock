@@ -385,8 +385,8 @@ public class PiglinInvasionHandler implements Listener, Reloadable {
 		return activeInvasions.containsKey(islandID);
 	}
 
-	private void tryStartInvasion(@NotNull UserData user) {
-		HellblockData data = user.getHellblockData();
+	private void tryStartInvasion(@NotNull UserData userData) {
+		HellblockData data = userData.getHellblockData();
 		float level = data.getIslandLevel();
 		IslandEventData eventData = instance.getConfigManager().invasionEventSettings();
 
@@ -438,9 +438,9 @@ public class PiglinInvasionHandler implements Listener, Reloadable {
 			return;
 
 		World world = optWorld.get().bukkitWorld();
-		instance.debug("Invasion start attempted by " + user.getName() + " (UUID: " + user.getUUID() + ")");
+		instance.debug("Invasion start attempted by " + userData.getName() + " (UUID: " + userData.getUUID() + ")");
 
-		UUID owner = user.getUUID();
+		UUID owner = userData.getUUID();
 		int tier = calculateDifficultyTier(data);
 		InvasionProfile profile = new InvasionProfile(InvasionDifficulty.getByTier(tier));
 		CustomInvasion invasion = new CustomInvasion(islandId, owner, world, bounds, profile);

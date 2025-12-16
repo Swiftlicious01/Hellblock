@@ -74,6 +74,7 @@ import com.swiftlicious.hellblock.gui.event.EventGUIManager;
 import com.swiftlicious.hellblock.gui.flags.FlagsGUIManager;
 import com.swiftlicious.hellblock.gui.hellblock.HellblockGUIManager;
 import com.swiftlicious.hellblock.gui.invite.InviteGUIManager;
+import com.swiftlicious.hellblock.gui.leaderboard.LeaderboardGUIManager;
 import com.swiftlicious.hellblock.gui.market.MarketManager;
 import com.swiftlicious.hellblock.gui.notification.NotificationGUIManager;
 import com.swiftlicious.hellblock.gui.party.PartyGUIManager;
@@ -208,6 +209,7 @@ public class HellblockPlugin extends JavaPlugin {
 	protected FlagsGUIManager flagsGUIManager;
 	protected EventGUIManager eventGUIManager;
 	protected NotificationGUIManager notificationGUIManager;
+	protected LeaderboardGUIManager leaderboardGUIManager;
 	protected UpgradeGUIManager upgradeGUIManager;
 	protected PartyGUIManager partyGUIManager;
 	protected InviteGUIManager inviteGUIManager;
@@ -455,6 +457,7 @@ public class HellblockPlugin extends JavaPlugin {
 		this.upgradeGUIManager = new UpgradeGUIManager(this);
 		this.partyGUIManager = new PartyGUIManager(this);
 		this.notificationGUIManager = new NotificationGUIManager(this);
+		this.leaderboardGUIManager = new LeaderboardGUIManager(this);
 		this.visitGUIManager = new VisitGUIManager(this);
 		this.displaySettingsGUIManager = new DisplaySettingsGUIManager(this);
 		this.challengesGUIManager = new ChallengesGUIManager(this);
@@ -652,6 +655,9 @@ public class HellblockPlugin extends JavaPlugin {
 		}
 		if (this.notificationGUIManager != null) {
 			this.notificationGUIManager.disable();
+		}
+		if (this.leaderboardGUIManager != null) {
+			this.leaderboardGUIManager.disable();
 		}
 		if (this.biomeGUIManager != null) {
 			this.biomeGUIManager.disable();
@@ -854,6 +860,7 @@ public class HellblockPlugin extends JavaPlugin {
 				this.schematicGUIManager.reload();
 				this.visitGUIManager.reload();
 				this.eventGUIManager.reload();
+				this.leaderboardGUIManager.reload();
 				this.resetConfirmGUIManager.reload();
 
 				getCommandManager().getWorldTileHelper().startCachingTileEntities(200L);
@@ -1413,6 +1420,16 @@ public class HellblockPlugin extends JavaPlugin {
 	@NotNull
 	public NotificationGUIManager getNotificationGUIManager() {
 		return this.notificationGUIManager;
+	}
+
+	/**
+	 * Gets the manager for handling leaderboard-related GUI functionality.
+	 *
+	 * @return the leaderboard GUI manager
+	 */
+	@NotNull
+	public LeaderboardGUIManager getLeaderboardGUIManager() {
+		return this.leaderboardGUIManager;
 	}
 
 	/**

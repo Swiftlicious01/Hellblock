@@ -1,7 +1,7 @@
 market:
   gui:
     # Title for the market GUI
-    title: '<gradient:#A52A2A:#800000:#A52A2A>Fish Market</gradient>'
+    title: '<gradient:#FFD700:#FF8C00:#B22222>Fish Market</gradient>'
     # Enable limitations
     limitation:
       enable: true

@@ -124,9 +124,9 @@ public class SkysiegeHandler implements Listener, Reloadable {
 						if (hbWorld.isEmpty() || hbWorld.get().bukkitWorld() == null)
 							continue;
 						World world = hbWorld.get().bukkitWorld();
-						if (world == null)
-							continue;
 						BoundingBox bounds = hellblockData.getBoundingBox();
+						if (bounds == null)
+							continue;
 						tryStartSkysiege(islandId, ownerData.getUUID(), world, bounds);
 					}
 				}), 3, 3, TimeUnit.MINUTES);
@@ -161,7 +161,7 @@ public class SkysiegeHandler implements Listener, Reloadable {
 		if (hellblockData.isAbandoned()) {
 			return false;
 		}
-		
+
 		boolean hasWeatherEvent = instance.getNetherWeatherManager().isWeatherActive(islandId);
 
 		if (hasWeatherEvent || instance.getWitherHandler().getCustomWither().hasActiveWither(islandId))

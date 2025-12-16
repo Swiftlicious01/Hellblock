@@ -66,7 +66,7 @@ public class StringUtils {
 	 */
 	public static String prettifyText(ItemStack ugly) {
 		final StringBuilder fin = new StringBuilder();
-		final String pretty = ugly.getType().toString().toLowerCase(java.util.Locale.ENGLISH);
+		final String pretty = ugly.getType().toString().toLowerCase(java.util.Locale.ROOT);
 		if (pretty.contains("_")) {
 			final String[] splt = pretty.split("_");
 			int i = 0;

@@ -23,15 +23,19 @@ public interface FakeArmorStand extends FakeNamedEntity {
 
 	void updateEquipment(Player player);
 
-	void teleport(Location newLocation, Player player);
+	void teleport(Player player, Location newLocation);
+
+	void moveSmoothly(Player player, Location newLocation, double speedMultiplier);
+
+	void moveAdaptive(Player player, Location newLocation);
 
 	Location getLocation();
 
 	boolean isDead();
-	
+
 	void setCamera(Player player);
-	
+
 	void resetCamera(Player player);
-	
+
 	void keepClientCameraStable(Player player);
 }

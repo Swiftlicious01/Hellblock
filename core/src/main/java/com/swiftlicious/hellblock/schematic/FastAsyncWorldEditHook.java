@@ -518,7 +518,7 @@ public class FastAsyncWorldEditHook implements SchematicPaster {
 
 				if (player != null && player.isOnline()) {
 					Location worldLoc = new Location(pasteLocation.getWorld(), abs.x(), abs.y(), abs.z());
-					player.spawnParticle(ParticleUtils.getParticle("BLOCK_DUST"), worldLoc, 5,
+					player.spawnParticle(ParticleUtils.getParticle("BLOCK_CRACK"), worldLoc, 5,
 							entry.block.toBaseBlock().getBlockType().getMaterial());
 					AdventureHelper.playPositionalSound(player.getWorld(), worldLoc,
 							Sound.sound(Key.key("minecraft:block.stone.place"), Source.BLOCK, 0.5f, 1.2f));

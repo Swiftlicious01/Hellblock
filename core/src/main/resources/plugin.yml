@@ -8,6 +8,7 @@ authors: [ Swiftlicious ]
 folia-supported: true
 load: STARTUP
 softdepend:
+- ProtocolLib
 - WorldEdit
 - FastAsyncWorldEdit
 - WorldGuard

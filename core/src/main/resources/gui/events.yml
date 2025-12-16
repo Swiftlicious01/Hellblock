@@ -1,7 +1,7 @@
 event:
   gui:
     # The title for the event menu
-    title: '<center><gradient:#A52A2A:#800000:#A52A2A>Hellblock Island Event Stats</gradient>'
+    title: '<center><gradient:#8B0000:#B22222:#FF0000>Event Statistics</gradient>'
     # The layout for the event menu
     layout:
       - 'AAAAAAAAA'
@@ -30,15 +30,17 @@ event:
         material: WITHER_SKELETON_SKULL
         event-type: WITHER
         display:
-          name: '<red>Wither Battle Stats'
+          name: '<dark_red>Wither Battle Records'
           lore:
-            - '<dark_red>Total Spawns: <red>{total_spawns}'
-            - '<dark_red>Kills: <red>{kills}'
-            - '<dark_red>Despawns: <red>{despawns}'
-            - '<dark_red>Total Heals: <red>{total_heals}'
-            - '<dark_red>Total Minion Waves: <red>{total_minion_waves}'
-            - '<dark_red>Longest Battle: <red>{longest_battle_formatted} <gray>| <dark_red>Shortest Battle: <red>{shorest_battle_formated}'
-            - '<dark_red>Last Wither spawn happened <red>{last_wither_spawn_formatted} <dark_red>ago'
+            - '<gray>Track your confrontations with the Wither.'
+            - ' '
+            - '<dark_red>Total Spawns:</dark_red> <red>{total_spawns}'
+            - '<dark_red>Kills:</dark_red> <red>{kills}'
+            - '<dark_red>Despawns:</dark_red> <red>{despawns}'
+            - '<dark_red>Total Heals:</dark_red> <red>{total_heals}'
+            - '<dark_red>Minion Waves:</dark_red> <red>{total_minion_waves}'
+            - '<dark_red>Longest Battle:</dark_red> <red>{longest_battle_formatted} <gray>| <dark_red>Shortest:</dark_red> <red>{shorest_battle_formated}'
+            - '<gray>Last spawn was <red>{last_wither_spawn_formatted} <gray>ago.'
         action:
           sound_action:
             type: sound
@@ -54,15 +56,17 @@ event:
         material: PIGLIN_HEAD
         event-type: INVASION
         display:
-          name: '<red>Piglin Invasion Stats'
+          name: '<gold>Piglin Invasion Records'
           lore:
-            - '<dark_red>Total Invasions: <red>{total_invasions}'
-            - '<dark_red>Successful Invasions: <red>{successful_invasions}' 
-            - '<dark_red>Failed Invasions: <red>{failed_invasions}' 
-            - '<dark_red>Boss Kills: <red>{boss_kills}' 
-            - '<dark_red>Current Streak: <red>{current_streak}' 
-            - '<dark_red>Highest Difficulty Tier Reached: <red>{current_tier}<gray>/<red>{max_tier}' 
-            - '<dark_red>Last Invasion happened <red>{last_invasion_time_formatted} <dark_red>ago' 
+            - '<gray>Defend your island against the golden hordes.'
+            - ' '
+            - '<dark_red>Total Invasions:</dark_red> <red>{total_invasions}'
+            - '<dark_red>Victories:</dark_red> <red>{successful_invasions}'
+            - '<dark_red>Defeats:</dark_red> <red>{failed_invasions}'
+            - '<dark_red>Boss Kills:</dark_red> <red>{boss_kills}'
+            - '<dark_red>Current Streak:</dark_red> <red>{current_streak}'
+            - '<dark_red>Highest Tier:</dark_red> <red>{current_tier}<gray>/<red>{max_tier}'
+            - '<gray>Last invasion was <red>{last_invasion_time_formatted} <gray>ago.'
         action:
           sound_action:
             type: sound
@@ -79,16 +83,18 @@ event:
         head64: 'eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvNTA0ODQzNDIxYzIxOGQwNjM0NDU1ZmRiMWE2YzVmN2FlNWI4NTA5OGE1MGIxMmI5ZWQ5ZDkzMTBjODRkYzYxYiJ9fX0='
         event-type: SKYSIEGE
         display:
-          name: '<red>Ghast SkySiege Stats'
+          name: '<light_purple>Ghast SkySiege Records'
           lore:
-            - '<dark_red>Total Skysieges: <red>{total_skysieges}'
-            - '<dark_red>Successful Skysieges: <red>{successful_skysieges}'
-            - '<dark_red>Failed Skysieges: <red>{failed_skysieges}'
-            - '<dark_red>Queen Kills: <red>{queen_kills}'
-            - '<dark_red>Total Ghasts Killed: <red>{total_ghasts_killed}'
-            - '<dark_red>Total Waves Completed: <red>{total_waves_completed}'
-            - '<dark_red>Longest Skysiege: <red>{longest_skysiege_formatted} <gray>| <dark_red>Shortest Skysiege: <red>{shorest_skysiege_formated}'
-            - '<dark_red>Last Skysiege happened <red>{last_skysiege_formatted} <dark_red>ago'
+            - '<gray>Chronicle your defenses against the Ghast Queens.'
+            - ' '
+            - '<dark_red>Total Sieges:</dark_red> <red>{total_skysieges}'
+            - '<dark_red>Victories:</dark_red> <red>{successful_skysieges}'
+            - '<dark_red>Defeats:</dark_red> <red>{failed_skysieges}'
+            - '<dark_red>Queens Slain:</dark_red> <red>{queen_kills}'
+            - '<dark_red>Ghasts Killed:</dark_red> <red>{total_ghasts_killed}'
+            - '<dark_red>Waves Cleared:</dark_red> <red>{total_waves_completed}'
+            - '<dark_red>Longest Siege:</dark_red> <red>{longest_skysiege_formatted} <gray>| <dark_red>Shortest:</dark_red> <red>{shorest_skysiege_formated}'
+            - '<gray>Last siege was <red>{last_skysiege_formatted} <gray>ago.'
         action:
           sound_action:
             type: sound
@@ -102,10 +108,10 @@ event:
     locked-level-icon:
       material: BARRIER
       display:
-        name: '<dark_red><bold>LOCKED'
+        name: '<dark_red><bold>EVENT LOCKED'
         lore:
-          - '<red>You''re required to be level <dark_red>{required_level}'
-          - '<red>for this event to take place on your island!'
+          - '<gray>Your island must reach level <red>{required_level}'
+          - '<gray>to unlock this event challenge.'
       action:
         sound_action:
           type: sound
@@ -116,7 +122,7 @@ event:
             pitch: 1
         message_action:
           type: message
-          value: "<red>You must be at an island level of <dark_red>{required_level} <red>for this event to take place!"
+          value: "<red>You must be at an island level of</red> <dark_red>{required_level}</dark_red> <red>for this event to take place!</red>"
       components:
         minecraft:hide_additional_tooltip: {}
     # Decorative icons for visual enhancement

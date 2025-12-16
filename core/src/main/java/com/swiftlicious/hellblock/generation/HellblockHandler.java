@@ -8,6 +8,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -66,10 +67,13 @@ import com.swiftlicious.hellblock.upgrades.IslandUpgradeType;
 import com.swiftlicious.hellblock.utils.ChunkUtils;
 import com.swiftlicious.hellblock.utils.EventUtils;
 import com.swiftlicious.hellblock.utils.LocationUtils;
+import com.swiftlicious.hellblock.world.BlockPos;
 import com.swiftlicious.hellblock.world.ChunkPos;
 import com.swiftlicious.hellblock.world.CustomBlock;
+import com.swiftlicious.hellblock.world.CustomBlockState;
 import com.swiftlicious.hellblock.world.CustomBlockTypes;
 import com.swiftlicious.hellblock.world.CustomChunk;
+import com.swiftlicious.hellblock.world.CustomSection;
 import com.swiftlicious.hellblock.world.HellblockWorld;
 import com.swiftlicious.hellblock.world.Pos3;
 import com.swiftlicious.hellblock.world.WorldManager;
@@ -225,40 +229,59 @@ public class HellblockHandler implements Reloadable {
 
 							// Step 5: Protect and generate the island
 							return protectAndGenerateIsland(world, ownerData, islandChoice, schematic, islandLoc,
-									isReset)
+									isReset).thenCompose(vv -> {
 
-									// Step 6: Run post-generation tasks
-									.thenCompose(vv -> postGenerationTasks(ownerData, world, isReset).thenRun(() -> {
-										instance.debug(
-												"createHellblock: Post-generation tasks completed for " + playerName);
+										// Step 6: Save initialized user data before proceeding
+										return instance.getStorageManager().saveUserData(ownerData, false)
+												.thenRun(() -> instance.getStorageManager()
+														.invalidateCachedUserData(ownerData.getUUID()))
+												.thenCompose(vvv -> {
+													instance.debug("createHellblock: Saved initialized user data for "
+															+ playerName);
 
-										long duration = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime() - startTime);
-										lastKnownDurations.put(profile, duration);
+													// Step 7: Run post-generation tasks
+													return postGenerationTasks(ownerData, world, isReset)
+															.thenCompose(vvvv -> {
+																instance.debug(
+																		"createHellblock: Post-generation tasks completed for "
+																				+ playerName);
 
-										instance.debug("createHellblock: Generation for profile " + profile + " took "
-												+ duration + " seconds.");
+																long duration = TimeUnit.NANOSECONDS
+																		.toSeconds(System.nanoTime() - startTime);
+																lastKnownDurations.put(profile, duration);
 
-										// Cleanup
-										reservedIds.remove(islandId);
-										invalidateHellblockIDCache();
-										endCreationProcess(playerUUID);
+																instance.debug(
+																		"createHellblock: Generation for profile "
+																				+ profile + " took " + duration
+																				+ " seconds.");
 
-										// Recalculate level
-										instance.getScheduler().executeSync(() -> {
-											instance.debug(
-													"createHellblock: Recalculating island level for ID " + islandId);
-											instance.getIslandLevelManager().recalculateIslandLevel(islandId)
-													.thenAccept(level -> {
-														instance.debug(
-																"createHellblock: Recalculated island level for ID "
-																		+ islandId + " to " + level);
-													}).exceptionally(ex -> {
-														instance.getPluginLogger().warn(
-																"Failed to recalculate level: " + ex.getMessage());
-														return null;
-													});
-										});
-									}));
+																// Cleanup
+																reservedIds.remove(islandId);
+																invalidateHellblockIDCache();
+																endCreationProcess(playerUUID);
+
+																// Recalculate level
+																instance.debug(
+																		"createHellblock: Scheduling level recalculation for ID "
+																				+ islandId);
+
+																return instance.getScheduler()
+																		.callSync(() -> instance.getIslandLevelManager()
+																				.recalculateIslandLevel(islandId))
+																		.thenAccept(level -> {
+																			instance.debug(
+																					"createHellblock: Recalculated island level for ID "
+																							+ islandId + " to "
+																							+ level);
+																		}).exceptionally(ex -> {
+																			instance.getPluginLogger().warn(
+																					"Failed to recalculate level: "
+																							+ ex.getMessage());
+																			return null;
+																		});
+															});
+												});
+									});
 						});
 					});
 				});
@@ -630,8 +653,6 @@ public class HellblockHandler implements Reloadable {
 					+ ownerData.getName() + ". Please report this to the developer.");
 		}
 
-		instance.getStorageManager().invalidateCachedUserData(ownerData.getUUID());
-
 		instance.debug("postGenerationTasks: Starting for " + ownerData.getName() + " (UUID=" + ownerData.getUUID()
 				+ "), " + "World=" + world.worldName() + ", isReset=" + isReset);
 
@@ -689,8 +710,8 @@ public class HellblockHandler implements Reloadable {
 							false);
 					instance.getCoopManager().validateCachedOwnerData(ownerData.getUUID());
 
-					instance.debug("postGenerationTasks: Biome set for " + ownerData.getName() + " in world '"
-							+ world.worldName() + "'.");
+					instance.debug("postGenerationTasks: Biome set for " + ownerData.getName() + "'s island in world '"
+							+ world.worldName() + "' to " + hellblockData.getBiome().toString() + ".");
 
 					// Reset logic
 					if (isReset) {
@@ -701,39 +722,44 @@ public class HellblockHandler implements Reloadable {
 						hellblockData.setPreservedBoundingBox(null);
 					}
 
-					// Fire event for plugins
-					final HellblockPostCreationEvent postCreationEvent = new HellblockPostCreationEvent(ownerData);
-					EventUtils.fireAndForget(postCreationEvent);
+					// Cleanup ghost liquids if any
+					return cleanupGhostLiquids(world, ownerData.getHellblockData().getIslandId()).thenCompose(vvv -> {
 
-					instance.debug(
-							"postGenerationTasks: HellblockPostCreationEvent dispatched for " + ownerData.getName());
+						// Fire event for plugins
+						final HellblockPostCreationEvent postCreationEvent = new HellblockPostCreationEvent(ownerData);
+						EventUtils.fireAndForget(postCreationEvent);
 
-					instance.getCoopManager().removeNonOwnerUUID(ownerData.getUUID());
+						instance.debug("postGenerationTasks: HellblockPostCreationEvent dispatched for "
+								+ ownerData.getName());
 
-					instance.debug("postGenerationTasks: Added " + ownerData.getName()
-							+ " as an owner in future cache checks (Island ID="
-							+ ownerData.getHellblockData().getIslandId() + ")");
+						instance.getCoopManager().removeNonOwnerUUID(ownerData.getUUID());
 
-					return instance.getStorageManager().getDataSource()
-							.updatePlayerData(ownerData.getUUID(), ownerData.toPlayerData(), true).thenRun(() -> {
-								if (instance.getConfigManager().perPlayerWorlds()) {
-									World bukkitWorld = world.bukkitWorld();
-									if (bukkitWorld != null && bukkitWorld.getPlayers().isEmpty()) {
-										instance.debug(
-												"postGenerationTasks: Scheduling idle unload for newly created per-player world: "
-														+ world.worldName());
-										instance.getScheduler().sync().runLater(() -> {
-											if (bukkitWorld.getPlayers().isEmpty()) {
-												instance.getWorldManager().unloadWorld(bukkitWorld, false);
-												Bukkit.unloadWorld(bukkitWorld, true);
-												instance.debug(
-														"postGenerationTasks: Unloaded inactive newly created world: "
-																+ world.worldName());
-											}
-										}, 20L * 120L, homeLocation); // check again after 2 minutes
+						instance.debug("postGenerationTasks: Added " + ownerData.getName()
+								+ " as an owner in future cache checks (Island ID="
+								+ ownerData.getHellblockData().getIslandId() + ")");
+
+						return instance.getStorageManager().getDataSource()
+								.updatePlayerData(ownerData.getUUID(), ownerData.toPlayerData(), true).thenRun(() -> {
+									instance.getStorageManager().invalidateCachedUserData(ownerData.getUUID());
+									if (instance.getConfigManager().perPlayerWorlds()) {
+										World bukkitWorld = world.bukkitWorld();
+										if (bukkitWorld != null && bukkitWorld.getPlayers().isEmpty()) {
+											instance.debug(
+													"postGenerationTasks: Scheduling idle unload for newly created per-player world: "
+															+ world.worldName());
+											instance.getScheduler().sync().runLater(() -> {
+												if (bukkitWorld.getPlayers().isEmpty()) {
+													instance.getWorldManager().unloadWorld(bukkitWorld, false);
+													Bukkit.unloadWorld(bukkitWorld, true);
+													instance.debug(
+															"postGenerationTasks: Unloaded inactive newly created world: "
+																	+ world.worldName());
+												}
+											}, 20L * 120L, homeLocation); // check again after 2 minutes
+										}
 									}
-								}
-							});
+								});
+					});
 				});
 	}
 
@@ -887,8 +913,8 @@ public class HellblockHandler implements Reloadable {
 
 			VersionHelper.getNMSManager().sendTitle(player,
 					AdventureHelper.componentToJson(AdventureHelper.miniMessageToComponent(title)),
-					AdventureHelper.componentToJson(AdventureHelper.miniMessageToComponent(subtitle)), titleScreen.fadeIn(),
-					titleScreen.stay(), titleScreen.fadeOut());
+					AdventureHelper.componentToJson(AdventureHelper.miniMessageToComponent(subtitle)),
+					titleScreen.fadeIn(), titleScreen.stay(), titleScreen.fadeOut());
 		}
 
 		if (instance.getConfigManager().creatingHellblockSound() != null) {
@@ -897,6 +923,90 @@ public class HellblockHandler implements Reloadable {
 			AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
 					instance.getConfigManager().creatingHellblockSound());
 		}
+	}
+
+	/**
+	 * Performs a cleanup pass that removes any "ghost" fluid blocks (WATER or LAVA)
+	 * from a Hellblock island's stored chunk data. This prevents phantom liquids
+	 * that can persist in memory due to async world deserialization or copy
+	 * operations.
+	 *
+	 * <p>
+	 * The cleanup runs in two stages:
+	 * <ol>
+	 * <li><b>Async stage:</b> Iterates through all island chunks and removes
+	 * WATER/LAVA from the custom chunk block maps off the main thread.</li>
+	 * <li><b>Sync stage:</b> Refreshes the affected chunks in the live Bukkit world
+	 * to visually update clients after modification.</li>
+	 * </ol>
+	 *
+	 * <p>
+	 * This operation is completely safe — it never touches live Bukkit blocks
+	 * asynchronously. Only the in-memory {@link CustomChunk} data is modified
+	 * off-thread.
+	 * </p>
+	 *
+	 * @param world    The Hellblock world to clean up
+	 * @param islandId The ID of the island whose chunks should be processed
+	 * @return A {@link CompletableFuture} that completes when cleanup and visual
+	 *         refresh are finished
+	 */
+	public CompletableFuture<Void> cleanupGhostLiquids(@NotNull HellblockWorld<?> world, int islandId) {
+		instance.debug("cleanupGhostLiquids: Starting cleanup for island ID=" + islandId);
+
+		// Stage 1: collect all chunks belonging to the island
+		return instance.getProtectionManager().getHellblockChunks(world, islandId).thenCompose(islandChunks -> {
+			// Stage 2: perform async cleanup
+			return CompletableFuture.runAsync(() -> {
+				int removed = 0;
+
+				for (ChunkPos chunkPos : islandChunks) {
+					Optional<CustomChunk> optChunk = world.getChunk(chunkPos);
+					if (optChunk.isEmpty())
+						continue;
+
+					CustomChunk chunk = optChunk.get();
+
+					// Iterate through each section and remove fluid entries
+					for (CustomSection section : chunk.sections()) {
+						Map<BlockPos, CustomBlockState> map = section.blockMap();
+						Iterator<Map.Entry<BlockPos, CustomBlockState>> iterator = map.entrySet().iterator();
+
+						while (iterator.hasNext()) {
+							Map.Entry<BlockPos, CustomBlockState> entry = iterator.next();
+							String typeId = entry.getValue().type().type().value().toUpperCase(Locale.ROOT);
+							Material mat = Material.matchMaterial(typeId);
+							if (mat == null)
+								continue;
+
+							if (mat == Material.WATER || mat == Material.LAVA) {
+								iterator.remove();
+								removed++;
+							}
+						}
+					}
+				}
+
+				instance.debug("cleanupGhostLiquids: Removed " + removed + " liquid block" + (removed == 1 ? "" : "s")
+						+ " for island ID=" + islandId);
+			}).thenCompose(v -> instance.getScheduler().supplySync(() -> {
+				// Stage 3: visually refresh affected chunks on the main thread
+				instance.debug("cleanupGhostLiquids: Performing visual refresh for island ID=" + islandId);
+				try {
+					for (ChunkPos pos : islandChunks) {
+						if (world.bukkitWorld().isChunkLoaded(pos.x(), pos.z())) {
+							world.bukkitWorld().refreshChunk(pos.x(), pos.z());
+						}
+					}
+				} catch (Exception ex) {
+					instance.getPluginLogger().warn("cleanupGhostLiquids: Error refreshing chunks — " + ex.getMessage(),
+							ex);
+				}
+
+				instance.debug("cleanupGhostLiquids: Completed visual refresh after liquid cleanup.");
+				return null;
+			}));
+		});
 	}
 
 	/**
@@ -1279,7 +1389,8 @@ public class HellblockHandler implements Reloadable {
 					String mailboxMessageKey = forceReset ? "message.hellblock.coop.deleted.offline"
 							: "message.hellblock.coop.reset.offline";
 
-					List<Component> args = forceReset ? List.of(AdventureHelper.miniMessageToComponent(executorNameForReset))
+					List<Component> args = forceReset
+							? List.of(AdventureHelper.miniMessageToComponent(executorNameForReset))
 							: List.of(AdventureHelper.miniMessageToComponent(ownerName));
 
 					Set<MailboxFlag> flags = Set.of(MailboxFlag.RESET_INVENTORY, MailboxFlag.RESET_ENDERCHEST,

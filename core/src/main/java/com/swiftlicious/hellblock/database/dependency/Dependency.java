@@ -132,6 +132,7 @@ public enum Dependency {
 			Relocation.of("option", "net{}kyori{}option"), Relocation.of("examination", "net{}kyori{}examination"),
 			Relocation.of("geantyref", "io{}leangen{}geantyref")),
 	BYTE_BUDDY("net{}bytebuddy", "byte-buddy", "maven", "byte-buddy", Relocation.of("bytebuddy", "net{}bytebuddy")),
+	PROTOCOL_LIB("net{}dmulloy2", "ProtocolLib", "maven", "protocol-lib", Relocation.of("ProtocolLib", "net{}dmulloy2")),
 	GEANTY_REF("io{}leangen{}geantyref", "geantyref", "maven", "geantyref",
 			Relocation.of("geantyref", "io{}leangen{}geantyref")),
 	BOOSTED_YAML("dev{}dejvokep", "boosted-yaml", "maven", "boosted-yaml",

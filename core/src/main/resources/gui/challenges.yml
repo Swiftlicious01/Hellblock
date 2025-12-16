@@ -1,7 +1,7 @@
 challenges:
   gui:
     # The title for the challenges menu
-    title: '<center><gradient:#A52A2A:#800000:#A52A2A>Hellblock Challenges</gradient>'
+    title: '<center><gradient:#FF0000:#FF8C00:#FFD700>Island Objectives</gradient>'
     # The layout for the challenges menu
     layout:
       - 'BCDEFGHIJ'

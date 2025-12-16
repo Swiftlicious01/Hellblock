@@ -227,8 +227,8 @@ public class DefaultProtection implements IslandProtection<Vector> {
 		createAndSetMessageFlag(ownerData, HellblockFlag.FlagType.GREET_MESSAGE,
 				instance.getConfigManager().entryMessageEnabled(),
 				abandoned ? MessageConstants.HELLBLOCK_ABANDONED_ENTRY_MESSAGE.build().key()
-						: MessageConstants.HELLBLOCK_ENTRY_MESSAGE.arguments(AdventureHelper.miniMessageToComponent(updatedName))
-								.build().key());
+						: MessageConstants.HELLBLOCK_ENTRY_MESSAGE
+								.arguments(AdventureHelper.miniMessageToComponent(updatedName)).build().key());
 
 		// Farewell flag
 		createAndSetMessageFlag(ownerData, HellblockFlag.FlagType.FAREWELL_MESSAGE,
@@ -250,7 +250,6 @@ public class DefaultProtection implements IslandProtection<Vector> {
 	 */
 	private void createAndSetMessageFlag(UserData ownerData, HellblockFlag.FlagType type, boolean enabled,
 			String messageKey) {
-
 		instance.debug(
 				"Creating message flag for type: " + type + ", enabled: " + enabled + ", messageKey: " + messageKey);
 

@@ -1,12 +1,12 @@
 island-choice:
   gui:
     # The title for the island choice menu
-    title: '<center><gradient:#A52A2A:#800000:#A52A2A>Choose Your Hellblock!</gradient>'
+    title: '<center><gradient:#FF4500:#DC143C:#FFD700>Select Your Island</gradient>'
     # The layout for the island choice menu
     layout: 
-      - 'AAAAAAAAA'
+      - 'BABABABAB'
       - 'ADAACAASA'
-      - 'AAAAAAAAA'
+      - 'BABABABAB'
     # Default icon for default island type
     default-icon:
       symbol: 'D'
@@ -23,7 +23,7 @@ island-choice:
         sound_action:
           type: sound
           value:
-            key: 'minecraft:ui.button.click'
+            key: 'minecraft:block.respawn_anchor.charge'
             source: 'player'
             volume: 1
             pitch: 1
@@ -45,7 +45,7 @@ island-choice:
         sound_action:
           type: sound
           value:
-            key: 'minecraft:ui.button.click'
+            key: 'minecraft:item.flintandsteel.use'
             source: 'player'
             volume: 1
             pitch: 1
@@ -68,7 +68,7 @@ island-choice:
         sound_action:
           type: sound
           value:
-            key: 'minecraft:ui.button.click'
+            key: 'minecraft:item.book.page_turn'
             source: 'player'
             volume: 1
             pitch: 1
@@ -81,5 +81,12 @@ island-choice:
         material: RED_STAINED_GLASS_PANE
         display:
           name: ' '  
+        components:
+          minecraft:hide_tooltip: {}
+      glass-pane-2:
+        symbol: 'B'
+        material: BLACK_STAINED_GLASS_PANE
+        display:
+          name: ' '
         components:
           minecraft:hide_tooltip: {}

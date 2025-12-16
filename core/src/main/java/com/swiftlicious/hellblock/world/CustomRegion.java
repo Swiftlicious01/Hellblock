@@ -4,6 +4,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.jetbrains.annotations.NotNull;
 
@@ -12,7 +13,7 @@ public class CustomRegion implements CustomRegionInterface {
 	private final HellblockWorld<?> world;
 	private final RegionPos regionPos;
 	private final ConcurrentMap<ChunkPos, byte[]> cachedChunks;
-	private boolean isLoaded = false;
+	private AtomicBoolean isLoaded = new AtomicBoolean(false);
 
 	protected CustomRegion(HellblockWorld<?> world, RegionPos regionPos) {
 		this.world = world;
@@ -28,20 +29,20 @@ public class CustomRegion implements CustomRegionInterface {
 
 	@Override
 	public boolean isLoaded() {
-		return isLoaded;
+		return isLoaded.get();
 	}
 
 	@Override
 	public void unload() {
-		if (this.isLoaded && ((HellblockWorld<?>) world).unloadRegion(this)) {
-			this.isLoaded = false;
+		if (this.isLoaded.get() && ((HellblockWorld<?>) world).unloadRegion(this)) {
+			this.isLoaded.set(true);
 		}
 	}
 
 	@Override
 	public void load() {
-		if (!this.isLoaded && ((HellblockWorld<?>) world).loadRegion(this)) {
-			this.isLoaded = true;
+		if (!this.isLoaded.get() && ((HellblockWorld<?>) world).loadRegion(this)) {
+			this.isLoaded.set(true);
 		}
 	}
 

@@ -2,8 +2,9 @@ package com.swiftlicious.hellblock.creation.addons;
 
 import org.black_ixx.playerpoints.PlayerPoints;
 import org.black_ixx.playerpoints.PlayerPointsAPI;
-import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
+
+import com.swiftlicious.hellblock.HellblockPlugin;
 
 public class PlayerPointsHook {
 
@@ -11,7 +12,7 @@ public class PlayerPointsHook {
 	private static boolean isHooked = false;
 
 	public static void register() {
-		if (Bukkit.getPluginManager().isPluginEnabled("PlayerPoints")) {
+		if (HellblockPlugin.getInstance().isHookedPluginEnabled("PlayerPoints")) {
 			ppAPI = PlayerPoints.getInstance().getAPI();
 		}
 

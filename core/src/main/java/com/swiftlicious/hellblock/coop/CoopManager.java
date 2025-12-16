@@ -23,6 +23,10 @@ import org.bukkit.OfflinePlayer;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.HandlerList;
+import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerTeleportEvent.TeleportCause;
 import org.bukkit.util.BoundingBox;
 import org.jetbrains.annotations.NotNull;
@@ -92,7 +96,7 @@ import net.kyori.adventure.text.event.HoverEvent;
  * futures, and database-safe access patterns. This helps keep gameplay smooth
  * and responsive even under heavy server load.
  */
-public class CoopManager implements Reloadable {
+public class CoopManager implements Listener, Reloadable {
 
 	protected final HellblockPlugin instance;
 
@@ -117,10 +121,31 @@ public class CoopManager implements Reloadable {
 
 	private final Map<UUID, UUID> lastVisitorIslandOwner = new ConcurrentHashMap<>();
 	private final Map<UUID, Location> lastVisitorCheckLocation = new ConcurrentHashMap<>();
+	private final Map<UUID, Long> lastVisitorCheckTime = new HashMap<>();
+
+	// Sentinel UUID used to represent "no owner" in ConcurrentHashMap caches
+	private static final UUID NO_OWNER = new UUID(0L, 0L);
+
+	private static final double MIN_DISTANCE_FOR_RECHECK = 1.5; // blocks
+	private static final long CHECK_COOLDOWN_MS = 750; // ms between checks
+
+	// Caches for recent ownership lookups to avoid redundant async calls
+	private final Map<PosWithWorld, UUID> lastOwnerCheckResult = new ConcurrentHashMap<>();
+	private final Map<PosWithWorld, Long> lastOwnerCheckTime = new ConcurrentHashMap<>();
+
+	private final Map<UUID, Location> lastCheckedPosition = new ConcurrentHashMap<>();
+	private final Map<UUID, Long> lastCheckedTime = new ConcurrentHashMap<>();
+
+	private final Map<PosWithWorld, Long> lastDebugSkip = new ConcurrentHashMap<>();
+
+	// Configurable constants
+	private static final long OWNERSHIP_CHECK_COOLDOWN_MS = 1000; // 1 second
+	private static final double OWNERSHIP_CHECK_DISTANCE_SQUARED = 1.0; // within 1 block
 
 	private final Map<UUID, Boolean> lastLockedStateCache = new ConcurrentHashMap<>();
 
 	private SchedulerTask enforceTask = null;
+	private final Map<UUID, EnforcementState> lastEnforcementState = new ConcurrentHashMap<>();
 
 	public CoopManager(HellblockPlugin plugin) {
 		instance = plugin;
@@ -128,12 +153,14 @@ public class CoopManager implements Reloadable {
 
 	@Override
 	public void load() {
+		Bukkit.getPluginManager().registerEvents(this, instance);
 		this.getCachedIslandOwners();
 		this.startEnforcementTask();
 	}
 
 	@Override
 	public void unload() {
+		HandlerList.unregisterAll(this);
 		// Clear cache on reload
 		cachedIslandOwners.clear();
 		nonOwnersCache.clear();
@@ -141,6 +168,11 @@ public class CoopManager implements Reloadable {
 		lastDebuggedOwners.clear();
 		lastVisitorIslandOwner.clear();
 		lastVisitorCheckLocation.clear();
+		lastVisitorCheckTime.clear();
+		lastOwnerCheckResult.clear();
+		lastOwnerCheckTime.clear();
+		lastCheckedPosition.clear();
+		lastCheckedTime.clear();
 		lastLockedStateCache.clear();
 		ongoingRefresh = null;
 		lastOwnerCountChangeTime = System.currentTimeMillis();
@@ -150,6 +182,7 @@ public class CoopManager implements Reloadable {
 			enforceTask.cancel();
 			enforceTask = null;
 		}
+		lastEnforcementState.clear();
 		lastOwnersRefresh = 0L;
 	}
 
@@ -406,7 +439,8 @@ public class CoopManager implements Reloadable {
 			// Offline → send mailbox entry
 			instance.getMailboxManager().queue(playerToInvite.getUUID(),
 					new MailboxEntry("message.hellblock.coop.invite.offline",
-							List.of(AdventureHelper.miniMessageToComponent(owner.getName())), Set.of(MailboxFlag.NOTIFY_PARTY)));
+							List.of(AdventureHelper.miniMessageToComponent(owner.getName())),
+							Set.of(MailboxFlag.NOTIFY_PARTY)));
 
 			instance.debug("Offline coop invite queued in mailbox for " + playerToInvite.getUUID());
 		}
@@ -456,7 +490,8 @@ public class CoopManager implements Reloadable {
 				: instance.getTranslationManager()
 						.miniMessageTranslation(MessageConstants.FORMAT_UNKNOWN.build().key());
 
-		send(audience, MessageConstants.MSG_HELLBLOCK_COOP_INVITE_REJECTED, AdventureHelper.miniMessageToComponent(username));
+		send(audience, MessageConstants.MSG_HELLBLOCK_COOP_INVITE_REJECTED,
+				AdventureHelper.miniMessageToComponent(username));
 	}
 
 	/**
@@ -1093,7 +1128,8 @@ public class CoopManager implements Reloadable {
 							.filter(p -> !coopMembers.contains(p.getUniqueId())).map(Player::getUniqueId)
 							.collect(Collectors.toSet());
 
-					instance.debug("Found " + visitors.size() + " visitors on island for ownerId: " + ownerId);
+					instance.debug("Found " + visitors.size() + " visitor" + (visitors.size() == 1 ? "" : "s")
+							+ " on island for ownerId: " + ownerId);
 					return visitors;
 				});
 	}
@@ -1108,12 +1144,13 @@ public class CoopManager implements Reloadable {
 	 */
 	@Nullable
 	public CompletableFuture<UUID> getHellblockOwnerOfVisitingIsland(@NotNull Player visitor) {
-		if (visitor.getLocation() == null) {
+		Location currentLocation = visitor.getLocation();
+		if (currentLocation == null) {
 			return CompletableFuture.completedFuture(null);
 		}
 
-		World world = visitor.getWorld();
-		if (!instance.getHellblockHandler().isInCorrectWorld(world)) {
+		World world = currentLocation.getWorld();
+		if (world == null || !instance.getHellblockHandler().isInCorrectWorld(world)) {
 			return CompletableFuture.completedFuture(null);
 		}
 
@@ -1126,16 +1163,23 @@ public class CoopManager implements Reloadable {
 			return CompletableFuture.completedFuture(null);
 		}
 
-		Location currentLocation = visitor.getLocation();
+		// Quick skip if too soon or moved insignificantly
 		Location lastChecked = lastVisitorCheckLocation.get(visitor.getUniqueId());
+		long now = System.currentTimeMillis();
+		Long lastCheckTime = lastVisitorCheckTime.get(visitor.getUniqueId());
 
-		if (lastChecked != null && lastChecked.getBlockX() == currentLocation.getBlockX()
-				&& lastChecked.getBlockY() == currentLocation.getBlockY()
-				&& lastChecked.getBlockZ() == currentLocation.getBlockZ()) {
-			return CompletableFuture.completedFuture(null); // skip repeated checks
+		boolean tooSoon = lastCheckTime != null && now - lastCheckTime < CHECK_COOLDOWN_MS;
+		boolean tooClose = lastChecked != null && lastChecked.getWorld() != null
+				&& lastChecked.getWorld().getUID().equals(world.getUID())
+				&& lastChecked.distanceSquared(currentLocation) < (MIN_DISTANCE_FOR_RECHECK * MIN_DISTANCE_FOR_RECHECK);
+
+		if (tooSoon || tooClose) {
+			return CompletableFuture.completedFuture(null); // skip redundant check
 		}
 
+		// Update last check caches
 		lastVisitorCheckLocation.put(visitor.getUniqueId(), currentLocation.clone());
+		lastVisitorCheckTime.put(visitor.getUniqueId(), now);
 
 		instance.debug("Checking ownership of visitor " + visitor.getName() + "'s current location: [world="
 				+ world.getName() + ", x=" + currentLocation.getX() + ", y=" + currentLocation.getY() + " , z="
@@ -1168,13 +1212,12 @@ public class CoopManager implements Reloadable {
 	private void debugVisitorResolutionIfChanged(@NotNull UUID visitorId, @Nullable UUID newOwnerId) {
 		boolean hadPreviousEntry = lastVisitorIslandOwner.containsKey(visitorId);
 		UUID previousOwner = lastVisitorIslandOwner.get(visitorId);
-
 		if (!hadPreviousEntry || !Objects.equals(previousOwner, newOwnerId)) {
-			lastVisitorIslandOwner.put(visitorId, newOwnerId);
-
 			if (newOwnerId != null) {
+				lastVisitorIslandOwner.put(visitorId, newOwnerId);
 				instance.debug("Visitor " + visitorId + " is now in island owned by: " + newOwnerId);
 			} else {
+				lastVisitorIslandOwner.remove(visitorId);
 				instance.debug("Visitor " + visitorId + " is not in any island");
 			}
 		}
@@ -1202,23 +1245,44 @@ public class CoopManager implements Reloadable {
 			return CompletableFuture.completedFuture(null);
 		}
 
+		final Location targetLoc = pos.toLocation(world.bukkitWorld());
+		final PosWithWorld key = PosWithWorld.from(pos, world.worldName());
+
+		if (shouldSkipOwnerCheck(key, targetLoc)) {
+			UUID cached = lastOwnerCheckResult.get(key);
+			if (NO_OWNER.equals(cached))
+				cached = null;
+
+			if (cached != null && shouldDebugSkip(key)) {
+				instance.debug("Skipping async ownership check for " + key + " (cached result: " + cached + ")");
+			}
+
+			return CompletableFuture.completedFuture(cached);
+		}
+
 		return getCachedIslandOwners().thenCompose(owners -> {
 			if (owners == null || owners.isEmpty()) {
 				return CompletableFuture.completedFuture(null);
 			}
 
-			instance.debug("Checking position ownership against " + owners.size() + " island owner"
-					+ (owners.size() == 1 ? "" : "s"));
-			PosWithWorld key = PosWithWorld.from(pos, world.worldName());
-
 			List<CompletableFuture<UUID>> futures = new ArrayList<>();
+
 			for (UUID ownerUUID : owners) {
-				if (shouldSkip(ownerUUID))
+				if (shouldSkip(ownerUUID) || shouldSkipBasedOnProximity(ownerUUID, targetLoc))
 					continue;
 
-				CompletableFuture<UUID> check = instance.getProtectionManager().getHellblockBlocks(world, ownerUUID)
-						.thenApply(positions -> {
-							boolean contains = positions.contains(pos);
+				updateProximityCache(ownerUUID, targetLoc);
+
+				CompletableFuture<UUID> check = instance.getProtectionManager().getHellblockBounds(world, ownerUUID)
+						.thenApply(bounds -> {
+							boolean contains = false;
+							if (bounds != null) {
+								contains = bounds.clone().expand(0.01).contains(targetLoc.toVector());
+								if (!contains) {
+									instance.debug(
+											"Owner " + ownerUUID + " bounds miss at " + pos + " bounds=" + bounds);
+								}
+							}
 							UUID newOwner = contains ? ownerUUID : null;
 							debugOwnerMatchIfChanged(key, newOwner, contains);
 							return newOwner;
@@ -1226,10 +1290,28 @@ public class CoopManager implements Reloadable {
 				futures.add(check);
 			}
 
+			// Only log once, and only if we’re actually doing any owner checks
+			if (!futures.isEmpty()) {
+				instance.debug("Checking position ownership against " + futures.size() + " active island owner"
+						+ (futures.size() == 1 ? "" : "s"));
+			}
+
+			// If all owners were skipped (no futures to run), just return cached result
+			// null
+			if (futures.isEmpty()) {
+				debugFinalResolutionIfChanged(key, null);
+				updateOwnerCache(key, null);
+				return CompletableFuture.completedFuture(null);
+			} else if (shouldDebugSkip(key)) {
+				instance.debug("Skipped position ownership check for " + key
+						+ " — all owners were recently checked or skipped.");
+			}
+
 			return CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new)).thenApply(v -> {
 				UUID result = futures.stream().map(CompletableFuture::join).filter(Objects::nonNull).findFirst()
 						.orElse(null);
 				debugFinalResolutionIfChanged(key, result);
+				updateOwnerCache(key, result);
 				return result;
 			});
 		});
@@ -1259,22 +1341,41 @@ public class CoopManager implements Reloadable {
 		final Pos3 targetPos = Pos3.from(block.getLocation());
 		final PosWithWorld key = PosWithWorld.from(block);
 
+		if (shouldSkipOwnerCheck(key, block.getLocation())) {
+			UUID cached = lastOwnerCheckResult.get(key);
+			if (NO_OWNER.equals(cached))
+				cached = null;
+
+			if (cached != null && shouldDebugSkip(key)) {
+				instance.debug("Skipping async ownership check for " + key + " (cached result: " + cached + ")");
+			}
+
+			return CompletableFuture.completedFuture(cached);
+		}
+
 		return getCachedIslandOwners().thenCompose(owners -> {
 			if (owners == null || owners.isEmpty()) {
 				return CompletableFuture.completedFuture(null);
 			}
 
-			instance.debug("Checking block ownership against " + owners.size() + " island owner"
-					+ (owners.size() == 1 ? "" : "s"));
-
 			List<CompletableFuture<UUID>> futures = new ArrayList<>();
+
 			for (UUID ownerUUID : owners) {
-				if (shouldSkip(ownerUUID))
+				if (shouldSkip(ownerUUID) || shouldSkipBasedOnProximity(ownerUUID, block.getLocation()))
 					continue;
 
-				CompletableFuture<UUID> check = instance.getProtectionManager().getHellblockBlocks(hellWorld, ownerUUID)
-						.thenApply(positions -> {
-							boolean contains = positions.contains(targetPos);
+				updateProximityCache(ownerUUID, block.getLocation());
+
+				CompletableFuture<UUID> check = instance.getProtectionManager().getHellblockBounds(hellWorld, ownerUUID)
+						.thenApply(bounds -> {
+							boolean contains = false;
+							if (bounds != null) {
+								contains = bounds.clone().expand(0.01).contains(block.getLocation().toVector());
+								if (!contains) {
+									instance.debug("Owner " + ownerUUID + " bounds miss at " + targetPos + " bounds="
+											+ bounds);
+								}
+							}
 							UUID newOwner = contains ? ownerUUID : null;
 							debugOwnerMatchIfChanged(key, newOwner, contains);
 							return newOwner;
@@ -1282,10 +1383,28 @@ public class CoopManager implements Reloadable {
 				futures.add(check);
 			}
 
+			// Only log once, and only if we’re actually doing any owner checks
+			if (!futures.isEmpty()) {
+				instance.debug("Checking block ownership against " + futures.size() + " active island owner"
+						+ (futures.size() == 1 ? "" : "s"));
+			}
+
+			// If all owners were skipped (no futures to run), just return cached result
+			// null
+			if (futures.isEmpty()) {
+				debugFinalResolutionIfChanged(key, null);
+				updateOwnerCache(key, null);
+				return CompletableFuture.completedFuture(null);
+			} else if (shouldDebugSkip(key)) {
+				instance.debug(
+						"Skipped block ownership check for " + key + " — all owners were recently checked or skipped.");
+			}
+
 			return CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new)).thenApply(v -> {
 				UUID result = futures.stream().map(CompletableFuture::join).filter(Objects::nonNull).findFirst()
 						.orElse(null);
 				debugFinalResolutionIfChanged(key, result);
+				updateOwnerCache(key, result);
 				return result;
 			});
 		});
@@ -1311,26 +1430,44 @@ public class CoopManager implements Reloadable {
 		}
 
 		final HellblockWorld<?> hellWorld = hellWorldOpt.get();
+		final Pos3 targetPos = Pos3.from(location);
 		final PosWithWorld key = PosWithWorld.from(location);
+
+		if (shouldSkipOwnerCheck(key, location)) {
+			UUID cached = lastOwnerCheckResult.get(key);
+			if (NO_OWNER.equals(cached))
+				cached = null;
+
+			if (cached != null && shouldDebugSkip(key)) {
+				instance.debug("Skipping async ownership check for " + key + " (cached result: " + cached + ")");
+			}
+
+			return CompletableFuture.completedFuture(cached);
+		}
 
 		return getCachedIslandOwners().thenCompose(owners -> {
 			if (owners == null || owners.isEmpty()) {
 				return CompletableFuture.completedFuture(null);
 			}
 
-			instance.debug("Checking location ownership against " + owners.size() + " island owner"
-					+ (owners.size() == 1 ? "" : "s"));
-
 			List<CompletableFuture<UUID>> futures = new ArrayList<>();
+
 			for (UUID ownerUUID : owners) {
-				if (shouldSkip(ownerUUID))
+				if (shouldSkip(ownerUUID) || shouldSkipBasedOnProximity(ownerUUID, location))
 					continue;
+
+				updateProximityCache(ownerUUID, location);
 
 				CompletableFuture<UUID> check = instance.getProtectionManager().getHellblockBounds(hellWorld, ownerUUID)
 						.thenApply(bounds -> {
-							if (bounds == null)
-								return null;
-							boolean contains = bounds.contains(location.toVector());
+							boolean contains = false;
+							if (bounds != null) {
+								contains = bounds.clone().expand(0.01).contains(location.toVector());
+								if (!contains) {
+									instance.debug("Owner " + ownerUUID + " bounds miss at " + targetPos + " bounds="
+											+ bounds);
+								}
+							}
 							UUID newOwner = contains ? ownerUUID : null;
 							debugOwnerMatchIfChanged(key, newOwner, contains);
 							return newOwner;
@@ -1338,15 +1475,84 @@ public class CoopManager implements Reloadable {
 				futures.add(check);
 			}
 
+			// Only log once, and only if we’re actually doing any owner checks
+			if (!futures.isEmpty()) {
+				instance.debug("Checking location ownership against " + futures.size() + " active island owner"
+						+ (futures.size() == 1 ? "" : "s"));
+			}
+
+			// If all owners were skipped (no futures to run), just return cached result
+			// null
+			if (futures.isEmpty()) {
+				debugFinalResolutionIfChanged(key, null);
+				updateOwnerCache(key, null);
+				return CompletableFuture.completedFuture(null);
+			} else if (shouldDebugSkip(key)) {
+				instance.debug("Skipped location ownership check for " + key
+						+ " — all owners were recently checked or skipped.");
+			}
+
 			return CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new)).thenApply(v -> {
 				UUID result = futures.stream().map(CompletableFuture::join).filter(Objects::nonNull).findFirst()
 						.orElse(null);
 				debugFinalResolutionIfChanged(key, result);
+				updateOwnerCache(key, result);
 				return result;
 			});
 		});
 	}
 
+	/**
+	 * Determines if ownership check should be skipped due to recent check cooldown.
+	 */
+	private boolean shouldSkipOwnerCheck(@NotNull PosWithWorld key, @NotNull Location currentLocation) {
+		Long lastCheck = lastOwnerCheckTime.get(key);
+		if (lastCheck == null)
+			return false;
+
+		long now = System.currentTimeMillis();
+		return now - lastCheck < OWNERSHIP_CHECK_COOLDOWN_MS;
+	}
+
+	/**
+	 * Updates cached owner result (uses sentinel for null to support
+	 * ConcurrentHashMap).
+	 */
+	private void updateOwnerCache(@NotNull PosWithWorld key, @Nullable UUID owner) {
+		UUID toStore = (owner == null) ? NO_OWNER : owner;
+		lastOwnerCheckResult.put(key, toStore);
+		lastOwnerCheckTime.put(key, System.currentTimeMillis());
+	}
+
+	/**
+	 * Checks if the ownership check should be skipped based on how recently and how
+	 * close the player last checked.
+	 */
+	private boolean shouldSkipBasedOnProximity(UUID playerId, Location currentLocation) {
+		Location last = lastCheckedPosition.get(playerId);
+		Long time = lastCheckedTime.get(playerId);
+		if (last == null || time == null)
+			return false;
+
+		long now = System.currentTimeMillis();
+		boolean tooSoon = now - time < OWNERSHIP_CHECK_COOLDOWN_MS;
+		boolean sameWorld = last.getWorld().getUID().equals(currentLocation.getWorld().getUID());
+		boolean tooClose = sameWorld && last.distanceSquared(currentLocation) < OWNERSHIP_CHECK_DISTANCE_SQUARED;
+
+		return tooSoon && tooClose;
+	}
+
+	/**
+	 * Updates the player's last proximity check cache.
+	 */
+	private void updateProximityCache(@NotNull UUID id, @NotNull Location location) {
+		lastCheckedPosition.put(id, location.clone());
+		lastCheckedTime.put(id, System.currentTimeMillis());
+	}
+
+	/**
+	 * Determines if the given owner should be skipped due to ongoing operations.
+	 */
 	private boolean shouldSkip(@NotNull UUID ownerUUID) {
 		return instance.getIslandGenerator().isAnimating(ownerUUID)
 				|| instance.getHellblockHandler().creationProcessing(ownerUUID)
@@ -1356,28 +1562,48 @@ public class CoopManager implements Reloadable {
 				|| instance.getSchematicGUIManager().isGeneratingSchematic(ownerUUID);
 	}
 
+	/**
+	 * Prevents excessive debug spam for the same region within a short interval.
+	 */
+	private boolean shouldDebugSkip(@NotNull PosWithWorld key) {
+		long now = System.currentTimeMillis();
+		Long last = lastDebugSkip.get(key);
+		if (last != null && now - last < 5000L) { // 5 seconds cooldown
+			return false;
+		}
+		lastDebugSkip.put(key, now);
+		return true;
+	}
+
+	/**
+	 * Logs owner match state changes only when they differ from the last logged
+	 * state.
+	 */
 	private void debugOwnerMatchIfChanged(@NotNull PosWithWorld key, @Nullable UUID newOwner, boolean match) {
-		boolean hadPreviousEntry = lastDebuggedOwners.containsKey(key);
 		UUID previous = lastDebuggedOwners.get(key);
-		if (!hadPreviousEntry || !Objects.equals(previous, newOwner)) {
-			lastDebuggedOwners.put(key, newOwner);
+		if (!Objects.equals(previous, newOwner)) {
 			if (newOwner != null) {
+				lastDebuggedOwners.put(key, newOwner);
 				instance.debug("Owner: " + newOwner + " -> Match: " + match);
 			} else {
+				lastDebuggedOwners.remove(key);
 				instance.debug("Couldn't find an owner match for this island");
 			}
 		}
 	}
 
+	/**
+	 * Logs final owner resolution changes only when they differ from the previous
+	 * state.
+	 */
 	private void debugFinalResolutionIfChanged(@NotNull PosWithWorld key, @Nullable UUID newResolved) {
-		boolean hadPreviousEntry = lastResolvedOwners.containsKey(key);
 		UUID previous = lastResolvedOwners.get(key);
-		if (!hadPreviousEntry || !Objects.equals(previous, newResolved)) {
-			lastResolvedOwners.put(key, newResolved);
-
+		if (!Objects.equals(previous, newResolved)) {
 			if (newResolved != null) {
+				lastResolvedOwners.put(key, newResolved);
 				instance.debug("Resolved to island owner: " + newResolved);
 			} else {
+				lastResolvedOwners.remove(key);
 				instance.debug("Couldn't resolve to an island owner");
 			}
 		}
@@ -1447,8 +1673,8 @@ public class CoopManager implements Reloadable {
 		return getCachedIslandOwnerData().thenApply(allOwners -> {
 			Optional<UserData> result = allOwners.stream().filter(Objects::nonNull)
 					.filter(user -> user.getHellblockData().getIslandId() == islandId).findFirst();
-			instance.debug(
-					"Owner matched for islandId " + islandId + ": " + result.map(UserData::getUUID).orElse(null));
+			instance.debug("Owner matched for islandId " + islandId + ": "
+					+ result.map(data -> data.getHellblockData().getOwnerUUID()).orElse(null));
 			return result;
 		});
 	}
@@ -2007,7 +2233,7 @@ public class CoopManager implements Reloadable {
 	 *
 	 * @param player The player to check and possibly enforce a ban on.
 	 */
-	public void enforceIslandBanIfNeeded(@NotNull Player player) {
+	private void enforceIslandBanIfNeeded(@NotNull Player player) {
 		UUID playerId = player.getUniqueId();
 		World world = player.getWorld();
 
@@ -2017,53 +2243,61 @@ public class CoopManager implements Reloadable {
 
 				instance.getStorageManager()
 						.getCachedUserDataWithFallback(ownerId, instance.getConfigManager().lockData())
-						.thenAccept(optOwner -> {
-							if (optOwner.isEmpty()) {
+						.thenAccept(optOwnerData -> {
+							if (optOwnerData.isEmpty()) {
 								return;
 							}
 
-							UserData islandOwner = optOwner.get();
-							HellblockData data = islandOwner.getHellblockData();
+							UserData userData = optOwnerData.get();
+							HellblockData hellblockData = userData.getHellblockData();
 
-							if (data.getBoundingBox() == null || data.getHellblockLocation() == null
-									|| data.getHellblockLocation().getWorld() == null) {
+							if (hellblockData.getBoundingBox() == null || hellblockData.getHellblockLocation() == null
+									|| hellblockData.getHellblockLocation().getWorld() == null) {
 								return;
 							}
 
-							// Skip players with bypass/admin permissions
-							if (player.hasPermission("hellblock.admin")
+							boolean inParty = hellblockData.getPartyPlusOwner().contains(player.getUniqueId());
+							boolean isBanned = hellblockData.getBannedMembers().contains(playerId);
+							boolean insideIsland = world.getUID()
+									.equals(hellblockData.getHellblockLocation().getWorld().getUID())
+									&& hellblockData.getBoundingBox().contains(player.getLocation().toVector());
+
+							// Create current snapshot of the state
+							EnforcementState currentState = new EnforcementState(ownerId, inParty, isBanned);
+
+							// Get previous state
+							EnforcementState lastState = lastEnforcementState.get(playerId);
+
+							// Only log if something changed
+							if (!Objects.equals(currentState, lastState)) {
+								lastEnforcementState.put(playerId, currentState);
+
+								instance.debug("Enforcement change for " + player.getName() + ": " + "IslandID="
+										+ hellblockData.getIslandId() + ", InParty=" + inParty + ", IsBanned="
+										+ isBanned + ", Inside=" + insideIsland);
+							}
+
+							// Then continue the existing enforcement logic...
+							if (inParty || player.hasPermission("hellblock.admin")
 									|| player.hasPermission("hellblock.bypass.interact") || player.isOp()) {
-								instance.debug("Player " + player.getName() + " has bypass permissions, skipping.");
 								return;
 							}
 
-							// Check world match
-							if (!world.getUID().equals(data.getHellblockLocation().getWorld().getUID())) {
+							if (!insideIsland || !isBanned)
 								return;
-							}
-
-							// Check if player is inside island bounds
-							if (!data.getBoundingBox().contains(player.getLocation().toVector())) {
-								return;
-							}
-
-							// Check if the player is banned
-							if (!data.getBannedMembers().contains(playerId)) {
-								return;
-							}
 
 							instance.debug("Banned player " + player.getName() + " found in island of "
-									+ islandOwner.getName() + " — initiating removal.");
+									+ userData.getName() + " — initiating removal.");
 
 							Optional<UserData> userDataOpt = instance.getStorageManager().getOnlineUser(playerId);
 							if (userDataOpt.isEmpty()) {
 								return;
 							}
 
-							UserData bannedUser = userDataOpt.get();
-							HellblockData bannedData = bannedUser.getHellblockData();
+							UserData bannedUserData = userDataOpt.get();
+							HellblockData bannedHellblockData = bannedUserData.getHellblockData();
 
-							if (bannedData.getHomeLocation() == null) {
+							if (bannedHellblockData.getHomeLocation() == null) {
 								instance.debug(
 										"No valid home location for " + player.getName() + ", teleporting to spawn.");
 								instance.getScheduler().executeSync(
@@ -2071,7 +2305,7 @@ public class CoopManager implements Reloadable {
 								return;
 							}
 
-							UUID bannedOwnerUUID = bannedData.getOwnerUUID();
+							UUID bannedOwnerUUID = bannedHellblockData.getOwnerUUID();
 
 							if (bannedOwnerUUID == null) {
 								instance.getPluginLogger()
@@ -2083,8 +2317,8 @@ public class CoopManager implements Reloadable {
 
 							// Load banned player's owner (used for makeHomeLocationSafe)
 							instance.getStorageManager().getCachedUserDataWithFallback(bannedOwnerUUID,
-									instance.getConfigManager().lockData()).thenAccept(ownerOpt -> {
-										if (ownerOpt.isEmpty()) {
+									instance.getConfigManager().lockData()).thenAccept(bannedOwnerDataOpt -> {
+										if (bannedOwnerDataOpt.isEmpty()) {
 											instance.getPluginLogger().warn(
 													"Could not load owner data for banned player " + player.getName());
 											instance.getScheduler().executeSync(
@@ -2092,14 +2326,15 @@ public class CoopManager implements Reloadable {
 											return;
 										}
 
-										UserData bannedOwnerUser = ownerOpt.get();
+										UserData bannedOwnerUserData = bannedOwnerDataOpt.get();
 
 										instance.debug("Attempting to ensure safe home for " + player.getName());
 
 										// Ensure world is loaded and location is safe
-										instance.getWorldManager().ensureHellblockWorldLoaded(bannedData.getIslandId())
-												.thenCompose(loadedWorld -> makeHomeLocationSafe(bannedOwnerUser,
-														bannedUser)
+										instance.getWorldManager()
+												.ensureHellblockWorldLoaded(bannedHellblockData.getIslandId())
+												.thenCompose(loadedWorld -> makeHomeLocationSafe(bannedOwnerUserData,
+														bannedUserData)
 														.thenRun(() -> instance.getScheduler()
 																.executeSync(() -> instance.getSenderFactory()
 																		.wrap(player)
@@ -2121,6 +2356,11 @@ public class CoopManager implements Reloadable {
 				break;
 			}
 		});
+	}
+
+	@EventHandler
+	public void onPlayerQuit(PlayerQuitEvent event) {
+		lastEnforcementState.remove(event.getPlayer().getUniqueId());
 	}
 
 	/**
@@ -2249,6 +2489,33 @@ public class CoopManager implements Reloadable {
 
 		public static PosWithWorld from(@NotNull Pos3 pos, @NotNull String world) {
 			return new PosWithWorld(world, pos.x(), pos.y(), pos.z());
+		}
+	}
+
+	private static class EnforcementState {
+		final UUID islandOwner;
+		final boolean isInParty;
+		final boolean isBanned;
+
+		EnforcementState(UUID islandOwner, boolean isInParty, boolean isBanned) {
+			this.islandOwner = islandOwner;
+			this.isInParty = isInParty;
+			this.isBanned = isBanned;
+		}
+
+		@Override
+		public boolean equals(Object o) {
+			if (this == o)
+				return true;
+			if (!(o instanceof EnforcementState other))
+				return false;
+			return Objects.equals(islandOwner, other.islandOwner) && isInParty == other.isInParty
+					&& isBanned == other.isBanned;
+		}
+
+		@Override
+		public int hashCode() {
+			return Objects.hash(islandOwner, isInParty, isBanned);
 		}
 	}
 }

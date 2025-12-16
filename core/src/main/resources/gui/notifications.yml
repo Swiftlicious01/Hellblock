@@ -1,7 +1,7 @@
 notification:
   gui:
     # The title for the notification menu
-    title: '<center><gradient:#A52A2A:#800000:#A52A2A>Hellblock Notifications</gradient>'
+    title: '<center><gradient:#FF8C00:#B22222:#660000>Notification Center</gradient>'
     # The layout of the notification menu
     layout:
       - 'AAAAAAAAA'
@@ -28,9 +28,11 @@ notification:
       symbol: 'J'
       material: EMERALD
       display:
-        name: '<aqua>Coop Join Notifications'
+        name: '<green>Co-op Join Notifications'
         lore:
-          - '<yellow><bold>ENABLED: <reset><gold>{status}'
+          - '<gray>Receive alerts when members join your island.'
+          - ' '
+          - '<yellow><bold>Status:</bold> <reset><gold>{status}'
       action:
         sound_action:
           type: sound
@@ -48,7 +50,9 @@ notification:
       display:
         name: '<aqua>Invitation Notifications'   
         lore:
-          - '<yellow><bold>ENABLED: <reset><gold>{status}'
+          - '<gray>Be notified when you’re invited to another island.'
+          - ' '
+          - '<yellow><bold>Status:</bold> <reset><gold>{status}'
       action:
         sound_action:
           type: sound

@@ -215,7 +215,7 @@ public class SchematicAsync implements SchematicPaster {
 						block.setBlockData(data, false);
 
 						if (animated && player != null && player.isOnline()) {
-							player.spawnParticle(ParticleUtils.getParticle("BLOCK_DUST"), blockLoc, 5, data);
+							player.spawnParticle(ParticleUtils.getParticle("BLOCK_CRACK"), blockLoc, 5, data);
 							AdventureHelper.playPositionalSound(player.getWorld(), blockLoc,
 									Sound.sound(Key.key("minecraft:block.stone.place"), Source.BLOCK, 0.5f, 1.2f));
 						}

@@ -67,6 +67,7 @@ public class HellblockGUIManager implements HellblockGUIManagerInterface, Listen
 	protected char visitSlot;
 	protected char eventSlot;
 	protected char notificationSlot;
+	protected char leaderboardSlot;
 	protected char resetCooldownSlot;
 	protected char biomeCooldownSlot;
 
@@ -84,6 +85,7 @@ public class HellblockGUIManager implements HellblockGUIManagerInterface, Listen
 	protected CustomItem visitIcon;
 	protected CustomItem eventIcon;
 	protected CustomItem notificationIcon;
+	protected CustomItem leaderboardIcon;
 	protected CustomItem resetCooldownIcon;
 	protected CustomItem biomeCooldownIcon;
 	protected Action<Player>[] teleportActions;
@@ -100,6 +102,7 @@ public class HellblockGUIManager implements HellblockGUIManagerInterface, Listen
 	protected Action<Player>[] visitActions;
 	protected Action<Player>[] eventActions;
 	protected Action<Player>[] notificationActions;
+	protected Action<Player>[] leaderboardActions;
 	protected Action<Player>[] resetCooldownActions;
 	protected Action<Player>[] biomeCooldownActions;
 
@@ -176,7 +179,9 @@ public class HellblockGUIManager implements HellblockGUIManagerInterface, Listen
 
 		Section lockSection = config.getSection("lock-icon");
 		if (lockSection != null) {
-			lockSlot = lockSection.getString("symbol", "L").charAt(0);
+			char symbol = lockSection.getString("symbol", "L").charAt(0);
+			lockSlot = symbol;
+			unlockSlot = symbol;
 
 			lockIcon = new SingleItemParser("lock", lockSection, instance.getConfigManager().getItemFormatFunctions())
 					.getItem();
@@ -185,8 +190,6 @@ public class HellblockGUIManager implements HellblockGUIManagerInterface, Listen
 
 		Section unlockSection = config.getSection("unlock-icon");
 		if (unlockSection != null) {
-			unlockSlot = unlockSection.getString("symbol", "L").charAt(0);
-
 			unlockIcon = new SingleItemParser("unlock", unlockSection,
 					instance.getConfigManager().getItemFormatFunctions()).getItem();
 			unlockActions = instance.getActionManager(Player.class).parseActions(unlockSection.getSection("action"));
@@ -265,6 +268,16 @@ public class HellblockGUIManager implements HellblockGUIManagerInterface, Listen
 					.parseActions(notificationSection.getSection("action"));
 		}
 
+		Section leaderboardSection = config.getSection("leaderboard-icon");
+		if (leaderboardSection != null) {
+			leaderboardSlot = leaderboardSection.getString("symbol", "!").charAt(0);
+
+			leaderboardIcon = new SingleItemParser("leaderboard", leaderboardSection,
+					instance.getConfigManager().getItemFormatFunctions()).getItem();
+			leaderboardActions = instance.getActionManager(Player.class)
+					.parseActions(leaderboardSection.getSection("action"));
+		}
+
 		Section resetCooldownSection = config.getSection("reset-cooldown-icon");
 		if (resetCooldownSection != null) {
 			resetCooldownSlot = resetSlot;
@@ -322,12 +335,6 @@ public class HellblockGUIManager implements HellblockGUIManagerInterface, Listen
 					.warn("Player " + player.getName() + "'s hellblock data has not been loaded yet.");
 			return false;
 		}
-		boolean checkLockSlots = Objects.equals(lockSlot, unlockSlot);
-		if (!checkLockSlots) {
-			instance.getPluginLogger()
-					.warn("Lock and unlocks don't equal the same variable. Please update them to the same symbols.");
-			return false;
-		}
 		Context<Player> context = Context.player(player);
 		Context<Integer> islandContext = Context.island(islandId);
 		HellblockGUI gui = new HellblockGUI(this, context, islandContext, optionalUserData.get().getHellblockData(),
@@ -344,6 +351,7 @@ public class HellblockGUIManager implements HellblockGUIManagerInterface, Listen
 		gui.addElement(new HellblockDynamicGUIElement(resetSlot, new ItemStack(Material.AIR)));
 		gui.addElement(new HellblockDynamicGUIElement(visitSlot, new ItemStack(Material.AIR)));
 		gui.addElement(new HellblockDynamicGUIElement(notificationSlot, new ItemStack(Material.AIR)));
+		gui.addElement(new HellblockDynamicGUIElement(leaderboardSlot, new ItemStack(Material.AIR)));
 		gui.addElement(new HellblockDynamicGUIElement(eventSlot, new ItemStack(Material.AIR)));
 		decorativeIcons.entrySet().forEach(entry -> gui
 				.addElement(new HellblockGUIElement(entry.getKey(), entry.getValue().left().build(context))));
@@ -523,6 +531,14 @@ public class HellblockGUIManager implements HellblockGUIManagerInterface, Listen
 				instance.getNotificationGUIManager().openNotificationGUI(gui.context.holder(),
 						gui.islandContext.holder(), gui.isOwner);
 				ActionManager.trigger(gui.context, notificationActions);
+				return;
+			}
+
+			if (element.getSymbol() == leaderboardSlot) {
+				event.setCancelled(true);
+				instance.getLeaderboardGUIManager().openLeaderboardGUI(gui.context.holder(), gui.islandContext.holder(),
+						gui.isOwner, true);
+				ActionManager.trigger(gui.context, leaderboardActions);
 				return;
 			}
 

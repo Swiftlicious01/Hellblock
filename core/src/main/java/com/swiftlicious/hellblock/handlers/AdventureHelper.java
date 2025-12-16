@@ -366,7 +366,7 @@ public class AdventureHelper {
 	}
 
 	/**
-	 * Parses a multiline MiniMessage string (with optional <center> tags) into a
+	 * Parses a multiline MiniMessage string (with optional &lt;center&gt; tags) into a
 	 * visually centered Adventure Component suitable for GUI titles or inventory
 	 * menus.
 	 *

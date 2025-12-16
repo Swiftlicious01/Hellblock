@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CancellationException;
@@ -112,7 +113,6 @@ import org.bukkit.event.player.PlayerBucketEmptyEvent;
 import org.bukkit.event.player.PlayerBucketEntityEvent;
 import org.bukkit.event.player.PlayerBucketFillEvent;
 import org.bukkit.event.player.PlayerChangedWorldEvent;
-import org.bukkit.event.player.PlayerCommandPreprocessEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerEditBookEvent;
 import org.bukkit.event.player.PlayerFishEvent;
@@ -136,6 +136,7 @@ import org.bukkit.metadata.FixedMetadataValue;
 import org.bukkit.plugin.EventExecutor;
 import org.bukkit.projectiles.ProjectileSource;
 import org.bukkit.util.BoundingBox;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
@@ -152,6 +153,7 @@ import com.swiftlicious.hellblock.schematic.SignReflectionHelper;
 import com.swiftlicious.hellblock.sender.Sender;
 import com.swiftlicious.hellblock.utils.EntityTypeUtils;
 import com.swiftlicious.hellblock.utils.LocationUtils;
+import com.swiftlicious.hellblock.world.Pos3;
 
 import net.kyori.adventure.text.Component;
 
@@ -207,7 +209,7 @@ public class ProtectionEvents implements Listener, Reloadable {
 	@Override
 	public void disable() {
 		unload();
-		collisionManager.resetAll();
+		this.collisionManager.resetAll();
 	}
 
 	public void registerMountListeners() {
@@ -288,11 +290,15 @@ public class ProtectionEvents implements Listener, Reloadable {
 							if (event instanceof Cancellable cancellable) {
 								denyIfNotAllowed(player, loc, cancellable,
 										MessageConstants.MSG_HELLBLOCK_PROTECTION_ENTRY_DENY.build(),
-										HellblockFlag.FlagType.ENTRY);
+										HellblockFlag.FlagType.ENTRY).thenAccept(denied -> {
+											if (!denied) {
+												handleHellblockMessage(player);
+											}
+										});
 							}
+						} else {
+							handleHellblockMessage(player);
 						}
-
-						handleHellblockMessage(player);
 					}
 				} catch (Throwable t) {
 					t.printStackTrace();
@@ -1459,12 +1465,17 @@ public class ProtectionEvents implements Listener, Reloadable {
 		if (movedWithinBlock(event)) {
 			return;
 		}
+
 		if (!player.hasPermission("hellblock.bypass.lock")) {
 			denyIfNotAllowed(player, event.getTo(), event, MessageConstants.MSG_HELLBLOCK_PROTECTION_ENTRY_DENY.build(),
-					HellblockFlag.FlagType.ENTRY);
+					HellblockFlag.FlagType.ENTRY).thenAccept(denied -> {
+						if (!denied) {
+							handleHellblockMessage(player);
+						}
+					});
+		} else {
+			handleHellblockMessage(player);
 		}
-
-		handleHellblockMessage(player);
 	}
 
 	@SuppressWarnings("removal")
@@ -1475,24 +1486,42 @@ public class ProtectionEvents implements Listener, Reloadable {
 			return;
 		}
 
-		// Global ENTRY flag
-		if (!player.hasPermission("hellblock.bypass.lock")) {
-			denyIfNotAllowed(player, event.getTo(), event, MessageConstants.MSG_HELLBLOCK_PROTECTION_ENTRY_DENY.build(),
-					HellblockFlag.FlagType.ENTRY);
+		final TeleportCause cause = event.getCause();
+
+		// Players with bypass permission skip all checks
+		if (player.hasPermission("hellblock.bypass.lock")) {
+			handleHellblockMessage(player);
+			return;
 		}
 
-		// Specific teleport causes
-		TeleportCause cause = event.getCause();
-		if (cause == TeleportCause.ENDER_PEARL) {
-			checkFlag(player, event.getTo(), event, MessageConstants.MSG_HELLBLOCK_PROTECTION_ENDERPEARL_DENY.build(),
-					HellblockFlag.FlagType.ENDERPEARL);
-		} else if (cause == TeleportCause.CHORUS_FRUIT) {
-			checkFlag(player, event.getTo(), event,
-					MessageConstants.MSG_HELLBLOCK_PROTECTION_CHORUS_TELEPORT_DENY.build(),
-					HellblockFlag.FlagType.CHORUS_TELEPORT);
-		}
+		// Global ENTRY flag check
+		denyIfNotAllowed(player, event.getTo(), event, MessageConstants.MSG_HELLBLOCK_PROTECTION_ENTRY_DENY.build(),
+				HellblockFlag.FlagType.ENTRY).thenAccept(denied -> {
+					if (denied) {
+						return; // Entry denied, stop further checks
+					}
 
-		handleHellblockMessage(player);
+					CompletableFuture<Boolean> causeCheck;
+
+					if (cause == TeleportCause.ENDER_PEARL) {
+						causeCheck = checkFlag(player, event.getTo(), event,
+								MessageConstants.MSG_HELLBLOCK_PROTECTION_ENDERPEARL_DENY.build(),
+								HellblockFlag.FlagType.ENDERPEARL);
+					} else if (cause == TeleportCause.CHORUS_FRUIT) {
+						causeCheck = checkFlag(player, event.getTo(), event,
+								MessageConstants.MSG_HELLBLOCK_PROTECTION_CHORUS_TELEPORT_DENY.build(),
+								HellblockFlag.FlagType.CHORUS_TELEPORT);
+					} else {
+						causeCheck = CompletableFuture.completedFuture(true);
+					}
+
+					// Only handle message once all checks complete and allowed
+					causeCheck.thenAccept(allowed -> {
+						if (allowed) {
+							handleHellblockMessage(player);
+						}
+					});
+				});
 	}
 
 	// Vehicle destroy -> DESTROY_VEHICLE
@@ -1519,30 +1548,14 @@ public class ProtectionEvents implements Listener, Reloadable {
 		if (!player.hasPermission("hellblock.bypass.lock")) {
 			Location loc = event.getVehicle().getLocation();
 			denyIfNotAllowed(player, loc, event, MessageConstants.MSG_HELLBLOCK_PROTECTION_ENTRY_DENY.build(),
-					HellblockFlag.FlagType.ENTRY);
+					HellblockFlag.FlagType.ENTRY).thenAccept(denied -> {
+						if (!denied) {
+							handleHellblockMessage(player);
+						}
+					});
+		} else {
+			handleHellblockMessage(player);
 		}
-
-		handleHellblockMessage(player);
-	}
-
-	@EventHandler(ignoreCancelled = true)
-	public void onPlayerCommand(PlayerCommandPreprocessEvent event) {
-		Player player = event.getPlayer();
-		if (!instance.getHellblockHandler().isInCorrectWorld(player))
-			return;
-
-		if (!player.hasPermission("hellblock.bypass.lock")) {
-			String msg = event.getMessage().toLowerCase(Locale.ROOT);
-			if (msg.startsWith("/home") || msg.startsWith("/warp") || msg.startsWith("/tp")
-					|| msg.startsWith("/visit")) {
-				// Predict destination if possible (e.g., via external APIs)
-				// Or deny preemptively if ENTRY is not allowed
-				denyIfNotAllowed(player, player.getLocation(), event,
-						MessageConstants.MSG_HELLBLOCK_PROTECTION_ENTRY_DENY.build(), HellblockFlag.FlagType.ENTRY);
-			}
-		}
-
-		handleHellblockMessage(player);
 	}
 
 	@EventHandler(ignoreCancelled = true)
@@ -1717,7 +1730,8 @@ public class ProtectionEvents implements Listener, Reloadable {
 		});
 	}
 
-	private Block getGrowthSource(Block to) {
+	@NotNull
+	private Block getGrowthSource(@NotNull Block to) {
 		Material type = to.getType();
 
 		// Handle based on known growth behaviors
@@ -1743,13 +1757,11 @@ public class ProtectionEvents implements Listener, Reloadable {
 		};
 	}
 
-	private void cancelIfLeavingIsland(Block from, Block to, Cancellable event) {
+	private void cancelIfLeavingIsland(@NotNull Block from, @NotNull Block to, @NotNull Cancellable event) {
 		// ---- Basic sanity checks ----
-		if (from == null || to == null)
-			return;
 		World worldFrom = from.getWorld();
 		World worldTo = to.getWorld();
-		if (worldFrom == null || worldTo == null || !worldFrom.equals(worldTo))
+		if (!worldFrom.getUID().equals(worldTo.getUID()))
 			return;
 		if (!instance.getHellblockHandler().isInCorrectWorld(worldFrom))
 			return;
@@ -1759,6 +1771,8 @@ public class ProtectionEvents implements Listener, Reloadable {
 			// Attempt to resolve cached island IDs (cheap synchronous check)
 			Integer fromIslandId = instance.getPlacementDetector().getIslandIdAt(from.getLocation());
 			Integer toIslandId = instance.getPlacementDetector().getIslandIdAt(to.getLocation());
+			if (fromIslandId == null && toIslandId == null)
+				return;
 
 			if (fromIslandId != null && toIslandId != null && !fromIslandId.equals(toIslandId)) {
 				instance.debug("Immediate cancel (cached check) for " + event.getClass().getSimpleName() + " from="
@@ -1772,9 +1786,9 @@ public class ProtectionEvents implements Listener, Reloadable {
 
 		// ---- Async ownership resolution fallback ----
 		CompletableFuture<UUID> fromFuture = withTimeout(instance.getCoopManager().getHellblockOwnerOfBlock(from), 3,
-				TimeUnit.SECONDS);
+				TimeUnit.SECONDS, "cancelIfLeavingIsland-from");
 		CompletableFuture<UUID> toFuture = withTimeout(instance.getCoopManager().getHellblockOwnerOfBlock(to), 3,
-				TimeUnit.SECONDS);
+				TimeUnit.SECONDS, "cancelIfLeavingIsland-to");
 
 		fromFuture.thenCombine(toFuture, (fromOwner, toOwner) -> {
 			// Only cancel if both are known and belong to different owners
@@ -1794,7 +1808,8 @@ public class ProtectionEvents implements Listener, Reloadable {
 		});
 	}
 
-	private <T> CompletableFuture<T> withTimeout(CompletableFuture<T> original, long timeout, TimeUnit unit) {
+	private <T> CompletableFuture<T> withTimeout(CompletableFuture<T> original, long timeout, TimeUnit unit,
+			@NotNull String context) {
 		CompletableFuture<T> timeoutFuture = new CompletableFuture<>();
 
 		// Schedule an async timeout completion — use async scheduler, not sync.
@@ -1802,30 +1817,34 @@ public class ProtectionEvents implements Listener, Reloadable {
 		instance.getScheduler().asyncLater(() -> {
 			if (!timeoutFuture.isDone()) {
 				timeoutFuture.completeExceptionally(new TimeoutException(
-						"Owner lookup timed out after " + timeout + " " + unit.toString().toLowerCase()));
+						"[" + context + "] timed out after " + timeout + " " + unit.toString().toLowerCase()));
 			}
 		}, delay, TimeUnit.SECONDS);
 
 		// Return whichever completes first: original or timeout
 		return original.applyToEither(timeoutFuture, Function.identity()).exceptionally(ex -> {
 			if (ex instanceof TimeoutException) {
-				instance.debug("withTimeout: async lookup exceeded " + timeout + " " + unit);
-			} else if (!(ex instanceof CancellationException)) {
-				instance.getPluginLogger().warn("withTimeout: async failure - " + ex.getMessage(), ex);
+				instance.debug("withTimeout (" + context + "): async lookup exceeded " + timeout + " " + unit);
+			} else if (ex instanceof CancellationException) {
+				instance.debug("withTimeout (" + context + "): future cancelled normally.");
+			} else {
+				instance.getPluginLogger().warn("withTimeout (" + context + "): async failure - " + ex.getMessage(),
+						ex);
 			}
 			return null;
 		});
 	}
 
-	private String blockInfo(Block block) {
+	@NotNull
+	private String blockInfo(@NotNull Block block) {
 		Location loc = block.getLocation();
 		return "[world=" + loc.getWorld().getName() + ", x=" + loc.getBlockX() + ", y=" + loc.getBlockY() + ", z="
 				+ loc.getBlockZ() + "]";
 	}
 
-	private boolean bypass(Player player) {
-		return player != null && (player.hasPermission("hellblock.bypass.interact")
-				|| player.hasPermission("hellblock.admin") || player.isOp());
+	private boolean bypass(@NotNull Player player) {
+		return player.hasPermission("hellblock.bypass.interact") || player.hasPermission("hellblock.admin")
+				|| player.isOp();
 	}
 
 	/**
@@ -1838,9 +1857,12 @@ public class ProtectionEvents implements Listener, Reloadable {
 			if (ownerUUID == null) {
 				return;
 			}
-			instance.getStorageManager()
-					.getCachedUserDataWithFallback(ownerUUID, instance.getConfigManager().lockData())
-					.thenAccept(result -> {
+			instance.getStorageManager().getCachedUserDataWithFallback(ownerUUID, false).orTimeout(5, TimeUnit.SECONDS)
+					.exceptionally(ex -> {
+						instance.getPluginLogger().warn(
+								"Failed to check owner flag of location " + Pos3.from(loc) + ": " + ex.getMessage());
+						return Optional.empty();
+					}).thenAccept(result -> {
 						if (result.isEmpty()) {
 							return;
 						}
@@ -1853,7 +1875,8 @@ public class ProtectionEvents implements Listener, Reloadable {
 		});
 	}
 
-	private CompletableFuture<Boolean> canInteract(Player player, Location location, HellblockFlag.FlagType flag) {
+	private CompletableFuture<Boolean> canInteract(@Nullable Player player, Location location,
+			HellblockFlag.FlagType flag) {
 		// Always check against the island owner's flag settings
 		if (location.getWorld() == null || !instance.getHellblockHandler().isInCorrectWorld(location.getWorld())) {
 			return CompletableFuture.completedFuture(false);
@@ -1867,9 +1890,12 @@ public class ProtectionEvents implements Listener, Reloadable {
 				return CompletableFuture.completedFuture(false);
 			}
 
-			return instance.getStorageManager()
-					.getCachedUserDataWithFallback(ownerUUID, instance.getConfigManager().lockData())
-					.thenApply(result -> {
+			return instance.getStorageManager().getCachedUserDataWithFallback(ownerUUID, false)
+					.orTimeout(5, TimeUnit.SECONDS).exceptionally(ex -> {
+						instance.getPluginLogger().warn("Failed to check protection interaction of location "
+								+ Pos3.from(location) + ": " + ex.getMessage());
+						return Optional.empty();
+					}).thenApply(result -> {
 						if (result.isEmpty()) {
 							return false;
 						}
@@ -1895,58 +1921,59 @@ public class ProtectionEvents implements Listener, Reloadable {
 		});
 	}
 
-	private CompletableFuture<Boolean> denyIfNotAllowed(Player player, Location loc, Cancellable event,
-			Component message, HellblockFlag.FlagType flag) {
+	private CompletableFuture<Boolean> denyIfNotAllowed(@NotNull Player player, Location loc,
+			@Nullable Cancellable event, Component message, HellblockFlag.FlagType flag) {
 
 		final CompletableFuture<Boolean> canInteractFuture = canInteract(player, loc, flag);
 
 		if (flag == HellblockFlag.FlagType.ENTRY) {
-			return instance.getCoopManager().getHellblockOwnerOfBlock(loc.getBlock()).thenCompose(islandOwnerUUID -> {
-				if (islandOwnerUUID == null) {
+			return instance.getCoopManager().getHellblockOwnerOfBlock(loc.getBlock()).thenCompose(ownerUUID -> {
+				if (ownerUUID == null) {
 					// No island at this location, fall back to normal check
 					return canInteractFuture;
 				}
 
 				final CompletableFuture<Boolean> bannedFuture = instance.getCoopManager()
-						.isPlayerBannedInLocation(player.getUniqueId(), islandOwnerUUID, loc);
+						.isPlayerBannedInLocation(player.getUniqueId(), ownerUUID, loc);
 
 				final CompletableFuture<Boolean> welcomeFuture = instance.getCoopManager()
-						.checkIfVisitorsAreWelcome(player, islandOwnerUUID);
+						.checkIfVisitorsAreWelcome(player, ownerUUID);
 
 				return canInteractFuture.thenCombine(bannedFuture, EntryCheck::new)
 						.thenCombine(welcomeFuture, EntryCheck::withWelcome).thenApply(entryCheck -> {
 							if (!entryCheck.isAllowed() && !bypass(player)) {
 								instance.getScheduler().executeSync(() -> {
-									event.setCancelled(true);
-									if (player != null) {
-										final Component denyMessage;
-										if (entryCheck.banned) {
-											denyMessage = instance.getTranslationManager()
-													.render(MessageConstants.MSG_HELLBLOCK_BANNED_ENTRY.build());
-										} else if (!entryCheck.welcome) {
-											denyMessage = instance.getTranslationManager()
-													.render(MessageConstants.MSG_HELLBLOCK_LOCKED_ENTRY.build());
-										} else {
-											denyMessage = instance.getTranslationManager().render(message);
-										}
-										instance.getSenderFactory().wrap(player).sendMessage(denyMessage);
+									if (event != null) {
+										event.setCancelled(true);
 									}
+									final Component denyMessage;
+									if (entryCheck.banned) {
+										denyMessage = instance.getTranslationManager()
+												.render(MessageConstants.MSG_HELLBLOCK_BANNED_ENTRY.build());
+									} else if (!entryCheck.welcome) {
+										denyMessage = instance.getTranslationManager()
+												.render(MessageConstants.MSG_HELLBLOCK_LOCKED_ENTRY.build());
+									} else {
+										denyMessage = instance.getTranslationManager().render(message);
+									}
+									instance.getSenderFactory().wrap(player).sendMessage(denyMessage);
 									instance.debug(
 											"Protection: Entry denied for %s (%s) at [world=%s, x=%d, y=%d, z=%d]. Reason=%s, Event=%s"
-													.formatted(player != null ? player.getName() : "unknown",
-															player != null ? player.getUniqueId() : null,
+													.formatted(player.getName(), player.getUniqueId(),
 															loc.getWorld() != null ? loc.getWorld().getName()
 																	: "unknown",
 															loc.getBlockX(), loc.getBlockY(), loc.getBlockZ(),
-															entryCheck.reason(), event.getClass().getSimpleName()));
+															entryCheck.reason(),
+															(event != null ? event.getClass().getSimpleName()
+																	: "unknownEventClass")));
 								});
 								return true;
 							}
 							return false;
 						});
 			}).exceptionally(ex -> {
-				instance.getPluginLogger().warn("denyIfNotAllowed failed for "
-						+ (player != null ? player.getName() : "unknown") + ": " + ex.getMessage());
+				instance.getPluginLogger()
+						.warn("denyIfNotAllowed failed for " + player.getName() + ": " + ex.getMessage());
 				return false;
 			});
 		}
@@ -1955,34 +1982,35 @@ public class ProtectionEvents implements Listener, Reloadable {
 		return canInteractFuture.thenApply(can -> {
 			if (!can && !bypass(player)) {
 				instance.getScheduler().executeSync(() -> {
-					event.setCancelled(true);
-					if (player != null) {
-						instance.getSenderFactory().wrap(player)
-								.sendMessage(instance.getTranslationManager().render(message));
+					if (event != null) {
+						event.setCancelled(true);
 					}
+					instance.getSenderFactory().wrap(player)
+							.sendMessage(instance.getTranslationManager().render(message));
 					instance.debug("Protection: Denied %s (%s) at [world=%s, x=%d, y=%d, z=%d]. Event=%s".formatted(
-							player != null ? player.getName() : "unknown", player != null ? player.getUniqueId() : null,
+							player.getName(), player.getUniqueId(),
 							loc.getWorld() != null ? loc.getWorld().getName() : "unknown", loc.getBlockX(),
-							loc.getBlockY(), loc.getBlockZ(), event.getClass().getSimpleName()));
+							loc.getBlockY(), loc.getBlockZ(),
+							(event != null ? event.getClass().getSimpleName() : "unknownEventClass")));
 				});
 				return true;
 			}
 			return false;
 		}).exceptionally(ex -> {
-			instance.getPluginLogger().warn("denyIfNotAllowed failed for "
-					+ (player != null ? player.getName() : "unknown") + ": " + ex.getMessage());
+			instance.getPluginLogger().warn("denyIfNotAllowed failed for " + player.getName() + ": " + ex.getMessage());
 			return false;
 		});
 	}
 
-	private void checkFlag(Player player, Location loc, Cancellable event, Component message,
-			HellblockFlag.FlagType flag) {
-		denyIfNotAllowed(player, loc, event, message, flag);
+	private CompletableFuture<Boolean> checkFlag(Player player, Location loc, @Nullable Cancellable event,
+			Component message, HellblockFlag.FlagType flag) {
+		return denyIfNotAllowed(player, loc, event, message, flag);
 	}
 
-	private boolean movedWithinBlock(PlayerMoveEvent e) {
-		return e.getTo().getBlockX() == e.getFrom().getBlockX() && e.getTo().getBlockY() == e.getFrom().getBlockY()
-				&& e.getTo().getBlockZ() == e.getFrom().getBlockZ();
+	private boolean movedWithinBlock(PlayerMoveEvent event) {
+		return event.getTo().getBlockX() == event.getFrom().getBlockX()
+				&& event.getTo().getBlockY() == event.getFrom().getBlockY()
+				&& event.getTo().getBlockZ() == event.getFrom().getBlockZ();
 	}
 
 	private void handleHellblockMessage(Player player) {
@@ -1998,15 +2026,18 @@ public class ProtectionEvents implements Listener, Reloadable {
 			}
 
 			// Asynchronously fetch the bounding box from offline user data
-			instance.getStorageManager()
-					.getCachedUserDataWithFallback(ownerUUID, instance.getConfigManager().lockData())
-					.thenAccept(result -> {
+			instance.getStorageManager().getCachedUserDataWithFallback(ownerUUID, false).orTimeout(5, TimeUnit.SECONDS)
+					.exceptionally(ex -> {
+						instance.getPluginLogger().warn("Failed to send entry/farewell message to player "
+								+ player.getName() + ": " + ex.getMessage());
+						return Optional.empty();
+					}).thenAccept(result -> {
 						if (result.isEmpty()) {
 							return;
 						}
 
-						final UserData offlineUser = result.get();
-						final BoundingBox hellblockBounds = offlineUser.getHellblockData().getBoundingBox();
+						final UserData userData = result.get();
+						final BoundingBox hellblockBounds = userData.getHellblockData().getBoundingBox();
 						if (hellblockBounds == null) {
 							return;
 						}
@@ -2037,8 +2068,12 @@ public class ProtectionEvents implements Listener, Reloadable {
 		playerInBoundsState.put(playerId, isInside);
 
 		// Fetch the appropriate message from owner data asynchronously
-		instance.getStorageManager().getCachedUserDataWithFallback(ownerUUID, instance.getConfigManager().lockData())
-				.thenAccept(optData -> {
+		instance.getStorageManager().getCachedUserDataWithFallback(ownerUUID, false).orTimeout(5, TimeUnit.SECONDS)
+				.exceptionally(ex -> {
+					instance.getPluginLogger().warn("Failed to retrieve entry/farewell message from island with owner "
+							+ ownerUUID + ": " + ex.getMessage());
+					return Optional.empty();
+				}).thenAccept(optData -> {
 					if (optData.isEmpty()) {
 						return;
 					}
@@ -2287,9 +2322,14 @@ public class ProtectionEvents implements Listener, Reloadable {
 								if (!player.hasPermission("hellblock.bypass.lock")) {
 									denyIfNotAllowed(player, loc, null,
 											MessageConstants.MSG_HELLBLOCK_PROTECTION_ENTRY_DENY.build(),
-											HellblockFlag.FlagType.ENTRY);
+											HellblockFlag.FlagType.ENTRY).thenAccept(denied -> {
+												if (!denied) {
+													handleHellblockMessage(player);
+												}
+											});
+								} else {
+									handleHellblockMessage(player);
 								}
-								handleHellblockMessage(player);
 							}
 						});
 			}, 20L, 40L, LocationUtils.getAnyLocationInstance()); // every 2 seconds

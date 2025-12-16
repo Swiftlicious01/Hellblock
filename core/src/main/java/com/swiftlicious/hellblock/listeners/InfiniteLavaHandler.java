@@ -1,8 +1,10 @@
 package com.swiftlicious.hellblock.listeners;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Function;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Fluid;
@@ -115,9 +117,17 @@ public class InfiniteLavaHandler implements Listener, Reloadable {
 			return;
 		}
 
-		isLavaFall(hellWorld, pos).thenAcceptAsync(lavaFallFound -> {
+		isLavaFall(hellWorld, pos).thenCompose(isFall -> {
+			if (!isFall)
+				return CompletableFuture.completedFuture(false);
+			return isInfiniteLavaFormation(hellWorld, pos);
+		}).thenAcceptAsync(validFormation -> {
+			if (!validFormation) {
+				return;
+			}
+
 			final Block lavaBlock = findLavaInRange(player, 5);
-			if (lavaBlock == null || !lavaFallFound) {
+			if (lavaBlock == null) {
 				return;
 			}
 
@@ -217,6 +227,165 @@ public class InfiniteLavaHandler implements Listener, Reloadable {
 
 			return (type == Fluid.LAVA || type == Fluid.FLOWING_LAVA) && (fluidData instanceof FallingFluidData falling)
 					&& falling.isFalling();
+		});
+	}
+
+	/**
+	 * Computes the fluid height of a lava block at the specified position.
+	 * 
+	 * This method inspects the underlying fluid data via NMS utilities to determine
+	 * how "full" a given lava block is — useful for differentiating between partial
+	 * flows and full source blocks.
+	 * 
+	 * Returns the computed height of the lava fluid as a float, or {@code null} if
+	 * the block is not lava or not valid in the world context.
+	 *
+	 * @param world the Hellblock world instance
+	 * @param pos   the block position to evaluate
+	 * @return a {@link CompletableFuture} that completes with the lava height as a
+	 *         float, or {@code null} if not applicable
+	 */
+	@Nullable
+	private CompletableFuture<Float> getLavaHeight(@NotNull HellblockWorld<?> world, @NotNull Pos3 pos) {
+		if (world.bukkitWorld() == null)
+			return CompletableFuture.completedFuture(null);
+
+		return world.getBlockState(pos).thenApply(stateOpt -> {
+			if (stateOpt.isEmpty() || !LAVA_KEY.contains(stateOpt.get().type().type().value()))
+				return null;
+
+			Location loc = pos.toLocation(world.bukkitWorld());
+			FluidData fluidData = VersionHelper.getNMSManager().getFluidData(loc);
+			org.bukkit.Fluid type = fluidData.getFluidType();
+
+			if (type != Fluid.LAVA && type != Fluid.FLOWING_LAVA)
+				return null;
+
+			return fluidData.computeHeight(loc);
+		});
+	}
+
+	/**
+	 * Determines whether the given lava block is part of a valid 3D infinite-lava
+	 * formation.
+	 *
+	 * The pattern can appear in either EAST–WEST or NORTH–SOUTH orientation and
+	 * spans three Y-levels:
+	 *
+	 * <pre>
+	 *   Y+2: W S W
+	 *   Y+1: F E F
+	 *   Y+0: F E F
+	 * </pre>
+	 *
+	 * Where: - W = Flowing lava (non-source, non-falling) - S = Source lava - F =
+	 * Falling lava (eligible for extraction) - E = Empty / non-lava (any non-lava
+	 * block)
+	 *
+	 * Only the “F” blocks on layers Y+1 or Y+0 may be claimed for infinite lava,
+	 * and all other parts of the structure must match exactly.
+	 *
+	 * @param world  the Hellblock world context
+	 * @param center the block position of the potential falling lava block
+	 * @return a {@link CompletableFuture} resolving to {@code true} if the
+	 *         structure qualifies
+	 */
+	private CompletableFuture<Boolean> isInfiniteLavaFormation(@NotNull HellblockWorld<?> world, @NotNull Pos3 center) {
+		// Define vertical levels relative to the tested falling lava block
+		Pos3 topY = center.add(0, 2, 0);
+		Pos3 midY = center.add(0, 1, 0);
+		Pos3 baseY = center; // Y+0
+
+		// Orientations to test — east/west AND north/south
+		List<Function<Boolean, CompletableFuture<Boolean>>> orientationChecks = List.of(
+				// EAST–WEST orientation
+				(ignore) -> checkFormationDirection(world, center, topY, midY, baseY, Axis.EAST_WEST),
+				// NORTH–SOUTH orientation
+				(ignore) -> checkFormationDirection(world, center, topY, midY, baseY, Axis.NORTH_SOUTH));
+
+		// Run both direction checks asynchronously and succeed if either matches
+		return CompletableFuture.allOf(orientationChecks.get(0).apply(true), orientationChecks.get(1).apply(true))
+				.thenCompose(v -> orientationChecks.get(0).apply(true).thenCombine(orientationChecks.get(1).apply(true),
+						(eastWest, northSouth) -> eastWest || northSouth));
+	}
+
+	private enum Axis {
+		EAST_WEST, NORTH_SOUTH
+	}
+
+	/**
+	 * Validates a single directional infinite lava pattern along one axis.
+	 *
+	 * @param world  the Hellblock world
+	 * @param center the central (falling lava) position
+	 * @param topY   top layer Y+2
+	 * @param midY   mid layer Y+1
+	 * @param baseY  base layer Y+0
+	 * @param axis   orientation (EAST_WEST or NORTH_SOUTH)
+	 * @return a future resolving to true if this axis matches the pattern
+	 */
+	private CompletableFuture<Boolean> checkFormationDirection(@NotNull HellblockWorld<?> world, @NotNull Pos3 center,
+			@NotNull Pos3 topY, @NotNull Pos3 midY, @NotNull Pos3 baseY, @NotNull Axis axis) {
+		// Offsets for the current orientation
+		int dx = axis == Axis.EAST_WEST ? 1 : 0;
+		int dz = axis == Axis.NORTH_SOUTH ? 1 : 0;
+
+		// --- Define coordinates for all positions ---
+		// Top layer: W S W
+		Pos3 topLeft = topY.add(-dx, 0, -dz);
+		Pos3 topSource = topY;
+		Pos3 topRight = topY.add(dx, 0, dz);
+
+		// Middle layer: F E F
+		Pos3 midLeft = midY.add(-dx, 0, -dz);
+		Pos3 midEmpty = midY;
+		Pos3 midRight = midY.add(dx, 0, dz);
+
+		// Base layer: F E F
+		Pos3 botLeft = baseY.add(-dx, 0, -dz);
+		Pos3 botEmpty = baseY;
+		Pos3 botRight = baseY.add(dx, 0, dz);
+
+		// --- Async fluid checks ---
+		CompletableFuture<Boolean> topLayer = instance.getNetherrackGeneratorHandler().isLavaFlowing(world, topLeft)
+				.thenCombine(instance.getNetherrackGeneratorHandler().isLavaSource(world, topSource), (a, b) -> a && b)
+				.thenCombine(instance.getNetherrackGeneratorHandler().isLavaFlowing(world, topRight), (a, b) -> a && b);
+
+		CompletableFuture<Boolean> midLayer = isLavaFall(world, midLeft)
+				.thenCombine(isBlockNonLava(world, midEmpty), (a, b) -> a && b)
+				.thenCombine(isLavaFall(world, midRight), (a, b) -> a && b);
+
+		CompletableFuture<Boolean> botLayer = isLavaFall(world, botLeft)
+				.thenCombine(isBlockNonLava(world, botEmpty), (a, b) -> a && b)
+				.thenCombine(isLavaFall(world, botRight), (a, b) -> a && b);
+
+		CompletableFuture<Boolean> centerCheck = isLavaFall(world, center);
+
+		// Combine all asynchronously
+		return topLayer.thenCombine(midLayer, (a, b) -> a && b).thenCombine(botLayer, (a, b) -> a && b)
+				.thenCombine(centerCheck, (a, b) -> a && b);
+	}
+
+	/**
+	 * Checks that the block at the given position is *not* any type of lava.
+	 * 
+	 * This is used for validating the “E” (empty) slots in the formation pattern,
+	 * which must not contain source, flowing, or falling lava.
+	 *
+	 * @param world the Hellblock world
+	 * @param pos   the position to test
+	 * @return a {@link CompletableFuture} resolving to true if the block is NOT
+	 *         lava
+	 */
+	private CompletableFuture<Boolean> isBlockNonLava(@NotNull HellblockWorld<?> world, @NotNull Pos3 pos) {
+		if (world.bukkitWorld() == null)
+			return CompletableFuture.completedFuture(false);
+
+		return world.getBlockState(pos).thenApply(stateOpt -> {
+			if (stateOpt.isEmpty())
+				return true; // empty is fine
+			String key = stateOpt.get().type().type().value();
+			return !LAVA_KEY.contains(key);
 		});
 	}
 }

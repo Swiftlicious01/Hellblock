@@ -58,7 +58,7 @@ public class IntegrationManager implements IntegrationManagerInterface {
 
 	public void initialize() {
 		try {
-			this.load();
+			load();
 		} catch (Throwable ex) {
 			instance.getPluginLogger().warn("Failed to load integrations", ex);
 		} finally {
@@ -72,10 +72,14 @@ public class IntegrationManager implements IntegrationManagerInterface {
 		this.levelerProviders.clear();
 		this.petProviders.clear();
 		this.shopSignProviders.clear();
+		ProtocolLibHook.unregisterAll(instance);
 	}
 
 	@Override
 	public void load() {
+		ProtocolLibHook.register(instance);
+		ProtocolLibHook.registerFreezeMovementPacket(instance);
+
 		if (isHooked("MythicMobs", "5")) {
 			registerItemProvider(new MythicMobsItemProvider());
 			registerEntityProvider(new MythicEntityProvider());
@@ -99,7 +103,7 @@ public class IntegrationManager implements IntegrationManagerInterface {
 		if (isHooked("Vault")) {
 			VaultHook.init();
 		}
-		
+
 		if (isHooked("PlayerPoints")) {
 			PlayerPointsHook.register();
 		}

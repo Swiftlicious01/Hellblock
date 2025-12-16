@@ -69,8 +69,8 @@ public class HellblockCommand extends BukkitCommandFeature<CommandSender> {
 							return;
 						}
 
-						final boolean isOwner = data.isOwner(ownerUUID);
-						final int islandId = data.getIslandId();
+						final boolean isOwner = offlineUser.getHellblockData().isOwner(ownerUUID);
+						final int islandId = offlineUser.getHellblockData().getIslandId();
 						final boolean opened = plugin.getHellblockGUIManager().openHellblockGUI(player, islandId,
 								isOwner);
 

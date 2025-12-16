@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -25,6 +26,7 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 import org.bukkit.Bukkit;
+import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Particle;
@@ -35,12 +37,14 @@ import org.bukkit.block.BlockState;
 import org.bukkit.block.Container;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.block.data.Directional;
+import org.bukkit.entity.FallingBlock;
 import org.bukkit.entity.Item;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
+import org.bukkit.event.entity.EntityChangeBlockEvent;
 import org.bukkit.event.player.PlayerChangedWorldEvent;
 import org.bukkit.event.player.PlayerCommandPreprocessEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
@@ -63,6 +67,7 @@ import com.swiftlicious.hellblock.handlers.VersionHelper;
 import com.swiftlicious.hellblock.nms.entity.armorstand.FakeArmorStand;
 import com.swiftlicious.hellblock.player.HellblockData;
 import com.swiftlicious.hellblock.player.UserData;
+import com.swiftlicious.hellblock.player.mailbox.MailboxFlag;
 import com.swiftlicious.hellblock.scheduler.SchedulerTask;
 import com.swiftlicious.hellblock.schematic.AdventureMetadata;
 import com.swiftlicious.hellblock.schematic.SchematicMetadata;
@@ -240,7 +245,7 @@ public class IslandGenerator implements Listener, Reloadable {
 						containerLocationFuture = findNearestContainerNear(world, pasteLocation, 8, container -> true);
 					}
 
-					return containerLocationFuture.thenApply(containerLoc -> {
+					return containerLocationFuture.thenCompose(containerLoc -> {
 						if (containerLoc == null) {
 							instance.getPluginLogger().warn(
 									"generateHellblockSchematic: No valid container location found for schematic: "
@@ -248,20 +253,11 @@ public class IslandGenerator implements Listener, Reloadable {
 							if (animated)
 								cleanupAnimation(userData);
 							endGeneration(userData.getUUID());
-							return spawnLocation;
+							return CompletableFuture.completedFuture(spawnLocation);
 						}
 
 						Block containerBlock = containerLoc.getBlock();
-						if (containerBlock.getState() instanceof Container) {
-							instance.debug("generateHellblockSchematic: Valid container block found at [x="
-									+ containerLoc.getBlockX() + ", y=" + containerLoc.getBlockY() + ", z="
-									+ containerLoc.getBlockZ() + "]");
-
-							instance.getScheduler().executeSync(() -> {
-								generateHellblockContainer(world, containerLoc, userData, containerBlock.getType(),
-										animated, request);
-							}, containerLoc);
-						} else {
+						if (!(containerBlock.getState() instanceof Container)) {
 							instance.getPluginLogger()
 									.warn("generateHellblockSchematic: Expected container block not found at "
 											+ containerLoc + " for schematic '" + schematic
@@ -269,9 +265,16 @@ public class IslandGenerator implements Listener, Reloadable {
 							if (animated)
 								cleanupAnimation(userData);
 							endGeneration(userData.getUUID());
+							return CompletableFuture.completedFuture(spawnLocation);
 						}
 
-						return spawnLocation;
+						instance.debug("generateHellblockSchematic: Valid container block found at [x="
+								+ containerLoc.getBlockX() + ", y=" + containerLoc.getBlockY() + ", z="
+								+ containerLoc.getBlockZ() + "]");
+
+						// Wait for container generation to complete
+						return generateHellblockContainer(world, containerLoc, userData, containerBlock.getType(),
+								animated, request).thenApply(v -> spawnLocation);
 					});
 				});
 	}
@@ -297,52 +300,67 @@ public class IslandGenerator implements Listener, Reloadable {
 		instance.debug("generateAnimatedHellblockIsland: Starting animated generation for " + playerName
 				+ " using variant " + request.options() + " at [x=" + x + ", y=" + y + ", z=" + z + "]");
 
-		List<Map<Pos3, CustomBlockState>> stages = buildHellblockStructure(world, x, y, z, request.options());
+		// Step 1: Build the island structure
+		return buildHellblockStructure(world, x, y, z, request.options()).thenCompose(stages -> {
+			instance.debug(
+					"generateAnimatedHellblockIsland: Built structure with " + stages.size() + " animation stages.");
 
-		return preloadIslandChunks(world, stages, userData, 10,
-				progress -> instance
-						.debug("generateAnimatedHellblockIsland: Preload progress: " + (int) (progress * 100) + "%"),
-				300L, true, 3, 10,
-				() -> instance
-						.debug("generateAnimatedHellblockIsland: Finished preloading island chunks successfully!"))
-				.thenCompose(v -> delayTicks(1L, location)).thenCompose(v -> {
-					// Main logic after delay
-					instance.debug("generateAnimatedHellblockIsland: Built structure with " + stages.size()
-							+ " animation stages.");
+			// Step 2: Preload the chunks
+			return preloadIslandChunks(world, stages, userData, 10,
+					progress -> instance.debug(
+							"generateAnimatedHellblockIsland: Preload progress: " + (int) (progress * 100) + "%"),
+					300L, true, 3, 10,
+					() -> instance
+							.debug("generateAnimatedHellblockIsland: Finished preloading island chunks successfully!"))
 
-					FakeArmorStand camera = createCameraAnchor(userData, location);
-					if (camera != null) {
-						List<Location> flyPath = buildFlyPathCurvedSine(location, stages.size(), true, true);
-						animateFreeFly(camera, flyPath, userData.getPlayer(), 2L); // 2 ticks between each step
-						instance.debug(
-								"generateAnimatedHellblockIsland: Free-fly camera path started for " + playerName);
-					}
+					// Step 3: Small delay before animation
+					.thenCompose(v -> delayTicks(1L, location))
 
-					return delayTicks(40L, location)
-							.thenCompose(ignored -> animateBlockPlacementWithInterrupt(userData, stages, location, 10L)
-									.thenCompose(vv -> {
-										Location treeLoc = location.clone().add(request.tree());
-										instance.debug(
-												"generateAnimatedHellblockIsland: Animation complete. Generating tree at [x="
-														+ treeLoc.getBlockX() + ", y=" + treeLoc.getBlockY() + ", z="
-														+ treeLoc.getBlockZ() + "]");
-										return generateHellblockGlowstoneTree(world, treeLoc, true);
-									}).thenCompose(vv -> delayTicks(10L, location)) // Add a small delay
-									.thenRun(() -> {
-										Location containerLoc = location.clone().add(request.container());
-										instance.debug("generateAnimatedHellblockIsland: Generating container at [x="
-												+ containerLoc.getBlockX() + ", y=" + containerLoc.getBlockY() + ", z="
-												+ containerLoc.getBlockZ() + "]");
-										instance.getScheduler().executeSync(() -> generateHellblockContainer(world,
-												containerLoc, userData, Material.CHEST, true, request), location);
-									}));
-				}).exceptionally(ex -> {
-					instance.getPluginLogger().warn("generateAnimatedHellblockIsland: Generation failed for "
-							+ playerName + " (" + request.options() + "): " + ex.getMessage(), ex);
-					cleanupAnimation(userData);
-					endGeneration(userData.getUUID());
-					return null;
-				});
+					// Step 4: Run the actual animation logic
+					.thenCompose(v -> {
+						FakeArmorStand camera = createCameraAnchor(userData, location);
+						if (camera != null) {
+							List<Location> flyPath = buildFlyPath(location, stages.size(), 10.0);
+							animateFreeFly(camera, flyPath, userData.getPlayer(), 2L); // 2 ticks per step
+							instance.debug(
+									"generateAnimatedHellblockIsland: Free-fly camera path started for " + playerName);
+						}
+
+						// Wait 2 seconds before block animation begins
+						return delayTicks(40L, location)
+								.thenCompose(ignored -> animateBlockPlacement(userData, stages, location, 10L));
+					})
+
+					// Step 5: Generate the glowstone tree
+					.thenCompose(v -> {
+						Location treeLoc = location.clone().add(request.tree());
+						instance.debug("generateAnimatedHellblockIsland: Animation complete. Generating tree at [x="
+								+ treeLoc.getBlockX() + ", y=" + treeLoc.getBlockY() + ", z=" + treeLoc.getBlockZ()
+								+ "]");
+						return generateHellblockGlowstoneTree(world, treeLoc, true);
+					})
+
+					// Step 6: Delay for visual pacing
+					.thenCompose(v -> delayTicks(10L, location))
+
+					// Step 7: Generate the container
+					.thenCompose(v -> {
+						Location containerLoc = location.clone().add(request.container());
+						instance.debug("generateAnimatedHellblockIsland: Generating container at [x="
+								+ containerLoc.getBlockX() + ", y=" + containerLoc.getBlockY() + ", z="
+								+ containerLoc.getBlockZ() + "]");
+						return generateHellblockContainer(world, containerLoc, userData, Material.CHEST, true, request);
+					})
+
+					// Step 8: Final delay (smooth ending)
+					.thenCompose(v -> delayTicks(10L, location));
+		}).exceptionally(ex -> {
+			instance.getPluginLogger().warn("generateAnimatedHellblockIsland: Generation failed for " + playerName
+					+ " (" + request.options() + "): " + ex.getMessage(), ex);
+			cleanupAnimation(userData);
+			endGeneration(userData.getUUID());
+			return null;
+		});
 	}
 
 	private CompletableFuture<Void> delayTicks(long ticks, Location loc) {
@@ -351,62 +369,56 @@ public class IslandGenerator implements Listener, Reloadable {
 		return future;
 	}
 
-	public List<Location> buildFlyPathCurvedSine(@NotNull Location target, int stageCount, boolean hoverAtEnd,
-			boolean includeReverse) {
-		int baseSteps = Math.max(20, Math.min(stageCount, 100)); // avoid too short/long
+	@NotNull
+	public List<Location> buildFlyPath(@NotNull Location target, int stageCount, double radius) {
 		List<Location> path = new ArrayList<>();
+		World world = target.getWorld();
+		if (world == null)
+			return path;
 
-		Location start = target.clone().add(-8, 6, -8); // entry point
-		Location end = target.clone().add(0, 2, 0); // destination
+		int hoverFrames = Math.max(5, (int) (stageCount * 0.1)); // 10% of stages for hover (min 5)
+		int moveFrames = stageCount - (hoverFrames * 2);
+		if (moveFrames <= 0)
+			moveFrames = Math.max(1, stageCount); // fallback
 
-		Vector startVec = start.toVector();
-		Vector endVec = end.toVector();
-		Vector controlVec = startVec.clone().midpoint(endVec).add(new Vector(0, 2.5, 0)); // curve upward
+		double fullCircle = 2 * Math.PI;
 
-		// Forward arc with sine easing
-		for (int i = 0; i < baseSteps; i++) {
-			double t = easeInOutSine(i / (double) (baseSteps - 1));
-			Vector pos = bezierQuadratic(startVec, controlVec, endVec, t);
+		// --- Hover at the start ---
+		Location startHoverLoc = new Location(world, target.getX() + radius, target.getY(), target.getZ());
+		startHoverLoc.setDirection(target.clone().subtract(startHoverLoc).toVector());
+		for (int i = 0; i < hoverFrames; i++) {
+			path.add(startHoverLoc.clone());
+		}
 
-			Location loc = pos.toLocation(target.getWorld());
-			Vector dir = endVec.clone().subtract(pos).normalize();
-			loc.setDirection(dir);
+		// --- Main circular orbit ---
+		for (int i = 0; i < moveFrames; i++) {
+			double t = i / (double) (moveFrames - 1);
+			double eased = easeInOutSine(t);
+			double angle = eased * fullCircle;
+
+			double x = target.getX() + radius * Math.cos(angle);
+			double z = target.getZ() + radius * Math.sin(angle);
+			double y = target.getY(); // same height
+
+			Location loc = new Location(world, x, y, z);
+			loc.setDirection(target.clone().subtract(loc).toVector());
 			path.add(loc);
 		}
 
-		// Hover at the end (optional)
-		if (hoverAtEnd) {
-			Location hover = end.clone();
-			Vector dir = endVec.clone().subtract(controlVec).normalize();
-			hover.setDirection(dir);
-			for (int i = 0; i < 10; i++)
-				path.add(hover.clone());
-		}
-
-		// Fly out (optional reverse)
-		if (includeReverse) {
-			for (int i = baseSteps - 1; i >= 0; i--) {
-				double t = easeInOutSine(i / (double) (baseSteps - 1));
-				Vector pos = bezierQuadratic(endVec, controlVec, startVec, t);
-
-				Location loc = pos.toLocation(target.getWorld());
-				Vector dir = startVec.clone().subtract(pos).normalize();
-				loc.setDirection(dir);
-				path.add(loc);
-			}
+		// --- Hover at the end ---
+		Location endHoverLoc = new Location(world, target.getX() + radius * Math.cos(fullCircle), target.getY(),
+				target.getZ() + radius * Math.sin(fullCircle));
+		endHoverLoc.setDirection(target.clone().subtract(endHoverLoc).toVector());
+		for (int i = 0; i < hoverFrames; i++) {
+			path.add(endHoverLoc.clone());
 		}
 
 		return path;
 	}
 
-	// Easing function: easeInOutSine
+	// Smooth easing in/out
 	private double easeInOutSine(double t) {
-		return -(Math.cos(Math.PI * t) - 1) / 2;
-	}
-
-	private Vector bezierQuadratic(Vector p0, Vector p1, Vector p2, double t) {
-		return p0.clone().multiply(Math.pow(1 - t, 2)).add(p1.clone().multiply(2 * (1 - t) * t))
-				.add(p2.clone().multiply(Math.pow(t, 2)));
+		return -(Math.cos(Math.PI * t) - 1) / 2.0;
 	}
 
 	/**
@@ -418,7 +430,7 @@ public class IslandGenerator implements Listener, Reloadable {
 	 * @param location The base location for the island (bottom center).
 	 * @param userData The player for chest orientation and sound effects.
 	 */
-	public void generateInstantHellblockIsland(@NotNull IslandGenerationRequest request,
+	public CompletableFuture<Void> generateInstantHellblockIsland(@NotNull IslandGenerationRequest request,
 			@NotNull HellblockWorld<?> world, @NotNull Location location, @NotNull UserData userData) {
 		final int x = location.getBlockX();
 		final int y = location.getBlockY();
@@ -428,31 +440,40 @@ public class IslandGenerator implements Listener, Reloadable {
 		instance.debug("generateInstantHellblockIsland: Starting instant generation for " + playerName
 				+ " using variant " + request.options() + " at [x=" + x + ", y=" + y + ", z=" + z + "]");
 
-		List<Map<Pos3, CustomBlockState>> layers = buildHellblockStructure(world, x, y, z, request.options());
+		return buildHellblockStructure(world, x, y, z, request.options()).thenCompose(layers -> {
+			instance.debug("generateInstantHellblockIsland: Built structure with " + layers.size() + " layers.");
 
-		instance.debug("generateInstantHellblockIsland: Built structure with " + layers.size() + " layers.");
-
-		preloadIslandChunks(world, layers, userData, 10,
-				progress -> instance
-						.debug("generateInstantHellblockIsland: Preload progress: " + (int) (progress * 100) + "%"),
-				300L, true, 3, 10,
-				() -> instance.debug("generateInstantHellblockIsland: Finished preloading island chunks successfully!"))
-				.thenRun(() -> instance.getScheduler().executeSync(() -> {
-					// Place structure instantly
-					layers.forEach(layer -> layer.forEach(world::updateBlockState));
-					instance.debug("generateInstantHellblockIsland: Block layers set for " + playerName);
-					Location treeLoc = location.clone().add(request.tree());
-					instance.debug("generateInstantHellblockIsland: Generating tree at [x=" + treeLoc.getBlockX()
-							+ ", y=" + treeLoc.getBlockY() + ", z=" + treeLoc.getBlockZ() + "]");
-					// Place tree
-					generateHellblockGlowstoneTree(world, treeLoc, false).thenRun(() -> {
+			return preloadIslandChunks(world, layers, userData, 10,
+					progress -> instance
+							.debug("generateInstantHellblockIsland: Preload progress: " + (int) (progress * 100) + "%"),
+					300L, true, 3, 10,
+					() -> instance
+							.debug("generateInstantHellblockIsland: Finished preloading island chunks successfully!"))
+					.thenCompose(v -> {
+						// Place structure synchronously
+						CompletableFuture<Void> structureFuture = new CompletableFuture<>();
+						instance.getScheduler().executeSync(() -> {
+							layers.forEach(layer -> layer.forEach(world::updateBlockState));
+							instance.debug("generateInstantHellblockIsland: Block layers set for " + playerName);
+							structureFuture.complete(null);
+						}, location);
+						return structureFuture;
+					}).thenCompose(v -> {
+						// Generate tree
+						Location treeLoc = location.clone().add(request.tree());
+						instance.debug("generateInstantHellblockIsland: Generating tree at [x=" + treeLoc.getBlockX()
+								+ ", y=" + treeLoc.getBlockY() + ", z=" + treeLoc.getBlockZ() + "]");
+						return generateHellblockGlowstoneTree(world, treeLoc, false);
+					}).thenCompose(v -> {
+						// Generate container
 						Location containerLoc = location.clone().add(request.container());
 						instance.debug(
 								"generateInstantHellblockIsland: Generating container at [x=" + containerLoc.getBlockX()
 										+ ", y=" + containerLoc.getBlockY() + ", z=" + containerLoc.getBlockZ() + "]");
-						generateHellblockContainer(world, containerLoc, userData, Material.CHEST, false, request);
+						return generateHellblockContainer(world, containerLoc, userData, Material.CHEST, false,
+								request);
 					});
-				}, location));
+		});
 	}
 
 	/**
@@ -468,100 +489,195 @@ public class IslandGenerator implements Listener, Reloadable {
 	 */
 	public CompletableFuture<Void> generateHellblockGlowstoneTree(@NotNull HellblockWorld<?> world,
 			@NotNull Location location, boolean animated) {
-		return CompletableFuture.runAsync(() -> {
-			final int x = location.getBlockX();
-			final int y = location.getBlockY();
-			final int z = location.getBlockZ();
+		final int x = location.getBlockX();
+		final int y = location.getBlockY();
+		final int z = location.getBlockZ();
 
-			Map<Pos3, CustomBlockState> allBlocks = new LinkedHashMap<>();
+		instance.debug(
+				"generateHellblockGlowstoneTree: Begin generation at base [x= " + x + ", y=" + y + ", z=" + z + "]");
 
-			// Build tree structure...
-			CustomBlock gravelBlock = CustomBlockTypes.fromMaterial(Material.GRAVEL);
-			for (int i = 0; i < 3; i++) {
-				allBlocks.put(new Pos3(x, y + i, z), gravelBlock.createBlockState());
-			}
+		Map<Pos3, CustomBlockState> allBlocks = new LinkedHashMap<>();
+		CustomBlock gravelBlock = CustomBlockTypes.fromMaterial(Material.GRAVEL);
+		CustomBlock glowstoneBlock = CustomBlockTypes.fromMaterial(Material.GLOWSTONE);
 
-			fillPattern(allBlocks, world, x, y + 3, z, 2, Material.GLOWSTONE);
-			allBlocks.put(new Pos3(x + 2, y + 3, z + 2), CustomBlockTypes.AIR.createBlockState());
-			allBlocks.put(new Pos3(x + 2, y + 3, z - 2), CustomBlockTypes.AIR.createBlockState());
-			allBlocks.put(new Pos3(x - 2, y + 3, z + 2), CustomBlockTypes.AIR.createBlockState());
-			allBlocks.put(new Pos3(x - 2, y + 3, z - 2), CustomBlockTypes.AIR.createBlockState());
-			allBlocks.put(new Pos3(x, y + 3, z), gravelBlock.createBlockState());
+		// Collect async futures for all pattern fills
+		List<CompletableFuture<Void>> futures = new ArrayList<>();
 
-			fillPattern(allBlocks, world, x, y + 4, z, 1, Material.GLOWSTONE);
-			allBlocks.put(new Pos3(x, y + 4, z), gravelBlock.createBlockState());
+		// Base gravel column
+		for (int i = 0; i < 3; i++) {
+			allBlocks.put(new Pos3(x, y + i, z), gravelBlock.createBlockState());
+		}
 
-			CustomBlock glowstoneBlock = CustomBlockTypes.fromMaterial(Material.GLOWSTONE);
-			allBlocks.put(new Pos3(x - 2, y + 4, z), glowstoneBlock.createBlockState());
-			allBlocks.put(new Pos3(x + 2, y + 4, z), glowstoneBlock.createBlockState());
-			allBlocks.put(new Pos3(x, y + 4, z - 2), glowstoneBlock.createBlockState());
-			allBlocks.put(new Pos3(x, y + 4, z + 2), glowstoneBlock.createBlockState());
+		// Layer 3 glowstone ring + gravel center
+		futures.add(fillPattern(allBlocks, world, x, y + 3, z, 2, Material.GLOWSTONE));
+		allBlocks.put(new Pos3(x, y + 3, z), gravelBlock.createBlockState());
 
-			allBlocks.put(new Pos3(x - 1, y + 5, z), glowstoneBlock.createBlockState());
-			allBlocks.put(new Pos3(x + 1, y + 5, z), glowstoneBlock.createBlockState());
-			allBlocks.put(new Pos3(x, y + 5, z - 1), glowstoneBlock.createBlockState());
-			allBlocks.put(new Pos3(x, y + 5, z + 1), glowstoneBlock.createBlockState());
-			allBlocks.put(new Pos3(x, y + 5, z), gravelBlock.createBlockState());
+		// Layer 4 glowstone ring + gravel center
+		futures.add(fillPattern(allBlocks, world, x, y + 4, z, 1, Material.GLOWSTONE));
+		allBlocks.put(new Pos3(x, y + 4, z), gravelBlock.createBlockState());
 
-			allBlocks.put(new Pos3(x, y + 6, z), glowstoneBlock.createBlockState());
+		// Decorative edges
+		allBlocks.put(new Pos3(x - 2, y + 4, z), glowstoneBlock.createBlockState());
+		allBlocks.put(new Pos3(x + 2, y + 4, z), glowstoneBlock.createBlockState());
+		allBlocks.put(new Pos3(x, y + 4, z - 2), glowstoneBlock.createBlockState());
+		allBlocks.put(new Pos3(x, y + 4, z + 2), glowstoneBlock.createBlockState());
 
+		// Upper glowstone cap
+		allBlocks.put(new Pos3(x - 1, y + 5, z), glowstoneBlock.createBlockState());
+		allBlocks.put(new Pos3(x + 1, y + 5, z), glowstoneBlock.createBlockState());
+		allBlocks.put(new Pos3(x, y + 5, z - 1), glowstoneBlock.createBlockState());
+		allBlocks.put(new Pos3(x, y + 5, z + 1), glowstoneBlock.createBlockState());
+		allBlocks.put(new Pos3(x, y + 5, z), gravelBlock.createBlockState());
+		allBlocks.put(new Pos3(x, y + 6, z), glowstoneBlock.createBlockState());
+
+		// --- Wait for all async pattern fills ---
+		return CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new)).thenCompose(v -> {
+			instance.debug("generateHellblockGlowstoneTree: Structure map fully prepared.");
+
+			// Split into gravel vs glowstone stages
 			Map<Pos3, CustomBlockState> gravelStage = new LinkedHashMap<>();
-			Map<Pos3, CustomBlockState> glowstoneStage = new LinkedHashMap<>();
+			Map<Pos3, CustomBlockState> glowstoneBlocks = new LinkedHashMap<>();
 
 			allBlocks.forEach((pos, state) -> {
 				Material mat = Optional.ofNullable(resolveFallbackMaterial(state)).orElse(Material.AIR);
-				if (mat == Material.GRAVEL) {
+				if (mat == Material.GRAVEL)
 					gravelStage.put(pos, state);
-				} else if (mat == Material.GLOWSTONE) {
-					glowstoneStage.put(pos, state);
-				}
+				else if (mat == Material.GLOWSTONE)
+					glowstoneBlocks.put(pos, state);
 			});
 
-			// Non-animated version
+			instance.debug("generateHellblockGlowstoneTree: Structure built - Gravel: " + gravelStage.size()
+					+ " | Glowstone: " + glowstoneBlocks.size());
+
 			if (!animated) {
+				instance.debug("generateHellblockGlowstoneTree: Non-animated placement starting...");
 				instance.getScheduler().executeSync(() -> {
 					gravelStage.forEach(world::updateBlockState);
-					instance.getGlowstoneTreeHandler().markGlowTreeGravel(world,
-							gravelStage.keySet().stream().toList());
-					glowstoneStage.forEach(world::updateBlockState);
+					glowstoneBlocks.forEach(world::updateBlockState);
 				}, location);
-				return;
+				return CompletableFuture.completedFuture(null);
 			}
 
-			// Animated version
-			List<Map<Pos3, CustomBlockState>> stages = new ArrayList<>();
-			stages.add(gravelStage);
-			stages.add(glowstoneStage);
+			// --- Animated: gravel falls, then glowstone grows layer by layer ---
+			return simulateFallingGravel(world, gravelStage)
+					.thenRun(() -> instance.debug(
+							"generateHellblockGlowstoneTree: Gravel fall complete — starting glowstone layering..."))
+					.thenCompose(v2 -> {
+						// Group glowstone blocks by Y height
+						Map<Integer, Map<Pos3, CustomBlockState>> layers = new TreeMap<>();
+						for (var entry : glowstoneBlocks.entrySet()) {
+							int layerY = entry.getKey().y();
+							layers.computeIfAbsent(layerY, k -> new LinkedHashMap<>()).put(entry.getKey(),
+									entry.getValue());
+						}
 
-			instance.getGlowstoneTreeHandler().markGlowTreeGravel(world,
-					stages.stream().flatMap(stage -> stage.keySet().stream()).toList());
-
-			runGlowTreeStage(world, location, stages, 0);
+						// Convert to list of stages (one per Y)
+						List<Map<Pos3, CustomBlockState>> glowstoneStages = new ArrayList<>(layers.values());
+						return runGlowTreeStage(world, location, glowstoneStages, 0);
+					});
 		});
 	}
 
-	private void runGlowTreeStage(@NotNull HellblockWorld<?> world, @NotNull Location location,
+	@SuppressWarnings("deprecation")
+	private CompletableFuture<Void> simulateFallingGravel(@NotNull HellblockWorld<?> world,
+			@NotNull Map<Pos3, CustomBlockState> gravelBlocks) {
+		CompletableFuture<Void> completion = new CompletableFuture<>();
+		World bukkitWorld = world.bukkitWorld();
+
+		// Sort gravel by Y coordinate (lowest first) for nice sequential wave
+		List<Map.Entry<Pos3, CustomBlockState>> sorted = gravelBlocks.entrySet().stream()
+				.sorted(Comparator.comparingInt(e -> e.getKey().y())).toList();
+
+		AtomicInteger index = new AtomicInteger(0);
+		long perBlockDelay = 8L; // ticks between each falling gravel start (~0.4s)
+
+		Runnable[] next = new Runnable[1];
+		next[0] = () -> {
+			int i = index.getAndIncrement();
+			if (i >= sorted.size()) {
+				instance.debug("generateHellblockGlowstoneTree: All gravel blocks placed sequentially.");
+				instance.getGlowstoneTreeHandler().markGlowTreeGravel(world, new ArrayList<>(gravelBlocks.keySet()));
+				completion.complete(null);
+				return;
+			}
+
+			Map.Entry<Pos3, CustomBlockState> entry = sorted.get(i);
+			Pos3 pos = entry.getKey();
+			CustomBlockState gravelBlock = entry.getValue();
+
+			Location targetLoc = pos.toLocation(bukkitWorld).add(0.5, 0, 0.5);
+			Location spawnLoc = targetLoc.clone().add(0, 5.0, 0);
+
+			instance.debug("generateHellblockGlowstoneTree: Gravel fall (wave) [" + (i + 1) + "/" + sorted.size()
+					+ "] from " + Pos3.from(spawnLoc) + " -> " + Pos3.from(targetLoc));
+
+			// Spawn falling entity
+			FallingBlock falling = bukkitWorld.spawnFallingBlock(spawnLoc, Material.GRAVEL.createBlockData());
+			falling.setDropItem(false);
+			falling.setHurtEntities(false);
+			falling.setPersistent(false);
+			falling.setGravity(true);
+			falling.addScoreboardTag("hellblock_gravel");
+
+			// Approximate fall time
+			long fallTicks = (long) (spawnLoc.getY() - targetLoc.getY()) * 4L;
+
+			// Schedule block placement after the fall
+			instance.getScheduler().sync().runLater(() -> {
+				if (falling.isValid())
+					falling.remove();
+
+				world.updateBlockState(pos, gravelBlock).thenRun(() -> {
+					bukkitWorld.spawnParticle(Particle.CLOUD, targetLoc, 8, 0.2, 0.2, 0.2, 0.01);
+					AdventureHelper.playPositionalSound(bukkitWorld, targetLoc,
+							Sound.sound(Key.key("minecraft:block.gravel.place"), Source.BLOCK, 1f, 0.9f));
+
+					// Queue next gravel block to fall after a small delay
+					instance.getScheduler().sync().runLater(next[0], perBlockDelay,
+							LocationUtils.getAnyLocationInstance());
+				});
+			}, fallTicks, LocationUtils.getAnyLocationInstance());
+		};
+
+		// Start the wave
+		next[0].run();
+		return completion;
+	}
+
+	@EventHandler(ignoreCancelled = true)
+	public void onFallingBlockChange(EntityChangeBlockEvent event) {
+		if (event.getEntity().getScoreboardTags().contains("hellblock_gravel")) {
+			event.setCancelled(true);
+		}
+	}
+
+	private CompletableFuture<Void> runGlowTreeStage(@NotNull HellblockWorld<?> world, @NotNull Location location,
 			@NotNull List<Map<Pos3, CustomBlockState>> stages, int index) {
 		if (index >= stages.size()) {
 			Location top = location.clone().add(0.5, 6.5, 0.5);
 			World bukkitWorld = world.bukkitWorld();
+
+			instance.debug("generateHellblockGlowstoneTree: Animation complete — triggering final effects.");
 
 			bukkitWorld.spawnParticle(Particle.CLOUD, top, 30, 0.4, 0.3, 0.4, 0.02);
 			bukkitWorld.spawnParticle(Particle.END_ROD, top, 20, 0.2, 0.3, 0.2, 0.01);
 			bukkitWorld.strikeLightningEffect(top);
 			AdventureHelper.playPositionalSound(bukkitWorld, top,
 					Sound.sound(Key.key("minecraft:entity.lightning_bolt.thunder"), Source.BLOCK, 0.8f, 1.0f));
-			return;
+			return CompletableFuture.completedFuture(null);
 		}
 
 		Map<Pos3, CustomBlockState> stage = stages.get(index);
+		instance.debug("generateHellblockGlowstoneTree: Starting stage " + (index + 1) + " with " + stage.size()
+				+ " block" + (stage.size() == 1 ? "" : "s"));
+
 		List<CompletableFuture<Void>> futures = stage.entrySet().stream().map(entry -> {
 			Pos3 pos = entry.getKey();
 			CustomBlockState state = entry.getValue();
 
 			return world.updateBlockState(pos, state).thenRun(() -> {
 				instance.getScheduler().executeSync(() -> {
-					Location particleLoc = pos.toLocation(world.bukkitWorld()).clone().add(0.5, 0.5, 0.5);
+					Location particleLoc = pos.toLocation(world.bukkitWorld()).add(0.5, 0.5, 0.5);
 					world.bukkitWorld().spawnParticle(Particle.END_ROD, particleLoc, 8, 0.1, 0.1, 0.1, 0.01);
 					AdventureHelper.playPositionalSound(world.bukkitWorld(), particleLoc,
 							Sound.sound(Key.key("minecraft:block.amethyst_block.hit"), Source.BLOCK, 0.6f, 1.4f));
@@ -569,14 +685,15 @@ public class IslandGenerator implements Listener, Reloadable {
 			});
 		}).toList();
 
-		CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new)).thenRun(() -> {
-			instance.getScheduler().sync().runLater(() -> {
-				runGlowTreeStage(world, location, stages, index + 1);
-			}, 3L, location);
-		}).exceptionally(ex -> {
-			instance.getPluginLogger().warn("Glowstone tree animation error at stage " + index, ex);
-			return null;
-		});
+		return CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new)).thenRun(() -> {
+			instance.debug("generateHellblockGlowstoneTree: Completed stage " + (index + 1) + ", "
+					+ (index == stages.size() - 1 ? "finishing up..." : "scheduling next..."));
+		}).thenCompose(v -> delayTicks(3L, location)) // helper to wait 3 ticks
+				.thenCompose(v -> runGlowTreeStage(world, location, stages, index + 1)).exceptionally(ex -> {
+					instance.getPluginLogger().warn(
+							"generateHellblockGlowstoneTree: Glowstone tree animation error at stage " + index, ex);
+					return null;
+				});
 	}
 
 	/**
@@ -592,10 +709,14 @@ public class IslandGenerator implements Listener, Reloadable {
 	 * @param request  The island generation request for data regarding the specific
 	 *                 island being generated.
 	 */
-	public void generateHellblockContainer(@NotNull HellblockWorld<?> world, @NotNull Location location,
-			@NotNull UserData userData, @NotNull Material material, boolean animated,
+	private CompletableFuture<Void> generateHellblockContainer(@NotNull HellblockWorld<?> world,
+			@NotNull Location location, @NotNull UserData userData, @NotNull Material material, boolean animated,
 			@NotNull IslandGenerationRequest request) {
+		CompletableFuture<Void> future = new CompletableFuture<>();
+
 		Pos3 pos = Pos3.from(location);
+		instance.debug(
+				"generateHellblockContainer: Starting container generation at " + pos + " for " + userData.getName());
 
 		// Grab the old block's facing direction (if any)
 		Block existing = world.bukkitWorld().getBlockAt(location);
@@ -608,236 +729,329 @@ public class IslandGenerator implements Listener, Reloadable {
 		// Now replace it
 		CustomBlock blockType = CustomBlockTypes.fromMaterial(material);
 		CustomBlockState blockState = blockType.createBlockState();
-		world.updateBlockState(pos, blockState).thenRun(() -> {
-			instance.getScheduler().executeSync(() -> {
+		world.updateBlockState(pos, blockState).thenRunAsync(() -> {
+			try {
+				instance.getScheduler().executeSync(() -> {
+					try {
+						instance.debug("generateHellblockContainer: Block state updated to " + material + " at " + pos);
 
-				Block bukkitBlock = world.bukkitWorld().getBlockAt(location);
-				if (!(bukkitBlock.getState() instanceof Container container))
-					return;
+						Block bukkitBlock = world.bukkitWorld().getBlockAt(location);
+						if (!(bukkitBlock.getState() instanceof Container container)) {
+							instance.debug("generateHellblockContainer: Block is not a container at " + pos
+									+ ", skipping setup.");
+							existing.setType(Material.AIR);
+							future.completeExceptionally(new IllegalStateException("Not a container"));
+							return;
+						}
 
-				BlockFace facing;
+						BlockFace facing;
 
-				if (request.isSchematic()) {
-					// Use the facing direction that existed before replacement
-					facing = originalFacing.get();
-				} else if (request.containerFacing() != null) {
-					// Predefined facing for classic/default islands
-					facing = request.containerFacing();
-				} else {
-					// Fallback
-					facing = BlockFace.NORTH;
-				}
-
-				// Apply facing logic
-				BlockData data = bukkitBlock.getBlockData();
-				if (data instanceof Directional directional && facing != null) {
-					if (material == Material.CHEST || material == Material.TRAPPED_CHEST) {
-						directional.setFacing(facing);
-					} else {
-						// Barrels & shulkers: fixed upward orientation
-						directional.setFacing(BlockFace.UP);
-					}
-					bukkitBlock.setBlockData(directional);
-				}
-
-				Player player = userData.getPlayer();
-				// Context-safe fallback
-				Context<Player> context = player != null && player.isOnline() ? Context.player(player)
-						: Context.playerEmpty();
-				String name = instance.getConfigManager().chestName();
-				if (name != null && !name.isEmpty() && name.length() <= 32) {
-					TextValue<Player> text = TextValue.auto(name);
-					Component centered = AdventureHelper.parseCenteredTitleMultiline(text.render(context, true));
-					RtagBlock containerTag = new RtagBlock(bukkitBlock);
-					containerTag.setCustomName(AdventureHelper.componentToJson(centered));
-					bukkitBlock = containerTag.load(); // Commit changes
-				}
-
-				// Final state update
-				bukkitBlock.getState().update();
-
-				if (!animated) {
-					fillContainerInventory(container, context);
-					return;
-				}
-
-				Location center = location.clone().add(0.5, 0.5, 0.5);
-
-				if (player != null && player.isOnline()) {
-					FakeArmorStand anchor = cameraAnchors.get(player.getUniqueId());
-					if (anchor != null && !anchor.isDead()) {
-						BlockFace containerFacing;
-						Material containerType = container.getType();
-
-						if (containerType == Material.BARREL || isShulkerBox(containerType)) {
-							// Barrels and shulkers open upwards
-							containerFacing = BlockFace.NORTH; // Default front-facing side
+						if (request.isSchematic()) {
+							// Use the facing direction that existed before replacement
+							facing = originalFacing.get();
+						} else if (request.containerFacing() != null) {
+							// Predefined facing for classic/default islands
+							facing = request.containerFacing();
 						} else {
-							// Chests and trapped chests use actual facing
-							BlockData containerData = container.getBlock().getBlockData();
-							if (containerData instanceof Directional directional) {
-								containerFacing = directional.getFacing();
+							// Fallback
+							facing = BlockFace.NORTH;
+						}
+
+						instance.debug("generateHellblockContainer: Applying facing direction = " + facing + " for "
+								+ material);
+
+						// Apply facing logic
+						BlockData data = bukkitBlock.getBlockData();
+						if (data instanceof Directional directional && facing != null) {
+							if (material == Material.CHEST || material == Material.TRAPPED_CHEST) {
+								directional.setFacing(facing);
 							} else {
-								containerFacing = BlockFace.NORTH;
+								// Barrels & shulkers: fixed upward orientation
+								directional.setFacing(BlockFace.UP);
+							}
+							bukkitBlock.setBlockData(directional);
+						}
+
+						Player player = userData.getPlayer();
+						// Context-safe fallback
+						Context<Player> context = player != null && player.isOnline() ? Context.player(player)
+								: Context.playerEmpty();
+						String name = instance.getConfigManager().chestName();
+						if (name != null && !name.isEmpty()) {
+							// legacy Bukkit color codes
+							String colorStripped = name.replaceAll("(?i)&[0-9A-FK-ORX]", "")
+									.replaceAll("(?i)<(/?\\w+)>", "") // MiniMessage tags like <red>, <bold>
+									.replaceAll("[<>]", ""); // leftover brackets
+							if (!colorStripped.isEmpty() && colorStripped.length() <= 32) {
+								TextValue<Player> text = TextValue.auto(name);
+								Component centered = AdventureHelper
+										.parseCenteredTitleMultiline(text.render(context, true));
+								RtagBlock containerTag = new RtagBlock(bukkitBlock);
+								containerTag.setCustomName(AdventureHelper.componentToLegacy(centered));
+								bukkitBlock = containerTag.load(); // Commit changes
+								instance.debug("generateHellblockContainer: Applied custom name to container at " + pos
+										+ " of title: " + name);
 							}
 						}
 
-						// Compute the front-facing location
-						Vector offset = containerFacing.getDirection().normalize().multiply(-1.8); // Behind the face
-						Location cameraLoc = center.clone().add(offset).add(0, 0.9, 0); // Slightly above for
-																						// better view
-						cameraLoc.setDirection(center.clone().subtract(cameraLoc).toVector());
+						// Final state update
+						bukkitBlock.getState().update();
 
-						// Animate the camera to that spot
-						animateCameraEased(anchor, anchor.getLocation(), cameraLoc, player, 30L); // Pan over 1 second
+						instance.debug("generateHellblockContainer: Animation " + (animated ? "enabled" : "disabled")
+								+ " for " + userData.getName());
 
-						instance.getScheduler().sync().runLater(() -> {
-							Location slightOffset = center.clone().add(0.5, 0.3, 0);
-							animateRotationOnly(anchor, slightOffset, player, 40L);
-						}, 30L, location);
-					}
-				}
-
-				// === ANIMATION ===
-				instance.getScheduler().sync().runLater(() -> {
-					center.getWorld().spawnParticle(ParticleUtils.getParticle("ENCHANTMENT_TABLE"), center, 40, 0.5,
-							0.5, 0.5, 0.2);
-					if (player != null && player.isOnline()) {
-						Material containerType = container.getType();
-
-						if (containerType == Material.CHEST || containerType == Material.TRAPPED_CHEST) {
-							VersionHelper.getNMSManager().playChestAnimation(player, container.getLocation(), true);
-						} else if (containerType == Material.BARREL) {
-							// Play subtle particle and sound for barrels
-							center.getWorld().spawnParticle(Particle.CRIT, center.clone().add(0, 0.6, 0), 8, 0.15, 0.1,
-									0.15, 0.01);
-							AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
-									Sound.sound(Key.key("minecraft:block.barrel.open"), Source.PLAYER, 1.0f, 1.0f));
-						} else if (isShulkerBox(containerType)) {
-							// Shulker animation effect
-							center.getWorld().spawnParticle(ParticleUtils.getParticle("SPELL_WITCH"),
-									center.clone().add(0, 0.7, 0), 15, 0.2, 0.3, 0.2, 0.01);
-							AdventureHelper.playSound(instance.getSenderFactory().getAudience(player), Sound
-									.sound(Key.key("minecraft:block.shulker_box.open"), Source.PLAYER, 1.0f, 1.0f));
+						if (!animated) {
+							fillContainerInventory(container, context);
+							completeOnce(future, null);
+							return;
 						}
-					}
 
-					// Collect chest items first (but don't spawn them yet)
-					List<ItemStack> displayItems = instance.getConfigManager().chestItems().values().stream()
-							.map(entry -> setChestData(entry.right().build(context), false)).filter(Objects::nonNull)
-							.toList();
+						Location center = location.clone().add(0.5, 0.5, 0.5);
 
-					if (displayItems.isEmpty()) {
-						fillContainerInventory(container, context);
-						return;
-					}
+						if (container.getType() == Material.CHEST || container.getType() == Material.TRAPPED_CHEST) {
+							BlockData blockData = container.getBlock().getBlockData();
+							if (blockData instanceof Directional dir) {
+								BlockFace face = dir.getFacing();
+								// shift the visual center slightly forward to match chest lid
+								Vector offset = face.getDirection().clone().normalize().multiply(0.3);
+								center.add(offset);
+							}
+						}
 
-					AtomicInteger currentIndex = new AtomicInteger(0);
+						if (player != null && player.isOnline()) {
+							FakeArmorStand anchor = cameraAnchors.get(player.getUniqueId());
+							if (anchor != null && !anchor.isDead()) {
+								instance.debug("generateHellblockContainer: Found active camera anchor for "
+										+ player.getName());
 
-					Runnable runNextItem = new Runnable() {
-						@Override
-						public void run() {
-							int index = currentIndex.getAndIncrement();
-							if (index >= displayItems.size()) {
-								// All items done → finalize
+								BlockFace containerFacing;
+								Material containerType = container.getType();
+
+								BlockData blockData = container.getBlockData();
+								if (blockData instanceof Directional directional) {
+								    containerFacing = directional.getFacing();
+								} else {
+								    containerFacing = BlockFace.NORTH;
+								}
+
+								// Compute offset depending on container type
+								Vector offset;
+								if (containerType == Material.CHEST || containerType == Material.TRAPPED_CHEST
+								        || isShulkerBox(containerType)) {
+								    // Chest & Shulker: camera should be IN FRONT of the opening face
+								    offset = containerFacing.getDirection().clone().normalize().multiply(+1.8);
+								} else if (containerType == Material.BARREL) {
+								    // Barrel opens upward — put camera slightly in front horizontally
+								    offset = containerFacing.getDirection().clone().normalize().multiply(+1.2).add(new Vector(0, 0.8, 0));
+								} else {
+								    offset = new Vector(0, 0, 1.8);
+								}
+
+								// Always compute the offset so the player starts in front of the “open” face.
+								Location cameraLoc = center.clone().add(offset);
+								cameraLoc.setDirection(center.clone().subtract(cameraLoc).toVector());
+
+								// Ensure player starts there too
+								ChunkUtils.teleportAsync(player, cameraLoc).thenRun(() -> {
+									player.setRotation(cameraLoc.getYaw(), cameraLoc.getPitch());
+								});
+
+								// Animate the camera to that spot
+								animateCameraEased(anchor, anchor.getLocation(), cameraLoc, player, 30L);
+
+								instance.debug("generateHellblockContainer: Animating camera toward container at [x="
+										+ cameraLoc.getBlockX() + ", y=" + cameraLoc.getBlockY() + ", z="
+										+ cameraLoc.getBlockZ() + "]");
+
+								instance.getScheduler().sync().runLater(() -> {
+									Location slightOffset = center.clone().add(0.5, 0.3, 0);
+									animateRotationOnly(anchor, slightOffset, player, 40L);
+								}, 30L, location);
+							}
+						}
+
+						// === ANIMATION ===
+						instance.getScheduler().sync().runLater(() -> {
+							instance.debug("generateHellblockContainer: Starting particle + chest animation at [x="
+									+ center.getBlockX() + ", y=" + center.getBlockY() + ", z=" + center.getBlockZ()
+									+ "]");
+							center.getWorld().spawnParticle(ParticleUtils.getParticle("ENCHANTMENT_TABLE"), center, 40,
+									0.5, 0.5, 0.5, 0.2);
+							if (player != null && player.isOnline()) {
+								Material containerType = container.getType();
+
+								if (containerType == Material.CHEST || containerType == Material.TRAPPED_CHEST) {
+									VersionHelper.getNMSManager().playChestAnimation(player, container.getLocation(),
+											true);
+								} else if (containerType == Material.BARREL) {
+									// Play subtle particle and sound for barrels
+									center.getWorld().spawnParticle(Particle.CRIT, center.clone().add(0, 0.6, 0), 8,
+											0.15, 0.1, 0.15, 0.01);
+									AdventureHelper.playSound(instance.getSenderFactory().getAudience(player), Sound
+											.sound(Key.key("minecraft:block.barrel.open"), Source.BLOCK, 1.0f, 1.0f));
+								} else if (isShulkerBox(containerType)) {
+									// Shulker animation effect
+									center.getWorld().spawnParticle(ParticleUtils.getParticle("SPELL_WITCH"),
+											center.clone().add(0, 0.7, 0), 15, 0.2, 0.3, 0.2, 0.01);
+									AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
+											Sound.sound(Key.key("minecraft:block.shulker_box.open"), Source.BLOCK, 1.0f,
+													1.0f));
+								}
+							}
+
+							instance.debug(
+									"generateHellblockContainer: Preparing item suction animation for container at [x="
+											+ center.getBlockX() + ", y=" + center.getBlockY() + ", z="
+											+ center.getBlockZ() + "]");
+
+							// Collect chest items first (but don't spawn them yet)
+							List<ItemStack> displayItems = instance.getConfigManager().chestItems().values().stream()
+									.map(entry -> setChestData(entry.right().build(context), false))
+									.filter(Objects::nonNull).toList();
+
+							if (displayItems.isEmpty()) {
 								fillContainerInventory(container, context);
 								return;
 							}
 
-							ItemStack displayItem = displayItems.get(index);
-							Location dropLoc = center.clone().add((Math.random() - 0.5) * 0.6, 1.3,
-									(Math.random() - 0.5) * 0.6);
-							Item item = world.bukkitWorld().dropItem(dropLoc, displayItem);
-							item.setGravity(false);
-							item.setCustomNameVisible(true);
-							AdventureMetadata.setEntityCustomName(item,
-									displayItem.hasItemMeta() && displayItem.getItemMeta().hasDisplayName()
-											? displayItem.getItemMeta().displayName()
-											: AdventureHelper.jsonToComponent(StringUtils
-													.toProperCase(displayItem.getType().name().toLowerCase())));
-							item.setPickupDelay(Integer.MAX_VALUE);
-							item.setVelocity(new Vector(0, 0, 0));
+							AtomicInteger currentIndex = new AtomicInteger(0);
 
-							AtomicInteger ticks = new AtomicInteger(0);
-							AtomicReference<SchedulerTask> taskRef = new AtomicReference<>();
+							Runnable runNextItem = new Runnable() {
+								@Override
+								public void run() {
+									int index = currentIndex.getAndIncrement();
+									if (index >= displayItems.size()) {
+										instance.debug(
+												"generateHellblockContainer: Completed item suction animation at [x="
+														+ center.getBlockX() + ", y=" + center.getBlockY() + ", z="
+														+ center.getBlockZ() + "]");
+										// All items done → finalize
+										fillContainerInventory(container, context);
 
-							SchedulerTask task = instance.getScheduler().sync().runRepeating(() -> {
-								if (!item.isValid() || item.isDead()) {
-									SchedulerTask t = taskRef.get();
-									if (t != null && !t.isCancelled())
-										t.cancel();
-									instance.getScheduler().sync().runLater(this, 10L, location);
-									return;
+										instance.getScheduler().sync().runLater(() -> {
+											if (player != null && player.isOnline()) {
+												playContainerCloseEffect(container, center, player);
+											}
+										}, 10L, location);
+										completeOnce(future, null);
+										return;
+									}
+
+									ItemStack displayItem = displayItems.get(index);
+									double height = 1.3D;
+									if (material == Material.BARREL || isShulkerBox(material)) {
+										height = 1.1D;
+									}
+									Location dropLoc = center.clone().add((Math.random() - 0.5) * 0.4, height,
+											(Math.random() - 0.5) * 0.4);
+									Item item = world.bukkitWorld().dropItem(dropLoc, displayItem);
+									item.setGravity(false);
+									item.setCustomNameVisible(true);
+									AdventureMetadata.setEntityCustomName(item, AdventureHelper
+											.plainTextToComponent(StringUtils.prettifyText(displayItem)));
+									item.setPickupDelay(Integer.MAX_VALUE);
+									item.setVelocity(new Vector(0, 0, 0));
+
+									AtomicInteger ticks = new AtomicInteger(0);
+									AtomicReference<SchedulerTask> taskRef = new AtomicReference<>();
+
+									SchedulerTask task = instance.getScheduler().sync().runRepeating(() -> {
+										if (!item.isValid() || item.isDead()) {
+											SchedulerTask t = taskRef.get();
+											if (t != null && !t.isCancelled())
+												t.cancel();
+											instance.getScheduler().sync().runLater(this, 10L, location);
+											return;
+										}
+
+										int t = ticks.incrementAndGet();
+										Location current = item.getLocation();
+										Vector toChest;
+
+										if (isShulkerBox(material) || material == Material.BARREL) {
+											toChest = center.clone().add(0, 0.4, 0).subtract(current).toVector()
+													.multiply(0.25);
+										} else {
+											toChest = center.clone().subtract(current).toVector().multiply(0.25);
+										}
+
+										double progress = Math.min(t / 12.0, 1.0); // 0 → 1
+										double speedFactor = 0.25 * (1.0 - Math.pow(progress, 2)); // slows down near
+																									// the
+																									// end
+										item.setVelocity(toChest.normalize().multiply(speedFactor));
+
+										item.getWorld().spawnParticle(ParticleUtils.getParticle("SPELL_WITCH"),
+												item.getLocation().clone().add(0, 0.2, 0), 3, 0.05, 0.05, 0.05, 0.01);
+										AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
+												Sound.sound(Key.key("minecraft:entity.item.pickup"), Source.PLAYER,
+														0.8f, 1.2f));
+
+										if (t >= 7) { // last ~0.5s before suction completes
+											item.setCustomNameVisible(false);
+										}
+
+										if (t >= 14) { // ~1.2s for smoother ease-in/out
+											SchedulerTask tsk = taskRef.get();
+											if (tsk != null && !tsk.isCancelled())
+												tsk.cancel();
+
+											item.remove();
+
+											// Always wait ~0.25s before starting next
+											instance.getScheduler().sync().runLater(this, 5L, location);
+										}
+									}, 0L, 2L, location);
+
+									taskRef.set(task);
 								}
+							};
 
-								int t = ticks.incrementAndGet();
-								Location current = item.getLocation();
-								Vector toChest;
-
-								if (isShulkerBox(material) || material == Material.BARREL) {
-									toChest = center.clone().add(0, 0.4, 0).subtract(current).toVector().multiply(0.25);
-								} else {
-									toChest = center.clone().subtract(current).toVector().multiply(0.25);
-								}
-
-								item.setVelocity(toChest);
-								item.getWorld().spawnParticle(ParticleUtils.getParticle("SPELL_WITCH"),
-										item.getLocation().clone().add(0, 0.2, 0), 3, 0.05, 0.05, 0.05, 0.01);
-								AdventureHelper.playSound(instance.getSenderFactory().getAudience(player), Sound
-										.sound(Key.key("minecraft:entity.item.pickup"), Source.PLAYER, 0.8f, 1.2f));
-
-								if (t >= 6) { // last ~0.5s before suction completes
-									item.setCustomNameVisible(false);
-								}
-
-								if (t >= 12) { // about 1 second of suction
-									SchedulerTask tsk = taskRef.get();
-									if (tsk != null && !tsk.isCancelled())
-										tsk.cancel();
-									item.remove();
-
-									// slight delay before next item starts
-									instance.getScheduler().sync().runLater(this, 5L + (long) (Math.random() * 5L),
-											location);
-								}
-							}, 0L, 2L, location);
-
-							taskRef.set(task);
-						}
-					};
-
-					// Start the first item suction
-					runNextItem.run();
-
-					// Final insert
-					instance.getScheduler().sync().runLater(() -> {
-						if (player != null && player.isOnline()) {
-							Material containerType = container.getType();
-
-							if (containerType == Material.CHEST || containerType == Material.TRAPPED_CHEST) {
-								VersionHelper.getNMSManager().playChestAnimation(player, container.getLocation(),
-										false);
-							} else if (containerType == Material.BARREL) {
-								// Barrel closing particles & sound
-								center.getWorld().spawnParticle(ParticleUtils.getParticle("SMOKE_NORMAL"),
-										center.clone().add(0, 0.6, 0), 6, 0.15, 0.1, 0.15, 0.01);
-								AdventureHelper.playSound(instance.getSenderFactory().getAudience(player), Sound
-										.sound(Key.key("minecraft:block.barrel.close"), Source.PLAYER, 1.0f, 1.0f));
-							} else if (isShulkerBox(containerType)) {
-								// Shulker "puff" close effect
-								center.getWorld().spawnParticle(Particle.DRAGON_BREATH, center.clone().add(0, 0.7, 0),
-										12, 0.2, 0.25, 0.2, 0.01);
-								AdventureHelper.playSound(instance.getSenderFactory().getAudience(player), Sound.sound(
-										Key.key("minecraft:block.shulker_box.close"), Source.PLAYER, 1.0f, 1.0f));
-							}
-						}
-
-						world.bukkitWorld().spawnParticle(Particle.CRIT, center.clone().add(0, 0.8, 0), 10, 0.3, 0.2,
-								0.3, 0.02);
-					}, 50L, location); // ~2.5 seconds
-				}, 20L, location);
-			}, location);
+							// Start the first item suction
+							runNextItem.run();
+						}, 20L, location);
+					} catch (Exception ex) {
+						instance.getPluginLogger()
+								.warn("generateHellblockContainer: Exception at " + pos + " — " + ex.getMessage(), ex);
+						completeOnce(future, ex);
+					}
+				}, location);
+			} catch (Exception ex) {
+				instance.getPluginLogger()
+						.warn("generateHellblockContainer: Exception at " + pos + " — " + ex.getMessage(), ex);
+				completeOnce(future, ex);
+			}
 		});
+
+		return future;
+	}
+
+	private void completeOnce(CompletableFuture<Void> f, Throwable error) {
+		if (f.isDone())
+			return;
+		if (error == null)
+			f.complete(null);
+		else
+			f.completeExceptionally(error);
+	}
+
+	private void playContainerCloseEffect(Container container, Location center, Player player) {
+		Material type = container.getType();
+		if (type == Material.CHEST || type == Material.TRAPPED_CHEST) {
+			VersionHelper.getNMSManager().playChestAnimation(player, container.getLocation(), false);
+		} else if (type == Material.BARREL) {
+			center.getWorld().spawnParticle(ParticleUtils.getParticle("SMOKE_NORMAL"), center.clone().add(0, 0.6, 0), 6,
+					0.15, 0.1, 0.15, 0.01);
+			AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
+					Sound.sound(Key.key("minecraft:block.barrel.close"), Source.BLOCK, 1.0f, 1.0f));
+		} else if (isShulkerBox(type)) {
+			center.getWorld().spawnParticle(Particle.DRAGON_BREATH, center.clone().add(0, 0.7, 0), 12, 0.2, 0.25, 0.2,
+					0.01);
+			AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
+					Sound.sound(Key.key("minecraft:block.shulker_box.close"), Source.BLOCK, 1.0f, 1.0f));
+		}
+
+		center.getWorld().spawnParticle(Particle.CRIT, center.clone().add(0, 0.8, 0), 10, 0.3, 0.2, 0.3, 0.02);
 	}
 
 	/**
@@ -907,9 +1121,8 @@ public class IslandGenerator implements Listener, Reloadable {
 	 *         none was found.
 	 */
 	@Nullable
-	public CompletableFuture<Location> findNearestContainerNear(@NotNull HellblockWorld<?> world,
+	private CompletableFuture<Location> findNearestContainerNear(@NotNull HellblockWorld<?> world,
 			@NotNull Location center, int radius, @NotNull Predicate<Container> containerFilter) {
-
 		int cx = center.getBlockX();
 		int cy = center.getBlockY();
 		int cz = center.getBlockZ();
@@ -967,93 +1180,138 @@ public class IslandGenerator implements Listener, Reloadable {
 	 * @return A list of stages for animated block placement.
 	 */
 	@NotNull
-	public List<Map<Pos3, CustomBlockState>> buildHellblockStructure(@NotNull HellblockWorld<?> world, int x, int y,
-			int z, @NotNull IslandOptions type) {
-		List<Map<Pos3, CustomBlockState>> stages = new ArrayList<>();
+	private CompletableFuture<List<Map<Pos3, CustomBlockState>>> buildHellblockStructure(
+			@NotNull HellblockWorld<?> world, int x, int y, int z, @NotNull IslandOptions type) {
+		List<CompletableFuture<Map<Pos3, CustomBlockState>>> stageFutures = new ArrayList<>();
 
 		switch (type) {
 		case DEFAULT -> {
 			// Layer 0: Bedrock base
 			Map<Pos3, CustomBlockState> bedrockBase = new LinkedHashMap<>();
 			Pos3 basePos = new Pos3(x, y, z);
-			CustomBlock bedrockBlock = CustomBlockTypes.fromMaterial(Material.BEDROCK);
-			bedrockBase.put(basePos, bedrockBlock.createBlockState());
-			stages.add(bedrockBase);
+			bedrockBase.put(basePos, CustomBlockTypes.fromMaterial(Material.BEDROCK).createBlockState());
+			stageFutures.add(CompletableFuture.completedFuture(bedrockBase));
 
 			// Layer 4
-			Map<Pos3, CustomBlockState> layer4 = new LinkedHashMap<>();
-			fillLayer(layer4, world, y + 4, x - 3, x + 3, z - 3, z + 3, Material.SOUL_SAND);
-			putBlock(layer4, world, x - 3, y + 4, z - 3, Material.AIR);
-			putBlock(layer4, world, x - 3, y + 4, z + 3, Material.AIR);
-			putBlock(layer4, world, x + 3, y + 4, z - 3, Material.AIR);
-			putBlock(layer4, world, x + 3, y + 4, z + 3, Material.AIR);
-			stages.add(layer4);
+			CompletableFuture<Map<Pos3, CustomBlockState>> layer4Future = fillLayer(world, y + 4, x - 3, x + 3, z - 3,
+					z + 3, Material.SOUL_SAND).thenCompose(
+							layer -> CompletableFuture
+									.allOf(putBlock(layer, world, x - 3, y + 4, z - 3, Material.AIR),
+											putBlock(layer, world, x - 3, y + 4, z + 3, Material.AIR),
+											putBlock(layer, world, x + 3, y + 4, z - 3, Material.AIR),
+											putBlock(layer, world, x + 3, y + 4, z + 3, Material.AIR))
+									.thenApply(v -> layer));
+			stageFutures.add(layer4Future);
 
 			// Layer 3
-			Map<Pos3, CustomBlockState> layer3 = new LinkedHashMap<>();
-			fillLayer(layer3, world, y + 3, x - 2, x + 2, z - 2, z + 2, Material.SOUL_SAND);
-			putBlock(layer3, world, x, y + 3, z, Material.GRASS_BLOCK);
-			putBlock(layer3, world, x - 3, y + 3, z, Material.SOUL_SAND);
-			putBlock(layer3, world, x + 3, y + 3, z, Material.SOUL_SAND);
-			putBlock(layer3, world, x, y + 3, z - 3, Material.SOUL_SAND);
-			putBlock(layer3, world, x, y + 3, z + 3, Material.SOUL_SAND);
-			stages.add(layer3);
+			CompletableFuture<Map<Pos3, CustomBlockState>> layer3Future = fillLayer(world, y + 3, x - 2, x + 2, z - 2,
+					z + 2, Material.SOUL_SAND).thenCompose(
+							layer -> CompletableFuture
+									.allOf(putBlock(layer, world, x, y + 3, z, Material.GRASS_BLOCK),
+											putBlock(layer, world, x - 3, y + 3, z, Material.SOUL_SAND),
+											putBlock(layer, world, x + 3, y + 3, z, Material.SOUL_SAND),
+											putBlock(layer, world, x, y + 3, z - 3, Material.SOUL_SAND),
+											putBlock(layer, world, x, y + 3, z + 3, Material.SOUL_SAND))
+									.thenApply(v -> layer));
+			stageFutures.add(layer3Future);
 
 			// Layer 2
-			Map<Pos3, CustomBlockState> layer2 = new LinkedHashMap<>();
-			fillLayer(layer2, world, y + 2, x - 1, x + 1, z - 1, z + 1, Material.SOUL_SAND);
-			putBlock(layer2, world, x, y + 2, z, Material.DIRT);
-			putBlock(layer2, world, x - 2, y + 2, z, Material.SOUL_SAND);
-			putBlock(layer2, world, x + 2, y + 2, z, Material.SOUL_SAND);
-			putBlock(layer2, world, x, y + 2, z - 2, Material.SOUL_SAND);
-			putBlock(layer2, world, x, y + 2, z + 2, Material.SOUL_SAND);
-			stages.add(layer2);
+			CompletableFuture<Map<Pos3, CustomBlockState>> layer2Future = fillLayer(world, y + 2, x - 1, x + 1, z - 1,
+					z + 1, Material.SOUL_SAND).thenCompose(
+							layer -> CompletableFuture
+									.allOf(putBlock(layer, world, x, y + 2, z, Material.DIRT),
+											putBlock(layer, world, x - 2, y + 2, z, Material.SOUL_SAND),
+											putBlock(layer, world, x + 2, y + 2, z, Material.SOUL_SAND),
+											putBlock(layer, world, x, y + 2, z - 2, Material.SOUL_SAND),
+											putBlock(layer, world, x, y + 2, z + 2, Material.SOUL_SAND))
+									.thenApply(v -> layer));
+			stageFutures.add(layer2Future);
 
 			// Layer 1
-			Map<Pos3, CustomBlockState> layer1 = new LinkedHashMap<>();
-			putBlock(layer1, world, x, y + 1, z, Material.DIRT);
-			putBlock(layer1, world, x - 1, y + 1, z, Material.SOUL_SAND);
-			putBlock(layer1, world, x + 1, y + 1, z, Material.SOUL_SAND);
-			putBlock(layer1, world, x, y + 1, z - 1, Material.SOUL_SAND);
-			putBlock(layer1, world, x, y + 1, z + 1, Material.SOUL_SAND);
-			stages.add(layer1);
+			CompletableFuture<Map<Pos3, CustomBlockState>> layer1Future = CompletableFuture.allOf(
+					putBlock(world, x, y + 1, z, Material.DIRT), putBlock(world, x - 1, y + 1, z, Material.SOUL_SAND),
+					putBlock(world, x + 1, y + 1, z, Material.SOUL_SAND),
+					putBlock(world, x, y + 1, z - 1, Material.SOUL_SAND),
+					putBlock(world, x, y + 1, z + 1, Material.SOUL_SAND)).thenApply(v -> {
+						Map<Pos3, CustomBlockState> map = new LinkedHashMap<>();
+						map.put(new Pos3(x, y + 1, z), CustomBlockTypes.fromMaterial(Material.DIRT).createBlockState());
+						map.put(new Pos3(x - 1, y + 1, z),
+								CustomBlockTypes.fromMaterial(Material.SOUL_SAND).createBlockState());
+						map.put(new Pos3(x + 1, y + 1, z),
+								CustomBlockTypes.fromMaterial(Material.SOUL_SAND).createBlockState());
+						map.put(new Pos3(x, y + 1, z - 1),
+								CustomBlockTypes.fromMaterial(Material.SOUL_SAND).createBlockState());
+						map.put(new Pos3(x, y + 1, z + 1),
+								CustomBlockTypes.fromMaterial(Material.SOUL_SAND).createBlockState());
+						return map;
+					});
+			stageFutures.add(layer1Future);
 		}
 
 		case CLASSIC -> {
 			// Base layer
-			Map<Pos3, CustomBlockState> base = new LinkedHashMap<>();
-			fillLayer(base, world, y, x - 5, x, z - 2, z, Material.SOUL_SAND);
-			fillLayer(base, world, y, x - 2, x, z - 5, z, Material.SOUL_SAND);
-			putBlock(base, world, x, y, z, Material.SOUL_SAND);
-			stages.add(base);
+			CompletableFuture<Map<Pos3, CustomBlockState>> baseFuture = fillLayer(world, y, x - 5, x, z - 2, z,
+					Material.SOUL_SAND)
+					.thenCombine(fillLayer(world, y, x - 2, x, z - 5, z, Material.SOUL_SAND), (layerA, layerB) -> {
+						Map<Pos3, CustomBlockState> map = new LinkedHashMap<>(layerA);
+						map.putAll(layerB);
+						return map;
+					}).thenCompose(map -> putBlock(map, world, x, y, z, Material.SOUL_SAND).thenApply(v -> map));
+			stageFutures.add(baseFuture);
 
 			// Layer 1
-			Map<Pos3, CustomBlockState> l1 = new LinkedHashMap<>();
-			fillLayer(l1, world, y + 1, x - 5, x, z - 2, z, Material.SOUL_SAND);
-			fillLayer(l1, world, y + 1, x - 2, x, z - 5, z, Material.SOUL_SAND);
-			stages.add(l1);
+			CompletableFuture<Map<Pos3, CustomBlockState>> l1Future = fillLayer(world, y + 1, x - 5, x, z - 2, z,
+					Material.SOUL_SAND)
+					.thenCombine(fillLayer(world, y + 1, x - 2, x, z - 5, z, Material.SOUL_SAND), (layerA, layerB) -> {
+						Map<Pos3, CustomBlockState> map = new LinkedHashMap<>(layerA);
+						map.putAll(layerB);
+						return map;
+					});
+			stageFutures.add(l1Future);
 
 			// Layer 2
-			Map<Pos3, CustomBlockState> l2 = new LinkedHashMap<>();
-			fillLayer(l2, world, y + 2, x - 5, x, z - 2, z, Material.SOUL_SAND);
-			fillLayer(l2, world, y + 2, x - 2, x, z - 5, z, Material.SOUL_SAND);
-			stages.add(l2);
+			CompletableFuture<Map<Pos3, CustomBlockState>> l2Future = fillLayer(world, y + 2, x - 5, x, z - 2, z,
+					Material.SOUL_SAND)
+					.thenCombine(fillLayer(world, y + 2, x - 2, x, z - 5, z, Material.SOUL_SAND), (layerA, layerB) -> {
+						Map<Pos3, CustomBlockState> map = new LinkedHashMap<>(layerA);
+						map.putAll(layerB);
+						return map;
+					});
+			stageFutures.add(l2Future);
 
 			// Decorations
-			Map<Pos3, CustomBlockState> deco = new LinkedHashMap<>();
-			putBlock(deco, world, x - 1, y + 1, z - 1, Material.GRASS_BLOCK);
-			putBlock(deco, world, x - 3, y + 1, z - 1, Material.SOUL_SAND);
-			putBlock(deco, world, x - 4, y + 1, z - 1, Material.DIRT);
-			putBlock(deco, world, x - 1, y + 1, z - 3, Material.SOUL_SAND);
-			putBlock(deco, world, x - 1, y + 1, z - 4, Material.DIRT);
-			putBlock(deco, world, x - 1, y, z - 1, Material.BEDROCK);
-			stages.add(deco);
+			CompletableFuture<Map<Pos3, CustomBlockState>> decoFuture = CompletableFuture
+					.allOf(putBlock(world, x - 1, y + 1, z - 1, Material.GRASS_BLOCK),
+							putBlock(world, x - 3, y + 1, z - 1, Material.SOUL_SAND),
+							putBlock(world, x - 4, y + 1, z - 1, Material.DIRT),
+							putBlock(world, x - 1, y + 1, z - 3, Material.SOUL_SAND),
+							putBlock(world, x - 1, y + 1, z - 4, Material.DIRT),
+							putBlock(world, x - 1, y, z - 1, Material.BEDROCK))
+					.thenApply(v -> {
+						Map<Pos3, CustomBlockState> map = new LinkedHashMap<>();
+						map.put(new Pos3(x - 1, y + 1, z - 1),
+								CustomBlockTypes.fromMaterial(Material.GRASS_BLOCK).createBlockState());
+						map.put(new Pos3(x - 3, y + 1, z - 1),
+								CustomBlockTypes.fromMaterial(Material.SOUL_SAND).createBlockState());
+						map.put(new Pos3(x - 4, y + 1, z - 1),
+								CustomBlockTypes.fromMaterial(Material.DIRT).createBlockState());
+						map.put(new Pos3(x - 1, y + 1, z - 3),
+								CustomBlockTypes.fromMaterial(Material.SOUL_SAND).createBlockState());
+						map.put(new Pos3(x - 1, y + 1, z - 4),
+								CustomBlockTypes.fromMaterial(Material.DIRT).createBlockState());
+						map.put(new Pos3(x - 1, y, z - 1),
+								CustomBlockTypes.fromMaterial(Material.BEDROCK).createBlockState());
+						return map;
+					});
+			stageFutures.add(decoFuture);
 		}
 
 		default -> throw new IllegalArgumentException("Unsupported island type: " + type);
 		}
 
-		return stages;
+		// Combine all stages into one final future list
+		return CompletableFuture.allOf(stageFutures.toArray(CompletableFuture[]::new))
+				.thenApply(v -> stageFutures.stream().map(CompletableFuture::join).toList());
 	}
 
 	/**
@@ -1069,19 +1327,18 @@ public class IslandGenerator implements Listener, Reloadable {
 	 * @return A CompletableFuture that completes when the animation is done or
 	 *         exceptionally if interrupted.
 	 */
-	private CompletableFuture<Void> animateBlockPlacementWithInterrupt(@NotNull UserData userData,
+	private CompletableFuture<Void> animateBlockPlacement(@NotNull UserData userData,
 			@NotNull List<Map<Pos3, CustomBlockState>> stages, @NotNull Location reference, long ticksDelay) {
 		Player player = userData.getPlayer();
 		if (player == null || !player.isOnline()) {
-			instance.debug(
-					"animateBlockPlacementWithInterrupt: Player offline. Skipping animation for " + userData.getName());
+			instance.debug("animateBlockPlacement: Player offline. Skipping animation for " + userData.getName());
 
 			// Fallback to instant placement
 			instance.getScheduler().executeSync(() -> {
 				Optional<HellblockWorld<?>> worldOpt = instance.getWorldManager().getWorld(reference.getWorld());
 				if (worldOpt.isEmpty()) {
-					instance.getPluginLogger()
-							.warn("Could not find HellblockWorld for " + reference.getWorld().getName());
+					instance.getPluginLogger().warn("animateBlockPlacement: Could not find HellblockWorld for "
+							+ reference.getWorld().getName());
 					return;
 				}
 				HellblockWorld<?> world = worldOpt.get();
@@ -1091,36 +1348,29 @@ public class IslandGenerator implements Listener, Reloadable {
 			return CompletableFuture.completedFuture(null);
 		}
 
-		CompletableFuture<Void> future = new CompletableFuture<>();
 		long animationStart = System.nanoTime();
 
-		runNextStage(userData, stages, reference, 0, ticksDelay, future, animationStart);
+		instance.debug("animateBlockPlacement: Scheduled animation for " + userData.getName() + " with ticksDelay="
+				+ ticksDelay);
 
-		instance.debug("animateBlockPlacementWithInterrupt: Scheduled animation for " + userData.getName()
-				+ " with ticksDelay=" + ticksDelay);
-
-		return future;
+		return runNextStage(userData, stages, reference, 0, ticksDelay, animationStart);
 	}
 
-	private void runNextStage(@NotNull UserData userData, @NotNull List<Map<Pos3, CustomBlockState>> stages,
-			@NotNull Location reference, int index, long ticksDelay, CompletableFuture<Void> future,
+	private CompletableFuture<Void> runNextStage(@NotNull UserData userData,
+			@NotNull List<Map<Pos3, CustomBlockState>> stages, @NotNull Location reference, int index, long ticksDelay,
 			long animationStartTime) {
 		Player player = userData.getPlayer();
 		if (player == null || !player.isOnline()) {
-			if (!future.isDone()) {
-				future.completeExceptionally(new IllegalStateException("Player disconnected during animation."));
-			}
 			cleanupAnimation(userData);
 			endGeneration(userData.getUUID());
-			return;
+			return CompletableFuture.failedFuture(new IllegalStateException("Player disconnected during animation."));
 		}
 
 		if (index >= stages.size()) {
 			long totalDuration = (System.nanoTime() - animationStartTime) / 1_000_000;
-			instance.debug("animateBlockPlacementWithInterrupt: Animation completed for " + userData.getName());
+			instance.debug("animateBlockPlacement: Animation completed for " + userData.getName());
 			instance.debug("Total animation time for " + userData.getName() + ": " + totalDuration + " ms");
-			future.complete(null);
-			return;
+			return CompletableFuture.completedFuture(null);
 		}
 
 		Map<Pos3, CustomBlockState> stage = stages.get(index);
@@ -1130,58 +1380,102 @@ public class IslandGenerator implements Listener, Reloadable {
 		Optional<HellblockWorld<?>> worldOpt = instance.getWorldManager().getWorld(reference.getWorld());
 		if (worldOpt.isEmpty() || worldOpt.get().bukkitWorld() == null) {
 			instance.getPluginLogger()
-					.warn("Could not find HellblockWorld for animation stage at " + reference.getWorld().getName());
-			future.completeExceptionally(new IllegalStateException("Missing HellblockWorld"));
-			return;
+					.warn("animateBlockPlacement: Could not find HellblockWorld for animation stage at "
+							+ reference.getWorld().getName());
+			return CompletableFuture.failedFuture(new IllegalStateException("Missing HellblockWorld"));
 		}
 
 		HellblockWorld<?> hellblockWorld = worldOpt.get();
+
+		// Track particle spawn locations + materials
+		List<Map.Entry<Location, org.bukkit.block.data.BlockData>> particleEntries = Collections
+				.synchronizedList(new ArrayList<>());
 
 		List<CompletableFuture<Void>> blockFutures = stage.entrySet().stream().<CompletableFuture<Void>>map(entry -> {
 			Pos3 pos = entry.getKey();
 			CustomBlockState state = entry.getValue();
 
 			if (pos == null || state == null) {
-				instance.getPluginLogger().warn("Null pos/state in animation stage for " + userData.getName());
+				instance.getPluginLogger()
+						.warn("animateBlockPlacement: Null pos/state in animation stage for " + userData.getName());
 				return CompletableFuture.completedFuture(null);
 			}
 
 			Material fallback = Optional.ofNullable(resolveFallbackMaterial(state)).orElse(Material.AIR);
 			if (fallback.isAir()) {
-				instance.debug("Skipping air block at " + pos);
+				instance.debug("animateBlockPlacement: Skipping air block at " + pos);
 				return CompletableFuture.completedFuture(null);
 			}
 
 			blocksPlaced.incrementAndGet();
 
-			return hellblockWorld.updateBlockState(pos, state).thenRun(() -> {
-				instance.getScheduler().executeSync(() -> {
-					Location particleLoc = pos.toLocation(reference.getWorld()).clone().add(0.5, 0.5, 0.5);
-					reference.getWorld().spawnParticle(ParticleUtils.getParticle("BLOCK_DUST"), particleLoc, 10, 0.25,
-							0.25, 0.25, 0.0, fallback.createBlockData());
-					long time = System.currentTimeMillis();
-					instance.debug("Block placed at " + pos + " at " + time);
-				});
-			});
+			// Collect particle info
+			org.bukkit.block.data.BlockData data = fallback.createBlockData();
+			Location loc = pos.toLocation(reference.getWorld()).clone().add(0.5, 0.5, 0.5);
+			particleEntries.add(Map.entry(loc, data));
+
+			// Run async block update
+			return hellblockWorld.updateBlockState(pos, state);
 		}).toList();
 
-		CompletableFuture.allOf(blockFutures.toArray(CompletableFuture[]::new)).thenRun(() -> {
+		// Wait for this stage’s all blocks, then delay before next
+		return CompletableFuture.allOf(blockFutures.toArray(CompletableFuture[]::new)).thenRun(() -> {
 			long stageDuration = (System.nanoTime() - stageStart) / 1_000_000;
-			instance.debug("Stage " + index + ": placed " + blocksPlaced.get() + " blocks in " + stageDuration + " ms");
+			instance.debug("animateBlockPlacement: Stage " + (index + 1) + " → placed " + blocksPlaced.get()
+					+ " blocks in " + stageDuration + " ms");
+
+			instance.getScheduler().executeSync(() -> {
+				if (particleEntries.isEmpty())
+					return;
+
+				World world = reference.getWorld();
+				Particle particle = ParticleUtils.getParticle("BLOCK_CRACK");
+
+				// Compute wave direction across X or Z axis (pick the longer dimension)
+				double minX = particleEntries.stream().mapToDouble(e -> e.getKey().getX()).min().orElse(0);
+				double maxX = particleEntries.stream().mapToDouble(e -> e.getKey().getX()).max().orElse(0);
+				double minZ = particleEntries.stream().mapToDouble(e -> e.getKey().getZ()).min().orElse(0);
+				double maxZ = particleEntries.stream().mapToDouble(e -> e.getKey().getZ()).max().orElse(0);
+
+				boolean waveAlongX = (maxX - minX) >= (maxZ - minZ); // pick axis with greater span
+				double minAxis = waveAlongX ? minX : minZ;
+				double maxAxis = waveAlongX ? maxX : maxZ;
+				double range = Math.max(1, maxAxis - minAxis);
+
+				// Sort by axis position for smooth wave
+				particleEntries
+						.sort(Comparator.comparingDouble(e -> waveAlongX ? e.getKey().getX() : e.getKey().getZ()));
+
+				int totalSteps = 10; // number of wave passes
+				long totalWaveDurationTicks = 20L; // total animation time (1s wave)
+				long delayPerStep = totalWaveDurationTicks / totalSteps;
+
+				// Divide particles into wave bands
+				for (int i = 0; i < totalSteps; i++) {
+					double bandStart = minAxis + (i / (double) totalSteps) * range;
+					double bandEnd = minAxis + ((i + 1) / (double) totalSteps) * range;
+
+					final int stepIndex = i;
+					instance.getScheduler().sync().runLater(() -> {
+						particleEntries.stream().filter(e -> {
+							double axis = waveAlongX ? e.getKey().getX() : e.getKey().getZ();
+							return axis >= bandStart && axis < bandEnd;
+						}).forEach(e -> {
+							world.spawnParticle(particle, e.getKey(), 10, 0.25, 0.25, 0.25, 0.0, e.getValue());
+						});
+					}, delayPerStep * stepIndex, LocationUtils.getAnyLocationInstance());
+				}
+			});
+
 			AdventureHelper.playPositionalSound(player.getWorld(), player.getLocation(),
 					Sound.sound(Key.key("minecraft:block.stone.place"), Source.BLOCK, 0.4f, 1.2f));
-
-			// Schedule next stage after delay
-			instance.getScheduler().sync().runLater(() -> {
-				runNextStage(userData, stages, reference, index + 1, ticksDelay, future, animationStartTime);
-			}, ticksDelay, reference);
-		}).exceptionally(ex -> {
-			instance.getPluginLogger().warn("Error during animation stage " + index + " for " + userData.getName(), ex);
-			if (!future.isDone()) {
-				future.completeExceptionally(ex);
-			}
-			return null;
-		});
+		}).thenCompose(v -> delayTicks(ticksDelay, reference)) // wait ticks before next stage
+				.thenCompose(v -> runNextStage(userData, stages, reference, index + 1, ticksDelay, animationStartTime))
+				.exceptionally(ex -> {
+					instance.getPluginLogger()
+							.warn("animateBlockPlacement: Block animation placement error at stage " + index, ex);
+					return null;
+				});
 	}
 
 	/**
@@ -1522,7 +1816,7 @@ public class IslandGenerator implements Listener, Reloadable {
 	 * for the player. The player is set to spectator mode and forced to spectate
 	 * the armor stand.
 	 * 
-	 * @param player     The player who will spectate the armor stand.
+	 * @param userData   The player who will spectate the armor stand.
 	 * @param focusPoint The point the camera should focus on.
 	 * @return The created armor stand used as the camera anchor.
 	 */
@@ -1561,10 +1855,25 @@ public class IslandGenerator implements Listener, Reloadable {
 				camera.setCamera(player);
 
 				startAnimationFor(userData.getUUID());
+				enableFlightSafely(player);
 			}, 1L, anchorLocation);
 		});
 
 		return camera;
+	}
+
+	private void enableFlightSafely(@NotNull Player viewer) {
+		viewer.setGameMode(GameMode.SPECTATOR);
+		viewer.setAllowFlight(true);
+		viewer.setVelocity(new Vector(0, 0, 0));
+		viewer.setFallDistance(0.0F);
+
+		// Apply flying 1 tick later for client sync
+		instance.getScheduler().sync().runLater(() -> {
+			if (viewer.isOnline()) {
+				viewer.setFlying(true);
+			}
+		}, 1L, viewer.getLocation());
 	}
 
 	/**
@@ -1605,12 +1914,8 @@ public class IslandGenerator implements Listener, Reloadable {
 				}
 				sanitizeDirection(current);
 
-				stand.teleport(current, viewer); // Use player-aware teleport
+				stand.moveAdaptive(viewer, current); // Use player-aware teleport
 				stand.keepClientCameraStable(viewer);
-				// Also gently correct player's visual position every few ticks
-				if (elapsed % 5 == 0) {
-					ChunkUtils.teleportAsync(viewer, current.clone().add(0, -1.5, 0)); // keep synced under the camera
-				}
 				elapsed++;
 			}
 		};
@@ -1652,13 +1957,8 @@ public class IslandGenerator implements Listener, Reloadable {
 				}
 				sanitizeDirection(intermediate);
 
-				stand.teleport(intermediate, viewer);
+				stand.moveAdaptive(viewer, intermediate);
 				stand.keepClientCameraStable(viewer);
-				// Also gently correct player's visual position every few ticks
-				if (elapsed % 5 == 0) {
-					ChunkUtils.teleportAsync(viewer, intermediate.clone().add(0, -1.5, 0)); // keep synced under the
-																							// camera
-				}
 				elapsed++;
 			}
 		};
@@ -1692,12 +1992,8 @@ public class IslandGenerator implements Listener, Reloadable {
 				}
 				sanitizeDirection(current);
 
-				stand.teleport(current, viewer);
+				stand.moveAdaptive(viewer, current);
 				stand.keepClientCameraStable(viewer);
-				// Also gently correct player's visual position every few ticks
-				if (elapsed % 5 == 0) {
-					ChunkUtils.teleportAsync(viewer, current.clone().add(0, -1.5, 0)); // keep synced under the camera
-				}
 				elapsed++;
 			}
 		};
@@ -1716,33 +2012,25 @@ public class IslandGenerator implements Listener, Reloadable {
 		final AtomicReference<SchedulerTask> taskRef = new AtomicReference<>();
 
 		Runnable runnable = new Runnable() {
-			long elapsed = 0;
-			
 			@Override
 			public void run() {
 				if (!iterator.hasNext() || stand.isDead() || !viewer.isOnline()) {
 					SchedulerTask task = taskRef.get();
-					if (task != null && !task.isCancelled()) {
+					if (task != null && !task.isCancelled())
 						task.cancel();
-					}
 					return;
 				}
 
 				Location next = iterator.next();
 				Location current = stand.getLocation();
 				Vector diff = next.clone().subtract(current).toVector();
-				if (diff.lengthSquared() > 0.0001) {
+				if (diff.lengthSquared() > 0.0001)
 					next.setDirection(diff.normalize());
-				}
 				sanitizeDirection(next);
 
-				stand.teleport(next, viewer);
+				// Smooth movement via velocity instead of teleport
+				stand.moveSmoothly(viewer, next, 1.0); // speed = 1 block/tick, adjust as needed
 				stand.keepClientCameraStable(viewer);
-				// Also gently correct player's visual position every few ticks
-				if (elapsed % 5 == 0) {
-					ChunkUtils.teleportAsync(viewer, next.clone().add(0, -1.5, 0)); // keep synced under the camera
-				}
-				elapsed++;
 			}
 		};
 
@@ -1910,11 +2198,17 @@ public class IslandGenerator implements Listener, Reloadable {
 			}
 
 			if (player != null && player.isOnline()) {
+				player.setGameMode(GameMode.SURVIVAL);
+				player.setAllowFlight(false);
+				player.setFlying(false);
+				player.setVelocity(new Vector(0, 0, 0));
 				if (ownerData.getHellblockData().getHomeLocation() != null) {
 					instance.getHellblockHandler().teleportPlayerToHome(ownerData);
 				} else {
 					instance.getHellblockHandler().teleportToSpawn(player, true);
 				}
+			} else {
+				instance.getMailboxManager().queueMailbox(ownerId, MailboxFlag.RESET_GAMEMODE);
 			}
 		});
 	}
@@ -2041,28 +2335,31 @@ public class IslandGenerator implements Listener, Reloadable {
 	}
 
 	/**
-	 * Inserts a single block change into the provided change map.
+	 * Inserts a single block change into the provided change map asynchronously.
 	 * <p>
-	 * This utility method maps the block at the specified coordinates to a target
-	 * material, allowing it to be applied later during structure generation or
-	 * animation.
+	 * This utility method retrieves the current block state and, if the position is
+	 * air or empty, schedules it to be replaced with the given material in the
+	 * provided map. This is suitable for async pre-generation and structure
+	 * blueprints.
 	 * </p>
 	 *
-	 * @param changes The map storing pos3-to-customblockstate changes for a build
-	 *                stage.
-	 * @param world   The world containing the target block.
-	 * @param x       The X-coordinate of the block.
-	 * @param y       The Y-coordinate of the block.
-	 * @param z       The Z-coordinate of the block.
-	 * @param type    The material type to set for the block.
+	 * @param changes  The map storing pos3-to-customblockstate changes for a build
+	 *                 stage.
+	 * @param world    The world containing the target block.
+	 * @param x        The X-coordinate of the block.
+	 * @param y        The Y-coordinate of the block.
+	 * @param z        The Z-coordinate of the block.
+	 * @param material The material type to set for the block.
+	 * @return A CompletableFuture that completes once the block mapping is done.
 	 */
 	private CompletableFuture<Void> putBlock(@NotNull Map<Pos3, CustomBlockState> changes,
 			@NotNull HellblockWorld<?> world, int x, int y, int z, @NotNull Material material) {
 		Pos3 pos = new Pos3(x, y, z);
 
 		return world.getBlockState(pos).thenAccept(optionalState -> {
+			// Skip replacing non-air blocks (ensures safe blueprint generation)
 			if (optionalState.isPresent() && !optionalState.get().isAir()) {
-				return; // Skip if block is not air
+				return;
 			}
 
 			CustomBlock block = CustomBlockTypes.fromMaterial(material);
@@ -2072,66 +2369,96 @@ public class IslandGenerator implements Listener, Reloadable {
 	}
 
 	/**
-	 * Fills a rectangular area at a fixed height with a given material type.
+	 * Creates a new map representing a single block placement asynchronously.
 	 * <p>
-	 * Iterates from {@code (minX, minZ)} to {@code (maxX, maxZ)} at the specified
-	 * Y-coordinate, adding all blocks within that area to the provided change map.
+	 * This overload is useful for cases where a full map isn’t yet built, such as
+	 * for isolated decorations or single-block additions in structure layers.
 	 * </p>
 	 *
-	 * @param changes The map storing pos3-to-customblockstate changes for a build
-	 *                stage.
-	 * @param world   The world containing the target area.
-	 * @param y       The Y-level (height) at which to fill.
-	 * @param minX    The minimum X-coordinate of the rectangular region.
-	 * @param maxX    The maximum X-coordinate of the rectangular region.
-	 * @param minZ    The minimum Z-coordinate of the rectangular region.
-	 * @param maxZ    The maximum Z-coordinate of the rectangular region.
-	 * @param type    The material type to fill the area with.
+	 * @param world    The world containing the target block.
+	 * @param x        The X-coordinate of the block.
+	 * @param y        The Y-coordinate of the block.
+	 * @param z        The Z-coordinate of the block.
+	 * @param material The material type to set for the block.
+	 * @return A CompletableFuture completing with a map containing a single block
+	 *         entry.
 	 */
-	private CompletableFuture<Void> fillLayer(@NotNull Map<Pos3, CustomBlockState> changes,
-			@NotNull HellblockWorld<?> world, int y, int minX, int maxX, int minZ, int maxZ,
-			@NotNull Material material) {
-		List<CompletableFuture<Void>> futures = new ArrayList<>();
-
-		for (int x = minX; x <= maxX; x++) {
-			for (int z = minZ; z <= maxZ; z++) {
-				futures.add(putBlock(changes, world, x, y, z, material));
-			}
-		}
-
-		return CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new));
+	private CompletableFuture<Map<Pos3, CustomBlockState>> putBlock(@NotNull HellblockWorld<?> world, int x, int y,
+			int z, @NotNull Material material) {
+		Map<Pos3, CustomBlockState> map = new LinkedHashMap<>();
+		return putBlock(map, world, x, y, z, material).thenApply(v -> map);
 	}
 
 	/**
-	 * Fills a square-shaped pattern centered at the given coordinates with the
-	 * specified material type.
+	 * Fills a rectangular area at a fixed height asynchronously with the given
+	 * material type.
 	 * <p>
-	 * Only air blocks within the given radius are included to prevent overwriting
-	 * existing structures, making it suitable for decorative patterns or layered
-	 * designs.
+	 * Iterates from {@code (minX, minZ)} to {@code (maxX, maxZ)} at the specified
+	 * Y-coordinate, adding all air blocks in that region to a resulting map. This
+	 * is non-blocking and suitable for use in async pre-generation.
 	 * </p>
 	 *
-	 * @param changes The map storing pos3-to-customblockstate changes for a build
-	 *                stage.
-	 * @param world   The world containing the target area.
-	 * @param centerX The X-coordinate of the center point.
-	 * @param y       The Y-level (height) at which to fill.
-	 * @param centerZ The Z-coordinate of the center point.
-	 * @param radius  The radius (in blocks) from the center to fill.
-	 * @param type    The material type to use for filling.
+	 * @param world    The world containing the target area.
+	 * @param y        The Y-level (height) at which to fill.
+	 * @param minX     The minimum X-coordinate of the rectangular region.
+	 * @param maxX     The maximum X-coordinate of the rectangular region.
+	 * @param minZ     The minimum Z-coordinate of the rectangular region.
+	 * @param maxZ     The maximum Z-coordinate of the rectangular region.
+	 * @param material The material type to fill the area with.
+	 * @return A CompletableFuture completing with the map of all filled block
+	 *         states.
+	 */
+	private CompletableFuture<Map<Pos3, CustomBlockState>> fillLayer(@NotNull HellblockWorld<?> world, int y, int minX,
+			int maxX, int minZ, int maxZ, @NotNull Material material) {
+		Map<Pos3, CustomBlockState> map = new LinkedHashMap<>();
+		List<CompletableFuture<Void>> futures = new ArrayList<>();
+		CustomBlock block = CustomBlockTypes.fromMaterial(material);
+
+		for (int x = minX; x <= maxX; x++) {
+			for (int z = minZ; z <= maxZ; z++) {
+				Pos3 pos = new Pos3(x, y, z);
+				CompletableFuture<Void> future = world.getBlockState(pos).thenAccept(optional -> {
+					if (optional.isEmpty() || optional.get().isAir()) {
+						map.put(pos, block.createBlockState());
+					}
+				});
+				futures.add(future);
+			}
+		}
+
+		return CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new)).thenApply(v -> map);
+	}
+
+	/**
+	 * Fills a square-shaped pattern centered at the given coordinates
+	 * asynchronously with the specified material type.
+	 * <p>
+	 * Only air blocks within the given radius are included to prevent overwriting
+	 * existing structures. Ideal for decorative layers or pattern-based shapes.
+	 * </p>
+	 *
+	 * @param changes  The map storing pos3-to-customblockstate changes for a build
+	 *                 stage.
+	 * @param world    The world containing the target area.
+	 * @param centerX  The X-coordinate of the center point.
+	 * @param y        The Y-level (height) at which to fill.
+	 * @param centerZ  The Z-coordinate of the center point.
+	 * @param radius   The radius (in blocks) from the center to fill.
+	 * @param material The material type to use for filling.
+	 * @return A CompletableFuture that completes once all eligible blocks are added
+	 *         to the map.
 	 */
 	private CompletableFuture<Void> fillPattern(@NotNull Map<Pos3, CustomBlockState> changes,
 			@NotNull HellblockWorld<?> world, int centerX, int y, int centerZ, int radius, @NotNull Material material) {
 		CustomBlock block = CustomBlockTypes.fromMaterial(material);
 		CustomBlockState state = block.createBlockState();
-
 		List<CompletableFuture<Void>> futures = new ArrayList<>();
 
 		for (int dx = -radius; dx <= radius; dx++) {
 			for (int dz = -radius; dz <= radius; dz++) {
 				Pos3 pos = new Pos3(centerX + dx, y, centerZ + dz);
 				CompletableFuture<Void> future = world.getBlockState(pos).thenAccept(optional -> {
-					if (optional.isPresent() && optional.get().isAir()) {
+					if (optional.isEmpty() || optional.get().isAir()) {
 						changes.put(pos, state);
 					}
 				});

@@ -47,6 +47,7 @@ subprojects {
         	adventure_examination_api_version: hellblockLibs.versions.adventureexaminationapi.get(),
         	adventure_option_version: hellblockLibs.versions.adventureoption.get(),
         	adventure_platform_api_version: hellblockLibs.versions.adventureplatformapi.get(),
+        	protocol_lib_version: hellblockLibs.versions.protocollib.get(),
         	h2_driver_version: hellblockLibs.versions.h2.get(),
         	sqlite_driver_version: hellblockLibs.versions.sqlite.get(),
         	boosted_yaml_version: hellblockLibs.versions.boostedyaml.get(),

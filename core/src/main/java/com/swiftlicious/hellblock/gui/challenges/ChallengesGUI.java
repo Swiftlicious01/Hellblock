@@ -59,10 +59,19 @@ public class ChallengesGUI extends PaginatedGUI<ChallengesGUIElement> {
 		this.itemsCharMap = new HashMap<>();
 		this.itemsSlotMap = new HashMap<>();
 		var holder = new ChallengesGUIHolder();
-		if (manager.layout.length == 1 && manager.layout[0].length() == 4) {
-			this.inventory = Bukkit.createInventory(holder, InventoryType.HOPPER);
+		int rows;
+		if (manager.hasPageLayouts()) {
+		    // assume all pages have equal row count for consistency
+		    String[] firstPage = manager.getActiveLayouts()[0];
+		    rows = firstPage.length;
 		} else {
-			this.inventory = Bukkit.createInventory(holder, manager.layout.length * 9);
+		    rows = manager.layout.length;
+		}
+
+		if (rows == 1 && manager.layout[0].length() == 4) {
+		    this.inventory = Bukkit.createInventory(holder, InventoryType.HOPPER);
+		} else {
+		    this.inventory = Bukkit.createInventory(holder, rows * 9);
 		}
 		holder.setInventory(this.inventory);
 

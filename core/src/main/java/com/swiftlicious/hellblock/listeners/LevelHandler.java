@@ -40,6 +40,7 @@ import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.api.Reloadable;
 import com.swiftlicious.hellblock.challenges.HellblockChallenge.ActionType;
 import com.swiftlicious.hellblock.context.Context;
+import com.swiftlicious.hellblock.events.leaderboard.LeaderboardUpdateEvent;
 import com.swiftlicious.hellblock.player.HellblockData;
 import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.scheduler.SchedulerTask;
@@ -418,6 +419,13 @@ public class LevelHandler implements Listener, Reloadable {
 		});
 	}
 
+	public void triggerLeaderboardUpdate() {
+		getTopHellblocks(instance.getLeaderboardGUIManager().getTopSlotCount()).thenAccept(topIslands -> {
+			instance.getScheduler()
+					.executeSync(() -> Bukkit.getPluginManager().callEvent(new LeaderboardUpdateEvent(topIslands)));
+		});
+	}
+
 	public CompletableFuture<Integer> getLevelRank(int islandId) {
 		// Use cache if available
 		if (this.levelRankCache.containsKey(islandId)) {
@@ -521,7 +529,7 @@ public class LevelHandler implements Listener, Reloadable {
 			final MathValue<Player> levelValue = tuple.right(); // Level value
 			final float level = ((Number) levelValue.evaluate(Context.playerEmpty())).floatValue();
 
-			if (mat == null || !mat.isBlock() || level <= 0.0F) {
+			if (mat == null || mat.isAir() || !mat.isBlock() || level <= 0.0F) {
 				return;
 			}
 
@@ -587,6 +595,7 @@ public class LevelHandler implements Listener, Reloadable {
 					if (result.isEmpty()) {
 						recalcFuture.completeExceptionally(new IllegalStateException(
 								"Recalculation failed: No user data found for island ID " + islandId));
+						return;
 					}
 
 					Optional<HellblockWorld<?>> hellblockWorldOpt = instance.getWorldManager()
@@ -595,6 +604,7 @@ public class LevelHandler implements Listener, Reloadable {
 					if (hellblockWorldOpt.isEmpty() || hellblockWorldOpt.get().bukkitWorld() == null) {
 						recalcFuture.completeExceptionally(new IllegalStateException(
 								"Recalculation failed: No world found for island ID " + islandId));
+						return;
 					}
 
 					HellblockWorld<?> world = hellblockWorldOpt.get();
@@ -602,6 +612,7 @@ public class LevelHandler implements Listener, Reloadable {
 					if (!instance.getHellblockHandler().isInCorrectWorld(world.bukkitWorld())) {
 						recalcFuture.completeExceptionally(new IllegalStateException(
 								"Recalculation skipped: Not a valid Hellblock world for island " + islandId));
+						return;
 					}
 
 					UserData data = result.get();
@@ -610,6 +621,7 @@ public class LevelHandler implements Listener, Reloadable {
 					if (hellblockData.getOwnerUUID() == null) {
 						recalcFuture.completeExceptionally(new IllegalStateException(
 								"Recalculation failed: Hellblock owner UUID is null for island ID " + islandId));
+						return;
 					}
 
 					// Reset
@@ -640,7 +652,7 @@ public class LevelHandler implements Listener, Reloadable {
 										String key = state.type().type().value();
 										Material material = Material.matchMaterial(key.toUpperCase(Locale.ROOT));
 
-										if (material == null || !material.isBlock())
+										if (material == null || material.isAir() || !material.isBlock())
 											continue;
 
 										EntityType entity = null;
@@ -682,7 +694,7 @@ public class LevelHandler implements Listener, Reloadable {
 							// Done loading all chunks
 							placedBlockCounts.put(islandId, newChunkMap);
 
-							float newLevel = 0.0F;
+							float newLevel = HellblockData.DEFAULT_LEVEL;
 							for (Map<BlockKey, Map<BlockPosition, Boolean>> blockMap : newChunkMap.values()) {
 								for (Map.Entry<BlockKey, Map<BlockPosition, Boolean>> entry : blockMap.entrySet()) {
 									Float value = levelBlockValues
@@ -701,6 +713,7 @@ public class LevelHandler implements Listener, Reloadable {
 							clearIslandCache(islandId);
 							instance.getPluginLogger()
 									.info("Recalculated level for island ID " + islandId + ": " + newLevel);
+							triggerLeaderboardUpdate();
 							recalcFuture.complete(newLevel);
 
 						}).exceptionally(ex -> {
@@ -875,6 +888,8 @@ public class LevelHandler implements Listener, Reloadable {
 										ActionType.LEVELUP, levelValue, levelValue.intValue());
 							}));
 		}
+
+		triggerLeaderboardUpdate();
 	}
 
 	private void handleBlockPlacement(Block block, HellblockData ownerData) {

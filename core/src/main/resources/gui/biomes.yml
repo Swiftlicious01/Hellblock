@@ -1,7 +1,7 @@
 biome:
   gui:
     # The title for the biome menu
-    title: '<center><gradient:#A52A2A:#800000:#A52A2A>Hellblock Biomes</gradient>'
+    title: '<center><gradient:#B22222:#FF8C00:#8B0000>Biome Selector</gradient>'
     # The layout for the biome menu
     layout:
       - 'AAAAAAAAA'
@@ -20,11 +20,12 @@ biome:
         # [SOUL_SAND_VALLEY, WARPED_FOREST, CRIMSON_FOREST, NETHER_WASTES, BASALT_DELTAS, NETHER_FORTRESS]
         biome: SOUL_SAND_VALLEY
         display:
-          name: '<red>Soul Sand Valley'
+          name: '<dark_purple>Soul Sand Valley'
           unselected-lore:
-            - '<dark_red>Click to change to this biome!'
+            - '<gray>A barren expanse haunted by lost souls.'
+            - '<dark_red>Click to channel the power of the damned.'
           selected-lore:
-            - '<dark_red>Click to change to this biome!'
+            - '<gray>A barren expanse haunted by lost souls.'
             - ' '
             - '<yellow>This is your current selection!'
         action:
@@ -48,11 +49,12 @@ biome:
         material: WARPED_STEM
         biome: WARPED_FOREST
         display:
-          name: '<red>Warped Forest'
+          name: '<aqua>Warped Forest'
           unselected-lore:
-            - '<dark_red>Click to change to this biome!'
+            - '<gray>A calm refuge amidst the Nether''s chaos.'
+            - '<dark_red>Click to embrace tranquility and safety.'
           selected-lore:
-            - '<dark_red>Click to change to this biome!'
+            - '<gray>A calm refuge amidst the Nether''s chaos.'
             - ' '
             - '<yellow>This is your current selection!'
         action:
@@ -73,9 +75,10 @@ biome:
         display:
           name: '<red>Crimson Forest'
           unselected-lore:
-            - '<dark_red>Click to change to this biome!'
+            - '<gray>A twisted jungle pulsing with crimson life.'
+            - '<dark_red>Click to let the forest consume your land.'
           selected-lore:
-            - '<dark_red>Click to change to this biome!'
+            - '<gray>A twisted jungle pulsing with crimson life.'
             - ' '
             - '<yellow>This is your current selection!'
         action:
@@ -94,11 +97,12 @@ biome:
         material: NETHERRACK
         biome: NETHER_WASTES
         display:
-          name: '<red>Nether Wastes'
+          name: '<gold>Nether Wastes'
           unselected-lore:
-            - '<dark_red>Click to change to this biome!'
+            - '<gray>The classic Nether — raw, endless, and untamed.'
+            - '<dark_red>Click to return to the roots of Hellblock.'
           selected-lore:
-            - '<dark_red>Click to change to this biome!'
+            - '<gray>The classic Nether — raw, endless, and untamed.'
             - ' '
             - '<yellow>This is your current selection!'
         action:
@@ -117,11 +121,12 @@ biome:
         material: NETHERITE_BLOCK
         biome: BASALT_DELTAS
         display:
-          name: '<red>Basalt Deltas'
+          name: '<dark_gray>Basalt Deltas'
           unselected-lore:
-            - '<dark_red>Click to change to this biome!'
+            - '<gray>Volcanic chaos where the ground forever smolders.'
+            - '<dark_red>Click to forge your island in molten stone.'
           selected-lore:
-            - '<dark_red>Click to change to this biome!'
+            - '<gray>Volcanic chaos where the ground forever smolders.'
             - ' '
             - '<yellow>This is your current selection!'
         action:
@@ -140,11 +145,12 @@ biome:
         material: NETHER_BRICK
         biome: NETHER_FORTRESS
         display:
-          name: '<red>Nether Fortress'
+          name: '<dark_red>Nether Fortress'
           unselected-lore:
-            - '<dark_red>Click to change to this biome!'
+            - '<gray>Ancient stronghold of blazes and forgotten power.'
+            - '<dark_red>Click to claim this fortress as your home.'
           selected-lore:
-            - '<dark_red>Click to change to this biome!'
+            - '<gray>Ancient stronghold of blazes and forgotten power.'
             - ' '
             - '<yellow>This is your current selection!'
         action:

@@ -927,10 +927,12 @@ public interface MessageConstants {
 	TranslatableComponent.Builder CHAT_PARTY = Component.translatable().key("chat.party");
 
 	// Time formats
+	TranslatableComponent.Builder FORMAT_RECENT = Component.translatable().key("format.recent");
 	TranslatableComponent.Builder FORMAT_SECOND = Component.translatable().key("format.second");
 	TranslatableComponent.Builder FORMAT_MINUTE = Component.translatable().key("format.minute");
 	TranslatableComponent.Builder FORMAT_HOUR = Component.translatable().key("format.hour");
 	TranslatableComponent.Builder FORMAT_DAY = Component.translatable().key("format.day");
+	TranslatableComponent.Builder FORMAT_AGO = Component.translatable().key("format.ago");
 
 	// Reload command messages
 	TranslatableComponent.Builder COMMAND_RELOAD_SUCCESS = Component.translatable().key("command.reload.success");

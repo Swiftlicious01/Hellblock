@@ -131,6 +131,7 @@ public class HellblockGUI {
 		setIfAvailable(manager.visitSlot, manager.visitIcon);
 		setIfAvailable(manager.eventSlot, manager.eventIcon);
 		setIfAvailable(manager.notificationSlot, manager.notificationIcon);
+		setIfAvailable(manager.leaderboardSlot, manager.leaderboardIcon);
 
 		UUID ownerUUID = hellblockData.getOwnerUUID();
 		if (ownerUUID == null) {

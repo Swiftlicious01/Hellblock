@@ -1,7 +1,7 @@
 invitation:
   gui:
     # The title for the invite menu
-    title: '<center><gradient:#A52A2A:#800000:#A52A2A>Hellblock Invitations</gradient>'
+    title: '<gold>Enter Player Name to Invite'
     # The layout for the invite menu
     # This layout is for the player's actual inventory. Do not edit this to be anything but 4x9 rows.
     layout:
@@ -15,14 +15,17 @@ invitation:
     search-icon:
       material: NAME_TAG
       display:
-        name: '<Type Name Here>'
+        name: '<italic><Type player name here...>'
       components:
         minecraft:hide_additional_tooltip: {}
     # No player found icon
     player-not-found-icon:
       material: BARRIER
       display:
-        name: '<red>No Player Found'
+        name: '<dark_red>No Player Found'
+        lore:
+          - '<gray>Couldn’t locate anyone by that name.'
+          - '<aqua>Double-check spelling and try again.'
       action:
         sound_action:
           type: sound
@@ -39,7 +42,8 @@ invitation:
       display:
         name: '<green>{player}'
         lore:
-          - '<dark_green>Click to send invite!'
+          - '<gray>A worthy recruit has been found!'
+          - '<dark_green>Click to send them an invitation.'
       action:
         sound_action:
           type: sound
@@ -57,7 +61,8 @@ invitation:
       display:
         name: '<yellow>{player}'
         lore:
-          - '<gold>Click to invite them!'
+          - '<gray>Invite this adventurer to your Hellblock.' 
+          - '<gold>Click to send an invitation!'
       action:
         sound_action:
           type: sound

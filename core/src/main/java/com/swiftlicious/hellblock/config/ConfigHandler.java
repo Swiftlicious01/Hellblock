@@ -117,6 +117,7 @@ public abstract class ConfigHandler implements ConfigLoader, Reloadable {
 
 	protected boolean worldguardProtect;
 	protected boolean disableGenerationAnimation;
+	protected boolean disableForcedIslandDecision;
 	protected boolean perPlayerWorlds;
 	protected boolean transferIslands;
 	protected boolean linkHellblocks;
@@ -233,6 +234,10 @@ public abstract class ConfigHandler implements ConfigLoader, Reloadable {
 
 	public boolean disableGenerationAnimation() {
 		return disableGenerationAnimation;
+	}
+	
+	public boolean disableForcedIslandDecision() {
+		return disableForcedIslandDecision;
 	}
 
 	public boolean voidTeleport() {

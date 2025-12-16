@@ -85,6 +85,9 @@ hellblock:
   # Whether or not the generation animation is disabled when creating a new hellblock.
   # Only set to true if you find the animation annoying as it is pretty quick anyway.
   disable-generation-animation: false
+  # Whether or not players are allowed to close the GUI menu when picking an island type.
+  # If this is set to true it will allow them to close it if not it will force them to pick not being able to close the menu.
+  disable-force-island-decision: false
   # If the above setting is true this is the command whitelist that can be used during the generation process. 
   # Generally don't allow any commands involving movement or teleportation.
   # You can edit the list as you wish this is just a few starters.

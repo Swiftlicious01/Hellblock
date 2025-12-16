@@ -101,6 +101,10 @@ public abstract class PaginatedGUI<T extends BaseGUIElement> {
 
 	protected abstract int getRightIconSlot();
 
+	public int getCurrentPage() {
+		return currentPage;
+	}
+
 	public int getPageCount() {
 		return pages.size();
 	}

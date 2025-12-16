@@ -113,12 +113,12 @@ public class ChallengesGUIManager implements ChallengesGUIManagerInterface, List
 						int pageIndex = Integer.parseInt(entry.getKey());
 						List<String> layoutLines = pageSection.getStringList("layout", new ArrayList<>());
 						pageLayouts.put(pageIndex - 1, layoutLines.toArray(new String[0]));
-						
+
 						// Optional per-page title
 						if (pageSection.contains("title")) {
 							pageTitles.put(pageIndex - 1, TextValue.auto(pageSection.getString("title")));
 						}
-						
+
 					} catch (NumberFormatException e) {
 						instance.getPluginLogger().severe("Invalid page number: " + entry.getKey());
 					}
@@ -432,5 +432,16 @@ public class ChallengesGUIManager implements ChallengesGUIManagerInterface, List
 			gui.hellblockData.updateLastIslandActivity();
 		}
 		instance.getScheduler().sync().runLater(gui::refresh, 1, player.getLocation());
+	}
+
+	public boolean hasPageLayouts() {
+		return !this.pageLayouts.isEmpty();
+	}
+
+	public String[][] getActiveLayouts() {
+		if (this.pageLayouts.isEmpty()) {
+			return new String[][] { this.layout }; // single layout wrapped in 2D array
+		}
+		return this.pageLayouts.values().toArray(new String[0][]); // multi-page layouts
 	}
 }

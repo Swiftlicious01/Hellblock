@@ -117,7 +117,10 @@ public class ArmorStandInstance implements FakeArmorStand {
 	}
 
 	@Override
-	public void teleport(Location newLocation, Player player) {
+	public void teleport(Player player, Location newLocation) {
+		if (isDestroyed || player == null || !player.isOnline())
+			return;
+
 		double dx = newLocation.getX() - this.location.getX();
 		double dy = newLocation.getY() - this.location.getY();
 		double dz = newLocation.getZ() - this.location.getZ();
@@ -135,6 +138,42 @@ public class ArmorStandInstance implements FakeArmorStand {
 		ClientboundMoveEntityPacket.PosRot packet = new ClientboundMoveEntityPacket.PosRot(entityID,
 				(short) (dx * 4096), (short) (dy * 4096), (short) (dz * 4096), yaw, pitch, false);
 		serverPlayer.connection.send(packet);
+	}
+
+	@Override
+	public void moveSmoothly(Player player, Location newLocation, double speedMultiplier) {
+		if (isDestroyed || player == null || !player.isOnline())
+			return;
+
+		double dx = newLocation.getX() - this.location.getX();
+		double dy = newLocation.getY() - this.location.getY();
+		double dz = newLocation.getZ() - this.location.getZ();
+
+		// Update local location reference
+		this.location.setX(newLocation.getX());
+		this.location.setY(newLocation.getY());
+		this.location.setZ(newLocation.getZ());
+		this.location.setYaw(newLocation.getYaw());
+		this.location.setPitch(newLocation.getPitch());
+
+		// Send velocity packet instead of teleport
+		Vec3 velocity = new Vec3(dx * speedMultiplier, dy * speedMultiplier, dz * speedMultiplier);
+
+		ServerPlayer serverPlayer = ((CraftPlayer) player).getHandle();
+		ClientboundSetEntityMotionPacket packet = new ClientboundSetEntityMotionPacket(entityID, velocity);
+		serverPlayer.connection.send(packet);
+	}
+
+	@Override
+	public void moveAdaptive(Player player, Location newLocation) {
+		double distance = newLocation.distance(this.location);
+		if (distance > 10) {
+			// Big jump — use teleport (e.g., chunk load)
+			teleport(player, newLocation);
+		} else {
+			// Small step — smooth velocity
+			moveSmoothly(player, newLocation, 0.15);
+		}
 	}
 
 	@Override
@@ -213,8 +252,8 @@ public class ArmorStandInstance implements FakeArmorStand {
 		ServerPlayer serverPlayer = ((CraftPlayer) player).getHandle();
 		if (armorStand == null)
 			return; // safety
-	    armorStand.setId(entityID); // ensure synced
-	    armorStand.setUUID(uuid);
+		armorStand.setId(entityID); // ensure synced
+		armorStand.setUUID(uuid);
 		ClientboundSetCameraPacket packet = new ClientboundSetCameraPacket(armorStand);
 		serverPlayer.connection.send(packet);
 	}

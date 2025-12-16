@@ -189,7 +189,7 @@ public class InviteGUI {
 
 		// Save off-hand
 		final ItemStack offHand = inv.getItemInOffHand();
-		if (offHand != null && offHand.getType() != Material.AIR) {
+		if (offHand.getType() != Material.AIR) {
 			this.savedOffHand = offHand.clone();
 		}
 

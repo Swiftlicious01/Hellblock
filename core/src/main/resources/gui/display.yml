@@ -1,7 +1,7 @@
 display:
   gui:
     # The title for the display settings menu
-    title: '<center><gradient:#A52A2A:#800000:#A52A2A>Hellblock Display Settings</gradient>'
+    title: '<center><gradient:#FF6347:#FF4500:#B22222>Display Options</gradient>'
     # The layout for the display settings menu
     layout:
       - 'AAAAAAAAA'
@@ -28,17 +28,19 @@ display:
       symbol: 'N'
       material: COMPASS
       anvil-settings: 
-        title: '<dark_red>Enter Island Name'
+        title: '<dark_purple>Enter Island Name'
         empty: '<red>Name cannot be empty.'
         invalid: '<red>Name must contain letters or numbers.'
         length: '<red>Too long. Max: {length} characters.'
         banned: '<red>Banned: {banned}'
         unchanged: '<red>Unchanged.'
       display:
-        name: '<green>Island Name'
+        name: '<gold>Rename Your Island'
         lore:
-          - '<yellow>Click to change your island name!'
-          - '<gold>Current Island Name:'
+          - '<gray>Give your island a new identity.'
+          - '<aqua>Click to set a fresh name.'
+          - ' '
+          - '<gold>Current Name:'
           - '{current_name}'
       action:
         sound_action:
@@ -55,7 +57,7 @@ display:
       symbol: 'B'
       material: FEATHER
       anvil-settings:
-        title: '<dark_red>Enter Island Bio'
+        title: '<gold>Enter Island Bio'
         lines: '<red>Too many lines. Max: {lines}'
         empty: '<red>Cannot be empty or formatting only.'
         color-codes: '<red>Too much color formatting.'
@@ -63,10 +65,12 @@ display:
         banned: '<red>Banned: {banned}'
         unchanged: '<red>Unchanged.'
       display:
-        name: '<green>Island Bio'
+        name: '<green>Edit Island Bio'
         lore:
-          - '<yellow>Click to change your island bio!'
-          - '<gold>Current Island Bio:'
+          - '<gray>Describe your island’s story or purpose.'
+          - '<aqua>Click to change your island bio.'
+          - ' '
+          - '<gold>Current Bio:'
           - '{current_bio}'
       action:
         sound_action:
@@ -83,10 +87,12 @@ display:
       symbol: 'T'
       material: BLAZE_POWDER
       display:
-        name: '<green>Display Viewing Option'
+        name: '<light_purple>Change Display Mode'
         lore:
-          - '<yellow>Click to switch to <gold><bold>{setting}'
-          - '<gold>Current Selection: <yellow><bold>{current_setting}'
+          - '<gray>Switch how your island is presented.'
+          - '<aqua>Click to switch to:</aqua> <gold><bold>{setting}'
+          - ' '
+          - '<gold>Current Mode:</gold> <yellow><bold>{current_setting}'
       action:
         sound_action:
           type: sound
