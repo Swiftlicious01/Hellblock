@@ -441,7 +441,6 @@ public final class ConfigManager extends ConfigHandler {
 
 		dataSaveInterval = config.getInt("other-settings.data-saving-interval", 600);
 		logDataSaving = config.getBoolean("other-settings.log-data-saving", true);
-		lockData = config.getBoolean("other-settings.lock-data", true);
 
 		durabilityLore = new ArrayList<>(
 				config.getStringList("other-settings.custom-durability-format", new ArrayList<>()).stream()

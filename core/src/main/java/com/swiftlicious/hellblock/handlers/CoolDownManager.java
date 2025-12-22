@@ -1,12 +1,16 @@
 package com.swiftlicious.hellblock.handlers;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 
 import org.bukkit.Bukkit;
@@ -58,54 +62,72 @@ public class CoolDownManager implements Listener, Reloadable {
 		lastActivityUpdate.entrySet().removeIf(entry -> now - entry.getValue() > 60_000); // 1 minute old
 	}
 
-	public void startCountdowns() {
+	public CompletableFuture<Void> startCountdowns() {
 		final Set<UUID> allUsers = instance.getStorageManager().getDataSource().getUniqueUsers();
 		if (allUsers.isEmpty()) {
-			return;
+			return CompletableFuture.completedFuture(null);
 		}
+
+		Executor syncExecutor = runnable -> instance.getScheduler().executeSync(runnable);
+		List<CompletableFuture<Void>> tasks = new ArrayList<>();
+
 		for (UUID playerId : allUsers) {
-			instance.getStorageManager().getCachedUserDataWithFallback(playerId, false).thenAccept(userOpt -> {
-				if (userOpt.isEmpty())
-					return;
+			CompletableFuture<Void> task = instance.getStorageManager().getCachedUserDataWithFallback(playerId, true)
+					.thenCompose(optData -> {
+						if (optData.isEmpty()) {
+							return CompletableFuture.<Void>completedFuture(null);
+						}
 
-				final UserData user = userOpt.get();
-				final HellblockData data = user.getHellblockData();
+						final UserData userData = optData.get();
+						final HellblockData data = userData.getHellblockData();
+						boolean shouldUpdate = false;
 
-				// Skip if there's nothing to update
-				boolean shouldUpdate = false;
+						if (data.getOwnerUUID() != null && data.getOwnerUUID().equals(playerId)) {
+							if (data.getResetCooldown() > 0 || data.getBiomeCooldown() > 0
+									|| data.getTransferCooldown() > 0) {
+								shouldUpdate = true;
+							}
+						}
 
-				if (data.getOwnerUUID() != null && data.getOwnerUUID().equals(playerId)) {
-					if (data.getResetCooldown() > 0 || data.getBiomeCooldown() > 0 || data.getTransferCooldown() > 0) {
-						shouldUpdate = true;
-					}
-				}
+						Map<UUID, Long> invites = data.getInvitations();
+						if (invites != null && !invites.isEmpty()) {
+							shouldUpdate = true;
+						}
 
-				Map<UUID, Long> invites = data.getInvitations();
-				if (invites != null && !invites.isEmpty()) {
-					shouldUpdate = true;
-				}
+						CompletableFuture<Void> cooldownUpdate;
+						if (shouldUpdate) {
+							cooldownUpdate = CompletableFuture.runAsync(() -> {
+								if (data.getOwnerUUID() != null && data.isOwner(playerId)) {
+									if (data.getResetCooldown() > 0)
+										data.setResetCooldown(data.getResetCooldown() - 1);
+									if (data.getBiomeCooldown() > 0)
+										data.setBiomeCooldown(data.getBiomeCooldown() - 1);
+									if (data.getTransferCooldown() > 0)
+										data.setTransferCooldown(data.getTransferCooldown() - 1);
+								}
 
-				if (!shouldUpdate)
-					return;
+								if (invites != null && !invites.isEmpty()) {
+									invites.replaceAll((key, value) -> value - 1);
+									invites.entrySet().removeIf(e -> e.getValue() <= 0);
+								}
+							}, syncExecutor);
+						} else {
+							cooldownUpdate = CompletableFuture.completedFuture(null);
+						}
 
-				// Run cooldown decrement on main thread
-				instance.getScheduler().executeSync(() -> {
-					if (data.getOwnerUUID() != null && data.getOwnerUUID().equals(playerId)) {
-						if (data.getResetCooldown() > 0)
-							data.setResetCooldown(data.getResetCooldown() - 1);
-						if (data.getBiomeCooldown() > 0)
-							data.setBiomeCooldown(data.getBiomeCooldown() - 1);
-						if (data.getTransferCooldown() > 0)
-							data.setTransferCooldown(data.getTransferCooldown() - 1);
-					}
+						return cooldownUpdate.exceptionally(ex -> {
+							instance.getPluginLogger().warn("Error while updating cooldowns for " + playerId, ex);
+							return null;
+						}).thenCompose(v -> instance.getStorageManager().unlockUserData(playerId).thenApply(x -> null));
+					}).exceptionally(ex -> {
+						instance.getPluginLogger().warn("Error while ticking cooldowns for " + playerId, ex);
+						return null;
+					});
 
-					if (invites != null && !invites.isEmpty()) {
-						invites.replaceAll((key, value) -> value - 1);
-						invites.entrySet().removeIf(e -> e.getValue() <= 0);
-					}
-				});
-			});
+			tasks.add(task);
 		}
+
+		return CompletableFuture.allOf(tasks.toArray(CompletableFuture[]::new));
 	}
 
 	public void stopCooldowns() {
@@ -135,7 +157,12 @@ public class CoolDownManager implements Listener, Reloadable {
 	@Override
 	public void load() {
 		Bukkit.getPluginManager().registerEvents(this, instance);
-		cooldownTask = instance.getScheduler().asyncRepeating(this::startCountdowns, 0, 1, TimeUnit.SECONDS);
+		cooldownTask = instance.getScheduler().asyncRepeating(() -> {
+			startCountdowns().exceptionally(ex -> {
+				instance.getPluginLogger().warn("Cooldown tick failed", ex);
+				return null;
+			});
+		}, 0, 1, TimeUnit.SECONDS);
 		cleanupTask = instance.getScheduler().asyncRepeating(this::cleanupCooldowns, 0, 3, TimeUnit.MINUTES);
 	}
 

@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
 
@@ -45,6 +46,7 @@ import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.persistence.PersistentDataType;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.api.Reloadable;
@@ -58,6 +60,7 @@ import com.swiftlicious.hellblock.utils.DamageUtil;
 import com.swiftlicious.hellblock.utils.EntityTypeUtils;
 import com.swiftlicious.hellblock.utils.ParticleUtils;
 import com.swiftlicious.hellblock.utils.RandomUtils;
+import com.swiftlicious.hellblock.world.Pos3;
 
 /**
  * GolemHandler — spawns Hell Golems and runs their targeting + damage logic.
@@ -97,7 +100,8 @@ public class GolemHandler implements Listener, Reloadable {
 		golemAuraTasks.clear();
 	}
 
-	private @NotNull List<Block> checkHellGolemBuild(@NotNull Location location) {
+	@NotNull
+	private List<Block> checkHellGolemBuild(@NotNull Location location) {
 		final World world = location.getWorld();
 		if (world == null || !instance.getHellblockHandler().isInCorrectWorld(world)) {
 			return List.of();
@@ -207,147 +211,154 @@ public class GolemHandler implements Listener, Reloadable {
 		return result;
 	}
 
-	private boolean isFire(Material type) {
+	private boolean isFire(@NotNull Material type) {
 		return type == Material.FIRE || type == Material.SOUL_FIRE;
 	}
 
-	private boolean matchesPattern1(Block base) {
+	private boolean matchesPattern1(@NotNull Block base) {
 		return base.getType() == Material.JACK_O_LANTERN
 				&& base.getRelative(BlockFace.DOWN).getType() == Material.SOUL_SOIL
 				&& base.getRelative(BlockFace.DOWN, 2).getType() == Material.SOUL_SOIL
 				&& isFire(base.getRelative(BlockFace.UP).getType());
 	}
 
-	private boolean matchesPattern2(Block base) {
+	private boolean matchesPattern2(@NotNull Block base) {
 		return isFire(base.getType()) && base.getRelative(BlockFace.DOWN).getType() == Material.JACK_O_LANTERN
 				&& base.getRelative(BlockFace.DOWN, 2).getType() == Material.SOUL_SOIL
 				&& base.getRelative(BlockFace.DOWN, 3).getType() == Material.SOUL_SOIL;
 	}
 
-	private boolean matchesPattern3(Block base) {
+	private boolean matchesPattern3(@NotNull Block base) {
 		return base.getType() == Material.SOUL_SOIL && base.getRelative(BlockFace.DOWN).getType() == Material.SOUL_SOIL
 				&& base.getRelative(BlockFace.UP).getType() == Material.JACK_O_LANTERN
 				&& isFire(base.getRelative(BlockFace.UP, 2).getType());
 	}
 
-	private boolean matchesPattern4(Block base) {
+	private boolean matchesPattern4(@NotNull Block base) {
 		return base.getType() == Material.SOUL_SOIL && base.getRelative(BlockFace.UP).getType() == Material.SOUL_SOIL
 				&& base.getRelative(BlockFace.UP, 2).getType() == Material.JACK_O_LANTERN
 				&& isFire(base.getRelative(BlockFace.UP, 3).getType());
 	}
 
 	@SuppressWarnings("deprecation")
-	private void spawnHellGolem(@NotNull Player player, @NotNull UUID islandOwner, @NotNull Location location) {
+	@NotNull
+	private CompletableFuture<Boolean> spawnHellGolem(@NotNull Player player, @NotNull UUID ownerId,
+			@NotNull Location location) {
 		final World world = location.getWorld();
 		if (world == null || !instance.getHellblockHandler().isInCorrectWorld(world)) {
-			return;
+			return CompletableFuture.completedFuture(false);
 		}
 
 		final List<Block> structure = checkHellGolemBuild(location);
 		if (structure.isEmpty()) {
-			return;
+			return CompletableFuture.completedFuture(false);
 		}
 
-		instance.getStorageManager().getCachedUserDataWithFallback(islandOwner, instance.getConfigManager().lockData())
-				.thenAccept(optionalUser -> {
-					if (optionalUser.isEmpty()) {
-						return;
-					}
+		return instance.getStorageManager().getCachedUserDataWithFallback(ownerId, false).thenCompose(optData -> {
+			if (optData.isEmpty()) {
+				return CompletableFuture.completedFuture(false);
+			}
 
-					final UserData offlineUser = optionalUser.get();
-					if (offlineUser.getHellblockData()
-							.getProtectionValue(HellblockFlag.FlagType.MOB_SPAWNING) != AccessType.ALLOW) {
-						return;
-					}
+			final UserData ownerData = optData.get();
+			if (ownerData.getHellblockData()
+					.getProtectionValue(HellblockFlag.FlagType.MOB_SPAWNING) != AccessType.ALLOW) {
+				return CompletableFuture.completedFuture(false);
+			}
 
-					instance.getScheduler().executeSync(() -> {
-						// clear structure
-						structure.forEach(block -> block.setType(Material.AIR));
+			return instance.getScheduler().callSync(() -> {
+				try {
+					// clear structure
+					structure.forEach(block -> block.setType(Material.AIR));
 
-						// --- Summoning burst FX ---
-						final Location fxLoc = location.clone().add(0.5, 0, 0.5);
+					// --- Summoning burst FX ---
+					final Location fxLoc = location.clone().add(0.5, 0, 0.5);
 
-						// Big soul flames + smoke
-						world.spawnParticle(Particle.SOUL_FIRE_FLAME, fxLoc, 40, 1.5, 1.5, 1.5, 0.05);
-						world.spawnParticle(Particle.CAMPFIRE_COSY_SMOKE, fxLoc, 25, 1.2, 1.5, 1.2, 0.05);
+					// Big soul flames + smoke
+					world.spawnParticle(Particle.SOUL_FIRE_FLAME, fxLoc, 40, 1.5, 1.5, 1.5, 0.05);
+					world.spawnParticle(Particle.CAMPFIRE_COSY_SMOKE, fxLoc, 25, 1.2, 1.5, 1.2, 0.05);
 
-						// Sound burst (deep + fiery)
-						world.getNearbyEntities(fxLoc, 32, 32, 32, e -> e instanceof Player).stream()
-								.map(e -> (Player) e)
-								.forEach(p -> AdventureHelper.playSound(instance.getSenderFactory().getAudience(p),
-										net.kyori.adventure.sound.Sound.sound(
-												net.kyori.adventure.key.Key.key("minecraft:entity.blaze.shoot"),
-												net.kyori.adventure.sound.Sound.Source.HOSTILE, 1.5f, 0.6f)));
+					// Sound burst (deep + fiery)
+					world.getNearbyEntities(fxLoc, 32, 32, 32, e -> e instanceof Player).stream().map(e -> (Player) e)
+							.forEach(p -> AdventureHelper.playSound(instance.getSenderFactory().getAudience(p),
+									net.kyori.adventure.sound.Sound.sound(
+											net.kyori.adventure.key.Key.key("minecraft:entity.blaze.shoot"),
+											net.kyori.adventure.sound.Sound.Source.HOSTILE, 1.5f, 0.6f)));
 
-						world.getNearbyEntities(fxLoc, 32, 32, 32, e -> e instanceof Player).stream()
-								.map(e -> (Player) e)
-								.forEach(p -> AdventureHelper.playSound(instance.getSenderFactory().getAudience(p),
-										net.kyori.adventure.sound.Sound.sound(
-												net.kyori.adventure.key.Key.key("minecraft:block.fire.extinguish"),
-												net.kyori.adventure.sound.Sound.Source.BLOCK, 0.8f, 0.9f)));
+					world.getNearbyEntities(fxLoc, 32, 32, 32, e -> e instanceof Player).stream().map(e -> (Player) e)
+							.forEach(p -> AdventureHelper.playSound(instance.getSenderFactory().getAudience(p),
+									net.kyori.adventure.sound.Sound.sound(
+											net.kyori.adventure.key.Key.key("minecraft:block.fire.extinguish"),
+											net.kyori.adventure.sound.Sound.Source.BLOCK, 0.8f, 0.9f)));
 
-						// spawn hell golem
-						final Snowman hellGolem = (Snowman) world.spawnEntity(location,
-								EntityTypeUtils.getCompatibleEntityType("SNOW_GOLEM", "SNOWMAN"));
-						hellGolem.setAware(true);
-						hellGolem.setDerp(false);
-						hellGolem.setVisualFire(true);
-						hellGolem.getPersistentDataContainer().set(hellGolemKey, PersistentDataType.STRING,
-								HELLGOLEM_KEY);
+					// spawn hell golem
+					final Snowman hellGolem = (Snowman) world.spawnEntity(location,
+							EntityTypeUtils.getCompatibleEntityType("SNOW_GOLEM", "SNOWMAN"));
+					hellGolem.setAware(true);
+					hellGolem.setDerp(false);
+					hellGolem.setVisualFire(true);
+					hellGolem.getPersistentDataContainer().set(hellGolemKey, PersistentDataType.STRING, HELLGOLEM_KEY);
 
-						// --- Permanent aura FX ---
-						final SchedulerTask auraTask = instance.getScheduler().sync().runRepeating(() -> {
-							if (hellGolem.isDead() || !hellGolem.isValid()) {
-								stopHellGolemAura(hellGolem.getUniqueId());
-								return;
+					// --- Permanent aura FX ---
+					final SchedulerTask auraTask = instance.getScheduler().sync().runRepeating(() -> {
+						if (hellGolem.isDead() || !hellGolem.isValid()) {
+							stopHellGolemAura(hellGolem.getUniqueId());
+							return;
+						}
+						final Location auraLoc = hellGolem.getLocation().clone().add(0, 1, 0);
+						world.spawnParticle(Particle.SOUL_FIRE_FLAME, auraLoc, 2, 0.2, 0.3, 0.2, 0.01);
+						world.spawnParticle(ParticleUtils.getParticle("SCULK_SOUL"), auraLoc, 1, 0.2, 0.3, 0.2, 0.01);
+					}, 0L, 10L, hellGolem.getLocation()); // every 0.5s
+
+					golemAuraTasks.put(hellGolem.getUniqueId(), auraTask);
+
+					// --- Aura FX on spawn ---
+					final Location golemLoc = hellGolem.getLocation().clone().add(0, 1, 0);
+
+					// Initial flash
+					world.spawnParticle(Particle.SOUL_FIRE_FLAME, golemLoc, 30, 0.6, 1.0, 0.6, 0.05);
+					world.spawnParticle(ParticleUtils.getParticle("SCULK_SOUL"), golemLoc, 12, 0.4, 0.8, 0.4, 0.05);
+					world.spawnParticle(ParticleUtils.getParticle("SMOKE_LARGE"), golemLoc, 15, 0.6, 0.8, 0.6, 0.02);
+
+					// Summoning hum sound
+					world.getNearbyEntities(golemLoc, 32, 32, 32, e -> e instanceof Player).stream()
+							.map(e -> (Player) e)
+							.forEach(p -> AdventureHelper.playSound(instance.getSenderFactory().getAudience(p),
+									net.kyori.adventure.sound.Sound.sound(
+											net.kyori.adventure.key.Key.key("minecraft:block.beacon.activate"),
+											net.kyori.adventure.sound.Sound.Source.BLOCK, 1.2f, 0.7f)));
+
+					// Lingering aura for ~2 seconds
+					instance.getScheduler().sync().runRepeating(new Runnable() {
+						int ticks = 0;
+
+						@Override
+						public void run() {
+							if (hellGolem.isDead() || !hellGolem.isValid() || ticks > 40) {
+								return; // stop aura after 2s
 							}
 							final Location auraLoc = hellGolem.getLocation().clone().add(0, 1, 0);
-							world.spawnParticle(Particle.SOUL_FIRE_FLAME, auraLoc, 2, 0.2, 0.3, 0.2, 0.01);
-							world.spawnParticle(ParticleUtils.getParticle("SCULK_SOUL"), auraLoc, 1, 0.2, 0.3, 0.2,
-									0.01);
-						}, 0L, 10L, hellGolem.getLocation()); // every 0.5s
+							world.spawnParticle(Particle.SOUL_FIRE_FLAME, auraLoc, 6, 0.3, 0.5, 0.3, 0.01);
+							ticks += 5;
+						}
+					}, 0L, 5L, hellGolem.getLocation());
 
-						golemAuraTasks.put(hellGolem.getUniqueId(), auraTask);
-
-						// --- Aura FX on spawn ---
-						final Location golemLoc = hellGolem.getLocation().clone().add(0, 1, 0);
-
-						// Initial flash
-						world.spawnParticle(Particle.SOUL_FIRE_FLAME, golemLoc, 30, 0.6, 1.0, 0.6, 0.05);
-						world.spawnParticle(ParticleUtils.getParticle("SCULK_SOUL"), golemLoc, 12, 0.4, 0.8, 0.4, 0.05);
-						world.spawnParticle(ParticleUtils.getParticle("SMOKE_LARGE"), golemLoc, 15, 0.6, 0.8, 0.6,
-								0.02);
-
-						// Summoning hum sound
-						world.getNearbyEntities(golemLoc, 32, 32, 32, e -> e instanceof Player).stream()
-								.map(e -> (Player) e)
-								.forEach(p -> AdventureHelper.playSound(instance.getSenderFactory().getAudience(p),
-										net.kyori.adventure.sound.Sound.sound(
-												net.kyori.adventure.key.Key.key("minecraft:block.beacon.activate"),
-												net.kyori.adventure.sound.Sound.Source.BLOCK, 1.2f, 0.7f)));
-
-						// Lingering aura for ~2 seconds
-						instance.getScheduler().sync().runRepeating(new Runnable() {
-							int ticks = 0;
-
-							@Override
-							public void run() {
-								if (hellGolem.isDead() || !hellGolem.isValid() || ticks > 40) {
-									return; // stop aura after 2s
-								}
-								final Location auraLoc = hellGolem.getLocation().clone().add(0, 1, 0);
-								world.spawnParticle(Particle.SOUL_FIRE_FLAME, auraLoc, 6, 0.3, 0.5, 0.3, 0.01);
-								ticks += 5;
-							}
-						}, 0L, 5L, hellGolem.getLocation());
-
-						// start AI targeting loop and track the task for cancellation
-						startHellGolemTargeting(hellGolem);
-					});
-				});
+					// start AI targeting loop and track the task for cancellation
+					return CompletableFuture.completedFuture(startHellGolemTargeting(hellGolem) != null);
+				} catch (Exception ex) {
+					instance.getPluginLogger().warn("Failed to spawn Hell Golem at location: " + Pos3.from(location),
+							ex);
+					return CompletableFuture.completedFuture(false);
+				}
+			});
+		}).exceptionally(ex -> {
+			instance.getPluginLogger().warn("spawnHellGolem: Unexpected failure at location " + Pos3.from(location),
+					ex);
+			return false;
+		});
 	}
 
-	private void startHellGolemTargeting(@NotNull Snowman golem) {
+	@Nullable
+	private SchedulerTask startHellGolemTargeting(@NotNull Snowman golem) {
 		stopHellGolemTargeting(golem.getUniqueId());
 
 		final long initialDelay = RandomUtils.generateRandomInt(0, 20);
@@ -400,7 +411,7 @@ public class GolemHandler implements Listener, Reloadable {
 			}
 		}, initialDelay, 20L, golem.getLocation()); // runs every second
 
-		golemTargetTasks.put(golem.getUniqueId(), task);
+		return golemTargetTasks.put(golem.getUniqueId(), task);
 	}
 
 	private void stopHellGolemTargeting(@NotNull UUID golemId) {
@@ -445,6 +456,7 @@ public class GolemHandler implements Listener, Reloadable {
 		return entity instanceof Monster ? 6 : Integer.MAX_VALUE;
 	}
 
+	@Nullable
 	private LivingEntity pickRandomBestTarget(@NotNull List<LivingEntity> nearby) {
 		// Group entities by priority
 		final Map<Integer, List<LivingEntity>> grouped = new HashMap<>();
@@ -470,9 +482,9 @@ public class GolemHandler implements Listener, Reloadable {
 		return RandomUtils.getRandomElement(bestGroup);
 	}
 
-	public boolean isHellGolem(@NotNull Snowman sm) {
-		return sm.getPersistentDataContainer().has(hellGolemKey, PersistentDataType.STRING)
-				&& HELLGOLEM_KEY.equals(sm.getPersistentDataContainer().get(hellGolemKey, PersistentDataType.STRING));
+	public boolean isHellGolem(@NotNull Snowman golem) {
+		return golem.getPersistentDataContainer().has(hellGolemKey, PersistentDataType.STRING) && HELLGOLEM_KEY
+				.equals(golem.getPersistentDataContainer().get(hellGolemKey, PersistentDataType.STRING));
 	}
 
 	@EventHandler
@@ -485,10 +497,12 @@ public class GolemHandler implements Listener, Reloadable {
 		final Block block = event.getBlockPlaced();
 
 		if (!checkHellGolemBuild(block.getLocation()).isEmpty()) {
-			instance.getCoopManager().getHellblockOwnerOfVisitingIsland(player).thenAccept(ownerUUID -> {
-				if (ownerUUID != null) {
-					spawnHellGolem(player, ownerUUID, block.getLocation());
+			instance.getCoopManager().getHellblockOwnerOfVisitingIsland(player).thenApply(ownerUUID -> {
+				if (ownerUUID == null) {
+					return null;
 				}
+
+				return spawnHellGolem(player, ownerUUID, block.getLocation());
 			});
 		}
 	}
@@ -511,10 +525,12 @@ public class GolemHandler implements Listener, Reloadable {
 				final Player closest = instance.getNetherrackGeneratorHandler().getClosestPlayer(block.getLocation(),
 						playersNearby);
 				if (closest != null) {
-					instance.getCoopManager().getHellblockOwnerOfVisitingIsland(closest).thenAccept(ownerUUID -> {
-						if (ownerUUID != null) {
-							spawnHellGolem(closest, ownerUUID, block.getLocation());
+					instance.getCoopManager().getHellblockOwnerOfVisitingIsland(closest).thenApply(ownerUUID -> {
+						if (ownerUUID == null) {
+							return null;
 						}
+
+						return spawnHellGolem(closest, ownerUUID, block.getLocation());
 					});
 				}
 			}
@@ -540,10 +556,12 @@ public class GolemHandler implements Listener, Reloadable {
 			Player closest = instance.getNetherrackGeneratorHandler().getClosestPlayer(targetBlock.getLocation(),
 					nearby);
 			if (closest != null) {
-				instance.getCoopManager().getHellblockOwnerOfVisitingIsland(closest).thenAccept(ownerUUID -> {
-					if (ownerUUID != null) {
-						spawnHellGolem(closest, ownerUUID, targetBlock.getLocation());
+				instance.getCoopManager().getHellblockOwnerOfVisitingIsland(closest).thenApply(ownerUUID -> {
+					if (ownerUUID == null) {
+						return null;
 					}
+
+					return spawnHellGolem(closest, ownerUUID, targetBlock.getLocation());
 				});
 			}
 		}
@@ -567,10 +585,12 @@ public class GolemHandler implements Listener, Reloadable {
 		if (above.getType() == Material.FIRE) {
 			if (!checkHellGolemBuild(clicked.getLocation()).isEmpty()) {
 				Player player = event.getPlayer();
-				instance.getCoopManager().getHellblockOwnerOfVisitingIsland(player).thenAccept(ownerUUID -> {
-					if (ownerUUID != null) {
-						spawnHellGolem(player, ownerUUID, clicked.getLocation());
+				instance.getCoopManager().getHellblockOwnerOfVisitingIsland(player).thenApply(ownerUUID -> {
+					if (ownerUUID == null) {
+						return null;
 					}
+
+					return spawnHellGolem(player, ownerUUID, clicked.getLocation());
 				});
 			}
 		}
@@ -582,6 +602,7 @@ public class GolemHandler implements Listener, Reloadable {
 		if (!instance.getHellblockHandler().isInCorrectWorld(entity.getWorld())) {
 			return;
 		}
+
 		if (entity instanceof Snowman snowman && isHellGolem(snowman)) {
 			event.setCancelled(true);
 		}
@@ -593,6 +614,7 @@ public class GolemHandler implements Listener, Reloadable {
 		if (!instance.getHellblockHandler().isInCorrectWorld(entity.getWorld())) {
 			return;
 		}
+
 		if (entity instanceof Snowman snowman && isHellGolem(snowman)) {
 			if (DamageUtil.isFireDamage(event)) {
 				event.setCancelled(true);
@@ -752,6 +774,7 @@ public class GolemHandler implements Listener, Reloadable {
 			if (instance.getCooldownManager().shouldUpdateActivity(killer.getUniqueId(), 5000)) {
 				userData.getHellblockData().updateLastIslandActivity();
 			}
+
 			instance.getChallengeManager().handleChallengeProgression(userData, ActionType.SLAY, snowman);
 		});
 	}

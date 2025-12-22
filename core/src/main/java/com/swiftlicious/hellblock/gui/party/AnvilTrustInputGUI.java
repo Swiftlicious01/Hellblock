@@ -22,7 +22,7 @@ import com.swiftlicious.hellblock.gui.display.AbstractAnvilInputGUI;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.handlers.VersionHelper;
 import com.swiftlicious.hellblock.player.GameProfileBuilder;
-import com.swiftlicious.hellblock.player.HellblockData;
+import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.utils.LocationUtils;
 
 import dev.dejvokep.boostedyaml.block.implementation.Section;
@@ -32,7 +32,7 @@ import net.kyori.adventure.text.Component;
 public class AnvilTrustInputGUI extends AbstractAnvilInputGUI {
 
 	private final HellblockPlugin plugin;
-	private final HellblockData data;
+	private final UserData data;
 	private final Player opener;
 	private final Context<Integer> islandContext;
 	private final boolean isOwner;
@@ -43,7 +43,7 @@ public class AnvilTrustInputGUI extends AbstractAnvilInputGUI {
 	private long lastSkinFetch = 0L;
 	private static final long SKIN_FETCH_COOLDOWN = 20L * 2; // 2 seconds
 
-	public AnvilTrustInputGUI(HellblockPlugin plugin, Player player, Context<Integer> islandContext, HellblockData data,
+	public AnvilTrustInputGUI(HellblockPlugin plugin, Player player, Context<Integer> islandContext, UserData data,
 			boolean isOwner) {
 		super(plugin, player, plugin.getPartyGUIManager().trustIconSection.getSection("anvil-settings")
 				.getString("title", "<dark_green>Enter Player Name to Trust"), "");
@@ -119,16 +119,16 @@ public class AnvilTrustInputGUI extends AbstractAnvilInputGUI {
 			} else {
 				UUID targetUUID = target.getUniqueId();
 
-				if (data.getOwnerUUID().equals(targetUUID)) {
+				if (data.getHellblockData().getOwnerUUID().equals(targetUUID)) {
 					displayMsg = anvilSettings.getString("self", "<red>You cannot trust yourself.");
 					slot2Item = new ItemStack(Material.BARRIER);
-				} else if (data.getPartyMembers().contains(targetUUID)) {
+				} else if (data.getHellblockData().getPartyMembers().contains(targetUUID)) {
 					displayMsg = anvilSettings.getString("already-member", "<red>This player is a coop member.");
 					slot2Item = new ItemStack(Material.BARRIER);
-				} else if (data.getTrustedMembers().contains(targetUUID)) {
+				} else if (data.getHellblockData().getTrustedMembers().contains(targetUUID)) {
 					displayMsg = anvilSettings.getString("already-trusted", "<red>This player is already trusted.");
 					slot2Item = new ItemStack(Material.BARRIER);
-				} else if (data.getBannedMembers().contains(targetUUID)) {
+				} else if (data.getHellblockData().getBannedMembers().contains(targetUUID)) {
 					displayMsg = anvilSettings.getString("banned", "<red>This player is banned. Unban them first.");
 					slot2Item = new ItemStack(Material.BARRIER);
 				} else {
@@ -160,7 +160,8 @@ public class AnvilTrustInputGUI extends AbstractAnvilInputGUI {
 
 			if (slot2Item.getType() == Material.BARRIER) {
 				Item<ItemStack> errorItem = plugin.getItemManager().wrap(slot2Item);
-				errorItem.displayName(AdventureHelper.componentToJson(AdventureHelper.miniMessageToComponent(displayMsg)));
+				errorItem.displayName(
+						AdventureHelper.componentToJson(AdventureHelper.miniMessageToComponent(displayMsg)));
 				player.getOpenInventory().setItem(2, errorItem.loadCopy());
 			} else {
 				player.getOpenInventory().setItem(2, slot2Item);
@@ -193,36 +194,42 @@ public class AnvilTrustInputGUI extends AbstractAnvilInputGUI {
 
 		UUID targetUUID = target.getUniqueId();
 
-		if (data.getOwnerUUID().equals(targetUUID)) {
+		if (data.getHellblockData().getOwnerUUID().equals(targetUUID)) {
 			updateInputDisplay(anvilSettings.getString("self", "<red>You cannot trust yourself."));
 			return;
 		}
 
-		if (data.getPartyMembers().contains(targetUUID)) {
+		if (data.getHellblockData().getPartyMembers().contains(targetUUID)) {
 			updateInputDisplay(anvilSettings.getString("already-member", "<red>This player is a coop member."));
 			return;
 		}
 
-		if (data.getTrustedMembers().contains(targetUUID)) {
+		if (data.getHellblockData().getTrustedMembers().contains(targetUUID)) {
 			updateInputDisplay(anvilSettings.getString("already-trusted", "<red>This player is already trusted."));
 			return;
 		}
 
-		if (data.getBannedMembers().contains(targetUUID)) {
+		if (data.getHellblockData().getBannedMembers().contains(targetUUID)) {
 			updateInputDisplay(anvilSettings.getString("banned", "<red>This player is banned. Unban them first."));
 			return;
 		}
 
-		data.addTrustPermission(targetUUID);
+		plugin.getCoopManager().addTrustAccess(data, input, targetUUID).whenComplete((trusted, ex) -> {
+			if (ex != null) {
+				plugin.getPluginLogger().warn("addTrustAccess failed for " + input, ex);
+				return;
+			}
 
-		plugin.getScheduler().executeSync(() -> {
-			String successMessage = anvilSettings.getString("success", "<green>Successfully trusted {name}.")
-					.replace("{name}", name);
+			plugin.getScheduler().runSync(() -> {
+				String successMessage = anvilSettings.getString("success", "<green>Successfully trusted {name}.")
+						.replace("{name}", name);
 
-			plugin.getSenderFactory().wrap(opener).sendMessage(AdventureHelper.miniMessageToComponent(successMessage));
+				plugin.getSenderFactory().wrap(opener)
+						.sendMessage(AdventureHelper.miniMessageToComponent(successMessage));
 
-			Section guiConfig = plugin.getPartyGUIManager().trustedSection;
-			new TrustedMembersGUI(plugin, opener, islandContext, guiConfig, data, isOwner).open();
+				Section guiConfig = plugin.getPartyGUIManager().trustedSection;
+				new TrustedMembersGUI(plugin, opener, islandContext, guiConfig, data, isOwner).open();
+			});
 		});
 	}
 
@@ -266,7 +273,7 @@ public class AnvilTrustInputGUI extends AbstractAnvilInputGUI {
 			cancel();
 			onInput(plainInput);
 			if (plugin.getCooldownManager().shouldUpdateActivity(player.getUniqueId(), 15000)) {
-				data.updateLastIslandActivity();
+				data.getHellblockData().updateLastIslandActivity();
 			}
 		}
 	}
@@ -274,7 +281,7 @@ public class AnvilTrustInputGUI extends AbstractAnvilInputGUI {
 	@Override
 	protected void onCancel() {
 		plugin.getScheduler().executeSync(() -> {
-			List<UUID> trusted = new ArrayList<>(data.getTrustedMembers());
+			List<UUID> trusted = new ArrayList<>(data.getHellblockData().getTrustedMembers());
 
 			if (trusted.isEmpty()) {
 				plugin.getPartyGUIManager().openPartyGUI(opener, islandContext.holder(), isOwner);

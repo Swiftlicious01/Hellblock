@@ -425,8 +425,9 @@ public class SchematicGUIManager implements SchematicGUIManagerInterface, Listen
 						gui.isReset);
 				if (!opened) {
 					gui.context.remove(ContextKeys.HELLBLOCK_GUI_SWITCHING);
+				} else {
+					ActionManager.trigger(gui.context, backActions);
 				}
-				ActionManager.trigger(gui.context, backActions);
 				return;
 			}
 

@@ -158,14 +158,14 @@ public final class BorderHandler implements Reloadable {
 	 * @param playerId The UUID of the player for whom the border task should be
 	 *                 started. Must not be null.
 	 */
-	public void startBorderTask(@NotNull UUID playerId) {
+	public PlayerBorderTask startBorderTask(@NotNull UUID playerId) {
 		if (playerTasks.containsKey(playerId)) {
-			return; // already running
+			return playerTasks.get(playerId); // already running
 		}
 
 		final PlayerBorderTask task = new PlayerBorderTask(playerId);
 		task.start();
-		playerTasks.put(playerId, task);
+		return playerTasks.put(playerId, task);
 	}
 
 	/**
@@ -243,16 +243,16 @@ public final class BorderHandler implements Reloadable {
 		 * <p>
 		 * Prevents multiple starts by checking if the task is already running.
 		 */
-		public void start() {
+		public PlayerBorderTask start() {
 			// Prevent double-start
 			if (this.borderCheckTask != null)
-				return;
+				return playerTasks.get(playerId);
 
 			// Schedule repeating task first
 			this.borderCheckTask = instance.getScheduler().asyncRepeating(this, 0, 250, TimeUnit.MILLISECONDS);
 
 			// Only register the task *after* it’s actually scheduled
-			playerTasks.put(playerId, this);
+			return playerTasks.put(playerId, this);
 		}
 
 		/**
@@ -322,7 +322,7 @@ public final class BorderHandler implements Reloadable {
 		 * Cancels the scheduled task, clears any displayed border for the player, and
 		 * removes the player from the task tracking map.
 		 */
-		public void cancelBorderTask() {
+		public PlayerBorderTask cancelBorderTask() {
 			if (borderCheckTask != null && !borderCheckTask.isCancelled()) {
 				borderCheckTask.cancel();
 			}
@@ -332,7 +332,7 @@ public final class BorderHandler implements Reloadable {
 				clearPlayerBorder(player);
 			}
 
-			playerTasks.remove(playerId);
+			return playerTasks.remove(playerId);
 		}
 
 		/**
@@ -617,12 +617,8 @@ public final class BorderHandler implements Reloadable {
 	 * @param playerId  The UUID of the player.
 	 * @param animating True to mark as animating; false to clear animation state.
 	 */
-	public void setBorderExpanding(@NotNull UUID playerId, boolean animating) {
-		if (animating) {
-			playersWithActiveAnimation.add(playerId);
-		} else {
-			playersWithActiveAnimation.remove(playerId);
-		}
+	public boolean setBorderExpanding(@NotNull UUID playerId, boolean animating) {
+		return animating ? playersWithActiveAnimation.add(playerId) : playersWithActiveAnimation.remove(playerId);
 	}
 
 	/**

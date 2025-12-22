@@ -158,32 +158,29 @@ public class CoopOwnerCommand extends BukkitCommandFeature<CommandSender> {
 						return;
 					}
 					// Load target user data async
-					plugin.getStorageManager()
-							.getCachedUserDataWithFallback(targetId, plugin.getConfigManager().lockData())
-							.thenAccept(result -> {
-								if (result.isEmpty()) {
-									handleFeedback(context, MessageConstants.MSG_HELLBLOCK_PLAYER_DATA_FAILURE_LOAD,
-											AdventureHelper.miniMessageToComponent(targetName));
-									return;
-								}
+					plugin.getStorageManager().getCachedUserDataWithFallback(targetId, true).thenCompose(targetOpt -> {
+						if (targetOpt.isEmpty()) {
+							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_PLAYER_DATA_FAILURE_LOAD,
+									AdventureHelper.miniMessageToComponent(targetName));
+							return CompletableFuture.completedFuture(null);
+						}
 
-								final UserData targetUser = result.get();
+						final UserData targetUserData = targetOpt.get();
 
-								try {
-									// Perform ownership transfer synchronously
-									plugin.getCoopManager().transferOwnershipOfHellblock(currentOwner, targetUser,
-											false);
-								} catch (Exception ex) {
-									plugin.getPluginLogger().warn("transferOwnershipOfHellblock failed from "
-											+ player.getName() + " to " + targetName + ": " + ex.getMessage());
-									return;
-								}
-							}).exceptionally(ex -> {
-								plugin.getPluginLogger()
-										.warn("getCachedUserDataWithFallback failed for owner transfership of "
-												+ targetName + ": " + ex.getMessage());
-								return null;
-							});
+						return plugin.getCoopManager().transferOwnershipOfHellblock(currentOwner, targetUserData, false)
+								.handle((result, ex) -> {
+									if (ex != null) {
+										plugin.getPluginLogger().warn("transferOwnershipOfHellblock failed from "
+												+ player.getName() + " to " + targetName, ex);
+									}
+									return result;
+								}).thenCompose(__ -> plugin.getStorageManager().unlockUserData(targetId));
+					}).exceptionally(ex -> {
+						plugin.getPluginLogger().warn(
+								"getCachedUserDataWithFallback failed for ownership transfer of " + targetName, ex);
+						return null;
+					});
+
 				});
 	}
 

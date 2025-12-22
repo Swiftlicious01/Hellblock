@@ -9,6 +9,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Function;
 
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
@@ -94,8 +95,8 @@ public class HellblockBanCommand extends BukkitCommandFeature<CommandSender> {
 						return;
 					}
 
-					final UserData user = onlineUserOpt.get();
-					final HellblockData data = user.getHellblockData();
+					final UserData userData = onlineUserOpt.get();
+					final HellblockData data = userData.getHellblockData();
 
 					if (!data.hasHellblock()) {
 						handleFeedback(context, MessageConstants.MSG_HELLBLOCK_NOT_FOUND);
@@ -167,26 +168,25 @@ public class HellblockBanCommand extends BukkitCommandFeature<CommandSender> {
 					if (targetOnline != null) {
 						plugin.getCoopManager()
 								.isPlayerBannedInLocation(player.getUniqueId(), targetId, targetOnline.getLocation())
-								.thenAccept(status -> {
-									if (!status || (targetOnline.hasPermission("hellblock.admin")
+								.thenCompose(status -> {
+									if (!status || targetOnline.hasPermission("hellblock.admin")
 											|| targetOnline.hasPermission("hellblock.bypass.interact")
-											|| targetOnline.isOp())) {
-										return;
+											|| targetOnline.isOp()) {
+										return CompletableFuture.completedFuture(false);
 									}
 
 									final Optional<UserData> bannedPlayerOpt = plugin.getStorageManager()
 											.getOnlineUser(targetId);
-
 									if (bannedPlayerOpt.isEmpty()) {
 										handleFeedback(context, MessageConstants.MSG_HELLBLOCK_PLAYER_DATA_FAILURE_LOAD,
 												AdventureHelper.miniMessageToComponent(targetName));
-										return;
+										return CompletableFuture.completedFuture(false);
 									}
 
 									final UserData bannedPlayer = bannedPlayerOpt.get();
 									if (!bannedPlayer.getHellblockData().hasHellblock()) {
-										plugin.getHellblockHandler().teleportToSpawn(targetOnline, false);
-										return;
+										return CompletableFuture.completedFuture(
+												plugin.getHellblockHandler().teleportToSpawn(targetOnline, false));
 									}
 
 									final UUID bannedOwnerUUID = bannedPlayer.getHellblockData().getOwnerUUID();
@@ -195,45 +195,68 @@ public class HellblockBanCommand extends BukkitCommandFeature<CommandSender> {
 												.severe("Hellblock owner UUID was null for player "
 														+ bannedPlayer.getName() + " (" + bannedPlayer.getUUID()
 														+ "). This indicates corrupted data.");
-										throw new IllegalStateException(
-												"Owner reference was null. This should never happen — please report to the developer.");
+										return CompletableFuture.failedFuture(new IllegalStateException(
+												"Owner reference was null. This should never happen — please report to the developer."));
 									}
 
-									plugin.getStorageManager().getCachedUserDataWithFallback(bannedOwnerUUID,
-											plugin.getConfigManager().lockData()).thenAccept(ownerOpt -> {
-												if (ownerOpt.isEmpty()) {
-													final String username = Bukkit.getOfflinePlayer(bannedOwnerUUID)
-															.getName() != null
-																	? Bukkit.getOfflinePlayer(bannedOwnerUUID).getName()
-																	: plugin.getTranslationManager()
-																			.miniMessageTranslation(
-																					MessageConstants.FORMAT_UNKNOWN
-																							.build().key());
+									return plugin.getStorageManager()
+											.getCachedUserDataWithFallback(bannedOwnerUUID, true)
+											.thenCompose(optData -> {
+												if (optData.isEmpty()) {
+													final String username = Optional
+															.ofNullable(
+																	Bukkit.getOfflinePlayer(bannedOwnerUUID).getName())
+															.orElse(plugin.getTranslationManager()
+																	.miniMessageTranslation(
+																			MessageConstants.FORMAT_UNKNOWN.build()
+																					.key()));
+
 													handleFeedback(context,
 															MessageConstants.MSG_HELLBLOCK_OWNER_DATA_NOT_LOADED,
 															AdventureHelper.miniMessageToComponent(username));
-													return;
+													return CompletableFuture.completedFuture(false);
 												}
 
-												plugin.getCoopManager()
-														.makeHomeLocationSafe(ownerOpt.get(), bannedPlayer)
+												final UserData ownerBannedData = optData.get();
+
+												return plugin.getCoopManager()
+														.makeHomeLocationSafe(ownerBannedData, bannedPlayer)
+														.thenCompose(result -> {
+															switch (result) {
+															case ALREADY_SAFE:
+																return plugin.getHellblockHandler()
+																		.teleportPlayerToHome(bannedPlayer,
+																				ownerBannedData.getHellblockData()
+																						.getHomeLocation());
+															case FIXED_AND_TELEPORTED:
+																return CompletableFuture.completedFuture(true);
+															case FAILED_TO_FIX:
+																plugin.getPluginLogger().warn(
+																		"Failed to fix home location for banned player: "
+																				+ targetName + " (" + targetId + ")");
+																if (bannedPlayer.getPlayer() == null)
+																	return CompletableFuture.completedFuture(false);
+																return CompletableFuture.completedFuture(
+																		plugin.getHellblockHandler().teleportToSpawn(
+																				bannedPlayer.getPlayer(), true));
+															}
+															return CompletableFuture.completedFuture(false); // fallback
+														})
 														.thenRun(() -> handleFeedback(targetOnline,
 																MessageConstants.MSG_HELLBLOCK_BANNED_ENTRY))
-														.exceptionally(ex -> {
-															plugin.getPluginLogger().warn("Ban handling failed for "
-																	+ targetName + ": " + ex.getMessage());
-															return null;
-														});
-											}).exceptionally(ex -> {
-												plugin.getPluginLogger()
-														.warn("getCachedUserDataWithFallback failed for ban of "
-																+ player.getName() + ": " + ex.getMessage());
-												return null;
+														.handle((res, ex) -> {
+															if (ex != null) {
+																plugin.getPluginLogger().warn("Ban handling failed for "
+																		+ targetName + ": " + ex.getMessage(), ex);
+															}
+															return plugin.getStorageManager()
+																	.unlockUserData(bannedOwnerUUID);
+														}).thenCompose(Function.identity()).thenApply(x -> true);
 											});
 								}).exceptionally(ex -> {
 									plugin.getPluginLogger().warn("isPlayerBannedInLocation failed for " + targetName
-											+ ": " + ex.getMessage());
-									return null;
+											+ ": " + ex.getMessage(), ex);
+									return false;
 								});
 					}
 

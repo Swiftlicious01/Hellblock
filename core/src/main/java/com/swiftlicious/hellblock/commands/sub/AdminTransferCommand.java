@@ -1,7 +1,9 @@
 package com.swiftlicious.hellblock.commands.sub;
 
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -39,16 +41,21 @@ public class AdminTransferCommand extends BukkitCommandFeature<CommandSender> {
 						return CompletableFuture.completedFuture(Collections.emptyList());
 					}
 
-					final Set<UUID> allKnownUUIDs = plugin.getStorageManager().getDataSource().getUniqueUsers();
+					final String lowerInput = input.input().toLowerCase(Locale.ROOT);
+					final Set<UUID> allKnownUUIDs = new HashSet<>(
+							plugin.getStorageManager().getDataSource().getUniqueUsers());
 
-					final List<String> suggestions = allKnownUUIDs.stream()
+					final List<Suggestion> suggestions = allKnownUUIDs.stream()
 							.map(uuid -> plugin.getStorageManager().getCachedUserData(uuid)).filter(Optional::isPresent)
-							.map(Optional::get).filter(user -> {
-								final HellblockData data = user.getHellblockData();
-								return data.hasHellblock() && data.isOwner(user.getUUID());
-							}).map(UserData::getName).filter(Objects::nonNull).toList();
+							.map(Optional::get)
+							.filter(user -> user.getHellblockData().hasHellblock()
+									&& !user.getHellblockData().isAbandoned()
+									&& user.getHellblockData().isOwner(user.getUUID()))
+							.map(UserData::getName).filter(Objects::nonNull)
+							.filter(name -> name.toLowerCase(Locale.ROOT).startsWith(lowerInput))
+							.sorted(String.CASE_INSENSITIVE_ORDER).limit(64).map(Suggestion::suggestion).toList();
 
-					return CompletableFuture.completedFuture(suggestions.stream().map(Suggestion::suggestion).toList());
+					return CompletableFuture.completedFuture(suggestions);
 				})).required("newOwner", StringParser.stringComponent().suggestionProvider((context, input) -> {
 					if (!(context.sender() instanceof Player)) {
 						return CompletableFuture.completedFuture(Collections.emptyList());
@@ -87,12 +94,18 @@ public class AdminTransferCommand extends BukkitCommandFeature<CommandSender> {
 					final HellblockData data = currentOwnerOpt.get().getHellblockData();
 					final Set<UUID> partyMembers = data.getPartyMembers(); // Only members, not owner
 
-					// Add all cached users who are in the party
-					final List<String> suggestions = partyMembers.stream()
-							.map(uuid -> plugin.getStorageManager().getCachedUserData(uuid)).filter(Optional::isPresent)
-							.map(Optional::get).map(UserData::getName).filter(Objects::nonNull).toList();
+					final String lowerInput = input.input().toLowerCase(Locale.ROOT);
 
-					return CompletableFuture.completedFuture(suggestions.stream().map(Suggestion::suggestion).toList());
+					// Add all cached users who are in the party
+					final List<Suggestion> suggestions = partyMembers.stream()
+							.map(uuid -> plugin.getStorageManager().getCachedUserData(uuid)).filter(Optional::isPresent)
+							.map(Optional::get).filter(user -> user.getHellblockData().hasHellblock())
+							.map(UserData::getName).filter(Objects::nonNull)
+							.filter(name -> name.toLowerCase(Locale.ROOT).startsWith(lowerInput))
+							.sorted(String.CASE_INSENSITIVE_ORDER).limit(partyMembers.size())
+							.map(Suggestion::suggestion).toList();
+
+					return CompletableFuture.completedFuture(suggestions);
 				})).handler(context -> {
 					final String currentName = context.get("currentOwner");
 					final String newName = context.get("newOwner");
@@ -138,22 +151,22 @@ public class AdminTransferCommand extends BukkitCommandFeature<CommandSender> {
 					}
 
 					// Load current owner
-					plugin.getStorageManager().getCachedUserDataWithFallback(currentId, false)
-							.thenAccept(currentOpt -> {
+					plugin.getStorageManager().getCachedUserDataWithFallback(currentId, true)
+							.thenCompose(currentOpt -> {
 								if (currentOpt.isEmpty()) {
 									handleFeedback(context, MessageConstants.MSG_HELLBLOCK_PLAYER_DATA_FAILURE_LOAD,
 											AdventureHelper.miniMessageToComponent(currentName));
-									return;
+									return CompletableFuture.completedFuture(null);
 								}
 
 								// Load new owner
-								plugin.getStorageManager().getCachedUserDataWithFallback(newId, false)
-										.thenAccept(newOpt -> {
+								return plugin.getStorageManager().getCachedUserDataWithFallback(newId, true)
+										.thenCompose(newOpt -> {
 											if (newOpt.isEmpty()) {
 												handleFeedback(context,
 														MessageConstants.MSG_HELLBLOCK_PLAYER_DATA_FAILURE_LOAD,
 														AdventureHelper.miniMessageToComponent(newName));
-												return;
+												return CompletableFuture.completedFuture(null);
 											}
 
 											final UserData currentOwner = currentOpt.get();
@@ -161,55 +174,65 @@ public class AdminTransferCommand extends BukkitCommandFeature<CommandSender> {
 
 											if (!currentOwner.getHellblockData().hasHellblock()) {
 												handleFeedback(context, MessageConstants.MSG_HELLBLOCK_NOT_FOUND);
-												return;
+												return CompletableFuture.completedFuture(null);
 											}
 
 											if (currentOwner.getHellblockData().isAbandoned()) {
 												handleFeedback(context, MessageConstants.MSG_HELLBLOCK_IS_ABANDONED);
-												return;
+												return CompletableFuture.completedFuture(null);
 											}
 
 											if (!currentOwner.getHellblockData().getPartyMembers().contains(newId)) {
 												handleFeedback(context,
 														MessageConstants.MSG_HELLBLOCK_COOP_NOT_IN_PARTY);
-												return;
+												return CompletableFuture.completedFuture(null);
 											}
 
 											try {
 												// Perform transfer
-												plugin.getCoopManager().transferOwnershipOfHellblock(currentOwner,
-														newOwner, true);
+												return plugin.getCoopManager()
+														.transferOwnershipOfHellblock(currentOwner, newOwner, true)
+														.thenCompose(transferResult -> {
+															if (!transferResult) {
+																plugin.getPluginLogger().warn(
+																		"Admin force transfer did not succeed between currentOwner="
+																				+ currentName + " and newOwner="
+																				+ newName);
+																return CompletableFuture.completedFuture(null);
+															}
 
-												// Save changes
-												plugin.getStorageManager().saveUserData(currentOwner,
-														plugin.getConfigManager().lockData());
-												plugin.getStorageManager().saveUserData(newOwner,
-														plugin.getConfigManager().lockData());
+															// Feedback to executor
+															handleFeedback(context,
+																	MessageConstants.MSG_HELLBLOCK_ADMIN_TRANSFER_SUCCESS,
+																	AdventureHelper.miniMessageToComponent(currentName),
+																	AdventureHelper.miniMessageToComponent(newName));
 
-												// Feedback to executor
-												handleFeedback(context,
-														MessageConstants.MSG_HELLBLOCK_ADMIN_TRANSFER_SUCCESS,
-														AdventureHelper.miniMessageToComponent(currentName),
-														AdventureHelper.miniMessageToComponent(newName));
+															// Notify both players if online
+															final Player currentOnline = Bukkit.getPlayer(currentId);
+															final Player newOnline = Bukkit.getPlayer(newId);
 
-												// Notify both players if online
-												final Player currentOnline = Bukkit.getPlayer(currentId);
-												final Player newOnline = Bukkit.getPlayer(newId);
+															if (currentOnline != null) {
+																handleFeedback(currentOnline,
+																		MessageConstants.MSG_HELLBLOCK_ADMIN_TRANSFER_LOST,
+																		AdventureHelper
+																				.miniMessageToComponent(newName));
+															}
+															if (newOnline != null) {
+																handleFeedback(newOnline,
+																		MessageConstants.MSG_HELLBLOCK_ADMIN_TRANSFER_GAINED,
+																		AdventureHelper
+																				.miniMessageToComponent(currentName));
+															}
 
-												if (currentOnline != null) {
-													handleFeedback(currentOnline,
-															MessageConstants.MSG_HELLBLOCK_ADMIN_TRANSFER_LOST,
-															AdventureHelper.miniMessageToComponent(newName));
-												}
-												if (newOnline != null) {
-													handleFeedback(newOnline,
-															MessageConstants.MSG_HELLBLOCK_ADMIN_TRANSFER_GAINED,
-															AdventureHelper.miniMessageToComponent(currentName));
-												}
-
+															// Save changes
+															return plugin.getStorageManager().getDataSource()
+																	.updateManyPlayersData(
+																			Set.of(currentOwner, newOwner), false);
+														});
 											} catch (Exception ex) {
 												plugin.getPluginLogger().warn("Admin force transfer failed from "
 														+ currentName + " to " + newName + ": " + ex.getMessage());
+												return null;
 											}
 										}).exceptionally(ex -> {
 											plugin.getPluginLogger().warn(

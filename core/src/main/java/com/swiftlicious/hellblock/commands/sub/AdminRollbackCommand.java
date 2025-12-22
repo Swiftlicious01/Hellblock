@@ -6,7 +6,9 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -56,14 +58,18 @@ public class AdminRollbackCommand extends BukkitCommandFeature<CommandSender> {
 						return CompletableFuture.completedFuture(Collections.emptyList());
 					}
 
-					final Set<UUID> allKnownUUIDs = plugin.getStorageManager().getDataSource().getUniqueUsers();
+					final String lowerInput = input.input().toLowerCase(Locale.ROOT);
+					final Set<UUID> allKnownUUIDs = new HashSet<>(
+							plugin.getStorageManager().getDataSource().getUniqueUsers());
 
-					final List<String> suggestions = allKnownUUIDs.stream()
+					final List<Suggestion> suggestions = allKnownUUIDs.stream()
 							.map(uuid -> plugin.getStorageManager().getCachedUserData(uuid)).filter(Optional::isPresent)
 							.map(Optional::get).filter(user -> user.getHellblockData().hasHellblock())
-							.map(UserData::getName).filter(Objects::nonNull).toList();
+							.map(UserData::getName).filter(Objects::nonNull)
+							.filter(name -> name.toLowerCase(Locale.ROOT).startsWith(lowerInput))
+							.sorted(String.CASE_INSENSITIVE_ORDER).limit(64).map(Suggestion::suggestion).toList();
 
-					return CompletableFuture.completedFuture(suggestions.stream().map(Suggestion::suggestion).toList());
+					return CompletableFuture.completedFuture(suggestions);
 				})).optional("minutes", StringParser.stringComponent().suggestionProvider((context, input) -> {
 					if (!(context.sender() instanceof Player)) {
 						return CompletableFuture.completedFuture(Collections.emptyList());
@@ -137,24 +143,44 @@ public class AdminRollbackCommand extends BukkitCommandFeature<CommandSender> {
 			}
 
 			final long chosenTs = ts;
-			plugin.getHellblockHandler().rollbackIsland(targetId, chosenTs)
-					.thenRun(() -> handleFeedback(context, MessageConstants.MSG_HELLBLOCK_ADMIN_ROLLBACK_TIMESTAMP,
-							AdventureHelper.miniMessageToComponent(playerName), AdventureHelper.miniMessageToComponent(timestampStr)));
+			plugin.getHellblockHandler().rollbackIsland(targetId, chosenTs).thenCompose(v -> {
+				handleFeedback(context, MessageConstants.MSG_HELLBLOCK_ADMIN_ROLLBACK_TIMESTAMP,
+						AdventureHelper.miniMessageToComponent(playerName),
+						AdventureHelper.miniMessageToComponent(timestampStr));
+				return CompletableFuture.completedFuture(null);
+			}).exceptionally(ex -> {
+				plugin.getPluginLogger().warn("Failed to rollback island for " + targetId + ": " + ex.getMessage());
+				return null;
+			});
 
 		} else if (minutes != null) {
 			// --- Secondary: rollback by "last X minutes" ---
-			plugin.getHellblockHandler().rollbackLastMinutes(targetId, minutes)
-					.thenRun(() -> handleFeedback(context, MessageConstants.MSG_HELLBLOCK_ADMIN_ROLLBACK_MINUTES,
-							AdventureHelper.miniMessageToComponent(playerName), AdventureHelper.miniMessageToComponent(minutes.toString())));
+			plugin.getHellblockHandler().rollbackLastMinutes(targetId, minutes).thenCompose(v -> {
+				handleFeedback(context, MessageConstants.MSG_HELLBLOCK_ADMIN_ROLLBACK_MINUTES,
+						AdventureHelper.miniMessageToComponent(playerName),
+						AdventureHelper.miniMessageToComponent(minutes.toString()));
+				return CompletableFuture.completedFuture(null);
+			}).exceptionally(ex -> {
+				plugin.getPluginLogger().warn("Failed to rollback island for " + targetId + " to " + minutes
+						+ " minutes ago: " + ex.getMessage());
+				return null;
+			});
 
 		} else {
 			// --- Fallback: rollback to latest snapshot ---
 			plugin.getIslandBackupManager().listSnapshots(targetId).stream().reduce((first, second) -> second) // newest
 					.ifPresentOrElse(ts -> {
 						final String formatted = sdf.format(new Date(ts));
-						plugin.getHellblockHandler().rollbackIsland(targetId, ts).thenRun(() -> handleFeedback(context,
-								MessageConstants.MSG_HELLBLOCK_ADMIN_ROLLBACK_LATEST,
-								AdventureHelper.miniMessageToComponent(playerName), AdventureHelper.miniMessageToComponent(formatted)));
+						plugin.getHellblockHandler().rollbackIsland(targetId, ts).thenCompose(v -> {
+							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_ADMIN_ROLLBACK_LATEST,
+									AdventureHelper.miniMessageToComponent(playerName),
+									AdventureHelper.miniMessageToComponent(formatted));
+							return CompletableFuture.completedFuture(null);
+						}).exceptionally(ex -> {
+							plugin.getPluginLogger()
+									.warn("Failed to rollback island for " + targetId + ": " + ex.getMessage());
+							return null;
+						});
 					}, () -> handleFeedback(context, MessageConstants.MSG_HELLBLOCK_ADMIN_ROLLBACK_NONE,
 							AdventureHelper.miniMessageToComponent(playerName)));
 		}
@@ -196,16 +222,19 @@ public class AdminRollbackCommand extends BukkitCommandFeature<CommandSender> {
 							return CompletableFuture.completedFuture(Collections.emptyList());
 						}
 
-						final Set<UUID> allKnownUUIDs = plugin.getStorageManager().getDataSource().getUniqueUsers();
+						final String lowerInput = input.input().toLowerCase(Locale.ROOT);
+						final Set<UUID> allKnownUUIDs = new HashSet<>(
+								plugin.getStorageManager().getDataSource().getUniqueUsers());
 
-						final List<String> suggestions = allKnownUUIDs.stream()
+						final List<Suggestion> suggestions = allKnownUUIDs.stream()
 								.map(uuid -> plugin.getStorageManager().getCachedUserData(uuid))
 								.filter(Optional::isPresent).map(Optional::get)
 								.filter(user -> user.getHellblockData().hasHellblock()).map(UserData::getName)
-								.filter(Objects::nonNull).toList();
+								.filter(Objects::nonNull)
+								.filter(name -> name.toLowerCase(Locale.ROOT).startsWith(lowerInput))
+								.sorted(String.CASE_INSENSITIVE_ORDER).limit(64).map(Suggestion::suggestion).toList();
 
-						return CompletableFuture
-								.completedFuture(suggestions.stream().map(Suggestion::suggestion).toList());
+						return CompletableFuture.completedFuture(suggestions);
 					}))
 					// page suggestion provider
 					.optional("page", StringParser.stringComponent().suggestionProvider((context, input) -> {
@@ -304,12 +333,15 @@ public class AdminRollbackCommand extends BukkitCommandFeature<CommandSender> {
 				final String clickCmd = "/" + baseCommand + " " + playerName + " 0 " + formatted;
 
 				final Component entry = MessageConstants.MSG_HELLBLOCK_ADMIN_ROLLBACK_LIST_ENTRY
-						.arguments(AdventureHelper.miniMessageToComponent(formatted), AdventureHelper.miniMessageToComponent(ago)).build()
-						.clickEvent(ClickEvent.runCommand(clickCmd))
-						.hoverEvent(HoverEvent.showText(MessageConstants.MSG_HELLBLOCK_ADMIN_ROLLBACK_LIST_HOVER
-								.arguments(AdventureHelper.miniMessageToComponent(playerName),
-										AdventureHelper.miniMessageToComponent(formatted))
-								.build()));
+						.arguments(AdventureHelper.miniMessageToComponent(formatted),
+								AdventureHelper.miniMessageToComponent(ago))
+						.build().clickEvent(ClickEvent.runCommand(clickCmd)).hoverEvent(
+								HoverEvent
+										.showText(
+												MessageConstants.MSG_HELLBLOCK_ADMIN_ROLLBACK_LIST_HOVER
+														.arguments(AdventureHelper.miniMessageToComponent(playerName),
+																AdventureHelper.miniMessageToComponent(formatted))
+														.build()));
 
 				handleFeedbackRaw(context.sender(), entry);
 			}

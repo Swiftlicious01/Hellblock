@@ -72,8 +72,8 @@ public class CoopRejectCommand extends BukkitCommandFeature<CommandSender> {
 						return;
 					}
 
-					final UserData user = onlineUserOpt.get();
-					final HellblockData data = user.getHellblockData();
+					final UserData userData = onlineUserOpt.get();
+					final HellblockData data = userData.getHellblockData();
 
 					final String targetName = context.get("player");
 					if (targetName.equalsIgnoreCase(player.getName())) {
@@ -117,7 +117,7 @@ public class CoopRejectCommand extends BukkitCommandFeature<CommandSender> {
 					}
 
 					// Reject invite
-					plugin.getCoopManager().rejectInvite(targetId, user);
+					plugin.getCoopManager().rejectInvite(targetId, userData);
 
 					// Feedback to player
 					handleFeedback(context, MessageConstants.MSG_HELLBLOCK_COOP_INVITE_REJECTED,

@@ -23,6 +23,7 @@ import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerTeleportEvent;
+import org.bukkit.event.player.PlayerTeleportEvent.TeleportCause;
 import org.bukkit.util.BoundingBox;
 import org.bukkit.util.Vector;
 import org.jetbrains.annotations.NotNull;
@@ -164,7 +165,14 @@ public class IslandManager implements Listener, Reloadable {
 //					Optional.ofNullable(fortressTasks.remove(islandId)).ifPresent(SchedulerTask::cancel);
 
 					// Clear farming and piston caches
-					instance.getIslandLevelManager().clearIslandCache(islandId);
+					instance.getIslandLevelManager().clearIslandCache(islandId)
+							.thenRun(() -> instance.debug("Cleared island block cache for island ID " + islandId))
+							.exceptionally(ex -> {
+								instance.getPluginLogger().warn("Failed to clear block cache for island ID " + islandId,
+										ex);
+								return null;
+							});
+
 					instance.getNetherrackGeneratorHandler().clearIslandPistonCache(islandId);
 
 					lastIslandActivity.remove(islandId); // stop tracking after cleanup
@@ -251,20 +259,30 @@ public class IslandManager implements Listener, Reloadable {
 				activeIslandPlayers.computeIfAbsent(islandId, k -> new HashSet<>()).add(uuid);
 
 				// Optional: teleport player if not already in the world
-				if (instance.getConfigManager().perPlayerWorlds() && !player.getWorld().getName().equals(worldName)) {
+				CompletableFuture<Void> teleportFuture = CompletableFuture.completedFuture(null);
+				if (instance.getConfigManager().perPlayerWorlds()
+						&& !player.getWorld().getName().equalsIgnoreCase(worldName)) {
 					Location spawn = world.getSpawnLocation();
-					ChunkUtils.teleportAsync(player, spawn);
-					instance.debug("Teleported player " + player.getName() + " into reloaded world " + worldName);
+					teleportFuture = ChunkUtils.teleportAsync(player, spawn, TeleportCause.PLUGIN)
+							.thenRun(() -> instance.debug(
+									"Teleported player " + player.getName() + " into reloaded world " + worldName));
 				}
 
-				instance.getIslandLevelManager().loadIslandPlacedBlocksIfNeeded(islandId);
-				instance.getNetherrackGeneratorHandler().loadIslandPistonsIfNeeded(islandId);
-
-				// Schedule crop/animal/fortress updates
-				startIslandTasks(islandId);
-
-				// Mark access
-				instance.getWorldManager().markWorldAccess(worldName);
+				teleportFuture
+						.thenCompose(v -> instance.getIslandLevelManager().loadIslandPlacedBlocksIfNeeded(islandId))
+						.thenCompose(blocksLoaded -> instance.getNetherrackGeneratorHandler()
+								.loadIslandPistonsIfNeeded(islandId))
+						.thenAccept(pistonsLoaded -> {
+							// Now safe to start tasks
+							// Schedule crop/animal/fortress updates
+							startIslandTasks(islandId);
+							// Mark access
+							instance.getWorldManager().markWorldAccess(worldName);
+						}).exceptionally(ex -> {
+							instance.getPluginLogger()
+									.warn("Failed during island loading tasks for islandId=" + islandId, ex);
+							return null;
+						});
 			});
 		});
 	}
@@ -292,34 +310,45 @@ public class IslandManager implements Listener, Reloadable {
 			if (players.isEmpty()) {
 				Optional<HellblockWorld<?>> hellworldOpt = instance.getWorldManager()
 						.getWorld(instance.getWorldManager().getHellblockWorldFormat(islandId));
-				hellworldOpt.ifPresent(world -> {
-					// Save pistons and clear cache
-					instance.getNetherrackGeneratorHandler().savePistonsByIsland(islandId, world);
-					instance.getNetherrackGeneratorHandler().clearIslandPistonCache(islandId);
-					instance.getNetherrackGeneratorHandler().getGeneratorManager()
-							.cleanupExpiredPistonsByIsland(islandId, world);
+				CompletableFuture<Void> pistonChain = CompletableFuture.completedFuture(null);
+				if (hellworldOpt.isPresent()) {
+					HellblockWorld<?> world = hellworldOpt.get();
 
-					instance.getNetherrackGeneratorHandler().loadIslandPistonsIfNeeded(islandId);
-
-					getIslandBoundingBox(islandId)
-							.thenAccept(box -> box.ifPresent(bounds -> unloadIslandChunks(world, bounds)));
-				});
-
-				// Save placed blocks and clear cache
-				instance.getIslandLevelManager().serializePlacedBlocks(islandId);
-				instance.getIslandLevelManager().clearIslandCache(islandId);
-
-				// Cancel crop task
-				SchedulerTask cropTask = cropTasks.remove(islandId);
-				if (cropTask != null && !cropTask.isCancelled()) {
-					cropTask.cancel();
+					pistonChain = instance.getNetherrackGeneratorHandler().savePistonsByIsland(islandId, world)
+							.thenCompose(success -> instance.getNetherrackGeneratorHandler().getGeneratorManager()
+									.cleanupExpiredPistonsByIsland(islandId, world))
+							.thenCompose(
+									v -> instance.getNetherrackGeneratorHandler().loadIslandPistonsIfNeeded(islandId))
+							.thenAccept(pistonsLoaded -> {
+								getIslandBoundingBox(islandId)
+										.thenAccept(box -> box.ifPresent(bounds -> unloadIslandChunks(world, bounds)));
+							}).exceptionally(ex -> {
+								instance.getPluginLogger()
+										.warn("Error while saving or cleaning pistons for islandId=" + islandId, ex);
+								return null;
+							});
 				}
 
-				// Cancel animal task
-				SchedulerTask animalTask = animalTasks.remove(islandId);
-				if (animalTask != null && !animalTask.isCancelled()) {
-					animalTask.cancel();
-				}
+				pistonChain.thenRun(() -> {
+					// Save placed blocks and clear cache
+					instance.getIslandLevelManager().serializePlacedBlocks(islandId);
+					instance.getIslandLevelManager().clearIslandCache(islandId).exceptionally(ex -> {
+						instance.getPluginLogger().warn("Error clearing placed block cache for islandId=" + islandId,
+								ex);
+						return null;
+					});
+
+					// Cancel crop task
+					SchedulerTask cropTask = cropTasks.remove(islandId);
+					if (cropTask != null && !cropTask.isCancelled()) {
+						cropTask.cancel();
+					}
+
+					// Cancel animal task
+					SchedulerTask animalTask = animalTasks.remove(islandId);
+					if (animalTask != null && !animalTask.isCancelled()) {
+						animalTask.cancel();
+					}
 
 //				// Cancel fortress task
 //				SchedulerTask fortressTask = fortressTasks.remove(islandId);
@@ -327,27 +356,28 @@ public class IslandManager implements Listener, Reloadable {
 //					fortressTask.cancel();
 //				}
 
-				// Stop events
-				if (instance.getInvasionHandler().isInvasionRunning(islandId))
-					instance.getInvasionHandler().endInvasion(islandId);
-				if (instance.getSkysiegeHandler().isSkysiegeRunning(islandId))
-					instance.getSkysiegeHandler().getSkysiege(islandId).end(false);
-				if (instance.getWitherHandler().getCustomWither().hasActiveWither(islandId))
-					instance.getWitherHandler().getCustomWither()
-							.removeWither(instance.getWitherHandler().getCustomWither().getEnhancedWither(islandId));
+					// Stop events
+					if (instance.getInvasionHandler().isInvasionRunning(islandId))
+						instance.getInvasionHandler().endInvasion(islandId);
+					if (instance.getSkysiegeHandler().isSkysiegeRunning(islandId))
+						instance.getSkysiegeHandler().getSkysiege(islandId).end(false);
+					if (instance.getWitherHandler().getCustomWither().hasActiveWither(islandId))
+						instance.getWitherHandler().getCustomWither().removeWither(
+								instance.getWitherHandler().getCustomWither().getEnhancedWither(islandId));
 
-				activeIslandPlayers.remove(islandId);
+					activeIslandPlayers.remove(islandId);
 
-				if (instance.getConfigManager().perPlayerWorlds()) {
-					instance.getScheduler().sync().runLater(() -> {
-						World world = Bukkit.getWorld(instance.getWorldManager().getHellblockWorldFormat(islandId));
-						if (world != null && world.getPlayers().isEmpty()) {
-							instance.debug("Auto-unloading empty per-player world for island ID: " + islandId);
-							instance.getWorldManager().unloadWorld(world, false);
-							Bukkit.unloadWorld(world, true);
-						}
-					}, 20L * 120L, LocationUtils.getAnyLocationInstance()); // 2-minute delay (or configurable)
-				}
+					if (instance.getConfigManager().perPlayerWorlds()) {
+						instance.getScheduler().sync().runLater(() -> {
+							World world = Bukkit.getWorld(instance.getWorldManager().getHellblockWorldFormat(islandId));
+							if (world != null && world.getPlayers().isEmpty()) {
+								instance.debug("Auto-unloading empty per-player world for island ID: " + islandId);
+								instance.getWorldManager().unloadWorld(world, false);
+								Bukkit.unloadWorld(world, true);
+							}
+						}, 20L * 120L, LocationUtils.getAnyLocationInstance()); // 2-minute delay (or configurable)
+					}
+				});
 			}
 		}
 	}
@@ -473,25 +503,29 @@ public class IslandManager implements Listener, Reloadable {
 
 		activeIslandPlayers.computeIfAbsent(islandId, k -> new HashSet<>()).add(ownerId);
 
-		instance.getIslandLevelManager().loadIslandPlacedBlocksIfNeeded(islandId);
-		instance.getNetherrackGeneratorHandler().loadIslandPistonsIfNeeded(islandId);
+		// Start loading block and piston data asynchronously
+		instance.getIslandLevelManager().loadIslandPlacedBlocksIfNeeded(islandId)
+				.thenCompose(
+						blocksLoaded -> instance.getNetherrackGeneratorHandler().loadIslandPistonsIfNeeded(islandId))
+				.thenCompose(pistonsLoaded -> getIslandBoundingBox(islandId)).thenAccept(boxOpt -> {
+					if (boxOpt.isEmpty())
+						return;
 
-		// Add weather cooldown (5–10 minutes)
+					loadExistingIslandChunks(worldOpt.get(), boxOpt.get()).thenRun(() -> {
+						startIslandTasks(islandId);
+						instance.getNetherWeatherManager().scheduleRandomWeatherForIsland(islandId);
+						instance.debug("Restarted all tasks and repopulated caches for created island ID: " + islandId);
+					});
+				}).exceptionally(ex -> {
+					instance.getPluginLogger().warn("Error during island creation for islandId=" + islandId, ex);
+					return null;
+				});
+
+		// Weather cooldown (5–10 minutes)
 		long now = System.currentTimeMillis();
 		long delayMinutes = RandomUtils.generateRandomLong(5, 10);
 		long nextAllowed = now + TimeUnit.MINUTES.toMillis(delayMinutes);
 		weatherCooldowns.put(islandId, nextAllowed);
-
-		getIslandBoundingBox(islandId).thenAccept(box -> {
-			if (box.isEmpty())
-				return;
-
-			loadExistingIslandChunks(worldOpt.get(), box.get()).thenRun(() -> {
-				startIslandTasks(islandId); // only after chunks are loaded
-				instance.getNetherWeatherManager().scheduleRandomWeatherForIsland(islandId);
-				instance.debug("Restarted all tasks and repopulated caches for created island ID: " + islandId);
-			});
-		});
 	}
 
 	/**
@@ -613,8 +647,6 @@ public class IslandManager implements Listener, Reloadable {
 			instance.getWitherHandler().getCustomWither()
 					.removeWither(instance.getWitherHandler().getCustomWither().getEnhancedWither(islandId));
 
-		// Optional: clear level/farm block caches
-		instance.getIslandLevelManager().clearIslandCache(islandId);
 		instance.getNetherrackGeneratorHandler().clearIslandPistonCache(islandId);
 
 		Optional<HellblockWorld<?>> worldOpt = instance.getWorldManager()
@@ -627,9 +659,14 @@ public class IslandManager implements Listener, Reloadable {
 
 		final HellblockWorld<?> world = worldOpt.get();
 
-		instance.getFarmingManager().clearIslandFarmCache(world, islandId);
-
-		instance.debug("Cleaned up all tasks and caches for deleted island ID: " + islandId);
+		CompletableFuture
+				.allOf(instance.getIslandLevelManager().clearIslandCache(islandId),
+						instance.getFarmingManager().clearIslandFarmCache(world, islandId))
+				.thenRun(() -> instance.debug("Cleaned up all tasks and caches for deleted island ID: " + islandId))
+				.exceptionally(ex -> {
+					instance.getPluginLogger().warn("Error during island cache cleanup for island ID " + islandId, ex);
+					return null;
+				});
 	}
 
 	/**
@@ -704,9 +741,8 @@ public class IslandManager implements Listener, Reloadable {
 			if (ownerUUID == null)
 				return CompletableFuture.completedFuture(Optional.empty());
 
-			return instance.getStorageManager()
-					.getCachedUserDataWithFallback(ownerUUID, instance.getConfigManager().lockData())
-					.thenApply(data -> data.map(user -> user.getHellblockData().getIslandId()));
+			return instance.getStorageManager().getCachedUserDataWithFallback(ownerUUID, false)
+					.thenApply(optData -> optData.map(userData -> userData.getHellblockData().getIslandId()));
 		});
 	}
 

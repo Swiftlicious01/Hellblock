@@ -73,7 +73,7 @@ public class HellblockFixHomeCommand extends BukkitCommandFeature<CommandSender>
 			final Optional<HellblockWorld<?>> worldOpt = plugin.getWorldManager().getWorld(worldName);
 			if (worldOpt.isEmpty()) {
 				handleFeedback(context, MessageConstants.MSG_HELLBLOCK_WORLD_ERROR);
-				plugin.getPluginLogger().warn("World not found for force flag: " + worldName + " (Island ID: "
+				plugin.getPluginLogger().warn("World not found for fix home command: " + worldName + " (Island ID: "
 						+ islandId + ", Owner UUID: " + ownerUUID + ")");
 				return;
 			}

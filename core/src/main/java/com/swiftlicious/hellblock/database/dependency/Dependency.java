@@ -167,7 +167,7 @@ public enum Dependency {
 	JEDIS("redis{}clients", "jedis", "maven", "jedis", Relocation.of("jedis", "redis{}clients{}jedis"),
 			Relocation.of("commonspool2", "org{}apache{}commons{}pool2")),
 	EXP4J("net{}objecthunter", "exp4j", "maven", "exp4j", Relocation.of("exp4j", "net{}objecthunter{}exp4j")),
-	LZ4("org{}lz4", "lz4-java", "maven", "lz4-java", Relocation.of("jpountz", "net{}jpountz")),
+	LZ4("at{}yawk{}lz4", "lz4-java", "maven", "lz4-java", Relocation.of("jpountz", "net{}jpountz")),
 	// no relocations for sl4fj, only used for sqlite
 	SLF4J_SIMPLE("org.slf4j", "slf4j-simple", "maven", "slf4j_simple") {
 		@Override

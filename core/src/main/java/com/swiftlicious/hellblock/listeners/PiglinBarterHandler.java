@@ -62,8 +62,8 @@ public final class PiglinBarterHandler implements Listener, Reloadable {
 		piglinBarterBonusCache.clear();
 	}
 
-	private void trackBarter(UUID playerId, UUID piglinId) {
-		barterTracker.computeIfAbsent(playerId, k -> ConcurrentHashMap.newKeySet()).add(piglinId);
+	private boolean trackBarter(@NotNull UUID playerId, @NotNull UUID piglinId) {
+		return barterTracker.computeIfAbsent(playerId, k -> ConcurrentHashMap.newKeySet()).add(piglinId);
 	}
 
 	@EventHandler
@@ -144,55 +144,50 @@ public final class PiglinBarterHandler implements Listener, Reloadable {
 						return; // Piglin is not within any island
 					}
 
-					instance.getStorageManager()
-							.getCachedUserDataWithFallback(ownerUUID, instance.getConfigManager().lockData())
-							.thenAccept(userDataOpt -> {
-								if (userDataOpt.isEmpty())
-									return;
+					instance.getStorageManager().getCachedUserDataWithFallback(ownerUUID, false).thenAccept(optData -> {
+						if (optData.isEmpty())
+							return;
 
-								UserData ownerData = userDataOpt.get();
-								HellblockData hellblockData = ownerData.getHellblockData();
-								Set<UUID> partyPlusOwner = hellblockData.getPartyPlusOwner();
-								BoundingBox box = hellblockData.getBoundingBox();
+						UserData ownerData = optData.get();
+						HellblockData hellblockData = ownerData.getHellblockData();
+						Set<UUID> party = hellblockData.getPartyPlusOwner();
+						BoundingBox box = hellblockData.getBoundingBox();
 
-								boolean isMember = partyPlusOwner.contains(playerUUID);
-								boolean isInsideIsland = box != null && box.contains(piglin.getLocation().toVector());
+						boolean isMember = party.contains(playerUUID);
+						boolean isInsideIsland = box != null && box.contains(piglin.getLocation().toVector());
 
-								double bonus = 0.0;
-								if (isMember && isInsideIsland) {
-									bonus = getCachedBarterBonus(hellblockData);
-								}
+						double bonus = 0.0;
+						if (isMember && isInsideIsland) {
+							bonus = getCachedBarterBonus(hellblockData);
+						}
 
-								// Apply custom barter logic
-								if (!instance.getConfigManager().barteringItems().isEmpty()) {
-									final int rolls = RandomUtils.generateRandomInt(1, 3);
-									final List<ItemStack> customItems = pickWeightedItems(context,
-											instance.getConfigManager().barteringItems(), rolls, bonus);
-									barteredItems.addAll(customItems);
-								}
+						// Apply custom barter logic
+						if (!instance.getConfigManager().barteringItems().isEmpty()) {
+							final int rolls = RandomUtils.generateRandomInt(1, 3);
+							final List<ItemStack> customItems = pickWeightedItems(context,
+									instance.getConfigManager().barteringItems(), rolls, bonus);
+							barteredItems.addAll(customItems);
+						}
 
-								instance.getStorageManager().getOnlineUser(player.getUniqueId()).ifPresent(userData -> {
-									if (instance.getCooldownManager().shouldUpdateActivity(player.getUniqueId(),
-											5000)) {
-										userData.getHellblockData().updateLastIslandActivity();
-									}
-								});
+						instance.getStorageManager().getOnlineUser(player.getUniqueId()).ifPresent(userData -> {
+							if (instance.getCooldownManager().shouldUpdateActivity(player.getUniqueId(), 5000)) {
+								userData.getHellblockData().updateLastIslandActivity();
+							}
 
-								// Progress challenges for every outcome item
-								barteredItems.forEach(bartered -> {
-									final int amount = bartered.getAmount();
-									instance.getStorageManager().getOnlineUser(player.getUniqueId())
-											.ifPresent(userData -> instance.getChallengeManager()
-													.handleChallengeProgression(userData, ActionType.BARTER,
-															bartered.clone(), amount));
-								});
-
-								// Cleanup
-								barterTracker.computeIfPresent(playerUUID, (uuid, piglins) -> {
-									piglins.remove(piglin.getUniqueId());
-									return piglins.isEmpty() ? null : piglins;
-								});
+							// Progress challenges for every outcome item
+							barteredItems.forEach(bartered -> {
+								final int amount = bartered.getAmount();
+								instance.getChallengeManager().handleChallengeProgression(userData, ActionType.BARTER,
+										bartered.clone(), amount);
 							});
+						});
+
+						// Cleanup
+						barterTracker.computeIfPresent(playerUUID, (uuid, piglins) -> {
+							piglins.remove(piglin.getUniqueId());
+							return piglins.isEmpty() ? null : piglins;
+						});
+					});
 				});
 	}
 
@@ -205,8 +200,9 @@ public final class PiglinBarterHandler implements Listener, Reloadable {
 	 * @param bonus   the bonus to apply to the weight
 	 * @return list of selected ItemStacks
 	 */
-	private List<ItemStack> pickWeightedItems(Context<Player> context, Map<CustomItem, MathValue<Player>> entries,
-			int rolls, double bonus) {
+	@NotNull
+	private List<ItemStack> pickWeightedItems(@NotNull Context<Player> context,
+			@NotNull Map<CustomItem, MathValue<Player>> entries, int rolls, double bonus) {
 
 		final List<ItemStack> results = new ArrayList<>();
 		if (entries.isEmpty() || rolls <= 0) {
@@ -279,11 +275,11 @@ public final class PiglinBarterHandler implements Listener, Reloadable {
 		return piglinBarterBonusCache.computeIfAbsent(islandId, id -> calculateBarterBonus(data));
 	}
 
-	public void updateBarterBonusCache(@NotNull HellblockData data) {
-		piglinBarterBonusCache.put(data.getIslandId(), calculateBarterBonus(data));
+	public double updateBarterBonusCache(@NotNull HellblockData data) {
+		return piglinBarterBonusCache.put(data.getIslandId(), calculateBarterBonus(data));
 	}
 
-	public void invalidateBarterBonusCache(int islandId) {
-		piglinBarterBonusCache.remove(islandId);
+	public double invalidateBarterBonusCache(int islandId) {
+		return piglinBarterBonusCache.remove(islandId);
 	}
 }

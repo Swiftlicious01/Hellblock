@@ -126,16 +126,15 @@ public class EventGUI {
 			return this;
 		}
 
-		manager.instance.getStorageManager()
-				.getCachedUserDataWithFallback(ownerUUID, manager.instance.getConfigManager().lockData())
-				.thenAccept(optionalOwnerData -> {
-					if (optionalOwnerData.isEmpty()) {
+		manager.instance.getStorageManager().getCachedUserDataWithFallback(ownerUUID, false)
+				.thenAccept(optData -> {
+					if (optData.isEmpty()) {
 						refreshInProgress = false;
 						return;
 					}
 
-					UserData ownerData = optionalOwnerData.get();
-					HellblockData ownerHellblockData = ownerData.getHellblockData();
+					UserData ownerData = optData.get();
+					HellblockData hellblockData = ownerData.getHellblockData();
 
 					manager.instance.getScheduler().executeSync(() -> {
 						try {
@@ -157,7 +156,7 @@ public class EventGUI {
 								if (element == null || element.getSlots().isEmpty())
 									continue;
 
-								if (!manager.isEventUnlocked(type, ownerHellblockData)) {
+								if (!manager.isEventUnlocked(type, hellblockData)) {
 									float requiredLevel = manager.getRequiredLevelForEvent(type);
 									islandContext.arg(ContextKeys.REQUIRED_LEVEL, requiredLevel);
 									Context<Player> combinedCtx = context.merge(islandContext);
@@ -166,7 +165,7 @@ public class EventGUI {
 								}
 
 								var item = manager.instance.getItemManager().wrap(customItem.build(context));
-								Map<String, String> placeholders = getEventStatsPlaceholders(type, ownerHellblockData);
+								Map<String, String> placeholders = getEventStatsPlaceholders(type, hellblockData);
 								List<String> newLore = new ArrayList<>();
 
 								configSection.getStringList("display.lore").forEach(rawLine -> {

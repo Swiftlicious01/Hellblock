@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 import org.bukkit.Bukkit;
@@ -18,6 +19,7 @@ import com.swiftlicious.hellblock.context.Context;
 import com.swiftlicious.hellblock.creation.item.Item;
 import com.swiftlicious.hellblock.handlers.ActionManager;
 import com.swiftlicious.hellblock.player.HellblockData;
+import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.utils.extras.Key;
 
 import dev.dejvokep.boostedyaml.block.implementation.Section;
@@ -25,13 +27,13 @@ import dev.dejvokep.boostedyaml.block.implementation.Section;
 public class BannedMembersGUI extends BasePaginatedMemberGUI {
 
 	public BannedMembersGUI(HellblockPlugin plugin, Player player, Context<Integer> islandContext, Section config,
-			HellblockData data, boolean isOwner) {
+			UserData data, boolean isOwner) {
 		super(plugin, player, islandContext, config, data, isOwner);
 	}
 
 	@Override
 	protected List<UUID> getTargetList() {
-		return new ArrayList<>(data.getBannedMembers());
+		return new ArrayList<>(data.getHellblockData().getBannedMembers());
 	}
 
 	@Override
@@ -80,9 +82,10 @@ public class BannedMembersGUI extends BasePaginatedMemberGUI {
 	}
 
 	@Override
-	protected void onRemove(UUID targetUUID) {
-		data.unbanPlayer(targetUUID);
+	protected CompletableFuture<Boolean> onRemove(UUID targetUUID) {
+		data.getHellblockData().unbanPlayer(targetUUID);
 		handlePostRemoval();
+		return CompletableFuture.completedFuture(true);
 	}
 
 	private Item<ItemStack> buildBookItem(List<String> pages) {

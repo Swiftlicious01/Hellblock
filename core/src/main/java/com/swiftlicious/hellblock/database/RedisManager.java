@@ -27,12 +27,14 @@ import com.swiftlicious.hellblock.player.PlayerData;
 
 import dev.dejvokep.boostedyaml.YamlDocument;
 import dev.dejvokep.boostedyaml.block.implementation.Section;
+import redis.clients.jedis.ConnectionPoolConfig;
 import redis.clients.jedis.DefaultJedisClientConfig;
+import redis.clients.jedis.HostAndPort;
 import redis.clients.jedis.Jedis;
-import redis.clients.jedis.JedisPool;
-import redis.clients.jedis.JedisPoolConfig;
 import redis.clients.jedis.JedisPubSub;
+import redis.clients.jedis.RedisClient;
 import redis.clients.jedis.StreamEntryID;
+import redis.clients.jedis.UnifiedJedis;
 import redis.clients.jedis.exceptions.JedisException;
 import redis.clients.jedis.params.XReadParams;
 
@@ -44,10 +46,9 @@ public class RedisManager extends AbstractStorage {
 
 	private static RedisManager instance;
 	private static final String STREAM = "hellblock";
-	private JedisPool jedisPool;
+	private UnifiedJedis client;
 	private String password;
-	private int port;
-	private String host;
+	private HostAndPort hostAndPort;
 	private boolean useSSL;
 	private BlockingThreadTask threadTask;
 	private boolean isNewerThan5;
@@ -80,8 +81,8 @@ public class RedisManager extends AbstractStorage {
 	 *
 	 * @return A Jedis resource.
 	 */
-	public Jedis getJedis() {
-		return jedisPool.getResource();
+	public UnifiedJedis getJedis() {
+		return client;
 	}
 
 	/**
@@ -101,26 +102,32 @@ public class RedisManager extends AbstractStorage {
 		Set<Dependency> redisDeps = EnumSet.of(Dependency.JEDIS, Dependency.COMMONS_POOL_2);
 
 		plugin.getDependencyManager().runWithLoader(redisDeps, () -> {
-			final JedisPoolConfig jedisPoolConfig = new JedisPoolConfig();
-			jedisPoolConfig.setTestWhileIdle(true);
-			jedisPoolConfig.setTimeBetweenEvictionRuns(Duration.ofMillis(30000));
-			jedisPoolConfig.setNumTestsPerEvictionRun(-1);
-			jedisPoolConfig.setMinEvictableIdleDuration(
+			final ConnectionPoolConfig poolConfig = new ConnectionPoolConfig();
+			poolConfig.setTestWhileIdle(true);
+			poolConfig.setTimeBetweenEvictionRuns(Duration.ofMillis(30000));
+			poolConfig.setNumTestsPerEvictionRun(-1);
+			poolConfig.setMinEvictableIdleDuration(
 					Duration.ofMillis(section.getInt("MinEvictableIdleTimeMillis", 1800000)));
-			jedisPoolConfig.setMaxTotal(section.getInt("MaxTotal", 8));
-			jedisPoolConfig.setMaxIdle(section.getInt("MaxIdle", 8));
-			jedisPoolConfig.setMinIdle(section.getInt("MinIdle", 1));
-			jedisPoolConfig.setMaxWait(Duration.ofMillis(section.getInt("MaxWaitMillis")));
+			poolConfig.setMaxTotal(section.getInt("MaxTotal", 8));
+			poolConfig.setMaxIdle(section.getInt("MaxIdle", 8));
+			poolConfig.setMinIdle(section.getInt("MinIdle", 1));
+			poolConfig.setMaxWait(Duration.ofMillis(section.getInt("MaxWaitMillis")));
 
 			password = section.getString("password", "");
-			port = section.getInt("port", 6379);
-			host = section.getString("host", "localhost");
+			String host = section.getString("host", "localhost");
+			int port = section.getInt("port", 6379);
+			hostAndPort = new HostAndPort(host, port);
 			useSSL = section.getBoolean("use-ssl", false);
 
-			jedisPool = password.isBlank() ? new JedisPool(jedisPoolConfig, host, port, 0, useSSL)
-					: new JedisPool(jedisPoolConfig, host, port, 0, password, useSSL);
+			// Client config (for SSL, timeout, password, etc.)
+			// 0 = infinite like legacy
+			DefaultJedisClientConfig clientConfig = DefaultJedisClientConfig.builder()
+					.password(password.isBlank() ? null : password).ssl(useSSL).timeoutMillis(0).build();
 
-			try (Jedis jedis = jedisPool.getResource()) {
+			client = RedisClient.builder().hostAndPort(hostAndPort).clientConfig(clientConfig).poolConfig(poolConfig)
+					.build();
+
+			try (Jedis jedis = new Jedis(hostAndPort, clientConfig)) {
 				final String info = jedis.info();
 				if (info == null || info.isBlank()) {
 					plugin.getPluginLogger().warn("Failed to retrieve Redis INFO data.");
@@ -154,8 +161,8 @@ public class RedisManager extends AbstractStorage {
 		if (threadTask != null) {
 			threadTask.stop();
 		}
-		if (jedisPool != null && !jedisPool.isClosed()) {
-			jedisPool.close();
+		if (client != null) {
+			client.close();
 		}
 	}
 
@@ -166,15 +173,11 @@ public class RedisManager extends AbstractStorage {
 	 */
 	public void publishRedisMessage(@NotNull String message) {
 		if (isNewerThan5) {
-			try (Jedis jedis = jedisPool.getResource()) {
-				final Map<String, String> messages = new HashMap<>();
-				messages.put("value", message);
-				jedis.xadd(getStream(), StreamEntryID.NEW_ENTRY, messages);
-			}
+			final Map<String, String> messages = new HashMap<>();
+			messages.put("value", message);
+			getJedis().xadd(getStream(), StreamEntryID.NEW_ENTRY, messages);
 		} else {
-			try (Jedis jedis = jedisPool.getResource()) {
-				jedis.publish(getStream(), message);
-			}
+			getJedis().publish(getStream(), message);
 		}
 	}
 
@@ -184,16 +187,21 @@ public class RedisManager extends AbstractStorage {
 	 */
 	private void subscribe() {
 		final Thread thread = new Thread(() -> {
-			try (final Jedis jedis = password.isBlank() ? new Jedis(host, port, 0, useSSL)
-					: new Jedis(host, port, DefaultJedisClientConfig.builder().password(password).timeoutMillis(0)
-							.ssl(useSSL).build())) {
+			Jedis jedis;
+			if (password.isBlank()) {
+				jedis = new Jedis(hostAndPort.getHost(), hostAndPort.getPort(), useSSL);
+			} else {
+				jedis = new Jedis(hostAndPort,
+						DefaultJedisClientConfig.builder().password(password).timeoutMillis(0).ssl(useSSL).build());
+			}
+
+			try (jedis) {
 				jedis.connect();
 				jedis.subscribe(new JedisPubSub() {
 					@Override
 					public void onMessage(String channel, String message) {
-						if (!channel.equals(getStream())) {
+						if (!channel.equals(getStream()))
 							return;
-						}
 						try {
 							handleMessage(message);
 						} catch (IOException ex) {
@@ -203,6 +211,8 @@ public class RedisManager extends AbstractStorage {
 				}, getStream());
 			}
 		});
+		thread.setName("Redis-Subscriber");
+		thread.setDaemon(true);
 		thread.start();
 	}
 
@@ -235,9 +245,7 @@ public class RedisManager extends AbstractStorage {
 	public CompletableFuture<Void> setChangeServer(UUID uuid) {
 		final var future = new CompletableFuture<Void>();
 		plugin.getScheduler().async().execute(() -> {
-			try (Jedis jedis = jedisPool.getResource()) {
-				jedis.setex(getRedisKey("hb_server", uuid), 10, new byte[0]);
-			}
+			getJedis().setex(getRedisKey("hb_server", uuid), 10, new byte[0]);
 			future.complete(null);
 			plugin.debug("Server data set for %s".formatted(uuid));
 		});
@@ -255,16 +263,14 @@ public class RedisManager extends AbstractStorage {
 	public CompletableFuture<Boolean> getChangeServer(UUID uuid) {
 		final var future = new CompletableFuture<Boolean>();
 		plugin.getScheduler().async().execute(() -> {
-			try (Jedis jedis = jedisPool.getResource()) {
-				final byte[] key = getRedisKey("hb_server", uuid);
-				if (jedis.get(key) != null) {
-					jedis.del(key);
-					future.complete(true);
-					plugin.debug("Server data retrieved for %s; value: true".formatted(uuid));
-				} else {
-					future.complete(false);
-					plugin.debug("Server data retrieved for %s; value: false".formatted(uuid));
-				}
+			final byte[] key = getRedisKey("hb_server", uuid);
+			if (getJedis().get(key) != null) {
+				getJedis().del(key);
+				future.complete(true);
+				plugin.debug("Server data retrieved for %s; value: true".formatted(uuid));
+			} else {
+				future.complete(false);
+				plugin.debug("Server data retrieved for %s; value: false".formatted(uuid));
 			}
 		});
 		return future;
@@ -301,32 +307,30 @@ public class RedisManager extends AbstractStorage {
 
 					plugin.debug("Redis cache miss for " + uuid);
 
-					try (Jedis jedis = jedisPool.getResource()) {
-						final byte[] key = getRedisKey("hb_data", uuid);
-						final byte[] data = jedis.get(key);
+					final byte[] key = getRedisKey("hb_data", uuid);
+					final byte[] data = getJedis().get(key);
 
-						// Optionally delete after read
-						jedis.del(key);
+					// Optionally delete after read
+					getJedis().del(key);
 
-						if (data != null) {
-							PlayerData playerData = plugin.getStorageManager().fromBytes(data);
-							playerData.setUUID(uuid);
+					if (data != null) {
+						PlayerData playerData = plugin.getStorageManager().fromBytes(data);
+						playerData.setUUID(uuid);
 
-							// Cache in memory
-							memoryCache.put(uuid, playerData);
+						// Cache in memory
+						memoryCache.put(uuid, playerData);
 
-							// Opportunistically cache islandId to UUID mapping
-							int islandId = playerData.getHellblockData().getIslandId();
-							if (islandId > 0) {
-								islandIdToUUIDCache.put(islandId, uuid);
-							}
-
-							plugin.debug("Redis data retrieved for %s; player loaded".formatted(uuid));
-							future.complete(Optional.of(playerData));
-						} else {
-							plugin.debug("Redis data retrieved for %s; no data found".formatted(uuid));
-							future.complete(Optional.empty());
+						// Opportunistically cache islandId to UUID mapping
+						int islandId = playerData.getHellblockData().getIslandId();
+						if (islandId > 0) {
+							islandIdToUUIDCache.put(islandId, uuid);
 						}
+
+						plugin.debug("Redis data retrieved for %s; player loaded".formatted(uuid));
+						future.complete(Optional.of(playerData));
+					} else {
+						plugin.debug("Redis data retrieved for %s; no data found".formatted(uuid));
+						future.complete(Optional.empty());
 					}
 
 				} catch (Exception ex) {
@@ -367,8 +371,8 @@ public class RedisManager extends AbstractStorage {
 			future.whenComplete((result, throwable) -> updatingCache.remove(uuid));
 
 			plugin.getScheduler().async().execute(() -> {
-				try (Jedis jedis = jedisPool.getResource()) {
-					jedis.setex(getRedisKey("hb_data", uuid), 10, playerData.toBytes());
+				try {
+					getJedis().setex(getRedisKey("hb_data", uuid), 10, playerData.toBytes());
 					memoryCache.put(uuid, playerData);
 					plugin.debug("Redis data set for %s".formatted(uuid));
 					future.complete(true);

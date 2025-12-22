@@ -69,7 +69,8 @@ public class HellblockDisplayToggleCommand extends BukkitCommandFeature<CommandS
 					DisplayChoice current = data.getDisplaySettings().getDisplayChoice();
 
 					List<Suggestion> suggestions = Arrays.stream(DisplayChoice.values())
-							.filter(choice -> choice != current).map(Enum::name).map(Suggestion::suggestion).toList();
+							.filter(choice -> choice != current).map(value -> value.toString().toLowerCase())
+							.map(Suggestion::suggestion).toList();
 
 					return CompletableFuture.completedFuture(suggestions);
 				})).handler(context -> {

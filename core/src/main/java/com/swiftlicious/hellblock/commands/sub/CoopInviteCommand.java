@@ -182,26 +182,33 @@ public class CoopInviteCommand extends BukkitCommandFeature<CommandSender> {
 					}
 
 					// Async load for offline target
-					plugin.getStorageManager()
-							.getCachedUserDataWithFallback(targetId, plugin.getConfigManager().lockData())
-							.thenAccept(targetOpt -> {
-								if (targetOpt.isEmpty()) {
-									handleFeedback(context, MessageConstants.MSG_HELLBLOCK_PLAYER_DATA_FAILURE_LOAD,
-											AdventureHelper.miniMessageToComponent(targetName));
-									return;
-								}
+					plugin.getStorageManager().getCachedUserDataWithFallback(targetId, true).thenCompose(targetOpt -> {
+						if (targetOpt.isEmpty()) {
+							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_PLAYER_DATA_FAILURE_LOAD,
+									AdventureHelper.miniMessageToComponent(targetName));
+							return CompletableFuture.completedFuture(null);
+						}
 
-								final UserData targetUser = targetOpt.get();
+						final UserData targetUserData = targetOpt.get();
 
-								if (targetUser.getHellblockData().hasInvite(player.getUniqueId())) {
-									handleFeedback(context, MessageConstants.MSG_HELLBLOCK_COOP_INVITE_EXISTS);
-									return;
-								}
+						if (targetUserData.getHellblockData().hasInvite(player.getUniqueId())) {
+							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_COOP_INVITE_EXISTS);
+							return CompletableFuture.completedFuture(null);
+						}
 
-								// Send invite (now handles offline)
-								plugin.getCoopManager().sendInvite(sender, targetUser);
-							});
+						return plugin.getCoopManager().sendInvite(sender, targetUserData).handle((inviteSent, ex) -> {
+							if (ex != null) {
+								plugin.getPluginLogger().warn("sendInvite failed for " + targetName, ex);
+							}
+							return inviteSent;
+						}).thenCompose(__ -> plugin.getStorageManager().unlockUserData(targetId));
+					}).exceptionally(ex -> {
+						plugin.getPluginLogger().warn("Coop invite command failed (could not read target " + targetName
+								+ "'s data): " + ex.getMessage());
+						return null;
+					});
 				});
+
 	}
 
 	@Override

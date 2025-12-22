@@ -475,6 +475,32 @@ public class LocationUtils {
 		return Math.round(value * p) / p;
 	}
 
+	public static boolean canSeeLocation(@NotNull Player player, @NotNull Location target, double baseRange) {
+		if (target.getWorld() == null)
+			return false;
+		
+		if (!player.getWorld().getUID().equals(target.getWorld().getUID()))
+			return false;
+
+		// Ensure the chunk is loaded for the player
+		if (!target.getWorld().isChunkLoaded(target.getBlockX() >> 4, target.getBlockZ() >> 4))
+			return false;
+
+		// Player's client render distance (in chunks)
+		int viewDistanceChunks = player.getClientViewDistance();
+		double viewDistanceBlocks = viewDistanceChunks * 16.0;
+
+		// Use the higher of plugin-configured range or player's view distance
+		double maxDistance = Math.max(baseRange, viewDistanceBlocks);
+
+		// Only consider horizontal distance (ignore height difference)
+		double dx = player.getLocation().getX() - target.getX();
+		double dz = player.getLocation().getZ() - target.getZ();
+		double horizontalDistanceSquared = dx * dx + dz * dz;
+
+		return horizontalDistanceSquared <= (maxDistance * maxDistance);
+	}
+
 	@NotNull
 	public static Location toBlockLocation(Location location) {
 		final Location blockLoc = location.clone();

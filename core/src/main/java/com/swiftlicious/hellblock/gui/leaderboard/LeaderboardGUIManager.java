@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -228,20 +229,20 @@ public class LeaderboardGUIManager implements LeaderboardGUIManagerInterface, Li
 		decorativeIcons.entrySet().forEach(entry -> gui
 				.addElement(new LeaderboardGUIElement(entry.getKey(), entry.getValue().left().build(context))));
 		gui.build().show();
-		gui.populateTopIslands(getTopSlotCount());
-		gui.startAutoRefresh(15L, getTopSlotCount()); // refresh every 15 seconds
+		// refresh every 15 seconds
+		gui.refreshTopIslands(getTopSlotCount()).thenRun(() -> gui.startAutoRefresh(15L, getTopSlotCount()));
 		leaderboardGUICache.put(player.getUniqueId(), gui);
 		return true;
 	}
-	
+
 	@EventHandler
 	public void onLeaderboardUpdate(LeaderboardUpdateEvent event) {
-	    Map<Integer, Float> newTopIslands = event.getTopIslands();
+		Map<Integer, Float> newTopIslands = event.getTopIslands();
 
-	    // Update all open GUIs
-	    for (LeaderboardGUI gui : leaderboardGUICache.values()) {
-	        gui.handleLiveLeaderboardUpdate(newTopIslands);
-	    }
+		// Update all open GUIs
+		for (LeaderboardGUI gui : leaderboardGUICache.values()) {
+			gui.handleLiveLeaderboardUpdate(newTopIslands);
+		}
 	}
 
 	/**
@@ -360,8 +361,10 @@ public class LeaderboardGUIManager implements LeaderboardGUIManagerInterface, Li
 				if (!gui.showBackIcon) {
 					return;
 				}
-				instance.getHellblockGUIManager().openHellblockGUI(player, gui.islandContext.holder(), gui.isOwner);
-				ActionManager.trigger(gui.context, backActions);
+				boolean opened = instance.getHellblockGUIManager().openHellblockGUI(player, gui.islandContext.holder(),
+						gui.isOwner);
+				if (opened)
+					ActionManager.trigger(gui.context, backActions);
 				return;
 			}
 
@@ -379,70 +382,82 @@ public class LeaderboardGUIManager implements LeaderboardGUIManagerInterface, Li
 			if (element.getSymbol() == topSlot && element.getUUID() != null) {
 				event.setCancelled(true);
 				UUID targetUUID = element.getUUID();
-				instance.getStorageManager()
-						.getCachedUserDataWithFallback(targetUUID, instance.getConfigManager().lockData())
-						.thenAccept(ownerOpt -> {
-							if (ownerOpt.isEmpty()) {
-								final String username = Bukkit.getOfflinePlayer(targetUUID).getName();
-								instance.getSenderFactory().wrap(player).sendMessage(instance.getTranslationManager()
-										.render(MessageConstants.MSG_HELLBLOCK_PLAYER_DATA_FAILURE_LOAD
-												.arguments(AdventureHelper.miniMessageToComponent(username != null
-														? username
-														: instance.getTranslationManager().miniMessageTranslation(
-																MessageConstants.FORMAT_UNKNOWN.build().key())))
-												.build()));
-								AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
-										Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
-												Sound.Source.PLAYER, 1, 1));
-								return;
-							}
-
-							final UserData ownerUser = ownerOpt.get();
-							final HellblockData ownerData = ownerUser.getHellblockData();
-
-							if (ownerData.isAbandoned()) {
-								instance.getSenderFactory().wrap(player).sendMessage(instance.getTranslationManager()
-										.render(MessageConstants.MSG_HELLBLOCK_VISIT_ABANDONED.build()));
-								AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
-										Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
-												Sound.Source.PLAYER, 1, 1));
-								return;
-							}
-
-							if (ownerData.getBannedMembers().contains(player.getUniqueId())
-									&& (!(player.isOp() || player.hasPermission("hellblock.admin")
-											|| player.hasPermission("hellblock.bypass.interact")))) {
-								instance.getSenderFactory().wrap(player).sendMessage(instance.getTranslationManager()
-										.render(MessageConstants.MSG_HELLBLOCK_BANNED_ENTRY
-												.arguments(AdventureHelper.miniMessageToComponent(ownerUser.getName()))
-												.build()));
-								AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
-										Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
-												Sound.Source.PLAYER, 1, 1));
-								return;
-							}
-
-							instance.getCoopManager().checkIfVisitorsAreWelcome(player, ownerUser.getUUID())
-									.thenAccept(status -> {
-										if (ownerData.isLocked() || !status) {
-											instance.getSenderFactory().wrap(player).sendMessage(instance
-													.getTranslationManager()
-													.render(MessageConstants.MSG_HELLBLOCK_LOCKED_FROM_VISITORS
-															.arguments(AdventureHelper
-																	.miniMessageToComponent(ownerUser.getName()))
-															.build()));
-											AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
-													Sound.sound(
-															net.kyori.adventure.key.Key
-																	.key("minecraft:entity.villager.no"),
-															Sound.Source.PLAYER, 1, 1));
-											return;
-										}
-
-										instance.getVisitManager().handleVisit(player, targetUUID);
-										ActionManager.trigger(gui.context, topActions);
-									});
+				instance.getStorageManager().getCachedUserDataWithFallback(targetUUID, false).thenCompose(optData -> {
+					if (optData.isEmpty()) {
+						instance.getScheduler().executeSync(() -> {
+							final String username = Bukkit.getOfflinePlayer(targetUUID).getName();
+							instance.getSenderFactory().wrap(player).sendMessage(instance.getTranslationManager()
+									.render(MessageConstants.MSG_HELLBLOCK_PLAYER_DATA_FAILURE_LOAD
+											.arguments(
+													AdventureHelper.miniMessageToComponent(username != null ? username
+															: instance.getTranslationManager().miniMessageTranslation(
+																	MessageConstants.FORMAT_UNKNOWN.build().key())))
+											.build()));
+							AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
+									Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
+											Sound.Source.PLAYER, 1, 1));
 						});
+						return CompletableFuture.completedFuture(null);
+					}
+
+					final UserData ownerData = optData.get();
+					final HellblockData hellblockData = ownerData.getHellblockData();
+
+					if (hellblockData.isAbandoned()) {
+						instance.getScheduler().executeSync(() -> {
+							instance.getSenderFactory().wrap(player).sendMessage(instance.getTranslationManager()
+									.render(MessageConstants.MSG_HELLBLOCK_VISIT_ABANDONED.build()));
+							AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
+									Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
+											Sound.Source.PLAYER, 1, 1));
+						});
+						return CompletableFuture.completedFuture(null);
+					}
+
+					if (hellblockData.getBannedMembers().contains(player.getUniqueId())
+							&& (!(player.isOp() || player.hasPermission("hellblock.admin")
+									|| player.hasPermission("hellblock.bypass.interact")))) {
+						instance.getScheduler().executeSync(() -> {
+							instance.getSenderFactory().wrap(player).sendMessage(instance.getTranslationManager()
+									.render(MessageConstants.MSG_HELLBLOCK_BANNED_ENTRY
+											.arguments(AdventureHelper.miniMessageToComponent(ownerData.getName()))
+											.build()));
+							AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
+									Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
+											Sound.Source.PLAYER, 1, 1));
+						});
+						return CompletableFuture.completedFuture(null);
+					}
+
+					return instance.getCoopManager().checkIfVisitorsAreWelcome(player, ownerData.getUUID())
+							.thenCompose(status -> {
+								if (ownerData.isLocked() || !status) {
+									instance.getScheduler().executeSync(() -> {
+										instance.getSenderFactory().wrap(player).sendMessage(instance
+												.getTranslationManager()
+												.render(MessageConstants.MSG_HELLBLOCK_LOCKED_FROM_VISITORS.arguments(
+														AdventureHelper.miniMessageToComponent(ownerData.getName()))
+														.build()));
+										AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
+												Sound.sound(
+														net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
+														Sound.Source.PLAYER, 1, 1));
+									});
+									return CompletableFuture.completedFuture(null);
+								}
+
+								return instance.getVisitManager().handleVisit(player, targetUUID)
+										.thenRun(() -> ActionManager.trigger(gui.context, topActions))
+										.exceptionally(ex -> {
+											instance.getPluginLogger()
+													.warn("Error handling visit for " + player.getName(), ex);
+											return null;
+										});
+							});
+				}).exceptionally(ex -> {
+					instance.getPluginLogger().warn("Failed to handle island visit for " + targetUUID, ex);
+					return null;
+				});
 				return;
 			}
 

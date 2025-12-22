@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 import org.bukkit.Bukkit;
@@ -18,6 +19,7 @@ import com.swiftlicious.hellblock.context.Context;
 import com.swiftlicious.hellblock.creation.item.Item;
 import com.swiftlicious.hellblock.handlers.ActionManager;
 import com.swiftlicious.hellblock.player.HellblockData;
+import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.utils.extras.Key;
 
 import dev.dejvokep.boostedyaml.block.implementation.Section;
@@ -25,13 +27,13 @@ import dev.dejvokep.boostedyaml.block.implementation.Section;
 public class TrustedMembersGUI extends BasePaginatedMemberGUI {
 
 	public TrustedMembersGUI(HellblockPlugin plugin, Player player, Context<Integer> islandContext, Section config,
-			HellblockData data, boolean isOwner) {
+			UserData data, boolean isOwner) {
 		super(plugin, player, islandContext, config, data, isOwner);
 	}
 
 	@Override
 	protected List<UUID> getTargetList() {
-		return new ArrayList<>(data.getTrustedMembers());
+		return new ArrayList<>(data.getHellblockData().getTrustedMembers());
 	}
 
 	@Override
@@ -80,9 +82,18 @@ public class TrustedMembersGUI extends BasePaginatedMemberGUI {
 	}
 
 	@Override
-	protected void onRemove(UUID targetUUID) {
-		data.removeTrustPermission(targetUUID);
-		handlePostRemoval();
+	protected CompletableFuture<Boolean> onRemove(UUID targetUUID) {
+		final String input = Bukkit.getOfflinePlayer(targetUUID).getName();
+		final String displayName = input != null ? input
+				: plugin.getTranslationManager().miniMessageTranslation(MessageConstants.FORMAT_UNKNOWN.build().key());
+
+		return plugin.getCoopManager().removeTrustAccess(data, displayName, targetUUID).thenApply(success -> {
+			handlePostRemoval();
+			return success;
+		}).exceptionally(ex -> {
+			plugin.getPluginLogger().warn("removeTrustAccess failed for " + displayName, ex);
+			return false;
+		});
 	}
 
 	private Item<ItemStack> buildBookItem(List<String> pages) {

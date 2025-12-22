@@ -73,7 +73,7 @@ public class HellblockUpgradePurchaseCommand extends BukkitCommandFeature<Comman
 						int currentTier = data.getUpgradeLevel(type);
 						int maxTier = upgradeManager.getMaxTierFor(type);
 						return currentTier < maxTier;
-					}).map(Enum::name).map(Suggestion::suggestion).toList();
+					}).map(value -> value.toString().toLowerCase()).map(Suggestion::suggestion).toList();
 
 					return CompletableFuture.completedFuture(availableUpgrades);
 				})).handler(context -> {
@@ -113,10 +113,10 @@ public class HellblockUpgradePurchaseCommand extends BukkitCommandFeature<Comman
 						return;
 					}
 
-					final String upgradeInput = context.getOrDefault("upgrade", IslandUpgradeType.HOPPER_LIMIT.name())
-							.toUpperCase();
+					final String upgradeInput = context
+							.getOrDefault("upgrade", IslandUpgradeType.HOPPER_LIMIT.toString()).toUpperCase();
 					final Optional<IslandUpgradeType> upgradeOpt = Arrays.stream(IslandUpgradeType.values())
-							.filter(up -> up.name().equalsIgnoreCase(upgradeInput)).findFirst();
+							.filter(up -> up.toString().equalsIgnoreCase(upgradeInput)).findFirst();
 
 					if (upgradeOpt.isEmpty()) {
 						handleFeedback(context, MessageConstants.MSG_HELLBLOCK_INVALID_UPGRADE);

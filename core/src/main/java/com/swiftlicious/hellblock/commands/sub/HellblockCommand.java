@@ -35,8 +35,8 @@ public class HellblockCommand extends BukkitCommandFeature<CommandSender> {
 				return;
 			}
 
-			final UserData onlineUser = onlineUserOpt.get();
-			final HellblockData data = onlineUser.getHellblockData();
+			final UserData userData = onlineUserOpt.get();
+			final HellblockData data = userData.getHellblockData();
 
 			if (!data.hasHellblock()) {
 				// Player doesn’t have an island yet → open island choice GUI
@@ -52,41 +52,38 @@ public class HellblockCommand extends BukkitCommandFeature<CommandSender> {
 						"Owner reference was null. This should never happen — please report to the developer.");
 			}
 
-			plugin.getStorageManager().getCachedUserDataWithFallback(ownerUUID, plugin.getConfigManager().lockData())
-					.thenAccept(result -> {
-						if (result.isEmpty()) {
-							final String username = Bukkit.getOfflinePlayer(ownerUUID).getName();
-							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_OWNER_DATA_NOT_LOADED,
-									AdventureHelper.miniMessageToComponent(username != null ? username
-											: plugin.getTranslationManager().miniMessageTranslation(
-													MessageConstants.FORMAT_UNKNOWN.build().key())));
-							return;
-						}
+			plugin.getStorageManager().getCachedUserDataWithFallback(ownerUUID, false).thenAccept(optOwnerData -> {
+				if (optOwnerData.isEmpty()) {
+					final String username = Bukkit.getOfflinePlayer(ownerUUID).getName();
+					handleFeedback(context, MessageConstants.MSG_HELLBLOCK_OWNER_DATA_NOT_LOADED,
+							AdventureHelper.miniMessageToComponent(username != null ? username
+									: plugin.getTranslationManager()
+											.miniMessageTranslation(MessageConstants.FORMAT_UNKNOWN.build().key())));
+					return;
+				}
 
-						final UserData offlineUser = result.get();
-						if (offlineUser.getHellblockData().isAbandoned()) {
-							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_IS_ABANDONED);
-							return;
-						}
+				final UserData ownerData = optOwnerData.get();
+				if (ownerData.getHellblockData().isAbandoned()) {
+					handleFeedback(context, MessageConstants.MSG_HELLBLOCK_IS_ABANDONED);
+					return;
+				}
 
-						final boolean isOwner = offlineUser.getHellblockData().isOwner(ownerUUID);
-						final int islandId = offlineUser.getHellblockData().getIslandId();
-						final boolean opened = plugin.getHellblockGUIManager().openHellblockGUI(player, islandId,
-								isOwner);
+				final boolean isOwner = ownerData.getHellblockData().isOwner(ownerUUID);
+				final int islandId = ownerData.getHellblockData().getIslandId();
+				final boolean opened = plugin.getHellblockGUIManager().openHellblockGUI(player, islandId, isOwner);
 
-						if (opened) {
-							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_OPEN_SUCCESS,
-									AdventureHelper.miniMessageToComponent(player.getName()));
-						} else {
-							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_OPEN_FAILURE_NOT_LOADED,
-									AdventureHelper.miniMessageToComponent(player.getName()));
-						}
-					}).exceptionally(ex -> {
-						plugin.getPluginLogger()
-								.warn("getCachedUserDataWithFallback failed for opening hellblock GUI of "
-										+ player.getName() + ": " + ex.getMessage());
-						return null;
-					});
+				if (opened) {
+					handleFeedback(context, MessageConstants.MSG_HELLBLOCK_OPEN_SUCCESS,
+							AdventureHelper.miniMessageToComponent(player.getName()));
+				} else {
+					handleFeedback(context, MessageConstants.MSG_HELLBLOCK_OPEN_FAILURE_NOT_LOADED,
+							AdventureHelper.miniMessageToComponent(player.getName()));
+				}
+			}).exceptionally(ex -> {
+				plugin.getPluginLogger().warn("getCachedUserDataWithFallback failed for opening hellblock GUI of "
+						+ player.getName() + ": " + ex.getMessage());
+				return null;
+			});
 		});
 	}
 

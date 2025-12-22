@@ -374,6 +374,7 @@ public class WitherHandler implements Listener, Reloadable {
 		}
 	}
 
+	@SuppressWarnings("deprecation")
 	private void bounceAndFizzle(@NotNull Projectile projectile, @Nullable Player shooter) {
 		// Cancel damage completely
 		projectile.setMetadata("fizzled", new FixedMetadataValue(instance, true));

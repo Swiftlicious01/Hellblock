@@ -13,6 +13,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.zip.GZIPInputStream;
@@ -34,8 +35,8 @@ public class JsonHandler extends AbstractStorage {
 
 	private final File dataFolder;
 
-	private final ConcurrentHashMap<UUID, CompletableFuture<Optional<PlayerData>>> loadingCache = new ConcurrentHashMap<>();
-	private final ConcurrentHashMap<UUID, CompletableFuture<Boolean>> updatingCache = new ConcurrentHashMap<>();
+	private final ConcurrentMap<UUID, CompletableFuture<Optional<PlayerData>>> loadingCache = new ConcurrentHashMap<>();
+	private final ConcurrentMap<UUID, CompletableFuture<Boolean>> updatingCache = new ConcurrentHashMap<>();
 
 	private final Cache<Integer, UUID> islandIdToUUIDCache = Caffeine.newBuilder()
 			.expireAfterWrite(30, TimeUnit.MINUTES).maximumSize(10_000).build();

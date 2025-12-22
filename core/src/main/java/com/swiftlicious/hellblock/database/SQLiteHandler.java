@@ -51,13 +51,13 @@ public class SQLiteHandler extends AbstractSQLDatabase {
 	private ScheduledExecutorService executorService;
 
 	private final Set<UUID> forceUnlocking = ConcurrentHashMap.newKeySet();
-	private final ConcurrentHashMap<UUID, CompletableFuture<Optional<PlayerData>>> loadingCache = new ConcurrentHashMap<>();
-	private final ConcurrentHashMap<UUID, CompletableFuture<Boolean>> updatingCache = new ConcurrentHashMap<>();
-	private final ConcurrentHashMap<UUID, CompletableFuture<Boolean>> upsertCache = new ConcurrentHashMap<>();
+	private final ConcurrentMap<UUID, CompletableFuture<Optional<PlayerData>>> loadingCache = new ConcurrentHashMap<>();
+	private final ConcurrentMap<UUID, CompletableFuture<Boolean>> updatingCache = new ConcurrentHashMap<>();
+	private final ConcurrentMap<UUID, CompletableFuture<Boolean>> upsertCache = new ConcurrentHashMap<>();
 
 	private final ConcurrentMap<UUID, Long> justInsertedTimestamps = new ConcurrentHashMap<>();
 	private final ConcurrentMap<UUID, CompletableFuture<Void>> pendingInserts = new ConcurrentHashMap<>();
-	private final ConcurrentHashMap<UUID, Object> lockGuards = new ConcurrentHashMap<>();
+	private final ConcurrentMap<UUID, Object> lockGuards = new ConcurrentHashMap<>();
 
 	private final Map<UUID, Long> lastAttemptTime = new ConcurrentHashMap<>();
 	private static final long MIN_DELAY_BETWEEN_ATTEMPTS = 5000L; // 5 sec

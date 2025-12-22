@@ -65,24 +65,27 @@ public interface IslandProtection<T> {
 	 *
 	 * @param world   the world the island resides in
 	 * @param ownerId the UUID of the island owner
+	 * @return a {@link CompletableFuture} that completes when message is updated
 	 */
-	void updateHellblockMessages(@NotNull HellblockWorld<?> world, @NotNull UUID ownerId);
+	CompletableFuture<Boolean> updateHellblockMessages(@NotNull HellblockWorld<?> world, @NotNull UUID ownerId);
 
 	/**
 	 * Marks the island as abandoned in the protection system.
 	 *
 	 * @param world   the world the island resides in
 	 * @param ownerId the UUID of the island owner
+	 * @return a {@link CompletableFuture} that completes when island is abandoned
 	 */
-	void abandonIsland(@NotNull HellblockWorld<?> world, @NotNull UUID ownerId);
+	CompletableFuture<Boolean> abandonIsland(@NotNull HellblockWorld<?> world, @NotNull UUID ownerId);
 
 	/**
 	 * Restores the default flags for the island’s protected region.
 	 *
 	 * @param world   the world the island resides in
 	 * @param ownerId the UUID of the island owner
+	 * @return a {@link CompletableFuture} that completes when flags are restored
 	 */
-	void restoreFlags(@NotNull HellblockWorld<?> world, @NotNull UUID ownerId);
+	CompletableFuture<Boolean> restoreFlags(@NotNull HellblockWorld<?> world, @NotNull UUID ownerId);
 
 	/**
 	 * Optionally locks the island to prevent interaction.
@@ -91,9 +94,12 @@ public interface IslandProtection<T> {
 	 *
 	 * @param world     the world the island resides in
 	 * @param ownerData the island owner
+	 * @return a {@link CompletableFuture} containing whether or not the island was
+	 *         locked
 	 */
-	default void lockHellblock(@NotNull HellblockWorld<?> world, @NotNull UserData ownerData) {
+	default CompletableFuture<Boolean> lockHellblock(@NotNull HellblockWorld<?> world, @NotNull UserData ownerData) {
 		// Override if needed, only should be used for WorldGuard
+		return CompletableFuture.completedFuture(true);
 	}
 
 	/**
@@ -105,10 +111,13 @@ public interface IslandProtection<T> {
 	 * @param world     the world the island resides in
 	 * @param ownerData the island owner
 	 * @param flag      the {@link HellblockFlag} to update
+	 * @return a {@link CompletableFuture} containing whether or not the flag was
+	 *         updated
 	 */
-	default void changeHellblockFlag(@NotNull HellblockWorld<?> world, @NotNull UserData ownerData,
-			@NotNull HellblockFlag flag) {
-		// Override if needed
+	default CompletableFuture<Boolean> changeHellblockFlag(@NotNull HellblockWorld<?> world,
+			@NotNull UserData ownerData, @NotNull HellblockFlag flag) {
+		// Override if needed, only should be used for WorldGuard
+		return CompletableFuture.completedFuture(true);
 	}
 
 	/**
@@ -165,10 +174,13 @@ public interface IslandProtection<T> {
 	 * @param world    the world the island resides in
 	 * @param ownerId  the UUID of the island owner
 	 * @param memberId the UUID of the player to add
+	 * @return a {@link CompletableFuture} containing whether or not the member was
+	 *         added to the island
 	 */
-	default void addMemberToHellblockBounds(@NotNull HellblockWorld<?> world, @NotNull UUID ownerId,
-			@NotNull UUID memberId) {
+	default CompletableFuture<Boolean> addMemberToHellblockBounds(@NotNull HellblockWorld<?> world,
+			@NotNull UUID ownerId, @NotNull UUID memberId) {
 		// Override if needed, only should be used for WorldGuard
+		return CompletableFuture.completedFuture(true);
 	}
 
 	/**
@@ -177,9 +189,12 @@ public interface IslandProtection<T> {
 	 * @param world    the world the island resides in
 	 * @param ownerId  the UUID of the island owner
 	 * @param memberId the UUID of the player to remove
+	 * @return a {@link CompletableFuture} containing whether or not the member was
+	 *         removed from the island
 	 */
-	default void removeMemberFromHellblockBounds(@NotNull HellblockWorld<?> world, @NotNull UUID ownerId,
-			@NotNull UUID memberId) {
+	default CompletableFuture<Boolean> removeMemberFromHellblockBounds(@NotNull HellblockWorld<?> world,
+			@NotNull UUID ownerId, @NotNull UUID memberId) {
 		// Override if needed, only should be used for WorldGuard
+		return CompletableFuture.completedFuture(true);
 	}
 }

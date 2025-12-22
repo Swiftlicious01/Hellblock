@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import org.bukkit.block.CommandBlock;
+import org.bukkit.block.Container;
 import org.bukkit.block.EnchantingTable;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.minecart.CommandMinecart;
@@ -27,6 +28,8 @@ public class AdventureMetadata {
 
 	private static final Method ENTITY_GET_CUSTOM_NAME;
 	private static final Method ENTITY_SET_CUSTOM_NAME;
+	private static final Method TILE_ENTITY_GET_CUSTOM_NAME;
+	private static final Method TILE_ENTITY_SET_CUSTOM_NAME;
 	private static final Method BOOK_META_PAGES;
 	private static final Method TABLE_CUSTOM_NAME_GET;
 	private static final Method TABLE_CUSTOM_NAME_SET;
@@ -38,6 +41,7 @@ public class AdventureMetadata {
 	static {
 		boolean supported;
 		Method getCustomName = null, setCustomName = null;
+		Method getTileCustomName = null, setTileCustomName = null;
 		Method pages = null;
 		Method tabGet = null, tabSet = null;
 		Method cmdGet = null, cmdSet = null;
@@ -49,6 +53,9 @@ public class AdventureMetadata {
 
 			getCustomName = Entity.class.getMethod("customName");
 			setCustomName = Entity.class.getMethod("customName", component);
+
+			getTileCustomName = Container.class.getMethod("customName");
+			setTileCustomName = Container.class.getMethod("customName", component);
 
 			pages = BookMeta.class.getMethod("pages", List.class);
 
@@ -69,6 +76,8 @@ public class AdventureMetadata {
 
 		ENTITY_GET_CUSTOM_NAME = getCustomName;
 		ENTITY_SET_CUSTOM_NAME = setCustomName;
+		TILE_ENTITY_GET_CUSTOM_NAME = getTileCustomName;
+		TILE_ENTITY_SET_CUSTOM_NAME = setTileCustomName;
 		BOOK_META_PAGES = pages;
 		TABLE_CUSTOM_NAME_GET = tabGet;
 		TABLE_CUSTOM_NAME_SET = tabSet;
@@ -172,6 +181,33 @@ public class AdventureMetadata {
 		}
 
 		entity.setCustomName(component != null ? AdventureHelper.componentToLegacy(component) : null);
+	}
+
+	@Nullable
+	public static Component getTileEntityCustomName(@NotNull Container container) {
+		if (TILE_ENTITY_GET_CUSTOM_NAME != null) {
+			try {
+				Object component = TILE_ENTITY_GET_CUSTOM_NAME.invoke(container);
+				return component instanceof Component ? (Component) component : null;
+			} catch (Exception e) {
+				return null;
+			}
+		}
+
+		String legacyName = container.getCustomName();
+		return legacyName != null ? AdventureHelper.legacyToComponent(legacyName) : null;
+	}
+
+	public static void setTileEntityCustomName(@NotNull Container container, @Nullable Component component) {
+		if (TILE_ENTITY_SET_CUSTOM_NAME != null) {
+			try {
+				TILE_ENTITY_SET_CUSTOM_NAME.invoke(container, component);
+				return;
+			} catch (Exception ignored) {
+			}
+		}
+
+		container.setCustomName(component != null ? AdventureHelper.componentToLegacy(component) : null);
 	}
 
 	@Nullable

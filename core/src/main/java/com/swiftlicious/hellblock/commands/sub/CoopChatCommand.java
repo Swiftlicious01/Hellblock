@@ -53,7 +53,7 @@ public class CoopChatCommand extends BukkitCommandFeature<CommandSender> {
 					List<Suggestion> suggestions = Arrays.stream(CoopChatSetting.values())
 							.filter(setting -> setting != currentSetting
 									&& (hasHellblock || setting != CoopChatSetting.PARTY))
-							.map(Enum::name).map(Suggestion::suggestion).toList();
+							.map(value -> value.toString().toLowerCase()).map(Suggestion::suggestion).toList();
 
 					return CompletableFuture.completedFuture(suggestions);
 				})).handler(context -> {

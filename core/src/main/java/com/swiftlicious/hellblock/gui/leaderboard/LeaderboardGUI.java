@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -221,10 +222,16 @@ public class LeaderboardGUI extends PaginatedGUI<LeaderboardGUIElement> {
 				&& !excludeSymbols.contains(entry.getValue().getSymbol()));
 	}
 
-	public void populateTopIslands(int limit) {
-		manager.instance.getIslandLevelManager().getTopHellblocks(limit).thenAccept(topIslands -> {
-			List<CompletableFuture<LeaderboardDynamicGUIElement>> futures = new ArrayList<>();
+	public CompletableFuture<Void> refreshTopIslands(int limit) {
+		return manager.instance.getIslandLevelManager().getTopHellblocks(limit).thenCompose(topIslands -> {
+			if (!hasTopIslandsChanged(topIslands)) {
+				return CompletableFuture.completedFuture(null); // skip rebuild
+			}
 
+			lastTopSnapshot = new HashMap<>(topIslands);
+			lastUpdateTimestamp = System.currentTimeMillis();
+
+			List<CompletableFuture<LeaderboardDynamicGUIElement>> futures = new ArrayList<>();
 			int rank = 1;
 
 			for (Map.Entry<Integer, Float> entry : topIslands.entrySet()) {
@@ -233,78 +240,8 @@ public class LeaderboardGUI extends PaginatedGUI<LeaderboardGUIElement> {
 				int position = rank++;
 
 				CompletableFuture<LeaderboardDynamicGUIElement> future = manager.instance.getStorageManager()
-						.getOfflineUserDataByIslandId(islandId, manager.instance.getConfigManager().lockData())
-						.thenApply(userDataOpt -> {
-							if (userDataOpt.isEmpty()) {
-								// Build placeholder element
-								ItemStack placeholder = buildPlaceholderElement(position);
-								LeaderboardDynamicGUIElement element = new LeaderboardDynamicGUIElement(manager.topSlot,
-										placeholder);
-								return element;
-							}
-
-							UserData userData = userDataOpt.get();
-							UUID uuid = userData.getUUID();
-							String name = userData.getName();
-
-							int oldRank = previousRanks.getOrDefault(uuid, position);
-							int rankDelta = oldRank - position;
-							previousRanks.put(uuid, position);
-
-							String rankChangeSymbol = rankDelta > 0 ? "▲" : rankDelta < 0 ? "▼" : "—";
-							String rankChangeColor = rankDelta > 0 ? "<green>" : rankDelta < 0 ? "<red>" : "<gray>";
-							String rankChangeAmount = rankDelta != 0 ? String.valueOf(Math.abs(rankDelta)) : "0";
-
-							String timeAgo = formatTimeAgo(lastUpdateTimestamp);
-
-							Map<String, String> placeholders = Map.of("position", String.valueOf(position), "player",
-									name, "level", String.valueOf(level), "rank_change", rankChangeSymbol, "rank_color",
-									rankChangeColor, "rank_delta", rankChangeAmount, "last_updated", timeAgo);
-
-							// Clone base top-icon item
-							// Wrap and build item
-							Item<ItemStack> wrapped = manager.instance.getItemManager()
-									.wrap(manager.topIcon.build(context));
-
-							// Display name
-							String rawName = manager.topSection.getString("display.name", "");
-							wrapped.displayName(
-									AdventureHelper.miniMessageToJson(replacePlaceholders(rawName, placeholders)));
-
-							// Lore
-							List<String> loreLines = manager.topSection.getStringList("display.lore");
-							if (loreLines != null && !loreLines.isEmpty()) {
-								List<String> processedLore = new ArrayList<>();
-								for (String line : loreLines) {
-									processedLore.add(
-											AdventureHelper.miniMessageToJson(replacePlaceholders(line, placeholders)));
-								}
-								wrapped.lore(processedLore);
-							}
-
-							// Fetch and apply skull
-							if (wrapped.getItem().getType() == Material.PLAYER_HEAD) {
-								String texture = cachedSkullTextures.computeIfAbsent(uuid, id -> {
-									try {
-										GameProfile profile = GameProfileBuilder.fetch(id);
-										return profile.getProperties().get("textures").iterator().next().getValue();
-									} catch (Exception ex) {
-										manager.instance.getPluginLogger().warn("Failed to fetch skull for " + id, ex);
-										return null;
-									}
-								});
-
-								if (texture != null) {
-									wrapped.skull(texture);
-								}
-							}
-
-							LeaderboardDynamicGUIElement element = new LeaderboardDynamicGUIElement(manager.topSlot,
-									wrapped.loadCopy(), uuid);
-							element.setUUID(uuid);
-							element.setSkullTexture(cachedSkullTextures.get(uuid));
-							return element;
-						});
+						.getOfflineUserDataByIslandId(islandId, false)
+						.thenApply(optData -> buildElement(optData, islandId, level, position));
 
 				futures.add(future);
 			}
@@ -317,14 +254,14 @@ public class LeaderboardGUI extends PaginatedGUI<LeaderboardGUIElement> {
 						.completedFuture(new LeaderboardDynamicGUIElement(manager.topSlot, unclaimed)));
 			}
 
-			CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new)).thenRun(() -> {
+			return CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new)).thenRun(() -> {
 				List<LeaderboardDynamicGUIElement> elements = futures.stream().map(CompletableFuture::join).toList();
 
 				manager.instance.getScheduler().executeSync(() -> {
 					clearDynamicElements();
 					elements.forEach(this::addElement);
-					init(); // rebuild slot map + inventory layout
-					refresh(); // update GUI visuals
+					init();
+					refresh();
 				});
 			});
 		});
@@ -336,107 +273,71 @@ public class LeaderboardGUI extends PaginatedGUI<LeaderboardGUIElement> {
 		}
 
 		// Schedule async task
-		refreshTask = manager.instance.getScheduler().asyncRepeating(
-				() -> manager.instance.getIslandLevelManager().getTopHellblocks(limit).thenAccept(topIslands -> {
-					// Compare with last snapshot to detect changes
-					if (!hasTopIslandsChanged(topIslands)) {
-						return; // no changes, skip rebuild
-					}
-					lastTopSnapshot = new HashMap<>(topIslands);
-					lastUpdateTimestamp = System.currentTimeMillis();
+		refreshTask = manager.instance.getScheduler().asyncRepeating(() -> {
+			refreshTopIslands(limit).exceptionally(ex -> {
+				manager.instance.getPluginLogger().warn("Failed to refresh top islands", ex);
+				return null;
+			});
+		}, intervalTicks, intervalTicks, TimeUnit.SECONDS);
+	}
 
-					List<CompletableFuture<LeaderboardDynamicGUIElement>> futures = new ArrayList<>();
-					int rank = 1;
+	private LeaderboardDynamicGUIElement buildElement(Optional<UserData> optData, int islandId, float level,
+			int position) {
+		if (optData.isEmpty()) {
+			ItemStack placeholder = buildPlaceholderElement(position);
+			return new LeaderboardDynamicGUIElement(manager.topSlot, placeholder);
+		}
 
-					for (Map.Entry<Integer, Float> entry : topIslands.entrySet()) {
-						int islandId = entry.getKey();
-						float level = entry.getValue();
-						int position = rank++;
+		UserData userData = optData.get();
+		UUID uuid = userData.getUUID();
+		String name = userData.getName();
 
-						CompletableFuture<LeaderboardDynamicGUIElement> future = manager.instance.getStorageManager()
-								.getOfflineUserDataByIslandId(islandId, manager.instance.getConfigManager().lockData())
-								.thenApply(userDataOpt -> {
-									if (userDataOpt.isEmpty()) {
-										ItemStack placeholder = buildPlaceholderElement(position);
-										return new LeaderboardDynamicGUIElement(manager.topSlot, placeholder);
-									}
+		int oldRank = previousRanks.getOrDefault(uuid, position);
+		int rankDelta = oldRank - position;
+		previousRanks.put(uuid, position);
 
-									UserData userData = userDataOpt.get();
-									UUID uuid = userData.getUUID();
-									String name = userData.getName();
+		String rankChangeSymbol = rankDelta > 0 ? "▲" : rankDelta < 0 ? "▼" : "—";
+		String rankChangeColor = rankDelta > 0 ? "<green>" : rankDelta < 0 ? "<red>" : "<gray>";
+		String rankChangeAmount = rankDelta != 0 ? String.valueOf(Math.abs(rankDelta)) : "0";
 
-									int oldRank = previousRanks.getOrDefault(uuid, position);
-									int rankDelta = oldRank - position;
-									previousRanks.put(uuid, position);
+		String timeAgo = formatTimeAgo(lastUpdateTimestamp);
 
-									String rankChangeSymbol = rankDelta > 0 ? "▲" : rankDelta < 0 ? "▼" : "—";
-									String rankChangeColor = rankDelta > 0 ? "<green>"
-											: rankDelta < 0 ? "<red>" : "<gray>";
-									String rankChangeAmount = rankDelta != 0 ? String.valueOf(Math.abs(rankDelta))
-											: "0";
+		Map<String, String> placeholders = Map.of("position", String.valueOf(position), "player", name, "level",
+				String.valueOf(level), "rank_change", rankChangeSymbol, "rank_color", rankChangeColor, "rank_delta",
+				rankChangeAmount, "last_updated", timeAgo);
 
-									String timeAgo = formatTimeAgo(lastUpdateTimestamp);
+		Item<ItemStack> wrapped = manager.instance.getItemManager().wrap(manager.topIcon.build(context));
 
-									Map<String, String> placeholders = Map.of("position", String.valueOf(position),
-											"player", name, "level", String.valueOf(level), "rank_change",
-											rankChangeSymbol, "rank_color", rankChangeColor, "rank_delta",
-											rankChangeAmount, "last_updated", timeAgo);
+		String rawName = manager.topSection.getString("display.name", "");
+		wrapped.displayName(AdventureHelper.miniMessageToJson(replacePlaceholders(rawName, placeholders)));
 
-									Item<ItemStack> wrapped = manager.instance.getItemManager()
-											.wrap(manager.topIcon.build(context));
+		List<String> loreLines = manager.topSection.getStringList("display.lore");
+		if (loreLines != null && !loreLines.isEmpty()) {
+			List<String> processedLore = loreLines.stream()
+					.map(line -> AdventureHelper.miniMessageToJson(replacePlaceholders(line, placeholders))).toList();
+			wrapped.lore(processedLore);
+		}
 
-									String rawName = manager.topSection.getString("display.name", "");
-									wrapped.displayName(AdventureHelper
-											.miniMessageToJson(replacePlaceholders(rawName, placeholders)));
+		if (wrapped.getItem().getType() == Material.PLAYER_HEAD) {
+			String texture = cachedSkullTextures.computeIfAbsent(uuid, id -> {
+				try {
+					GameProfile profile = GameProfileBuilder.fetch(id);
+					return profile.getProperties().get("textures").iterator().next().getValue();
+				} catch (Exception ex) {
+					manager.instance.getPluginLogger().warn("Failed to fetch skull for " + id, ex);
+					return null;
+				}
+			});
+			if (texture != null) {
+				wrapped.skull(texture);
+			}
+		}
 
-									List<String> loreLines = manager.topSection.getStringList("display.lore");
-									if (loreLines != null && !loreLines.isEmpty()) {
-										List<String> processedLore = loreLines.stream()
-												.map(line -> AdventureHelper
-														.miniMessageToJson(replacePlaceholders(line, placeholders)))
-												.toList();
-										wrapped.lore(processedLore);
-									}
-
-									if (wrapped.getItem().getType() == Material.PLAYER_HEAD) {
-										String texture = cachedSkullTextures.computeIfAbsent(uuid, id -> {
-											try {
-												GameProfile profile = GameProfileBuilder.fetch(id);
-												return profile.getProperties().get("textures").iterator().next()
-														.getValue();
-											} catch (Exception ex) {
-												manager.instance.getPluginLogger()
-														.warn("Failed to fetch skull for " + id, ex);
-												return null;
-											}
-										});
-										if (texture != null)
-											wrapped.skull(texture);
-									}
-
-									LeaderboardDynamicGUIElement element = new LeaderboardDynamicGUIElement(
-											manager.topSlot, wrapped.loadCopy(), uuid);
-									element.setUUID(uuid);
-									element.setSkullTexture(cachedSkullTextures.get(uuid));
-									return element;
-								});
-
-						futures.add(future);
-					}
-
-					CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new)).thenRun(() -> {
-						List<LeaderboardDynamicGUIElement> elements = futures.stream().map(CompletableFuture::join)
-								.toList();
-
-						manager.instance.getScheduler().executeSync(() -> {
-							clearDynamicElements();
-							elements.forEach(this::addElement);
-							init(); // rebuild layout
-							refresh(); // visually update
-						});
-					});
-
-				}), intervalTicks, intervalTicks, TimeUnit.SECONDS);
+		LeaderboardDynamicGUIElement element = new LeaderboardDynamicGUIElement(manager.topSlot, wrapped.loadCopy(),
+				uuid);
+		element.setUUID(uuid);
+		element.setSkullTexture(cachedSkullTextures.get(uuid));
+		return element;
 	}
 
 	private boolean hasTopIslandsChanged(Map<Integer, Float> newTop) {
@@ -468,13 +369,12 @@ public class LeaderboardGUI extends PaginatedGUI<LeaderboardGUIElement> {
 			int position = rank++;
 
 			CompletableFuture<LeaderboardDynamicGUIElement> future = manager.instance.getStorageManager()
-					.getOfflineUserDataByIslandId(islandId, manager.instance.getConfigManager().lockData())
-					.thenApply(userDataOpt -> {
-						if (userDataOpt.isEmpty()) {
+					.getOfflineUserDataByIslandId(islandId, false).thenApply(optData -> {
+						if (optData.isEmpty()) {
 							return new LeaderboardDynamicGUIElement(manager.topSlot, buildPlaceholderElement(position));
 						}
 
-						UserData userData = userDataOpt.get();
+						UserData userData = optData.get();
 						UUID uuid = userData.getUUID();
 						String name = userData.getName();
 

@@ -72,8 +72,8 @@ public class HellblockBiomeCommand extends BukkitCommandFeature<CommandSender> {
 					HellBiome currentBiome = data.getBiome();
 
 					List<Suggestion> filteredSuggestions = Arrays.stream(HellBiome.values())
-							.filter(biome -> currentBiome == null || biome != currentBiome).map(Enum::toString)
-							.map(Suggestion::suggestion).toList();
+							.filter(biome -> currentBiome == null || biome != currentBiome)
+							.map(value -> value.toString().toLowerCase()).map(Suggestion::suggestion).toList();
 
 					return CompletableFuture.completedFuture(filteredSuggestions);
 				})).handler(context -> {
@@ -86,8 +86,8 @@ public class HellblockBiomeCommand extends BukkitCommandFeature<CommandSender> {
 						return;
 					}
 
-					final UserData onlineUser = onlineUserOpt.get();
-					final HellblockData data = onlineUser.getHellblockData();
+					final UserData userData = onlineUserOpt.get();
+					final HellblockData data = userData.getHellblockData();
 
 					if (!data.hasHellblock()) {
 						handleFeedback(context, MessageConstants.MSG_HELLBLOCK_NOT_FOUND);
@@ -115,7 +115,7 @@ public class HellblockBiomeCommand extends BukkitCommandFeature<CommandSender> {
 					final String biomeInput = context.getOrDefault("biome", HellBiome.NETHER_WASTES.toString())
 							.toUpperCase();
 					final Optional<HellBiome> biomeOpt = Arrays.stream(HellBiome.values())
-							.filter(b -> b.name().equalsIgnoreCase(biomeInput)).findFirst();
+							.filter(b -> b.toString().equalsIgnoreCase(biomeInput)).findFirst();
 
 					if (biomeOpt.isEmpty()) {
 						handleFeedback(context, MessageConstants.MSG_HELLBLOCK_INVALID_BIOME);
@@ -124,7 +124,7 @@ public class HellblockBiomeCommand extends BukkitCommandFeature<CommandSender> {
 
 					final HellBiome biome = biomeOpt.get();
 
-					if (data.getBiome() == biome) {
+					if (data.getBiome() != null && data.getBiome().equals(biome)) {
 						handleFeedback(context, MessageConstants.MSG_HELLBLOCK_BIOME_SAME_BIOME,
 								AdventureHelper.miniMessageToComponent(StringUtils.toCamelCase(biome.toString())));
 						return;
@@ -137,7 +137,7 @@ public class HellblockBiomeCommand extends BukkitCommandFeature<CommandSender> {
 						return;
 					}
 
-					plugin.getBiomeHandler().changeHellblockBiome(onlineUser, biome, false, false);
+					plugin.getBiomeHandler().changeHellblockBiome(userData, biome, false, false);
 				});
 	}
 

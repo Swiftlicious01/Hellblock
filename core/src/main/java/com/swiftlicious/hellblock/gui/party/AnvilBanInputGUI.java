@@ -22,7 +22,7 @@ import com.swiftlicious.hellblock.gui.display.AbstractAnvilInputGUI;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.handlers.VersionHelper;
 import com.swiftlicious.hellblock.player.GameProfileBuilder;
-import com.swiftlicious.hellblock.player.HellblockData;
+import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.utils.LocationUtils;
 
 import dev.dejvokep.boostedyaml.block.implementation.Section;
@@ -32,7 +32,7 @@ import net.kyori.adventure.text.Component;
 public class AnvilBanInputGUI extends AbstractAnvilInputGUI {
 
 	private final HellblockPlugin plugin;
-	private final HellblockData data;
+	private final UserData data;
 	private final Player opener;
 	private final Context<Integer> islandContext;
 	private final boolean isOwner;
@@ -43,7 +43,7 @@ public class AnvilBanInputGUI extends AbstractAnvilInputGUI {
 	private long lastSkinFetch = 0L;
 	private static final long SKIN_FETCH_COOLDOWN = 20L * 2; // 2 seconds (ticks)
 
-	public AnvilBanInputGUI(HellblockPlugin plugin, Player player, Context<Integer> islandContext, HellblockData data,
+	public AnvilBanInputGUI(HellblockPlugin plugin, Player player, Context<Integer> islandContext, UserData data,
 			boolean isOwner) {
 		super(plugin, player, plugin.getPartyGUIManager().banIconSection.getSection("anvil-settings").getString("title",
 				"<dark_red>Enter Player Name to Ban"), "");
@@ -119,17 +119,17 @@ public class AnvilBanInputGUI extends AbstractAnvilInputGUI {
 			} else {
 				UUID targetUUID = target.getUniqueId();
 
-				if (data.getOwnerUUID().equals(targetUUID)) {
+				if (data.getHellblockData().getOwnerUUID().equals(targetUUID)) {
 					displayMsg = anvilSettings.getString("self", "<red>You cannot ban yourself.");
 					slot2Item = new ItemStack(Material.BARRIER);
-				} else if (data.getPartyMembers().contains(targetUUID)) {
+				} else if (data.getHellblockData().getPartyMembers().contains(targetUUID)) {
 					displayMsg = anvilSettings.getString("already-member", "<red>This player is a coop member.");
 					slot2Item = new ItemStack(Material.BARRIER);
-				} else if (data.getTrustedMembers().contains(targetUUID)) {
+				} else if (data.getHellblockData().getTrustedMembers().contains(targetUUID)) {
 					displayMsg = anvilSettings.getString("already-trusted",
 							"<red>This player is trusted. Untrust them first.");
 					slot2Item = new ItemStack(Material.BARRIER);
-				} else if (data.getBannedMembers().contains(targetUUID)) {
+				} else if (data.getHellblockData().getBannedMembers().contains(targetUUID)) {
 					displayMsg = anvilSettings.getString("already-banned", "<red>This player is already banned.");
 					slot2Item = new ItemStack(Material.BARRIER);
 				} else {
@@ -159,7 +159,8 @@ public class AnvilBanInputGUI extends AbstractAnvilInputGUI {
 
 			if (slot2Item.getType() == Material.BARRIER) {
 				Item<ItemStack> errorItem = plugin.getItemManager().wrap(slot2Item);
-				errorItem.displayName(AdventureHelper.componentToJson(AdventureHelper.miniMessageToComponent(displayMsg)));
+				errorItem.displayName(
+						AdventureHelper.componentToJson(AdventureHelper.miniMessageToComponent(displayMsg)));
 				player.getOpenInventory().setItem(2, errorItem.loadCopy());
 			} else {
 				player.getOpenInventory().setItem(2, slot2Item);
@@ -193,28 +194,28 @@ public class AnvilBanInputGUI extends AbstractAnvilInputGUI {
 
 		UUID targetUUID = target.getUniqueId();
 
-		if (data.getOwnerUUID().equals(targetUUID)) {
+		if (data.getHellblockData().getOwnerUUID().equals(targetUUID)) {
 			updateInputDisplay(anvilSettings.getString("self", "<red>You cannot ban yourself."));
 			return;
 		}
 
-		if (data.getPartyMembers().contains(targetUUID)) {
+		if (data.getHellblockData().getPartyMembers().contains(targetUUID)) {
 			updateInputDisplay(anvilSettings.getString("already-member", "<red>This player is a coop member."));
 			return;
 		}
 
-		if (data.getTrustedMembers().contains(targetUUID)) {
+		if (data.getHellblockData().getTrustedMembers().contains(targetUUID)) {
 			updateInputDisplay(
 					anvilSettings.getString("already-trusted", "<red>This player is trusted. Untrust them first."));
 			return;
 		}
 
-		if (data.getBannedMembers().contains(targetUUID)) {
+		if (data.getHellblockData().getBannedMembers().contains(targetUUID)) {
 			updateInputDisplay(anvilSettings.getString("already-banned", "<red>This player is already banned."));
 			return;
 		}
 
-		data.banPlayer(targetUUID);
+		data.getHellblockData().banPlayer(targetUUID);
 
 		plugin.getScheduler().executeSync(() -> {
 			String successMessage = anvilSettings.getString("success", "<green>Successfully banned {name}.")
@@ -263,11 +264,11 @@ public class AnvilBanInputGUI extends AbstractAnvilInputGUI {
 
 			// Get plain text form (actual text player typed)
 			String plainInput = AdventureHelper.componentToPlainText(input);
-			
+
 			cancel();
 			onInput(plainInput);
 			if (plugin.getCooldownManager().shouldUpdateActivity(player.getUniqueId(), 15000)) {
-				data.updateLastIslandActivity();
+				data.getHellblockData().updateLastIslandActivity();
 			}
 		}
 	}
@@ -275,7 +276,7 @@ public class AnvilBanInputGUI extends AbstractAnvilInputGUI {
 	@Override
 	protected void onCancel() {
 		plugin.getScheduler().executeSync(() -> {
-			List<UUID> banned = new ArrayList<>(data.getBannedMembers());
+			List<UUID> banned = new ArrayList<>(data.getHellblockData().getBannedMembers());
 
 			if (banned.isEmpty()) {
 				plugin.getPartyGUIManager().openPartyGUI(opener, islandContext.holder(), isOwner);

@@ -17,7 +17,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
 import org.bukkit.Bukkit;
-import org.bukkit.GameRule;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.entity.HumanEntity;
@@ -51,6 +50,7 @@ import com.swiftlicious.hellblock.config.parser.SingleItemParser;
 import com.swiftlicious.hellblock.context.Context;
 import com.swiftlicious.hellblock.creation.item.CustomItem;
 import com.swiftlicious.hellblock.player.UserData;
+import com.swiftlicious.hellblock.utils.GameRuleUtils;
 import com.swiftlicious.hellblock.utils.HellblockRecipe;
 import com.swiftlicious.hellblock.utils.RecipeDiscoveryUtil;
 import com.swiftlicious.hellblock.utils.RecipeHelper;
@@ -149,15 +149,15 @@ public class ToolsHandler implements Listener, Reloadable {
 				if (recipe instanceof HellblockRecipe.Disabled disabled) {
 					Bukkit.removeRecipe(disabled.key());
 					registeredRecipes.remove(disabled.key());
-					unregisteredTypes.add(disabled.key().asString());
+					unregisteredTypes.add(disabled.key().toString());
 				} else if (recipe instanceof HellblockRecipe.Enabled enabled) {
 					NamespacedKey key = enabled.key();
 					if (Bukkit.getRecipe(key) == null) {
 						Bukkit.addRecipe(enabled.recipe());
 						registeredRecipes.add(key);
-						registeredTypes.add(key.asString());
+						registeredTypes.add(key.toString());
 					} else {
-						existingTypes.add(key.asString());
+						existingTypes.add(key.toString());
 					}
 				}
 			} catch (IllegalStateException ignored) {
@@ -310,7 +310,11 @@ public class ToolsHandler implements Listener, Reloadable {
 	@EventHandler
 	public void onLimitedCrafting(PrepareItemCraftEvent event) {
 		Player player = getValidPlayer(event.getView().getPlayer());
-		if (player == null || !player.getWorld().getGameRuleValue(GameRule.DO_LIMITED_CRAFTING))
+		if (player == null)
+			return;
+
+		Boolean limited = player.getWorld().getGameRuleValue(GameRuleUtils.LIMITED_CRAFTING_RULE);
+		if (limited == null || !limited)
 			return;
 
 		RecipeDiscoveryUtil.handleRecipeDiscovery(player, event.getRecipe(), this::isNetherToolEnabled,

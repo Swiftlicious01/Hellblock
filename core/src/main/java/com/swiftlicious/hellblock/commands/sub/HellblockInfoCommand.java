@@ -48,15 +48,15 @@ public class HellblockInfoCommand extends BukkitCommandFeature<CommandSender> {
 				return;
 			}
 
-			final UserData onlineUser = onlineUserOpt.get();
-			final HellblockData hellblockData = onlineUser.getHellblockData();
+			final UserData userData = onlineUserOpt.get();
+			final HellblockData data = userData.getHellblockData();
 
-			if (!hellblockData.hasHellblock()) {
+			if (!data.hasHellblock()) {
 				handleFeedback(context, MessageConstants.MSG_HELLBLOCK_NOT_FOUND);
 				return;
 			}
 
-			final UUID ownerUUID = hellblockData.getOwnerUUID();
+			final UUID ownerUUID = data.getOwnerUUID();
 			if (ownerUUID == null) {
 				plugin.getPluginLogger().severe("Hellblock owner UUID was null for player " + player.getName() + " ("
 						+ player.getUniqueId() + "). This indicates corrupted data or a serious bug.");
@@ -64,118 +64,117 @@ public class HellblockInfoCommand extends BukkitCommandFeature<CommandSender> {
 						"Owner reference was null. This should never happen — please report to the developer.");
 			}
 
-			plugin.getStorageManager().getCachedUserDataWithFallback(ownerUUID, plugin.getConfigManager().lockData())
-					.thenAccept(result -> {
-						if (result.isEmpty()) {
-							final String username = Optional.ofNullable(Bukkit.getOfflinePlayer(ownerUUID).getName())
-									.orElse(plugin.getTranslationManager()
-											.miniMessageTranslation(MessageConstants.FORMAT_UNKNOWN.build().key()));
-							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_OWNER_DATA_NOT_LOADED,
-									AdventureHelper.miniMessageToComponent(username));
-							return;
+			plugin.getStorageManager().getCachedUserDataWithFallback(ownerUUID, false).thenAccept(optOwnerData -> {
+				if (optOwnerData.isEmpty()) {
+					final String username = Optional.ofNullable(Bukkit.getOfflinePlayer(ownerUUID).getName())
+							.orElse(plugin.getTranslationManager()
+									.miniMessageTranslation(MessageConstants.FORMAT_UNKNOWN.build().key()));
+					handleFeedback(context, MessageConstants.MSG_HELLBLOCK_OWNER_DATA_NOT_LOADED,
+							AdventureHelper.miniMessageToComponent(username));
+					return;
+				}
+
+				final UserData ownerData = optOwnerData.get();
+				final HellblockData hellblockData = ownerData.getHellblockData();
+
+				if (hellblockData.isAbandoned()) {
+					handleFeedback(context, MessageConstants.MSG_HELLBLOCK_IS_ABANDONED);
+					return;
+				}
+
+				// Build member lists
+				final String partyString = formatPlayerList(hellblockData.getPartyMembers(), DEFAULT_LIST_CUTOFF);
+				final String trustedString = formatPlayerList(hellblockData.getTrustedMembers(), DEFAULT_LIST_CUTOFF);
+				final String bannedString = formatPlayerList(hellblockData.getBannedMembers(), DEFAULT_LIST_CUTOFF);
+
+				Component bioComponent = hellblockData.displayIslandBioWithContext();
+				String plainBio = AdventureHelper.componentToPlainText(bioComponent);
+				String[] bioLines = plainBio.split("\\r?\\n");
+
+				// Extract the prefix pattern from your message template dynamically
+				String bioLineTemplate = plugin.getTranslationManager()
+						.miniMessageTranslation(MessageConstants.MSG_HELLBLOCK_INFORMATION.build().key());
+				String bioPrefix = extractBioPrefix(bioLineTemplate);
+
+				// Fallback if extraction fails
+				if (bioPrefix == null || bioPrefix.isBlank()) {
+					bioPrefix = "<gray>-</gray><reset>";
+				}
+
+				List<Component> formattedBioLines = new ArrayList<>();
+
+				for (String line : bioLines) {
+					if (line.isBlank())
+						continue;
+
+					// Wrap line text with indent support
+					List<String> wrapped = TextWrapUtils.wrapLineWithIndentAdaptive(player, line.trim(), 2);
+
+					for (int i = 0; i < wrapped.size(); i++) {
+						String wrappedLine = wrapped.get(i);
+
+						// Use dynamic prefix for first line, indent for wrapped ones
+						if (i == 0) {
+							formattedBioLines
+									.add(AdventureHelper.miniMessageToComponent(bioPrefix + " " + wrappedLine.trim()));
+						} else {
+							// Indent follows same color scheme but replaces symbol with spaces
+							formattedBioLines.add(AdventureHelper.miniMessageToComponent(
+									bioPrefix.replaceAll("(?i)<[^>]+>|[^\\w]", " ") + " " + wrappedLine.trim()));
 						}
+					}
+				}
 
-						final UserData offlineUser = result.get();
-						final HellblockData offlineData = offlineUser.getHellblockData();
+				// Join wrapped lines
+				Component formattedBio = Component.join(JoinConfiguration.newlines(), formattedBioLines);
 
-						if (offlineData.isAbandoned()) {
-							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_IS_ABANDONED);
-							return;
-						}
-
-						// Build member lists
-						final String partyString = formatPlayerList(offlineData.getPartyMembers(), DEFAULT_LIST_CUTOFF);
-						final String trustedString = formatPlayerList(offlineData.getTrustedMembers(),
-								DEFAULT_LIST_CUTOFF);
-						final String bannedString = formatPlayerList(offlineData.getBannedMembers(),
-								DEFAULT_LIST_CUTOFF);
-
-						Component bioComponent = hellblockData.displayIslandBioWithContext();
-						String plainBio = AdventureHelper.componentToPlainText(bioComponent);
-						String[] bioLines = plainBio.split("\\r?\\n");
-
-						// Extract the prefix pattern from your message template dynamically
-						String bioLineTemplate = plugin.getTranslationManager()
-								.miniMessageTranslation(MessageConstants.MSG_HELLBLOCK_INFORMATION.build().key());
-						String bioPrefix = extractBioPrefix(bioLineTemplate);
-
-						// Fallback if extraction fails
-						if (bioPrefix == null || bioPrefix.isBlank()) {
-							bioPrefix = "<gray>-</gray><reset>";
-						}
-
-						List<Component> formattedBioLines = new ArrayList<>();
-
-						for (String line : bioLines) {
-							if (line.isBlank())
-								continue;
-
-							// Wrap line text with indent support
-							List<String> wrapped = TextWrapUtils.wrapLineWithIndentAdaptive(player, line.trim(), 2);
-
-							for (int i = 0; i < wrapped.size(); i++) {
-								String wrappedLine = wrapped.get(i);
-
-								// Use dynamic prefix for first line, indent for wrapped ones
-								if (i == 0) {
-									formattedBioLines
-											.add(AdventureHelper.miniMessageToComponent(bioPrefix + " " + wrappedLine.trim()));
-								} else {
-									// Indent follows same color scheme but replaces symbol with spaces
-									formattedBioLines.add(
-											AdventureHelper.miniMessageToComponent(bioPrefix.replaceAll("(?i)<[^>]+>|[^\\w]", " ")
-													+ " " + wrappedLine.trim()));
-								}
-							}
-						}
-
-						// Join wrapped lines
-						Component formattedBio = Component.join(JoinConfiguration.newlines(), formattedBioLines);
-
-						// Send main info message
-						handleFeedback(context, MessageConstants.MSG_HELLBLOCK_INFORMATION,
-								AdventureHelper.miniMessageToComponent(String.valueOf(offlineData.getIslandId())),
-								AdventureHelper
-										.miniMessageToComponent(Bukkit.getOfflinePlayer(offlineUser.getUUID()).hasPlayedBefore()
-												? offlineUser.getName()
-												: plugin.getTranslationManager().miniMessageTranslation(
-														MessageConstants.FORMAT_UNKNOWN.build().key())),
-								AdventureHelper.miniMessageToComponent(String.valueOf(offlineData.getIslandLevel())),
-								AdventureHelper.miniMessageToComponent(offlineData.getCreationTimeFormatted()),
-								offlineData.displayIslandNameWithContext(), formattedBio,
-								AdventureHelper.miniMessageToComponent(String.valueOf(offlineData.getMaxProtectionRange())),
-								AdventureHelper.miniMessageToComponent(offlineData.isLocked()
-										? plugin.getTranslationManager()
-												.miniMessageTranslation(MessageConstants.FORMAT_CLOSED.build().key())
+				// Send main info message
+				handleFeedback(context, MessageConstants.MSG_HELLBLOCK_INFORMATION,
+						AdventureHelper.miniMessageToComponent(String.valueOf(hellblockData.getIslandId())),
+						AdventureHelper.miniMessageToComponent(
+								Bukkit.getOfflinePlayer(ownerData.getUUID()).hasPlayedBefore() ? ownerData.getName()
 										: plugin.getTranslationManager()
-												.miniMessageTranslation(MessageConstants.FORMAT_OPEN.build().key())),
-								AdventureHelper
-										.miniMessageToComponent(String.valueOf(offlineData.getVisitData().getDailyVisits())),
-								AdventureHelper
-										.miniMessageToComponent(String.valueOf(offlineData.getVisitData().getWeeklyVisits())),
-								AdventureHelper
-										.miniMessageToComponent(String.valueOf(offlineData.getVisitData().getMonthlyVisits())),
-								AdventureHelper.miniMessageToComponent(String
-										.valueOf(offlineData.getVisitData().getTotalVisits())),
-								AdventureHelper.miniMessageToComponent(offlineUser.getHellblockData().getBoundingBox() != null
-										? String.valueOf(plugin.getHopperHandler()
-												.countHoppers(offlineUser.getHellblockData().getBoundingBox()))
-										: String.valueOf("0")),
-								AdventureHelper.miniMessageToComponent(String.valueOf(offlineData.getMaxHopperLimit())),
-								AdventureHelper
-										.miniMessageToComponent(StringUtils.toCamelCase(offlineData.getIslandChoice().toString())),
-								AdventureHelper.miniMessageToComponent(StringUtils.toCamelCase(offlineData.getBiome().toString())),
-								AdventureHelper.miniMessageToComponent(String.valueOf(offlineData.getPartyMembers().size())),
-								AdventureHelper.miniMessageToComponent(
-										String.valueOf(plugin.getCoopManager().getMaxPartySize(offlineUser))),
-								AdventureHelper.miniMessageToComponent(partyString), AdventureHelper.miniMessageToComponent(trustedString),
-								AdventureHelper.miniMessageToComponent(bannedString));
-					}).exceptionally(ex -> {
-						plugin.getPluginLogger()
-								.warn("getCachedUserDataWithFallback failed for hellblock information check of "
-										+ player.getName() + ": " + ex.getMessage());
-						return null;
-					});
+												.miniMessageTranslation(MessageConstants.FORMAT_UNKNOWN.build().key())),
+						AdventureHelper.miniMessageToComponent(String.valueOf(hellblockData.getIslandLevel())),
+						AdventureHelper.miniMessageToComponent(hellblockData.getCreationTimeFormatted()),
+						hellblockData.displayIslandNameWithContext(), formattedBio,
+						AdventureHelper.miniMessageToComponent(String.valueOf(hellblockData.getMaxProtectionRange())),
+						AdventureHelper.miniMessageToComponent(hellblockData.isLocked()
+								? plugin.getTranslationManager()
+										.miniMessageTranslation(MessageConstants.FORMAT_CLOSED.build().key())
+								: plugin.getTranslationManager()
+										.miniMessageTranslation(MessageConstants.FORMAT_OPEN.build().key())),
+						AdventureHelper
+								.miniMessageToComponent(String.valueOf(hellblockData.getVisitData().getDailyVisits())),
+						AdventureHelper
+								.miniMessageToComponent(String.valueOf(hellblockData.getVisitData().getWeeklyVisits())),
+						AdventureHelper.miniMessageToComponent(
+								String.valueOf(hellblockData.getVisitData().getMonthlyVisits())),
+						AdventureHelper
+								.miniMessageToComponent(String.valueOf(hellblockData.getVisitData().getTotalVisits())),
+						AdventureHelper.miniMessageToComponent(hellblockData.getBoundingBox() != null
+								? String.valueOf(plugin.getHopperHandler().countHoppers(hellblockData.getBoundingBox()))
+								: String.valueOf("0")),
+						AdventureHelper.miniMessageToComponent(String.valueOf(hellblockData.getMaxHopperLimit())),
+						AdventureHelper.miniMessageToComponent(hellblockData.getIslandChoice() != null
+								? StringUtils.toCamelCase(hellblockData.getIslandChoice().toString())
+								: plugin.getTranslationManager()
+										.miniMessageTranslation(MessageConstants.FORMAT_UNKNOWN.build().key())),
+						AdventureHelper.miniMessageToComponent(hellblockData.getBiome() != null
+								? StringUtils.toCamelCase(hellblockData.getBiome().toString())
+								: plugin.getTranslationManager()
+										.miniMessageTranslation(MessageConstants.FORMAT_UNKNOWN.build().key())),
+						AdventureHelper.miniMessageToComponent(String.valueOf(hellblockData.getPartyMembers().size())),
+						AdventureHelper.miniMessageToComponent(
+								String.valueOf(plugin.getCoopManager().getMaxPartySize(ownerData))),
+						AdventureHelper.miniMessageToComponent(partyString),
+						AdventureHelper.miniMessageToComponent(trustedString),
+						AdventureHelper.miniMessageToComponent(bannedString));
+			}).exceptionally(ex -> {
+				plugin.getPluginLogger().warn("getCachedUserDataWithFallback failed for hellblock information check of "
+						+ player.getName() + ": " + ex.getMessage());
+				return null;
+			});
 		});
 	}
 
@@ -207,7 +206,8 @@ public class HellblockInfoCommand extends BukkitCommandFeature<CommandSender> {
 			int remaining = players.size() - cutoff;
 			String cutoffMessage = plugin.getTranslationManager()
 					.miniMessageTranslation(MessageConstants.MSG_HELLBLOCK_INFO_LIST_CUTOFF
-							.arguments(AdventureHelper.miniMessageToComponent(String.valueOf(remaining))).build().key());
+							.arguments(AdventureHelper.miniMessageToComponent(String.valueOf(remaining))).build()
+							.key());
 			output.add(cutoffMessage);
 		}
 

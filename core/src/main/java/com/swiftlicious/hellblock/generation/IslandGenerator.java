@@ -14,7 +14,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -44,20 +43,28 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
+import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityChangeBlockEvent;
+import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.entity.EntityTargetEvent;
+import org.bukkit.event.entity.FoodLevelChangeEvent;
 import org.bukkit.event.player.PlayerChangedWorldEvent;
 import org.bukkit.event.player.PlayerCommandPreprocessEvent;
+import org.bukkit.event.player.PlayerInteractAtEntityEvent;
+import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerTeleportEvent;
+import org.bukkit.event.player.PlayerTeleportEvent.TeleportCause;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.potion.PotionEffect;
 import org.bukkit.util.BoundingBox;
 import org.bukkit.util.Vector;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import com.saicone.rtag.RtagBlock;
 import com.saicone.rtag.RtagItem;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.api.Reloadable;
@@ -74,6 +81,7 @@ import com.swiftlicious.hellblock.schematic.SchematicMetadata;
 import com.swiftlicious.hellblock.utils.ChunkUtils;
 import com.swiftlicious.hellblock.utils.LocationUtils;
 import com.swiftlicious.hellblock.utils.ParticleUtils;
+import com.swiftlicious.hellblock.utils.PotionUtils;
 import com.swiftlicious.hellblock.utils.StringUtils;
 import com.swiftlicious.hellblock.utils.extras.TextValue;
 import com.swiftlicious.hellblock.world.ChunkPos;
@@ -87,7 +95,6 @@ import com.swiftlicious.hellblock.world.Pos3;
 import net.kyori.adventure.key.Key;
 import net.kyori.adventure.sound.Sound;
 import net.kyori.adventure.sound.Sound.Source;
-import net.kyori.adventure.text.Component;
 
 /**
  * Handles the generation and animation of Hellblock islands, schematics, and
@@ -181,6 +188,7 @@ public class IslandGenerator implements Listener, Reloadable {
 	 * @param world     The world where the island will be generated.
 	 * @param location  The base location for the island (bottom center).
 	 * @param userData  The player for chest orientation and sound effects.
+	 * @param home      The final computed home location.
 	 * @param schematic The name of the schematic to paste.
 	 * @param animated  Whether the animation should play for schematic placement.
 	 * @return A CompletableFuture that completes when the island generation is
@@ -189,7 +197,7 @@ public class IslandGenerator implements Listener, Reloadable {
 	@Nullable
 	public CompletableFuture<Location> generateHellblockSchematic(@NotNull IslandGenerationRequest request,
 			@NotNull HellblockWorld<?> world, @NotNull Location location, @NotNull UserData userData,
-			@NotNull String schematic, boolean ignoreAirBlock, boolean animated) {
+			@NotNull Location home, @NotNull String schematic, boolean ignoreAirBlock, boolean animated) {
 		BoundingBox boundingBox = userData.getHellblockData().getBoundingBox();
 		String playerName = userData.getName();
 
@@ -274,7 +282,7 @@ public class IslandGenerator implements Listener, Reloadable {
 
 						// Wait for container generation to complete
 						return generateHellblockContainer(world, containerLoc, userData, containerBlock.getType(),
-								animated, request).thenApply(v -> spawnLocation);
+								animated, request, home).thenApply(v -> spawnLocation);
 					});
 				});
 	}
@@ -287,11 +295,13 @@ public class IslandGenerator implements Listener, Reloadable {
 	 * @param world    The world where the island will be generated.
 	 * @param location The base location for the island (bottom center).
 	 * @param userData The player for chest orientation and sound effects.
+	 * @param home     The final computed home location.
 	 * @return A CompletableFuture that completes when the island generation is
 	 *         done.
 	 */
 	public CompletableFuture<Void> generateAnimatedHellblockIsland(@NotNull IslandGenerationRequest request,
-			@NotNull HellblockWorld<?> world, @NotNull Location location, @NotNull UserData userData) {
+			@NotNull HellblockWorld<?> world, @NotNull Location location, @NotNull UserData userData,
+			@NotNull Location home) {
 		final int x = location.getBlockX();
 		final int y = location.getBlockY();
 		final int z = location.getBlockZ();
@@ -349,7 +359,8 @@ public class IslandGenerator implements Listener, Reloadable {
 						instance.debug("generateAnimatedHellblockIsland: Generating container at [x="
 								+ containerLoc.getBlockX() + ", y=" + containerLoc.getBlockY() + ", z="
 								+ containerLoc.getBlockZ() + "]");
-						return generateHellblockContainer(world, containerLoc, userData, Material.CHEST, true, request);
+						return generateHellblockContainer(world, containerLoc, userData, Material.CHEST, true, request,
+								home);
 					})
 
 					// Step 8: Final delay (smooth ending)
@@ -429,9 +440,13 @@ public class IslandGenerator implements Listener, Reloadable {
 	 * @param world    The world where the island will be generated.
 	 * @param location The base location for the island (bottom center).
 	 * @param userData The player for chest orientation and sound effects.
+	 * @param home     The final computed home location.
+	 * @return A CompletableFuture that completes when the island generation is
+	 *         done.
 	 */
 	public CompletableFuture<Void> generateInstantHellblockIsland(@NotNull IslandGenerationRequest request,
-			@NotNull HellblockWorld<?> world, @NotNull Location location, @NotNull UserData userData) {
+			@NotNull HellblockWorld<?> world, @NotNull Location location, @NotNull UserData userData,
+			@NotNull Location home) {
 		final int x = location.getBlockX();
 		final int y = location.getBlockY();
 		final int z = location.getBlockZ();
@@ -470,8 +485,8 @@ public class IslandGenerator implements Listener, Reloadable {
 						instance.debug(
 								"generateInstantHellblockIsland: Generating container at [x=" + containerLoc.getBlockX()
 										+ ", y=" + containerLoc.getBlockY() + ", z=" + containerLoc.getBlockZ() + "]");
-						return generateHellblockContainer(world, containerLoc, userData, Material.CHEST, false,
-								request);
+						return generateHellblockContainer(world, containerLoc, userData, Material.CHEST, false, request,
+								home);
 					});
 		});
 	}
@@ -563,17 +578,7 @@ public class IslandGenerator implements Listener, Reloadable {
 					.thenRun(() -> instance.debug(
 							"generateHellblockGlowstoneTree: Gravel fall complete — starting glowstone layering..."))
 					.thenCompose(v2 -> {
-						// Group glowstone blocks by Y height
-						Map<Integer, Map<Pos3, CustomBlockState>> layers = new TreeMap<>();
-						for (var entry : glowstoneBlocks.entrySet()) {
-							int layerY = entry.getKey().y();
-							layers.computeIfAbsent(layerY, k -> new LinkedHashMap<>()).put(entry.getKey(),
-									entry.getValue());
-						}
-
-						// Convert to list of stages (one per Y)
-						List<Map<Pos3, CustomBlockState>> glowstoneStages = new ArrayList<>(layers.values());
-						return runGlowTreeStage(world, location, glowstoneStages, 0);
+						return runGlowTreeGrowth(world, location, glowstoneBlocks, gravelStage);
 					});
 		});
 	}
@@ -651,6 +656,59 @@ public class IslandGenerator implements Listener, Reloadable {
 		}
 	}
 
+	private CompletableFuture<Void> runGlowTreeGrowth(@NotNull HellblockWorld<?> world, @NotNull Location location,
+			@NotNull Map<Pos3, CustomBlockState> glowstoneBlocks, @NotNull Map<Pos3, CustomBlockState> gravelStage) {
+		// Build adjacency stages (like BFS)
+		List<Map<Pos3, CustomBlockState>> stages = buildGlowstoneGrowthStages(glowstoneBlocks, gravelStage.keySet());
+
+		// Then animate like before
+		return runGlowTreeStage(world, location, stages, 0);
+	}
+
+	@NotNull
+	private List<Map<Pos3, CustomBlockState>> buildGlowstoneGrowthStages(
+			@NotNull Map<Pos3, CustomBlockState> glowstoneBlocks, @NotNull Set<Pos3> gravelPositions) {
+		Map<Pos3, CustomBlockState> remaining = new LinkedHashMap<>(glowstoneBlocks);
+		List<Map<Pos3, CustomBlockState>> stages = new ArrayList<>();
+
+		Set<Pos3> frontier = new HashSet<>(gravelPositions);
+
+		while (!remaining.isEmpty()) {
+			Map<Pos3, CustomBlockState> nextStage = new LinkedHashMap<>();
+
+			// Find glowstone adjacent (including diagonals) to any frontier block
+			for (Iterator<Map.Entry<Pos3, CustomBlockState>> it = remaining.entrySet().iterator(); it.hasNext();) {
+				var entry = it.next();
+				Pos3 pos = entry.getKey();
+
+				if (isAdjacentToAny(pos, frontier)) {
+					nextStage.put(pos, entry.getValue());
+					it.remove();
+				}
+			}
+
+			if (nextStage.isEmpty())
+				break; // avoid infinite loops if something is isolated
+
+			stages.add(nextStage);
+			frontier = nextStage.keySet();
+		}
+
+		return stages;
+	}
+
+	private boolean isAdjacentToAny(@NotNull Pos3 pos, @NotNull Set<Pos3> others) {
+		for (Pos3 o : others) {
+			int dx = Math.abs(o.x() - pos.x());
+			int dy = Math.abs(o.y() - pos.y());
+			int dz = Math.abs(o.z() - pos.z());
+			int dist = dx + dy + dz; // Manhattan distance
+			if (dist == 1)
+				return true; // immediate neighbors
+		}
+		return false;
+	}
+
 	private CompletableFuture<Void> runGlowTreeStage(@NotNull HellblockWorld<?> world, @NotNull Location location,
 			@NotNull List<Map<Pos3, CustomBlockState>> stages, int index) {
 		if (index >= stages.size()) {
@@ -708,10 +766,11 @@ public class IslandGenerator implements Listener, Reloadable {
 	 * @param animated Whether to play particle and suction animation.
 	 * @param request  The island generation request for data regarding the specific
 	 *                 island being generated.
+	 * @param home     The final computed home location.
 	 */
 	private CompletableFuture<Void> generateHellblockContainer(@NotNull HellblockWorld<?> world,
 			@NotNull Location location, @NotNull UserData userData, @NotNull Material material, boolean animated,
-			@NotNull IslandGenerationRequest request) {
+			@NotNull IslandGenerationRequest request, @NotNull Location home) {
 		CompletableFuture<Void> future = new CompletableFuture<>();
 
 		Pos3 pos = Pos3.from(location);
@@ -784,11 +843,9 @@ public class IslandGenerator implements Listener, Reloadable {
 									.replaceAll("[<>]", ""); // leftover brackets
 							if (!colorStripped.isEmpty() && colorStripped.length() <= 32) {
 								TextValue<Player> text = TextValue.auto(name);
-								Component centered = AdventureHelper
-										.parseCenteredTitleMultiline(text.render(context, true));
-								RtagBlock containerTag = new RtagBlock(bukkitBlock);
-								containerTag.setCustomName(AdventureHelper.componentToLegacy(centered));
-								bukkitBlock = containerTag.load(); // Commit changes
+								String containerName = text.render(context, true);
+								AdventureMetadata.setTileEntityCustomName(container,
+										AdventureHelper.miniMessageToComponent(containerName));
 								instance.debug("generateHellblockContainer: Applied custom name to container at " + pos
 										+ " of title: " + name);
 							}
@@ -829,22 +886,23 @@ public class IslandGenerator implements Listener, Reloadable {
 
 								BlockData blockData = container.getBlockData();
 								if (blockData instanceof Directional directional) {
-								    containerFacing = directional.getFacing();
+									containerFacing = directional.getFacing();
 								} else {
-								    containerFacing = BlockFace.NORTH;
+									containerFacing = BlockFace.NORTH;
 								}
 
 								// Compute offset depending on container type
 								Vector offset;
 								if (containerType == Material.CHEST || containerType == Material.TRAPPED_CHEST
-								        || isShulkerBox(containerType)) {
-								    // Chest & Shulker: camera should be IN FRONT of the opening face
-								    offset = containerFacing.getDirection().clone().normalize().multiply(+1.8);
+										|| isShulkerBox(containerType)) {
+									// Chest & Shulker: camera should be IN FRONT of the opening face
+									offset = containerFacing.getDirection().clone().normalize().multiply(+1.8);
 								} else if (containerType == Material.BARREL) {
-								    // Barrel opens upward — put camera slightly in front horizontally
-								    offset = containerFacing.getDirection().clone().normalize().multiply(+1.2).add(new Vector(0, 0.8, 0));
+									// Barrel opens upward — put camera slightly in front horizontally
+									offset = containerFacing.getDirection().clone().normalize().multiply(+1.2)
+											.add(new Vector(0, 0.8, 0));
 								} else {
-								    offset = new Vector(0, 0, 1.8);
+									offset = new Vector(0, 0, 1.8);
 								}
 
 								// Always compute the offset so the player starts in front of the “open” face.
@@ -852,7 +910,7 @@ public class IslandGenerator implements Listener, Reloadable {
 								cameraLoc.setDirection(center.clone().subtract(cameraLoc).toVector());
 
 								// Ensure player starts there too
-								ChunkUtils.teleportAsync(player, cameraLoc).thenRun(() -> {
+								ChunkUtils.teleportAsync(player, home, TeleportCause.PLUGIN).thenRun(() -> {
 									player.setRotation(cameraLoc.getYaw(), cameraLoc.getPitch());
 								});
 
@@ -976,9 +1034,8 @@ public class IslandGenerator implements Listener, Reloadable {
 										}
 
 										double progress = Math.min(t / 12.0, 1.0); // 0 → 1
-										double speedFactor = 0.25 * (1.0 - Math.pow(progress, 2)); // slows down near
-																									// the
-																									// end
+										// slows down near the end
+										double speedFactor = 0.25 * (1.0 - Math.pow(progress, 2));
 										item.setVelocity(toChest.normalize().multiply(speedFactor));
 
 										item.getWorld().spawnParticle(ParticleUtils.getParticle("SPELL_WITCH"),
@@ -1192,41 +1249,6 @@ public class IslandGenerator implements Listener, Reloadable {
 			bedrockBase.put(basePos, CustomBlockTypes.fromMaterial(Material.BEDROCK).createBlockState());
 			stageFutures.add(CompletableFuture.completedFuture(bedrockBase));
 
-			// Layer 4
-			CompletableFuture<Map<Pos3, CustomBlockState>> layer4Future = fillLayer(world, y + 4, x - 3, x + 3, z - 3,
-					z + 3, Material.SOUL_SAND).thenCompose(
-							layer -> CompletableFuture
-									.allOf(putBlock(layer, world, x - 3, y + 4, z - 3, Material.AIR),
-											putBlock(layer, world, x - 3, y + 4, z + 3, Material.AIR),
-											putBlock(layer, world, x + 3, y + 4, z - 3, Material.AIR),
-											putBlock(layer, world, x + 3, y + 4, z + 3, Material.AIR))
-									.thenApply(v -> layer));
-			stageFutures.add(layer4Future);
-
-			// Layer 3
-			CompletableFuture<Map<Pos3, CustomBlockState>> layer3Future = fillLayer(world, y + 3, x - 2, x + 2, z - 2,
-					z + 2, Material.SOUL_SAND).thenCompose(
-							layer -> CompletableFuture
-									.allOf(putBlock(layer, world, x, y + 3, z, Material.GRASS_BLOCK),
-											putBlock(layer, world, x - 3, y + 3, z, Material.SOUL_SAND),
-											putBlock(layer, world, x + 3, y + 3, z, Material.SOUL_SAND),
-											putBlock(layer, world, x, y + 3, z - 3, Material.SOUL_SAND),
-											putBlock(layer, world, x, y + 3, z + 3, Material.SOUL_SAND))
-									.thenApply(v -> layer));
-			stageFutures.add(layer3Future);
-
-			// Layer 2
-			CompletableFuture<Map<Pos3, CustomBlockState>> layer2Future = fillLayer(world, y + 2, x - 1, x + 1, z - 1,
-					z + 1, Material.SOUL_SAND).thenCompose(
-							layer -> CompletableFuture
-									.allOf(putBlock(layer, world, x, y + 2, z, Material.DIRT),
-											putBlock(layer, world, x - 2, y + 2, z, Material.SOUL_SAND),
-											putBlock(layer, world, x + 2, y + 2, z, Material.SOUL_SAND),
-											putBlock(layer, world, x, y + 2, z - 2, Material.SOUL_SAND),
-											putBlock(layer, world, x, y + 2, z + 2, Material.SOUL_SAND))
-									.thenApply(v -> layer));
-			stageFutures.add(layer2Future);
-
 			// Layer 1
 			CompletableFuture<Map<Pos3, CustomBlockState>> layer1Future = CompletableFuture.allOf(
 					putBlock(world, x, y + 1, z, Material.DIRT), putBlock(world, x - 1, y + 1, z, Material.SOUL_SAND),
@@ -1246,6 +1268,41 @@ public class IslandGenerator implements Listener, Reloadable {
 						return map;
 					});
 			stageFutures.add(layer1Future);
+
+			// Layer 2
+			CompletableFuture<Map<Pos3, CustomBlockState>> layer2Future = fillLayer(world, y + 2, x - 1, x + 1, z - 1,
+					z + 1, Material.SOUL_SAND).thenCompose(
+							layer -> CompletableFuture
+									.allOf(putBlock(layer, world, x, y + 2, z, Material.DIRT),
+											putBlock(layer, world, x - 2, y + 2, z, Material.SOUL_SAND),
+											putBlock(layer, world, x + 2, y + 2, z, Material.SOUL_SAND),
+											putBlock(layer, world, x, y + 2, z - 2, Material.SOUL_SAND),
+											putBlock(layer, world, x, y + 2, z + 2, Material.SOUL_SAND))
+									.thenApply(v -> layer));
+			stageFutures.add(layer2Future);
+
+			// Layer 3
+			CompletableFuture<Map<Pos3, CustomBlockState>> layer3Future = fillLayer(world, y + 3, x - 2, x + 2, z - 2,
+					z + 2, Material.SOUL_SAND).thenCompose(
+							layer -> CompletableFuture
+									.allOf(putBlock(layer, world, x, y + 3, z, Material.GRASS_BLOCK),
+											putBlock(layer, world, x - 3, y + 3, z, Material.SOUL_SAND),
+											putBlock(layer, world, x + 3, y + 3, z, Material.SOUL_SAND),
+											putBlock(layer, world, x, y + 3, z - 3, Material.SOUL_SAND),
+											putBlock(layer, world, x, y + 3, z + 3, Material.SOUL_SAND))
+									.thenApply(v -> layer));
+			stageFutures.add(layer3Future);
+
+			// Layer 4
+			CompletableFuture<Map<Pos3, CustomBlockState>> layer4Future = fillLayer(world, y + 4, x - 3, x + 3, z - 3,
+					z + 3, Material.SOUL_SAND).thenCompose(
+							layer -> CompletableFuture
+									.allOf(putBlock(layer, world, x - 3, y + 4, z - 3, Material.AIR),
+											putBlock(layer, world, x - 3, y + 4, z + 3, Material.AIR),
+											putBlock(layer, world, x + 3, y + 4, z - 3, Material.AIR),
+											putBlock(layer, world, x + 3, y + 4, z + 3, Material.AIR))
+									.thenApply(v -> layer));
+			stageFutures.add(layer4Future);
 		}
 
 		case CLASSIC -> {
@@ -1268,16 +1325,6 @@ public class IslandGenerator implements Listener, Reloadable {
 						return map;
 					});
 			stageFutures.add(l1Future);
-
-			// Layer 2
-			CompletableFuture<Map<Pos3, CustomBlockState>> l2Future = fillLayer(world, y + 2, x - 5, x, z - 2, z,
-					Material.SOUL_SAND)
-					.thenCombine(fillLayer(world, y + 2, x - 2, x, z - 5, z, Material.SOUL_SAND), (layerA, layerB) -> {
-						Map<Pos3, CustomBlockState> map = new LinkedHashMap<>(layerA);
-						map.putAll(layerB);
-						return map;
-					});
-			stageFutures.add(l2Future);
 
 			// Decorations
 			CompletableFuture<Map<Pos3, CustomBlockState>> decoFuture = CompletableFuture
@@ -1304,6 +1351,16 @@ public class IslandGenerator implements Listener, Reloadable {
 						return map;
 					});
 			stageFutures.add(decoFuture);
+
+			// Layer 2
+			CompletableFuture<Map<Pos3, CustomBlockState>> l2Future = fillLayer(world, y + 2, x - 5, x, z - 2, z,
+					Material.SOUL_SAND)
+					.thenCombine(fillLayer(world, y + 2, x - 2, x, z - 5, z, Material.SOUL_SAND), (layerA, layerB) -> {
+						Map<Pos3, CustomBlockState> map = new LinkedHashMap<>(layerA);
+						map.putAll(layerB);
+						return map;
+					});
+			stageFutures.add(l2Future);
 		}
 
 		default -> throw new IllegalArgumentException("Unsupported island type: " + type);
@@ -1461,14 +1518,16 @@ public class IslandGenerator implements Listener, Reloadable {
 							double axis = waveAlongX ? e.getKey().getX() : e.getKey().getZ();
 							return axis >= bandStart && axis < bandEnd;
 						}).forEach(e -> {
-							world.spawnParticle(particle, e.getKey(), 10, 0.25, 0.25, 0.25, 0.0, e.getValue());
+							world.spawnParticle(particle, e.getKey(), 15, 0.25, 0.25, 0.25, 0.0, e.getValue());
 						});
 					}, delayPerStep * stepIndex, LocationUtils.getAnyLocationInstance());
 				}
 			});
 
-			AdventureHelper.playPositionalSound(player.getWorld(), player.getLocation(),
-					Sound.sound(Key.key("minecraft:block.stone.place"), Source.BLOCK, 0.4f, 1.2f));
+			float pitch = 0.8f + (float) (Math.random() * 0.4);
+			AdventureHelper.playPositionalSound(player.getWorld(), reference,
+					Sound.sound(Key.key("minecraft:block.basalt.place"), Source.BLOCK, 0.6f, pitch));
+
 		}).thenCompose(v -> delayTicks(ticksDelay, reference)) // wait ticks before next stage
 				.thenCompose(v -> runNextStage(userData, stages, reference, index + 1, ticksDelay, animationStartTime))
 				.exceptionally(ex -> {
@@ -1845,7 +1904,7 @@ public class IslandGenerator implements Listener, Reloadable {
 
 		cameraAnchors.put(userData.getUUID(), camera);
 
-		ChunkUtils.teleportAsync(player, anchorLocation).thenRun(() -> {
+		ChunkUtils.teleportAsync(player, anchorLocation, TeleportCause.PLUGIN).thenRun(() -> {
 			// Wait 1 tick to ensure player is fully loaded into world/chunk
 			instance.getScheduler().sync().runLater(() -> {
 				if (player == null || !player.isOnline()) {
@@ -1872,6 +1931,8 @@ public class IslandGenerator implements Listener, Reloadable {
 		instance.getScheduler().sync().runLater(() -> {
 			if (viewer.isOnline()) {
 				viewer.setFlying(true);
+				viewer.addPotionEffect(new PotionEffect(PotionUtils.getCompatiblePotionEffectType("SLOWNESS", "SLOW"),
+						Integer.MAX_VALUE, Integer.MAX_VALUE, true, false, false));
 			}
 		}, 1L, viewer.getLocation());
 	}
@@ -1915,7 +1976,9 @@ public class IslandGenerator implements Listener, Reloadable {
 				sanitizeDirection(current);
 
 				stand.moveAdaptive(viewer, current); // Use player-aware teleport
-				stand.keepClientCameraStable(viewer);
+				if (elapsed % 60 == 0) {
+					stand.keepClientCameraStable(viewer);
+				}
 				elapsed++;
 			}
 		};
@@ -1958,7 +2021,9 @@ public class IslandGenerator implements Listener, Reloadable {
 				sanitizeDirection(intermediate);
 
 				stand.moveAdaptive(viewer, intermediate);
-				stand.keepClientCameraStable(viewer);
+				if (elapsed % 60 == 0) {
+					stand.keepClientCameraStable(viewer);
+				}
 				elapsed++;
 			}
 		};
@@ -1993,7 +2058,9 @@ public class IslandGenerator implements Listener, Reloadable {
 				sanitizeDirection(current);
 
 				stand.moveAdaptive(viewer, current);
-				stand.keepClientCameraStable(viewer);
+				if (elapsed % 60 == 0) {
+					stand.keepClientCameraStable(viewer);
+				}
 				elapsed++;
 			}
 		};
@@ -2012,6 +2079,8 @@ public class IslandGenerator implements Listener, Reloadable {
 		final AtomicReference<SchedulerTask> taskRef = new AtomicReference<>();
 
 		Runnable runnable = new Runnable() {
+			int step = 0;
+
 			@Override
 			public void run() {
 				if (!iterator.hasNext() || stand.isDead() || !viewer.isOnline()) {
@@ -2030,7 +2099,10 @@ public class IslandGenerator implements Listener, Reloadable {
 
 				// Smooth movement via velocity instead of teleport
 				stand.moveSmoothly(viewer, next, 1.0); // speed = 1 block/tick, adjust as needed
-				stand.keepClientCameraStable(viewer);
+				if (step % 60 == 0) {
+					stand.keepClientCameraStable(viewer);
+				}
+				step++;
 			}
 		};
 
@@ -2107,8 +2179,8 @@ public class IslandGenerator implements Listener, Reloadable {
 	 *
 	 * @param playerId The unique ID of the player to mark as animating.
 	 */
-	private void startAnimationFor(@NotNull UUID playerId) {
-		animatingPlayers.add(playerId);
+	private boolean startAnimationFor(@NotNull UUID playerId) {
+		return animatingPlayers.add(playerId);
 	}
 
 	/**
@@ -2140,8 +2212,8 @@ public class IslandGenerator implements Listener, Reloadable {
 	 *
 	 * @param playerId The unique ID of the player to mark as generating.
 	 */
-	public void startGeneration(@NotNull UUID playerId) {
-		generatingPlayers.add(playerId);
+	public boolean startGeneration(@NotNull UUID playerId) {
+		return generatingPlayers.add(playerId);
 	}
 
 	/**
@@ -2202,8 +2274,11 @@ public class IslandGenerator implements Listener, Reloadable {
 				player.setAllowFlight(false);
 				player.setFlying(false);
 				player.setVelocity(new Vector(0, 0, 0));
+				if (player.hasPotionEffect(PotionUtils.getCompatiblePotionEffectType("SLOWNESS", "SLOW")))
+					player.removePotionEffect(PotionUtils.getCompatiblePotionEffectType("SLOWNESS", "SLOW"));
 				if (ownerData.getHellblockData().getHomeLocation() != null) {
-					instance.getHellblockHandler().teleportPlayerToHome(ownerData);
+					instance.getHellblockHandler().teleportPlayerToHome(ownerData,
+							ownerData.getHellblockData().getHomeLocation());
 				} else {
 					instance.getHellblockHandler().teleportToSpawn(player, true);
 				}
@@ -2223,8 +2298,8 @@ public class IslandGenerator implements Listener, Reloadable {
 	 * @param playerId The unique ID of the player.
 	 * @param task     The new animation task to track.
 	 */
-	public void trackAnimation(@NotNull UUID playerId, @NotNull SchedulerTask task) {
-		runningAnimations.computeIfAbsent(playerId, __ -> new ArrayList<>()).add(task);
+	public boolean trackAnimation(@NotNull UUID playerId, @NotNull SchedulerTask task) {
+		return runningAnimations.computeIfAbsent(playerId, __ -> new ArrayList<>()).add(task);
 	}
 
 	public void stopAllAnimations(@NotNull UUID playerId) {
@@ -2254,12 +2329,13 @@ public class IslandGenerator implements Listener, Reloadable {
 	 *                    location).
 	 * @param task        The scheduled task responsible for the animation sequence.
 	 */
-	public void trackTreeAnimation(@NotNull UUID animationId, @NotNull SchedulerTask task) {
+	@NotNull
+	public SchedulerTask trackTreeAnimation(@NotNull UUID animationId, @NotNull SchedulerTask task) {
 		SchedulerTask previous = treeAnimations.remove(animationId);
 		if (previous != null && !previous.isCancelled()) {
 			previous.cancel();
 		}
-		treeAnimations.put(animationId, task);
+		return treeAnimations.put(animationId, task);
 	}
 
 	/**
@@ -2281,19 +2357,19 @@ public class IslandGenerator implements Listener, Reloadable {
 
 	@EventHandler
 	public void onQuit(PlayerQuitEvent event) {
-		Player player = event.getPlayer();
-		if (isAnimating(player.getUniqueId())) {
-			instance.getStorageManager().getOnlineUser(player.getUniqueId())
-					.ifPresent(userData -> cleanupAnimation(userData));
+		final UUID playerId = event.getPlayer().getUniqueId();
+		if (isAnimating(playerId)) {
+			instance.getStorageManager().getOnlineUser(playerId).ifPresent(userData -> cleanupAnimation(userData));
 		}
-		if (isGenerating(player.getUniqueId()))
-			endGeneration(player.getUniqueId());
+		if (isGenerating(playerId)) {
+			endGeneration(playerId);
+		}
 	}
 
 	@EventHandler(priority = EventPriority.HIGH)
 	public void onCommand(PlayerCommandPreprocessEvent event) {
-		Player player = event.getPlayer();
-		if (!isAnimating(player.getUniqueId()))
+		final UUID playerId = event.getPlayer().getUniqueId();
+		if (!isAnimating(playerId))
 			return;
 
 		String msg = event.getMessage().toLowerCase(Locale.ROOT);
@@ -2305,33 +2381,103 @@ public class IslandGenerator implements Listener, Reloadable {
 
 	@EventHandler
 	public void onMove(PlayerMoveEvent event) {
-		Player player = event.getPlayer();
-		if (!isAnimating(player.getUniqueId()))
+		final UUID playerId = event.getPlayer().getUniqueId();
+		if (!isAnimating(playerId) && !isGenerating(playerId))
 			return;
 
-		// allow looking around but cancel position changes
-		if (event.getFrom().getX() != event.getTo().getX() || event.getFrom().getY() != event.getTo().getY()
-				|| event.getFrom().getZ() != event.getTo().getZ()) {
-			event.setTo(event.getFrom());
+		Location from = event.getFrom().clone();
+		from.setYaw(event.getFrom().getYaw());
+		from.setPitch(event.getFrom().getPitch());
+		event.setTo(from); // Resets both position and rotation
+	}
+
+	@EventHandler
+	public void onChestOpen(PlayerInteractEvent event) {
+		final UUID playerId = event.getPlayer().getUniqueId();
+		if (!isAnimating(playerId) && !isGenerating(playerId))
+			return;
+
+		final Block clicked = event.getClickedBlock();
+		if (clicked == null)
+			return;
+
+		if (clicked.getState() instanceof Container) {
+			event.setCancelled(true);
+		}
+	}
+
+	@EventHandler
+	public void onBlockBreak(BlockBreakEvent event) {
+		final UUID playerId = event.getPlayer().getUniqueId();
+		if (!isAnimating(playerId) && !isGenerating(playerId))
+			return;
+
+		event.setCancelled(true);
+	}
+
+	@EventHandler
+	public void onBlockPlace(BlockPlaceEvent event) {
+		final UUID playerId = event.getPlayer().getUniqueId();
+		if (!isAnimating(playerId) && !isGenerating(playerId))
+			return;
+
+		event.setCancelled(true);
+	}
+
+	@EventHandler
+	public void onDamage(EntityDamageByEntityEvent event) {
+		if (event.getDamager() instanceof Player player
+				&& (isAnimating(player.getUniqueId()) || isGenerating(player.getUniqueId()))) {
+			event.setCancelled(true);
+		}
+
+		if (event.getEntity() instanceof Player player
+				&& (isAnimating(player.getUniqueId()) || isGenerating(player.getUniqueId()))) {
+			event.setCancelled(true);
+		}
+	}
+
+	@EventHandler
+	public void onMobTarget(EntityTargetEvent event) {
+		if (event.getTarget() instanceof Player player
+				&& (isAnimating(player.getUniqueId()) || isGenerating(player.getUniqueId()))) {
+			event.setCancelled(true);
+		}
+	}
+
+	@EventHandler
+	public void onFoodChange(FoodLevelChangeEvent event) {
+		if (event.getEntity() instanceof Player player
+				&& (isAnimating(player.getUniqueId()) || isGenerating(player.getUniqueId()))) {
+			event.setCancelled(true);
+		}
+	}
+
+	@EventHandler
+	public void onInteractEntity(PlayerInteractAtEntityEvent event) {
+		final UUID playerId = event.getPlayer().getUniqueId();
+		if (isAnimating(playerId) || isGenerating(playerId)) {
+			event.setCancelled(true);
 		}
 	}
 
 	@EventHandler
 	public void onTeleport(PlayerTeleportEvent event) {
-		if (isAnimating(event.getPlayer().getUniqueId())) {
+		final UUID playerId = event.getPlayer().getUniqueId();
+		if (isAnimating(playerId) || isGenerating(playerId)) {
 			event.setCancelled(true);
 		}
 	}
 
 	@EventHandler
 	public void onWorldChange(PlayerChangedWorldEvent event) {
-		Player player = event.getPlayer();
-		if (isAnimating(player.getUniqueId())) {
-			instance.getStorageManager().getOnlineUser(player.getUniqueId())
-					.ifPresent(userData -> cleanupAnimation(userData));
+		final UUID playerId = event.getPlayer().getUniqueId();
+		if (isAnimating(playerId)) {
+			instance.getStorageManager().getOnlineUser(playerId).ifPresent(userData -> cleanupAnimation(userData));
 		}
-		if (isGenerating(player.getUniqueId()))
-			endGeneration(player.getUniqueId());
+		if (isGenerating(playerId)) {
+			endGeneration(playerId);
+		}
 	}
 
 	/**

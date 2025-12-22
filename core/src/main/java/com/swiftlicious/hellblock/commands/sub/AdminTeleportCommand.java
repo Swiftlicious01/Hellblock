@@ -1,7 +1,9 @@
 package com.swiftlicious.hellblock.commands.sub;
 
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -45,14 +47,18 @@ public class AdminTeleportCommand extends BukkitCommandFeature<CommandSender> {
 						return CompletableFuture.completedFuture(Collections.emptyList());
 					}
 
-					final Set<UUID> allKnownUUIDs = plugin.getStorageManager().getDataSource().getUniqueUsers();
+					final String lowerInput = input.input().toLowerCase(Locale.ROOT);
+					final Set<UUID> allKnownUUIDs = new HashSet<>(
+							plugin.getStorageManager().getDataSource().getUniqueUsers());
 
-					final List<String> suggestions = allKnownUUIDs.stream()
+					final List<Suggestion> suggestions = allKnownUUIDs.stream()
 							.map(uuid -> plugin.getStorageManager().getCachedUserData(uuid)).filter(Optional::isPresent)
 							.map(Optional::get).filter(user -> user.getHellblockData().hasHellblock())
-							.map(UserData::getName).filter(Objects::nonNull).toList();
+							.map(UserData::getName).filter(Objects::nonNull)
+							.filter(name -> name.toLowerCase(Locale.ROOT).startsWith(lowerInput))
+							.sorted(String.CASE_INSENSITIVE_ORDER).limit(64).map(Suggestion::suggestion).toList();
 
-					return CompletableFuture.completedFuture(suggestions.stream().map(Suggestion::suggestion).toList());
+					return CompletableFuture.completedFuture(suggestions);
 				})).handler(context -> {
 					final Player executor = context.sender();
 					final String targetName = context.get("player");
@@ -76,73 +82,95 @@ public class AdminTeleportCommand extends BukkitCommandFeature<CommandSender> {
 						return;
 					}
 
-					plugin.getStorageManager().getCachedUserDataWithFallback(targetId, false).thenAccept(result -> {
-						if (result.isEmpty()) {
+					plugin.getStorageManager().getCachedUserDataWithFallback(targetId, false).thenCompose(targetOpt -> {
+						if (targetOpt.isEmpty()) {
 							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_PLAYER_DATA_FAILURE_LOAD,
 									AdventureHelper.miniMessageToComponent(targetName));
-							return;
+							return CompletableFuture.completedFuture(false);
 						}
 
-						final UserData targetUser = result.get();
-						final HellblockData targetData = targetUser.getHellblockData();
+						final UserData targetUserData = targetOpt.get();
+						final HellblockData data = targetUserData.getHellblockData();
 
-						if (!targetData.hasHellblock()) {
+						if (!data.hasHellblock()) {
 							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_NOT_FOUND);
-							return;
+							return CompletableFuture.completedFuture(false);
 						}
 
-						final UUID ownerUUID = targetData.getOwnerUUID();
+						final UUID ownerUUID = data.getOwnerUUID();
 						if (ownerUUID == null) {
 							plugin.getPluginLogger()
-									.severe("Hellblock owner UUID was null for player " + targetUser.getName() + " ("
-											+ targetUser.getUUID() + "). This indicates corrupted data.");
-							throw new IllegalStateException(
-									"Owner reference was null. This should never happen — please report to the developer.");
+									.severe("Hellblock owner UUID was null for player " + targetUserData.getName()
+											+ " (" + targetUserData.getUUID() + "). This indicates corrupted data.");
+							return CompletableFuture.failedFuture(new IllegalStateException(
+									"Owner reference was null. This should never happen — please report to the developer."));
 						}
 
 						// Load island owner
-						plugin.getStorageManager().getCachedUserDataWithFallback(ownerUUID, false)
-								.thenAccept(ownerOpt -> {
+						return plugin.getStorageManager().getCachedUserDataWithFallback(ownerUUID, false)
+								.thenCompose(ownerOpt -> {
 									if (ownerOpt.isEmpty()) {
 										final String username = Bukkit.getOfflinePlayer(ownerUUID).getName();
 										handleFeedback(context, MessageConstants.MSG_HELLBLOCK_PLAYER_DATA_FAILURE_LOAD,
 												AdventureHelper.miniMessageToComponent(username != null ? username
 														: plugin.getTranslationManager().miniMessageTranslation(
 																MessageConstants.FORMAT_UNKNOWN.build().key())));
-										return;
+										return CompletableFuture.completedFuture(false);
 									}
 
-									final UserData ownerUser = ownerOpt.get();
-									teleportToIslandTop(executor, targetUser, ownerUser, context);
+									final UserData ownerData = ownerOpt.get();
+									return teleportToIslandTop(executor, targetUserData, ownerData, context)
+											.thenApply(v -> true);
+								}).exceptionally(ex -> {
+									plugin.getPluginLogger().warn("Admin teleport command failed (Could not read owner "
+											+ ownerUUID + "'s data): " + ex.getMessage());
+									return false;
 								});
+					}).exceptionally(ex -> {
+						plugin.getPluginLogger().warn("Admin teleport command failed (Could not read target "
+								+ targetName + "'s data): " + ex.getMessage());
+						return false;
 					});
 				});
 	}
 
-	private void teleportToIslandTop(@NotNull Player executor, @NotNull UserData targetUser,
-			@NotNull UserData ownerUser, @NotNull CommandContext<Player> context) {
-		final HellblockData ownerData = ownerUser.getHellblockData();
+	private CompletableFuture<Boolean> teleportToIslandTop(@NotNull Player executor, @NotNull UserData targetData,
+			@NotNull UserData ownerData, @NotNull CommandContext<Player> context) {
+		final HellblockData hellblockData = ownerData.getHellblockData();
 
 		// Ensure world is loaded (sync or async)
-		plugin.getWorldManager().ensureHellblockWorldLoaded(ownerData.getIslandId()).thenCompose(loadedWorld -> {
-			World bukkitWorld = loadedWorld.bukkitWorld();
-			if (bukkitWorld == null) {
-				handleFeedback(context, MessageConstants.MSG_HELLBLOCK_WORLD_ERROR);
-				return CompletableFuture.completedFuture(null);
-			}
+		return plugin.getWorldManager().ensureHellblockWorldLoaded(hellblockData.getIslandId())
+				.thenCompose(loadedWorld -> {
+					World bukkitWorld = loadedWorld.bukkitWorld();
+					if (bukkitWorld == null) {
+						handleFeedback(context, MessageConstants.MSG_HELLBLOCK_WORLD_ERROR);
+						return CompletableFuture.completedFuture(false);
+					}
 
-			int x = ownerData.getHellblockLocation().getBlockX();
-			int z = ownerData.getHellblockLocation().getBlockZ();
-			Location highest = bukkitWorld.getHighestBlockAt(x, z).getLocation().add(0.5, 1, 0.5);
+					final Location hellblockLoc = hellblockData.getHellblockLocation();
+					if (hellblockLoc == null) {
+						plugin.getPluginLogger()
+								.severe("Hellblock location returned null for owner " + ownerData.getName() + " ("
+										+ ownerData.getUUID() + "). This indicates corrupted data or a serious bug.");
+						return CompletableFuture.failedFuture(new IllegalStateException(
+								"Hellblock location reference was null. This should never happen — please report to the developer."));
+					}
 
-			// Async teleport
-			return ChunkUtils.teleportAsync(executor, highest, TeleportCause.PLUGIN)
-					.thenRun(() -> handleFeedback(context, MessageConstants.MSG_HELLBLOCK_ADMIN_FORCE_TELEPORT,
-							AdventureHelper.miniMessageToComponent(targetUser.getName())));
-		}).exceptionally(ex -> {
-			ex.printStackTrace();
-			return null;
-		});
+					int x = hellblockLoc.getBlockX();
+					int z = hellblockLoc.getBlockZ();
+					Location highest = bukkitWorld.getHighestBlockAt(x, z).getLocation().add(0.5, 1, 0.5);
+
+					// Async teleport
+					return ChunkUtils.teleportAsync(executor, highest, TeleportCause.PLUGIN).thenApply(v -> {
+						handleFeedback(context, MessageConstants.MSG_HELLBLOCK_ADMIN_FORCE_TELEPORT,
+								AdventureHelper.miniMessageToComponent(targetData.getName()));
+						return true;
+					});
+				}).exceptionally(ex -> {
+					plugin.getPluginLogger()
+							.warn("Failed to ensure world is loaded for islandID=" + hellblockData.getIslandId(), ex);
+					return false;
+				});
 	}
 
 	@Override

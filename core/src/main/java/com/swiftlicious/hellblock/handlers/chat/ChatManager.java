@@ -2,6 +2,8 @@ package com.swiftlicious.hellblock.handlers.chat;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
 import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -9,7 +11,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -158,8 +159,8 @@ public class ChatManager implements Reloadable {
 							UUID ownerId = hellblockData.getOwnerUUID();
 							if (ownerId != null) {
 								storage.getCachedUserDataWithFallback(ownerId, false)
-										.thenAccept(ownerOpt -> instance.getScheduler().executeSync(() -> {
-											ownerOpt.ifPresent(ownerData -> recipients
+										.thenAccept(optData -> instance.getScheduler().executeSync(() -> {
+											optData.ifPresent(ownerData -> recipients
 													.addAll(ownerData.getHellblockData().getPartyPlusOwner()));
 											finishComponentChatEvent(cancellable, CoopChatSetting.PARTY,
 													formattedMessage, recipients, rendererGetter, rendererSetter,
@@ -207,12 +208,23 @@ public class ChatManager implements Reloadable {
 		}
 
 		try {
-			// Restrict viewers to recipients
-			Set<net.kyori.adventure.audience.Audience> viewers = (Set<net.kyori.adventure.audience.Audience>) viewersGetter
-					.invoke(event);
+			// Get viewers set
+			Set<Object> viewers = (Set<Object>) viewersGetter.invoke(event);
 			viewers.clear();
-			viewers.addAll(recipientIds.stream().map(Bukkit::getPlayer).filter(Objects::nonNull)
-					.filter(Player::isOnline).collect(Collectors.toSet()));
+
+			// Get Paper's native Audience class from the event's viewers set
+			// The generic type of the Set will tell us the native class
+			Class<?> nativeAudienceClass = getNativeAudienceClass(viewersGetter, event);
+
+			// Cast players to native Paper Audience and add to viewers
+			for (UUID uuid : recipientIds) {
+				Player player = Bukkit.getPlayer(uuid);
+				if (player != null && player.isOnline()) {
+					// Cast using the native class we obtained
+					Object nativeAudience = nativeAudienceClass.cast(player);
+					viewers.add(nativeAudience);
+				}
+			}
 
 			RendererCache cache = RENDERER_CACHE.get(chatSetting);
 			Class<?> bridgeClass = (cache != null) ? cache.bridgeClass() : null;
@@ -278,6 +290,63 @@ public class ChatManager implements Reloadable {
 			// Clean up to avoid holding refs between events
 			NativeComponentCache.clearNativeReference();
 		}
+	}
+
+	private static volatile Class<?> NATIVE_AUDIENCE_CLASS = null;
+
+	/**
+	 * Gets or caches Paper's native Adventure Audience class.
+	 */
+	private Class<?> getNativeAudienceClass(Method viewersGetter, Cancellable event) throws Exception {
+		if (NATIVE_AUDIENCE_CLASS != null) {
+			return NATIVE_AUDIENCE_CLASS;
+		}
+
+		// Get the viewers set from the event
+		Set<?> viewers = (Set<?>) viewersGetter.invoke(event);
+
+		if (viewers.isEmpty()) {
+			// Fallback: extract from generic type of Set return type
+			Type returnType = viewersGetter.getGenericReturnType();
+			if (returnType instanceof ParameterizedType) {
+				ParameterizedType paramType = (ParameterizedType) returnType;
+				Type[] typeArgs = paramType.getActualTypeArguments();
+				if (typeArgs.length > 0 && typeArgs[0] instanceof Class) {
+					NATIVE_AUDIENCE_CLASS = (Class<?>) typeArgs[0];
+					return NATIVE_AUDIENCE_CLASS;
+				}
+			}
+			throw new IllegalStateException("Cannot determine native Audience class - viewers set is empty");
+		}
+
+		// Get a sample viewer from the existing set
+		Object sampleViewer = viewers.iterator().next();
+		Class<?> baseClass = sampleViewer.getClass();
+
+		// Find the net.kyori.adventure.audience.Audience interface in hierarchy
+		Class<?> audienceInterface = null;
+		Class<?> current = baseClass;
+
+		while (current != null && audienceInterface == null) {
+			for (Class<?> iface : current.getInterfaces()) {
+				if (iface.getSimpleName().equals("Audience")) {
+					// Verify this is actually from Adventure package
+					String pkg = iface.getPackageName();
+					if (pkg.contains("kyori.adventure")) {
+						audienceInterface = iface;
+						break;
+					}
+				}
+			}
+			current = current.getSuperclass();
+		}
+
+		if (audienceInterface == null) {
+			throw new IllegalStateException("Could not find native Audience interface for " + baseClass);
+		}
+
+		NATIVE_AUDIENCE_CLASS = audienceInterface;
+		return audienceInterface;
 	}
 
 	private static final Map<CoopChatSetting, RendererCache> RENDERER_CACHE = new EnumMap<>(CoopChatSetting.class);
@@ -362,13 +431,11 @@ public class ChatManager implements Reloadable {
 					UUID ownerId = hellblockData.getOwnerUUID();
 					if (ownerId != null) {
 						instance.getStorageManager().getCachedUserDataWithFallback(ownerId, false)
-								.thenAccept(ownerOpt -> {
-									instance.getScheduler().executeSync(() -> {
-										ownerOpt.ifPresent(ownerData -> recipients
-												.addAll(ownerData.getHellblockData().getPartyPlusOwner()));
-										finishLegacyChatEvent(event, formattedMessage, existingFormat, recipients);
-									});
-								});
+								.thenAccept(optData -> instance.getScheduler().executeSync(() -> {
+									optData.ifPresent(ownerData -> recipients
+											.addAll(ownerData.getHellblockData().getPartyPlusOwner()));
+									finishLegacyChatEvent(event, formattedMessage, existingFormat, recipients);
+								}));
 						return; // Stop here; event will be finished in async callback
 					}
 				}

@@ -150,7 +150,7 @@ public class IslandChoiceConverter {
 					+ ", x=" + location.getBlockX() + ", y=" + location.getBlockY() + ", z=" + location.getBlockZ()
 					+ "]");
 
-			return instance.getIslandGenerator().generateHellblockSchematic(request, world, location, ownerData,
+			return instance.getIslandGenerator().generateHellblockSchematic(request, world, location, ownerData, home,
 					request.schematicName(), true, animate).thenAccept(safeSpawn -> {
 						if (safeSpawn != null) {
 							ownerData.getHellblockData().setHomeLocation(safeSpawn);
@@ -176,14 +176,14 @@ public class IslandChoiceConverter {
 		if (animate) {
 			instance.debug("generateVariantIsland: Starting animated island generation for " + playerName + " (variant="
 					+ request.options().name() + ")");
-			return instance.getIslandGenerator().generateAnimatedHellblockIsland(request, world, location, ownerData)
-					.thenRun(postGen);
+			return instance.getIslandGenerator()
+					.generateAnimatedHellblockIsland(request, world, location, ownerData, home).thenRun(postGen);
 		}
 
 		// Instant generation (fallback)
 		instance.debug("generateVariantIsland: Running instant island generation for " + playerName + " (variant="
 				+ request.options().name() + ")");
-		return instance.getIslandGenerator().generateInstantHellblockIsland(request, world, location, ownerData)
+		return instance.getIslandGenerator().generateInstantHellblockIsland(request, world, location, ownerData, home)
 				.thenRun(postGen);
 	}
 }

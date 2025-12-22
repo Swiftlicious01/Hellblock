@@ -362,62 +362,59 @@ public class ChallengeManager implements Reloadable {
 					"Owner reference was null. This should never happen — please report to the developer.");
 		}
 
-		instance.getStorageManager().getCachedUserDataWithFallback(ownerId, instance.getConfigManager().lockData())
-				.thenAccept(ownerOptData -> {
-					if (ownerOptData.isEmpty()) {
+		instance.getStorageManager().getCachedUserDataWithFallback(ownerId, false).thenAccept(optData -> {
+			if (optData.isEmpty()) {
+				return;
+			}
+
+			UserData ownerData = optData.get();
+
+			// Build reusable player context for placeholders and requirements
+			final Context<Player> playerCtx = Context.player(player);
+
+			for (ChallengeType challenge : challenges) {
+
+				final ChallengeRequirement requirement = challenge.getRequiredData();
+
+				Object requirementContext = context;
+
+				// If this is a relative LEVELUP challenge, wrap context
+				if (type == ActionType.LEVELUP && requirement instanceof LevelUpRequirement levelReq
+						&& levelReq.isRelative()) {
+					double currentLevel = ownerData.getHellblockData().getIslandLevel();
+
+					double startLevel = challengeData.getChallengeMeta(challenge, "startLevel", Double.class)
+							.orElse(currentLevel); // if missing (e.g. join check), fallback to current
+
+					requirementContext = new LevelProgressContext(startLevel, currentLevel);
+				}
+
+				checkRequirementMatch(requirement, requirementContext, playerCtx).thenAccept(matches -> {
+					if (!matches)
 						return;
-					}
 
-					UserData ownerData = ownerOptData.get();
-
-					// Build reusable player context for placeholders and requirements
-					final Context<Player> playerCtx = Context.player(player);
-
-					for (ChallengeType challenge : challenges) {
-
-						final ChallengeRequirement requirement = challenge.getRequiredData();
-
-						Object requirementContext = context;
-
-						// If this is a relative LEVELUP challenge, wrap context
+					// Start or update challenge progression
+					if (!challengeData.isChallengeActive(challenge) && !challengeData.isChallengeCompleted(challenge)) {
+						challengeData.beginChallengeProgression(player, challenge);
+					} else {
 						if (type == ActionType.LEVELUP && requirement instanceof LevelUpRequirement levelReq
 								&& levelReq.isRelative()) {
 							double currentLevel = ownerData.getHellblockData().getIslandLevel();
-
 							double startLevel = challengeData.getChallengeMeta(challenge, "startLevel", Double.class)
-									.orElse(currentLevel); // if missing (e.g. join check), fallback to current
-
-							requirementContext = new LevelProgressContext(startLevel, currentLevel);
+									.orElse(currentLevel);
+							double gained = Math.max(0, currentLevel - startLevel);
+							challengeData.updateChallengeProgression(player, challenge, gained);
+						} else {
+							challengeData.updateChallengeProgression(player, challenge, progressionAmount);
 						}
 
-						checkRequirementMatch(requirement, requirementContext, playerCtx).thenAccept(matches -> {
-							if (!matches)
-								return;
-
-							// Start or update challenge progression
-							if (!challengeData.isChallengeActive(challenge)
-									&& !challengeData.isChallengeCompleted(challenge)) {
-								challengeData.beginChallengeProgression(player, challenge);
-							} else {
-								if (type == ActionType.LEVELUP && requirement instanceof LevelUpRequirement levelReq
-										&& levelReq.isRelative()) {
-									double currentLevel = ownerData.getHellblockData().getIslandLevel();
-									double startLevel = challengeData
-											.getChallengeMeta(challenge, "startLevel", Double.class)
-											.orElse(currentLevel);
-									double gained = Math.max(0, currentLevel - startLevel);
-									challengeData.updateChallengeProgression(player, challenge, gained);
-								} else {
-									challengeData.updateChallengeProgression(player, challenge, progressionAmount);
-								}
-
-								if (challengeData.isChallengeCompleted(challenge)) {
-									challengeData.completeChallenge(player, challenge);
-								}
-							}
-						});
+						if (challengeData.isChallengeCompleted(challenge)) {
+							challengeData.completeChallenge(player, challenge);
+						}
 					}
 				});
+			}
+		});
 	}
 
 	@NotNull

@@ -72,8 +72,8 @@ public class CoopCancelCommand extends BukkitCommandFeature<CommandSender> {
 						return;
 					}
 
-					final UserData user = userOpt.get();
-					if (!user.getHellblockData().hasHellblock()) {
+					final UserData userData = userOpt.get();
+					if (!userData.getHellblockData().hasHellblock()) {
 						handleFeedback(context, MessageConstants.MSG_HELLBLOCK_NOT_FOUND);
 						return;
 					}
@@ -104,42 +104,48 @@ public class CoopCancelCommand extends BukkitCommandFeature<CommandSender> {
 					}
 
 					// Async fetch for offline data
-					plugin.getStorageManager()
-							.getCachedUserDataWithFallback(targetId, plugin.getConfigManager().lockData())
-							.thenAccept(result -> {
-								if (result.isEmpty()) {
-									handleFeedback(context, MessageConstants.MSG_HELLBLOCK_PLAYER_DATA_FAILURE_LOAD,
-											AdventureHelper.miniMessageToComponent(targetName));
-									return;
-								}
+					plugin.getStorageManager().getCachedUserDataWithFallback(targetId, true).thenCompose(targetOpt -> {
+						if (targetOpt.isEmpty()) {
+							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_PLAYER_DATA_FAILURE_LOAD,
+									AdventureHelper.miniMessageToComponent(targetName));
+							return CompletableFuture.completedFuture(null);
+						}
 
-								final UserData targetUser = result.get();
-								final HellblockData targetData = targetUser.getHellblockData();
+						final UserData targetUserData = targetOpt.get();
+						final HellblockData data = targetUserData.getHellblockData();
 
-								if (!targetData.hasInvite(player.getUniqueId())) {
-									handleFeedback(context, MessageConstants.MSG_HELLBLOCK_COOP_NO_INVITE_FOUND);
-									return;
-								}
+						if (!data.hasInvite(player.getUniqueId())) {
+							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_COOP_NO_INVITE_FOUND);
+							return CompletableFuture.completedFuture(null);
+						}
 
-								if (targetData.hasInviteExpired(player.getUniqueId())) {
-									handleFeedback(context, MessageConstants.MSG_HELLBLOCK_COOP_INVITE_EXPIRED);
-									return;
-								}
+						if (data.hasInviteExpired(player.getUniqueId())) {
+							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_COOP_INVITE_EXPIRED);
+							return CompletableFuture.completedFuture(null);
+						}
 
-								// Cancel invite
-								targetData.removeInvitation(player.getUniqueId());
+						// Cancel invite
+						data.removeInvitation(player.getUniqueId());
 
-								// Feedback to executor
-								handleFeedback(context, MessageConstants.MSG_HELLBLOCK_COOP_INVITE_CANCELLED,
-										AdventureHelper.miniMessageToComponent(targetName));
+						// Feedback to executor
+						handleFeedback(context, MessageConstants.MSG_HELLBLOCK_COOP_INVITE_CANCELLED,
+								AdventureHelper.miniMessageToComponent(targetName));
 
-								// Feedback to target if online
-								final Player targetOnline = Bukkit.getPlayer(targetId);
-								if (targetOnline != null) {
-									handleFeedback(targetOnline, MessageConstants.MSG_HELLBLOCK_COOP_INVITE_REVOKED,
-											AdventureHelper.miniMessageToComponent(player.getName()));
-								}
-							});
+						// Feedback to target if online
+						final Player targetOnline = Bukkit.getPlayer(targetId);
+						if (targetOnline != null) {
+							handleFeedback(targetOnline, MessageConstants.MSG_HELLBLOCK_COOP_INVITE_REVOKED,
+									AdventureHelper.miniMessageToComponent(player.getName()));
+						}
+
+						return CompletableFuture.completedFuture(null);
+					}).handle((res, ex) -> {
+						if (ex != null) {
+							plugin.getPluginLogger().warn("Coop cancel command failed (Could not read target "
+									+ targetName + "'s data): " + ex.getMessage(), ex);
+						}
+						return null;
+					}).thenCompose(v -> plugin.getStorageManager().unlockUserData(targetId));
 				});
 	}
 

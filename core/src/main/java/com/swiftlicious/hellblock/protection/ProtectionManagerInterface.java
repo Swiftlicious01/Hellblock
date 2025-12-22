@@ -29,7 +29,7 @@ public interface ProtectionManagerInterface {
 	 * @param islandOwnerId the UUID of the island owner
 	 * @param flag          the {@link HellblockFlag} to change
 	 */
-	CompletableFuture<Void> changeProtectionFlag(@NotNull HellblockWorld<?> world, @NotNull UUID islandOwnerId,
+	CompletableFuture<Boolean> changeProtectionFlag(@NotNull HellblockWorld<?> world, @NotNull UUID islandOwnerId,
 			@NotNull HellblockFlag flag);
 
 	/**
@@ -38,7 +38,7 @@ public interface ProtectionManagerInterface {
 	 * @param world         the world where the island resides
 	 * @param islandOwnerId the UUID of the island owner
 	 */
-	CompletableFuture<Void> changeLockStatus(@NotNull HellblockWorld<?> world, @NotNull UUID islandOwnerId);
+	CompletableFuture<Boolean> changeLockStatus(@NotNull HellblockWorld<?> world, @NotNull UUID islandOwnerId);
 
 	/**
 	 * Restores the island's protection and region state, typically after a reset or
@@ -46,7 +46,7 @@ public interface ProtectionManagerInterface {
 	 *
 	 * @param islandOwnerData the {@link HellblockData} of the island to restore
 	 */
-	void restoreIsland(@NotNull HellblockData islandOwnerData);
+	CompletableFuture<Boolean> restoreIsland(@NotNull HellblockData islandOwnerData);
 
 	/**
 	 * Removes all entities from the specified bounding box on the island. Typically

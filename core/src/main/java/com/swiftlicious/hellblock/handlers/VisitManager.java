@@ -219,87 +219,133 @@ public class VisitManager implements Reloadable {
 	 * @param visitor the player attempting to visit
 	 * @param ownerId the UUID of the island owner
 	 */
-	public void handleVisit(@NotNull Player visitor, @NotNull UUID ownerId) {
+	public CompletableFuture<Boolean> handleVisit(@NotNull Player visitor, @NotNull UUID ownerId) {
 		CompletableFuture<Optional<UserData>> visitorFuture = instance.getStorageManager()
-				.getCachedUserDataWithFallback(visitor.getUniqueId(), instance.getConfigManager().lockData());
+				.getCachedUserDataWithFallback(visitor.getUniqueId(), false);
 
 		CompletableFuture<Optional<UserData>> ownerFuture = instance.getStorageManager()
-				.getCachedUserDataWithFallback(ownerId, instance.getConfigManager().lockData());
+				.getCachedUserDataWithFallback(ownerId, false);
 
-		CompletableFuture<Optional<Pair<UserData, UserData>>> combinedFuture = visitorFuture
-				.thenCombineAsync(ownerFuture, (visitorOpt, ownerOpt) -> {
-					if (visitorOpt.isEmpty() || ownerOpt.isEmpty()) {
-						return Optional.empty();
-					}
-					return Optional.of(Pair.of(visitorOpt.get(), ownerOpt.get()));
-				});
+		return visitorFuture.thenCombineAsync(ownerFuture, (visitorOpt, ownerOpt) -> {
+			if (visitorOpt.isEmpty() || ownerOpt.isEmpty()) {
+				return Optional.<Pair<UserData, UserData>>empty();
+			}
+			return Optional.of(Pair.of(visitorOpt.get(), ownerOpt.get()));
+		}).thenCompose(optionalPair -> {
+			if (optionalPair.isEmpty())
+				return CompletableFuture.completedFuture(false);
 
-		combinedFuture.thenAcceptAsync(optionalPair -> optionalPair.ifPresent(pair -> {
-			UserData visitorUserData = pair.left();
-			UserData ownerUserData = pair.right();
-			HellblockData ownerData = ownerUserData.getHellblockData();
+			UserData visitorData = optionalPair.get().left();
+			UserData ownerData = optionalPair.get().right();
+			HellblockData hellblockData = ownerData.getHellblockData();
 
-			if (ownerData.isLocked()) {
-				instance.getSenderFactory().wrap(visitor).sendMessage(
-						instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_LOCKED_FROM_VISITORS
-								.arguments(AdventureHelper.miniMessageToComponent(ownerUserData.getName())).build()));
-				return;
+			if (hellblockData.isLocked()) {
+				sendLockedMessage(visitor, ownerData);
+				return CompletableFuture.completedFuture(false);
 			}
 
-			if (ownerData.getBannedMembers().contains(visitorUserData.getUUID())
-					&& (!(visitor.isOp() || visitor.hasPermission("hellblock.admin")
-							|| visitor.hasPermission("hellblock.bypass.interact")))) {
-				instance.getSenderFactory().wrap(visitor)
-						.sendMessage(instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_BANNED_ENTRY
-								.arguments(AdventureHelper.miniMessageToComponent(ownerUserData.getName())).build()));
-				return;
+			if (isVisitorBanned(visitor, hellblockData)) {
+				sendBannedMessage(visitor, ownerData);
+				return CompletableFuture.completedFuture(false);
 			}
 
-			boolean associated = ownerId.equals(visitorUserData.getUUID())
-					|| ownerData.getPartyMembers().contains(visitorUserData.getUUID())
-					|| ownerData.getTrustedMembers().contains(visitorUserData.getUUID());
-			boolean eligibleToRecord = !associated && !isBlacklisted(visitorUserData.getUUID())
-					&& canVisit(visitorUserData.getUUID(), ownerId);
+			boolean associated = isAssociated(visitorData.getUUID(), hellblockData);
+			boolean eligibleToRecord = !associated && !isBlacklisted(visitorData.getUUID())
+					&& canVisit(visitorData.getUUID(), ownerId);
 
-			Location warp = ownerData.getVisitData().getWarpLocation();
-
-			if (warp == null)
-				warp = ownerData.getHomeLocation();
+			Location warp = Optional.ofNullable(hellblockData.getVisitData().getWarpLocation())
+					.orElse(hellblockData.getHomeLocation());
 
 			if (warp == null) {
-				instance.getPluginLogger().severe("Null home location in handleVisit for " + ownerUserData.getName()
-						+ " (" + ownerUserData.getUUID() + ")");
-				instance.getSenderFactory().wrap(visitor).sendMessage(instance.getTranslationManager()
-						.render(MessageConstants.MSG_HELLBLOCK_ERROR_HOME_LOCATION.build()));
-				return;
+				logMissingHomeLocation(ownerData);
+				sendMissingHomeMessage(visitor);
+				return CompletableFuture.completedFuture(false);
 			}
 
 			final Location finalWarp = warp;
-			instance.getWorldManager().ensureHellblockWorldLoaded(ownerData.getIslandId()).thenAcceptAsync(world -> {
-				Location corrected = new Location(world.bukkitWorld(), finalWarp.getX(), finalWarp.getY(),
-						finalWarp.getZ(), finalWarp.getYaw(), finalWarp.getPitch());
-				LocationUtils.isSafeLocationAsync(corrected).thenAcceptAsync(isSafe -> {
-					if (!isSafe) {
-						instance.getSenderFactory().wrap(visitor).sendMessage(instance.getTranslationManager()
-								.render(MessageConstants.MSG_HELLBLOCK_UNSAFE_TO_VISIT.build()));
-						return;
-					}
 
-					ChunkUtils.teleportAsync(visitor, corrected, TeleportCause.PLUGIN).thenRun(() -> {
-						instance.debug(visitor.getName() + " (" + visitor.getUniqueId() + ") visited "
-								+ ownerUserData.getName() + " (" + ownerUserData.getUUID() + ")");
-						if (eligibleToRecord) {
-							recordVisit(ownerData.getIslandId(), visitor, ownerId);
-						}
-						ownerData.sendDisplayTextTo(visitor);
-						instance.getSenderFactory().wrap(visitor).sendMessage(instance.getTranslationManager()
-								.render(MessageConstants.MSG_HELLBLOCK_VISIT_ENTRY
-										.arguments(AdventureHelper.miniMessageToComponent(ownerUserData.getName()))
-										.build()));
+			return instance.getWorldManager().ensureHellblockWorldLoaded(hellblockData.getIslandId())
+					.thenCompose(world -> {
+						Location corrected = new Location(world.bukkitWorld(), finalWarp.getX(), finalWarp.getY(),
+								finalWarp.getZ(), finalWarp.getYaw(), finalWarp.getPitch());
+
+						return LocationUtils.isSafeLocationAsync(corrected).thenCompose(isSafe -> {
+							if (!isSafe) {
+								sendUnsafeMessage(visitor);
+								return CompletableFuture.completedFuture(false);
+							}
+
+							return ChunkUtils.teleportAsync(visitor, corrected, TeleportCause.PLUGIN).thenCompose(v -> {
+								logVisit(visitor, ownerData);
+
+								CompletableFuture<Boolean> recordFuture = eligibleToRecord
+										? recordVisit(hellblockData.getIslandId(), visitor, ownerId)
+										: CompletableFuture.completedFuture(false);
+
+								return recordFuture.handle((result, ex) -> {
+									if (ex != null) {
+										instance.getPluginLogger().warn("Failed to record visit", ex);
+										return false;
+									}
+									// Avoid null boxing
+									return Boolean.TRUE.equals(result);
+								}).thenApply(success -> {
+									hellblockData.sendDisplayTextTo(visitor);
+									sendVisitEntryMessage(visitor, ownerData);
+									return true;
+								});
+							});
+						});
 					});
-				});
-			});
-		}));
+		});
+	}
+
+	private boolean isVisitorBanned(Player visitor, HellblockData ownerData) {
+		UUID visitorId = visitor.getUniqueId();
+		return ownerData.getBannedMembers().contains(visitorId) && !(visitor.isOp()
+				|| visitor.hasPermission("hellblock.admin") || visitor.hasPermission("hellblock.bypass.interact"));
+	}
+
+	private boolean isAssociated(UUID visitorId, HellblockData ownerData) {
+		return visitorId.equals(ownerData.getOwnerUUID()) || ownerData.getPartyMembers().contains(visitorId)
+				|| ownerData.getTrustedMembers().contains(visitorId);
+	}
+
+	private void sendLockedMessage(Player visitor, UserData owner) {
+		instance.getSenderFactory().wrap(visitor)
+				.sendMessage(instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_LOCKED_FROM_VISITORS
+						.arguments(AdventureHelper.miniMessageToComponent(owner.getName())).build()));
+	}
+
+	private void sendBannedMessage(Player visitor, UserData owner) {
+		instance.getSenderFactory().wrap(visitor)
+				.sendMessage(instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_BANNED_ENTRY
+						.arguments(AdventureHelper.miniMessageToComponent(owner.getName())).build()));
+	}
+
+	private void sendMissingHomeMessage(Player visitor) {
+		instance.getSenderFactory().wrap(visitor).sendMessage(
+				instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_ERROR_HOME_LOCATION.build()));
+	}
+
+	private void logMissingHomeLocation(UserData owner) {
+		instance.getPluginLogger().severe("Null home location for " + owner.getName() + " (" + owner.getUUID() + ")");
+	}
+
+	private void sendUnsafeMessage(Player visitor) {
+		instance.getSenderFactory().wrap(visitor).sendMessage(
+				instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_UNSAFE_TO_VISIT.build()));
+	}
+
+	private void sendVisitEntryMessage(Player visitor, UserData owner) {
+		instance.getSenderFactory().wrap(visitor)
+				.sendMessage(instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_VISIT_ENTRY
+						.arguments(AdventureHelper.miniMessageToComponent(owner.getName())).build()));
+	}
+
+	private void logVisit(Player visitor, UserData owner) {
+		instance.debug(visitor.getName() + " (" + visitor.getUniqueId() + ") visited " + owner.getName() + " ("
+				+ owner.getUUID() + ")");
 	}
 
 	/**
@@ -310,13 +356,13 @@ public class VisitManager implements Reloadable {
 	 * @param visitor  the player who visited
 	 * @param ownerId  the UUID of the island owner
 	 */
-	private void recordVisit(int islandId, @NotNull Player visitor, @NotNull UUID ownerId) {
+	private CompletableFuture<Boolean> recordVisit(int islandId, @NotNull Player visitor, @NotNull UUID ownerId) {
 		final UUID visitorId = visitor.getUniqueId();
 
 		if (isBlacklisted(visitorId))
-			return;
+			return CompletableFuture.completedFuture(false);
 		if (!canVisit(visitorId, ownerId))
-			return;
+			return CompletableFuture.completedFuture(false);
 
 		long now = System.currentTimeMillis();
 
@@ -340,19 +386,25 @@ public class VisitManager implements Reloadable {
 		visitHistory.computeIfAbsent(visitorId, __ -> new ArrayDeque<>()).addLast(ownerId);
 
 		// Normal visit progression
-		instance.getStorageManager().getCachedUserDataWithFallback(ownerId, instance.getConfigManager().lockData())
-				.thenAccept(optUser -> {
-					if (optUser.isEmpty()) {
-						return;
-					}
+		return instance.getStorageManager().getCachedUserDataWithFallback(ownerId, true).thenApply(optData -> {
+			if (optData.isEmpty()) {
+				return false;
+			}
 
-					UserData userData = optUser.get();
-					HellblockData hb = userData.getHellblockData();
+			UserData userData = optData.get();
+			HellblockData hellblockData = userData.getHellblockData();
 
-					VisitData visitData = hb.getVisitData();
-					visitData.increment();
-					hb.addVisitor(visitorId);
-				});
+			VisitData visitData = hellblockData.getVisitData();
+			visitData.increment();
+			hellblockData.addVisitor(visitorId);
+			return true;
+		}).handle((result, ex) -> {
+			if (ex != null) {
+				instance.getPluginLogger()
+						.warn("Error during visit recording for owner " + ownerId + ": " + ex.getMessage(), ex);
+			}
+			return true; // Continue to unlock either way
+		}).thenCompose(v -> instance.getStorageManager().unlockUserData(ownerId).thenApply(x -> true));
 	}
 
 	/**
@@ -406,10 +458,10 @@ public class VisitManager implements Reloadable {
 					return true; // Still active — include
 				})
 						// Sort by newest expiry
-						.sorted(Comparator
-								.comparingLong(user -> -user.getHellblockData().getVisitData().getFeaturedUntil()))
+						.sorted(Comparator.comparingLong(
+								userData -> -userData.getHellblockData().getVisitData().getFeaturedUntil()))
 						.limit(limit) // Apply limit AFTER cleanup
-						.map(user -> new VisitEntry(user.getUUID(), 0)) // Map to display entry
+						.map(userData -> new VisitEntry(userData.getUUID(), 0)) // Map to display entry
 						.toList());
 	}
 
@@ -430,8 +482,8 @@ public class VisitManager implements Reloadable {
 
 		CompletableFuture<Boolean> result = new CompletableFuture<>();
 
-		instance.getStorageManager().getOnlineUser(uuid).ifPresentOrElse(user -> {
-			HellblockData data = user.getHellblockData();
+		instance.getStorageManager().getOnlineUser(uuid).ifPresentOrElse(userData -> {
+			HellblockData data = userData.getHellblockData();
 			// Validate island existence
 			if (!data.hasHellblock()) {
 				instance.getSenderFactory().wrap(player).sendMessage(
@@ -693,10 +745,8 @@ public class VisitManager implements Reloadable {
 	 */
 	@NotNull
 	public CompletableFuture<List<VisitRecord>> getIslandVisitLog(@NotNull UUID ownerId) {
-		return instance.getStorageManager()
-				.getCachedUserDataWithFallback(ownerId, instance.getConfigManager().lockData())
-				.thenApply(userOpt -> userOpt.map(user -> user.getHellblockData().getRecentVisitors())
-						.orElse(Collections.emptyList()));
+		return instance.getStorageManager().getCachedUserDataWithFallback(ownerId, false).thenApply(optData -> optData
+				.map(userData -> userData.getHellblockData().getRecentVisitors()).orElse(Collections.emptyList()));
 	}
 
 	/**

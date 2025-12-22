@@ -69,10 +69,10 @@ public class HellblockFlagCommand extends BukkitCommandFeature<CommandSender> {
 					}
 
 					// Filter out disallowed flags from suggestions
-					List<Suggestion> availableFlags = Arrays
-							.stream(FlagType.values()).filter(flag -> flag != FlagType.GREET_MESSAGE
-									&& flag != FlagType.FAREWELL_MESSAGE && flag != FlagType.ENTRY)
-							.map(Enum::name).map(Suggestion::suggestion).toList();
+					List<Suggestion> availableFlags = Arrays.stream(FlagType.values())
+							.filter(flag -> flag != FlagType.GREET_MESSAGE && flag != FlagType.FAREWELL_MESSAGE
+									&& flag != FlagType.ENTRY)
+							.map(value -> value.toString().toLowerCase()).map(Suggestion::suggestion).toList();
 
 					return CompletableFuture.completedFuture(availableFlags);
 				})).handler(context -> {
@@ -112,10 +112,10 @@ public class HellblockFlagCommand extends BukkitCommandFeature<CommandSender> {
 						return;
 					}
 
-					final String flagInput = context.getOrDefault("flag", HellblockFlag.FlagType.INTERACT.name())
+					final String flagInput = context.getOrDefault("flag", HellblockFlag.FlagType.INTERACT.toString())
 							.toUpperCase();
 					final Optional<HellblockFlag.FlagType> flagOpt = Arrays.stream(HellblockFlag.FlagType.values())
-							.filter(up -> up.name().equalsIgnoreCase(flagInput)).findFirst();
+							.filter(up -> up.toString().equalsIgnoreCase(flagInput)).findFirst();
 
 					if (flagOpt.isEmpty()) {
 						handleFeedback(context, MessageConstants.MSG_HELLBLOCK_INVALID_FLAG);
@@ -137,7 +137,7 @@ public class HellblockFlagCommand extends BukkitCommandFeature<CommandSender> {
 					final Optional<HellblockWorld<?>> worldOpt = plugin.getWorldManager().getWorld(worldName);
 					if (worldOpt.isEmpty()) {
 						handleFeedback(context, MessageConstants.MSG_HELLBLOCK_WORLD_ERROR);
-						plugin.getPluginLogger().warn("World not found for force flag: " + worldName + " (Island ID: "
+						plugin.getPluginLogger().warn("World not found for flag command: " + worldName + " (Island ID: "
 								+ islandId + ", Owner UUID: " + ownerUUID + ")");
 						return;
 					}
@@ -156,14 +156,24 @@ public class HellblockFlagCommand extends BukkitCommandFeature<CommandSender> {
 					// Get the reverse of the current access type for the new flag update
 					final HellblockFlag flagUpdate = new HellblockFlag(flagType, reversed);
 
-					plugin.getProtectionManager().changeProtectionFlag(world, ownerUUID, flagUpdate);
+					plugin.getProtectionManager().changeProtectionFlag(world, ownerUUID, flagUpdate)
+							.thenCompose(flagStatus -> {
+								if (!flagStatus) {
+									return CompletableFuture.completedFuture(null);
+								}
 
-					final String flagDisplay = StringUtils.toCamelCase(flagUpdate.getFlag().getName());
-					final boolean flagValue = flagUpdate.getStatus().getReturnValue();
+								final String flagDisplay = StringUtils.toCamelCase(flagUpdate.getFlag().getName());
+								final boolean flagValue = flagUpdate.getStatus().getReturnValue();
 
-					handleFeedback(context, MessageConstants.MSG_HELLBLOCK_CHANGED_FLAG,
-							AdventureHelper.miniMessageToComponent(flagDisplay),
-							AdventureHelper.miniMessageToComponent(String.valueOf(flagValue)));
+								handleFeedback(context, MessageConstants.MSG_HELLBLOCK_CHANGED_FLAG,
+										AdventureHelper.miniMessageToComponent(flagDisplay),
+										AdventureHelper.miniMessageToComponent(String.valueOf(flagValue)));
+								return CompletableFuture.completedFuture(null);
+							}).exceptionally(ex -> {
+								plugin.getPluginLogger().warn("Failed to change protection flag for " + player.getName()
+										+ ": " + ex.getMessage(), ex);
+								return null;
+							});
 				});
 	}
 

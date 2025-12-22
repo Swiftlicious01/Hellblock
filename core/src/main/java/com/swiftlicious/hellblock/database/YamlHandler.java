@@ -17,6 +17,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -73,8 +74,8 @@ public class YamlHandler extends AbstractStorage {
 
 	private final File dataFolder;
 
-	private final ConcurrentHashMap<UUID, CompletableFuture<Optional<PlayerData>>> loadingCache = new ConcurrentHashMap<>();
-	private final ConcurrentHashMap<UUID, CompletableFuture<Boolean>> updatingCache = new ConcurrentHashMap<>();
+	private final ConcurrentMap<UUID, CompletableFuture<Optional<PlayerData>>> loadingCache = new ConcurrentHashMap<>();
+	private final ConcurrentMap<UUID, CompletableFuture<Boolean>> updatingCache = new ConcurrentHashMap<>();
 
 	private final Cache<Integer, UUID> islandIdToUUIDCache = Caffeine.newBuilder()
 			.expireAfterWrite(30, TimeUnit.MINUTES).maximumSize(10_000).build();
@@ -286,6 +287,7 @@ public class YamlHandler extends AbstractStorage {
 		final List<MailboxEntry> mailbox = parseMailboxEntries(data.getSection("mailboxEntries"));
 		final VisitData visitData = parseVisitData(data.getSection("hellblockData.visitData"));
 		final List<VisitRecord> recentVisitors = parseRecentVisitors(data.getSection("hellblockData.recentVisitors"));
+		final Set<UUID> offlineVisitors = readUUIDSet(data.getStringList("hellblockData.offlineVisitors"));
 		final InvasionData invasionData = parseInvasionData(data.getSection("hellblockData.invasionData"));
 		final WitherData witherData = parseWitherData(data.getSection("hellblockData.witherData"));
 		final SkysiegeData skysiegeData = parseSkysiegeData(data.getSection("hellblockData.skysiegeData"));
@@ -339,9 +341,9 @@ public class YamlHandler extends AbstractStorage {
 								data.getBoolean("notificationSettings.inviteNotifications", true)))
 				.setHellblockData(new HellblockData(hellblockId, level, hasHellblock, ownerUUID, linkedPortalUUID,
 						bounds, display, chatSetting, party, trusted, banned, invitations, flags, upgrades, location,
-						home, creation, visitData, recentVisitors, biome, islandChoice, schematic, locked, abandoned,
-						resetCooldown, biomeCooldown, transferCooldown, lastIslandActivity, lastWorldAccess,
-						invasionData, witherData, skysiegeData))
+						home, creation, visitData, recentVisitors, offlineVisitors, biome, islandChoice, schematic,
+						locked, abandoned, resetCooldown, biomeCooldown, transferCooldown, lastIslandActivity,
+						lastWorldAccess, invasionData, witherData, skysiegeData))
 				.build();
 
 		return playerData;
@@ -688,6 +690,7 @@ public class YamlHandler extends AbstractStorage {
 		// Visitors
 		serializeVisitData(hellblock.getVisitData(), data);
 		serializeRecentVisitors(hellblock.getRecentVisitors(), data);
+		setIfNotEmpty(data, "hellblockData.offlineVisitors", uuidSetToString(hellblock.getOfflineVisitors()));
 
 		// Events
 		serializeInvasionData(hellblock.getInvasionData(), data);

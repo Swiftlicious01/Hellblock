@@ -339,15 +339,17 @@ public class EventGUIManager implements EventGUIManagerInterface, Listener {
 			// Back button
 			if (element.getSymbol() == backSlot) {
 				event.setCancelled(true);
-				instance.getHellblockGUIManager().openHellblockGUI(player, gui.islandContext.holder(), gui.isOwner);
-				ActionManager.trigger(gui.context, backActions);
+				boolean opened = instance.getHellblockGUIManager().openHellblockGUI(player, gui.islandContext.holder(),
+						gui.isOwner);
+				if (opened)
+					ActionManager.trigger(gui.context, backActions);
 				return;
 			}
 
 			// Async retrieval of up-to-date Hellblock data
-			instance.getStorageManager().getCachedUserDataWithFallback(gui.hellblockData.getOwnerUUID(),
-					instance.getConfigManager().lockData()).thenAccept(ownerDataOpt -> {
-						if (ownerDataOpt.isEmpty()) {
+			instance.getStorageManager().getCachedUserDataWithFallback(gui.hellblockData.getOwnerUUID(), false)
+					.thenAccept(optData -> {
+						if (optData.isEmpty()) {
 							instance.getScheduler().executeSync(() -> {
 								event.setCancelled(true);
 								player.closeInventory();
@@ -355,10 +357,10 @@ public class EventGUIManager implements EventGUIManagerInterface, Listener {
 							return;
 						}
 
-						UserData ownerData = ownerDataOpt.get();
-						HellblockData ownerHellblockData = ownerData.getHellblockData();
+						UserData ownerData = optData.get();
+						HellblockData hellblockData = ownerData.getHellblockData();
 
-						if (ownerHellblockData.isAbandoned()) {
+						if (hellblockData.isAbandoned()) {
 							instance.getScheduler().executeSync(() -> {
 								Sender audience = instance.getSenderFactory().wrap(player);
 								audience.sendMessage(instance.getTranslationManager()
@@ -376,7 +378,7 @@ public class EventGUIManager implements EventGUIManagerInterface, Listener {
 
 							EventType type = eventClick.right().mid();
 
-							if (!isEventUnlocked(type, ownerHellblockData)) {
+							if (!isEventUnlocked(type, hellblockData)) {
 								float requiredLevel = getRequiredLevelForEvent(type);
 								gui.islandContext.arg(ContextKeys.REQUIRED_LEVEL, requiredLevel);
 								instance.getScheduler().executeSync(() -> {

@@ -774,6 +774,7 @@ public class PiglinInvasionHandler implements Listener, Reloadable {
 		}, 60L, loc);
 	}
 
+	@SuppressWarnings("deprecation")
 	@NotNull
 	private List<Location> buildTemporaryPortal(@NotNull Location loc) {
 		List<Location> portalBlocks = new ArrayList<>();
@@ -1686,6 +1687,7 @@ public class PiglinInvasionHandler implements Listener, Reloadable {
 		return loot.subList(0, Math.min(7, loot.size()));
 	}
 
+	@SuppressWarnings("deprecation")
 	private void spawnFromNetherPortal(@NotNull Location spawnCenter, @NotNull CustomInvasion invasion,
 			@NotNull InvasionSpawnContext context, int wave, @NotNull Consumer<UUID> onSpawned) {
 		World world = spawnCenter.getWorld();
@@ -1837,6 +1839,7 @@ public class PiglinInvasionHandler implements Listener, Reloadable {
 		shepherdMobsToPortal(mobIds, invasion, portalCenter, placedBlocks);
 	}
 
+	@SuppressWarnings("deprecation")
 	private void createRetreatPortal(@NotNull Location base, boolean faceX, @NotNull List<Location> placedBlocks) {
 		int dx = faceX ? 1 : 0;
 		int dz = faceX ? 0 : 1;
@@ -2246,6 +2249,7 @@ public class PiglinInvasionHandler implements Listener, Reloadable {
 		return below.getType().isSolid() && below.getType().isOccluding(); // e.g., no glass or fences
 	}
 
+	@SuppressWarnings("deprecation")
 	private void markMobTemporarilyInvulnerable(@NotNull Mob mob, long durationTicks) {
 		mob.setMetadata("invulnerable_phase", new FixedMetadataValue(instance, true));
 		long removeDelay = Math.max(20L, durationTicks); // at least 1s

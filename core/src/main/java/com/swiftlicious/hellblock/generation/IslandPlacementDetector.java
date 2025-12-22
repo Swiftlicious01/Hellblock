@@ -113,6 +113,11 @@ public class IslandPlacementDetector implements Reloadable {
 		return this.spiralReady;
 	}
 
+	@NotNull
+	public Map<Integer, BoundingBox> getCachedBoundingBoxes() {
+		return this.cachedBoundingBoxes;
+	}
+
 	/**
 	 * @return the spacing (in blocks) between island centers.
 	 */
@@ -181,7 +186,7 @@ public class IslandPlacementDetector implements Reloadable {
 					});
 
 					if (maxId.get() == -1) {
-						instance.getPluginLogger().warn(
+						instance.debug(
 								"findNextIslandLocation: No valid island IDs found among owners. Starting from ID=1.");
 						maxId.set(0);
 					}

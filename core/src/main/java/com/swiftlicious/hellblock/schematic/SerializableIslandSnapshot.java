@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -14,6 +15,7 @@ import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Entity;
 import org.bukkit.util.BoundingBox;
+import org.jetbrains.annotations.Nullable;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -26,6 +28,9 @@ import com.swiftlicious.hellblock.utils.LocationUtils;
  */
 public record SerializableIslandSnapshot(@JsonProperty("blocks") List<IslandSnapshotBlock> blocks,
 		@JsonProperty("entities") List<EntitySnapshot> entities) implements Serializable {
+
+	public static final int MIN_BATCH_SIZE = 50;
+	public static final int MAX_BATCH_SIZE = 2000;
 
 	@JsonCreator
 	public SerializableIslandSnapshot {
@@ -69,15 +74,16 @@ public record SerializableIslandSnapshot(@JsonProperty("blocks") List<IslandSnap
 	 * Restore this snapshot into the world in small batches (safe for large
 	 * islands).
 	 * 
+	 * @param plugin     Your HellblockPlugin instance
 	 * @param world      World to restore into
 	 * @param box        Bounding box to clear before restoring
-	 * @param plugin     Your HellblockPlugin instance
-	 * @param whenDone   Runnable to run on completion (may be null)
 	 * @param onProgress Consumer to accept progress updates (0.0 to 1.0), may be
 	 *                   null
 	 */
-	public void restoreIntoWorldBatched(World world, BoundingBox box, HellblockPlugin plugin, Runnable whenDone,
-			Consumer<Double> onProgress) {
+	public CompletableFuture<Boolean> restoreIntoWorldBatched(HellblockPlugin plugin, World world, BoundingBox box,
+			@Nullable Consumer<Double> onProgress) {
+		final CompletableFuture<Boolean> future = new CompletableFuture<>();
+
 		// Collect all blocks inside the bounding box
 		final List<Block> toRemove = collectBlocksInside(world, box);
 		final List<IslandSnapshotBlock> blocksToRestore = new ArrayList<>(blocks);
@@ -87,9 +93,7 @@ public record SerializableIslandSnapshot(@JsonProperty("blocks") List<IslandSnap
 		final AtomicInteger done = new AtomicInteger(0);
 
 		// Aim to spread over ~200 ticks (10s)
-		final int minBatch = 50;
-		final int maxBatch = 2000;
-		final AtomicInteger batchSize = new AtomicInteger(Math.max(minBatch, totalWork / 200));
+		final AtomicInteger batchSize = new AtomicInteger(Math.max(MIN_BATCH_SIZE, totalWork / 200));
 
 		final Iterator<Block> removeIt = toRemove.iterator();
 		final Iterator<IslandSnapshotBlock> blockIt = blocksToRestore.iterator();
@@ -98,47 +102,54 @@ public record SerializableIslandSnapshot(@JsonProperty("blocks") List<IslandSnap
 		final AtomicReference<SchedulerTask> taskRef = new AtomicReference<>();
 
 		final SchedulerTask task = plugin.getScheduler().sync().runRepeating(() -> {
-			// Dynamic batch scaling – optional: tie to your TPS monitor
-			final double tps = getRecentTps(plugin);
-			if (tps < 18) {
-				batchSize.set(Math.max(minBatch, batchSize.get() / 2));
-			} else if (tps > 19.8) {
-				batchSize.set(Math.min(maxBatch, batchSize.get() * 2));
-			}
-
-			int processed = 0;
-			while (processed < batchSize.get() && (removeIt.hasNext() || blockIt.hasNext() || entityIt.hasNext())) {
-				if (removeIt.hasNext()) {
-					removeIt.next().setType(Material.AIR, false);
-				} else if (blockIt.hasNext()) {
-					blockIt.next().restore(world);
-				} else if (entityIt.hasNext()) {
-					entityIt.next().spawn(world);
+			try {
+				// Dynamic batch scaling – optional: tie to your TPS monitor
+				final double tps = getRecentTps(plugin);
+				if (tps < 18) {
+					batchSize.set(Math.max(MIN_BATCH_SIZE, batchSize.get() / 2));
+				} else if (tps > 19.8) {
+					batchSize.set(Math.min(MAX_BATCH_SIZE, batchSize.get() * 2));
 				}
-				done.incrementAndGet();
-				processed++;
-			}
 
-			// fire progress update async
-			if (onProgress != null && totalWork > 0) {
-				final double progress = (double) done.get() / totalWork;
-				plugin.getScheduler().async().execute(() -> onProgress.accept(progress));
-			}
+				int processed = 0;
+				while (processed < batchSize.get() && (removeIt.hasNext() || blockIt.hasNext() || entityIt.hasNext())) {
+					if (removeIt.hasNext()) {
+						removeIt.next().setType(Material.AIR, false);
+					} else if (blockIt.hasNext()) {
+						blockIt.next().restore(world);
+					} else if (entityIt.hasNext()) {
+						entityIt.next().spawn(world);
+					}
+					done.incrementAndGet();
+					processed++;
+				}
 
-			// finish
-			if (!removeIt.hasNext() && !blockIt.hasNext() && !entityIt.hasNext()) {
+				// fire progress update async
+				if (onProgress != null && totalWork > 0) {
+					final double progress = (double) done.get() / totalWork;
+					plugin.getScheduler().async().execute(() -> onProgress.accept(progress));
+				}
+
+				// finish
+				if (!removeIt.hasNext() && !blockIt.hasNext() && !entityIt.hasNext()) {
+					final SchedulerTask scheduled = taskRef.get();
+					if (scheduled != null && !scheduled.isCancelled()) {
+						scheduled.cancel();
+					}
+					future.complete(true);
+				}
+			} catch (Exception ex) {
 				final SchedulerTask scheduled = taskRef.get();
 				if (scheduled != null && !scheduled.isCancelled()) {
 					scheduled.cancel();
 				}
-				if (whenDone != null) {
-					plugin.getScheduler().async().execute(whenDone);
-				}
+				future.completeExceptionally(ex);
 			}
 		}, 1L, 1L, LocationUtils.getAnyLocationInstance());
 
 		// assign after scheduling so it's available inside the lambda
 		taskRef.set(task);
+		return future;
 	}
 
 	/**

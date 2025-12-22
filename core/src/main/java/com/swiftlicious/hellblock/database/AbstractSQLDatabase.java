@@ -47,14 +47,15 @@ public abstract class AbstractSQLDatabase extends AbstractStorage {
 	protected String tablePrefix;
 
 	private final Set<UUID> forceUnlocking = ConcurrentHashMap.newKeySet();
-	private final ConcurrentHashMap<UUID, CompletableFuture<Optional<PlayerData>>> loadingCache = new ConcurrentHashMap<>();
-	private final ConcurrentHashMap<UUID, CompletableFuture<Boolean>> updatingCache = new ConcurrentHashMap<>();
-	private final ConcurrentHashMap<UUID, CompletableFuture<Boolean>> upsertCache = new ConcurrentHashMap<>();
-	private final ConcurrentHashMap<UUID, CompletableFuture<Void>> lockCache = new ConcurrentHashMap<>();
+	private final ConcurrentMap<UUID, CompletableFuture<Optional<PlayerData>>> loadingCache = new ConcurrentHashMap<>();
+	private final ConcurrentMap<UUID, CompletableFuture<Boolean>> updatingCache = new ConcurrentHashMap<>();
+	private final ConcurrentMap<UUID, CompletableFuture<Boolean>> upsertCache = new ConcurrentHashMap<>();
+	private final ConcurrentMap<UUID, CompletableFuture<Void>> lockCache = new ConcurrentHashMap<>();
+	private final ConcurrentMap<UUID, Boolean> lockStates = new ConcurrentHashMap<>();
 
 	protected final ConcurrentMap<UUID, Long> justInsertedTimestamps = new ConcurrentHashMap<>();
 	private final ConcurrentMap<UUID, CompletableFuture<Void>> pendingInserts = new ConcurrentHashMap<>();
-	private final ConcurrentHashMap<UUID, Object> lockGuards = new ConcurrentHashMap<>();
+	private final ConcurrentMap<UUID, Object> lockGuards = new ConcurrentHashMap<>();
 
 	private final Map<UUID, Long> lastAttemptTime = new ConcurrentHashMap<>();
 	private static final long MIN_DELAY_BETWEEN_ATTEMPTS = 5000L; // 5 sec
@@ -688,7 +689,16 @@ public abstract class AbstractSQLDatabase extends AbstractStorage {
 					}
 				} else {
 					// Async fallback
-					lockCache.computeIfAbsent(uuid, id -> {
+					lockCache.compute(uuid, (id, existingFuture) -> {
+						Boolean currentState = lockStates.get(uuid); 
+						if (currentState != null && currentState == lock) {
+							// Already in desired state, skip
+							return existingFuture;
+						}
+
+						// Store new state
+						lockStates.put(uuid, lock);
+
 						plugin.debug("Setting lock for %s to %s".formatted(uuid, lock));
 						final CompletableFuture<Void> future = new CompletableFuture<>();
 

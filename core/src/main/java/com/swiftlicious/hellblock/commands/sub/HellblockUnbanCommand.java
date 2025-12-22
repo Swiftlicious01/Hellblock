@@ -79,8 +79,8 @@ public class HellblockUnbanCommand extends BukkitCommandFeature<CommandSender> {
 						return;
 					}
 
-					final UserData user = onlineUserOpt.get();
-					final HellblockData data = user.getHellblockData();
+					final UserData userData = onlineUserOpt.get();
+					final HellblockData data = userData.getHellblockData();
 
 					if (!data.hasHellblock()) {
 						handleFeedback(context, MessageConstants.MSG_HELLBLOCK_NOT_FOUND);

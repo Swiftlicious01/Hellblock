@@ -168,10 +168,22 @@ visit:
       display:
         name: '<gold><bold>AVAILABLE SLOT'
         lore:
+          - '<gray>No island ranked here yet.'
+          - '<gray>Play more to climb the leaderboard!'
+          - ' '
+          - '<yellow>Get your island more recognized to appear here.'
+          - '<blue>Top islands are updated daily.'
+        featured-owner-lore:
           - '<yellow>Cost:</yellow> <green>$10,000'
           - '<yellow>Duration:</yellow> <gold>24 hours'
           - ' '
           - '<aqua><bold>CLICK TO FEATURE YOUR ISLAND!'
+        featured-member-lore:
+          - '<gray>This slot is empty.'
+          - ' '
+          - '<gold>Only island owners</gold> <gray>can feature here.'
+          - '<gray>Want more exposure?'
+          - '<gray>Ask your island owner to feature your island.'
       requirement:
         money_requirement:
           type: money

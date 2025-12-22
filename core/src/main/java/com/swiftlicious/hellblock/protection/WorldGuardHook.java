@@ -5,10 +5,10 @@ import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.function.Function;
 
-import org.bukkit.Bukkit;
 import org.bukkit.util.BoundingBox;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -94,143 +94,113 @@ public class WorldGuardHook implements IslandProtection<BlockVector3> {
 		}
 	}
 
-	/**
-	 * Executes a task synchronously on the main server thread.
-	 * <p>
-	 * If already on the primary thread, runs the task immediately. Otherwise,
-	 * schedules it to be executed synchronously via the plugin's scheduler.
-	 *
-	 * @param task the task to execute
-	 */
-	private void runSync(@NotNull Runnable task) {
-		if (Bukkit.isPrimaryThread()) {
-			task.run();
-		} else {
-			instance.getScheduler().executeSync(task);
-		}
-	}
-
-	/**
-	 * Executes a {@link Callable} task synchronously and returns a
-	 * {@link CompletableFuture} that completes with the task's result or exception.
-	 * <p>
-	 * If already on the primary thread, the task runs immediately. Otherwise, it is
-	 * scheduled to run synchronously via the plugin's scheduler.
-	 *
-	 * @param task the task to execute
-	 * @param <T>  the type of result returned by the task
-	 * @return a {@link CompletableFuture} representing the result or failure of the
-	 *         task
-	 */
-	private <T> CompletableFuture<T> runSyncFuture(@NotNull Callable<T> task) {
-		final CompletableFuture<T> future = new CompletableFuture<>();
-		if (Bukkit.isPrimaryThread()) {
-			try {
-				future.complete(task.call());
-			} catch (Exception ex) {
-				future.completeExceptionally(ex);
-			}
-		} else {
-			instance.getScheduler().executeSync(() -> {
-				try {
-					future.complete(task.call());
-				} catch (Exception ex) {
-					future.completeExceptionally(ex);
-				}
-			});
-		}
-		return future;
-	}
-
 	@Override
 	public CompletableFuture<Void> protectHellblock(@NotNull HellblockWorld<?> world, @NotNull UserData ownerData) {
+		final String playerName = ownerData.getName();
+		final UUID ownerUUID = ownerData.getUUID();
+
 		if (getWorldGuardPlatform() == null) {
-			instance.debug("WorldGuard platform is not initialized.");
-			return CompletableFuture.failedFuture(new IllegalStateException("WorldGuard not available"));
+			return CompletableFuture.failedFuture(
+					new IllegalStateException("protectHellblock: WorldGuard platform is not initialized."));
 		}
 
+		instance.debug("protectHellblock: Starting WorldGuard protection setup for " + playerName + " in world '"
+				+ world.worldName() + "'");
+
 		try {
-			instance.debug("Starting WorldGuard protection for island ID " + ownerData.getHellblockData().getIslandId()
-					+ " (owner: " + ownerData.getUUID() + ") in world " + world.worldName());
-
-			final RegionContainer regionContainer = getWorldGuardPlatform().getRegionContainer();
-			final RegionManager regionManager = regionContainer.get(BukkitAdapter.adapt(world.bukkitWorld()));
-
+			final RegionContainer container = getWorldGuardPlatform().getRegionContainer();
+			final RegionManager regionManager = container.get(BukkitAdapter.adapt(world.bukkitWorld()));
 			if (regionManager == null) {
-				return CompletableFuture
-						.failedFuture(new IllegalStateException("No RegionManager for world: " + world.worldName()));
+				return CompletableFuture.failedFuture(new IllegalStateException(
+						"protectHellblock: No WorldGuard RegionManager for world: " + world.worldName()));
 			}
 
 			final HellblockData hellblockData = ownerData.getHellblockData();
-			final int islandId = hellblockData.getIslandId();
+			int islandId = hellblockData.getIslandId();
 			if (islandId <= 0) {
-				throw new IllegalStateException("Invalid island ID for player: " + ownerData.getName());
+				return CompletableFuture.failedFuture(
+						new IllegalStateException("protectHellblock: Invalid island ID for player: " + playerName));
 			}
 
-			// --- Determine Bounding Box ---
 			BoundingBox boundingBox;
 
 			if (instance.getConfigManager().perPlayerWorlds()) {
-				instance.debug("WorldGuard: Using per-player world bounding box.");
+				instance.debug("protectHellblock: Using full-world bounding box (per-player world mode).");
 
 				double radius = instance.getUpgradeManager().getDefaultValue(IslandUpgradeType.PROTECTION_RANGE)
 						.intValue();
-
 				double minY = world.bukkitWorld().getMinHeight();
 				double maxY = world.bukkitWorld().getMaxHeight();
 
 				boundingBox = new BoundingBox(-radius, minY, -radius, radius, maxY, radius);
-
 			} else if (hellblockData.getPreservedBoundingBox() != null) {
 				boundingBox = hellblockData.getPreservedBoundingBox();
-				instance.debug("WorldGuard: Using preserved bounding box from previous reset.");
-
+				instance.debug("protectHellblock: Using preserved bounding box from previous island reset.");
 			} else {
 				boundingBox = instance.getPlacementDetector().computeSpiralBoundingBoxForIsland(islandId, world);
-				instance.debug("WorldGuard: Computed bounding box from spiral logic.");
+				instance.debug("protectHellblock: Computed bounding box from spiral placement.");
 			}
 
-			// Apply bounding box to player data
 			hellblockData.setBoundingBox(boundingBox);
 			instance.getPlacementDetector().cacheIslandBoundingBox(islandId, boundingBox);
 
-			// --- Create WorldGuard Region from Bounding Box ---
-			BlockVector3 min = BlockVector3.at(Math.floor(boundingBox.getMinX()), Math.floor(boundingBox.getMinY()),
-					Math.floor(boundingBox.getMinZ()));
+			instance.debug("protectHellblock: Final bounding box for " + playerName + " → Min[" + boundingBox.getMinX()
+					+ ", " + boundingBox.getMinY() + ", " + boundingBox.getMinZ() + "], Max[" + boundingBox.getMaxX()
+					+ ", " + boundingBox.getMaxY() + ", " + boundingBox.getMaxZ() + "]");
 
-			BlockVector3 max = BlockVector3.at(Math.ceil(boundingBox.getMaxX()), Math.ceil(boundingBox.getMaxY()),
-					Math.ceil(boundingBox.getMaxZ()));
+			return instance.getScheduler().callSync(() -> {
+				BlockVector3 min = BlockVector3.at(Math.floor(boundingBox.getMinX()), Math.floor(boundingBox.getMinY()),
+						Math.floor(boundingBox.getMinZ()));
+				BlockVector3 max = BlockVector3.at(Math.ceil(boundingBox.getMaxX()), Math.ceil(boundingBox.getMaxY()),
+						Math.ceil(boundingBox.getMaxZ()));
 
-			String regionId = "%s_%s".formatted(ownerData.getUUID(), islandId);
-			ProtectedRegion region = new ProtectedCuboidRegion(regionId, min, max);
+				String regionId = "%s_%s".formatted(ownerUUID, islandId);
+				ProtectedRegion region = new ProtectedCuboidRegion(regionId, min, max);
 
-			region.setParent(regionManager.getRegion(ProtectedRegion.GLOBAL_REGION));
-			DefaultDomain owners = new DefaultDomain();
-			owners.addPlayer(ownerData.getUUID());
-			region.setOwners(owners);
-			region.setPriority(100);
-
-			// --- Remove any overlapping user-defined regions ---
-			ApplicableRegionSet existingRegions = regionManager.getApplicableRegions(min);
-			for (ProtectedRegion regionCheck : existingRegions) {
-				if (!regionCheck.getId().equalsIgnoreCase(ProtectedRegion.GLOBAL_REGION)) {
-					instance.debug("Removing overlapping region: " + regionCheck.getId());
-					regionManager.removeRegion(regionCheck.getId());
+				try {
+					region.setParent(regionManager.getRegion(ProtectedRegion.GLOBAL_REGION));
+				} catch (Exception ex) {
+					instance.getPluginLogger()
+							.warn("protectHellblock: Failed to set WorldGuard parent region for " + regionId, ex);
 				}
-			}
 
-			// --- Apply region ---
-			regionManager.addRegion(region);
-			regionManager.save();
+				DefaultDomain owners = new DefaultDomain();
+				owners.addPlayer(ownerUUID);
+				region.setOwners(owners);
+				region.setPriority(100);
 
-			instance.debug("WorldGuard region '" + regionId + "' saved for island ID: " + islandId);
+				ApplicableRegionSet existingRegions = regionManager.getApplicableRegions(min);
+				for (ProtectedRegion regionCheck : existingRegions) {
+					if (!regionCheck.getId().equalsIgnoreCase(ProtectedRegion.GLOBAL_REGION)) {
+						instance.debug(
+								"protectHellblock: Removing overlapping WorldGuard region: " + regionCheck.getId());
+						regionManager.removeRegion(regionCheck.getId());
+					}
+				}
 
-			updateHellblockMessages(world, ownerData.getUUID());
-			// Wait for lock status to complete before returning
-			return instance.getProtectionManager().changeLockStatus(world, ownerData.getUUID())
-					.thenRun(() -> instance.debug("WorldGuard: Lock status updated for " + ownerData.getName()));
+				regionManager.addRegion(region);
+				try {
+					regionManager.save();
+					instance.debug(
+							"protectHellblock: WorldGuard region '" + regionId + "' saved for island ID: " + islandId);
+				} catch (Throwable t) {
+					instance.getPluginLogger()
+							.severe("protectHellblock: Failed to save WorldGuard RegionManager for " + playerName, t);
+					throw new CompletionException(t);
+				}
+				return null;
+			}).thenCompose(v -> updateHellblockMessages(world, ownerUUID)).thenCompose(v -> {
+				instance.debug("protectHellblock: Updated protection messages for " + playerName);
+				return instance.getProtectionManager().changeLockStatus(world, ownerUUID);
+			}).thenRun(() -> instance.debug("protectHellblock: Lock status updated for " + playerName))
+					.exceptionally(ex -> {
+						instance.getPluginLogger().severe("protectHellblock: Failed during async protection steps for "
+								+ playerName + "'s island!", ex);
+						throw new CompletionException(ex);
+					});
+
 		} catch (Exception ex) {
-			instance.getPluginLogger().severe("WorldGuard protection failed for " + ownerData.getName(), ex);
+			instance.getPluginLogger().severe("protectHellblock: Failed to protect " + playerName + "'s island!", ex);
 			return CompletableFuture.failedFuture(ex);
 		}
 	}
@@ -238,189 +208,224 @@ public class WorldGuardHook implements IslandProtection<BlockVector3> {
 	@Override
 	public CompletableFuture<Void> unprotectHellblock(@NotNull HellblockWorld<?> world, @NotNull UUID ownerId) {
 		if (getWorldGuardPlatform() == null) {
-			instance.debug("WorldGuard platform is not initialized.");
-			return CompletableFuture.failedFuture(new IllegalStateException("WorldGuard not available"));
+			return CompletableFuture.failedFuture(
+					new IllegalStateException("unprotectHellblock: WorldGuard platform is not initialized."));
 		}
+
+		instance.debug("unprotectHellblock: Starting WorldGuard unprotection for island owner: " + ownerId
+				+ " in world '" + world.worldName() + "'");
 
 		final RegionContainer regionContainer = getWorldGuardPlatform().getRegionContainer();
-		final RegionManager maybeRm = regionContainer.get(BukkitAdapter.adapt(world.bukkitWorld()));
-		if (maybeRm == null) {
-			instance.getPluginLogger().severe("No region manager for world: " + world.worldName());
-			return CompletableFuture
-					.failedFuture(new IllegalStateException("No region manager for world: " + world.worldName()));
+		final RegionManager regionManager = regionContainer.get(BukkitAdapter.adapt(world.bukkitWorld()));
+
+		if (regionManager == null) {
+			return CompletableFuture.failedFuture(new IllegalStateException(
+					"unprotectHellblock: No WorldGuard RegionManager for world: " + world.worldName()));
 		}
-		final RegionManager regionManager = maybeRm;
 
-		final CompletableFuture<Void> unprotection = new CompletableFuture<>();
+		return instance.getStorageManager().getCachedUserDataWithFallback(ownerId, false).thenCompose(optData -> {
+			if (optData.isEmpty()) {
+				instance.debug("unprotectHellblock: No user data found for " + ownerId + ". Skipping unprotection.");
+				return CompletableFuture.completedFuture(null);
+			}
 
-		instance.debug("Starting unprotection for island owner: " + ownerId + " in world " + world.worldName());
+			final UserData userData = optData.get();
+			final HellblockData data = userData.getHellblockData();
+			final BoundingBox boundingBox = data.getBoundingBox();
 
-		instance.getStorageManager().getCachedUserDataWithFallback(ownerId, instance.getConfigManager().lockData())
-				.thenAccept(result -> {
-					if (result.isEmpty()) {
-						instance.debug("No user data found for " + ownerId + ". Skipping unprotection.");
-						unprotection.complete(null); // nothing to do
-						return;
-					}
-					final UserData offlineUser = result.get();
+			if (boundingBox == null) {
+				instance.getPluginLogger()
+						.warn("unprotectHellblock: No bounding box set for " + ownerId + ". Skipping entity cleanup.");
+			} else {
+				instance.debug("unprotectHellblock: Clearing entities in bounding box for " + ownerId + " → [MinX="
+						+ boundingBox.getMinX() + ", MinY=" + boundingBox.getMinY() + ", MinZ=" + boundingBox.getMinZ()
+						+ ", MaxX=" + boundingBox.getMaxX() + ", MaxY=" + boundingBox.getMaxY() + ", MaxZ="
+						+ boundingBox.getMaxZ() + "]");
+				instance.getProtectionManager().clearHellblockEntities(world.bukkitWorld(), boundingBox);
+				instance.debug("unprotectHellblock: Entity cleanup complete for " + ownerId);
+			}
 
-					runSync(() -> {
-						try {
-							instance.getProtectionManager().clearHellblockEntities(world.bukkitWorld(),
-									offlineUser.getHellblockData().getBoundingBox());
+			return instance.getScheduler().callSyncImmediate(() -> {
+				final String regionName = "%s_%s".formatted(ownerId, data.getIslandId());
+				final ProtectedRegion region = regionManager.getRegion(regionName);
 
-							final String regionName = "%s_%s".formatted(ownerId.toString(),
-									offlineUser.getHellblockData().getIslandId());
-							final ProtectedRegion region = regionManager.getRegion(regionName);
+				if (region == null) {
+					instance.getPluginLogger().severe("unprotectHellblock: WorldGuard region '" + regionName
+							+ "' not found during unprotection.");
+					return CompletableFuture.<Void>completedFuture(null);
+				}
 
-							if (region != null) {
-								regionManager.removeRegion(regionName, RemovalStrategy.UNSET_PARENT_IN_CHILDREN);
-								regionManager.save();
-								instance.debug("Region " + regionName + " successfully removed.");
-							} else {
-								instance.debug("Region " + regionName + " not found during unprotection.");
-							}
-							unprotection.complete(null);
-						} catch (Exception ex) {
-							instance.getPluginLogger().severe("Unable to unprotect " + ownerId + "'s hellblock!", ex);
-							unprotection.completeExceptionally(ex);
-						}
-					});
-				}).exceptionally(ex -> {
-					instance.getPluginLogger().severe("Failed to fetch offline user for unprotect: " + ownerId, ex);
-					unprotection.completeExceptionally(ex);
-					return null;
-				});
+				regionManager.removeRegion(regionName, RemovalStrategy.UNSET_PARENT_IN_CHILDREN);
 
-		return unprotection;
+				try {
+					regionManager.save();
+					instance.debug("unprotectHellblock: WorldGuard region '" + regionName + "' successfully removed.");
+				} catch (Exception ex) {
+					instance.getPluginLogger()
+							.severe("unprotectHellblock: Failed to save WorldGuard RegionManager after removing region "
+									+ regionName, ex);
+					throw new CompletionException(ex);
+				}
+
+				return CompletableFuture.<Void>completedFuture(null);
+			}).thenCompose(Function.identity());
+		}).exceptionally(ex -> {
+			instance.getPluginLogger().severe("unprotectHellblock: Failed to unprotect island for " + ownerId, ex);
+			throw new CompletionException(ex);
+		});
 	}
 
 	@Override
 	public CompletableFuture<Void> reprotectHellblock(@NotNull HellblockWorld<?> world, @NotNull UserData ownerData,
 			@NotNull UserData transfereeData) {
+		final String ownerName = ownerData.getName();
+		final String transfereeName = transfereeData.getName();
+		final UUID transfereeUUID = transfereeData.getUUID();
+
 		if (getWorldGuardPlatform() == null) {
-			instance.debug("WorldGuard platform is not initialized.");
-			return CompletableFuture.failedFuture(new IllegalStateException("WorldGuard not available"));
+			return CompletableFuture.failedFuture(
+					new IllegalStateException("reprotectHellblock: WorldGuard platform is not initialized."));
 		}
 
-		final RegionContainer regionContainer = getWorldGuardPlatform().getRegionContainer();
-		final RegionManager maybeRm = regionContainer.get(BukkitAdapter.adapt(world.bukkitWorld()));
-		if (maybeRm == null) {
-			instance.getPluginLogger().severe("No region manager for world: " + world.worldName());
-			return CompletableFuture
-					.failedFuture(new IllegalStateException("No region manager for world: " + world.worldName()));
+		instance.debug("reprotectHellblock: Starting reprotection from owner " + ownerName + " to transferee "
+				+ transfereeName + " in world '" + world.worldName() + "'");
+
+		final RegionContainer container = getWorldGuardPlatform().getRegionContainer();
+		final RegionManager regionManager = container.get(BukkitAdapter.adapt(world.bukkitWorld()));
+		if (regionManager == null) {
+			return CompletableFuture.failedFuture(new IllegalStateException(
+					"reprotectHellblock: No WorldGuard RegionManager for world: " + world.worldName()));
 		}
-		final RegionManager regionManager = maybeRm;
 
-		instance.debug("Starting reprotection: Transferring island from " + ownerData.getUUID() + " to "
-				+ transfereeData.getUUID());
+		return instance.getScheduler().callSyncImmediate(() -> {
+			final ProtectedRegion region = getRegion(world, ownerData.getUUID(),
+					ownerData.getHellblockData().getIslandId());
+			if (region == null) {
+				return CompletableFuture.failedFuture(new IllegalStateException(
+						"reprotectHellblock: Could not get WorldGuard region for owner: " + ownerName));
+			}
 
-		return runSyncFuture(() -> {
+			instance.debug("reprotectHellblock: Found existing WorldGuard region: " + region.getId());
+
+			final DefaultDomain owners = region.getOwners();
+			final DefaultDomain members = region.getMembers();
+
+			if (!owners.getUniqueIds().contains(transfereeUUID)) {
+				owners.getUniqueIds().add(transfereeUUID);
+				instance.debug(
+						"reprotectHellblock: Added transferee " + transfereeUUID + " to WorldGuard region owners.");
+			}
+
+			owners.getUniqueIds().remove(ownerData.getUUID());
+			instance.debug(
+					"reprotectHellblock: Removed old owner " + ownerData.getUUID() + " from WorldGuard region owners.");
+
+			if (!members.getUniqueIds().contains(ownerData.getUUID())) {
+				members.getUniqueIds().add(ownerData.getUUID());
+				instance.debug("reprotectHellblock: Added previous owner " + ownerData.getUUID()
+						+ " as a WorldGuard region member.");
+			}
+
+			members.getUniqueIds().remove(transfereeUUID);
+
+			final String newRegionId = "%s_%s".formatted(transfereeUUID,
+					transfereeData.getHellblockData().getIslandId());
+			final ProtectedRegion newRegion = new ProtectedCuboidRegion(newRegionId,
+					getProtectionVectorUpperCorner(ownerData), getProtectionVectorLowerCorner(ownerData));
+
+			instance.debug("reprotectHellblock: Created new WorldGuard region with ID: " + newRegionId);
+
+			newRegion.setOwners(owners);
+			newRegion.setMembers(members);
+			newRegion.setFlags(region.getFlags());
+			newRegion.setPriority(region.getPriority());
+
 			try {
-				final ProtectedRegion region = getRegion(world, ownerData.getUUID(),
-						ownerData.getHellblockData().getIslandId());
-				if (region == null) {
-					throw new IllegalStateException(
-							"Could not get the WorldGuard region for owner: " + ownerData.getUUID());
-				}
-
-				instance.debug("Found existing region: " + region.getId());
-
-				// Transfer ownership and membership
-				final DefaultDomain owners = region.getOwners();
-				final DefaultDomain members = region.getMembers();
-
-				if (!owners.getUniqueIds().contains(transfereeData.getUUID())) {
-					owners.getUniqueIds().add(transfereeData.getUUID());
-					instance.debug("Added transferee " + transfereeData.getUUID() + " to region owners.");
-				}
-				owners.getUniqueIds().remove(ownerData.getUUID());
-				instance.debug("Removed old owner " + ownerData.getUUID() + " from region owners.");
-
-				if (!members.getUniqueIds().contains(ownerData.getUUID())) {
-					members.getUniqueIds().add(ownerData.getUUID());
-					instance.debug("Added previous owner " + ownerData.getUUID() + " as a region member.");
-				}
-				members.getUniqueIds().remove(transfereeData.getUUID());
-
-				// Create new region with transferee ID
-				final String newRegionId = "%s_%s".formatted(transfereeData.getUUID(),
-						transfereeData.getHellblockData().getIslandId());
-				final ProtectedRegion renamedRegion = new ProtectedCuboidRegion(newRegionId,
-						getProtectionVectorUpperCorner(ownerData), getProtectionVectorLowerCorner(ownerData));
-
-				instance.debug("Created new region with ID: " + newRegionId);
-
-				// Copy attributes
-				renamedRegion.setOwners(owners);
-				renamedRegion.setMembers(members);
-				renamedRegion.setFlags(region.getFlags());
-				renamedRegion.setPriority(region.getPriority());
-				renamedRegion.setParent(region.getParent());
-
-				regionManager.addRegion(renamedRegion);
-				regionManager.removeRegion(region.getId(), RemovalStrategy.UNSET_PARENT_IN_CHILDREN);
-				instance.debug("Replaced old region: " + region.getId() + " with new region: " + newRegionId);
-
-				regionManager.save();
-				instance.debug("Region manager saved after reprotection.");
-
-				// Update bounding box
-				transfereeData.getHellblockData().setBoundingBox(new BoundingBox(
-						(double) renamedRegion.getMinimumPoint().x(), (double) renamedRegion.getMinimumPoint().y(),
-						(double) renamedRegion.getMinimumPoint().z(), (double) renamedRegion.getMaximumPoint().x(),
-						(double) renamedRegion.getMaximumPoint().y(), (double) renamedRegion.getMaximumPoint().z()));
-				instance.getPlacementDetector().cacheIslandBoundingBox(transfereeData.getHellblockData().getIslandId(),
-						transfereeData.getHellblockData().getBoundingBox());
-				instance.debug("Updated bounding box for transferee: " + transfereeData.getUUID());
-
-				updateHellblockMessages(world, transfereeData.getUUID());
-				instance.getProtectionManager().changeLockStatus(world, transfereeData.getUUID());
-
-				return null;
+				newRegion.setParent(region.getParent());
 			} catch (Exception ex) {
 				instance.getPluginLogger()
-						.severe("Unable to reprotect %s's hellblock!".formatted(transfereeData.getName()), ex);
-				throw ex;
+						.warn("reprotectHellblock: Failed to set parent for new WorldGuard region " + newRegionId, ex);
 			}
-		});
+
+			regionManager.addRegion(newRegion);
+			regionManager.removeRegion(region.getId(), RemovalStrategy.UNSET_PARENT_IN_CHILDREN);
+
+			try {
+				regionManager.save();
+				instance.debug("reprotectHellblock: WorldGuard RegionManager saved after replacing region '"
+						+ region.getId() + "' with '" + newRegionId + "'");
+			} catch (Exception ex) {
+				instance.getPluginLogger().severe(
+						"reprotectHellblock: Failed to save WorldGuard RegionManager after region transfer", ex);
+				throw new CompletionException(ex);
+			}
+
+			BoundingBox boundingBox = new BoundingBox(newRegion.getMinimumPoint().x(), newRegion.getMinimumPoint().y(),
+					newRegion.getMinimumPoint().z(), newRegion.getMaximumPoint().x(), newRegion.getMaximumPoint().y(),
+					newRegion.getMaximumPoint().z());
+
+			transfereeData.getHellblockData().setBoundingBox(boundingBox);
+			instance.getPlacementDetector().cacheIslandBoundingBox(transfereeData.getHellblockData().getIslandId(),
+					boundingBox);
+
+			instance.debug("reprotectHellblock: Updated bounding box for transferee " + transfereeUUID);
+
+			return null;
+		}).thenCompose(v -> updateHellblockMessages(world, transfereeUUID).thenRun(() -> instance
+				.debug("reprotectHellblock: Updated protection messages for transferee " + transfereeName)))
+				.thenCompose(v -> instance.getProtectionManager().changeLockStatus(world, transfereeUUID)
+						.thenRun(() -> instance
+								.debug("reprotectHellblock: Lock status updated for transferee " + transfereeName)))
+				.exceptionally(ex -> {
+					instance.getPluginLogger().severe(
+							"reprotectHellblock: Failed to reprotect island for transferee " + transfereeName, ex);
+					throw new CompletionException(ex);
+				});
 	}
 
 	@Override
-	public void updateHellblockMessages(@NotNull HellblockWorld<?> world, @NotNull UUID ownerId) {
-		// First try online
+	public CompletableFuture<Boolean> updateHellblockMessages(@NotNull HellblockWorld<?> world, @NotNull UUID ownerId) {
+		instance.debug("updateHellblockMessages: Updating hellblock messages for UUID: " + ownerId);
+		// First, try to apply flags for online users
 		final Optional<UserData> onlineUser = instance.getStorageManager().getOnlineUser(ownerId);
 		if (onlineUser.isPresent()) {
-			final UserData user = onlineUser.get();
-			final ProtectedRegion region = getRegion(world, ownerId, user.getHellblockData().getIslandId());
+			final UserData ownerData = onlineUser.get();
+			final ProtectedRegion region = getRegion(world, ownerId, ownerData.getHellblockData().getIslandId());
 			if (region == null) {
-				instance.getPluginLogger().severe("No WorldGuard region found for online user " + ownerId);
-				return;
+				instance.getPluginLogger()
+						.severe("updateHellblockMessages: No WorldGuard region found for online user: " + ownerId);
+				return CompletableFuture.completedFuture(false);
 			}
-			instance.debug("Applying message flags for online user: " + ownerId);
-			applyEntryAndFarewellFlags(user, region);
-			return;
+			instance.debug("updateHellblockMessages: Applying WorldGuard message flags for online user: " + ownerId);
+			applyEntryAndFarewellFlags(ownerData, region);
+			return CompletableFuture.completedFuture(true);
 		}
 
-		// Fallback: offline lookup
-		instance.getStorageManager().getCachedUserDataWithFallback(ownerId, instance.getConfigManager().lockData())
-				.thenAccept(result -> {
-					if (result.isEmpty()) {
-						instance.debug("No cached user found for updateHellblockMessages: " + ownerId);
-						return;
-					}
-					final UserData user = result.get();
-					final ProtectedRegion region = getRegion(world, ownerId, user.getHellblockData().getIslandId());
-					if (region == null) {
-						instance.getPluginLogger().severe("No WorldGuard region found for offline user " + ownerId);
-						return;
-					}
-					instance.debug("Applying message flags for offline user: " + ownerId);
-					applyEntryAndFarewellFlags(user, region);
-				}).exceptionally(ex -> {
-					instance.getPluginLogger().severe("Failed to update hellblock messages for " + ownerId, ex);
-					return null;
-				});
+		// Fallback: lookup offline user
+		return instance.getStorageManager().getCachedUserDataWithFallback(ownerId, true).thenApply(optData -> {
+			if (optData.isEmpty()) {
+				instance.debug("updateHellblockMessages: No UserData found for UUID: " + ownerId);
+				return false;
+			}
+
+			final UserData ownerData = optData.get();
+			final ProtectedRegion region = getRegion(world, ownerId, ownerData.getHellblockData().getIslandId());
+			if (region == null) {
+				instance.getPluginLogger()
+						.severe("updateHellblockMessages: No WorldGuard region found for offline user: " + ownerId);
+				return false;
+			}
+
+			instance.debug("updateHellblockMessages: Applying WorldGuard message flags for offline user: " + ownerId);
+			applyEntryAndFarewellFlags(ownerData, region);
+			return instance.getStorageManager().saveUserData(ownerData, true).thenApply(v -> true);
+		}).handle((result, ex) -> {
+			if (ex != null) {
+				instance.getPluginLogger()
+						.warn("updateHellblockMessages: Failed to update WorldGuard message flags for " + ownerId, ex);
+			}
+			return instance.getStorageManager().unlockUserData(ownerId).thenApply(x -> true);
+		}).thenCompose(Function.identity());
 	}
 
 	/**
@@ -436,198 +441,258 @@ public class WorldGuardHook implements IslandProtection<BlockVector3> {
 	private void applyEntryAndFarewellFlags(@NotNull UserData ownerData, @NotNull ProtectedRegion region) {
 		final String name = ownerData.getName();
 		final boolean abandoned = ownerData.getHellblockData().isAbandoned();
-		final StringFlag greetFlag = convertToWorldGuardStringFlag(HellblockFlag.FlagType.GREET_MESSAGE);
-		final StringFlag farewellFlag = convertToWorldGuardStringFlag(HellblockFlag.FlagType.FAREWELL_MESSAGE);
 
-		// Entry message
-		if (instance.getConfigManager().entryMessageEnabled()) {
-			String entryMessage = abandoned
-					? instance.getTranslationManager()
-							.miniMessageTranslation(AdventureHelper.legacyToMiniMessage(
-									MessageConstants.HELLBLOCK_ABANDONED_ENTRY_MESSAGE.build().key()))
-					: instance.getTranslationManager().miniMessageTranslation(
-							AdventureHelper.legacyToMiniMessage(MessageConstants.HELLBLOCK_ENTRY_MESSAGE
-									.arguments(AdventureHelper.miniMessageToComponent(name)).build().key()));
-			entryMessage = entryMessage.replace("<arg:0>", name);
-			region.setFlag(greetFlag, entryMessage);
-			instance.debug("Set greet message flag for " + ownerData.getUUID() + ": " + entryMessage);
-		} else {
-			region.setFlag(greetFlag, null);
-			instance.debug("Greet message disabled. Cleared greet flag for " + ownerData.getUUID());
-		}
+		applyMessageFlag(ownerData, region, HellblockFlag.FlagType.GREET_MESSAGE,
+				instance.getConfigManager().entryMessageEnabled(),
+				abandoned ? MessageConstants.HELLBLOCK_ABANDONED_ENTRY_MESSAGE.build().key()
+						: MessageConstants.HELLBLOCK_ENTRY_MESSAGE
+								.arguments(AdventureHelper.miniMessageToComponent(name)).build().key(),
+				"greet");
 
-		// Farewell message
-		if (instance.getConfigManager().farewellMessageEnabled()) {
-			String farewellMessage = abandoned
-					? instance.getTranslationManager()
-							.miniMessageTranslation(AdventureHelper.legacyToMiniMessage(
-									MessageConstants.HELLBLOCK_ABANDONED_FAREWELL_MESSAGE.build().key()))
-					: instance.getTranslationManager().miniMessageTranslation(
-							AdventureHelper.legacyToMiniMessage(MessageConstants.HELLBLOCK_FAREWELL_MESSAGE
-									.arguments(AdventureHelper.miniMessageToComponent(name)).build().key()));
-			farewellMessage = farewellMessage.replace("<arg:0>", name);
-			region.setFlag(farewellFlag, farewellMessage);
-			instance.debug("Set farewell message flag for " + ownerData.getUUID() + ": " + farewellMessage);
-		} else {
-			region.setFlag(farewellFlag, null);
-			instance.debug("Farewell message disabled. Cleared farewell flag for " + ownerData.getUUID());
-		}
+		applyMessageFlag(ownerData, region, HellblockFlag.FlagType.FAREWELL_MESSAGE,
+				instance.getConfigManager().farewellMessageEnabled(),
+				abandoned ? MessageConstants.HELLBLOCK_ABANDONED_FAREWELL_MESSAGE.build().key()
+						: MessageConstants.HELLBLOCK_FAREWELL_MESSAGE
+								.arguments(AdventureHelper.miniMessageToComponent(name)).build().key(),
+				"farewell");
+	}
+
+	/**
+	 * Applies a message flag (greeting or farewell) to a region and updates
+	 * protection data.
+	 *
+	 * @param ownerData  The user data of the region owner.
+	 * @param region     The WorldGuard protected region.
+	 * @param type       The type of message flag (GREET or FAREWELL).
+	 * @param enabled    Whether the message is enabled.
+	 * @param messageKey The translation key for the message.
+	 * @param debugLabel The label to use for debugging output.
+	 */
+	private void applyMessageFlag(@NotNull UserData ownerData, @NotNull ProtectedRegion region,
+			@NotNull HellblockFlag.FlagType type, boolean enabled, @NotNull String messageKey,
+			@NotNull String debugLabel) {
+
+		final StringFlag flag = convertToWorldGuardStringFlag(type);
+		final String translatedMessage = enabled ? instance.getTranslationManager()
+				.miniMessageTranslation(AdventureHelper.legacyToMiniMessage(messageKey))
+				.replace("<arg:0>", ownerData.getName()) : null;
+
+		// Apply to region
+		region.setFlag(flag, translatedMessage);
+		instance.debug((enabled ? "Set" : "Cleared") + " " + debugLabel + " message WorldGuard flag for "
+				+ ownerData.getUUID() + ": " + (translatedMessage != null ? translatedMessage : "null"));
+
+		// Also store in protection data
+		HellblockData hellblockData = ownerData.getHellblockData();
+		hellblockData.setProtectionData(type, translatedMessage);
 	}
 
 	@Override
-	public void lockHellblock(@NotNull HellblockWorld<?> world, @NotNull UserData ownerData) {
-		runSync(() -> {
+	public CompletableFuture<Boolean> lockHellblock(@NotNull HellblockWorld<?> world, @NotNull UserData ownerData) {
+		return instance.getScheduler().callSync(() -> {
 			final ProtectedRegion region = getRegion(world, ownerData.getUUID(),
 					ownerData.getHellblockData().getIslandId());
+
 			if (region == null) {
 				instance.getPluginLogger()
-						.warn("Region not found when attempting to lock for owner " + ownerData.getUUID());
-				return;
+						.warn("lockHellblock: WorldGuard region not found when attempting to lock island for owner "
+								+ ownerData.getUUID());
+				return CompletableFuture.completedFuture(false);
 			}
+
 			final StateFlag entryFlag = convertToWorldGuardFlag(HellblockFlag.FlagType.ENTRY);
 			region.setFlag(entryFlag, (!ownerData.getHellblockData().isLocked() ? null : StateFlag.State.DENY));
 
-			instance.debug("Set ENTRY flag for " + ownerData.getUUID() + " to "
+			instance.debug("lockHellblock: Set ENTRY WorldGuard flag for " + ownerData.getUUID() + " to "
 					+ (ownerData.getHellblockData().isLocked() ? "DENY" : "ALLOW"));
+			return CompletableFuture.completedFuture(true);
 		});
 	}
 
 	@Override
-	public void abandonIsland(@NotNull HellblockWorld<?> world, @NotNull UUID ownerId) {
+	public CompletableFuture<Boolean> abandonIsland(@NotNull HellblockWorld<?> world, @NotNull UUID ownerId) {
 		if (getWorldGuardPlatform() == null) {
-			throw new IllegalStateException("WorldGuard platform is not initialized.");
+			return CompletableFuture
+					.failedFuture(new IllegalStateException("abandonIsland: WorldGuard platform is not initialized."));
 		}
 
-		instance.getStorageManager().getCachedUserDataWithFallback(ownerId, instance.getConfigManager().lockData())
-				.thenAccept(result -> {
-					if (result.isEmpty()) {
-						instance.debug("No user data found for abandonIsland: " + ownerId);
-						return;
+		instance.debug("abandonIsland: Attempting to abandon WorldGuard region for UUID: " + ownerId);
+
+		return instance.getStorageManager().getCachedUserDataWithFallback(ownerId, true).thenCompose(optData -> {
+			if (optData.isEmpty()) {
+				instance.debug("abandonIsland: No UserData found for UUID: " + ownerId);
+				return CompletableFuture.completedFuture(false);
+			}
+
+			final UserData ownerData = optData.get();
+			final HellblockData data = ownerData.getHellblockData();
+
+			if (!data.isAbandoned()) {
+				instance.debug("abandonIsland: Island was not marked for abandonment for UUID: " + ownerId);
+				return CompletableFuture.completedFuture(false);
+			}
+
+			return instance.getScheduler().callSync(() -> {
+				final ProtectedRegion region = getRegion(world, ownerId, data.getIslandId());
+				if (region == null) {
+					instance.getPluginLogger().warn(
+							"abandonIsland: Could not get WorldGuard region when abandoning island for " + ownerId);
+					return CompletableFuture.completedFuture(false);
+				}
+
+				// Clear owners and members
+				region.getOwners().clear();
+				region.getMembers().clear();
+
+				// Apply WorldGuard flags
+				region.setFlag(convertToWorldGuardFlag(HellblockFlag.FlagType.PVP), StateFlag.State.ALLOW);
+				region.setFlag(convertToWorldGuardFlag(HellblockFlag.FlagType.BUILD), StateFlag.State.ALLOW);
+				if (data.isLocked()) {
+					region.setFlag(convertToWorldGuardFlag(HellblockFlag.FlagType.ENTRY), StateFlag.State.ALLOW);
+				}
+				region.setFlag(convertToWorldGuardFlag(HellblockFlag.FlagType.MOB_SPAWNING), StateFlag.State.DENY);
+
+				// Apply internal protection data
+				data.setProtectionValue(new HellblockFlag(HellblockFlag.FlagType.PVP, HellblockFlag.AccessType.ALLOW));
+				data.setProtectionValue(
+						new HellblockFlag(HellblockFlag.FlagType.BUILD, HellblockFlag.AccessType.ALLOW));
+				if (data.isLocked()) {
+					data.setProtectionValue(
+							new HellblockFlag(HellblockFlag.FlagType.ENTRY, HellblockFlag.AccessType.ALLOW));
+				}
+				data.setProtectionValue(
+						new HellblockFlag(HellblockFlag.FlagType.MOB_SPAWNING, HellblockFlag.AccessType.DENY));
+
+				instance.debug("abandonIsland: Marked WorldGuard region as abandoned for " + ownerId);
+
+				try {
+					final RegionManager rm = getWorldGuardPlatform().getRegionContainer()
+							.get(BukkitAdapter.adapt(world.bukkitWorld()));
+					if (rm != null) {
+						rm.save();
+						instance.debug(
+								"abandonIsland: Saved WorldGuard RegionManager after abandonment for " + ownerId);
 					}
-
-					final UserData offlineUser = result.get();
-					if (!offlineUser.getHellblockData().isAbandoned()) {
-						instance.debug("User " + ownerId + " is not marked as abandoned. Skipping abandonIsland.");
-						return;
-					}
-
-					runSync(() -> {
-						final ProtectedRegion region = getRegion(world, ownerId,
-								offlineUser.getHellblockData().getIslandId());
-						if (region == null) {
-							instance.getPluginLogger()
-									.warn("Could not get WorldGuard region when abandoning for " + ownerId);
-							return;
-						}
-
-						region.getOwners().clear();
-						region.getMembers().clear();
-
-						region.setFlag(convertToWorldGuardFlag(HellblockFlag.FlagType.PVP), StateFlag.State.ALLOW);
-						region.setFlag(convertToWorldGuardFlag(HellblockFlag.FlagType.BUILD), StateFlag.State.ALLOW);
-						region.setFlag(convertToWorldGuardFlag(HellblockFlag.FlagType.ENTRY), StateFlag.State.ALLOW);
-						region.setFlag(convertToWorldGuardFlag(HellblockFlag.FlagType.MOB_SPAWNING),
-								StateFlag.State.DENY);
-
-						instance.debug("Marked region abandoned for " + ownerId);
-
-						try {
-							final RegionManager rm = getWorldGuardPlatform().getRegionContainer()
-									.get(BukkitAdapter.adapt(world.bukkitWorld()));
-							if (rm != null) {
-								rm.save();
-								instance.debug("Saved region manager after abandon for " + ownerId);
-							}
-						} catch (Exception e) {
-							instance.getPluginLogger()
-									.severe("Failed to save region manager after abandoning island for " + ownerId, e);
-						}
-					});
-				}).exceptionally(ex -> {
-					instance.getPluginLogger().severe("Failed to fetch offline user for abandonIsland: " + ownerId, ex);
-					return null;
-				});
+				} catch (Exception e) {
+					instance.getPluginLogger()
+							.severe("abandonIsland: Failed to save WorldGuard RegionManager for " + ownerId, e);
+				}
+				// Always save user data, even if region manager failed
+				return instance.getStorageManager().saveUserData(ownerData, true).thenApply(v -> true);
+			});
+		}).handle((result, ex) -> {
+			if (ex != null) {
+				instance.getPluginLogger().warn("abandonIsland: Failed to abandon WorldGuard region for UUID " + ownerId
+						+ ": " + ex.getMessage());
+			}
+			return instance.getStorageManager().unlockUserData(ownerId).thenApply(x -> true);
+		}).thenCompose(Function.identity());
 	}
 
 	@Override
-	public void restoreFlags(@NotNull HellblockWorld<?> world, @NotNull UUID ownerId) {
+	public CompletableFuture<Boolean> restoreFlags(@NotNull HellblockWorld<?> world, @NotNull UUID ownerId) {
 		if (getWorldGuardPlatform() == null) {
-			throw new IllegalStateException("WorldGuard platform is not initialized.");
+			return CompletableFuture
+					.failedFuture(new IllegalStateException("restoreFlags: WorldGuard platform is not initialized."));
 		}
 
-		instance.getStorageManager().getCachedUserDataWithFallback(ownerId, instance.getConfigManager().lockData())
-				.thenAccept(result -> {
-					if (result.isEmpty()) {
-						instance.debug("No user data found for restoreFlags: " + ownerId);
-						return;
+		instance.debug("restoreFlags: Restoring WorldGuard protection flags for UUID: " + ownerId);
+
+		return instance.getStorageManager().getCachedUserDataWithFallback(ownerId, true).thenCompose(optData -> {
+			if (optData.isEmpty()) {
+				instance.debug("restoreFlags: No UserData found for UUID: " + ownerId);
+				return CompletableFuture.completedFuture(false);
+			}
+
+			final UserData ownerData = optData.get();
+			final HellblockData data = ownerData.getHellblockData();
+
+			if (data.isAbandoned()) {
+				instance.debug("restoreFlags: Island was found marked as abandoned for UUID: " + ownerId);
+				return CompletableFuture.completedFuture(false);
+			}
+
+			return instance.getScheduler().callSync(() -> {
+				final ProtectedRegion region = getRegion(world, ownerId, data.getIslandId());
+				if (region == null) {
+					instance.getPluginLogger()
+							.warn("restoreFlags: Could not get WorldGuard region when restoring flags for " + ownerId);
+					return CompletableFuture.completedFuture(false);
+				}
+
+				// Apply owners and members
+				region.getOwners().addPlayer(ownerId);
+				data.getIslandMembers().forEach(region.getMembers()::addPlayer);
+
+				// Apply WorldGuard flags
+				region.setFlag(convertToWorldGuardFlag(HellblockFlag.FlagType.PVP), StateFlag.State.DENY);
+				region.setFlag(convertToWorldGuardFlag(HellblockFlag.FlagType.BUILD), StateFlag.State.DENY);
+				if (data.isLocked()) {
+					region.setFlag(convertToWorldGuardFlag(HellblockFlag.FlagType.ENTRY), StateFlag.State.DENY);
+				}
+				region.setFlag(convertToWorldGuardFlag(HellblockFlag.FlagType.MOB_SPAWNING), StateFlag.State.ALLOW);
+
+				// Apply internal protection data
+				data.setProtectionValue(new HellblockFlag(HellblockFlag.FlagType.PVP, HellblockFlag.AccessType.DENY));
+				data.setProtectionValue(new HellblockFlag(HellblockFlag.FlagType.BUILD, HellblockFlag.AccessType.DENY));
+				if (data.isLocked()) {
+					data.setProtectionValue(
+							new HellblockFlag(HellblockFlag.FlagType.ENTRY, HellblockFlag.AccessType.DENY));
+				}
+				data.setProtectionValue(
+						new HellblockFlag(HellblockFlag.FlagType.MOB_SPAWNING, HellblockFlag.AccessType.ALLOW));
+
+				instance.debug("restoreFlags: Restored flags and members for WorldGuard region of " + ownerId);
+
+				// Try saving the region — log issues, but don't block user data save
+				try {
+					final RegionManager rm = getWorldGuardPlatform().getRegionContainer()
+							.get(BukkitAdapter.adapt(world.bukkitWorld()));
+					if (rm != null) {
+						rm.save();
+						instance.debug("restoreFlags: Saved WorldGuard RegionManager after restore for " + ownerId);
 					}
+				} catch (Exception e) {
+					instance.getPluginLogger()
+							.severe("restoreFlags: Failed to save WorldGuard RegionManager for " + ownerId, e);
+				}
 
-					final UserData offlineUser = result.get();
-					if (offlineUser.getHellblockData().isAbandoned()) {
-						instance.debug("User " + ownerId + " is still abandoned. Skipping restoreFlags.");
-						return;
-					}
-
-					runSync(() -> {
-						final ProtectedRegion region = getRegion(world, ownerId,
-								offlineUser.getHellblockData().getIslandId());
-						if (region == null) {
-							instance.getPluginLogger()
-									.warn("Could not get WorldGuard region when restoring for " + ownerId);
-							return;
-						}
-
-						region.getOwners().addPlayer(ownerId);
-						offlineUser.getHellblockData().getIslandMembers().forEach(region.getMembers()::addPlayer);
-
-						region.setFlag(convertToWorldGuardFlag(HellblockFlag.FlagType.PVP), StateFlag.State.DENY);
-						region.setFlag(convertToWorldGuardFlag(HellblockFlag.FlagType.BUILD), StateFlag.State.DENY);
-						region.setFlag(convertToWorldGuardFlag(HellblockFlag.FlagType.ENTRY), StateFlag.State.ALLOW);
-						region.setFlag(convertToWorldGuardFlag(HellblockFlag.FlagType.MOB_SPAWNING),
-								StateFlag.State.ALLOW);
-
-						instance.debug("Restored flags and members for region of " + ownerId);
-
-						try {
-							final RegionManager rm = getWorldGuardPlatform().getRegionContainer()
-									.get(BukkitAdapter.adapt(world.bukkitWorld()));
-							if (rm != null) {
-								rm.save();
-								instance.debug("Saved region manager after restore for " + ownerId);
-							}
-						} catch (Exception e) {
-							instance.getPluginLogger()
-									.severe("Failed to save region manager after restoring island for " + ownerId, e);
-						}
-					});
-				}).exceptionally(ex -> {
-					instance.getPluginLogger().severe("Failed to fetch offline user for restoreIsland: " + ownerId, ex);
-					return null;
-				});
+				// Always save user data, even if region manager failed
+				return instance.getStorageManager().saveUserData(ownerData, true).thenApply(v -> true);
+			});
+		}).handle((result, ex) -> {
+			if (ex != null) {
+				instance.getPluginLogger().warn("restoreFlags: Failed to restore WorldGuard flags for UUID " + ownerId
+						+ ": " + ex.getMessage());
+			}
+			return instance.getStorageManager().unlockUserData(ownerId).thenApply(x -> true);
+		}).thenCompose(Function.identity());
 	}
 
 	@Override
-	public void changeHellblockFlag(@NotNull HellblockWorld<?> world, @NotNull UserData ownerData,
+	public CompletableFuture<Boolean> changeHellblockFlag(@NotNull HellblockWorld<?> world, @NotNull UserData ownerData,
 			@NotNull HellblockFlag flag) {
-		runSync(() -> {
+		return instance.getScheduler().callSync(() -> {
 			final ProtectedRegion region = getRegion(world, ownerData.getUUID(),
 					ownerData.getHellblockData().getIslandId());
 			if (region == null) {
-				instance.getPluginLogger()
-						.warn("Region not found when attempting to change flag for owner " + ownerData.getUUID());
-				return;
+				instance.getPluginLogger().warn(
+						"WorldGuard region not found when attempting to change flag for owner " + ownerData.getUUID());
+				return CompletableFuture.completedFuture(false);
 			}
 
 			final StateFlag wgFlag = convertToWorldGuardFlag(flag.getFlag());
-			if (wgFlag != null) {
-				StateFlag.State value = (flag.getStatus() == HellblockFlag.AccessType.ALLOW ? null
-						: StateFlag.State.DENY);
-				region.setFlag(wgFlag, value);
-				instance.debug("Changed flag " + wgFlag.getName() + " to " + (value == null ? "ALLOW" : "DENY")
-						+ " for " + ownerData.getUUID());
-			} else {
-				instance.debug("No matching WorldGuard flag for Hellblock flag type: " + flag.getFlag());
+			if (wgFlag == null) {
+				instance.getPluginLogger()
+						.warn("No matching WorldGuard flag for Hellblock flag type: " + flag.getFlag());
+				return CompletableFuture.completedFuture(false);
 			}
+
+			StateFlag.State value = (flag.getStatus() == HellblockFlag.AccessType.ALLOW ? null : StateFlag.State.DENY);
+			region.setFlag(wgFlag, value);
+			instance.debug("Changed flag " + wgFlag.getName() + " to " + (value == null ? "ALLOW" : "DENY") + " for "
+					+ ownerData.getUUID());
+			return CompletableFuture.completedFuture(true);
 		});
 	}
 
@@ -635,139 +700,166 @@ public class WorldGuardHook implements IslandProtection<BlockVector3> {
 	public CompletableFuture<Set<UUID>> getMembersOfHellblockBounds(@NotNull HellblockWorld<?> world,
 			@NotNull UUID ownerId) {
 		if (getWorldGuardPlatform() == null) {
-			instance.debug("WorldGuard platform is not initialized.");
-			return CompletableFuture.failedFuture(new IllegalStateException("WorldGuard not available"));
+			return CompletableFuture.failedFuture(
+					new IllegalStateException("getMembersOfHellblockBounds: WorldGuard platform is not initialized."));
 		}
 
-		final CompletableFuture<Set<UUID>> future = new CompletableFuture<>();
+		instance.debug("getMembersOfHellblockBounds: Fetching Hellblock members for island owner: " + ownerId);
 
-		instance.debug("Fetching Hellblock members for island owner: " + ownerId);
-		instance.getStorageManager().getCachedUserDataWithFallback(ownerId, instance.getConfigManager().lockData())
-				.thenAccept(result -> {
-					if (result.isEmpty()) {
-						instance.debug("No user data found for owner: " + ownerId);
-						future.complete(Collections.emptySet());
-						return;
+		CompletableFuture<Set<UUID>> result = instance.getStorageManager().getCachedUserDataWithFallback(ownerId, false)
+				.thenCompose(optData -> {
+					if (optData.isEmpty()) {
+						instance.debug("getMembersOfHellblockBounds: No UserData found for UUID: " + ownerId);
+						return CompletableFuture.completedFuture(Collections.emptySet());
 					}
-					final UserData offlineUser = result.get();
-					runSync(() -> {
-						try {
-							final ProtectedRegion region = getRegion(world, ownerId,
-									offlineUser.getHellblockData().getIslandId());
-							if (region == null) {
-								instance.debug("No WorldGuard region found for owner: " + ownerId);
-								future.completeExceptionally(
-										new IllegalStateException("Region not found for owner " + ownerId));
-								return;
-							}
-							final Set<UUID> members = new HashSet<>(region.getMembers().getUniqueIds());
-							instance.debug("Found " + members.size() + " members in region for " + ownerId);
-							future.complete(members);
-						} catch (Exception ex) {
-							instance.getPluginLogger().severe("Error retrieving members of region for " + ownerId, ex);
-							future.completeExceptionally(ex);
+
+					final UserData ownerData = optData.get();
+
+					return instance.getScheduler().callSyncImmediate(() -> {
+						final ProtectedRegion region = getRegion(world, ownerId,
+								ownerData.getHellblockData().getIslandId());
+						if (region == null) {
+							instance.getPluginLogger().warn(
+									"getMembersOfHellblockBounds: Could not get WorldGuard region when retrieving members from owner "
+											+ ownerId);
+							throw new IllegalStateException("WorldGuard region not found for island owner: " + ownerId);
 						}
+						final Set<UUID> members = new HashSet<>(region.getMembers().getUniqueIds());
+						instance.debug("Found " + members.size() + " member" + (members.size() == 1 ? "" : "s")
+								+ " in WorldGuard region for " + ownerId);
+						return members;
 					});
-				}).exceptionally(ex -> {
-					instance.getPluginLogger().severe("Failed to get cached user data for " + ownerId, ex);
-					future.completeExceptionally(ex);
-					return null;
 				});
-		return future;
+
+		return result.exceptionally(ex -> {
+			instance.getPluginLogger().severe("Failed to fetch user data for getMembersOfHellblockBounds: " + ownerId,
+					ex);
+			return Collections.emptySet();
+		});
 	}
 
 	@Override
-	public void addMemberToHellblockBounds(@NotNull HellblockWorld<?> world, @NotNull UUID ownerId,
-			@NotNull UUID memberId) {
+	public CompletableFuture<Boolean> addMemberToHellblockBounds(@NotNull HellblockWorld<?> world,
+			@NotNull UUID ownerId, @NotNull UUID memberId) {
 		if (getWorldGuardPlatform() == null) {
-			throw new IllegalStateException("WorldGuard platform is not initialized.");
+			return CompletableFuture.failedFuture(
+					new IllegalStateException("addMemberToHellblockBounds: WorldGuard platform is not initialized."));
 		}
 
-		instance.debug("Attempting to add member " + memberId + " to island " + ownerId);
-		instance.getStorageManager().getCachedUserDataWithFallback(ownerId, instance.getConfigManager().lockData())
-				.thenAccept(result -> {
-					if (result.isEmpty()) {
-						instance.debug("User data not found for island owner: " + ownerId);
-						return;
-					}
-					final UserData offlineUser = result.get();
-					runSync(() -> {
-						final ProtectedRegion region = getRegion(world, ownerId,
-								offlineUser.getHellblockData().getIslandId());
-						if (region == null) {
-							instance.getPluginLogger().warn(
-									"Could not get region when adding member " + memberId + " to owner " + ownerId);
-							return;
-						}
-						if (region.getMembers().getUniqueIds().add(memberId)) {
-							instance.debug("Added member " + memberId + " to region of " + ownerId);
-							try {
-								final RegionManager rm = getWorldGuardPlatform().getRegionContainer()
-										.get(BukkitAdapter.adapt(world.bukkitWorld()));
-								if (rm != null) {
-									rm.save();
-									instance.debug("Region saved after adding member " + memberId);
-								}
-							} catch (Exception e) {
-								instance.getPluginLogger()
-										.severe("Failed to save region after adding member " + memberId, e);
-							}
-						} else {
-							instance.debug("Member " + memberId + " already present in region for " + ownerId);
-						}
-					});
-				}).exceptionally(ex -> {
+		instance.debug("addMemberToHellblockBounds: Attempting to add member " + memberId + " to island " + ownerId);
+
+		return instance.getStorageManager().getCachedUserDataWithFallback(ownerId, false).thenCompose(optData -> {
+			if (optData.isEmpty()) {
+				instance.debug("addMemberToHellblockBounds: User data not found for island owner: " + ownerId);
+				return CompletableFuture.completedFuture(false);
+			}
+
+			final UserData ownerData = optData.get();
+
+			return instance.getScheduler().callSyncImmediate(() -> {
+				final ProtectedRegion region = getRegion(world, ownerId, ownerData.getHellblockData().getIslandId());
+				if (region == null) {
 					instance.getPluginLogger()
-							.severe("Failed to fetch user data for addMemberToHellblockBounds: " + ownerId, ex);
-					return null;
-				});
+							.warn("addMemberToHellblockBounds: Could not get WorldGuard region when adding member "
+									+ memberId + " to owner " + ownerId);
+					return false;
+				}
+
+				if (!region.getMembers().getUniqueIds().add(memberId)) {
+					instance.debug("addMemberToHellblockBounds: Member " + memberId + " already present in region for "
+							+ ownerId);
+					return false;
+				}
+
+				instance.debug(
+						"addMemberToHellblockBounds: Added member " + memberId + " to WorldGuard region of " + ownerId);
+
+				try {
+					final RegionManager rm = getWorldGuardPlatform().getRegionContainer()
+							.get(BukkitAdapter.adapt(world.bukkitWorld()));
+					if (rm != null) {
+						rm.save();
+						instance.debug(
+								"addMemberToHellblockBounds: WorldGuard region saved after adding member " + memberId);
+						return true;
+					}
+				} catch (Exception e) {
+					instance.getPluginLogger()
+							.severe("addMemberToHellblockBounds: Failed to save WorldGuard region after adding member "
+									+ memberId, e);
+					return false;
+				}
+				// Fallback: saving failed or RegionManager was null
+				return false;
+			});
+		}).exceptionally(ex -> {
+			instance.getPluginLogger().severe("Failed to fetch user data for addMemberToHellblockBounds: " + ownerId,
+					ex);
+			return false;
+		});
 	}
 
 	@Override
-	public void removeMemberFromHellblockBounds(@NotNull HellblockWorld<?> world, @NotNull UUID ownerId,
-			@NotNull UUID memberId) {
+	public CompletableFuture<Boolean> removeMemberFromHellblockBounds(@NotNull HellblockWorld<?> world,
+			@NotNull UUID ownerId, @NotNull UUID memberId) {
 		if (getWorldGuardPlatform() == null) {
-			throw new IllegalStateException("WorldGuard platform is not initialized.");
+			return CompletableFuture.failedFuture(new IllegalStateException(
+					"removeMemberFromHellblockBounds: WorldGuard platform is not initialized."));
 		}
 
-		instance.debug("Attempting to remove member " + memberId + " from island " + ownerId);
-		instance.getStorageManager().getCachedUserDataWithFallback(ownerId, instance.getConfigManager().lockData())
-				.thenAccept(result -> {
-					if (result.isEmpty()) {
-						instance.debug("User data not found for island owner: " + ownerId);
-						return;
+		instance.debug(
+				"removeMemberFromHellblockBounds: Attempting to remove member " + memberId + " from island " + ownerId);
+
+		return instance.getStorageManager().getCachedUserDataWithFallback(ownerId, false).thenCompose(optData -> {
+			if (optData.isEmpty()) {
+				instance.debug("removeMemberFromHellblockBounds: User data not found for island owner: " + ownerId);
+				return CompletableFuture.completedFuture(false);
+			}
+
+			final UserData ownerData = optData.get();
+
+			return instance.getScheduler().callSyncImmediate(() -> {
+				final ProtectedRegion region = getRegion(world, ownerId, ownerData.getHellblockData().getIslandId());
+				if (region == null) {
+					instance.getPluginLogger().warn(
+							"removeMemberFromHellblockBounds: Could not get WorldGuard region when removing member "
+									+ memberId + " from owner " + ownerId);
+					return false;
+				}
+
+				if (!region.getMembers().getUniqueIds().remove(memberId)) {
+					instance.debug("removeMemberFromHellblockBounds: Member " + memberId
+							+ " was not part of WorldGuard region for " + ownerId);
+					return false;
+				}
+
+				instance.debug("removeMemberFromHellblockBounds: Removed member " + memberId
+						+ " from WorldGuard region of " + ownerId);
+
+				try {
+					final RegionManager rm = getWorldGuardPlatform().getRegionContainer()
+							.get(BukkitAdapter.adapt(world.bukkitWorld()));
+					if (rm != null) {
+						rm.save();
+						instance.debug("removeMemberFromHellblockBounds: WorldGuard region saved after removing member "
+								+ memberId);
+						return true;
 					}
-					final UserData offlineUser = result.get();
-					runSync(() -> {
-						final ProtectedRegion region = getRegion(world, ownerId,
-								offlineUser.getHellblockData().getIslandId());
-						if (region == null) {
-							instance.getPluginLogger().warn(
-									"Could not get region when removing member " + memberId + " from owner " + ownerId);
-							return;
-						}
-						if (region.getMembers().getUniqueIds().remove(memberId)) {
-							instance.debug("Removed member " + memberId + " from region of " + ownerId);
-							try {
-								final RegionManager rm = getWorldGuardPlatform().getRegionContainer()
-										.get(BukkitAdapter.adapt(world.bukkitWorld()));
-								if (rm != null) {
-									rm.save();
-									instance.debug("Region saved after removing member " + memberId);
-								}
-							} catch (Exception e) {
-								instance.getPluginLogger()
-										.severe("Failed to save region after removing member " + memberId, e);
-							}
-						} else {
-							instance.debug("Member " + memberId + " was not part of region for " + ownerId);
-						}
-					});
-				}).exceptionally(ex -> {
-					instance.getPluginLogger()
-							.severe("Failed to fetch user data for removeMemberFromHellblockBounds: " + ownerId, ex);
-					return null;
-				});
+				} catch (Exception e) {
+					instance.getPluginLogger().severe(
+							"removeMemberFromHellblockBounds: Failed to save WorldGuard region after removing member "
+									+ memberId,
+							e);
+					return false;
+				}
+				// Fallback: saving failed or RegionManager was null
+				return false;
+			});
+		}).exceptionally(ex -> {
+			instance.getPluginLogger()
+					.severe("Failed to fetch user data for removeMemberFromHellblockBounds: " + ownerId, ex);
+			return false;
+		});
 	}
 
 	@Override
@@ -817,11 +909,11 @@ public class WorldGuardHook implements IslandProtection<BlockVector3> {
 		final RegionManager regionManager = getWorldGuardPlatform().getRegionContainer()
 				.get(BukkitAdapter.adapt(world.bukkitWorld()));
 		if (regionManager == null) {
-			throw new IllegalStateException("RegionManager not found for world: " + world.worldName());
+			throw new IllegalStateException("WorldGuard RegionManager not found for world: " + world.worldName());
 		}
 
 		final String regionId = "%s_%s".formatted(ownerId.toString(), islandId);
-		instance.debug("Resolved region ID: " + regionId);
+		instance.debug("Resolved WorldGuard region ID: " + regionId);
 		return regionManager.getRegion(regionId);
 	}
 

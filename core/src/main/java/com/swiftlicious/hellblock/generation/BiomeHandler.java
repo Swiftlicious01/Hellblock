@@ -76,12 +76,12 @@ public class BiomeHandler {
 	 * @param forceChange    If true, bypasses ownership, location, and cooldown
 	 *                       checks.
 	 */
-	public void changeHellblockBiome(@NotNull UserData ownerData, @NotNull HellBiome biome, boolean performedByGUI,
-			boolean forceChange) {
+	public CompletableFuture<Boolean> changeHellblockBiome(@NotNull UserData ownerData, @NotNull HellBiome biome,
+			boolean performedByGUI, boolean forceChange) {
 		if (ownerData.isOnline()) {
-			changeHellblockBiomeOnline(ownerData, biome, performedByGUI, forceChange);
+			return changeHellblockBiomeOnline(ownerData, biome, performedByGUI, forceChange);
 		} else {
-			changeHellblockBiomeOffline(ownerData, biome, forceChange);
+			return changeHellblockBiomeOffline(ownerData, biome, forceChange);
 		}
 	}
 
@@ -96,98 +96,109 @@ public class BiomeHandler {
 	 * @param forceChange    If true, bypasses ownership, location, and cooldown
 	 *                       checks.
 	 */
-	private void changeHellblockBiomeOnline(@NotNull UserData ownerData, @NotNull HellBiome biome,
+	private CompletableFuture<Boolean> changeHellblockBiomeOnline(@NotNull UserData ownerData, @NotNull HellBiome biome,
 			boolean performedByGUI, boolean forceChange) {
 		final Player player = ownerData.getPlayer();
 		final Sender audience = instance.getSenderFactory().wrap(player);
 		final HellblockData data = ownerData.getHellblockData();
 
-		// Validate island existence
 		if (!data.hasHellblock()) {
-			audience.sendMessage(
-					instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_NOT_FOUND.build()));
-			return;
+			if (!forceChange)
+				audience.sendMessage(
+						instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_NOT_FOUND.build()));
+			return CompletableFuture.completedFuture(false);
 		}
 
 		if (data.isAbandoned()) {
-			audience.sendMessage(
-					instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_IS_ABANDONED.build()));
-			return;
+			if (!forceChange)
+				audience.sendMessage(
+						instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_IS_ABANDONED.build()));
+			return CompletableFuture.completedFuture(false);
 		}
 
-		// Ownership check
 		final UUID ownerId = data.getOwnerUUID();
 		if (ownerId == null) {
-			instance.getPluginLogger().severe("Hellblock owner UUID was null for player " + player.getName() + " ("
-					+ player.getUniqueId() + "). This indicates corrupted data.");
-			throw new IllegalStateException(
-					"Owner reference was null. This should never happen — please report to the developer.");
-		}
-		if (!forceChange && !ownerId.equals(player.getUniqueId())) {
-			audience.sendMessage(
-					instance.getTranslationManager().render(MessageConstants.MSG_NOT_OWNER_OF_HELLBLOCK.build()));
-			return;
+			instance.getPluginLogger().severe("Hellblock owner UUID was null for player " + ownerData.getName() + " ("
+					+ ownerData.getUUID() + "). This indicates corrupted data.");
+			return CompletableFuture.failedFuture(new IllegalStateException(
+					"Owner reference was null. This should never happen — please report to the developer."));
 		}
 
-		// Cooldown check
+		if (!forceChange && !ownerId.equals(ownerData.getUUID())) {
+			audience.sendMessage(
+					instance.getTranslationManager().render(MessageConstants.MSG_NOT_OWNER_OF_HELLBLOCK.build()));
+			return CompletableFuture.completedFuture(false);
+		}
+
 		if (!forceChange && data.getBiomeCooldown() > 0) {
 			final String formatted = instance.getCooldownManager().getFormattedCooldown(data.getBiomeCooldown());
 			audience.sendMessage(
 					instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_BIOME_ON_COOLDOWN
 							.arguments(AdventureHelper.miniMessageToComponent(formatted)).build()));
-			return;
+			return CompletableFuture.completedFuture(false);
 		}
 
-		// Location check
 		if (!forceChange) {
+			final BoundingBox bounds = data.getBoundingBox();
+			if (bounds == null) {
+				instance.getPluginLogger().severe("Hellblock bounds was null for owner " + ownerData.getName() + " ("
+						+ ownerData.getUUID() + "). This indicates corrupted data or a serious bug.");
+				return CompletableFuture.failedFuture(new IllegalStateException(
+						"Hellblock bounds location returned null. This should never happen — please report to the developer."));
+			}
 			final Location loc = player.getLocation();
-			if (loc == null || !data.getBoundingBox().contains(loc.toVector())) {
+			if (loc == null || !bounds.contains(loc.toVector())) {
 				audience.sendMessage(instance.getTranslationManager()
 						.render(MessageConstants.MSG_HELLBLOCK_MUST_BE_ON_ISLAND.build()));
-				return;
+				return CompletableFuture.completedFuture(false);
 			}
 		}
 
-		// Determine current biome (safe null handling)
 		final Location homeLocation = data.getHomeLocation();
-		final Biome currentBiome = (homeLocation != null) ? homeLocation.getBlock().getBiome() : null;
-
-		// Prevent same-biome change
-		if (currentBiome != null && currentBiome == biome.getConvertedBiome()) {
-			audience.sendMessage(instance.getTranslationManager()
-					.render(MessageConstants.MSG_HELLBLOCK_BIOME_SAME_BIOME
-							.arguments(
-									AdventureHelper.miniMessageToComponent(StringUtils.toCamelCase(biome.toString())))
-							.build()));
-			return;
+		if (homeLocation == null) {
+			instance.getPluginLogger().severe("Hellblock home location was null for owner " + ownerData.getName() + " ("
+					+ ownerData.getUUID() + "). This indicates corrupted data or a serious bug.");
+			return CompletableFuture.failedFuture(new IllegalStateException(
+					"Hellblock home location returned null. This should never happen — please report to the developer."));
 		}
 
-		// GUI requirement check
-		if (!forceChange && !performedByGUI) {
-			final var requirements = instance.getBiomeGUIManager().getBiomeRequirements(biome);
-			if (requirements != null && !RequirementManager.isSatisfied(Context.player(player), requirements)) {
-				return; // silently fail
-			}
-		}
+		// Get the current biome on the main thread
+		return instance.getScheduler().supplySync(() -> homeLocation.getBlock().getBiome())
+				.thenCompose(currentBiome -> {
+					if (currentBiome.equals(biome.getConvertedBiome())) {
+						if (!forceChange)
+							audience.sendMessage(instance.getTranslationManager()
+									.render(MessageConstants.MSG_HELLBLOCK_BIOME_SAME_BIOME
+											.arguments(AdventureHelper
+													.miniMessageToComponent(StringUtils.toCamelCase(biome.toString())))
+											.build()));
+						return CompletableFuture.completedFuture(false);
+					}
 
-		// Fire pre-change event
-		final HellblockBiomeChangeEvent changeEvent = new HellblockBiomeChangeEvent(ownerData, data, currentBiome,
-				biome, performedByGUI, forceChange);
-		if (EventUtils.fireAndCheckCancel(changeEvent)) {
-			return;
-		}
+					if (!forceChange && !performedByGUI) {
+						final var requirements = instance.getBiomeGUIManager().getBiomeRequirements(biome);
+						if (requirements != null
+								&& !RequirementManager.isSatisfied(Context.player(player), requirements)) {
+							return CompletableFuture.completedFuture(false); // silently fail
+						}
+					}
 
-		// Apply the biome change
-		applyHellblockBiomeChange(data, biome, !forceChange);
+					HellblockBiomeChangeEvent changeEvent = new HellblockBiomeChangeEvent(ownerData, data, currentBiome,
+							biome, performedByGUI, forceChange);
+					if (EventUtils.fireAndCheckCancel(changeEvent)) {
+						return CompletableFuture.completedFuture(false);
+					}
 
-		// Success message
-		audience.sendMessage(instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_BIOME_CHANGED
-				.arguments(AdventureHelper.miniMessageToComponent(StringUtils.toCamelCase(biome.toString()))).build()));
-
-		// Fire post-change event
-		final HellblockBiomeChangedEvent changedEvent = new HellblockBiomeChangedEvent(ownerData, data, currentBiome,
-				biome);
-		EventUtils.fireAndForget(changedEvent);
+					return applyHellblockBiomeChange(ownerData, biome, !forceChange).thenRun(() -> {
+						// Send success message
+						if (!forceChange)
+							audience.sendMessage(instance.getTranslationManager()
+									.render(MessageConstants.MSG_HELLBLOCK_BIOME_CHANGED
+											.arguments(AdventureHelper
+													.miniMessageToComponent(StringUtils.toCamelCase(biome.toString())))
+											.build()));
+					}).thenApply(v -> true);
+				});
 	}
 
 	/**
@@ -199,32 +210,38 @@ public class BiomeHandler {
 	 * @param forceChange If true, bypasses ownership, location, and cooldown
 	 *                    checks.
 	 */
-	private void changeHellblockBiomeOffline(@NotNull UserData ownerData, @NotNull HellBiome biome,
-			boolean forceChange) {
+	private CompletableFuture<Boolean> changeHellblockBiomeOffline(@NotNull UserData ownerData,
+			@NotNull HellBiome biome, boolean forceChange) {
 		final HellblockData data = ownerData.getHellblockData();
 
 		if (!data.hasHellblock() || data.isAbandoned()) {
-			return; // silently ignore for offline users
+			return CompletableFuture.completedFuture(false);
 		}
 
-		// Prevent same-biome change
-		final Biome currentBiome = data.getHomeLocation().getBlock().getBiome();
-		if (currentBiome == biome.getConvertedBiome()) {
-			return; // nothing to do
+		// Defensive: ensure home location is not null
+		Location homeLocation = data.getHomeLocation();
+		if (homeLocation == null) {
+			instance.getPluginLogger().severe("Hellblock home location was null for owner " + ownerData.getName() + " ("
+					+ ownerData.getUUID() + "). This indicates corrupted data or a serious bug.");
+			return CompletableFuture.failedFuture(new IllegalStateException(
+					"Hellblock home location returned null. This should never happen — please report to the developer."));
 		}
 
-		final HellblockBiomeChangeEvent changeEvent = new HellblockBiomeChangeEvent(ownerData, data, currentBiome,
-				biome, false, forceChange);
-		if (EventUtils.fireAndCheckCancel(changeEvent)) {
-			return;
-		}
+		// Get current biome asynchronously
+		return instance.getScheduler().supplySync(() -> homeLocation.getBlock().getBiome())
+				.thenCompose(currentBiome -> {
+					if (currentBiome.equals(biome.getConvertedBiome())) {
+						return CompletableFuture.completedFuture(false);
+					}
 
-		// Apply the biome change (no messages, no cooldown unless forceChange is false)
-		applyHellblockBiomeChange(data, biome, !forceChange);
+					HellblockBiomeChangeEvent changeEvent = new HellblockBiomeChangeEvent(ownerData, data, currentBiome,
+							biome, false, forceChange);
+					if (EventUtils.fireAndCheckCancel(changeEvent)) {
+						return CompletableFuture.completedFuture(false);
+					}
 
-		final HellblockBiomeChangedEvent changedEvent = new HellblockBiomeChangedEvent(ownerData, data, currentBiome,
-				biome);
-		EventUtils.fireAndForget(changedEvent);
+					return applyHellblockBiomeChange(ownerData, biome, !forceChange).thenApply(v -> true);
+				});
 	}
 
 	/**
@@ -235,47 +252,56 @@ public class BiomeHandler {
 	 * @param biome         The new biome to set.
 	 * @param applyCooldown If true, sets a cooldown on future biome changes.
 	 */
-	public void applyHellblockBiomeChange(@NotNull HellblockData ownerData, @NotNull HellBiome newBiome,
+	public CompletableFuture<Void> applyHellblockBiomeChange(@NotNull UserData ownerData, @NotNull HellBiome newBiome,
 			boolean applyCooldown) {
-		final Optional<HellblockWorld<?>> worldOpt = instance.getWorldManager()
-				.getWorld(instance.getWorldManager().getHellblockWorldFormat(ownerData.getIslandId()));
+		final Optional<HellblockWorld<?>> worldOpt = instance.getWorldManager().getWorld(
+				instance.getWorldManager().getHellblockWorldFormat(ownerData.getHellblockData().getIslandId()));
+
 		if (worldOpt.isEmpty() || worldOpt.get().bukkitWorld() == null) {
-			throw new IllegalStateException("Hellblock world not found. Try regenerating the world.");
+			return CompletableFuture
+					.failedFuture(new IllegalStateException("Hellblock world not found. Try regenerating the world."));
 		}
 
 		final HellblockWorld<?> world = worldOpt.get();
+		final BoundingBox bounds = ownerData.getHellblockData().getBoundingBox();
 
-		BoundingBox bounds = ownerData.getBoundingBox();
 		if (bounds == null) {
-			throw new IllegalStateException(
-					"Hellblock bounding box returned null for islandID=" + ownerData.getIslandId());
+			return CompletableFuture.failedFuture(new IllegalStateException(
+					"Hellblock bounding box returned null for islandID=" + ownerData.getHellblockData().getIslandId()));
 		}
 
-		// --- Capture the previous biome BEFORE changing ---
-		HellBiome previousBiome = Objects.requireNonNullElse(ownerData.getBiome(), HellBiome.NETHER_WASTES);
+		// Capture previous biome
+		HellBiome previousBiome = Objects.requireNonNullElse(ownerData.getHellblockData().getBiome(),
+				HellBiome.NETHER_WASTES);
 
-		setHellblockBiome(world, bounds, newBiome.getConvertedBiome());
+		// Async biome setting
+		return setHellblockBiome(world, bounds, newBiome.getConvertedBiome()).thenRun(() -> {
 
-		if (applyCooldown) {
-			ownerData.setBiomeCooldown(TimeUnit.DAYS.toSeconds(1)); // 24h cooldown
-		}
-
-		instance.getScheduler().executeSync(() -> {
-			// fortress logic
-			if (newBiome == HellBiome.NETHER_FORTRESS) {
-				VersionHelper.getNMSManager().injectFakeFortress(world.bukkitWorld(), bounds);
-				instance.debug("Injected fake fortress for islandID=" + ownerData.getIslandId() + " in world "
-						+ world.worldName() + " bounds=" + bounds);
-			} else if (previousBiome == HellBiome.NETHER_FORTRESS) {
-				// Only remove the fake fortress if the *previous* biome had one
-				VersionHelper.getNMSManager().removeFakeFortress(world.bukkitWorld(), bounds);
-				instance.debug("Removed fake fortress for islandID=" + ownerData.getIslandId() + " in world "
-						+ world.worldName() + " bounds=" + bounds);
+			// Apply cooldown if needed
+			if (applyCooldown) {
+				ownerData.getHellblockData().setBiomeCooldown(TimeUnit.DAYS.toSeconds(1)); // 24h cooldown
 			}
-		});
 
-		// Finally, update the biome in the player data
-		ownerData.setBiome(newBiome);
+			// Update biome in data
+			ownerData.getHellblockData().setBiome(newBiome);
+
+			final HellblockBiomeChangedEvent changedEvent = new HellblockBiomeChangedEvent(ownerData,
+					ownerData.getHellblockData(), previousBiome.getConvertedBiome(), newBiome);
+			EventUtils.fireAndForget(changedEvent);
+
+			// Run fortress logic on sync thread
+			instance.getScheduler().executeSync(() -> {
+				if (newBiome == HellBiome.NETHER_FORTRESS) {
+					VersionHelper.getNMSManager().injectFakeFortress(world.bukkitWorld(), bounds);
+					instance.debug("Injected fake fortress for islandID=" + ownerData.getHellblockData().getIslandId()
+							+ " in world " + world.worldName() + " bounds=" + bounds);
+				} else if (previousBiome == HellBiome.NETHER_FORTRESS) {
+					VersionHelper.getNMSManager().removeFakeFortress(world.bukkitWorld(), bounds);
+					instance.debug("Removed fake fortress for islandID=" + ownerData.getHellblockData().getIslandId()
+							+ " in world " + world.worldName() + " bounds=" + bounds);
+				}
+			});
+		});
 	}
 
 	/**
@@ -287,22 +313,23 @@ public class BiomeHandler {
 	 * @param bounds the bounding box defining the area to change.
 	 * @param biome  the new biome to set.
 	 **/
-	public void setHellblockBiome(@NotNull HellblockWorld<?> world, @NotNull BoundingBox bounds, @NotNull Biome biome) {
+	@NotNull
+	private CompletableFuture<Void> setHellblockBiome(@NotNull HellblockWorld<?> world, @NotNull BoundingBox bounds,
+			@NotNull Biome biome) {
 		Objects.requireNonNull(biome, () -> "Unsupported biome: " + biome.toString());
 		Objects.requireNonNull(world, "Cannot set biome of null world");
 		Objects.requireNonNull(bounds, "Cannot set biome of null bounding box");
 
-		getHellblockChunks(world, bounds).thenAccept(chunkPositions -> {
-			Pos3 min = Pos3.toMinPos3(bounds, world.bukkitWorld().getMinHeight());
-			Pos3 max = Pos3.toMaxPos3(bounds, world.bukkitWorld().getMaxHeight());
+		Pos3 min = Pos3.toMinPos3(bounds, world.bukkitWorld().getMinHeight());
+		Pos3 max = Pos3.toMaxPos3(bounds, world.bukkitWorld().getMaxHeight());
 
-			// Refresh chunks in Bukkit world
-			setBiome(world, min, max, biome)
-					.thenRun(() -> chunkPositions.forEach(pos -> world.bukkitWorld().refreshChunk(pos.x(), pos.z())));
-		}).exceptionally(throwable -> {
-			throwable.printStackTrace();
-			return null;
-		});
+		return getHellblockChunks(world, bounds).thenCompose(chunkPositions -> setBiome(world, min, max, biome)
+				.thenCompose(v -> instance.getScheduler().runSync(() -> {
+					chunkPositions.forEach(pos -> world.bukkitWorld().refreshChunk(pos.x(), pos.z()));
+				}))).exceptionally(ex -> {
+					instance.getPluginLogger().warn("Failed to set Hellblock biome", ex);
+					return null;
+				});
 	}
 
 	/**
@@ -313,7 +340,7 @@ public class BiomeHandler {
 	 * @param end   the end position.
 	 **/
 	@NotNull
-	public CompletableFuture<Void> setBiome(@NotNull HellblockWorld<?> world, @NotNull Pos3 start, @NotNull Pos3 end,
+	private CompletableFuture<Void> setBiome(@NotNull HellblockWorld<?> world, @NotNull Pos3 start, @NotNull Pos3 end,
 			@NotNull Biome biome) {
 		Objects.requireNonNull(start, "Start position cannot be null");
 		Objects.requireNonNull(end, "End position cannot be null");
@@ -327,7 +354,8 @@ public class BiomeHandler {
 		final int maxZ = Math.max(start.z(), end.z());
 		final int sampleY = Math.max(bukkitWorld.getMinHeight(), bukkitWorld.getSeaLevel()); // use mid height
 
-		return CompletableFuture.runAsync(() -> {
+		// Sync biome changes safely
+		return instance.getScheduler().supplySync(() -> {
 			for (int x = minX; x <= maxX; x++) {
 				for (int z = minZ; z <= maxZ; z++) {
 					// Sample one Y-level per column to check current biome
@@ -340,8 +368,6 @@ public class BiomeHandler {
 					}
 				}
 			}
-		}).exceptionally(ex -> {
-			ex.printStackTrace();
 			return null;
 		});
 	}
@@ -358,7 +384,7 @@ public class BiomeHandler {
 	 *         the bounding box.
 	 */
 	@NotNull
-	public CompletableFuture<Set<ChunkPos>> getHellblockChunks(@NotNull HellblockWorld<?> world,
+	private CompletableFuture<Set<ChunkPos>> getHellblockChunks(@NotNull HellblockWorld<?> world,
 			@NotNull BoundingBox bounds) {
 		Objects.requireNonNull(bounds, "Cannot get chunks of null bounding box");
 

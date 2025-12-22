@@ -188,8 +188,8 @@ public class BiomeGUIManager implements BiomeGUIManagerInterface, Listener {
 		HellblockData hellblockData = optionalUserData.get().getHellblockData();
 		if (hellblockData.getBiomeCooldown() > 0) {
 			Sender audience = instance.getSenderFactory().wrap(player);
-			audience.sendMessage(instance.getTranslationManager()
-					.render(MessageConstants.MSG_HELLBLOCK_BIOME_ON_COOLDOWN.arguments(AdventureHelper.miniMessageToComponent(
+			audience.sendMessage(instance.getTranslationManager().render(
+					MessageConstants.MSG_HELLBLOCK_BIOME_ON_COOLDOWN.arguments(AdventureHelper.miniMessageToComponent(
 							instance.getCooldownManager().getFormattedCooldown(hellblockData.getBiomeCooldown())))
 							.build()));
 			return false;
@@ -324,9 +324,10 @@ public class BiomeGUIManager implements BiomeGUIManagerInterface, Listener {
 
 			if (element.getSymbol() == backSlot) {
 				event.setCancelled(true);
-				instance.getHellblockGUIManager().openHellblockGUI(gui.context.holder(), gui.islandContext.holder(),
-						gui.isOwner);
-				ActionManager.trigger(gui.context, backActions);
+				boolean opened = instance.getHellblockGUIManager().openHellblockGUI(gui.context.holder(),
+						gui.islandContext.holder(), gui.isOwner);
+				if (opened)
+					ActionManager.trigger(gui.context, backActions);
 				return;
 			}
 
@@ -371,11 +372,11 @@ public class BiomeGUIManager implements BiomeGUIManagerInterface, Listener {
 					.entrySet()) {
 				if (element.getSymbol() == entry.getKey()) {
 					event.setCancelled(true);
-					if (biome == entry.getValue().mid()) {
+					if (biome != null && biome.equals(entry.getValue().mid())) {
 						audience.sendMessage(instance.getTranslationManager()
 								.render(MessageConstants.MSG_HELLBLOCK_BIOME_SAME_BIOME
-										.arguments(
-												AdventureHelper.miniMessageToComponent(StringUtils.toCamelCase(biome.toString())))
+										.arguments(AdventureHelper
+												.miniMessageToComponent(StringUtils.toCamelCase(biome.toString())))
 										.build()));
 						AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
 								Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
@@ -383,10 +384,14 @@ public class BiomeGUIManager implements BiomeGUIManagerInterface, Listener {
 						return;
 					}
 					if (RequirementManager.isSatisfied(gui.context, entry.getValue().right().right())) {
-						instance.getBiomeHandler().changeHellblockBiome(userData.get(), entry.getValue().mid(), true,
-								false);
-						gui.islandContext.arg(ContextKeys.ISLAND_BIOME, gui.hellblockData.getBiome());
-						ActionManager.trigger(gui.context, entry.getValue().right().mid());
+						instance.getBiomeHandler()
+								.changeHellblockBiome(userData.get(), entry.getValue().mid(), true, false)
+								.thenAccept(result -> {
+									if (result) {
+										gui.islandContext.arg(ContextKeys.ISLAND_BIOME, gui.hellblockData.getBiome());
+										ActionManager.trigger(gui.context, entry.getValue().right().mid());
+									}
+								});
 						break;
 					}
 				}

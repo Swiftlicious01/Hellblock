@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -480,15 +481,15 @@ public class HellblockGUIManager implements HellblockGUIManagerInterface, Listen
 
 			if (element.getSymbol() == levelSlot) {
 				event.setCancelled(true);
-				instance.getStorageManager().getCachedUserDataWithFallback(hellblockData.getOwnerUUID(),
-						instance.getConfigManager().lockData()).thenAccept(optionalData -> {
-							if (optionalData.isEmpty()) {
+				instance.getStorageManager().getCachedUserDataWithFallback(hellblockData.getOwnerUUID(), false)
+						.thenCompose(optData -> {
+							if (optData.isEmpty()) {
 								// Close inventory on the main thread
 								instance.getScheduler().executeSync(player::closeInventory);
-								return;
+								return CompletableFuture.completedFuture(null);
 							}
 
-							UserData ownerData = optionalData.get();
+							UserData ownerData = optData.get();
 
 							if (ownerData.getHellblockData().isAbandoned()) {
 								// Send abandoned message and play sound on the main thread
@@ -499,12 +500,13 @@ public class HellblockGUIManager implements HellblockGUIManagerInterface, Listen
 											Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
 													Sound.Source.PLAYER, 1, 1));
 								});
-								return;
+								return CompletableFuture.completedFuture(null);
 							}
 
 							// Update context and trigger actions on the main thread
 							// Fetch rank asynchronously
-							instance.getIslandLevelManager().getLevelRank(ownerData.getHellblockData().getIslandId())
+							return instance.getIslandLevelManager()
+									.getLevelRank(ownerData.getHellblockData().getIslandId())
 									.thenAccept(rank -> instance.getScheduler().executeSync(() -> {
 										gui.islandContext
 												.arg(ContextKeys.ISLAND_LEVEL,
@@ -513,54 +515,66 @@ public class HellblockGUIManager implements HellblockGUIManagerInterface, Listen
 														: instance.getTranslationManager().miniMessageTranslation(
 																MessageConstants.FORMAT_UNRANKED.build().key()));
 										ActionManager.trigger(gui.context, levelActions);
-									}));
+									})).exceptionally(ex -> {
+										instance.getPluginLogger().severe("Failed to get level rank on demand for "
+												+ gui.context.holder().getName() + ": " + ex.getMessage());
+										return null;
+									});
+						}).exceptionally(ex -> {
+							instance.getPluginLogger().severe("Failed to refresh island level for "
+									+ gui.context.holder().getName() + ": " + ex.getMessage());
+							return null;
 						});
 				return;
 			}
 
 			if (element.getSymbol() == challengeSlot) {
 				event.setCancelled(true);
-				instance.getChallengesGUIManager().openChallengesGUI(gui.context.holder(), gui.islandContext.holder(),
-						gui.isOwner, true);
-				ActionManager.trigger(gui.context, challengeActions);
+				boolean opened = instance.getChallengesGUIManager().openChallengesGUI(gui.context.holder(),
+						gui.islandContext.holder(), gui.isOwner, true);
+				if (opened)
+					ActionManager.trigger(gui.context, challengeActions);
 				return;
 			}
 
 			if (element.getSymbol() == notificationSlot) {
 				event.setCancelled(true);
-				instance.getNotificationGUIManager().openNotificationGUI(gui.context.holder(),
+				boolean opened = instance.getNotificationGUIManager().openNotificationGUI(gui.context.holder(),
 						gui.islandContext.holder(), gui.isOwner);
-				ActionManager.trigger(gui.context, notificationActions);
+				if (opened)
+					ActionManager.trigger(gui.context, notificationActions);
 				return;
 			}
 
 			if (element.getSymbol() == leaderboardSlot) {
 				event.setCancelled(true);
-				instance.getLeaderboardGUIManager().openLeaderboardGUI(gui.context.holder(), gui.islandContext.holder(),
-						gui.isOwner, true);
-				ActionManager.trigger(gui.context, leaderboardActions);
+				boolean opened = instance.getLeaderboardGUIManager().openLeaderboardGUI(gui.context.holder(),
+						gui.islandContext.holder(), gui.isOwner, true);
+				if (opened)
+					ActionManager.trigger(gui.context, leaderboardActions);
 				return;
 			}
 
 			if (element.getSymbol() == visitSlot) {
 				event.setCancelled(true);
-				instance.getVisitGUIManager().openVisitGUI(gui.context.holder(), gui.islandContext.holder(),
-						VisitSorter.FEATURED, gui.isOwner, true);
-				ActionManager.trigger(gui.context, visitActions);
+				boolean opened = instance.getVisitGUIManager().openVisitGUI(gui.context.holder(),
+						gui.islandContext.holder(), VisitSorter.FEATURED, gui.isOwner, true);
+				if (opened)
+					ActionManager.trigger(gui.context, visitActions);
 				return;
 			}
 
 			if (element.getSymbol() == eventSlot) {
 				event.setCancelled(true);
-				instance.getStorageManager().getCachedUserDataWithFallback(hellblockData.getOwnerUUID(),
-						instance.getConfigManager().lockData()).thenAccept(optionalData -> {
-							if (optionalData.isEmpty()) {
+				instance.getStorageManager().getCachedUserDataWithFallback(hellblockData.getOwnerUUID(), false)
+						.thenAccept(optData -> {
+							if (optData.isEmpty()) {
 								// Close inventory on the main thread
 								instance.getScheduler().executeSync(player::closeInventory);
 								return;
 							}
 
-							UserData ownerData = optionalData.get();
+							UserData ownerData = optData.get();
 
 							if (ownerData.getHellblockData().isAbandoned()) {
 								// Send abandoned message and play sound on the main thread
@@ -575,25 +589,30 @@ public class HellblockGUIManager implements HellblockGUIManagerInterface, Listen
 							}
 
 							instance.getScheduler().executeSync(() -> {
-								instance.getEventGUIManager().openEventGUI(gui.context.holder(),
+								boolean opened = instance.getEventGUIManager().openEventGUI(gui.context.holder(),
 										gui.islandContext.holder(), gui.isOwner);
-								ActionManager.trigger(gui.context, eventActions);
+								if (opened)
+									ActionManager.trigger(gui.context, eventActions);
 							});
+						}).exceptionally(ex -> {
+							instance.getPluginLogger().severe("Failed to open EventGUI for "
+									+ gui.context.holder().getName() + ": " + ex.getMessage());
+							return null;
 						});
 				return;
 			}
 
 			if (element.getSymbol() == partySlot) {
 				event.setCancelled(true);
-				instance.getStorageManager().getCachedUserDataWithFallback(hellblockData.getOwnerUUID(),
-						instance.getConfigManager().lockData()).thenAccept(optionalData -> {
-							if (optionalData.isEmpty()) {
+				instance.getStorageManager().getCachedUserDataWithFallback(hellblockData.getOwnerUUID(), false)
+						.thenAccept(optData -> {
+							if (optData.isEmpty()) {
 								// Close inventory on the main thread
 								instance.getScheduler().executeSync(player::closeInventory);
 								return;
 							}
 
-							UserData ownerData = optionalData.get();
+							UserData ownerData = optData.get();
 
 							if (ownerData.getHellblockData().isAbandoned()) {
 								// Send abandoned message and play sound on the main thread
@@ -610,39 +629,59 @@ public class HellblockGUIManager implements HellblockGUIManagerInterface, Listen
 							gui.islandContext.arg(ContextKeys.ISLAND_PARTY_COUNT,
 									ownerData.getHellblockData().getPartyMembers().size());
 							instance.getScheduler().executeSync(() -> {
-								instance.getPartyGUIManager().openPartyGUI(gui.context.holder(),
+								boolean opened = instance.getPartyGUIManager().openPartyGUI(gui.context.holder(),
 										gui.islandContext.holder(), gui.isOwner);
-								ActionManager.trigger(gui.context, partyActions);
+								if (opened)
+									ActionManager.trigger(gui.context, partyActions);
 							});
+						}).exceptionally(ex -> {
+							instance.getPluginLogger().severe("Failed to open PartyGUI for "
+									+ gui.context.holder().getName() + ": " + ex.getMessage());
+							return null;
 						});
 				return;
 			}
 
 			if (element.getSymbol() == teleportSlot) {
 				event.setCancelled(true);
-				instance.getStorageManager().getCachedUserDataWithFallback(hellblockData.getOwnerUUID(),
-						instance.getConfigManager().lockData()).thenAccept(result -> {
-							if (result.isEmpty()) {
-								// Close inventory on the main thread
+				instance.getStorageManager().getCachedUserDataWithFallback(hellblockData.getOwnerUUID(), true)
+						.thenCompose(optData -> {
+							if (optData.isEmpty()) {
 								instance.getScheduler().executeSync(player::closeInventory);
-								return;
+								return CompletableFuture.completedFuture(false);
 							}
-							UserData ownerData = result.get();
+
+							UserData ownerData = optData.get();
+
 							if (ownerData.getHellblockData().isAbandoned()) {
-								audience.sendMessage(instance.getTranslationManager()
-										.render(MessageConstants.MSG_HELLBLOCK_IS_ABANDONED.build()));
-								AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
-										Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
-												net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
-								return;
+								instance.getScheduler().executeSync(() -> {
+									audience.sendMessage(instance.getTranslationManager()
+											.render(MessageConstants.MSG_HELLBLOCK_IS_ABANDONED.build()));
+									AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
+											Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
+													net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
+								});
+								return CompletableFuture.completedFuture(false);
 							}
-							if (ownerData.getHellblockData().getHomeLocation() != null) {
-								instance.getCoopManager().makeHomeLocationSafe(ownerData, userData.get())
-										.thenCompose(unused -> instance.getWorldManager()
-												.ensureHellblockWorldLoaded(ownerData.getHellblockData().getIslandId()))
-										.thenAccept(loadedWorld -> {
-											World world = loadedWorld.bukkitWorld();
-											if (world == null) {
+
+							if (ownerData.getHellblockData().getHomeLocation() == null) {
+								instance.getScheduler().executeSync(() -> {
+									audience.sendMessage(instance.getTranslationManager()
+											.render(MessageConstants.MSG_HELLBLOCK_ERROR_HOME_LOCATION.build()));
+									AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
+											Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
+													net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
+								});
+								return CompletableFuture.failedFuture(new NullPointerException(
+										"Hellblock home location returned null, please report this to the developer."));
+							}
+
+							return instance.getWorldManager()
+									.ensureHellblockWorldLoaded(ownerData.getHellblockData().getIslandId())
+									.thenCompose(loadedWorld -> {
+										World world = loadedWorld.bukkitWorld();
+										if (world == null) {
+											instance.getScheduler().executeSync(() -> {
 												audience.sendMessage(instance.getTranslationManager().render(
 														MessageConstants.MSG_HELLBLOCK_ERROR_HOME_LOCATION.build()));
 												AdventureHelper.playSound(
@@ -651,28 +690,48 @@ public class HellblockGUIManager implements HellblockGUIManagerInterface, Listen
 																net.kyori.adventure.key.Key
 																		.key("minecraft:entity.villager.no"),
 																net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
-												throw new IllegalStateException(
-														"Failed to load world for home location.");
-											}
-											// Close inventory on the main thread
-											instance.getScheduler().executeSync(player::closeInventory);
-											gui.islandContext.arg(ContextKeys.ISLAND_HOME_LOCATION,
-													ownerData.getHellblockData().getHomeLocation());
-											ActionManager.trigger(gui.context, teleportActions);
-										}).exceptionally(ex -> {
-											instance.getPluginLogger()
-													.warn("An error occurred while trying to teleport", ex);
-											return null;
-										});
-							} else {
-								audience.sendMessage(instance.getTranslationManager()
-										.render(MessageConstants.MSG_HELLBLOCK_ERROR_HOME_LOCATION.build()));
-								AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
-										Sound.sound(net.kyori.adventure.key.Key.key("minecraft:entity.villager.no"),
-												net.kyori.adventure.sound.Sound.Source.PLAYER, 1, 1));
-								throw new NullPointerException(
-										"Hellblock home location returned null, please report this to the developer.");
-							}
+											});
+											return CompletableFuture.failedFuture(new IllegalStateException(
+													"Failed to load world for home location."));
+										}
+
+										return instance.getCoopManager().makeHomeLocationSafe(ownerData, userData.get())
+												.thenCompose(result -> {
+													switch (result) {
+													case ALREADY_SAFE:
+														instance.getScheduler().executeSync(player::closeInventory);
+														gui.islandContext.arg(ContextKeys.ISLAND_HOME_LOCATION,
+																ownerData.getHellblockData().getHomeLocation());
+														ActionManager.trigger(gui.context, teleportActions);
+														return instance.getHellblockHandler().teleportPlayerToHome(
+																userData.get(),
+																ownerData.getHellblockData().getHomeLocation());
+													case FIXED_AND_TELEPORTED:
+														instance.getScheduler().executeSync(player::closeInventory);
+														gui.islandContext.arg(ContextKeys.ISLAND_HOME_LOCATION,
+																ownerData.getHellblockData().getHomeLocation());
+														ActionManager.trigger(gui.context, teleportActions);
+														return CompletableFuture.completedFuture(true);
+													case FAILED_TO_FIX:
+													default:
+														instance.getScheduler().executeSync(player::closeInventory);
+														return CompletableFuture.completedFuture(instance
+																.getHellblockHandler().teleportToSpawn(player, true));
+													}
+												});
+									});
+						}).handle((result, ex) -> {
+							// Always unlock user data
+							instance.getStorageManager().unlockUserData(hellblockData.getOwnerUUID())
+									.thenAccept(unused -> {
+										if (ex != null) {
+											instance.getPluginLogger().warn(
+													"Failed to perform teleportation to hellblock home for player: "
+															+ gui.context.holder().getName(),
+													ex);
+										}
+									});
+							return null;
 						});
 				return;
 			}
@@ -703,9 +762,10 @@ public class HellblockGUIManager implements HellblockGUIManagerInterface, Listen
 							instance.getCooldownManager().getFormattedCooldown(hellblockData.getResetCooldown()));
 					ActionManager.trigger(gui.context, resetCooldownActions);
 				} else {
-					instance.getResetConfirmGUIManager().openResetConfirmGUI(gui.context.holder(),
+					boolean opened = instance.getResetConfirmGUIManager().openResetConfirmGUI(gui.context.holder(),
 							gui.islandContext.holder(), gui.isOwner);
-					ActionManager.trigger(gui.context, resetActions);
+					if (opened)
+						ActionManager.trigger(gui.context, resetActions);
 				}
 				return;
 			}
@@ -719,9 +779,10 @@ public class HellblockGUIManager implements HellblockGUIManagerInterface, Listen
 					ActionManager.trigger(gui.context, biomeCooldownActions);
 				} else {
 					gui.islandContext.arg(ContextKeys.ISLAND_BIOME, hellblockData.getBiome());
-					instance.getBiomeGUIManager().openBiomeGUI(gui.context.holder(), gui.islandContext.holder(),
-							gui.isOwner);
-					ActionManager.trigger(gui.context, biomeActions);
+					boolean opened = instance.getBiomeGUIManager().openBiomeGUI(gui.context.holder(),
+							gui.islandContext.holder(), gui.isOwner);
+					if (opened)
+						ActionManager.trigger(gui.context, biomeActions);
 				}
 				return;
 			}
@@ -733,20 +794,28 @@ public class HellblockGUIManager implements HellblockGUIManagerInterface, Listen
 				hellblockData.setLockedStatus(newLockState);
 				gui.islandContext.arg(ContextKeys.ISLAND_STATUS, newLockState);
 
-				instance.getCoopManager().kickVisitorsIfLocked(userData.get().getUUID());
 				instance.getWorldManager().getWorld(gui.context.holder().getWorld()).ifPresent(world -> {
-					instance.getProtectionManager().changeLockStatus(world, userData.get().getUUID());
-
-					Action<Player>[] actions = newLockState ? lockActions : unlockActions;
-					ActionManager.trigger(gui.context, actions);
+					instance.getProtectionManager().changeLockStatus(world, userData.get().getUUID())
+							.thenCompose(status -> {
+								if (!status) {
+									Action<Player>[] actions = newLockState ? lockActions : unlockActions;
+									ActionManager.trigger(gui.context, actions);
+								}
+								return instance.getCoopManager().kickVisitorsIfLocked(userData.get().getUUID());
+							}).exceptionally(ex -> {
+								instance.getPluginLogger().warn("Failed to change island lock status for "
+										+ userData.get().getName() + ": " + ex.getMessage(), ex);
+								return null;
+							});
 				});
 			}
 
 			if (element.getSymbol() == flagSlot) {
 				event.setCancelled(true);
-				instance.getFlagsGUIManager().openFlagsGUI(gui.context.holder(), gui.islandContext.holder(),
-						gui.isOwner);
-				ActionManager.trigger(gui.context, flagActions);
+				boolean opened = instance.getFlagsGUIManager().openFlagsGUI(gui.context.holder(),
+						gui.islandContext.holder(), gui.isOwner);
+				if (opened)
+					ActionManager.trigger(gui.context, flagActions);
 				return;
 			}
 
@@ -755,9 +824,10 @@ public class HellblockGUIManager implements HellblockGUIManagerInterface, Listen
 				gui.islandContext.arg(ContextKeys.ISLAND_NAME, hellblockData.getDisplaySettings().getIslandName())
 						.arg(ContextKeys.ISLAND_BIO, hellblockData.getDisplaySettings().getIslandBio())
 						.arg(ContextKeys.ISLAND_DISPLAY_CHOICE, hellblockData.getDisplaySettings().getDisplayChoice());
-				instance.getDisplaySettingsGUIManager().openDisplaySettingsGUI(gui.context.holder(),
+				boolean opened = instance.getDisplaySettingsGUIManager().openDisplaySettingsGUI(gui.context.holder(),
 						gui.islandContext.holder(), gui.isOwner);
-				ActionManager.trigger(gui.context, displayActions);
+				if (opened)
+					ActionManager.trigger(gui.context, displayActions);
 				return;
 			}
 
@@ -776,15 +846,18 @@ public class HellblockGUIManager implements HellblockGUIManagerInterface, Listen
 						.arg(ContextKeys.ISLAND_CROP_TIER, hellblockData.getUpgradeLevel(IslandUpgradeType.CROP_GROWTH))
 						.arg(ContextKeys.ISLAND_MOB_TIER,
 								hellblockData.getUpgradeLevel(IslandUpgradeType.MOB_SPAWN_RATE));
-				instance.getUpgradeGUIManager().openUpgradeGUI(gui.context.holder(), gui.islandContext.holder(),
-						gui.isOwner);
-				ActionManager.trigger(gui.context, upgradeActions);
+				boolean opened = instance.getUpgradeGUIManager().openUpgradeGUI(gui.context.holder(),
+						gui.islandContext.holder(), gui.isOwner);
+				if (opened)
+					ActionManager.trigger(gui.context, upgradeActions);
 				return;
 			}
 		}
 
 		// Refresh the GUI
-		if (instance.getCooldownManager().shouldUpdateActivity(player.getUniqueId(), 15000)) {
+		if (instance.getCooldownManager().shouldUpdateActivity(player.getUniqueId(), 15000))
+
+		{
 			gui.hellblockData.updateLastIslandActivity();
 		}
 		instance.getScheduler().sync().runLater(gui::refresh, 1, player.getLocation());

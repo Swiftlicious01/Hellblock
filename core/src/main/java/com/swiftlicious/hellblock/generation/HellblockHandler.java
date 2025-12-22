@@ -20,6 +20,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.bukkit.Bukkit;
@@ -60,6 +61,7 @@ import com.swiftlicious.hellblock.protection.HellblockFlag.FlagType;
 import com.swiftlicious.hellblock.protection.IslandProtection;
 import com.swiftlicious.hellblock.scheduler.SchedulerTask;
 import com.swiftlicious.hellblock.schematic.EntitySnapshot;
+import com.swiftlicious.hellblock.schematic.IslandBackupManager;
 import com.swiftlicious.hellblock.schematic.IslandSnapshot;
 import com.swiftlicious.hellblock.schematic.IslandSnapshotBlock;
 import com.swiftlicious.hellblock.sender.Sender;
@@ -232,7 +234,7 @@ public class HellblockHandler implements Reloadable {
 									isReset).thenCompose(vv -> {
 
 										// Step 6: Save initialized user data before proceeding
-										return instance.getStorageManager().saveUserData(ownerData, false)
+										return instance.getStorageManager().saveUserData(ownerData, true)
 												.thenRun(() -> instance.getStorageManager()
 														.invalidateCachedUserData(ownerData.getUUID()))
 												.thenCompose(vvv -> {
@@ -690,7 +692,7 @@ public class HellblockHandler implements Reloadable {
 					}
 
 					// Step 3: Teleport player
-					return teleportPlayerToHome(ownerData);
+					return teleportPlayerToHome(ownerData, checkedSafeLocation);
 				})
 
 				// Step 4: Post-teleport tasks
@@ -706,12 +708,13 @@ public class HellblockHandler implements Reloadable {
 					instance.getIslandManager().handleIslandCreation(ownerData.getUUID(), hellblockData.getIslandId());
 					if (ownerData.getPlayer() != null && ownerData.getPlayer().isOnline())
 						instance.getBorderHandler().startBorderTask(ownerData.getUUID());
-					instance.getBiomeHandler().applyHellblockBiomeChange(hellblockData, hellblockData.getBiome(),
-							false);
 					instance.getCoopManager().validateCachedOwnerData(ownerData.getUUID());
 
-					instance.debug("postGenerationTasks: Biome set for " + ownerData.getName() + "'s island in world '"
-							+ world.worldName() + "' to " + hellblockData.getBiome().toString() + ".");
+					instance.getCoopManager().removeNonOwnerUUID(ownerData.getUUID());
+
+					instance.debug("postGenerationTasks: Added " + ownerData.getName()
+							+ " as an owner in future cache checks (Island ID="
+							+ ownerData.getHellblockData().getIslandId() + ")");
 
 					// Reset logic
 					if (isReset) {
@@ -722,44 +725,54 @@ public class HellblockHandler implements Reloadable {
 						hellblockData.setPreservedBoundingBox(null);
 					}
 
-					// Cleanup ghost liquids if any
-					return cleanupGhostLiquids(world, ownerData.getHellblockData().getIslandId()).thenCompose(vvv -> {
+					// Apply biome changes
+					return instance.getBiomeHandler()
+							.applyHellblockBiomeChange(ownerData, hellblockData.getBiome(), false).thenCompose(vvv -> {
 
-						// Fire event for plugins
-						final HellblockPostCreationEvent postCreationEvent = new HellblockPostCreationEvent(ownerData);
-						EventUtils.fireAndForget(postCreationEvent);
+								instance.debug("postGenerationTasks: Biome set for " + ownerData.getName()
+										+ "'s island in world '" + world.worldName() + "' to "
+										+ hellblockData.getBiome().toString() + ".");
 
-						instance.debug("postGenerationTasks: HellblockPostCreationEvent dispatched for "
-								+ ownerData.getName());
+								// Cleanup ghost liquids if any
+								return cleanupGhostLiquids(world, ownerData.getHellblockData().getIslandId())
+										.thenCompose(vvvv -> {
 
-						instance.getCoopManager().removeNonOwnerUUID(ownerData.getUUID());
+											// Fire event for plugins
+											final HellblockPostCreationEvent postCreationEvent = new HellblockPostCreationEvent(
+													ownerData);
+											EventUtils.fireAndForget(postCreationEvent);
 
-						instance.debug("postGenerationTasks: Added " + ownerData.getName()
-								+ " as an owner in future cache checks (Island ID="
-								+ ownerData.getHellblockData().getIslandId() + ")");
-
-						return instance.getStorageManager().getDataSource()
-								.updatePlayerData(ownerData.getUUID(), ownerData.toPlayerData(), true).thenRun(() -> {
-									instance.getStorageManager().invalidateCachedUserData(ownerData.getUUID());
-									if (instance.getConfigManager().perPlayerWorlds()) {
-										World bukkitWorld = world.bukkitWorld();
-										if (bukkitWorld != null && bukkitWorld.getPlayers().isEmpty()) {
 											instance.debug(
-													"postGenerationTasks: Scheduling idle unload for newly created per-player world: "
-															+ world.worldName());
-											instance.getScheduler().sync().runLater(() -> {
-												if (bukkitWorld.getPlayers().isEmpty()) {
-													instance.getWorldManager().unloadWorld(bukkitWorld, false);
-													Bukkit.unloadWorld(bukkitWorld, true);
-													instance.debug(
-															"postGenerationTasks: Unloaded inactive newly created world: "
-																	+ world.worldName());
-												}
-											}, 20L * 120L, homeLocation); // check again after 2 minutes
-										}
-									}
-								});
-					});
+													"postGenerationTasks: HellblockPostCreationEvent dispatched for "
+															+ ownerData.getName());
+
+											return instance.getStorageManager().saveUserData(ownerData, true)
+													.thenRun(() -> {
+														instance.getStorageManager()
+																.invalidateCachedUserData(ownerData.getUUID());
+														if (instance.getConfigManager().perPlayerWorlds()) {
+															World bukkitWorld = world.bukkitWorld();
+															if (bukkitWorld != null
+																	&& bukkitWorld.getPlayers().isEmpty()) {
+																instance.debug(
+																		"postGenerationTasks: Scheduling idle unload for newly created per-player world: "
+																				+ world.worldName());
+																instance.getScheduler().sync().runLater(() -> {
+																	if (bukkitWorld.getPlayers().isEmpty()) {
+																		instance.getWorldManager()
+																				.unloadWorld(bukkitWorld, false);
+																		Bukkit.unloadWorld(bukkitWorld, true);
+																		instance.debug(
+																				"postGenerationTasks: Unloaded inactive newly created world: "
+																						+ world.worldName());
+																	}
+																}, 20L * 120L, homeLocation); // check again after 2
+																								// minutes
+															}
+														}
+													});
+										});
+							});
 				});
 	}
 
@@ -842,29 +855,29 @@ public class HellblockHandler implements Reloadable {
 	 * Teleports the specified player to their Hellblock home location
 	 * asynchronously.
 	 *
-	 * @param ownerData The UserData containing the home location
+	 * @param playerData   The UserData of the player to teleport
+	 * @param homeLocation The home location to teleport to
 	 * @return A CompletableFuture that resolves to true if teleportation was
 	 *         successful, false otherwise
 	 */
 	@NotNull
-	public CompletableFuture<Boolean> teleportPlayerToHome(@NotNull UserData ownerData) {
-		Player player = ownerData.getPlayer();
-		HellblockData data = ownerData.getHellblockData();
-		Location homeLocation = data.getHomeLocation();
-
-		if (homeLocation.getWorld() == null) {
-			instance.getPluginLogger().warn("teleportPlayerToHome: Home location world is null for "
-					+ ownerData.getName() + ". Teleport skipped.");
+	public CompletableFuture<Boolean> teleportPlayerToHome(@NotNull UserData playerData,
+			@Nullable Location homeLocation) {
+		if (homeLocation == null || homeLocation.getWorld() == null) {
+			instance.getPluginLogger().warn(
+					"teleportPlayerToHome: Home location is null for " + playerData.getName() + ". Teleport skipped.");
 			return CompletableFuture.completedFuture(false);
 		}
+
+		final Player player = playerData.getPlayer();
 
 		if (player == null || !player.isOnline()) {
-			instance.debug("teleportPlayerToHome: Player " + ownerData.getName() + " is offline. Queueing teleport.");
-			instance.getMailboxManager().queueMailbox(ownerData.getUUID(), MailboxFlag.QUEUE_TELEPORT_HOME);
+			instance.debug("teleportPlayerToHome: Player " + playerData.getName() + " is offline. Queueing teleport.");
+			instance.getMailboxManager().queueMailbox(playerData.getUUID(), MailboxFlag.QUEUE_TELEPORT_HOME);
 			return CompletableFuture.completedFuture(false);
 		}
 
-		instance.debug("teleportPlayerToHome: Teleporting player " + ownerData.getName() + " to home at [world="
+		instance.debug("teleportPlayerToHome: Teleporting player " + playerData.getName() + " to home at [world="
 				+ homeLocation.getWorld().getName() + ", x=" + homeLocation.getBlockX() + ", y="
 				+ homeLocation.getBlockY() + ", z=" + homeLocation.getBlockZ() + "]");
 
@@ -873,11 +886,11 @@ public class HellblockHandler implements Reloadable {
 				World world = homeLocation.getWorld();
 				if (world != null) {
 					instance.getWorldManager().markWorldAccess(world.getName());
-					instance.debug("teleportPlayerToHome: Teleport successful for " + ownerData.getName()
+					instance.debug("teleportPlayerToHome: Teleport successful for " + playerData.getName()
 							+ ". World access marked: " + world.getName());
 				}
 			} else {
-				instance.getPluginLogger().warn("teleportPlayerToHome: Teleport failed for " + ownerData.getName());
+				instance.getPluginLogger().warn("teleportPlayerToHome: Teleport failed for " + playerData.getName());
 			}
 			return success;
 		});
@@ -951,7 +964,7 @@ public class HellblockHandler implements Reloadable {
 	 * @return A {@link CompletableFuture} that completes when cleanup and visual
 	 *         refresh are finished
 	 */
-	public CompletableFuture<Void> cleanupGhostLiquids(@NotNull HellblockWorld<?> world, int islandId) {
+	private CompletableFuture<Void> cleanupGhostLiquids(@NotNull HellblockWorld<?> world, int islandId) {
 		instance.debug("cleanupGhostLiquids: Starting cleanup for island ID=" + islandId);
 
 		// Stage 1: collect all chunks belonging to the island
@@ -980,8 +993,18 @@ public class HellblockHandler implements Reloadable {
 								continue;
 
 							if (mat == Material.WATER || mat == Material.LAVA) {
-								iterator.remove();
-								removed++;
+								BlockPos pos = entry.getKey();
+
+								// Cross-check actual world block
+								Material realType = instance.getScheduler().supplySync(
+										() -> world.bukkitWorld().getBlockAt(pos.x(), pos.y(), pos.z()).getType())
+										.join();
+
+								// Only remove if the world does NOT contain real fluid
+								if (realType != Material.WATER && realType != Material.LAVA) {
+									iterator.remove();
+									removed++;
+								}
 							}
 						}
 					}
@@ -1022,56 +1045,56 @@ public class HellblockHandler implements Reloadable {
 	 */
 	public CompletableFuture<Void> resetHellblock(@NotNull UUID ownerId, boolean forceReset,
 			@Nullable String executorNameForReset) {
+
 		instance.debug("resetHellblock: Starting reset for UUID=" + ownerId + ", force=" + forceReset);
 
-		return instance.getStorageManager()
-				.getCachedUserDataWithFallback(ownerId, instance.getConfigManager().lockData())
-				.thenComposeAsync(result -> {
-					if (result.isEmpty()) {
-						instance.debug("resetHellblock: No UserData found for UUID=" + ownerId + ". Aborting reset.");
-						return CompletableFuture.completedFuture(null);
-					}
+		return instance.getStorageManager().getCachedUserDataWithFallback(ownerId, true).thenComposeAsync(optData -> {
+			if (optData.isEmpty()) {
+				instance.debug("resetHellblock: No UserData found for UUID=" + ownerId + ". Aborting reset.");
+				return CompletableFuture.completedFuture(null);
+			}
 
-					final UserData ownerData = result.get();
-					final HellblockData data = ownerData.getHellblockData();
-					final String playerName = ownerData.getName();
-					final Location home = data.getHomeLocation();
-					final int islandId = data.getIslandId();
+			final UserData ownerData = optData.get();
+			final HellblockData data = ownerData.getHellblockData();
+			final String playerName = ownerData.getName();
+			final Location home = data.getHomeLocation();
+			final int islandId = data.getIslandId();
 
-					instance.debug("resetHellblock: Resolved world and home location for " + playerName + " (Island ID="
-							+ islandId + ")");
+			instance.debug("resetHellblock: Resolved world and home location for " + playerName + " (Island ID="
+					+ islandId + ")");
 
-					startResetProcess(ownerId);
+			startResetProcess(ownerId);
 
-					// Step 1: create snapshot before reset
-					instance.debug("resetHellblock: Creating snapshot before reset for " + playerName);
-					return instance.getIslandBackupManager().createPreResetSnapshot(ownerId)
-							.thenComposeAsync(snapshotTs -> {
+			// Step 1: create snapshot before reset
+			instance.debug("resetHellblock: Creating snapshot before reset for " + playerName);
+			return instance.getIslandBackupManager().createPreResetSnapshot(ownerId).thenComposeAsync(snapshotTs -> {
 
-								final HellblockResetEvent resetEvent = new HellblockResetEvent(ownerId, ownerData,
-										forceReset);
-								EventUtils.fireAndForget(resetEvent);
-								instance.debug("resetHellblock: HellblockResetEvent called for " + playerName);
+				EventUtils.fireAndForget(new HellblockResetEvent(ownerId, ownerData, forceReset));
 
-								final Map<Pos3, CustomBlock> blockChanges = new LinkedHashMap<>();
+				final Map<Pos3, CustomBlock> blockChanges = new LinkedHashMap<>();
 
-								// Notify owner (must run sync)
-								Player online = Bukkit.getPlayer(ownerId);
-								if (!forceReset && online != null) {
-									instance.debug("resetHellblock: Notifying owner " + ownerData.getName());
-									instance.getScheduler().executeSync(() -> notifyOwnerStartReset(ownerData), home);
-								}
+				// Notify owner (must run sync)
+				Player online = Bukkit.getPlayer(ownerId);
+				if (!forceReset && online != null) {
+					instance.debug("resetHellblock: Notifying reset to owner " + ownerData.getName());
+					instance.getScheduler().executeSync(() -> notifyOwnerStartReset(ownerData), home);
+				}
 
-								// Step 2: perform reset (returns CompletableFuture<Void>)
-								instance.debug("resetHellblock: Performing reset for " + playerName);
-								return performReset(ownerData, home, blockChanges, forceReset, islandId,
-										executorNameForReset);
-							});
-				}).exceptionally(ex -> {
+				// Step 2: perform reset
+				instance.debug("resetHellblock: Performing reset for " + playerName);
+				return performReset(ownerData, home, blockChanges, forceReset, islandId, executorNameForReset)
+						.thenCompose(v -> instance.getStorageManager().saveUserData(ownerData, true));
+			});
+			// Wrap the whole chain in a handle to capture both result and error
+		}).handle((res, ex) -> {
+			// Always unlock and end reset process
+			return instance.getStorageManager().unlockUserData(ownerId).thenRun(() -> {
+				if (ex != null) {
 					instance.getPluginLogger().severe("resetHellblock: Exception during reset of UUID=" + ownerId, ex);
-					endResetProcess(ownerId);
-					return null;
-				});
+				}
+				endResetProcess(ownerId);
+			});
+		}).thenCompose(Function.identity()); // Flatten nested CompletableFuture
 	}
 
 	/**
@@ -1152,11 +1175,6 @@ public class HellblockHandler implements Reloadable {
 		instance.debug("performReset: Starting island reset for " + ownerName + " (ID=" + islandId + ", force="
 				+ forceReset + ")");
 		return instance.getWorldManager().ensureHellblockWorldLoaded(islandId).thenCompose(hellblockWorld -> {
-			// Sync biome change
-			instance.debug("performReset: Applying biome override to Nether Wastes...");
-			instance.getScheduler().executeSync(() -> instance.getBiomeHandler()
-					.applyHellblockBiomeChange(ownerData.getHellblockData(), HellBiome.NETHER_WASTES, false));
-
 			instance.debug("performReset: Cancelling block scan for " + ownerName);
 			instance.getProtectionManager().cancelBlockScan(ownerUUID);
 
@@ -1167,31 +1185,38 @@ public class HellblockHandler implements Reloadable {
 			instance.getCoopManager().invalidateCachedOwnerData(ownerUUID);
 			instance.getHopperHandler().invalidateHopperWarningCache(islandId);
 
-			// Async block gathering
-			instance.debug("performReset: Fetching all protected blocks to reset...");
+			// Sync biome change
+			instance.debug("performReset: Applying biome override to Nether Wastes...");
+			return instance.getBiomeHandler().applyHellblockBiomeChange(ownerData, HellBiome.NETHER_WASTES, false)
+					.thenCompose(v -> {
 
-			return instance.getProtectionManager().getHellblockBlocks(hellblockWorld, ownerUUID)
-					.thenCompose(positions -> {
-						AtomicInteger count = new AtomicInteger(0);
-						List<CompletableFuture<Void>> futures = new ArrayList<>();
+						// Async block gathering
+						instance.debug("performReset: Fetching all protected blocks to reset...");
 
-						for (Pos3 pos : positions) {
-							CompletableFuture<Void> future = hellblockWorld.getBlockState(pos)
-									.thenAccept(optionalState -> {
-										optionalState.ifPresent(state -> {
-											if (!state.isAir()) {
-												blockChanges.put(pos, CustomBlockTypes.AIR);
-												count.incrementAndGet();
-											}
-										});
-									});
-							futures.add(future);
-						}
+						return instance.getProtectionManager().getHellblockBlocks(hellblockWorld, ownerUUID)
+								.thenCompose(positions -> {
+									AtomicInteger count = new AtomicInteger(0);
+									List<CompletableFuture<Void>> futures = new ArrayList<>();
 
-						instance.debug("performReset: Queued " + count.get() + " block changes to AIR for reset.");
-						return CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new))
-								.thenCompose(v -> unprotectAndResetIsland(ownerData, hellblockWorld, home, blockChanges,
-										forceReset, islandId, executorNameForReset));
+									for (Pos3 pos : positions) {
+										CompletableFuture<Void> future = hellblockWorld.getBlockState(pos)
+												.thenAccept(optionalState -> {
+													optionalState.ifPresent(state -> {
+														if (!state.isAir()) {
+															blockChanges.put(pos, CustomBlockTypes.AIR);
+															count.incrementAndGet();
+														}
+													});
+												});
+										futures.add(future);
+									}
+
+									instance.debug(
+											"performReset: Queued " + count.get() + " block changes to AIR for reset.");
+									return CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new))
+											.thenCompose(vv -> unprotectAndResetIsland(ownerData, hellblockWorld, home,
+													blockChanges, forceReset, islandId, executorNameForReset));
+								});
 					});
 		});
 	}
@@ -1223,21 +1248,24 @@ public class HellblockHandler implements Reloadable {
 				.thenCompose(v -> {
 					instance.debug("unprotectAndResetIsland: Hellblock unprotected for " + ownerName);
 					return handlePartyMembers(ownerData, forceReset, executorNameForReset);
-				}).thenCompose(v -> {
-					instance.debug("unprotectAndResetIsland: Party members handled for " + ownerName);
+				}).thenCompose(success -> {
+					if (!success) {
+						instance.debug("unprotectAndResetIsland: Failed to handle party members for " + ownerName);
+					} else {
+						instance.debug("unprotectAndResetIsland: Party members handled for " + ownerName);
+					}
 					return handleVisitors(ownerUUID);
-				}).thenRun(() -> {
+				}).thenCompose(success -> {
+					if (!success) {
+						instance.debug("unprotectAndResetIsland: Failed to handle visitors for " + ownerName);
+					} else {
+						instance.debug("unprotectAndResetIsland: Visitors handled for " + ownerName);
+					}
+					instance.debug("unprotectAndResetIsland: Resetting owner data for " + ownerName);
+					return resetOwnerData(ownerData, forceReset, world, blockChanges, home, executorNameForReset);
+				}).thenCompose(v -> {
 					instance.debug("unprotectAndResetIsland: Finalizing reset and updating world...");
-
-					instance.getScheduler().executeSync(() -> {
-						instance.debug("unprotectAndResetIsland: Resetting owner data for " + ownerName);
-						resetOwnerData(ownerData, forceReset, world, blockChanges, home, executorNameForReset);
-					}, home);
-
-					instance.getScheduler().executeSync(() -> {
-						instance.debug("unprotectAndResetIsland: Finalizing reset tasks (GUI or world deletion)");
-						finalizeReset(ownerData, forceReset, islandId, home);
-					}, home);
+					return finalizeReset(ownerData, forceReset, islandId, home);
 				});
 	}
 
@@ -1248,36 +1276,43 @@ public class HellblockHandler implements Reloadable {
 	 * @param forceReset           Whether the reset is forced
 	 * @param executorNameForReset The name of the executor if forced, null
 	 *                             otherwise
-	 * @return A CompletableFuture that completes when all party members have been
-	 *         handled
+	 * @return A {@link CompletableFuture} that completes when all party members
+	 *         have been handled
 	 */
-	private CompletableFuture<Void> handlePartyMembers(@NotNull UserData ownerData, boolean forceReset,
+	private CompletableFuture<Boolean> handlePartyMembers(@NotNull UserData ownerData, boolean forceReset,
 			@Nullable String executorNameForReset) {
 		final Set<UUID> party = ownerData.getHellblockData().getPartyMembers();
 		String ownerName = ownerData.getName();
 
 		if (party.isEmpty()) {
 			instance.debug("handlePartyMembers: No party members found for " + ownerName);
-			return CompletableFuture.completedFuture(null);
+			return CompletableFuture.completedFuture(true);
 		}
 
-		instance.debug("handlePartyMembers: Processing " + party.size() + " party members for " + ownerName
-				+ " (forceReset=" + forceReset + ")");
+		instance.debug("handlePartyMembers: Processing " + party.size() + " party member"
+				+ (party.size() == 1 ? "" : "s") + " for " + ownerName + " (forceReset=" + forceReset + ")");
 
-		final List<CompletableFuture<Void>> futures = new ArrayList<>();
-
-		party.forEach(uuid -> {
-			final Player member = Bukkit.getPlayer(uuid);
+		List<CompletableFuture<Boolean>> futures = party.stream().map(memberUUID -> {
+			Player member = Bukkit.getPlayer(memberUUID);
 			if (member != null && member.isOnline()) {
 				instance.debug("handlePartyMembers: Handling **online** party member " + member.getName());
-				futures.add(handleOnlinePartyMember(member, ownerData, forceReset, executorNameForReset));
+				return handleOnlinePartyMember(member, ownerData, forceReset, executorNameForReset);
 			} else {
-				instance.debug("handlePartyMembers: Handling **offline** party member UUID=" + uuid);
-				futures.add(handleOfflinePartyMember(uuid, forceReset, executorNameForReset));
+				instance.debug("handlePartyMembers: Handling **offline** party member UUID=" + memberUUID);
+				return handleOfflinePartyMember(memberUUID, forceReset, executorNameForReset);
 			}
-		});
+		}).collect(Collectors.toList());
 
-		return CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new));
+		return CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new)).thenApply(v -> {
+			// All futures completed; collect results
+			for (CompletableFuture<Boolean> future : futures) {
+				if (future.isCompletedExceptionally()) {
+					return false;
+				}
+			}
+
+			return futures.stream().allMatch(f -> f.getNow(false));
+		});
 	}
 
 	/**
@@ -1289,29 +1324,32 @@ public class HellblockHandler implements Reloadable {
 	 * @param forceReset           Whether the reset is forced
 	 * @param executorNameForReset The name of the executor if forced, null
 	 *                             otherwise
-	 * @return A CompletableFuture that completes when the online member has been
-	 *         handled
+	 * @return A {@link CompletableFuture} that completes when the online member has
+	 *         been handled
 	 */
-	private CompletableFuture<Void> handleOnlinePartyMember(@NotNull Player member, @NotNull UserData ownerData,
+	private CompletableFuture<Boolean> handleOnlinePartyMember(@NotNull Player member, @NotNull UserData ownerData,
 			boolean forceReset, @Nullable String executorNameForReset) {
-		final Optional<UserData> onlineMemberOpt = instance.getStorageManager().getOnlineUser(member.getUniqueId());
+		final Optional<UserData> memberOpt = instance.getStorageManager().getOnlineUser(member.getUniqueId());
 		String memberName = member.getName();
 
-		if (onlineMemberOpt.isEmpty()) {
+		if (memberOpt.isEmpty()) {
 			instance.debug(
 					"handleOnlinePartyMember: UserData not found for online member " + memberName + ". Skipping.");
-			return CompletableFuture.completedFuture(null);
+			return instance.getScheduler().callSync(() -> {
+				return CompletableFuture.completedFuture(teleportToSpawn(member, true));
+			});
 		}
 
-		final UserData data = onlineMemberOpt.get();
+		final UserData memberData = memberOpt.get();
 		instance.debug("handleOnlinePartyMember: Resetting hellblock data for online member " + memberName);
 
-		data.getHellblockData().resetHellblockData();
+		memberData.getHellblockData().resetHellblockData();
+		memberData.getChallengeData().clearChallengeMeta();
 		instance.getBorderHandler().stopBorderTask(member.getUniqueId());
 		instance.getFishingManager().getFishHook(member.getUniqueId()).ifPresent(CustomFishingHook::destroy);
 
 		member.closeInventory();
-		instance.debug("handleOnlinePartyMember: Closed inventory and stopped border task for " + memberName);
+		instance.debug("handleOnlinePartyMember: Reset data and stopped border task for " + memberName);
 
 		if (instance.getConfigManager().resetInventory()) {
 			member.getInventory().clear();
@@ -1324,7 +1362,7 @@ public class HellblockHandler implements Reloadable {
 			instance.debug("handleOnlinePartyMember: Cleared ender chest for " + memberName);
 		}
 
-		teleportToSpawn(member, true);
+		instance.getScheduler().runSync(() -> teleportToSpawn(member, true));
 		instance.debug("handleOnlinePartyMember: Teleported " + memberName + " to spawn");
 
 		final Sender audience = instance.getSenderFactory().wrap(member);
@@ -1335,7 +1373,7 @@ public class HellblockHandler implements Reloadable {
 			audience.sendMessage(
 					instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_RESET_PARTY_NOTIFICATION
 							.arguments(AdventureHelper.miniMessageToComponent(ownerName)).build()));
-		} else if (forceReset) {
+		} else if (forceReset && executorNameForReset != null) {
 			instance.debug("handleOnlinePartyMember: Sending forced reset message to " + memberName + " from executor "
 					+ executorNameForReset);
 			audience.sendMessage(instance.getTranslationManager()
@@ -1343,7 +1381,7 @@ public class HellblockHandler implements Reloadable {
 							.arguments(AdventureHelper.miniMessageToComponent(executorNameForReset)).build()));
 		}
 
-		return CompletableFuture.completedFuture(null);
+		return CompletableFuture.completedFuture(true);
 	}
 
 	/**
@@ -1354,54 +1392,60 @@ public class HellblockHandler implements Reloadable {
 	 * @param forceReset           Whether the reset is forced
 	 * @param executorNameForReset The name of the executor if forced, null
 	 *                             otherwise
-	 * @return A CompletableFuture that completes when the offline member has been
-	 *         handled
+	 * @return A {@link CompletableFuture} that completes when the offline member
+	 *         has been handled
 	 */
-	private CompletableFuture<Void> handleOfflinePartyMember(@NotNull UUID memberId, boolean forceReset,
+	private CompletableFuture<Boolean> handleOfflinePartyMember(@NotNull UUID memberId, boolean forceReset,
 			@Nullable String executorNameForReset) {
-		return instance.getStorageManager()
-				.getCachedUserDataWithFallback(memberId, instance.getConfigManager().lockData()).thenAccept(result -> {
-					if (result.isEmpty()) {
-						instance.debug("handleOfflinePartyMember: No UserData found for offline party member UUID="
-								+ memberId);
-						return;
-					}
+		return instance.getStorageManager().getCachedUserDataWithFallback(memberId, true).thenCompose(optData -> {
+			if (optData.isEmpty()) {
+				instance.debug("handleOfflinePartyMember: No UserData found for offline party member UUID=" + memberId);
+				return CompletableFuture.completedFuture(false);
+			}
 
-					final UserData offlineMember = result.get();
-					final UUID ownerUUID = offlineMember.getHellblockData().getOwnerUUID();
-					String memberName = offlineMember.getName();
-					String ownerName = instance.getTranslationManager()
-							.miniMessageTranslation(MessageConstants.FORMAT_UNKNOWN.build().key());
+			final UserData memberData = optData.get();
+			final UUID ownerUUID = memberData.getHellblockData().getOwnerUUID();
+			final String memberName = memberData.getName();
+			String ownerName = instance.getTranslationManager()
+					.miniMessageTranslation(MessageConstants.FORMAT_UNKNOWN.build().key());
 
-					// Resolve owner's name if possible
-					if (ownerUUID != null) {
-						OfflinePlayer owner = Bukkit.getOfflinePlayer(ownerUUID);
-						if (owner.hasPlayedBefore() && owner.getName() != null) {
-							ownerName = owner.getName();
-						}
-					}
+			// Resolve owner's name if possible
+			if (ownerUUID != null) {
+				OfflinePlayer owner = Bukkit.getOfflinePlayer(ownerUUID);
+				if (owner.hasPlayedBefore() && owner.getName() != null) {
+					ownerName = owner.getName();
+				}
+			}
 
-					instance.debug("handleOfflinePartyMember: Resetting hellblock data for offline member " + memberName
-							+ " (UUID=" + memberId + "), owner=" + ownerName + ", forceReset=" + forceReset);
+			instance.debug("handleOfflinePartyMember: Resetting hellblock data for offline member " + memberName
+					+ " (UUID=" + memberId + "), owner=" + ownerName + ", forceReset=" + forceReset);
 
-					offlineMember.getHellblockData().resetHellblockData();
+			memberData.getHellblockData().resetHellblockData();
 
-					String mailboxMessageKey = forceReset ? "message.hellblock.coop.deleted.offline"
-							: "message.hellblock.coop.reset.offline";
+			String mailboxMessageKey = forceReset ? "message.hellblock.coop.deleted.offline"
+					: "message.hellblock.coop.reset.offline";
 
-					List<Component> args = forceReset
-							? List.of(AdventureHelper.miniMessageToComponent(executorNameForReset))
-							: List.of(AdventureHelper.miniMessageToComponent(ownerName));
+			List<Component> args = forceReset ? List.of(AdventureHelper.miniMessageToComponent(executorNameForReset))
+					: List.of(AdventureHelper.miniMessageToComponent(ownerName));
 
-					Set<MailboxFlag> flags = Set.of(MailboxFlag.RESET_INVENTORY, MailboxFlag.RESET_ENDERCHEST,
-							MailboxFlag.UNSAFE_LOCATION, MailboxFlag.NOTIFY_PARTY);
+			Set<MailboxFlag> flags = Set.of(MailboxFlag.RESET_INVENTORY, MailboxFlag.RESET_ENDERCHEST,
+					MailboxFlag.UNSAFE_LOCATION, MailboxFlag.NOTIFY_PARTY);
 
-					instance.debug("handleOfflinePartyMember: Queueing mailbox message '" + mailboxMessageKey + "' for "
-							+ memberName + " with flags " + flags);
+			instance.debug("handleOfflinePartyMember: Queueing mailbox message '" + mailboxMessageKey + "' for "
+					+ memberName + " with flags " + flags);
 
-					instance.getMailboxManager().queue(offlineMember.getUUID(),
-							new MailboxEntry(mailboxMessageKey, args, flags));
-				});
+			return instance.getMailboxManager().queue(memberData.getUUID(),
+					new MailboxEntry(mailboxMessageKey, args, flags));
+		}).handle((result, ex) -> {
+			return instance.getStorageManager().unlockUserData(memberId).thenApply(unused -> {
+				if (ex != null) {
+					instance.getPluginLogger()
+							.severe("handleOfflinePartyMember: Error handling partyMemberId=" + memberId, ex);
+				}
+
+				return result != null && result;
+			});
+		}).thenCompose(Function.identity());
 	}
 
 	/**
@@ -1409,34 +1453,42 @@ public class HellblockHandler implements Reloadable {
 	 * online visitors to spawn and queuing mailbox flags for offline visitors.
 	 *
 	 * @param ownerId The UUID of the island owner
-	 * @return A CompletableFuture that completes when all visitors have been
-	 *         handled
+	 * @return A {@link CompletableFuture} that completes when all visitors have
+	 *         been handled
 	 */
-	private CompletableFuture<Void> handleVisitors(@NotNull UUID ownerId) {
+	private CompletableFuture<Boolean> handleVisitors(@NotNull UUID ownerId) {
 		instance.debug("handleVisitors: Fetching active visitors for island ID=" + ownerId);
 
 		return instance.getCoopManager().getVisitors(ownerId).thenCompose(visitors -> {
 			if (visitors.isEmpty()) {
 				instance.debug("handleVisitors: No visitors found for island ID=" + ownerId);
-				return CompletableFuture.completedFuture(null);
+				return CompletableFuture.completedFuture(true);
 			}
 
-			instance.debug("handleVisitors: Found " + visitors.size() + " visitors for island ID=" + ownerId);
+			instance.debug("handleVisitors: Found " + visitors.size() + " visitor" + (visitors.size() == 1 ? "" : "s")
+					+ " for island ID=" + ownerId);
 
-			final List<CompletableFuture<Void>> futures = new ArrayList<>();
-
-			visitors.forEach(visitorUUID -> {
+			List<CompletableFuture<Boolean>> futures = visitors.stream().map(visitorUUID -> {
 				Player visitor = Bukkit.getPlayer(visitorUUID);
 				if (visitor != null && visitor.isOnline()) {
 					instance.debug("handleVisitors: Handling **online** visitor " + visitor.getName());
-					futures.add(handleOnlineVisitor(visitor, visitorUUID));
+					return handleOnlineVisitor(visitor, visitorUUID);
 				} else {
 					instance.debug("handleVisitors: Handling **offline** visitor UUID=" + visitorUUID);
-					futures.add(handleOfflineVisitor(visitorUUID));
+					return handleOfflineVisitor(visitorUUID);
 				}
-			});
+			}).collect(Collectors.toList());
 
-			return CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new));
+			return CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new)).thenApply(v -> {
+				// All futures completed; collect results
+				for (CompletableFuture<Boolean> future : futures) {
+					if (future.isCompletedExceptionally()) {
+						return false;
+					}
+				}
+
+				return futures.stream().allMatch(f -> f.getNow(false));
+			});
 		});
 	}
 
@@ -1446,16 +1498,19 @@ public class HellblockHandler implements Reloadable {
 	 *
 	 * @param visitor   The online visitor player
 	 * @param visitorId The UUID of the visitor
-	 * @return A CompletableFuture that completes when the visitor has been handled
+	 * @return A {@link CompletableFuture} that completes when the visitor has been
+	 *         handled
 	 */
-	private CompletableFuture<Void> handleOnlineVisitor(@NotNull Player visitor, @NotNull UUID visitorId) {
+	private CompletableFuture<Boolean> handleOnlineVisitor(@NotNull Player visitor, @NotNull UUID visitorId) {
 		final Optional<UserData> visitorOpt = instance.getStorageManager().getOnlineUser(visitorId);
 		String visitorName = visitor.getName();
 
 		if (visitorOpt.isEmpty()) {
-			instance.debug("handleOnlineVisitor: No UserData found for online visitor " + visitorName + " (UUID="
-					+ visitorId + ")");
-			return CompletableFuture.completedFuture(null);
+			instance.debug("handleOnlineVisitor: No UserData found for online visitor, teleporting to spawn... "
+					+ visitorName + " (UUID=" + visitorId + ")");
+			return instance.getScheduler().callSync(() -> {
+				return CompletableFuture.completedFuture(teleportToSpawn(visitor, true));
+			});
 		}
 
 		final UserData visitorData = visitorOpt.get();
@@ -1465,62 +1520,107 @@ public class HellblockHandler implements Reloadable {
 		if (visitorData.getHellblockData().hasHellblock()) {
 			final UUID ownerUUID = visitorData.getHellblockData().getOwnerUUID();
 			if (ownerUUID == null) {
-				instance.getPluginLogger().warn("handleOnlineVisitor: Null owner UUID for visitor " + visitorName);
-				throw new NullPointerException("Owner reference returned null, please report this to the developer.");
+				instance.getPluginLogger().warn(
+						"handleOnlineVisitor: Null owner UUID for visitor, teleporting to spawn... " + visitorName);
+				return instance.getScheduler().callSync(() -> {
+					teleportToSpawn(visitor, true);
+					return CompletableFuture.failedFuture(new NullPointerException(
+							"Owner reference returned null, please report this to the developer."));
+				});
 			}
 
 			instance.debug(
 					"handleOnlineVisitor: Visitor " + visitorName + " is part of island owned by UUID=" + ownerUUID);
 
-			return instance.getStorageManager()
-					.getCachedUserDataWithFallback(ownerUUID, instance.getConfigManager().lockData())
-					.thenAccept(ownerOpt -> {
-						if (ownerOpt.isEmpty()) {
-							instance.debug("handleOnlineVisitor: Owner data not found. Teleporting " + visitorName
-									+ " to spawn.");
-							teleportToSpawn(visitor, true);
-							return;
-						}
-
-						UserData owner = ownerOpt.get();
-						instance.debug("handleOnlineVisitor: Making home location safe for visitor " + visitorName
-								+ " (owner=" + owner.getName() + ")");
-						instance.getCoopManager().makeHomeLocationSafe(owner, visitorData);
+			return instance.getStorageManager().getCachedUserDataWithFallback(ownerUUID, true).thenCompose(optData -> {
+				if (optData.isEmpty()) {
+					instance.debug(
+							"handleOnlineVisitor: Owner data not found. Teleporting " + visitorName + " to spawn.");
+					return instance.getScheduler().callSync(() -> {
+						return CompletableFuture.completedFuture(teleportToSpawn(visitor, true));
 					});
+				}
+
+				UserData ownerData = optData.get();
+				instance.debug("handleOnlineVisitor: Making home location safe for visitor " + visitorName + " (owner="
+						+ ownerData.getName() + ")");
+				return instance.getCoopManager().makeHomeLocationSafe(ownerData, visitorData)
+						.thenCompose(safetyResult -> {
+							return switch (safetyResult) {
+							case ALREADY_SAFE -> {
+								instance.debug("handleOnlineVisitor: Home is already safe, teleporting complete for "
+										+ visitorName);
+								yield teleportPlayerToHome(visitorData, ownerData.getHellblockData().getHomeLocation());
+							}
+							case FIXED_AND_TELEPORTED -> {
+								instance.debug(
+										"handleOnlineVisitor: Home fixed and teleport complete for " + visitorName);
+								yield CompletableFuture.completedFuture(true);
+							}
+							case FAILED_TO_FIX -> {
+								instance.getPluginLogger().warn("handleOnlineVisitor: Failed to fix home for "
+										+ visitorName + ", teleporting to spawn.");
+								yield instance.getScheduler().callSync(() -> {
+									return CompletableFuture.completedFuture(teleportToSpawn(visitor, true));
+								});
+							}
+							};
+						});
+			}).thenCompose(success -> {
+				if (success) {
+					World world = visitor.getWorld();
+					instance.getWorldManager().markWorldAccess(world.getName());
+					instance.debug(
+							"handleOnlineVisitor: Teleported " + visitorName + " to safe location on their island.");
+				}
+				return CompletableFuture.completedFuture(success);
+			}).handle((result, ex) -> {
+				return instance.getStorageManager().unlockUserData(ownerUUID).thenApply(unused -> {
+					if (ex != null) {
+						instance.getPluginLogger().severe("handleOnlineVisitor: Error handling visitor " + visitorName,
+								ex);
+					}
+
+					return result != null && result;
+				});
+			}).thenCompose(Function.identity());
 		} else {
 			instance.debug("handleOnlineVisitor: " + visitorName
 					+ " is not part of a Hellblock island. Teleporting to spawn.");
-			teleportToSpawn(visitor, true);
+			return instance.getScheduler().callSync(() -> {
+				return CompletableFuture.completedFuture(teleportToSpawn(visitor, true));
+			});
 		}
-
-		return CompletableFuture.completedFuture(null);
 	}
 
 	/**
 	 * Handles an offline visitor by queuing a mailbox flag for unsafe location.
 	 *
 	 * @param visitorId The UUID of the offline visitor
-	 * @return A CompletableFuture that completes when the visitor has been handled
+	 * @return A {@link CompletableFuture} that completes when the visitor has been
+	 *         handled
 	 */
-	private CompletableFuture<Void> handleOfflineVisitor(@NotNull UUID visitorId) {
+	private CompletableFuture<Boolean> handleOfflineVisitor(@NotNull UUID visitorId) {
 		instance.debug("handleOfflineVisitor: Attempting to resolve UserData for offline visitor UUID=" + visitorId);
 
-		return instance.getStorageManager()
-				.getCachedUserDataWithFallback(visitorId, instance.getConfigManager().lockData())
-				.thenAccept(visitorResult -> {
-					if (visitorResult.isEmpty()) {
-						instance.debug("handleOfflineVisitor: No UserData found for offline visitor UUID=" + visitorId);
-						return;
-					}
+		return instance.getStorageManager().getCachedUserDataWithFallback(visitorId, false).thenCompose(optData -> {
+			if (optData.isEmpty()) {
+				instance.debug("handleOfflineVisitor: No UserData found for offline visitor UUID=" + visitorId);
+				return CompletableFuture.completedFuture(false);
+			}
 
-					final UserData visitorData = visitorResult.get();
-					final String visitorName = visitorData.getName();
+			final UserData visitorData = optData.get();
+			final String visitorName = visitorData.getName();
 
-					instance.debug("handleOfflineVisitor: Queuing UNSAFE_LOCATION mailbox flag for offline visitor "
-							+ visitorName);
+			instance.debug(
+					"handleOfflineVisitor: Queuing UNSAFE_LOCATION mailbox flag for offline visitor " + visitorName);
 
-					instance.getMailboxManager().queueMailbox(visitorData.getUUID(), MailboxFlag.UNSAFE_LOCATION);
-				});
+			return instance.getMailboxManager().queueMailbox(visitorData.getUUID(), MailboxFlag.UNSAFE_LOCATION);
+		}).exceptionally(ex -> {
+			instance.getPluginLogger().warn("handleOfflineVisitor: Failed to read offline visitorId=" + visitorId
+					+ "'s data: " + ex.getMessage(), ex);
+			return false;
+		});
 	}
 
 	/**
@@ -1536,15 +1636,14 @@ public class HellblockHandler implements Reloadable {
 	 * @param executorNameForReset The name of the executor if forced, null
 	 *                             otherwise
 	 */
-	private void resetOwnerData(@NotNull UserData ownerData, boolean forceReset, @NotNull HellblockWorld<?> world,
-			@NotNull Map<Pos3, CustomBlock> blockChanges, @NotNull Location home,
+	private CompletableFuture<Void> resetOwnerData(@NotNull UserData ownerData, boolean forceReset,
+			@NotNull HellblockWorld<?> world, @NotNull Map<Pos3, CustomBlock> blockChanges, @NotNull Location home,
 			@Nullable String executorNameForReset) {
-		String playerName = ownerData.getName();
+		final String playerName = ownerData.getName();
 		instance.debug("resetOwnerData: Resetting data for " + playerName + " (forceReset=" + forceReset + ")");
 
 		ownerData.getHellblockData().resetHellblockData();
 		ownerData.getHellblockData().setDefaultUpgradeTiers();
-
 		ownerData.getLocationCacheData().clearBlockData();
 
 		if (!forceReset && !ownerData.isOnline()) {
@@ -1554,6 +1653,7 @@ public class HellblockHandler implements Reloadable {
 
 		if (ownerData.isOnline()) {
 			Player owner = Bukkit.getPlayer(ownerData.getUUID());
+			ownerData.getChallengeData().clearChallengeMeta();
 			Sender audience = instance.getSenderFactory().wrap(owner);
 			instance.getFishingManager().getFishHook(owner.getUniqueId()).ifPresent(CustomFishingHook::destroy);
 
@@ -1574,13 +1674,14 @@ public class HellblockHandler implements Reloadable {
 				owner.getInventory().clear();
 				owner.getInventory().setArmorContents(null);
 			}
+
 			if (instance.getConfigManager().resetEnderchest()) {
 				instance.debug("resetOwnerData: Clearing ender chest for " + playerName);
 				owner.getEnderChest().clear();
 			}
 
 			instance.debug("resetOwnerData: Teleporting " + playerName + " to spawn after reset.");
-			teleportToSpawn(owner, true);
+			instance.getScheduler().runSync(() -> teleportToSpawn(owner, true));
 		} else {
 			instance.debug("resetOwnerData: Player " + playerName + " is offline. Queueing mailbox entry.");
 			instance.getMailboxManager().queue(ownerData.getUUID(),
@@ -1593,29 +1694,28 @@ public class HellblockHandler implements Reloadable {
 		}
 
 		instance.debug("resetOwnerData: Restoring original blocks after reset for " + playerName);
-		instance.getScheduler().executeAsync(() -> {
-			List<CompletableFuture<Void>> futures = new ArrayList<>();
 
-			for (Map.Entry<Pos3, CustomBlock> entry : blockChanges.entrySet()) {
-				Pos3 pos = entry.getKey();
-				CustomBlock blockType = entry.getValue();
+		// Build list of futures to track block restoration
+		List<CompletableFuture<Void>> futures = new ArrayList<>();
 
-				CompletableFuture<Void> future = world.getBlockState(pos).thenAccept(optionalState -> {
-					optionalState.ifPresent(state -> {
-						if (state.hasInventory()) {
-							state.clearInventory();
-						}
-					});
+		for (Map.Entry<Pos3, CustomBlock> entry : blockChanges.entrySet()) {
+			Pos3 pos = entry.getKey();
+			CustomBlock blockType = entry.getValue();
 
-					world.updateBlockState(pos, blockType.createBlockState())
-							.thenRun(() -> world.removeBlockState(pos));
-				});
+			CompletableFuture<Void> future = world.getBlockState(pos).thenCompose(optionalState -> {
+				if (optionalState.isPresent() && optionalState.get().hasInventory()) {
+					optionalState.get().clearInventory();
+				}
 
-				futures.add(future);
-			}
+				return world.updateBlockState(pos, blockType.createBlockState())
+						.thenRun(() -> world.removeBlockState(pos));
+			});
 
-			CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new)).join();
-		});
+			futures.add(future);
+		}
+
+		// Return a future that completes when all block resets are done
+		return CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new));
 	}
 
 	/**
@@ -1627,36 +1727,69 @@ public class HellblockHandler implements Reloadable {
 	 * @param islandId   The ID of the Hellblock island
 	 * @param home       The home location of the Hellblock island
 	 */
-	private void finalizeReset(@NotNull UserData ownerData, boolean forceReset, int islandId, @NotNull Location home) {
+	private CompletableFuture<Void> finalizeReset(@NotNull UserData ownerData, boolean forceReset, int islandId,
+			@NotNull Location home) {
 		String playerName = ownerData.getName();
 
 		instance.debug("finalizeReset: Finalizing reset for " + playerName + " (forceReset=" + forceReset + ", ID="
 				+ islandId + ")");
 
+		List<CompletableFuture<Void>> tasks = new ArrayList<>();
+
 		if (!forceReset && ownerData.isOnline()) {
 			Player player = Bukkit.getPlayer(ownerData.getUUID());
-			instance.debug("finalizeReset: Opening island choice GUI for " + playerName);
-			instance.getScheduler().sync()
-					.runLater(() -> instance.getIslandChoiceGUIManager().openIslandChoiceGUI(player, true), 20L, home);
+			if (player != null) {
+				instance.debug("finalizeReset: Opening island choice GUI for " + playerName);
+
+				// Wrap sync delayed GUI opening in a CompletableFuture
+				CompletableFuture<Void> guiFuture = new CompletableFuture<>();
+				instance.getScheduler().sync().runLater(() -> {
+					try {
+						instance.getIslandChoiceGUIManager().openIslandChoiceGUI(player, true);
+					} finally {
+						guiFuture.complete(null);
+					}
+				}, 20L, home);
+				tasks.add(guiFuture);
+			}
 		} else if (forceReset) {
 			ownerData.getHellblockData().setPreservedBoundingBox(null);
 			ownerData.getHellblockData().setIslandId(0);
 			ownerData.getHellblockData().setResetCooldown(0L);
+
 			instance.getCoopManager().invalidateCachedOwnerData(ownerData.getUUID());
 			instance.getIslandBackupManager().deleteAllSnapshots(ownerData.getUUID());
+
 			if (instance.getConfigManager().perPlayerWorlds()) {
 				String worldName = instance.getWorldManager().getHellblockWorldFormat(islandId);
 				instance.debug("finalizeReset: Deleting personal world '" + worldName + "' for " + playerName);
-				instance.getWorldManager().adapter().deleteWorld(worldName);
+
+				// Run deleteWorld on main thread and wait for it using a future
+				CompletableFuture<Void> deleteFuture = new CompletableFuture<>();
+				instance.getScheduler().runSync(() -> {
+					try {
+						instance.getWorldManager().adapter().deleteWorld(worldName);
+					} finally {
+						deleteFuture.complete(null);
+					}
+				});
+				tasks.add(deleteFuture);
 			}
 		}
 
-		// Invalidate caches
-		instance.debug("finalizeReset: Invalidating caches for island ID " + islandId);
-		invalidateHellblockIDCache();
-		endResetProcess(ownerData.getUUID());
-		instance.getStorageManager().getDataSource().invalidateIslandCache(islandId);
-		instance.getProtectionManager().invalidateIslandChunkCache(islandId);
+		// Always invalidate caches
+		CompletableFuture<Void> cacheFuture = CompletableFuture.runAsync(() -> {
+			instance.debug("finalizeReset: Invalidating caches for island ID " + islandId);
+			invalidateHellblockIDCache();
+			endResetProcess(ownerData.getUUID());
+			instance.getStorageManager().getDataSource().invalidateIslandCache(islandId);
+			instance.getProtectionManager().invalidateIslandChunkCache(islandId);
+		});
+
+		tasks.add(cacheFuture);
+
+		// Combine all tasks and return when done
+		return CompletableFuture.allOf(tasks.toArray(CompletableFuture[]::new));
 	}
 
 	/**
@@ -1665,25 +1798,27 @@ public class HellblockHandler implements Reloadable {
 	 *
 	 * @param userData The user data of the player to check
 	 */
-	public void ensureSafety(@NotNull UserData userData) {
-		Player player = userData.getPlayer();
+	public CompletableFuture<Boolean> ensureSafety(@NotNull UserData userData) {
+		final Player player = userData.getPlayer();
+		final AtomicReference<UUID> lockedOwnerUUID = new AtomicReference<>(null); // Track what we locked
+
 		if (player == null || !player.isOnline() || player.getLocation() == null) {
 			instance.debug("ensureSafety: Skipping safety check – player not online or location is null.");
-			return;
+			return CompletableFuture.completedFuture(true);
 		}
 
 		if (!isInCorrectWorld(player)) {
 			instance.debug(
-					"ensureSafety: Skipping safety check – player not in hellblock world, safety is irrevelant.");
-			return;
+					"ensureSafety: Skipping safety check – player not in hellblock world, safety is irrelevant.");
+			return CompletableFuture.completedFuture(true);
 		}
 
 		instance.debug("ensureSafety: Checking if " + player.getName() + " is in a safe location...");
 
-		LocationUtils.isSafeLocationAsync(player.getLocation(), player).thenAccept(isSafe -> {
+		return LocationUtils.isSafeLocationAsync(player.getLocation(), player).thenCompose(isSafe -> {
 			if (isSafe) {
 				instance.debug("ensureSafety: Location is safe for " + player.getName());
-				return;
+				return CompletableFuture.completedFuture(true);
 			}
 
 			instance.debug("ensureSafety: Unsafe location detected for " + player.getName());
@@ -1691,145 +1826,233 @@ public class HellblockHandler implements Reloadable {
 			if (userData.getHellblockData().hasHellblock()) {
 				final UUID ownerUUID = userData.getHellblockData().getOwnerUUID();
 				if (ownerUUID == null) {
-					throw new NullPointerException("ensureSafety: Owner UUID is null for " + player.getName());
+					instance.getPluginLogger().warn("ensureSafety: Owner UUID is null for " + player.getName());
+					return instance.getScheduler().callSync(() -> {
+						return CompletableFuture.completedFuture(teleportToSpawn(player, false));
+					});
 				}
 
+				lockedOwnerUUID.set(ownerUUID); // Track who we're locking
 				instance.debug("ensureSafety: Resolving owner UserData for UUID=" + ownerUUID);
-				instance.getStorageManager()
-						.getCachedUserDataWithFallback(ownerUUID, instance.getConfigManager().lockData())
-						.thenAccept(optionalOwner -> {
-							if (optionalOwner.isEmpty()) {
+
+				return instance.getStorageManager().getCachedUserDataWithFallback(ownerUUID, true)
+						.thenCompose(optData -> {
+							if (optData.isEmpty()) {
 								instance.debug("ensureSafety: Owner data not found for " + player.getName()
 										+ ", teleporting to spawn.");
-								instance.getScheduler().executeSync(() -> teleportToSpawn(player, false));
-								return;
+								return instance.getScheduler().callSync(() -> {
+									return CompletableFuture.completedFuture(teleportToSpawn(player, false));
+								});
 							}
 
-							final UserData ownerUser = optionalOwner.get();
-							if (ownerUser.getHellblockData().getHomeLocation() != null) {
-								instance.debug("ensureSafety: Making home location safe for " + player.getName());
-								instance.getScheduler().executeSync(
-										() -> instance.getCoopManager().makeHomeLocationSafe(ownerUser, userData));
-							} else {
-								instance.debug("ensureSafety: Owner has no home location. Teleporting "
-										+ player.getName() + " to spawn.");
-								instance.getScheduler().executeSync(() -> teleportToSpawn(player, false));
-							}
-						}).exceptionally(ex -> {
-							instance.getPluginLogger()
-									.severe("ensureSafety: Error retrieving owner data for " + player.getName(), ex);
-							instance.getScheduler().executeSync(() -> teleportToSpawn(player, false));
-							return null;
+							final UserData ownerData = optData.get();
+
+							return instance.getCoopManager().makeHomeLocationSafe(ownerData, userData)
+									.thenCompose(safetyResult -> {
+										return switch (safetyResult) {
+										case ALREADY_SAFE -> {
+											instance.debug(
+													"ensureSafety: Home is already safe, teleporting complete for "
+															+ player.getName());
+											yield teleportPlayerToHome(userData,
+													ownerData.getHellblockData().getHomeLocation());
+										}
+										case FIXED_AND_TELEPORTED -> {
+											instance.debug("ensureSafety: Home fixed and teleport complete for "
+													+ player.getName());
+											yield CompletableFuture.completedFuture(true);
+										}
+										case FAILED_TO_FIX -> {
+											instance.getPluginLogger().warn("ensureSafety: Failed to fix home for "
+													+ player.getName() + ", teleporting to spawn.");
+											yield instance.getScheduler().callSync(() -> {
+												return CompletableFuture
+														.completedFuture(teleportToSpawn(player, false));
+											});
+										}
+										};
+									});
 						});
 			} else {
 				instance.debug("ensureSafety: Player " + player.getName() + " has no hellblock. Teleporting to spawn.");
-				instance.getScheduler().executeSync(() -> teleportToSpawn(player, false));
+				return instance.getScheduler().callSync(() -> {
+					return CompletableFuture.completedFuture(teleportToSpawn(player, false));
+				});
 			}
-		});
+		}).thenCompose(success -> {
+			if (success) {
+				World world = player.getWorld();
+				instance.getWorldManager().markWorldAccess(world.getName());
+				instance.debug("ensureSafety: Teleported " + player.getName() + " to safe location on their island.");
+			}
+			return CompletableFuture.completedFuture(success);
+		}).handle((result, ex) -> {
+			UUID lockedId = lockedOwnerUUID.get(); // Only unlock if we locked
+			CompletableFuture<Boolean> unlockFuture;
+
+			if (lockedId != null) {
+				unlockFuture = instance.getStorageManager().unlockUserData(lockedId)
+						.thenApply(unused -> result != null && result);
+			} else {
+				unlockFuture = CompletableFuture.completedFuture(result != null && result);
+			}
+
+			if (ex != null) {
+				instance.getPluginLogger().severe("ensureSafety: Error handling safety for player " + player.getName(),
+						ex);
+			}
+
+			return unlockFuture;
+		}).thenCompose(Function.identity());
 	}
 
 	/**
-	 * Handles logic for players visiting other Hellblock islands, including ban
-	 * enforcement and safe teleportation if necessary.
+	 * Handles logic for players visiting other Hellblock islands, including
+	 * ban/lock enforcement and safe teleportation if necessary.
 	 *
 	 * <p>
 	 * This method checks if the player is currently on another player's island,
-	 * verifies if they are banned, and handles teleportation either back to their
-	 * home island or to spawn if needed.
+	 * verifies if they are banned or if island is locked, and handles teleportation
+	 * either back to their home island or to spawn if needed.
 	 *
-	 * @param player     The player visiting the island.
-	 * @param onlineUser The UserData of the visiting player.
+	 * @param visitor     The player visiting the island.
+	 * @param visitorData The UserData of the visiting player.
 	 */
-	public void handleVisitingIsland(@NotNull Player player, @NotNull UserData onlineUser) {
-		final UUID playerId = player.getUniqueId();
+	public CompletableFuture<Boolean> handleVisitingIsland(@NotNull Player visitor, @NotNull UserData visitorData) {
+		final UUID playerId = visitor.getUniqueId();
+		final AtomicReference<UUID> lockedOwnerUUID = new AtomicReference<>(null); // Track what we locked
 
-		instance.getCoopManager().getHellblockOwnerOfVisitingIsland(player).thenCompose(ownerUUID -> {
+		return instance.getCoopManager().getHellblockOwnerOfVisitingIsland(visitor).thenCompose(ownerUUID -> {
 			if (ownerUUID == null) {
-				instance.debug("Player " + player.getName() + " is not on a Hellblock island. Skipping visit check.");
+				instance.debug("handleVisitingIsland: Player " + visitor.getName()
+						+ " is not on a Hellblock island. Skipping visit check.");
 				return CompletableFuture.completedFuture(null);
 			}
 
-			instance.debug("Player " + player.getName() + " is visiting island owned by " + ownerUUID);
+			instance.debug(
+					"handleVisitingIsland: Player " + visitor.getName() + " is visiting island owned by " + ownerUUID);
 
-			return instance.getStorageManager()
-					.getCachedUserDataWithFallback(ownerUUID, instance.getConfigManager().lockData())
-					.thenApply(ownerOpt -> {
-						if (ownerOpt.isEmpty()) {
-							instance.debug("No UserData found for island owner " + ownerUUID);
-							return null;
-						}
+			return instance.getStorageManager().getCachedUserDataWithFallback(ownerUUID, false).thenApply(optData -> {
+				if (optData.isEmpty()) {
+					instance.debug("handleVisitingIsland: No UserData found for owner " + ownerUUID);
+					return null;
+				}
 
-						final UserData ownerUser = ownerOpt.get();
-						final HellblockData ownerData = ownerUser.getHellblockData();
-						final BoundingBox bounds = ownerData.getBoundingBox();
-						if (bounds == null) {
-							instance.debug("Bounding box not found for owner " + ownerUUID);
-							return null;
-						}
+				final UserData ownerData = optData.get();
+				final HellblockData hellblockData = ownerData.getHellblockData();
+				final BoundingBox bounds = hellblockData.getBoundingBox();
+				if (bounds == null) {
+					instance.debug("handleVisitingIsland: BoundingBox not found for owner " + ownerUUID);
+					return null;
+				}
 
-						boolean isBypassing = player.isOp() || player.hasPermission("hellblock.admin")
-								|| player.hasPermission("hellblock.bypass.interact");
+				boolean isLocked = hellblockData.isLocked();
+				boolean isBypassing = visitor.isOp() || visitor.hasPermission("hellblock.admin")
+						|| visitor.hasPermission("hellblock.bypass.interact");
+				Set<UUID> banned = hellblockData.getBannedMembers();
 
-						Set<UUID> banned = ownerData.getBannedMembers();
+				if (!isBypassing && bounds.contains(visitor.getLocation().toVector())) {
+					if (banned.contains(playerId)) {
+						instance.debug("handleVisitingIsland: Player " + visitor.getName() + " is banned from island "
+								+ ownerUUID);
+						return ownerData;
+					} else if (isLocked) {
+						instance.debug("handleVisitingIsland: Entry to island " + ownerUUID
+								+ " is locked. Denying access for " + visitor.getName());
+						return ownerData;
+					}
+				}
 
-						if (!isBypassing && bounds.contains(player.getLocation().toVector())
-								&& banned.contains(playerId)) {
-							instance.debug("Player " + player.getName() + " is banned from island " + ownerUUID);
-							return ownerUser;
-						}
+				instance.debug(
+						"handleVisitingIsland: Player " + visitor.getName() + " is allowed on island " + ownerUUID);
+				return null;
+			});
+		}).thenCompose(savedOwnerData -> {
+			if (savedOwnerData == null) {
+				return CompletableFuture.completedFuture(false);
+			}
 
-						instance.debug("Player " + player.getName() + " is not banned from island " + ownerUUID);
-						return null;
+			final UUID visitorOwnerUUID = visitorData.getHellblockData().getOwnerUUID();
+
+			return instance.getCoopManager().kickVisitorsIfLocked(savedOwnerData.getUUID()).thenCompose(kicked -> {
+				if (visitorData.getHellblockData().hasHellblock() && visitorOwnerUUID != null) {
+					instance.debug("handleVisitingIsland: Kicking visitor " + visitor.getName()
+							+ " back to their home island.");
+
+					lockedOwnerUUID.set(visitorOwnerUUID); // Track who we're locking
+					return instance.getStorageManager().getCachedUserDataWithFallback(visitorOwnerUUID, true)
+							.thenCompose(optData -> {
+								if (optData.isEmpty()) {
+									instance.debug(
+											"handleVisitingIsland: No home island data found for visitor's island owner "
+													+ visitorOwnerUUID);
+									return CompletableFuture.completedFuture(true);
+								}
+
+								final UserData homeOwnerData = optData.get();
+
+								return instance.getCoopManager().makeHomeLocationSafe(homeOwnerData, visitorData)
+										.thenCompose(safetyResult -> {
+											return switch (safetyResult) {
+											case ALREADY_SAFE -> {
+												instance.debug("handleVisitingIsland: Teleported visitor home: "
+														+ visitor.getName());
+												yield teleportPlayerToHome(visitorData,
+														homeOwnerData.getHellblockData().getHomeLocation());
+											}
+											case FIXED_AND_TELEPORTED -> {
+												instance.debug(
+														"handleVisitingIsland: Home fixed and visitor already teleported: "
+																+ visitor.getName());
+												yield CompletableFuture.completedFuture(true);
+											}
+											case FAILED_TO_FIX -> {
+												instance.getPluginLogger()
+														.warn("handleVisitingIsland: Failed to fix home for visitor "
+																+ visitor.getName() + ", sending to spawn.");
+												yield instance.getScheduler().callSync(() -> {
+													return CompletableFuture
+															.completedFuture(teleportToSpawn(visitor, true));
+												});
+											}
+											};
+										});
+							});
+				} else {
+					// No home island → teleport to spawn
+					instance.debug("handleVisitingIsland: Player " + visitor.getName()
+							+ " has no Hellblock island. Teleporting to spawn.");
+					return instance.getScheduler().callSync(() -> {
+						return CompletableFuture.completedFuture(teleportToSpawn(visitor, true));
 					});
-
-		}).thenAccept(bannedOwnerUser -> {
-			if (bannedOwnerUser == null) {
-				// Player is allowed to stay
-				return;
+				}
+			});
+		}).thenCompose(success -> {
+			if (success) {
+				World world = visitor.getWorld();
+				instance.getWorldManager().markWorldAccess(world.getName());
+				instance.debug(
+						"handleVisitingIsland: Teleported " + visitor.getName() + " to safe location on their island.");
 			}
+			return CompletableFuture.completedFuture(success);
+		}).handle((result, ex) -> {
+			UUID lockedId = lockedOwnerUUID.get(); // Only unlock if we locked
+			CompletableFuture<Boolean> unlockFuture;
 
-			UUID hellblockOwner = onlineUser.getHellblockData().getOwnerUUID();
-
-			if (onlineUser.getHellblockData().hasHellblock() && hellblockOwner != null) {
-				instance.debug("Kicking banned player " + player.getName() + " back to their home island.");
-
-				instance.getCoopManager().kickVisitorsIfLocked(bannedOwnerUser.getUUID());
-
-				instance.getStorageManager()
-						.getCachedUserDataWithFallback(hellblockOwner, instance.getConfigManager().lockData())
-						.thenCompose(homeOwnerOpt -> {
-							if (homeOwnerOpt.isEmpty()) {
-								instance.debug("No home island data found for " + hellblockOwner);
-								return CompletableFuture.completedFuture(null);
-							}
-
-							final UserData homeOwner = homeOwnerOpt.get();
-
-							return instance.getCoopManager().makeHomeLocationSafe(homeOwner, onlineUser)
-									.thenRun(() -> instance.getScheduler().executeSync(() -> {
-										World world = player.getWorld();
-										instance.getWorldManager().markWorldAccess(world.getName());
-										instance.debug("Teleported " + player.getName()
-												+ " to safe location on their island.");
-									}));
-						}).exceptionally(ex -> {
-							instance.getPluginLogger().severe("Error fetching offline owner data for " + playerId, ex);
-							return null;
-						});
-
+			if (lockedId != null) {
+				unlockFuture = instance.getStorageManager().unlockUserData(lockedId)
+						.thenApply(unused -> result != null && result);
 			} else {
-				// No home island → teleport to spawn
-				instance.debug("Player " + player.getName() + " has no Hellblock island. Teleporting to spawn.");
-				instance.getScheduler().executeSync(() -> {
-					World world = player.getWorld();
-					instance.getWorldManager().markWorldAccess(world.getName());
-					teleportToSpawn(player, true);
-				});
+				unlockFuture = CompletableFuture.completedFuture(result != null && result);
 			}
-		}).exceptionally(ex -> {
-			instance.getPluginLogger().severe("Error handling visiting island logic for player " + playerId, ex);
-			return null;
-		});
+
+			if (ex != null) {
+				instance.getPluginLogger().severe(
+						"handleVisitingIsland: Error handling visiting island logic for player " + playerId, ex);
+			}
+
+			return unlockFuture;
+		}).thenCompose(Function.identity());
 	}
 
 	/**
@@ -1844,102 +2067,99 @@ public class HellblockHandler implements Reloadable {
 	 */
 	@NotNull
 	public CompletableFuture<IslandSnapshot> captureIslandSnapshot(@NotNull UUID ownerId) {
-		final CompletableFuture<IslandSnapshot> future = new CompletableFuture<>();
+		instance.debug("captureIslandSnapshot: Starting snapshot capture for island owned by " + ownerId);
 
-		instance.debug("Starting snapshot capture for island owned by " + ownerId);
+		return instance.getStorageManager().getCachedUserDataWithFallback(ownerId, false).thenCompose(optData -> {
+			if (optData.isEmpty()) {
+				instance.debug(
+						"captureIslandSnapshot: No UserData found for " + ownerId + ". Returning empty snapshot.");
+				return CompletableFuture.completedFuture(new IslandSnapshot(List.of(), List.of()));
+			}
 
-		instance.getStorageManager().getCachedUserDataWithFallback(ownerId, instance.getConfigManager().lockData())
-				.thenAccept(optionalUserData -> {
-					if (optionalUserData.isEmpty()) {
-						instance.debug("No UserData found for " + ownerId + ". Returning empty snapshot.");
-						future.complete(new IslandSnapshot(List.of(), List.of()));
-						return;
+			CompletableFuture<IslandSnapshot> future = new CompletableFuture<>();
+
+			final HellblockData hellblockData = optData.get().getHellblockData();
+			final Optional<HellblockWorld<?>> optWorld = instance.getWorldManager()
+					.getWorld(instance.getWorldManager().getHellblockWorldFormat(hellblockData.getIslandId()));
+
+			if (optWorld.isEmpty() || optWorld.get().bukkitWorld() == null) {
+				instance.debug("captureIslandSnapshot: World not loaded or missing for island "
+						+ hellblockData.getIslandId() + ". Returning empty snapshot.");
+				future.complete(new IslandSnapshot(List.of(), List.of()));
+				return future;
+			}
+
+			final World world = optWorld.get().bukkitWorld();
+			final BoundingBox box = hellblockData.getBoundingBox();
+
+			if (box == null) {
+				instance.debug("captureIslandSnapshot: BoundingBox not found for snapshot for " + ownerId
+						+ ". Returning empty snapshot.");
+				future.complete(new IslandSnapshot(List.of(), List.of()));
+				return future;
+			}
+
+			instance.debug("captureIslandSnapshot: Preparing block snapshot in bounding box: " + box);
+			final List<IslandSnapshotBlock> blocks = Collections.synchronizedList(new ArrayList<>());
+			final List<EntitySnapshot> entities = Collections.synchronizedList(new ArrayList<>());
+
+			// Pre-build all block locations in the bounding box
+			final List<Location> locations = new ArrayList<>();
+			for (int x = (int) box.getMinX(); x <= (int) box.getMaxX(); x++) {
+				for (int y = (int) box.getMinY(); y <= (int) box.getMaxY(); y++) {
+					for (int z = (int) box.getMinZ(); z <= (int) box.getMaxZ(); z++) {
+						locations.add(new Location(world, x, y, z));
 					}
+				}
+			}
 
-					final HellblockData hb = optionalUserData.get().getHellblockData();
-					final Optional<HellblockWorld<?>> optWorld = instance.getWorldManager()
-							.getWorld(instance.getWorldManager().getHellblockWorldFormat(hb.getIslandId()));
+			instance.debug("captureIslandSnapshot: Total block locations to process: " + locations.size());
 
-					if (optWorld.isEmpty() || optWorld.get().bukkitWorld() == null) {
-						instance.debug("World not loaded or missing for island " + hb.getIslandId()
-								+ ". Returning empty snapshot.");
-						future.complete(new IslandSnapshot(List.of(), List.of()));
-						return;
+			final Iterator<Location> it = locations.iterator();
+
+			// Use atomic reference so we can cancel the task later
+			final AtomicReference<SchedulerTask> taskRef = new AtomicReference<>();
+
+			final SchedulerTask task = instance.getScheduler().sync().runRepeating(() -> {
+				int processed = 0;
+				while (processed < IslandBackupManager.BATCH_SIZE && it.hasNext()) {
+					final Location loc = it.next();
+					final Block block = loc.getBlock();
+					if (!block.getType().isAir()) {
+						blocks.add(IslandSnapshotBlock.fromBlockState(block.getState(), List.of()));
 					}
+					processed++;
+				}
 
-					if (hb.getBoundingBox() == null) {
-						instance.debug(
-								"BoundingBox not found for snapshot for " + ownerId + ". Returning empty snapshot.");
-						future.complete(new IslandSnapshot(List.of(), List.of()));
-						return;
-					}
+				instance.debug("Processed " + processed + " blocks this tick (remaining: "
+						+ (locations.size() - blocks.size()) + ")");
 
-					final World world = optWorld.get().bukkitWorld();
-					final BoundingBox box = hb.getBoundingBox();
+				if (!it.hasNext()) {
+					instance.debug("captureIslandSnapshot: Block snapshot complete. Starting entity capture...");
 
-					instance.debug("Preparing block snapshot in bounding box: " + box);
-					final List<IslandSnapshotBlock> blocks = Collections.synchronizedList(new ArrayList<>());
-					final List<EntitySnapshot> entities = Collections.synchronizedList(new ArrayList<>());
-
-					// Pre-build all block locations in the bounding box
-					final List<Location> locations = new ArrayList<>();
-					for (int x = (int) box.getMinX(); x <= (int) box.getMaxX(); x++) {
-						for (int y = (int) box.getMinY(); y <= (int) box.getMaxY(); y++) {
-							for (int z = (int) box.getMinZ(); z <= (int) box.getMaxZ(); z++) {
-								locations.add(new Location(world, x, y, z));
-							}
+					world.getNearbyEntities(box).forEach(entity -> {
+						if (!(entity instanceof Player)) {
+							entities.add(EntitySnapshot.fromEntity(entity));
 						}
+					});
+
+					instance.debug("captureIslandSnapshot: Entity capture complete. Total: " + entities.size());
+
+					// Cancel the task safely
+					final SchedulerTask scheduled = taskRef.get();
+					if (scheduled != null && !scheduled.isCancelled()) {
+						scheduled.cancel();
 					}
 
-					instance.debug("Total block locations to process: " + locations.size());
+					// Complete the snapshot
+					future.complete(new IslandSnapshot(blocks, entities));
+					instance.debug("captureIslandSnapshot: Island snapshot complete for owner " + ownerId);
+				}
+			}, 1L, 1L, LocationUtils.getAnyLocationInstance());
 
-					final Iterator<Location> it = locations.iterator();
-					final int BATCH_SIZE = 500;
-
-					// Use atomic reference so we can cancel the task later
-					final AtomicReference<SchedulerTask> taskRef = new AtomicReference<>();
-
-					final SchedulerTask task = instance.getScheduler().sync().runRepeating(() -> {
-						int processed = 0;
-						while (processed < BATCH_SIZE && it.hasNext()) {
-							final Location loc = it.next();
-							final Block block = loc.getBlock();
-							if (!block.getType().isAir()) {
-								blocks.add(IslandSnapshotBlock.fromBlockState(block.getState(), List.of()));
-							}
-							processed++;
-						}
-
-						instance.debug("Processed " + processed + " blocks this tick (remaining: "
-								+ (locations.size() - blocks.size()) + ")");
-
-						if (!it.hasNext()) {
-							instance.debug("Block snapshot complete. Starting entity capture...");
-
-							world.getNearbyEntities(box).forEach(entity -> {
-								if (!(entity instanceof Player)) {
-									entities.add(EntitySnapshot.fromEntity(entity));
-								}
-							});
-
-							instance.debug("Entity capture complete. Total: " + entities.size());
-
-							// Cancel the task safely
-							final SchedulerTask scheduled = taskRef.get();
-							if (scheduled != null && !scheduled.isCancelled()) {
-								scheduled.cancel();
-							}
-
-							// Complete the snapshot
-							future.complete(new IslandSnapshot(blocks, entities));
-							instance.debug("Island snapshot complete for owner " + ownerId);
-						}
-					}, 1L, 1L, LocationUtils.getAnyLocationInstance());
-
-					taskRef.set(task); // store reference after scheduling
-				});
-
-		return future;
+			taskRef.set(task); // store reference after scheduling
+			return future;
+		});
 	}
 
 	/**
@@ -1950,66 +2170,69 @@ public class HellblockHandler implements Reloadable {
 	 * @return A future completing when rollback is done.
 	 */
 	public CompletableFuture<Void> rollbackIsland(@NotNull UUID ownerId, long timestamp) {
-		instance.debug("Starting rollback for " + ownerId + " using snapshot " + timestamp);
+		instance.debug("rollbackIsland: Starting rollback for " + ownerId + " using snapshot " + timestamp);
 
-		return instance.getStorageManager()
-				.getCachedUserDataWithFallback(ownerId, instance.getConfigManager().lockData())
-				.thenCompose(optionalUserData -> {
-					if (optionalUserData.isEmpty()) {
-						instance.getPluginLogger().warn("No userdata found for rollback of " + ownerId);
-						return CompletableFuture.completedFuture(null);
-					}
+		return instance.getStorageManager().getCachedUserDataWithFallback(ownerId, false).thenCompose(optData -> {
+			if (optData.isEmpty()) {
+				instance.getPluginLogger().warn("rollbackIsland: No UserData found for rollback of " + ownerId);
+				return CompletableFuture.failedFuture(new IllegalArgumentException("UserData not found for rollback."));
+			}
 
-					final HellblockData data = optionalUserData.get().getHellblockData();
-					final String worldName = instance.getWorldManager().getHellblockWorldFormat(data.getIslandId());
-					final Optional<HellblockWorld<?>> worldOpt = instance.getWorldManager().getWorld(worldName);
+			final HellblockData data = optData.get().getHellblockData();
+			final String worldName = instance.getWorldManager().getHellblockWorldFormat(data.getIslandId());
+			final Optional<HellblockWorld<?>> worldOpt = instance.getWorldManager().getWorld(worldName);
 
-					if (worldOpt.isEmpty() || worldOpt.get().bukkitWorld() == null) {
-						instance.getPluginLogger().warn("World not found for rollback: " + worldName);
-						return CompletableFuture.completedFuture(null);
-					}
+			if (worldOpt.isEmpty() || worldOpt.get().bukkitWorld() == null) {
+				instance.getPluginLogger().warn("rollbackIsland: World not found for rollback: " + worldName);
+				return CompletableFuture.failedFuture(new IllegalArgumentException("World not found for rollback."));
+			}
 
-					if (data.getBoundingBox() == null) {
-						instance.getPluginLogger().warn("BoundingBox not found for rollback of " + ownerId);
-						return CompletableFuture.completedFuture(null);
-					}
+			final HellblockWorld<?> world = worldOpt.get();
+			final BoundingBox box = data.getBoundingBox();
 
-					final HellblockWorld<?> world = worldOpt.get();
-					final BoundingBox box = data.getBoundingBox();
+			if (box == null) {
+				instance.getPluginLogger().warn("rollbackIsland: BoundingBox not found for rollback of " + ownerId);
+				return CompletableFuture
+						.failedFuture(new IllegalArgumentException("BoundingBox not found for rollback."));
+			}
 
-					instance.debug("Loading snapshot " + timestamp + " for island " + data.getIslandId());
+			instance.debug("rollbackIsland: Loading snapshot " + timestamp + " for island " + data.getIslandId());
 
-					// Load snapshot async
-					return CompletableFuture
-							.supplyAsync(() -> instance.getIslandBackupManager().loadSnapshot(ownerId, timestamp))
-							.thenCompose(snapshot -> {
-								if (snapshot == null) {
-									instance.getPluginLogger().warn("No snapshot found for rollback of " + ownerId);
-									return CompletableFuture.completedFuture(null);
-								}
+			// Load snapshot async
+			return CompletableFuture
+					.supplyAsync(() -> instance.getIslandBackupManager().loadSnapshot(ownerId, timestamp))
+					.thenCompose(snapshot -> {
+						if (snapshot == null) {
+							instance.getPluginLogger()
+									.warn("rollbackIsland: No snapshot found for rollback of " + ownerId);
+							return CompletableFuture
+									.failedFuture(new IllegalArgumentException("Snapshot not found for rollback."));
+						}
 
-								final HellblockRollbackEvent rollbackEvent = new HellblockRollbackEvent(ownerId,
-										timestamp);
-								EventUtils.fireAndForget(rollbackEvent);
+						EventUtils.fireAndForget(new HellblockRollbackEvent(ownerId, timestamp));
 
-								// Ensure chunks are loaded before restoring
-								return preloadRollbackChunks(world, box).thenRun(() -> {
-									instance.debug(
-											"Chunks loaded. Starting batched restore for island " + data.getIslandId());
+						// Ensure chunks are loaded before restoring
+						return preloadRollbackChunks(world, box).thenCompose(v -> {
+							instance.debug("rollbackIsland: Chunks loaded. Starting batched restore for island "
+									+ data.getIslandId());
 
-									// Restore snapshot in safe batches
-									snapshot.restoreIntoWorldBatched(world.bukkitWorld(), box, instance, () -> {
-										instance.getPluginLogger().info("Rollback complete for " + ownerId);
+							// Restore snapshot in safe batches
+							return snapshot
+									.restoreIntoWorldBatched(instance, world.bukkitWorld(), box,
+											progress -> instance.getPluginLogger().info("Rollback progress for "
+													+ ownerId + ": " + "%.1f%%".formatted(progress * 100)))
+									.thenRun(() -> {
+										instance.getPluginLogger()
+												.info("rollbackIsland: Rollback complete for " + ownerId);
 										instance.getScheduler().executeSync(() -> {
-											instance.debug(
-													"Triggering island level recalculation for " + data.getIslandId());
+											instance.debug("rollbackIsland: Triggering island level recalculation for "
+													+ data.getIslandId());
 											instance.getIslandLevelManager().recalculateIslandLevel(data.getIslandId());
 										});
-									}, progress -> instance.getPluginLogger().info("Rollback progress for " + ownerId
-											+ ": " + "%.1f%%".formatted(progress * 100)));
-								});
-							});
-				});
+									});
+						});
+					});
+		});
 	}
 
 	/**
@@ -2038,8 +2261,8 @@ public class HellblockHandler implements Reloadable {
 				if (customChunk.isPresent()) {
 					CompletableFuture<Boolean> future = customChunk.get().load(true).thenApply(success -> {
 						if (!success) {
-							instance.getPluginLogger()
-									.warn("Failed to load chunk " + chunkPos + " during rollback preload.");
+							instance.getPluginLogger().warn("preloadRollbackChunks: Failed to load chunk " + chunkPos
+									+ " during rollback preload.");
 						}
 						return success;
 					});
@@ -2064,18 +2287,22 @@ public class HellblockHandler implements Reloadable {
 		final long cutoff = System.currentTimeMillis() - (minutes * 60L * 1000L);
 		final List<Long> snapshots = instance.getIslandBackupManager().listSnapshots(ownerId);
 
-		instance.debug("Found " + snapshots.size() + " snapshots for owner " + ownerId);
-		instance.debug("Looking for snapshot newer than " + cutoff + " (" + minutes + " minutes ago)");
+		instance.debug("rollbackLastMinutes: Found " + snapshots.size() + " snapshots for owner " + ownerId);
+		instance.debug(
+				"rollbackLastMinutes: Looking for snapshot newer than " + cutoff + " (" + minutes + " minutes ago)");
 
 		final Optional<Long> chosen = snapshots.stream().filter(ts -> ts >= cutoff).findFirst();
 
 		if (chosen.isPresent()) {
-			instance.debug("Using snapshot timestamp " + chosen.get() + " for rollback of " + ownerId);
+			instance.debug(
+					"rollbackLastMinutes: Using snapshot timestamp " + chosen.get() + " for rollback of " + ownerId);
 			return rollbackIsland(ownerId, chosen.get());
 		}
 
-		instance.getPluginLogger().warn("No snapshot within " + minutes + " minutes for " + ownerId);
-		return CompletableFuture.completedFuture(null);
+		instance.getPluginLogger()
+				.warn("rollbackLastMinutes: No snapshot within " + minutes + " minutes for " + ownerId);
+		return CompletableFuture.failedFuture(
+				new IllegalArgumentException("Snapshot not found for rollback " + minutes + " minutes ago."));
 	}
 
 	/**
@@ -2098,90 +2325,103 @@ public class HellblockHandler implements Reloadable {
 	public CompletableFuture<Void> purgeInactiveHellblocks() {
 		final int purgeDays = instance.getConfigManager().abandonAfterDays();
 		if (purgeDays <= 0) {
-			instance.debug("Skipping purge: Configured abandonAfterDays is <= 0.");
+			instance.debug("purgeInactiveHellblocks: Skipping purge: Configured abandonAfterDays is <= 0.");
 			return CompletableFuture.completedFuture(null);
 		}
 
 		final AtomicInteger purgeCount = new AtomicInteger(0);
-		final List<CompletableFuture<Void>> futures = new ArrayList<>();
+		final List<CompletableFuture<Boolean>> futures = new ArrayList<>();
 		final IslandProtection<?> protection = instance.getProtectionManager().getIslandProtection();
 
 		instance.getPluginLogger()
-				.info("Starting purge of inactive Hellblocks for players inactive for " + purgeDays + " days...");
+				.info("purgeInactiveHellblocks: Starting purge of inactive Hellblocks for players inactive for "
+						+ purgeDays + " days...");
 
 		for (UUID id : instance.getStorageManager().getDataSource().getUniqueUsers()) {
 			final OfflinePlayer player = Bukkit.getOfflinePlayer(id);
 
 			if (!player.hasPlayedBefore()) {
-				instance.debug("Skipping player " + id + ": has never played before.");
+				instance.debug("purgeInactiveHellblocks: Skipping player " + id + ": has never played before.");
 				continue;
 			}
 
 			// Track this future
-			CompletableFuture<Void> future = instance.getStorageManager().getCachedUserDataWithFallback(id, false)
-					.thenAccept(result -> {
-						if (result.isEmpty()) {
-							instance.debug("No user data found for player " + id + ". Skipping.");
-							return;
+			CompletableFuture<Boolean> future = instance.getStorageManager().getCachedUserDataWithFallback(id, true)
+					.thenCompose(optData -> {
+						if (optData.isEmpty()) {
+							instance.debug(
+									"purgeInactiveHellblocks: No UserData found for player " + id + ". Skipping.");
+							return CompletableFuture.completedFuture(false);
 						}
 
-						final UserData user = result.get();
-						final HellblockData data = user.getHellblockData();
+						final UserData userData = optData.get();
+						final HellblockData data = userData.getHellblockData();
 
 						if (!data.hasHellblock()) {
-							instance.debug("Player " + id + " doesn't own a Hellblock. Skipping.");
-							return;
+							instance.debug(
+									"purgeInactiveHellblocks: Player " + id + " doesn't own a Hellblock. Skipping.");
+							return CompletableFuture.completedFuture(false);
 						}
 
 						final boolean isOwner = data.hasHellblock() && data.getOwnerUUID() != null
 								&& id.equals(data.getOwnerUUID());
 
 						if (!isOwner) {
-							instance.debug("Player " + id + " is not the owner of their Hellblock. Skipping.");
-							return;
+							instance.debug("purgeInactiveHellblocks: Player " + id
+									+ " is not the owner of their Hellblock. Skipping.");
+							return CompletableFuture.completedFuture(false);
 						}
 
 						if (data.getIslandLevel() <= HellblockData.DEFAULT_LEVEL) {
-							instance.debug("Player " + id + " has progressed beyond default level. Skipping.");
-							return;
+							instance.debug("purgeInactiveHellblocks: Player " + id
+									+ " has progressed beyond default level. Skipping.");
+							return CompletableFuture.completedFuture(false);
 						}
 
 						final long lastActivity = data.getLastIslandActivity();
 						final long millisSinceLastSeen = System.currentTimeMillis() - lastActivity;
 
 						if (millisSinceLastSeen <= TimeUnit.DAYS.toMillis(purgeDays)) {
-							instance.debug("Player " + id + " was active " + (millisSinceLastSeen / 1000 / 60 / 60 / 24)
-									+ " days ago. Skipping.");
-							return;
+							instance.debug("purgeInactiveHellblocks: Player " + id + " was active "
+									+ (millisSinceLastSeen / 1000 / 60 / 60 / 24) + " days ago. Skipping.");
+							return CompletableFuture.completedFuture(false);
 						}
 
 						final Optional<HellblockWorld<?>> worldOpt = instance.getWorldManager()
 								.getWorld(instance.getWorldManager().getHellblockWorldFormat(data.getIslandId()));
 
 						if (worldOpt.isEmpty() || worldOpt.get().bukkitWorld() == null) {
-							instance.getPluginLogger().warn("Failed to purge Hellblock %s: world could not be loaded."
-									.formatted(data.getIslandId()));
-							return;
+							instance.getPluginLogger().warn(
+									"purgeInactiveHellblocks: Failed to purge Hellblock %s: world could not be loaded."
+											.formatted(data.getIslandId()));
+							return CompletableFuture.completedFuture(false);
 						}
 
 						final HellblockWorld<?> world = worldOpt.get();
 						data.setAsAbandoned(true);
 
-						protection.updateHellblockMessages(world, data.getOwnerUUID());
-						protection.abandonIsland(world, data.getOwnerUUID());
+						return CompletableFuture.allOf(protection.updateHellblockMessages(world, data.getOwnerUUID()),
+								protection.abandonIsland(world, data.getOwnerUUID())).thenCompose(v -> {
+									// Fire abandon event after both protection tasks complete
+									final HellblockAbandonEvent abandonEvent = new HellblockAbandonEvent(id, data);
+									EventUtils.fireAndForget(abandonEvent);
 
-						final HellblockAbandonEvent abandonEvent = new HellblockAbandonEvent(id, data);
-						EventUtils.fireAndForget(abandonEvent);
-
-						final int current = purgeCount.incrementAndGet();
-						instance.getPluginLogger()
-								.info("Hellblock %s marked as abandoned due to inactivity (total so far: %s)"
-										.formatted(data.getIslandId(), current));
-					}).exceptionally(ex -> {
-						instance.getPluginLogger().warn("Error during purge for player " + id + ": " + ex.getMessage(),
-								ex);
-						return null;
-					});
+									// Increment purge count and log
+									final int current = purgeCount.incrementAndGet();
+									instance.getPluginLogger().info(
+											"purgeInactiveHellblocks: Hellblock %s marked as abandoned due to inactivity (total so far: %s)"
+													.formatted(data.getIslandId(), current));
+									return instance.getStorageManager().saveUserData(userData, true);
+								});
+					}).handle((result, ex) -> {
+						if (ex != null) {
+							instance.getPluginLogger().warn("purgeInactiveHellblocks: Error during purge for player "
+									+ id + ": " + ex.getMessage(), ex);
+						}
+						// Always unlock user data
+						return instance.getStorageManager().unlockUserData(id)
+								.thenApply(unused -> result != null && result);
+					}).thenCompose(Function.identity()); // Flatten unlock future
 
 			futures.add(future);
 		}
@@ -2190,10 +2430,11 @@ public class HellblockHandler implements Reloadable {
 		return CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new)).thenRun(() -> {
 			final int total = purgeCount.get();
 			if (total > 0) {
-				instance.getPluginLogger().info("Purge complete: " + total + " Hellblock" + (total == 1 ? "" : "s")
-						+ " have been set as abandoned.");
+				instance.getPluginLogger().info("purgeInactiveHellblocks: Purge complete: " + total + " Hellblock"
+						+ (total == 1 ? "" : "s") + " have been set as abandoned.");
 			} else {
-				instance.getPluginLogger().info("Purge complete: No Hellblocks qualified for abandonment.");
+				instance.getPluginLogger()
+						.info("purgeInactiveHellblocks: Purge complete: No Hellblocks qualified for abandonment.");
 			}
 		});
 	}
@@ -2328,51 +2569,63 @@ public class HellblockHandler implements Reloadable {
 		World world = hellWorld.bukkitWorld();
 		instance.debug("World found for hellblock ID " + hellblockId + ": " + world.getName());
 
-		instance.getProtectionManager().getHellblockBlocks(hellWorld, ownerData.getUUID()).thenAccept(positions -> {
-			instance.debug("Retrieved " + positions.size() + " blocks for UUID: " + ownerData.getUUID());
+		BoundingBox boundingBox = hellblockData.getBoundingBox();
+		if (boundingBox == null) {
+			instance.getPluginLogger().severe("Bounding box is null for hellblock ID: " + hellblockId);
+			locationFuture.completeExceptionally(new IllegalStateException("Bounding box not set for hellblock"));
+			return locationFuture;
+		}
 
-			List<CompletableFuture<Pos3>> bedrockCandidates = new ArrayList<>();
+		List<CompletableFuture<Pos3>> bedrockCandidates = new ArrayList<>();
 
-			for (Pos3 pos : positions) {
-				CompletableFuture<Pos3> future = hellWorld.getBlockState(pos).thenApply(optionalState -> {
-					if (optionalState.isPresent()
-							&& optionalState.get().type() == CustomBlockTypes.fromMaterial(Material.BEDROCK)) {
-						return pos;
+		for (int x = (int) boundingBox.getMinX(); x <= (int) boundingBox.getMaxX(); x++) {
+			for (int y = (int) boundingBox.getMinY(); y <= (int) boundingBox.getMaxY(); y++) {
+				for (int z = (int) boundingBox.getMinZ(); z <= (int) boundingBox.getMaxZ(); z++) {
+					Pos3 pos = new Pos3(x, y, z);
+					CompletableFuture<Pos3> future = hellWorld.getBlockState(pos).thenApply(optionalState -> {
+						if (optionalState.isPresent()
+								&& optionalState.get().type() == CustomBlockTypes.fromMaterial(Material.BEDROCK)) {
+							return pos;
+						}
+						return null;
+					});
+					bedrockCandidates.add(future);
+				}
+			}
+		}
+
+		CompletableFuture.allOf(bedrockCandidates.toArray(CompletableFuture[]::new))
+				.thenApply(v -> bedrockCandidates.stream().map(CompletableFuture::join).filter(Objects::nonNull)
+						.min(Comparator.comparingDouble(pos -> pos.toLocation(world).distanceSquared(hellblockLoc)))
+						.orElse(null))
+				.thenAccept(nearestBedrockPosition -> {
+					if (nearestBedrockPosition == null) {
+						instance.debug("No bedrock blocks found. Using hellblock location: " + hellblockLoc);
+						locationFuture.complete(hellblockLoc);
+						return;
 					}
+
+					instance.debug("Nearest bedrock block found at: " + nearestBedrockPosition.toLocation(world));
+
+					Location candidate = world.getHighestBlockAt(nearestBedrockPosition.toLocation(world)).getLocation()
+							.clone().add(0.5, 1, 0.5);
+
+					instance.debug("Candidate safe location above bedrock: " + candidate);
+
+					LocationUtils.isSafeLocationAsync(candidate).thenAccept(safe -> {
+						if (safe) {
+							instance.debug("Location is safe. Returning: " + candidate);
+							locationFuture.complete(candidate);
+						} else {
+							instance.debug("Location is NOT safe. Falling back to: " + hellblockLoc);
+							locationFuture.complete(hellblockLoc);
+						}
+					});
+				}).exceptionally(ex -> {
+					instance.getPluginLogger().warn(
+							"Failed to locate nearest bedrock for " + ownerData.getName() + ": " + ex.getMessage(), ex);
 					return null;
 				});
-				bedrockCandidates.add(future);
-			}
-
-			CompletableFuture.allOf(bedrockCandidates.toArray(CompletableFuture[]::new))
-					.thenApply(v -> bedrockCandidates.stream().map(CompletableFuture::join).filter(Objects::nonNull)
-							.min(Comparator.comparingDouble(pos -> pos.toLocation(world).distanceSquared(hellblockLoc)))
-							.orElse(null))
-					.thenAccept(nearestBedrockPosition -> {
-						if (nearestBedrockPosition == null) {
-							instance.debug("No bedrock blocks found. Using hellblock location: " + hellblockLoc);
-							locationFuture.complete(hellblockLoc);
-							return;
-						}
-
-						instance.debug("Nearest bedrock block found at: " + nearestBedrockPosition.toLocation(world));
-
-						Location candidate = world.getHighestBlockAt(nearestBedrockPosition.toLocation(world))
-								.getLocation().clone().add(0.5, 1, 0.5);
-
-						instance.debug("Candidate safe location above bedrock: " + candidate);
-
-						LocationUtils.isSafeLocationAsync(candidate).thenAccept(safe -> {
-							if (safe) {
-								instance.debug("Location is safe. Returning: " + candidate);
-								locationFuture.complete(candidate);
-							} else {
-								instance.debug("Location is NOT safe. Falling back to: " + hellblockLoc);
-								locationFuture.complete(hellblockLoc);
-							}
-						});
-					});
-		});
 
 		return locationFuture;
 	}
@@ -2510,12 +2763,21 @@ public class HellblockHandler implements Reloadable {
 	 * @param player The player to teleport.
 	 * @param forced If true, no warning message is sent.
 	 */
-	public void teleportToSpawn(@NotNull Player player, boolean forced) {
+	public boolean teleportToSpawn(@NotNull Player player, boolean forced) {
+		Sender sender = instance.getSenderFactory().wrap(player);
+
 		if (!forced) {
-			instance.getSenderFactory().wrap(player).sendMessage(
+			sender.sendMessage(
 					instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_UNSAFE_CONDITIONS.build()));
 		}
-		instance.getSenderFactory().wrap(player).performCommand(instance.getConfigManager().spawnCommand());
+
+		String spawnCommand = instance.getConfigManager().spawnCommand();
+		if (spawnCommand == null || spawnCommand.isBlank()) {
+			return false; // No command to run
+		}
+
+		sender.performCommand(spawnCommand);
+		return true;
 	}
 
 	/**

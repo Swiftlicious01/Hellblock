@@ -39,17 +39,19 @@ public class PartyGUI {
 	protected final Inventory inventory;
 	protected final Context<Player> context;
 	protected final Context<Integer> islandContext;
+	protected final UserData userData;
 	protected final HellblockData hellblockData;
 	protected boolean isOwner;
 
 	private volatile boolean refreshInProgress = false;
 	private volatile boolean refreshQueued = false;
 
-	public PartyGUI(PartyGUIManager manager, Context<Player> context, Context<Integer> islandContext,
+	public PartyGUI(PartyGUIManager manager, Context<Player> context, Context<Integer> islandContext, UserData userData,
 			HellblockData hellblockData, boolean isOwner) {
 		this.manager = manager;
 		this.context = context;
 		this.islandContext = islandContext;
+		this.userData = userData;
 		this.hellblockData = hellblockData;
 		this.isOwner = isOwner;
 		this.itemsCharMap = new HashMap<>();
@@ -135,16 +137,15 @@ public class PartyGUI {
 		manager.instance.getScheduler().executeAsync(() -> {
 			try {
 				// --- Load Owner Data Asynchronously ---
-				manager.instance.getStorageManager()
-						.getCachedUserDataWithFallback(ownerUUID, manager.instance.getConfigManager().lockData())
-						.thenAccept(result -> {
-							if (result.isEmpty()) {
+				manager.instance.getStorageManager().getCachedUserDataWithFallback(ownerUUID, false)
+						.thenAccept(optData -> {
+							if (optData.isEmpty()) {
 								manager.instance.getScheduler().executeSync(() -> context.holder().closeInventory());
 								finishRefresh();
 								return;
 							}
 
-							UserData ownerData = result.get();
+							UserData ownerData = optData.get();
 							islandContext.arg(ContextKeys.ISLAND_PARTY_COUNT,
 									ownerData.getHellblockData().getPartyMembers().size());
 
@@ -243,7 +244,8 @@ public class PartyGUI {
 								}
 							});
 						}).exceptionally(ex -> {
-							manager.instance.getPluginLogger().severe("Failed to refresh PartyGUI: " + ex.getMessage());
+							manager.instance.getPluginLogger().severe("Failed to refresh PartyGUI for "
+									+ context.holder().getName() + ": " + ex.getMessage());
 							finishRefresh();
 							return null;
 						});
@@ -276,7 +278,7 @@ public class PartyGUI {
 		PartyDynamicGUIElement element = (PartyDynamicGUIElement) getElement(symbol);
 		if (element == null || element.getSlots().isEmpty())
 			return;
-		
+
 		Context<Player> combinedCtx = context.merge(islandContext);
 
 		Item<ItemStack> item = manager.instance.getItemManager().wrap(baseItem.build(combinedCtx));

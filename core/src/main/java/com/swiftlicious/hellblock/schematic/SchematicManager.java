@@ -13,9 +13,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.bukkit.Location;
@@ -31,6 +33,10 @@ import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.api.Reloadable;
 import com.swiftlicious.hellblock.generation.HellBiome;
 import com.swiftlicious.hellblock.player.UserData;
+import com.swiftlicious.hellblock.world.CustomBlockState;
+import com.swiftlicious.hellblock.world.CustomBlockTypes;
+import com.swiftlicious.hellblock.world.HellblockWorld;
+import com.swiftlicious.hellblock.world.Pos3;
 
 import dev.dejvokep.boostedyaml.YamlDocument;
 import dev.dejvokep.boostedyaml.settings.dumper.DumperSettings;
@@ -261,6 +267,7 @@ public class SchematicManager implements Reloadable {
 	 * @return a {@link CompletableFuture} containing the computed final spawn
 	 *         location after the paste.
 	 */
+	@NotNull
 	public CompletableFuture<Location> pasteSchematic(@NotNull UUID playerId, @NotNull World world,
 			@NotNull String schematic, @NotNull Location pasteOrigin, @NotNull SchematicMetadata metadata,
 			boolean ignoreAirBlock, boolean animated) {
@@ -268,30 +275,40 @@ public class SchematicManager implements Reloadable {
 		final File file = schematicFiles.getOrDefault(schematic,
 				schematicFiles.values().stream().findFirst().orElse(null));
 
-		CompletableFuture<Location> resultFuture = new CompletableFuture<>();
+		final Optional<HellblockWorld<?>> hellWorldOpt = instance.getWorldManager().getWorld(world);
+		if (hellWorldOpt.isEmpty() || hellWorldOpt.get().bukkitWorld() == null) {
+			return CompletableFuture.failedFuture(new IllegalArgumentException(
+					"World '%s' not found. Try regenerating world.".formatted(world.getName())));
+		}
 
-		instance.getScheduler().executeSync(() -> {
+		final HellblockWorld<?> hellWorld = hellWorldOpt.get();
+
+		return instance.getScheduler().callSync(() -> {
 			if (file == null) {
-				pasteOrigin.getBlock().setType(Material.BEDROCK);
-				instance.getPluginLogger().warn("Schematic '%s' not found. Fallback block set.".formatted(schematic));
-				resultFuture.complete(pasteOrigin);
-				return;
+				CustomBlockState fallbackState = CustomBlockTypes.fromMaterial(Material.BEDROCK).createBlockState();
+				return hellWorld.updateBlockState(Pos3.from(pasteOrigin), fallbackState).handle((res, ex) -> {
+					if (ex != null) {
+						instance.getPluginLogger().warn("Failed to place fallback block for schematic '%s': %s"
+								.formatted(schematic, ex.getMessage()), ex);
+					} else {
+						instance.getPluginLogger()
+								.warn("Schematic '%s' not found. Fallback block set.".formatted(schematic));
+					}
+					return pasteOrigin;
+				});
 			}
 
 			// === Paste using metadata and animation ===
-			schematicPaster.pasteHellblock(playerId, file, pasteOrigin, ignoreAirBlock, metadata, animated)
-					.whenComplete((finalSpawn, ex) -> {
+			return schematicPaster.pasteHellblock(playerId, file, pasteOrigin, ignoreAirBlock, metadata, animated)
+					.handle((finalSpawn, ex) -> {
 						if (ex != null) {
 							instance.getPluginLogger().severe(
 									"Error pasting schematic '%s': %s".formatted(schematic, ex.getMessage()), ex);
-							resultFuture.completeExceptionally(ex);
-						} else {
-							resultFuture.complete(finalSpawn); // Already computed inside pasteHellblock
+							throw new CompletionException(ex);
 						}
+						return finalSpawn;
 					});
-		}, pasteOrigin);
-
-		return resultFuture;
+		});
 	}
 
 	/**

@@ -4,7 +4,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
+import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
@@ -20,7 +22,7 @@ import com.swiftlicious.hellblock.creation.item.Item;
 import com.swiftlicious.hellblock.handlers.ActionManager;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.player.GameProfileBuilder;
-import com.swiftlicious.hellblock.player.HellblockData;
+import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.utils.extras.Action;
 import com.swiftlicious.hellblock.utils.extras.Pair;
 
@@ -32,7 +34,7 @@ public abstract class BasePaginatedMemberGUI extends MemberGUI {
 	protected final Player player;
 	protected final Context<Integer> islandContext;
 	protected final Section config;
-	protected final HellblockData data;
+	protected final UserData data;
 	protected final boolean isOwner;
 
 	protected final char memberSlot;
@@ -46,7 +48,7 @@ public abstract class BasePaginatedMemberGUI extends MemberGUI {
 	protected final int itemsPerPage;
 
 	public BasePaginatedMemberGUI(HellblockPlugin plugin, Player player, Context<Integer> islandContext, Section config,
-			HellblockData data, boolean isOwner) {
+			UserData data, boolean isOwner) {
 		super(player, config.getString("title"), config.getStringList("layout").toArray(new String[0]));
 		this.plugin = plugin;
 		this.player = player;
@@ -84,28 +86,28 @@ public abstract class BasePaginatedMemberGUI extends MemberGUI {
 
 	protected abstract void onView();
 
-	protected abstract void onRemove(UUID targetUUID);
+	protected abstract CompletableFuture<Boolean> onRemove(UUID targetUUID);
 
 	protected void addMemberElement(char symbol, UUID uuid) {
-		OfflinePlayer offline = plugin.getServer().getOfflinePlayer(uuid);
-		String name = offline.getName() != null ? offline.getName()
+		final OfflinePlayer offline = Bukkit.getOfflinePlayer(uuid);
+		final String name = offline.getName() != null ? offline.getName()
 				: plugin.getTranslationManager().miniMessageTranslation(MessageConstants.FORMAT_UNKNOWN.build().key());
-		boolean online = offline.isOnline();
-		Context<Player> context = Context.player(player);
+		final boolean online = offline.isOnline();
+		final Context<Player> context = Context.player(player);
 
-		Section memberSection = config.getSection("member-icon");
-		CustomItem memberItem = new SingleItemParser("member", memberSection,
+		final Section memberSection = config.getSection("member-icon");
+		final CustomItem memberItem = new SingleItemParser("member", memberSection,
 				plugin.getConfigManager().getItemFormatFunctions()).getItem();
-		Item<ItemStack> item = plugin.getItemManager().wrap(memberItem.build(context));
+		final Item<ItemStack> item = plugin.getItemManager().wrap(memberItem.build(context));
 
-		String displayName = memberSection.getString("display.name", "<aqua>{player}").replace("{player}", name)
+		final String displayName = memberSection.getString("display.name", "<aqua>{player}").replace("{player}", name)
 				.replace("{login_status}",
 						online ? plugin.getPartyGUIManager().onlineStatus : plugin.getPartyGUIManager().offlineStatus);
 
 		item.displayName(AdventureHelper.miniMessageToJson(displayName));
 
-		List<String> loreRaw = memberSection.getStringList(isOwner ? "display.lore" : "display.read-only-lore");
-		List<String> lore = new ArrayList<>();
+		final List<String> loreRaw = memberSection.getStringList(isOwner ? "display.lore" : "display.read-only-lore");
+		final List<String> lore = new ArrayList<>();
 		loreRaw.forEach(line -> lore.add(AdventureHelper.miniMessageToJson(line.replace("{player}", name).replace(
 				"{login_status}",
 				online ? plugin.getPartyGUIManager().onlineStatus : plugin.getPartyGUIManager().offlineStatus))));
@@ -121,10 +123,18 @@ public abstract class BasePaginatedMemberGUI extends MemberGUI {
 
 		if (isOwner) {
 			addElement(symbol, new MemberGUIElement(item.loadCopy(), () -> {
-				onRemove(uuid);
-				plugin.getScheduler().executeSync(this::refresh);
-				ActionManager.trigger(context,
-						plugin.getActionManager(Player.class).parseActions(memberSection.getSection("action")));
+				onRemove(uuid).whenComplete((result, ex) -> {
+					if (ex != null || !result) {
+						plugin.getPluginLogger().warn("onRemove failed for " + uuid, ex);
+						return;
+					}
+
+					plugin.getScheduler().executeSync(() -> {
+						refresh();
+						ActionManager.trigger(context,
+								plugin.getActionManager(Player.class).parseActions(memberSection.getSection("action")));
+					});
+				});
 			}));
 		} else {
 			addElement(symbol, new MemberGUIElement(item.loadCopy())); // No click

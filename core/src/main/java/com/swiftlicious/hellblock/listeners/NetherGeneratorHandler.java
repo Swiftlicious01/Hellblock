@@ -17,6 +17,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.DoubleSupplier;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.bukkit.Bukkit;
@@ -569,18 +570,16 @@ public class NetherGeneratorHandler implements Listener, Reloadable {
 			if (ownerUUID == null)
 				return;
 
-			instance.getStorageManager()
-					.getCachedUserDataWithFallback(ownerUUID, instance.getConfigManager().lockData())
-					.thenAccept(userOpt -> {
-						if (userOpt.isEmpty())
-							return;
+			instance.getStorageManager().getCachedUserDataWithFallback(ownerUUID, false).thenAccept(optData -> {
+				if (optData.isEmpty())
+					return;
 
-						UserData user = userOpt.get();
-						int islandId = user.getHellblockData().getIslandId();
+				UserData ownerData = optData.get();
+				int islandId = ownerData.getHellblockData().getIslandId();
 
-						GenPiston piston = new GenPiston(pos, islandId);
-						genManager.addKnownGenPiston(piston);
-					});
+				GenPiston piston = new GenPiston(pos, islandId);
+				genManager.addKnownGenPiston(piston);
+			});
 		});
 	}
 
@@ -878,20 +877,19 @@ public class NetherGeneratorHandler implements Listener, Reloadable {
 			}
 
 			// Fetch user data asynchronously
-			return instance.getStorageManager()
-					.getCachedUserDataWithFallback(ownerUUID, instance.getConfigManager().lockData())
-					.thenApply(opt -> opt.map(data -> data.getHellblockData()));
+			return instance.getStorageManager().getCachedUserDataWithFallback(ownerUUID, false)
+					.thenApply(optData -> optData.map(data -> data.getHellblockData()));
 		}, instance.getScheduler().async()) // use plugin’s async executor if available
-				.thenAcceptAsync(hellblockDataOpt -> {
+				.thenAcceptAsync(ownerData -> {
 					// Always start from shared base generation map
 					Map<Material, Double> results = new HashMap<>(getGenerationResults(context));
 
-					if (hellblockDataOpt.isEmpty()) {
+					if (ownerData.isEmpty()) {
 						callback.accept(results);
 						return;
 					}
 
-					HellblockData hellblockData = hellblockDataOpt.get();
+					HellblockData hellblockData = ownerData.get();
 					Set<UUID> partyPlusOwner = hellblockData.getPartyPlusOwner();
 					BoundingBox box = hellblockData.getBoundingBox();
 
@@ -928,12 +926,12 @@ public class NetherGeneratorHandler implements Listener, Reloadable {
 		return islandGeneratorBonusCache.computeIfAbsent(islandId, id -> calculateGeneratorBonus(data));
 	}
 
-	public void updateGeneratorBonusCache(@NotNull HellblockData data) {
-		islandGeneratorBonusCache.put(data.getIslandId(), calculateGeneratorBonus(data));
+	public double updateGeneratorBonusCache(@NotNull HellblockData data) {
+		return islandGeneratorBonusCache.put(data.getIslandId(), calculateGeneratorBonus(data));
 	}
 
-	public void invalidateGeneratorBonusCache(int islandId) {
-		islandGeneratorBonusCache.remove(islandId);
+	public double invalidateGeneratorBonusCache(int islandId) {
+		return islandGeneratorBonusCache.remove(islandId);
 	}
 
 	private double calculateGeneratorBonus(@NotNull HellblockData data) {
@@ -993,12 +991,13 @@ public class NetherGeneratorHandler implements Listener, Reloadable {
 		return results.keySet().stream().filter(Objects::nonNull).reduce((first, second) -> second).orElse(null);
 	}
 
-	public void savePistonsByIsland(int islandId, @NotNull HellblockWorld<?> hellWorld) {
+	public CompletableFuture<Boolean> savePistonsByIsland(int islandId, @NotNull HellblockWorld<?> hellWorld) {
 		if (!instance.getConfigManager().pistonAutomation())
-			return;
+			return CompletableFuture.completedFuture(false);
 
 		// Get all pistons at this island
 		GenPiston[] pistons = genManager.getGenPistonsByIslandId(islandId);
+		final AtomicReference<UUID> lockedOwnerUUID = new AtomicReference<>(null); // Track what we locked
 
 		List<String> serialized = Arrays.stream(pistons).filter(p -> p != null && p.hasBeenUsed()).map(p -> {
 			Location loc = p.getPos().toLocation(hellWorld.bukkitWorld());
@@ -1006,90 +1005,133 @@ public class NetherGeneratorHandler implements Listener, Reloadable {
 		}).filter(Objects::nonNull).distinct().collect(Collectors.toList());
 
 		if (serialized.isEmpty())
-			return;
+			return CompletableFuture.completedFuture(false);
 
-		instance.getStorageManager().getOfflineUserDataByIslandId(islandId, instance.getConfigManager().lockData())
-				.thenAccept(optUser -> {
-					if (optUser.isEmpty())
-						return;
+		return instance.getStorageManager().getOfflineUserDataByIslandId(islandId, true).thenCompose(optData -> {
+			if (optData.isEmpty())
+				return CompletableFuture.completedFuture(false);
 
-					UserData user = optUser.get();
-					Map<Integer, List<String>> map = user.getLocationCacheData().getPistonLocationsByIsland();
-					if (map == null) {
-						map = new HashMap<>();
-					}
-					map.put(islandId, serialized);
-					user.getLocationCacheData().setPistonLocationsByIsland(map);
-				});
+			UserData ownerData = optData.get();
+			UUID ownerId = ownerData.getUUID();
+			lockedOwnerUUID.set(ownerId); // Track who we're locking
+
+			Map<Integer, List<String>> map = ownerData.getLocationCacheData().getPistonLocationsByIsland();
+			if (map == null) {
+				map = new HashMap<>();
+			}
+
+			map.put(islandId, serialized);
+			ownerData.getLocationCacheData().setPistonLocationsByIsland(map);
+			return instance.getStorageManager().saveUserData(ownerData, true);
+		}).handle((result, ex) -> {
+			UUID lockedId = lockedOwnerUUID.get(); // Only unlock if we locked
+			CompletableFuture<Boolean> unlockFuture;
+
+			if (lockedId != null) {
+				unlockFuture = instance.getStorageManager().unlockUserData(lockedId)
+						.thenApply(unused -> result != null && result);
+			} else {
+				unlockFuture = CompletableFuture.completedFuture(result != null && result);
+			}
+
+			if (ex != null) {
+				instance.getPluginLogger().severe("savePistonsByIsland: Error saving pistons for islandId=" + islandId,
+						ex);
+			}
+
+			return unlockFuture;
+		}).thenCompose(Function.identity());
 	}
 
-	public void loadPistonsByIsland(int islandId) {
+	public CompletableFuture<Boolean> loadPistonsByIsland(int islandId) {
 		if (!instance.getConfigManager().pistonAutomation())
-			return;
+			return CompletableFuture.completedFuture(false);
 
-		instance.getStorageManager().getOfflineUserDataByIslandId(islandId, instance.getConfigManager().lockData())
-				.thenAccept(optUser -> {
-					if (optUser.isEmpty())
-						return;
-					UserData user = optUser.get();
-					Map<Integer, List<String>> stored = user.getLocationCacheData().getPistonLocationsByIsland();
-					if (stored == null)
-						return;
+		final AtomicReference<UUID> lockedOwnerUUID = new AtomicReference<>(null); // Track what we locked
 
-					List<String> locations = stored.get(islandId);
-					if (locations == null || locations.isEmpty())
-						return;
+		return instance.getStorageManager().getOfflineUserDataByIslandId(islandId, true).thenCompose(optData -> {
+			if (optData.isEmpty())
+				return CompletableFuture.completedFuture(false);
 
-					for (String stringLoc : locations) {
-						Location loc = StringUtils.deserializeLoc(stringLoc);
-						if (loc == null || loc.getBlock().getType() != Material.PISTON)
-							continue;
+			UserData ownerData = optData.get();
+			UUID ownerId = ownerData.getUUID();
+			lockedOwnerUUID.set(ownerId); // Track who we're locking
 
-						Pos3 pos = Pos3.from(loc);
-						GenPiston piston = new GenPiston(pos, islandId);
-						piston.setHasBeenUsed(true);
-						genManager.addKnownGenPiston(piston);
-					}
+			Map<Integer, List<String>> stored = ownerData.getLocationCacheData().getPistonLocationsByIsland();
+			if (stored == null)
+				return CompletableFuture.completedFuture(false);
 
-					// Clear once loaded
-					stored.remove(islandId);
-					user.getLocationCacheData().setPistonLocationsByIsland(stored);
-				});
+			List<String> locations = stored.get(islandId);
+			if (locations == null || locations.isEmpty())
+				return CompletableFuture.completedFuture(false);
+
+			for (String stringLoc : locations) {
+				Location loc = StringUtils.deserializeLoc(stringLoc);
+				if (loc == null || loc.getBlock().getType() != Material.PISTON)
+					continue;
+
+				Pos3 pos = Pos3.from(loc);
+				GenPiston piston = new GenPiston(pos, islandId);
+				piston.setHasBeenUsed(true);
+				genManager.addKnownGenPiston(piston);
+			}
+
+			// Clear once loaded
+			stored.remove(islandId);
+			ownerData.getLocationCacheData().setPistonLocationsByIsland(stored);
+			return instance.getStorageManager().saveUserData(ownerData, true);
+		}).handle((result, ex) -> {
+			UUID lockedId = lockedOwnerUUID.get(); // Only unlock if we locked
+			CompletableFuture<Boolean> unlockFuture;
+
+			if (lockedId != null) {
+				unlockFuture = instance.getStorageManager().unlockUserData(lockedId)
+						.thenApply(unused -> result != null && result);
+			} else {
+				unlockFuture = CompletableFuture.completedFuture(result != null && result);
+			}
+
+			if (ex != null) {
+				instance.getPluginLogger().severe("loadPistonsByIsland: Error loading pistons for islandId=" + islandId,
+						ex);
+			}
+
+			return unlockFuture;
+		}).thenCompose(Function.identity());
 	}
 
-	public void loadIslandPistonsIfNeeded(int islandId) {
+	public CompletableFuture<Boolean> loadIslandPistonsIfNeeded(int islandId) {
 		if (loadedIslandPistonCaches.contains(islandId))
-			return;
+			return CompletableFuture.completedFuture(false);
 
-		instance.getStorageManager().getOfflineUserDataByIslandId(islandId, instance.getConfigManager().lockData())
-				.thenAccept(optUser -> {
-					if (optUser.isEmpty())
-						return;
+		return instance.getStorageManager().getOfflineUserDataByIslandId(islandId, false).thenCompose(optData -> {
+			if (optData.isEmpty())
+				return CompletableFuture.completedFuture(false);
 
-					UserData user = optUser.get();
-					Map<Integer, List<String>> pistons = user.getLocationCacheData().getPistonLocationsByIsland();
+			UserData ownerData = optData.get();
+			Map<Integer, List<String>> pistons = ownerData.getLocationCacheData().getPistonLocationsByIsland();
 
-					if (pistons != null && pistons.containsKey(islandId)) {
-						List<String> serialized = pistons.get(islandId);
+			if (pistons != null && pistons.containsKey(islandId)) {
+				List<String> serialized = pistons.get(islandId);
 
-						for (String stringLoc : serialized) {
-							Location loc = StringUtils.deserializeLoc(stringLoc);
-							if (loc == null || loc.getBlock().getType() != Material.PISTON)
-								continue;
+				for (String stringLoc : serialized) {
+					Location loc = StringUtils.deserializeLoc(stringLoc);
+					if (loc == null || loc.getBlock().getType() != Material.PISTON)
+						continue;
 
-							Pos3 pos = Pos3.from(loc);
-							GenPiston piston = new GenPiston(pos, islandId);
-							piston.setHasBeenUsed(true);
-							getGeneratorManager().addKnownGenPiston(piston);
-						}
-					}
+					Pos3 pos = Pos3.from(loc);
+					GenPiston piston = new GenPiston(pos, islandId);
+					piston.setHasBeenUsed(true);
+					getGeneratorManager().addKnownGenPiston(piston);
+				}
+			}
 
-					loadedIslandPistonCaches.add(islandId);
-					instance.debug("Loaded piston cache for island ID: " + islandId);
-				});
+			instance.debug("Loaded piston cache for island ID: " + islandId);
+			return CompletableFuture.completedFuture(loadedIslandPistonCaches.add(islandId));
+		});
 	}
 
-	public void clearIslandPistonCache(int islandId) {
-		loadedIslandPistonCaches.remove(islandId);
+	public boolean clearIslandPistonCache(int islandId) {
+		return loadedIslandPistonCaches.remove(islandId);
 	}
 }

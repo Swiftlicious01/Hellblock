@@ -109,9 +109,10 @@ public class HellblockResetCommand extends BukkitCommandFeature<CommandSender> {
 							return;
 						}
 
-						plugin.getHellblockHandler().resetHellblock(player.getUniqueId(), false, null);
-						confirmCache.invalidate(player.getUniqueId());
-						handleFeedback(context, MessageConstants.MSG_HELLBLOCK_RESET_IN_PROCESS);
+						plugin.getHellblockHandler().resetHellblock(player.getUniqueId(), false, null).thenRun(() -> {
+							confirmCache.invalidate(player.getUniqueId());
+							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_RESET_IN_PROCESS);
+						});
 						return;
 					}
 

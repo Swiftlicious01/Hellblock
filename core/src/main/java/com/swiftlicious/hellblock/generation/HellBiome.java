@@ -1,6 +1,7 @@
 package com.swiftlicious.hellblock.generation;
 
 import org.bukkit.block.Biome;
+import org.jetbrains.annotations.Nullable;
 
 import com.google.gson.annotations.SerializedName;
 import com.swiftlicious.hellblock.utils.RandomUtils;
@@ -41,7 +42,7 @@ public enum HellBiome {
 
 	protected final Biome converted;
 
-	private HellBiome(Biome converted) {
+	private HellBiome(@Nullable Biome converted) {
 		this.converted = converted;
 	}
 

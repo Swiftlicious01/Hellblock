@@ -309,9 +309,10 @@ public class FlagsGUIManager implements FlagsGUIManagerInterface, Listener {
 
 			if (element.getSymbol() == backSlot) {
 				event.setCancelled(true);
-				instance.getHellblockGUIManager().openHellblockGUI(gui.context.holder(), gui.islandContext.holder(),
-						gui.isOwner);
-				ActionManager.trigger(gui.context, backActions);
+				boolean opened = instance.getHellblockGUIManager().openHellblockGUI(gui.context.holder(),
+						gui.islandContext.holder(), gui.isOwner);
+				if (opened)
+					ActionManager.trigger(gui.context, backActions);
 				return;
 			}
 
@@ -340,12 +341,22 @@ public class FlagsGUIManager implements FlagsGUIManagerInterface, Listener {
 					event.setCancelled(true);
 					FlagType flagType = flag.right().mid();
 					instance.getWorldManager().getWorld(gui.context.holder().getWorld()).ifPresent(world -> {
-						instance.getProtectionManager().changeProtectionFlag(world, gui.context.holder().getUniqueId(),
-								new HellblockFlag(flagType,
-										(gui.hellblockData.getProtectionValue(flagType) == AccessType.ALLOW
-												? AccessType.DENY
-												: AccessType.ALLOW)));
-						ActionManager.trigger(gui.context, flag.right().right());
+						instance.getProtectionManager()
+								.changeProtectionFlag(world, gui.context.holder().getUniqueId(),
+										new HellblockFlag(flagType,
+												(gui.hellblockData.getProtectionValue(flagType) == AccessType.ALLOW
+														? AccessType.DENY
+														: AccessType.ALLOW)))
+								.thenAccept(flagStatus -> {
+									if (!flagStatus)
+										return;
+									
+									ActionManager.trigger(gui.context, flag.right().right());
+								}).exceptionally(ex -> {
+									instance.getPluginLogger().warn("Failed to change protection flag for "
+											+ player.getName() + ": " + ex.getMessage(), ex);
+									return null;
+								});
 					});
 					break;
 				}

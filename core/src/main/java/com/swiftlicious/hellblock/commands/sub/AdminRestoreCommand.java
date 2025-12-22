@@ -1,7 +1,9 @@
 package com.swiftlicious.hellblock.commands.sub;
 
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -39,16 +41,20 @@ public class AdminRestoreCommand extends BukkitCommandFeature<CommandSender> {
 						return CompletableFuture.completedFuture(Collections.emptyList());
 					}
 
-					final Set<UUID> allKnownUUIDs = plugin.getStorageManager().getDataSource().getUniqueUsers();
+					final String lowerInput = input.input().toLowerCase(Locale.ROOT);
+					final Set<UUID> allKnownUUIDs = new HashSet<>(
+							plugin.getStorageManager().getDataSource().getUniqueUsers());
 
-					final List<String> suggestions = allKnownUUIDs.stream()
+					final List<Suggestion> suggestions = allKnownUUIDs.stream()
 							.map(uuid -> plugin.getStorageManager().getCachedUserData(uuid)).filter(Optional::isPresent)
 							.map(Optional::get)
 							.filter(user -> user.getHellblockData().hasHellblock()
 									&& user.getHellblockData().isAbandoned())
-							.map(UserData::getName).filter(Objects::nonNull).toList();
+							.map(UserData::getName).filter(Objects::nonNull)
+							.filter(name -> name.toLowerCase(Locale.ROOT).startsWith(lowerInput))
+							.sorted(String.CASE_INSENSITIVE_ORDER).limit(64).map(Suggestion::suggestion).toList();
 
-					return CompletableFuture.completedFuture(suggestions.stream().map(Suggestion::suggestion).toList());
+					return CompletableFuture.completedFuture(suggestions);
 				})).handler(context -> {
 					final String targetName = context.get("player");
 					UUID targetId;
@@ -70,62 +76,75 @@ public class AdminRestoreCommand extends BukkitCommandFeature<CommandSender> {
 						return;
 					}
 
-					plugin.getStorageManager().getCachedUserDataWithFallback(targetId, false).thenAccept(result -> {
-						if (result.isEmpty()) {
+					plugin.getStorageManager().getCachedUserDataWithFallback(targetId, false).thenCompose(targetOpt -> {
+						if (targetOpt.isEmpty()) {
 							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_PLAYER_DATA_FAILURE_LOAD,
 									AdventureHelper.miniMessageToComponent(targetName));
-							return;
+							return CompletableFuture.completedFuture(null);
 						}
 
-						final UserData offlineUser = result.get();
-						final HellblockData data = offlineUser.getHellblockData();
+						final UserData targetUserData = targetOpt.get();
+						final HellblockData data = targetUserData.getHellblockData();
 
 						if (!data.hasHellblock()) {
 							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_NOT_FOUND);
-							return;
+							return CompletableFuture.completedFuture(false);
 						}
 
 						if (!data.isAbandoned()) {
 							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_ADMIN_RESTORE_NOT_ABANDONED,
 									AdventureHelper.miniMessageToComponent(targetName));
-							return;
+							return CompletableFuture.completedFuture(false);
 						}
 
 						final UUID ownerUUID = data.getOwnerUUID();
 						if (ownerUUID == null) {
 							plugin.getPluginLogger().severe("Hellblock owner UUID was null for player " + targetName
 									+ " (" + targetId + "). This indicates corrupted data.");
-							throw new IllegalStateException(
-									"Owner reference was null. This should never happen — please report to the developer.");
+							return CompletableFuture.failedFuture(new IllegalStateException(
+									"Owner reference was null. This should never happen — please report to the developer."));
 						}
 
-						plugin.getStorageManager().getCachedUserDataWithFallback(ownerUUID, false)
-								.thenAccept(ownerOpt -> {
+						return plugin.getStorageManager().getCachedUserDataWithFallback(ownerUUID, true)
+								.thenCompose(ownerOpt -> {
 									if (ownerOpt.isEmpty()) {
 										final String username = Bukkit.getOfflinePlayer(ownerUUID).getName();
 										handleFeedback(context, MessageConstants.MSG_HELLBLOCK_PLAYER_DATA_FAILURE_LOAD,
 												AdventureHelper.miniMessageToComponent(username != null ? username
 														: plugin.getTranslationManager().miniMessageTranslation(
 																MessageConstants.FORMAT_UNKNOWN.build().key())));
-										return;
+										return CompletableFuture.completedFuture(false);
 									}
 
 									final UserData ownerData = ownerOpt.get();
 
 									// Perform restoration
-									plugin.getProtectionManager().restoreIsland(ownerData.getHellblockData());
+									return plugin.getProtectionManager().restoreIsland(ownerData.getHellblockData())
+											.thenCompose(result -> {
+												if (!result) {
+													return CompletableFuture.completedFuture(false);
+												}
 
-									// Save changes
-									plugin.getStorageManager().saveUserData(ownerData,
-											plugin.getConfigManager().lockData());
+												handleFeedback(context,
+														MessageConstants.MSG_HELLBLOCK_ADMIN_RESTORE_SUCCESS,
+														AdventureHelper.miniMessageToComponent(targetName));
 
-									handleFeedback(context, MessageConstants.MSG_HELLBLOCK_ADMIN_RESTORE_SUCCESS,
-											AdventureHelper.miniMessageToComponent(targetName));
-								});
+												// Save changes
+												return plugin.getStorageManager().saveUserData(ownerData, true);
+											});
+								}).handle((result, ex) -> {
+									if (ex != null) {
+										plugin.getPluginLogger()
+												.warn("Admin restore command failed (Could not read owner " + ownerUUID
+														+ "'s data): " + ex.getMessage());
+									}
+									return false;
+								}).thenCompose(
+										v -> plugin.getStorageManager().unlockUserData(ownerUUID).thenApply(x -> true));
 					}).exceptionally(ex -> {
-						plugin.getPluginLogger().warn(
-								"Failed to restore abandoned hellblock for " + targetName + ": " + ex.getMessage());
-						return null;
+						plugin.getPluginLogger().warn("Admin restore command failed (Could not read target "
+								+ targetName + "'s data): " + ex.getMessage());
+						return false;
 					});
 				});
 	}

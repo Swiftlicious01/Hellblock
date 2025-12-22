@@ -8,6 +8,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
@@ -27,8 +28,10 @@ import com.swiftlicious.hellblock.events.hellblock.HellblockAbandonEvent;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.player.HellblockData;
 import com.swiftlicious.hellblock.player.UserData;
+import com.swiftlicious.hellblock.protection.ProtectionManager;
 import com.swiftlicious.hellblock.utils.EventUtils;
 import com.swiftlicious.hellblock.world.HellblockWorld;
+import com.swiftlicious.hellblock.world.WorldManager;
 
 public class AdminPurgeCommand extends BukkitCommandFeature<CommandSender> {
 
@@ -79,48 +82,80 @@ public class AdminPurgeCommand extends BukkitCommandFeature<CommandSender> {
 			return;
 		}
 
+		final WorldManager worldManager = plugin.getWorldManager();
+		final ProtectionManager protectionManager = plugin.getProtectionManager();
 		final long cutoffMillis = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(days);
 		final AtomicInteger purgeCount = new AtomicInteger(0);
 		final List<CompletableFuture<Void>> futures = new ArrayList<>();
 
 		for (UUID id : allUsers) {
-			final CompletableFuture<Void> future = plugin.getStorageManager().getCachedUserDataWithFallback(id, false)
-					.thenAccept(result -> {
-						if (result.isEmpty()) {
-							return;
+			final CompletableFuture<Void> future = plugin.getStorageManager().getCachedUserDataWithFallback(id, true)
+					.thenCompose(optData -> {
+						if (optData.isEmpty()) {
+							return CompletableFuture.completedFuture(false);
 						}
 
-						final UserData offlineUser = result.get();
-						final long lastActivity = offlineUser.getHellblockData().getLastIslandActivity();
+						final UserData userData = optData.get();
+						final long lastActivity = userData.getHellblockData().getLastIslandActivity();
 
 						if (lastActivity == 0 || lastActivity > cutoffMillis) {
-							return;
+							return CompletableFuture.completedFuture(false);
 						}
 
-						final HellblockData hellblock = offlineUser.getHellblockData();
+						final HellblockData hellblockData = userData.getHellblockData();
 
-						if (hellblock.hasHellblock() && hellblock.getOwnerUUID() != null
-								&& id.equals(hellblock.getOwnerUUID()) && hellblock.getIslandLevel() <= belowLevel) {
+						final int islandId = hellblockData.getIslandId();
+
+						final String worldName = worldManager.getHellblockWorldFormat(islandId);
+
+						final Optional<HellblockWorld<?>> worldOpt = worldManager.getWorld(worldName);
+						if (!worldOpt.isPresent()) {
+							plugin.getPluginLogger().warn("World not found for purge command: " + worldName
+									+ " (Island ID: " + islandId + ", Owner UUID: " + id + ")");
+							return CompletableFuture.completedFuture(false);
+						}
+
+						final HellblockWorld<?> world = worldOpt.get();
+						if (world.bukkitWorld() == null) {
+							plugin.getPluginLogger().warn("Bukkit world is null for: " + worldName + " (Island ID: "
+									+ islandId + ", Owner UUID: " + id + ")");
+							return CompletableFuture.completedFuture(false);
+						}
+
+						if (hellblockData.hasHellblock() && hellblockData.getOwnerUUID() != null
+								&& hellblockData.isOwner(id) && hellblockData.getIslandLevel() <= belowLevel) {
 
 							purgeCount.incrementAndGet();
+							hellblockData.setAsAbandoned(true);
 
-							final Optional<HellblockWorld<?>> world = plugin.getWorldManager().getWorld(
-									plugin.getWorldManager().getHellblockWorldFormat(hellblock.getIslandId()));
+							return protectionManager.getIslandProtection()
+									.updateHellblockMessages(world, hellblockData.getOwnerUUID())
+									.thenCombine(protectionManager.getIslandProtection().abandonIsland(world, id),
+											(updated, abandoned) -> updated && abandoned)
+									.thenCompose(success -> {
+										if (!success) {
+											return CompletableFuture.completedFuture(false);
+										}
 
-							if (world.isPresent()) {
-								hellblock.setAsAbandoned(true);
+										// Fire event
+										final HellblockAbandonEvent abandonEvent = new HellblockAbandonEvent(id,
+												hellblockData);
+										EventUtils.fireAndForget(abandonEvent);
 
-								plugin.getProtectionManager().getIslandProtection().updateHellblockMessages(world.get(),
-										hellblock.getOwnerUUID());
-
-								plugin.getProtectionManager().getIslandProtection().abandonIsland(world.get(),
-										hellblock.getOwnerUUID());
-
-								final HellblockAbandonEvent abandonEvent = new HellblockAbandonEvent(id, hellblock);
-								EventUtils.fireAndForget(abandonEvent);
-							}
+										// Save changes
+										return plugin.getStorageManager().saveUserData(userData, true)
+												.thenApply(saved -> saved);
+									});
 						}
-					});
+
+						return CompletableFuture.completedFuture(false);
+					}).handle((result, ex) -> {
+						if (ex != null) {
+							plugin.getPluginLogger().warn("Failed to purge " + id + ": " + ex.getMessage(), ex);
+						}
+						// Always unlock the data (success or failure)
+						return plugin.getStorageManager().unlockUserData(id);
+					}).thenCompose(Function.identity());
 
 			futures.add(future);
 		}
@@ -132,6 +167,9 @@ public class AdminPurgeCommand extends BukkitCommandFeature<CommandSender> {
 			} else {
 				handleFeedback(context, MessageConstants.MSG_HELLBLOCK_ADMIN_PURGE_FAILURE);
 			}
+		}).exceptionally(ex -> {
+			plugin.getPluginLogger().warn("Failed to finish purging islands: " + ex.getMessage(), ex);
+			return null;
 		});
 	}
 

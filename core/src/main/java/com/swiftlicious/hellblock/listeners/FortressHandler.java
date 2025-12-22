@@ -9,6 +9,7 @@
 //import java.util.concurrent.CompletableFuture;
 //import java.util.concurrent.ConcurrentHashMap;
 //import java.util.concurrent.TimeUnit;
+//import java.util.concurrent.atomic.AtomicBoolean;
 //
 //import org.bukkit.Bukkit;
 //import org.bukkit.Location;
@@ -49,6 +50,8 @@
 //
 //	private final HellblockPlugin plugin;
 //
+//	private final AtomicBoolean isRunning = new AtomicBoolean(false);
+//
 //	private final Set<Pos3> spawnCache = ConcurrentHashMap.newKeySet();
 //
 //	private static final NamespacedKey OWNER_KEY = new NamespacedKey(HellblockPlugin.getInstance(), "hellblock_owner");
@@ -77,56 +80,60 @@
 //
 //	@Override
 //	public void run() {
+//		if (!isRunning.compareAndSet(false, true)) {
+//			// Already running, skip this execution
+//			return;
+//		}
+//
 //		Set<UUID> players = plugin.getIslandManager().getPlayersOnIsland(islandId);
 //		if (players.isEmpty()) {
 //			return;
 //		}
 //
-//		plugin.getStorageManager().getOfflineUserDataByIslandId(islandId, plugin.getConfigManager().lockData())
-//				.thenAccept(result -> {
-//					if (result.isEmpty()) {
-//						return;
-//					}
+//		return plugin.getStorageManager().getOfflineUserDataByIslandId(islandId, false).thenCompose(optData -> {
+//			if (optData.isEmpty()) {
+//				return CompletableFuture.completedStage(null);
+//			}
 //
-//					final UserData ownerData = result.get();
-//					final HellblockData hellblockData = ownerData.getHellblockData();
+//			final UserData ownerData = optData.get();
+//			final HellblockData hellblockData = ownerData.getHellblockData();
 //
-//					if (hellblockData.isAbandoned()) {
-//						return;
-//					}
+//			if (hellblockData.isAbandoned()) {
+//				return CompletableFuture.completedStage(null);
+//			}
 //
-//					if (hellblockData.getBiome() == null || hellblockData.getBiome() != HellBiome.NETHER_FORTRESS) {
-//						return;
-//					}
+//			if (hellblockData.getBiome() == null || hellblockData.getBiome() != HellBiome.NETHER_FORTRESS) {
+//				return CompletableFuture.completedStage(null);
+//			}
 //
-//					if (hellblockData.getProtectionValue(HellblockFlag.FlagType.MOB_SPAWNING) != AccessType.ALLOW) {
-//						return;
-//					}
+//			if (hellblockData.getProtectionValue(HellblockFlag.FlagType.MOB_SPAWNING) != AccessType.ALLOW) {
+//				return CompletableFuture.completedStage(null);
+//			}
 //
-//					// Skip spawning during lava rain
-//					if (plugin.getLavaRainHandler().isLavaRainingInIsland(islandId)) {
-//						return;
-//					}
+//			final Optional<HellblockWorld<?>> worldOpt = plugin.getWorldManager()
+//					.getWorld(plugin.getWorldManager().getHellblockWorldFormat(islandId));
 //
-//					final Optional<HellblockWorld<?>> worldOpt = plugin.getWorldManager()
-//							.getWorld(plugin.getWorldManager().getHellblockWorldFormat(islandId));
+//			if (worldOpt.isEmpty() || worldOpt.get().bukkitWorld() == null) {
+//				return CompletableFuture.failedStage(new NullPointerException(
+//						"World returned null, please try to regenerate the world before reporting this issue."));
+//			}
 //
-//					if (worldOpt.isEmpty() || worldOpt.get().bukkitWorld() == null)
-//						throw new NullPointerException(
-//								"World returned null, please try to regenerate the world before reporting this issue.");
+//			if (plugin.getNetherWeatherManager().isWeatherActive(islandId)) {
+//				return CompletableFuture.completedStage(null);
+//			}
 //
-//					final HellblockWorld<?> hellWorld = worldOpt.get();
-//
-//					plugin.getProtectionManager().getHellblockChunks(hellWorld, islandId)
-//							.thenAccept(chunkPositions -> plugin.getScheduler().executeSync(() -> {
-//								final int maxMobCount = getMaxFortressMobCount(hellblockData);
-//								handleFortressMobs(hellWorld, chunkPositions, hellblockData, maxMobCount);
-//							}));
-//
-//				}).exceptionally(ex -> {
-//					plugin.getPluginLogger().severe("Error fetching offline user data from islandId=" + islandId, ex);
-//					return null;
-//				});
+//			final HellblockWorld<?> hellWorld = worldOpt.get();
+//			return plugin.getProtectionManager().getHellblockChunks(hellWorld, islandId).thenCompose(chunkPositions -> {
+//				final int maxMobCount = getMaxFortressMobCount(hellblockData);
+//				return plugin.getScheduler()
+//						.callSync(() -> handleFortressMobs(hellWorld, chunkPositions, hellblockData, maxMobCount));
+//			});
+//		}).whenComplete((res, ex) -> {
+//			if (ex != null) {
+//				plugin.getPluginLogger().warn("FortressHandler: Error processing run() for islandId=" + islandId, ex);
+//			}
+//			isRunning.set(false); // Always reset at the end
+//		});
 //	}
 //
 //	private void runAmbientEffects(HellblockWorld<?> world, Set<UUID> players) {

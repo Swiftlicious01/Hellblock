@@ -11,12 +11,15 @@ import java.nio.file.StandardOpenOption;
 import java.security.DigestInputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -701,9 +704,6 @@ public class HellblockPlugin extends JavaPlugin {
 		if (this.worldManager != null) {
 			this.worldManager.disable();
 		}
-		if (this.islandLevelManager != null) {
-			this.islandLevelManager.disable();
-		}
 		if (this.hologramManager != null) {
 			this.hologramManager.disable();
 		}
@@ -721,6 +721,9 @@ public class HellblockPlugin extends JavaPlugin {
 		}
 		if (this.hellblockHandler != null) {
 			this.hellblockHandler.disable();
+		}
+		if (this.islandLevelManager != null) {
+			this.islandLevelManager.disableSafely().join();
 		}
 		if (this.senderFactory != null) {
 			this.senderFactory.close();
@@ -867,32 +870,53 @@ public class HellblockPlugin extends JavaPlugin {
 				getCommandManager().getBioPatternHelper()
 						.precompileBannedWordPatterns(getConfigManager().bannedWords());
 
-				// Handle online users
-				for (UserData onlineUser : getStorageManager().getOnlineUsers()) {
-					final Player player = onlineUser.getPlayer();
+				// Collect futures for all online players
+				List<CompletableFuture<Void>> visitFutures = new ArrayList<>();
+
+				for (UserData userData : getStorageManager().getOnlineUsers()) {
+					Player player = userData.getPlayer();
 					if (player != null && player.isOnline()) {
-						getIslandManager().resolveIslandId(player.getLocation()).thenAccept(optIslandId -> optIslandId
-								.ifPresent(islandId -> getIslandManager().handlePlayerEnterIsland(player, islandId)));
-						getHellblockHandler().handleVisitingIsland(player, onlineUser);
+
+						CompletableFuture<Void> islandFuture = getIslandManager().resolveIslandId(player.getLocation())
+								.thenAccept(optIslandId -> optIslandId.ifPresent(islandId -> {
+									try {
+										getIslandManager().handlePlayerEnterIsland(player, islandId);
+									} catch (Exception ex) {
+										getPluginLogger().warn("Error handling island entry for " + player.getName(),
+												ex);
+									}
+								})).exceptionally(ex -> {
+									getPluginLogger().warn("resolveIslandId failed for " + player.getName(), ex);
+									return null;
+								});
+
+						CompletableFuture<Boolean> visitFuture = getHellblockHandler()
+								.handleVisitingIsland(player, userData).exceptionally(ex -> {
+									getPluginLogger().warn("handleVisitingIsland failed for " + player.getName(), ex);
+									return false;
+								});
+
+						visitFutures.add(CompletableFuture.allOf(islandFuture, visitFuture));
 					}
 				}
 
-				// Purge inactive Hellblocks
-				getHellblockHandler().purgeInactiveHellblocks().thenRun(() -> {
-					if (this.initialStartup) {
-						double finalTime = (System.currentTimeMillis() - this.startTime) / 1000.0;
-						getPluginLogger().info("Took " + finalTime + " second" + (finalTime == 1.0 ? "" : "s")
-								+ " to setup Hellblock!");
-						this.initialStartup = false;
-					}
-					EventUtils.fireAndForget(new HellblockReloadEvent(this));
-					this.isReloading = false;
-				}).exceptionally(ex -> {
-					getPluginLogger().severe("HellblockHandler failed to purge inactive hellblocks: " + ex.getMessage(),
-							ex);
-					this.isReloading = false;
-					return null;
-				});
+				// Await all visiting and island entry logic
+				CompletableFuture.allOf(visitFutures.toArray(CompletableFuture[]::new))
+						.thenCompose(unused -> getHellblockHandler().purgeInactiveHellblocks()).thenRun(() -> {
+							if (this.initialStartup) {
+								double finalTime = (System.currentTimeMillis() - this.startTime) / 1000.0;
+								getPluginLogger().info("Took " + finalTime + " second" + (finalTime == 1.0 ? "" : "s")
+										+ " to setup Hellblock!");
+								this.initialStartup = false;
+							}
+							EventUtils.fireAndForget(new HellblockReloadEvent(this));
+							this.isReloading = false;
+						}).exceptionally(ex -> {
+							getPluginLogger().severe(
+									"HellblockHandler failed to purge inactive hellblocks: " + ex.getMessage(), ex);
+							this.isReloading = false;
+							return null;
+						});
 			} catch (Exception ex) {
 				getPluginLogger().severe("Exception during plugin reload after world loading: " + ex.getMessage(), ex);
 				this.isReloading = false;
@@ -963,6 +987,37 @@ public class HellblockPlugin extends JavaPlugin {
 
 		// Fallback to standard Spigot scheduler
 		Bukkit.getScheduler().runTask(plugin, task);
+	}
+
+	/**
+	 * Executes a task using Folia's per-player scheduler via reflection, if
+	 * available.
+	 * <p>
+	 * This method allows safe, dynamic usage of
+	 * {@code player.getScheduler().run(...)} without introducing a compile-time
+	 * dependency on the Folia API. It should only be called when
+	 * {@code VersionHelper.isFolia()} returns {@code true}.
+	 * <p>
+	 * If the scheduler methods are not available (e.g., on non-Folia servers), the
+	 * task is silently ignored. Exceptions are caught and logged for debugging
+	 * purposes.
+	 *
+	 * @param player The player whose scheduler should run the task.
+	 * @param plugin The plugin instance to pass to the scheduler.
+	 * @param task   The task to be executed via the Folia scheduler.
+	 */
+	public void runFoliaPlayerTask(@NotNull Player player, @NotNull JavaPlugin plugin, @NotNull Consumer<Player> task) {
+		try {
+			Method getSchedulerMethod = player.getClass().getMethod("getScheduler");
+			Object scheduler = getSchedulerMethod.invoke(player);
+
+			Method runMethod = scheduler.getClass().getMethod("run", Plugin.class, Consumer.class, Runnable.class);
+			runMethod.invoke(scheduler, plugin, task, null);
+		} catch (NoSuchMethodException e) {
+			// Not Folia or API changed – ignore
+		} catch (Throwable t) {
+			getPluginLogger().warn("Failed to use Folia player region scheduler: " + t.getMessage());
+		}
 	}
 
 	/**

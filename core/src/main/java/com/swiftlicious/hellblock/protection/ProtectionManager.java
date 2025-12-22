@@ -39,6 +39,7 @@ import com.swiftlicious.hellblock.api.Reloadable;
 import com.swiftlicious.hellblock.player.HellblockData;
 import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.scheduler.SchedulerTask;
+import com.swiftlicious.hellblock.schematic.IslandBackupManager;
 import com.swiftlicious.hellblock.world.ChunkPos;
 import com.swiftlicious.hellblock.world.HellblockWorld;
 import com.swiftlicious.hellblock.world.Pos3;
@@ -60,8 +61,6 @@ public class ProtectionManager implements ProtectionManagerInterface, Reloadable
 
 	private IslandProtection<?> islandProtection;
 	private ProtectionEvents protectionEvents;
-
-	private final static int BATCH_SIZE = 500;
 
 	private final Map<UUID, CompletableFuture<Set<Pos3>>> activeBlockScans = new ConcurrentHashMap<>();
 	private final Map<UUID, Set<ChunkPos>> skippedChunksPerIsland = new ConcurrentHashMap<>();
@@ -182,62 +181,80 @@ public class ProtectionManager implements ProtectionManagerInterface, Reloadable
 	}
 
 	@Override
-	public CompletableFuture<Void> changeProtectionFlag(@NotNull HellblockWorld<?> world, @NotNull UUID ownerId,
+	public CompletableFuture<Boolean> changeProtectionFlag(@NotNull HellblockWorld<?> world, @NotNull UUID ownerId,
 			@NotNull HellblockFlag flag) {
-		return validateUser(ownerId).thenAccept(userOpt -> {
-			userOpt.ifPresent(ownerData -> {
-				ownerData.getHellblockData().setProtectionValue(flag);
-				islandProtection.changeHellblockFlag(world, ownerData, flag);
-			});
+		return validateUser(ownerId).thenCompose(optData -> {
+			if (optData.isEmpty()) {
+				return CompletableFuture.completedFuture(false);
+			}
+
+			final UserData ownerData = optData.get();
+			final HellblockData hellblockData = ownerData.getHellblockData();
+			hellblockData.setProtectionValue(flag);
+			return islandProtection.changeHellblockFlag(world, ownerData, flag);
+		}).exceptionally(ex -> {
+			instance.getPluginLogger()
+					.severe("Failed to change protection flag for ownerId " + ownerId + ": " + ex.getMessage(), ex);
+			return false;
 		});
 	}
 
 	@Override
-	public CompletableFuture<Void> changeLockStatus(@NotNull HellblockWorld<?> world, @NotNull UUID ownerId) {
-		return validateUser(ownerId).thenAccept(userOpt -> {
-			userOpt.ifPresent(ownerData -> {
-				final HellblockData hellblockData = ownerData.getHellblockData();
-				final boolean locked = hellblockData.isLocked();
+	public CompletableFuture<Boolean> changeLockStatus(@NotNull HellblockWorld<?> world, @NotNull UUID ownerId) {
+		return validateUser(ownerId).thenCompose(optData -> {
+			if (optData.isEmpty()) {
+				return CompletableFuture.completedFuture(false);
+			}
 
-				final HellblockFlag flag = new HellblockFlag(HellblockFlag.FlagType.ENTRY,
-						locked ? HellblockFlag.AccessType.DENY : HellblockFlag.AccessType.ALLOW);
+			final UserData ownerData = optData.get();
+			final HellblockData hellblockData = ownerData.getHellblockData();
+			final boolean locked = hellblockData.isLocked();
 
-				hellblockData.setProtectionValue(flag);
-				instance.debug("Island Lock status changed for user " + ownerData.getName() + " to " + locked);
-				islandProtection.lockHellblock(world, ownerData);
-			});
+			final HellblockFlag flag = new HellblockFlag(HellblockFlag.FlagType.ENTRY,
+					locked ? HellblockFlag.AccessType.DENY : HellblockFlag.AccessType.ALLOW);
+
+			hellblockData.setProtectionValue(flag);
+			instance.debug("Island Lock status changed for user " + ownerData.getName() + " to " + locked);
+			return islandProtection.lockHellblock(world, ownerData);
+		}).exceptionally(ex -> {
+			instance.getPluginLogger()
+					.severe("Failed to change lock status for ownerId " + ownerId + ": " + ex.getMessage(), ex);
+			return false;
 		});
 	}
 
 	@Override
-	public void restoreIsland(@NotNull HellblockData data) {
+	public CompletableFuture<Boolean> restoreIsland(@NotNull HellblockData data) {
 		final UUID ownerUUID = data.getOwnerUUID();
 		if (ownerUUID == null) {
 			instance.getPluginLogger()
 					.severe("Tried to restore island with null owner UUID (ID: " + data.getIslandId() + ")");
-			throw new IllegalStateException("Cannot restore island without a valid owner UUID.");
+			return CompletableFuture
+					.failedFuture(new IllegalStateException("Cannot restore island without a valid owner UUID."));
 		}
 
 		final Optional<HellblockWorld<?>> worldOpt = instance.getWorldManager()
 				.getWorld(instance.getWorldManager().getHellblockWorldFormat(data.getIslandId()));
 
 		if (worldOpt.isEmpty() || worldOpt.get().bukkitWorld() == null) {
-			throw new IllegalStateException(
-					"Could not restore island because its world is missing (ID: " + data.getIslandId() + ")");
+			return CompletableFuture.failedFuture(new IllegalStateException(
+					"Could not restore island because its world is missing (ID: " + data.getIslandId() + ")"));
 		}
 
 		final HellblockWorld<?> world = worldOpt.get();
 
-		// Update abandoned flag in data
 		data.setAsAbandoned(false);
 
-		// Reapply protection regions/messages
-		islandProtection.updateHellblockMessages(world, ownerUUID);
-
-		// Re-register island ownership with protection handlers
-		islandProtection.restoreFlags(world, ownerUUID);
-
-		instance.debug("Island for " + ownerUUID + " restored successfully.");
+		// Wait for both protection updates to complete before marking as restored
+		return CompletableFuture.allOf(islandProtection.updateHellblockMessages(world, ownerUUID),
+				islandProtection.restoreFlags(world, ownerUUID)).thenApply(v -> {
+					instance.debug("Island for " + ownerUUID + " restored successfully.");
+					return true;
+				}).exceptionally(ex -> {
+					instance.getPluginLogger()
+							.severe("Failed to restore island for " + ownerUUID + ": " + ex.getMessage());
+					return false;
+				});
 	}
 
 	/**
@@ -250,12 +267,16 @@ public class ProtectionManager implements ProtectionManagerInterface, Reloadable
 	 */
 	private CompletableFuture<Optional<UserData>> validateUser(@NotNull UUID ownerId) {
 		return instance.getStorageManager().getCachedUserDataWithFallback(ownerId, false)
-				.thenApplyAsync(userOpt -> userOpt.filter(userData -> {
+				.thenApplyAsync(optData -> optData.filter(userData -> {
 					HellblockData data = userData.getHellblockData();
 					UUID owner = data.getOwnerUUID();
 
 					return data.hasHellblock() && !data.isAbandoned() && owner != null && owner.equals(ownerId);
-				}));
+				})).exceptionally(ex -> {
+					instance.getPluginLogger()
+							.severe("Failed to validate UserData for ownerId " + ownerId + ": " + ex.getMessage());
+					return Optional.empty();
+				});
 	}
 
 	@Override
@@ -266,6 +287,15 @@ public class ProtectionManager implements ProtectionManagerInterface, Reloadable
 				.forEach(Entity::remove));
 	}
 
+	private boolean shouldSkip(@NotNull UUID uuid) {
+		return instance.getIslandGenerator().isAnimating(uuid)
+				|| instance.getHellblockHandler().creationProcessing(uuid)
+				|| instance.getHellblockHandler().resetProcessing(uuid)
+				|| instance.getIslandGenerator().isGenerating(uuid)
+				|| instance.getIslandChoiceGUIManager().isGeneratingIsland(uuid)
+				|| instance.getSchematicGUIManager().isGeneratingSchematic(uuid);
+	}
+
 	@Nullable
 	@Override
 	public CompletableFuture<BoundingBox> getHellblockBounds(@NotNull HellblockWorld<?> world, @NotNull UUID ownerId) {
@@ -273,30 +303,24 @@ public class ProtectionManager implements ProtectionManagerInterface, Reloadable
 			return CompletableFuture.completedFuture(null);
 		}
 
-		return instance.getStorageManager().getCachedUserDataWithFallback(ownerId, false).orTimeout(5, TimeUnit.SECONDS)
-				.exceptionally(ex -> {
-					instance.getPluginLogger()
-							.warn("Failed to get bounds for island with owner " + ownerId + ": " + ex.getMessage());
-					return Optional.empty();
-				}).thenApply(result -> {
-					if (result.isEmpty()) {
-						return null;
-					}
+		return instance.getStorageManager().getCachedUserDataWithFallback(ownerId, false).thenApply(optData -> {
+			if (optData.isEmpty()) {
+				return null;
+			}
 
-					UserData userData = result.get();
-					BoundingBox bounds = userData.getHellblockData().getBoundingBox();
+			UserData userData = optData.get();
+			BoundingBox bounds = userData.getHellblockData().getBoundingBox();
 
-					if (bounds == null || instance.getIslandGenerator().isAnimating(userData.getUUID())
-							|| instance.getHellblockHandler().creationProcessing(userData.getUUID())
-							|| instance.getHellblockHandler().resetProcessing(userData.getUUID())
-							|| instance.getIslandGenerator().isGenerating(userData.getUUID())
-							|| instance.getIslandChoiceGUIManager().isGeneratingIsland(userData.getUUID())
-							|| instance.getSchematicGUIManager().isGeneratingSchematic(userData.getUUID())) {
-						return null;
-					}
+			if (bounds == null || shouldSkip(userData.getUUID())) {
+				return null;
+			}
 
-					return bounds;
-				});
+			return bounds;
+		}).exceptionally(ex -> {
+			instance.getPluginLogger()
+					.severe("Failed to get hellblock bounds for ownerId " + ownerId + ": " + ex.getMessage());
+			return null;
+		});
 	}
 
 	@Override
@@ -323,6 +347,10 @@ public class ProtectionManager implements ProtectionManagerInterface, Reloadable
 			double z = location.getZ();
 
 			return bounds.contains(x, y, z);
+		}).exceptionally(ex -> {
+			instance.getPluginLogger().severe("Failed to check if ownerId " + ownerId + " is inside island at "
+					+ Pos3.from(location) + ": " + ex.getMessage());
+			return false;
 		});
 	}
 
@@ -349,60 +377,61 @@ public class ProtectionManager implements ProtectionManagerInterface, Reloadable
 			double z = location.getZ();
 
 			return bounds.getMinX() <= x && x <= bounds.getMaxX() && bounds.getMinZ() <= z && z <= bounds.getMaxZ();
+		}).exceptionally(ex -> {
+			instance.getPluginLogger().severe("Failed to check if ownerId " + ownerId + " is inside island at "
+					+ Pos3.from(location) + ": " + ex.getMessage());
+			return false;
 		});
 	}
 
 	@NotNull
 	@Override
 	public CompletableFuture<Set<ChunkPos>> getHellblockChunks(@NotNull HellblockWorld<?> world, int islandId) {
-		CompletableFuture<Set<ChunkPos>> chunkFuture = new CompletableFuture<>();
-
 		Set<ChunkPos> cached = islandChunksCache.getIfPresent(islandId);
 		if (cached != null) {
-			chunkFuture.complete(cached);
-			return chunkFuture;
+			return CompletableFuture.completedFuture(cached);
 		}
 
-		instance.getStorageManager().getOfflineUserDataByIslandId(islandId, false).orTimeout(5, TimeUnit.SECONDS)
-				.exceptionally(ex -> {
-					instance.getPluginLogger()
-							.warn("Failed to get chunks for island " + islandId + ": " + ex.getMessage());
-					return Optional.empty();
-				}).thenAccept(result -> {
-					if (result.isEmpty()) {
-						chunkFuture.complete(Collections.emptySet());
-						return;
+		CompletableFuture<Set<ChunkPos>> chunkFuture = new CompletableFuture<>();
+
+		instance.getStorageManager().getOfflineUserDataByIslandId(islandId, false).thenAccept(optData -> {
+			if (optData.isEmpty()) {
+				chunkFuture.complete(Collections.emptySet());
+				return;
+			}
+
+			UserData userData = optData.get();
+			BoundingBox bounds = userData.getHellblockData().getBoundingBox();
+			if (bounds == null || shouldSkip(userData.getUUID())) {
+				chunkFuture.complete(Collections.emptySet());
+				return;
+			}
+
+			int minChunkX = (int) Math.floor(bounds.getMinX() / 16.0);
+			int maxChunkX = (int) Math.ceil(bounds.getMaxX() / 16.0);
+			int minChunkZ = (int) Math.floor(bounds.getMinZ() / 16.0);
+			int maxChunkZ = (int) Math.ceil(bounds.getMaxZ() / 16.0);
+
+			preloadIslandBounds(world, bounds, 10, null, 600L, false, 3, 2, () -> {
+				Set<ChunkPos> chunkPositions = new HashSet<>();
+				for (int cx = minChunkX; cx <= maxChunkX; cx++) {
+					for (int cz = minChunkZ; cz <= maxChunkZ; cz++) {
+						chunkPositions.add(ChunkPos.of(cx, cz));
 					}
+				}
 
-					UserData userData = result.get();
-					BoundingBox bounds = userData.getHellblockData().getBoundingBox();
-					if (bounds == null || instance.getIslandGenerator().isAnimating(userData.getUUID())
-							|| instance.getHellblockHandler().creationProcessing(userData.getUUID())
-							|| instance.getHellblockHandler().resetProcessing(userData.getUUID())
-							|| instance.getIslandGenerator().isGenerating(userData.getUUID())
-							|| instance.getIslandChoiceGUIManager().isGeneratingIsland(userData.getUUID())
-							|| instance.getSchematicGUIManager().isGeneratingSchematic(userData.getUUID())) {
-						chunkFuture.complete(Collections.emptySet());
-						return;
-					}
-
-					int minChunkX = (int) Math.floor(bounds.getMinX() / 16.0);
-					int maxChunkX = (int) Math.ceil(bounds.getMaxX() / 16.0);
-					int minChunkZ = (int) Math.floor(bounds.getMinZ() / 16.0);
-					int maxChunkZ = (int) Math.ceil(bounds.getMaxZ() / 16.0);
-
-					preloadIslandBounds(world, bounds, 10, null, 600L, false, 3, 2, () -> {
-						Set<ChunkPos> chunkPositions = new HashSet<>();
-						for (int cx = minChunkX; cx <= maxChunkX; cx++) {
-							for (int cz = minChunkZ; cz <= maxChunkZ; cz++) {
-								chunkPositions.add(ChunkPos.of(cx, cz));
-							}
-						}
-
-						islandChunksCache.put(islandId, chunkPositions);
-						chunkFuture.complete(chunkPositions);
-					});
-				});
+				islandChunksCache.put(islandId, chunkPositions);
+				chunkFuture.complete(chunkPositions);
+			}).exceptionally(ex -> {
+				instance.getPluginLogger()
+						.severe("Failed to get hellblock chunks for islandId " + islandId + ": " + ex.getMessage());
+				return null;
+			});
+		}).exceptionally(ex -> {
+			instance.getPluginLogger()
+					.severe("Failed to get hellblock chunks for islandId " + islandId + ": " + ex.getMessage());
+			return null;
+		});
 
 		return chunkFuture;
 	}
@@ -411,21 +440,20 @@ public class ProtectionManager implements ProtectionManagerInterface, Reloadable
 	@Override
 	public CompletableFuture<Set<ChunkPos>> getHellblockChunks(@NotNull HellblockWorld<?> world,
 			@NotNull UUID ownerId) {
-		return instance.getStorageManager().getCachedUserDataWithFallback(ownerId, false).orTimeout(5, TimeUnit.SECONDS)
-				.exceptionally(ex -> {
-					instance.getPluginLogger()
-							.warn("Failed to get chunks for island with owner " + ownerId + ": " + ex.getMessage());
-					return Optional.empty();
-				}).thenCompose(result -> {
-					if (result.isEmpty()) {
-						return CompletableFuture.completedFuture(Collections.emptySet());
-					}
-					int islandId = result.get().getHellblockData().getIslandId();
-					if (islandId <= 0) {
-						return CompletableFuture.completedFuture(Collections.emptySet());
-					}
-					return getHellblockChunks(world, islandId);
-				});
+		return instance.getStorageManager().getCachedUserDataWithFallback(ownerId, false).thenCompose(optData -> {
+			if (optData.isEmpty()) {
+				return CompletableFuture.completedFuture(Collections.emptySet());
+			}
+			int islandId = optData.get().getHellblockData().getIslandId();
+			if (islandId <= 0) {
+				return CompletableFuture.completedFuture(Collections.emptySet());
+			}
+			return getHellblockChunks(world, islandId);
+		}).exceptionally(ex -> {
+			instance.getPluginLogger()
+					.severe("Failed to get hellblock chunks for ownerId " + ownerId + ": " + ex.getMessage());
+			return Collections.emptySet();
+		});
 	}
 
 	@NotNull
@@ -437,55 +465,53 @@ public class ProtectionManager implements ProtectionManagerInterface, Reloadable
 		activeBlockScans.put(ownerId, blockSupplier);
 		skippedChunksPerIsland.put(ownerId, ConcurrentHashMap.newKeySet());
 
-		instance.getStorageManager().getCachedUserDataWithFallback(ownerId, false).orTimeout(5, TimeUnit.SECONDS)
-				.exceptionally(ex -> {
-					instance.getPluginLogger()
-							.warn("Failed to get blocks for island with owner " + ownerId + ": " + ex.getMessage());
-					return Optional.empty();
-				}).thenAccept(result -> {
-					if (result.isEmpty()) {
-						blockSupplier.complete(Collections.emptySet());
-						activeBlockScans.remove(ownerId);
-						return;
-					}
+		instance.getStorageManager().getCachedUserDataWithFallback(ownerId, false).thenAccept(optData -> {
+			if (optData.isEmpty()) {
+				blockSupplier.complete(Collections.emptySet());
+				activeBlockScans.remove(ownerId);
+				return;
+			}
 
-					final UserData userData = result.get();
-					final BoundingBox bounds = userData.getHellblockData().getBoundingBox();
-					if (bounds == null || instance.getIslandGenerator().isAnimating(userData.getUUID())
-							|| instance.getHellblockHandler().creationProcessing(userData.getUUID())
-							|| instance.getHellblockHandler().resetProcessing(userData.getUUID())
-							|| instance.getIslandGenerator().isGenerating(userData.getUUID())
-							|| instance.getIslandChoiceGUIManager().isGeneratingIsland(userData.getUUID())
-							|| instance.getSchematicGUIManager().isGeneratingSchematic(userData.getUUID())) {
-						blockSupplier.complete(Collections.emptySet());
-						activeBlockScans.remove(ownerId);
-						return;
-					}
+			final UserData userData = optData.get();
+			final BoundingBox bounds = userData.getHellblockData().getBoundingBox();
+			if (bounds == null || shouldSkip(userData.getUUID())) {
+				blockSupplier.complete(Collections.emptySet());
+				activeBlockScans.remove(ownerId);
+				return;
+			}
 
-					final int minX = (int) Math.floor(bounds.getMinX());
-					final int minY = (int) Math.floor(bounds.getMinY());
-					final int minZ = (int) Math.floor(bounds.getMinZ());
-					final int maxX = (int) Math.ceil(bounds.getMaxX());
-					final int maxY = (int) Math.ceil(bounds.getMaxY());
-					final int maxZ = (int) Math.ceil(bounds.getMaxZ());
+			final int minX = (int) Math.floor(bounds.getMinX());
+			final int minY = (int) Math.floor(bounds.getMinY());
+			final int minZ = (int) Math.floor(bounds.getMinZ());
+			final int maxX = (int) Math.ceil(bounds.getMaxX());
+			final int maxY = (int) Math.ceil(bounds.getMaxY());
+			final int maxZ = (int) Math.ceil(bounds.getMaxZ());
 
-					Queue<Pos3> positions = new ConcurrentLinkedQueue<>();
-					final Set<Pos3> collected = new HashSet<>();
+			Queue<Pos3> positions = new ConcurrentLinkedQueue<>();
+			final Set<Pos3> collected = new HashSet<>();
 
-					// Call updated batch method
-					preloadIslandBounds(world, bounds, 10, null, 600L, false, 3, 2,
-							() -> instance.getScheduler().executeAsync(() -> {
-								for (int x = minX; x <= maxX; x++) {
-									for (int y = minY; y <= maxY; y++) {
-										for (int z = minZ; z <= maxZ; z++) {
-											positions.add(new Pos3(x, y, z));
-										}
-									}
+			// Call updated batch method
+			preloadIslandBounds(world, bounds, 10, null, 600L, false, 3, 2,
+					() -> instance.getScheduler().executeAsync(() -> {
+						for (int x = minX; x <= maxX; x++) {
+							for (int y = minY; y <= maxY; y++) {
+								for (int z = minZ; z <= maxZ; z++) {
+									positions.add(new Pos3(x, y, z));
 								}
-								instance.getScheduler().executeSync(
-										() -> processBatch(ownerId, world, positions, collected, blockSupplier));
-							}));
-				});
+							}
+						}
+						instance.getScheduler()
+								.executeSync(() -> processBatch(ownerId, world, positions, collected, blockSupplier));
+					})).exceptionally(ex -> {
+						instance.getPluginLogger().severe(
+								"Failed to get hellblock blocks for ownerId " + ownerId + ": " + ex.getMessage());
+						return null;
+					});
+		}).exceptionally(ex -> {
+			instance.getPluginLogger()
+					.severe("Failed to get hellblock blocks for ownerId " + ownerId + ": " + ex.getMessage());
+			return null;
+		});
 
 		return blockSupplier;
 	}
@@ -495,7 +521,6 @@ public class ProtectionManager implements ProtectionManagerInterface, Reloadable
 			@NotNull BoundingBox bounds, int chunksPerTick, @Nullable Consumer<Double> progressCallback,
 			long timeoutTicks, boolean verboseLogging, int maxRetries, int retryDelayTicks,
 			@Nullable Runnable onCompleteCallback) {
-
 		if (chunksPerTick <= 0) {
 			throw new IllegalArgumentException("chunksPerTick must be > 0");
 		}
@@ -686,9 +711,9 @@ public class ProtectionManager implements ProtectionManagerInterface, Reloadable
 		}
 
 		int processed = 0;
-		AtomicInteger remaining = new AtomicInteger(BATCH_SIZE);
+		AtomicInteger remaining = new AtomicInteger(IslandBackupManager.BATCH_SIZE);
 
-		while (processed < BATCH_SIZE && !positions.isEmpty()) {
+		while (processed < IslandBackupManager.BATCH_SIZE && !positions.isEmpty()) {
 			final Pos3 pos = positions.poll();
 			world.getBlockState(pos).thenAccept(stateOpt -> {
 				if (stateOpt.isPresent() && !stateOpt.get().isAir()) {

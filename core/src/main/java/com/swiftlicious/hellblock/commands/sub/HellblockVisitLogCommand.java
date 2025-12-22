@@ -73,15 +73,15 @@ public class HellblockVisitLogCommand extends BukkitCommandFeature<CommandSender
 						return;
 					}
 
-					final UserData onlineUser = onlineUserOpt.get();
-					final HellblockData hellblockData = onlineUser.getHellblockData();
+					final UserData userData = onlineUserOpt.get();
+					final HellblockData data = userData.getHellblockData();
 
-					if (!hellblockData.hasHellblock()) {
+					if (!data.hasHellblock()) {
 						handleFeedback(context, MessageConstants.MSG_HELLBLOCK_NOT_FOUND);
 						return;
 					}
 
-					final UUID ownerUUID = hellblockData.getOwnerUUID();
+					final UUID ownerUUID = data.getOwnerUUID();
 					if (ownerUUID == null) {
 						plugin.getPluginLogger().severe("Hellblock owner UUID was null for player " + player.getName()
 								+ " (" + player.getUniqueId() + "). This indicates corrupted data or a serious bug.");
@@ -89,26 +89,25 @@ public class HellblockVisitLogCommand extends BukkitCommandFeature<CommandSender
 								"Owner reference was null. This should never happen — please report to the developer.");
 					}
 
-					plugin.getStorageManager()
-							.getCachedUserDataWithFallback(ownerUUID, plugin.getConfigManager().lockData())
-							.thenAccept(result -> {
-								if (result.isEmpty()) {
+					plugin.getStorageManager().getCachedUserDataWithFallback(ownerUUID, false)
+							.thenCompose(optOwnerData -> {
+								if (optOwnerData.isEmpty()) {
 									String username = Optional.ofNullable(Bukkit.getOfflinePlayer(ownerUUID).getName())
 											.orElse(plugin.getTranslationManager().miniMessageTranslation(
 													MessageConstants.FORMAT_UNKNOWN.build().key()));
 									handleFeedback(context, MessageConstants.MSG_HELLBLOCK_OWNER_DATA_NOT_LOADED,
 											AdventureHelper.miniMessageToComponent(username));
-									return;
+									return CompletableFuture.completedFuture(null);
 								}
 
-								final HellblockData offlineData = result.get().getHellblockData();
+								final HellblockData hellblockData = optOwnerData.get().getHellblockData();
 
-								if (offlineData.isAbandoned()) {
+								if (hellblockData.isAbandoned()) {
 									handleFeedback(context, MessageConstants.MSG_HELLBLOCK_IS_ABANDONED);
-									return;
+									return CompletableFuture.completedFuture(null);
 								}
 
-								plugin.getVisitManager().getIslandVisitLog(ownerUUID).thenAccept(records -> {
+								return plugin.getVisitManager().getIslandVisitLog(ownerUUID).thenAccept(records -> {
 									if (records.isEmpty()) {
 										handleFeedback(context, MessageConstants.MSG_HELLBLOCK_VISIT_LOG_EMPTY);
 										return;
@@ -175,7 +174,17 @@ public class HellblockVisitLogCommand extends BukkitCommandFeature<CommandSender
 												AdventureHelper.miniMessageToComponent(name),
 												AdventureHelper.miniMessageToComponent(formattedAgo));
 									}
+								}).exceptionally(ex -> {
+									plugin.getPluginLogger()
+											.warn("Hellblock visit log command failed (Could not read visit logs for "
+													+ ownerUUID + "): " + ex.getMessage());
+									return null;
 								});
+							}).exceptionally(ex -> {
+								plugin.getPluginLogger()
+										.warn("Hellblock visit log command failed (Could not read owner " + ownerUUID
+												+ "'s data): " + ex.getMessage());
+								return null;
 							});
 				});
 	}

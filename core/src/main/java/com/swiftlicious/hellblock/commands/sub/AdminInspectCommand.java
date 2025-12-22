@@ -1,7 +1,9 @@
 package com.swiftlicious.hellblock.commands.sub;
 
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -41,14 +43,18 @@ public class AdminInspectCommand extends BukkitCommandFeature<CommandSender> {
 						return CompletableFuture.completedFuture(Collections.emptyList());
 					}
 
-					final Set<UUID> allKnownUUIDs = plugin.getStorageManager().getDataSource().getUniqueUsers();
+					final String lowerInput = input.input().toLowerCase(Locale.ROOT);
+					final Set<UUID> allKnownUUIDs = new HashSet<>(
+							plugin.getStorageManager().getDataSource().getUniqueUsers());
 
-					final List<String> suggestions = allKnownUUIDs.stream()
+					final List<Suggestion> suggestions = allKnownUUIDs.stream()
 							.map(uuid -> plugin.getStorageManager().getCachedUserData(uuid)).filter(Optional::isPresent)
 							.map(Optional::get).filter(user -> user.getHellblockData().hasHellblock())
-							.map(UserData::getName).filter(Objects::nonNull).toList();
+							.map(UserData::getName).filter(Objects::nonNull)
+							.filter(name -> name.toLowerCase(Locale.ROOT).startsWith(lowerInput))
+							.sorted(String.CASE_INSENSITIVE_ORDER).limit(64).map(Suggestion::suggestion).toList();
 
-					return CompletableFuture.completedFuture(suggestions.stream().map(Suggestion::suggestion).toList());
+					return CompletableFuture.completedFuture(suggestions);
 				})).handler(context -> {
 					final String targetName = context.get("player");
 
@@ -71,50 +77,49 @@ public class AdminInspectCommand extends BukkitCommandFeature<CommandSender> {
 						return;
 					}
 
-					plugin.getStorageManager().getCachedUserDataWithFallback(targetId, false).thenAccept(result -> {
-						if (result.isEmpty()) {
+					plugin.getStorageManager().getCachedUserDataWithFallback(targetId, false).thenCompose(targetOpt -> {
+						if (targetOpt.isEmpty()) {
 							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_PLAYER_DATA_FAILURE_LOAD,
 									AdventureHelper.miniMessageToComponent(targetName));
-							return;
+							return CompletableFuture.completedFuture(null);
 						}
 
-						final UserData targetUser = result.get();
-						final HellblockData data = targetUser.getHellblockData();
+						final UserData targetUserData = targetOpt.get();
+						final HellblockData data = targetUserData.getHellblockData();
 
 						if (!data.hasHellblock()) {
 							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_NO_ISLAND_FOUND);
-							return;
+							return CompletableFuture.completedFuture(null);
 						}
 
 						final UUID ownerUUID = data.getOwnerUUID();
 						if (ownerUUID == null) {
 							plugin.getPluginLogger()
-									.severe("Hellblock owner UUID was null for player " + targetUser.getName() + " ("
-											+ targetUser.getUUID() + "). This indicates corrupted data.");
-							throw new IllegalStateException(
-									"Owner reference was null. This should never happen — please report to the developer.");
+									.severe("Hellblock owner UUID was null for player " + targetUserData.getName()
+											+ " (" + targetUserData.getUUID() + "). This indicates corrupted data.");
+							return CompletableFuture.failedFuture(new IllegalStateException(
+									"Owner reference was null. This should never happen — please report to the developer."));
 						}
 
-						plugin.getStorageManager().getCachedUserDataWithFallback(ownerUUID, false)
-								.thenAccept(ownerOpt -> {
+						return plugin.getStorageManager().getCachedUserDataWithFallback(ownerUUID, false)
+								.thenCompose(ownerOpt -> {
 									if (ownerOpt.isEmpty()) {
 										final String username = Bukkit.getOfflinePlayer(ownerUUID).getName();
 										handleFeedback(context, MessageConstants.MSG_HELLBLOCK_PLAYER_DATA_FAILURE_LOAD,
 												AdventureHelper.miniMessageToComponent(username != null ? username
 														: plugin.getTranslationManager().miniMessageTranslation(
 																MessageConstants.FORMAT_UNKNOWN.build().key())));
-										return;
+										return CompletableFuture.completedFuture(null);
 									}
 
 									final UserData ownerData = ownerOpt.get();
+									final HellblockData hellblockData = ownerData.getHellblockData();
 									// Collect members
-									String members = ownerData.getHellblockData().getPartyMembers().stream()
-											.map(uuid -> {
-												final OfflinePlayer member = Bukkit.getOfflinePlayer(uuid);
-												return member.hasPlayedBefore() && member.getName() != null
-														? member.getName()
-														: uuid.toString();
-											}).collect(Collectors.joining(", "));
+									String members = hellblockData.getPartyMembers().stream().map(uuid -> {
+										final OfflinePlayer member = Bukkit.getOfflinePlayer(uuid);
+										return member.hasPlayedBefore() && member.getName() != null ? member.getName()
+												: uuid.toString();
+									}).collect(Collectors.joining(", "));
 
 									if (members.isEmpty()) {
 										members = plugin.getTranslationManager()
@@ -129,22 +134,31 @@ public class AdminInspectCommand extends BukkitCommandFeature<CommandSender> {
 									// arg:4 abandoned
 									// arg:5 members
 									handleFeedback(context, MessageConstants.MSG_HELLBLOCK_ADMIN_INFO,
-											AdventureHelper.miniMessageToComponent(targetUser.getName()),
+											AdventureHelper.miniMessageToComponent(targetUserData.getName()),
 											AdventureHelper.miniMessageToComponent(ownerUUID.toString()),
 											AdventureHelper.miniMessageToComponent(
-													String.valueOf(ownerData.getHellblockData().getIslandLevel())),
-											AdventureHelper.miniMessageToComponent(ownerData.getHellblockData().isLocked()
+													String.valueOf(hellblockData.getIslandLevel())),
+											AdventureHelper.miniMessageToComponent(hellblockData.isLocked()
 													? plugin.getTranslationManager().miniMessageTranslation(
 															MessageConstants.FORMAT_LOCKED.build().key())
 													: plugin.getTranslationManager().miniMessageTranslation(
 															MessageConstants.FORMAT_UNLOCKED.build().key())),
-											AdventureHelper.miniMessageToComponent(ownerData.getHellblockData().isAbandoned()
+											AdventureHelper.miniMessageToComponent(hellblockData.isAbandoned()
 													? plugin.getTranslationManager().miniMessageTranslation(
 															MessageConstants.FORMAT_YES.build().key())
 													: plugin.getTranslationManager().miniMessageTranslation(
 															MessageConstants.FORMAT_NO.build().key())),
 											AdventureHelper.miniMessageToComponent(members));
+									return CompletableFuture.completedFuture(null);
+								}).exceptionally(ex -> {
+									plugin.getPluginLogger().warn("Admin inspect command failed (Could not read owner "
+											+ ownerUUID + "'s data): " + ex.getMessage());
+									return null;
 								});
+					}).exceptionally(ex -> {
+						plugin.getPluginLogger().warn("Admin inspect command failed (Could not read target "
+								+ targetName + "'s data): " + ex.getMessage());
+						return null;
 					});
 				});
 	}

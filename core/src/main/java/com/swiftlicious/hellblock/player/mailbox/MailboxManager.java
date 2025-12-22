@@ -4,6 +4,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.Function;
 
 import org.bukkit.GameMode;
 import org.bukkit.entity.Player;
@@ -17,6 +19,7 @@ import com.swiftlicious.hellblock.handlers.AdventureHelper;
 import com.swiftlicious.hellblock.handlers.VersionHelper;
 import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.sender.Sender;
+import com.swiftlicious.hellblock.utils.PotionUtils;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TranslatableComponent;
@@ -43,9 +46,25 @@ public class MailboxManager {
 	 * @param playerId The UUID of the player.
 	 * @param entry    The mailbox entry to queue.
 	 */
-	public void queue(@NotNull UUID playerId, @NotNull MailboxEntry entry) {
-		instance.getStorageManager().getCachedUserDataWithFallback(playerId, instance.getConfigManager().lockData())
-				.thenAccept(optionalUser -> optionalUser.ifPresent(userData -> userData.getMailbox().add(entry)));
+	public CompletableFuture<Boolean> queue(@NotNull UUID playerId, @NotNull MailboxEntry entry) {
+		return instance.getStorageManager().getCachedUserDataWithFallback(playerId, true).thenCompose(optData -> {
+			if (optData.isEmpty())
+				return CompletableFuture.completedFuture(false);
+
+			UserData userData = optData.get();
+
+			// This may succeed or fail — handle below ensures unlock is always attempted
+			return CompletableFuture.completedFuture(userData.getMailbox().add(entry));
+		}).handle((result, ex) -> {
+			// Always unlock, regardless of success or failure
+			return instance.getStorageManager().unlockUserData(playerId).thenApply(unused -> {
+				if (ex != null) {
+					instance.getPluginLogger().warn("Failed to queue mailbox entry for " + playerId, ex);
+					return false;
+				}
+				return result != null && result;
+			});
+		}).thenCompose(Function.identity()); // flatten the nested future
 	}
 
 	/**
@@ -54,8 +73,8 @@ public class MailboxManager {
 	 * @param uuid  The UUID of the player.
 	 * @param flags The flags to include in the entry.
 	 */
-	public void queueMailbox(@NotNull UUID uuid, @NotNull MailboxFlag... flags) {
-		queue(uuid, new MailboxEntry(null, null, Set.of(flags)));
+	public CompletableFuture<Boolean> queueMailbox(@NotNull UUID uuid, @NotNull MailboxFlag... flags) {
+		return queue(uuid, new MailboxEntry(null, null, Set.of(flags)));
 	}
 
 	/**
@@ -139,7 +158,13 @@ public class MailboxManager {
 					sender.sendMessage(tm.render(MessageConstants.MSG_HELLBLOCK_UNSAFE_CONDITIONS.build()));
 				}
 				case RESET_GAMEMODE -> {
-					instance.getScheduler().executeSync(() -> player.setGameMode(GameMode.SURVIVAL));
+					instance.getScheduler().executeSync(() -> {
+						player.setGameMode(GameMode.SURVIVAL);
+						player.setFlying(false);
+						player.setAllowFlight(false);
+						if (player.hasPotionEffect(PotionUtils.getCompatiblePotionEffectType("SLOWNESS", "SLOW")))
+							player.removePotionEffect(PotionUtils.getCompatiblePotionEffectType("SLOWNESS", "SLOW"));
+					});
 				}
 				default -> {
 					// no-op

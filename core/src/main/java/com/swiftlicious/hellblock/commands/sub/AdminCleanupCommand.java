@@ -2,8 +2,7 @@ package com.swiftlicious.hellblock.commands.sub;
 
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -57,45 +56,68 @@ public class AdminCleanupCommand extends BukkitCommandFeature<CommandSender> {
 				}
 			};
 
-			// Start timeout countdown (e.g., 10 seconds)
-			ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
-			scheduler.schedule(() -> {
+			// Timeout safeguard (10 seconds)
+			plugin.getScheduler().asyncLater(() -> {
 				if (finished.compareAndSet(false, true)) {
-					plugin.getPluginLogger().warn(
-							"Hellblock cleanup command timed out before completing all user checks. Some results may be missing.");
+					plugin.getPluginLogger()
+							.warn("Hellblock cleanup command timed out before completing all user checks.");
+					complete.run();
 				}
-				complete.run(); // force complete if timeout
-				scheduler.shutdown();
-			}, 10, TimeUnit.SECONDS);
+			}, 10L, TimeUnit.SECONDS); // 10s = 200 ticks
 
+			// Process all users asynchronously
 			for (UUID id : userIds) {
-				plugin.getStorageManager().getCachedUserDataWithFallback(id, false).thenAccept(result -> {
-					if (result.isEmpty()) {
+				plugin.getStorageManager().getCachedUserDataWithFallback(id, false).thenCompose(optData -> {
+					// CASE 1: No user data — orphaned island
+					if (optData.isEmpty()) {
 						plugin.getPluginLogger().warn("Orphaned hellblock found for UUID " + id);
-						plugin.getHellblockHandler().resetHellblock(id, true, "Console").thenRun(() -> {
+						return plugin.getHellblockHandler().resetHellblock(id, true, "HBConsole").thenRun(() -> {
 							totalReset.incrementAndGet();
-							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_ADMIN_CLEANUP_ORPHAN,
-									AdventureHelper.miniMessageToComponent(id.toString()));
+							plugin.getScheduler()
+									.executeSync(() -> handleFeedback(context,
+											MessageConstants.MSG_HELLBLOCK_ADMIN_CLEANUP_ORPHAN,
+											AdventureHelper.miniMessageToComponent(id.toString())));
 							checkIfDone.run();
+						}).handle((result, ex) -> {
+							if (ex != null) {
+								plugin.getPluginLogger()
+										.warn("resetHellblock failed for " + id.toString() + ": " + ex.getMessage());
+							}
+							return false;
 						});
-						return;
 					}
 
-					UserData data = result.get();
+					// CASE 2: User data exists
+					UserData data = optData.get();
 					if (data.getHellblockData().hasHellblock() && data.getHellblockData().getOwnerUUID() == null) {
 						plugin.getPluginLogger()
 								.warn("Hellblock with null owner detected for " + data.getName() + " (" + id + ")");
-						plugin.getHellblockHandler().resetHellblock(id, true, "Console").thenRun(() -> {
-							plugin.getStorageManager().saveUserData(data, plugin.getConfigManager().lockData());
+						return plugin.getHellblockHandler().resetHellblock(id, true, "HBConsole").thenRun(() -> {
 							totalReset.incrementAndGet();
-							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_ADMIN_CLEANUP_CORRUPT,
-									AdventureHelper.miniMessageToComponent(data.getName()));
+							plugin.getScheduler()
+									.executeSync(() -> handleFeedback(context,
+											MessageConstants.MSG_HELLBLOCK_ADMIN_CLEANUP_CORRUPT,
+											AdventureHelper.miniMessageToComponent(data.getName())));
 							checkIfDone.run();
+						}).handle((result, ex) -> {
+							if (ex != null) {
+								plugin.getPluginLogger()
+										.warn("resetHellblock failed for " + data.getName() + ": " + ex.getMessage());
+							}
+							return false;
 						});
 					} else {
+						// Nothing to clean up
 						checkIfDone.run();
+						return CompletableFuture.completedFuture(false);
 					}
-				});
+				}).handle((result, ex) -> {
+					if (ex != null) {
+						plugin.getPluginLogger().warn("Cleanup error for UUID " + id + ": " + ex.getMessage());
+					}
+					checkIfDone.run();
+					return false;
+				}).thenCompose(v -> plugin.getStorageManager().unlockUserData(id).thenApply(x -> true));
 			}
 		});
 	}

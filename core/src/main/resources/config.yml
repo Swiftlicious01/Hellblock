@@ -424,7 +424,7 @@ hellblock:
     volume: 1.0
     pitch: 1.0
   starter-chest: 
-    inventory-name: '<center><dark_red>Hellblock Chest</dark_red>'
+    inventory-name: '<dark_red>Hellblock Chest</dark_red>'
     items:
       '1':
         material: BROWN_MUSHROOM
@@ -768,10 +768,6 @@ other-settings:
 
   # Log the consumption of time on data saving
   log-data-saving: true
-
-  # Lock player's data if a player is playing on a server that connected to database
-  # If you can ensure low database link latency and fast processing, you can consider disabling this option to improve performance
-  lock-data: true
 
   # Requires PlaceholderAPI to work
   placeholder-register:

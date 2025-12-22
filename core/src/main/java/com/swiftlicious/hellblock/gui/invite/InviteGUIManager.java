@@ -378,8 +378,10 @@ public class InviteGUIManager implements InviteGUIManagerInterface, Listener {
 			gui.cancelSearchPolling();
 			gui.returnItems(player);
 			inviteGUICache.remove(player.getUniqueId());
-			instance.getPartyGUIManager().openPartyGUI(gui.context.holder(), gui.islandContext.holder(), gui.isOwner);
-			ActionManager.trigger(gui.context, backActions);
+			boolean opened = instance.getPartyGUIManager().openPartyGUI(gui.context.holder(),
+					gui.islandContext.holder(), gui.isOwner);
+			if (opened)
+				ActionManager.trigger(gui.context, backActions);
 			return;
 		}
 

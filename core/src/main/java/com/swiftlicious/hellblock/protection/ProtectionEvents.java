@@ -10,7 +10,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CancellationException;
@@ -509,6 +508,7 @@ public class ProtectionEvents implements Listener, Reloadable {
 		}
 	}
 
+	@SuppressWarnings("deprecation")
 	@EventHandler(ignoreCancelled = true)
 	public void onItemDrop(PlayerDropItemEvent event) {
 		Player player = event.getPlayer();
@@ -671,8 +671,11 @@ public class ProtectionEvents implements Listener, Reloadable {
 			Location to = event.getTo();
 
 			// Prevent mobs from being pulled or teleported across protected areas
-			checkOwnerFlag(to, HellblockFlag.FlagType.INTERACT,
-					() -> instance.getScheduler().executeSync(() -> event.setCancelled(true)));
+			protectAgainstNaturalEvent(to, HellblockFlag.FlagType.INTERACT).thenAccept(denied -> {
+				if (denied) {
+					instance.getScheduler().executeSync(() -> event.setCancelled(true));
+				}
+			});
 		}
 	}
 
@@ -681,8 +684,11 @@ public class ProtectionEvents implements Listener, Reloadable {
 		if (!(event.getEntity() instanceof Player)) {
 			Location to = event.getTo();
 
-			checkOwnerFlag(to, HellblockFlag.FlagType.INTERACT,
-					() -> instance.getScheduler().executeSync(() -> event.setCancelled(true)));
+			protectAgainstNaturalEvent(to, HellblockFlag.FlagType.INTERACT).thenAccept(denied -> {
+				if (denied) {
+					instance.getScheduler().executeSync(() -> event.setCancelled(true));
+				}
+			});
 		}
 	}
 
@@ -691,11 +697,15 @@ public class ProtectionEvents implements Listener, Reloadable {
 		if (event.getReason() == UnleashReason.PLAYER_UNLEASH) {
 			final Location loc = event.getEntity().getLocation();
 
-			checkOwnerFlag(loc, HellblockFlag.FlagType.INTERACT, () -> instance.getScheduler().executeSync(() -> {
-				if (event instanceof Cancellable cancellable) {
-					cancellable.setCancelled(true);
-				} // else: event cannot be cancelled on this platform
-			}));
+			protectAgainstNaturalEvent(loc, HellblockFlag.FlagType.INTERACT).thenAccept(denied -> {
+				if (denied) {
+					instance.getScheduler().executeSync(() -> {
+						if (event instanceof Cancellable cancellable) {
+							cancellable.setCancelled(true);
+						} // else: event cannot be cancelled on this platform
+					});
+				}
+			});
 		}
 	}
 
@@ -934,8 +944,11 @@ public class ProtectionEvents implements Listener, Reloadable {
 		Block block = event.getBlock();
 		Location loc = block.getLocation();
 
-		checkOwnerFlag(loc, HellblockFlag.FlagType.INTERACT,
-				() -> instance.getScheduler().executeSync(() -> event.setCancelled(true)));
+		protectAgainstNaturalEvent(loc, HellblockFlag.FlagType.INTERACT).thenAccept(denied -> {
+			if (denied) {
+				instance.getScheduler().executeSync(() -> event.setCancelled(true));
+			}
+		});
 	}
 
 	@EventHandler(ignoreCancelled = true)
@@ -1044,14 +1057,23 @@ public class ProtectionEvents implements Listener, Reloadable {
 			}
 
 			// No owner -> fallback to check island owner
-			blocks.forEach(block -> checkOwnerFlag(block.getLocation(), HellblockFlag.FlagType.TNT,
-					() -> instance.getScheduler().executeSync(() -> event.blockList().remove(block))));
+			blocks.forEach(block -> protectAgainstNaturalEvent(block.getLocation(), HellblockFlag.FlagType.TNT)
+					.thenAccept(denied -> {
+						if (denied) {
+							instance.getScheduler().executeSync(() -> event.blockList().remove(block));
+						}
+					}));
 			return;
 		}
 
 		if (exploder instanceof Creeper) {
-			blocks.forEach(block -> checkOwnerFlag(block.getLocation(), HellblockFlag.FlagType.CREEPER_EXPLOSION,
-					() -> instance.getScheduler().executeSync(() -> event.blockList().remove(block))));
+			blocks.forEach(
+					block -> protectAgainstNaturalEvent(block.getLocation(), HellblockFlag.FlagType.CREEPER_EXPLOSION)
+							.thenAccept(denied -> {
+								if (denied) {
+									instance.getScheduler().executeSync(() -> event.blockList().remove(block));
+								}
+							}));
 			return;
 		}
 
@@ -1151,9 +1173,10 @@ public class ProtectionEvents implements Listener, Reloadable {
 				return;
 		}
 
-		instance.getCoopManager().getHellblockOwnerOfBlock(loc.getBlock()).thenAccept(ownerUUID -> {
-			if (ownerUUID == null)
-				return;
+		instance.getCoopManager().getHellblockOwnerOfBlock(loc.getBlock()).thenCompose(ownerUUID -> {
+			if (ownerUUID == null) {
+				return CompletableFuture.completedFuture(null); // Stop processing
+			}
 
 			// Wither build: always deny (and message nearby players)
 			if (type == EntityType.WITHER && reason == CreatureSpawnEvent.SpawnReason.BUILD_WITHER) {
@@ -1167,17 +1190,15 @@ public class ProtectionEvents implements Listener, Reloadable {
 						}
 					});
 				});
-				return;
+				return CompletableFuture.completedFuture(null); // End chain
 			}
 
 			// Check MOB_SPAWNING flag
-			instance.getStorageManager()
-					.getCachedUserDataWithFallback(ownerUUID, instance.getConfigManager().lockData())
-					.thenAccept(result -> {
-						if (result.isEmpty())
+			return instance.getStorageManager().getCachedUserDataWithFallback(ownerUUID, false)
+					.thenApply(optData -> optData.orElse(null)).thenAccept(ownerData -> {
+						if (ownerData == null)
 							return;
 
-						final UserData ownerData = result.get();
 						final HellblockFlag.AccessType val = ownerData.getHellblockData()
 								.getProtectionValue(HellblockFlag.FlagType.MOB_SPAWNING);
 
@@ -1197,20 +1218,24 @@ public class ProtectionEvents implements Listener, Reloadable {
 										MessageConstants.MSG_HELLBLOCK_PROTECTION_MOB_SPAWN_DENY.build());
 							}
 						}
+					}).exceptionally(ex -> {
+						instance.getPluginLogger().warn(
+								"Failed to process creature spawn at " + Pos3.from(loc) + ": " + ex.getMessage(), ex);
+						return null;
 					});
 		});
 	}
 
-	private boolean isPlayerCausedSpawn(CreatureSpawnEvent.SpawnReason reason) {
+	private boolean isPlayerCausedSpawn(@NotNull CreatureSpawnEvent.SpawnReason reason) {
 		return switch (reason) {
 		case DISPENSE_EGG, BUILD_IRONGOLEM, BUILD_SNOWMAN, BREEDING, CURED, INFECTION -> true;
 		default -> false;
 		};
 	}
 
-	private void sendNearbyMessage(Location loc, Component message) {
-		loc.getWorld().getNearbyEntities(loc, 5, 5, 5, e -> e instanceof Player).stream().map(e -> (Player) e)
-				.forEach(p -> canInteract(p, loc, HellblockFlag.FlagType.MOB_SPAWNING).thenAccept(can -> {
+	private void sendNearbyMessage(@NotNull Location location, @NotNull Component message) {
+		location.getWorld().getNearbyEntities(location, 5, 5, 5, e -> e instanceof Player).stream().map(e -> (Player) e)
+				.forEach(p -> canInteract(p, location, HellblockFlag.FlagType.MOB_SPAWNING).thenAccept(can -> {
 					if (!can && !bypass(p)) {
 						instance.getSenderFactory().wrap(p)
 								.sendMessage(instance.getTranslationManager().render(message));
@@ -1266,7 +1291,11 @@ public class ProtectionEvents implements Listener, Reloadable {
 			}
 		}
 
-		checkOwnerFlag(loc, flag, () -> instance.getScheduler().executeSync(() -> event.setCancelled(true)));
+		protectAgainstNaturalEvent(loc, flag).thenAccept(denied -> {
+			if (denied) {
+				instance.getScheduler().executeSync(() -> event.setCancelled(true));
+			}
+		});
 	}
 
 	@EventHandler
@@ -1282,16 +1311,22 @@ public class ProtectionEvents implements Listener, Reloadable {
 	public void onExpDrops(EntityDeathEvent event) {
 		final Location loc = event.getEntity().getLocation();
 
-		checkOwnerFlag(loc, HellblockFlag.FlagType.EXP_DROPS,
-				() -> instance.getScheduler().executeSync(() -> event.setDroppedExp(0)));
+		protectAgainstNaturalEvent(loc, HellblockFlag.FlagType.EXP_DROPS).thenAccept(denied -> {
+			if (denied) {
+				instance.getScheduler().executeSync(() -> event.setDroppedExp(0));
+			}
+		});
 	}
 
 	@EventHandler(ignoreCancelled = true)
 	public void onBlockExp(BlockExpEvent event) {
 		final Location loc = event.getBlock().getLocation();
 
-		checkOwnerFlag(loc, HellblockFlag.FlagType.EXP_DROPS,
-				() -> instance.getScheduler().executeSync(() -> event.setExpToDrop(0)));
+		protectAgainstNaturalEvent(loc, HellblockFlag.FlagType.EXP_DROPS).thenAccept(denied -> {
+			if (denied) {
+				instance.getScheduler().executeSync(() -> event.setExpToDrop(0));
+			}
+		});
 	}
 
 	@EventHandler(ignoreCancelled = true)
@@ -1320,8 +1355,11 @@ public class ProtectionEvents implements Listener, Reloadable {
 		}
 
 		final Location loc = event.getHitBlock() != null ? event.getHitBlock().getLocation() : fb.getLocation();
-		checkOwnerFlag(loc, HellblockFlag.FlagType.GHAST_FIREBALL,
-				() -> instance.getScheduler().executeSync(fb::remove));
+		protectAgainstNaturalEvent(loc, HellblockFlag.FlagType.GHAST_FIREBALL).thenAccept(denied -> {
+			if (denied) {
+				instance.getScheduler().executeSync(fb::remove);
+			}
+		});
 	}
 
 	// Fall damage -> flag
@@ -1387,8 +1425,12 @@ public class ProtectionEvents implements Listener, Reloadable {
 		}
 
 		if (event.getHitBlock() != null) {
-			checkOwnerFlag(event.getHitBlock().getLocation(), HellblockFlag.FlagType.WIND_CHARGE_BURST,
-					() -> instance.getScheduler().executeSync(() -> event.getEntity().remove()));
+			protectAgainstNaturalEvent(event.getHitBlock().getLocation(), HellblockFlag.FlagType.WIND_CHARGE_BURST)
+					.thenAccept(denied -> {
+						if (denied) {
+							instance.getScheduler().executeSync(() -> event.getEntity().remove());
+						}
+					});
 		}
 	}
 
@@ -1407,8 +1449,11 @@ public class ProtectionEvents implements Listener, Reloadable {
 
 		final Location loc = event.getEntity().getLocation();
 
-		checkOwnerFlag(loc, HellblockFlag.FlagType.BREEZE_WIND_CHARGE,
-				() -> instance.getScheduler().executeSync(() -> event.setCancelled(true)));
+		protectAgainstNaturalEvent(loc, HellblockFlag.FlagType.BREEZE_WIND_CHARGE).thenAccept(denied -> {
+			if (denied) {
+				instance.getScheduler().executeSync(() -> event.setCancelled(true));
+			}
+		});
 	}
 
 	@EventHandler(ignoreCancelled = true)
@@ -1426,7 +1471,11 @@ public class ProtectionEvents implements Listener, Reloadable {
 
 		final Location loc = event.getEntity().getLocation();
 
-		checkOwnerFlag(loc, HellblockFlag.FlagType.BREEZE_WIND_CHARGE, () -> event.blockList().clear());
+		protectAgainstNaturalEvent(loc, HellblockFlag.FlagType.BREEZE_WIND_CHARGE).thenAccept(denied -> {
+			if (denied) {
+				instance.getScheduler().executeSync(() -> event.blockList().clear());
+			}
+		});
 	}
 
 	// Potion splash -> flag
@@ -1852,31 +1901,40 @@ public class ProtectionEvents implements Listener, Reloadable {
 	 * that flag. Used for non-player-caused events where a Player isn't present
 	 * (snowman trails, enderman grief, etc.).
 	 */
-	private void checkOwnerFlag(Location loc, HellblockFlag.FlagType flag, Runnable onDenied) {
-		instance.getCoopManager().getHellblockOwnerOfBlock(loc.getBlock()).thenAccept(ownerUUID -> {
+	private CompletableFuture<Boolean> protectAgainstNaturalEvent(@NotNull Location location,
+			@NotNull HellblockFlag.FlagType flag) {
+		// Always check against the island owner's flag settings
+		if (location.getWorld() == null || !instance.getHellblockHandler().isInCorrectWorld(location.getWorld())) {
+			return CompletableFuture.completedFuture(false);
+		}
+
+		return instance.getCoopManager().getHellblockOwnerOfBlock(location.getBlock()).thenCompose(ownerUUID -> {
 			if (ownerUUID == null) {
-				return;
+				return CompletableFuture.completedFuture(false);
 			}
-			instance.getStorageManager().getCachedUserDataWithFallback(ownerUUID, false).orTimeout(5, TimeUnit.SECONDS)
-					.exceptionally(ex -> {
-						instance.getPluginLogger().warn(
-								"Failed to check owner flag of location " + Pos3.from(loc) + ": " + ex.getMessage());
-						return Optional.empty();
-					}).thenAccept(result -> {
-						if (result.isEmpty()) {
-							return;
-						}
-						final UserData ownerData = result.get();
-						final HellblockFlag.AccessType value = ownerData.getHellblockData().getProtectionValue(flag);
-						if (value == HellblockFlag.AccessType.DENY) {
-							instance.getScheduler().executeSync(onDenied::run);
-						}
-					});
+
+			return instance.getStorageManager().getCachedUserDataWithFallback(ownerUUID, false).thenCompose(optData -> {
+				if (optData.isEmpty()) {
+					return CompletableFuture.completedFuture(false);
+				}
+
+				final UserData ownerData = optData.get();
+				final HellblockFlag.AccessType value = ownerData.getHellblockData().getProtectionValue(flag);
+				if (value == HellblockFlag.AccessType.DENY) {
+					return instance.getScheduler().callSync(() -> CompletableFuture.completedFuture(true));
+				}
+
+				return CompletableFuture.completedFuture(false);
+			});
+		}).orTimeout(3, TimeUnit.SECONDS).exceptionally(ex -> {
+			instance.getPluginLogger()
+					.warn("Failed to check owner flag of location " + Pos3.from(location) + ": " + ex.getMessage(), ex);
+			return false;
 		});
 	}
 
-	private CompletableFuture<Boolean> canInteract(@Nullable Player player, Location location,
-			HellblockFlag.FlagType flag) {
+	private CompletableFuture<Boolean> canInteract(@Nullable Player player, @NotNull Location location,
+			@NotNull HellblockFlag.FlagType flag) {
 		// Always check against the island owner's flag settings
 		if (location.getWorld() == null || !instance.getHellblockHandler().isInCorrectWorld(location.getWorld())) {
 			return CompletableFuture.completedFuture(false);
@@ -1890,59 +1948,54 @@ public class ProtectionEvents implements Listener, Reloadable {
 				return CompletableFuture.completedFuture(false);
 			}
 
-			return instance.getStorageManager().getCachedUserDataWithFallback(ownerUUID, false)
-					.orTimeout(5, TimeUnit.SECONDS).exceptionally(ex -> {
-						instance.getPluginLogger().warn("Failed to check protection interaction of location "
-								+ Pos3.from(location) + ": " + ex.getMessage());
-						return Optional.empty();
-					}).thenApply(result -> {
-						if (result.isEmpty()) {
-							return false;
-						}
-						final UserData data = result.get();
-						final HellblockData hellblockData = data.getHellblockData();
+			return instance.getStorageManager().getCachedUserDataWithFallback(ownerUUID, false).thenApply(optData -> {
+				if (optData.isEmpty()) {
+					return false;
+				}
 
-						// Handle abandoned island flag rules
-						if (hellblockData.isAbandoned()) {
-							return switch (flag) {
-							case PVP, ENTRY, BUILD -> true; // Always allow
-							case MOB_SPAWNING -> false; // Always deny
-							default -> false; // Deny all other flags
-							};
-						}
+				final UserData ownerData = optData.get();
+				final HellblockData hellblockData = ownerData.getHellblockData();
 
-						// Co-op/owner access OR explicit ALLOW by owner
-						return player != null && (hellblockData.canAccess(player.getUniqueId())
-								|| hellblockData.getProtectionValue(flag) == HellblockFlag.AccessType.ALLOW);
-					});
+				// Handle abandoned island flag rules
+				if (hellblockData.isAbandoned()) {
+					return switch (flag) {
+					case PVP, ENTRY, BUILD -> true; // Always allow
+					case MOB_SPAWNING -> false; // Always deny
+					default -> false; // Deny all other flags
+					};
+				}
+
+				// Co-op/owner access OR explicit ALLOW by owner
+				return player != null && (hellblockData.canAccess(player.getUniqueId())
+						|| hellblockData.getProtectionValue(flag) == HellblockFlag.AccessType.ALLOW);
+			});
 		}).orTimeout(3, TimeUnit.SECONDS).exceptionally(ex -> {
-			instance.getPluginLogger().warn("canInteract failed: " + ex.getMessage());
+			instance.getPluginLogger().warn("canInteract failed: " + ex.getMessage(), ex);
 			return false;
 		});
 	}
 
-	private CompletableFuture<Boolean> denyIfNotAllowed(@NotNull Player player, Location loc,
-			@Nullable Cancellable event, Component message, HellblockFlag.FlagType flag) {
-
-		final CompletableFuture<Boolean> canInteractFuture = canInteract(player, loc, flag);
+	private CompletableFuture<Boolean> denyIfNotAllowed(@NotNull Player player, @NotNull Location location,
+			@Nullable Cancellable event, @NotNull Component message, @NotNull HellblockFlag.FlagType flag) {
+		final CompletableFuture<Boolean> canInteractFuture = canInteract(player, location, flag);
 
 		if (flag == HellblockFlag.FlagType.ENTRY) {
-			return instance.getCoopManager().getHellblockOwnerOfBlock(loc.getBlock()).thenCompose(ownerUUID -> {
+			return instance.getCoopManager().getHellblockOwnerOfBlock(location.getBlock()).thenCompose(ownerUUID -> {
 				if (ownerUUID == null) {
 					// No island at this location, fall back to normal check
 					return canInteractFuture;
 				}
 
 				final CompletableFuture<Boolean> bannedFuture = instance.getCoopManager()
-						.isPlayerBannedInLocation(player.getUniqueId(), ownerUUID, loc);
+						.isPlayerBannedInLocation(player.getUniqueId(), ownerUUID, location);
 
 				final CompletableFuture<Boolean> welcomeFuture = instance.getCoopManager()
 						.checkIfVisitorsAreWelcome(player, ownerUUID);
 
 				return canInteractFuture.thenCombine(bannedFuture, EntryCheck::new)
-						.thenCombine(welcomeFuture, EntryCheck::withWelcome).thenApply(entryCheck -> {
+						.thenCombine(welcomeFuture, EntryCheck::withWelcome).thenCompose(entryCheck -> {
 							if (!entryCheck.isAllowed() && !bypass(player)) {
-								instance.getScheduler().executeSync(() -> {
+								return instance.getScheduler().callSync(() -> {
 									if (event != null) {
 										event.setCancelled(true);
 									}
@@ -1960,16 +2013,16 @@ public class ProtectionEvents implements Listener, Reloadable {
 									instance.debug(
 											"Protection: Entry denied for %s (%s) at [world=%s, x=%d, y=%d, z=%d]. Reason=%s, Event=%s"
 													.formatted(player.getName(), player.getUniqueId(),
-															loc.getWorld() != null ? loc.getWorld().getName()
+															location.getWorld() != null ? location.getWorld().getName()
 																	: "unknown",
-															loc.getBlockX(), loc.getBlockY(), loc.getBlockZ(),
-															entryCheck.reason(),
+															location.getBlockX(), location.getBlockY(),
+															location.getBlockZ(), entryCheck.reason(),
 															(event != null ? event.getClass().getSimpleName()
 																	: "unknownEventClass")));
+									return CompletableFuture.completedFuture(true);
 								});
-								return true;
 							}
-							return false;
+							return CompletableFuture.completedFuture(false);
 						});
 			}).exceptionally(ex -> {
 				instance.getPluginLogger()
@@ -1979,9 +2032,9 @@ public class ProtectionEvents implements Listener, Reloadable {
 		}
 
 		// Non-ENTRY
-		return canInteractFuture.thenApply(can -> {
+		return canInteractFuture.thenCompose(can -> {
 			if (!can && !bypass(player)) {
-				instance.getScheduler().executeSync(() -> {
+				return instance.getScheduler().callSync(() -> {
 					if (event != null) {
 						event.setCancelled(true);
 					}
@@ -1989,22 +2042,22 @@ public class ProtectionEvents implements Listener, Reloadable {
 							.sendMessage(instance.getTranslationManager().render(message));
 					instance.debug("Protection: Denied %s (%s) at [world=%s, x=%d, y=%d, z=%d]. Event=%s".formatted(
 							player.getName(), player.getUniqueId(),
-							loc.getWorld() != null ? loc.getWorld().getName() : "unknown", loc.getBlockX(),
-							loc.getBlockY(), loc.getBlockZ(),
+							location.getWorld() != null ? location.getWorld().getName() : "unknown",
+							location.getBlockX(), location.getBlockY(), location.getBlockZ(),
 							(event != null ? event.getClass().getSimpleName() : "unknownEventClass")));
+					return CompletableFuture.completedFuture(true);
 				});
-				return true;
 			}
-			return false;
+			return CompletableFuture.completedFuture(false);
 		}).exceptionally(ex -> {
 			instance.getPluginLogger().warn("denyIfNotAllowed failed for " + player.getName() + ": " + ex.getMessage());
 			return false;
 		});
 	}
 
-	private CompletableFuture<Boolean> checkFlag(Player player, Location loc, @Nullable Cancellable event,
-			Component message, HellblockFlag.FlagType flag) {
-		return denyIfNotAllowed(player, loc, event, message, flag);
+	private CompletableFuture<Boolean> checkFlag(@Nullable Player player, @NotNull Location location,
+			@NotNull Cancellable event, @NotNull Component message, @NotNull HellblockFlag.FlagType flag) {
+		return denyIfNotAllowed(player, location, event, message, flag);
 	}
 
 	private boolean movedWithinBlock(PlayerMoveEvent event) {
@@ -2013,46 +2066,40 @@ public class ProtectionEvents implements Listener, Reloadable {
 				&& event.getTo().getBlockZ() == event.getFrom().getBlockZ();
 	}
 
-	private void handleHellblockMessage(Player player) {
-		instance.getCoopManager().getHellblockOwnerOfVisitingIsland(player).thenAccept(ownerUUID -> {
+	private CompletableFuture<Boolean> handleHellblockMessage(@NotNull Player player) {
+		return instance.getCoopManager().getHellblockOwnerOfVisitingIsland(player).thenCompose(ownerUUID -> {
 			if (ownerUUID == null) {
-				return;
+				return CompletableFuture.completedFuture(false);
 			}
 
 			final BoundingBox cachedBounds = hellblockCache.get(ownerUUID);
 			if (cachedBounds != null) {
-				checkAndSendMessageAsync(player, ownerUUID, cachedBounds);
-				return;
+				return checkAndSendMessage(player, ownerUUID, cachedBounds);
 			}
 
-			// Asynchronously fetch the bounding box from offline user data
-			instance.getStorageManager().getCachedUserDataWithFallback(ownerUUID, false).orTimeout(5, TimeUnit.SECONDS)
-					.exceptionally(ex -> {
-						instance.getPluginLogger().warn("Failed to send entry/farewell message to player "
-								+ player.getName() + ": " + ex.getMessage());
-						return Optional.empty();
-					}).thenAccept(result -> {
-						if (result.isEmpty()) {
-							return;
-						}
+			return instance.getStorageManager().getCachedUserDataWithFallback(ownerUUID, false).thenCompose(optData -> {
+				if (optData.isEmpty()) {
+					return CompletableFuture.completedFuture(false);
+				}
 
-						final UserData userData = result.get();
-						final BoundingBox hellblockBounds = userData.getHellblockData().getBoundingBox();
-						if (hellblockBounds == null) {
-							return;
-						}
+				final UserData ownerData = optData.get();
+				final BoundingBox hellblockBounds = ownerData.getHellblockData().getBoundingBox();
+				if (hellblockBounds == null) {
+					return CompletableFuture.completedFuture(false);
+				}
 
-						hellblockCache.putIfAbsent(ownerUUID, hellblockBounds);
-						checkAndSendMessageAsync(player, ownerUUID, hellblockBounds);
-					}).exceptionally(ex -> {
-						instance.getPluginLogger()
-								.warn("Failed to fetch hellblock bounds for " + ownerUUID + ": " + ex.getMessage());
-						return null;
-					});
+				hellblockCache.putIfAbsent(ownerUUID, hellblockBounds);
+				return checkAndSendMessage(player, ownerUUID, hellblockBounds);
+			});
+		}).exceptionally(ex -> {
+			instance.getPluginLogger().warn(
+					"Failed to fetch hellblock bounds for player " + player.getName() + ": " + ex.getMessage(), ex);
+			return false;
 		});
 	}
 
-	private void checkAndSendMessageAsync(Player player, UUID ownerUUID, BoundingBox hellblockBounds) {
+	private CompletableFuture<Boolean> checkAndSendMessage(@NotNull Player player, @NotNull UUID ownerUUID,
+			@NotNull BoundingBox hellblockBounds) {
 		final UUID playerId = player.getUniqueId();
 		final BoundingBox playerBounds = player.getBoundingBox();
 
@@ -2061,44 +2108,42 @@ public class ProtectionEvents implements Listener, Reloadable {
 
 		// If player's state hasn't changed, don't send message
 		if (wasInside != null && wasInside == isInside) {
-			return;
+			return CompletableFuture.completedFuture(false);
 		}
 
 		// Update player state
 		playerInBoundsState.put(playerId, isInside);
 
 		// Fetch the appropriate message from owner data asynchronously
-		instance.getStorageManager().getCachedUserDataWithFallback(ownerUUID, false).orTimeout(5, TimeUnit.SECONDS)
-				.exceptionally(ex -> {
-					instance.getPluginLogger().warn("Failed to retrieve entry/farewell message from island with owner "
-							+ ownerUUID + ": " + ex.getMessage());
-					return Optional.empty();
-				}).thenAccept(optData -> {
-					if (optData.isEmpty()) {
-						return;
-					}
+		return instance.getStorageManager().getCachedUserDataWithFallback(ownerUUID, false).thenCompose(optData -> {
+			if (optData.isEmpty()) {
+				return CompletableFuture.completedFuture(false);
+			}
 
-					final UserData ownerData = optData.get();
-					final HellblockFlag.FlagType flagType = isInside ? HellblockFlag.FlagType.GREET_MESSAGE
-							: HellblockFlag.FlagType.FAREWELL_MESSAGE;
+			final UserData ownerData = optData.get();
+			final HellblockFlag.FlagType flagType = isInside ? HellblockFlag.FlagType.GREET_MESSAGE
+					: HellblockFlag.FlagType.FAREWELL_MESSAGE;
 
-					String messageText = ownerData.getHellblockData().getProtectionData(flagType);
+			String messageText = ownerData.getHellblockData().getProtectionData(flagType);
 
-					if (messageText != null && !messageText.isEmpty()) {
-						messageText = messageText.replace("<arg:0>", ownerData.getName());
-						final Component message = AdventureHelper.miniMessageToComponent(messageText);
+			if (messageText == null || messageText.isEmpty()) {
+				return CompletableFuture.completedFuture(false);
+			}
 
-						// Schedule sending the message on the main thread
-						instance.getScheduler().executeSync(() -> {
-							final Sender audience = instance.getSenderFactory().wrap(player);
-							audience.sendMessage(instance.getTranslationManager().render(message));
-						});
-					}
-				}).exceptionally(ex -> {
-					instance.getPluginLogger()
-							.warn("Failed to fetch greet/farewell message for " + ownerUUID + ": " + ex.getMessage());
-					return null;
-				});
+			messageText = messageText.replace("<arg:0>", ownerData.getName());
+			final Component message = AdventureHelper.miniMessageToComponent(messageText);
+
+			// Schedule sending the message on the main thread
+			return instance.getScheduler().callSync(() -> {
+				final Sender audience = instance.getSenderFactory().wrap(player);
+				audience.sendMessage(instance.getTranslationManager().render(message));
+				return CompletableFuture.completedFuture(true);
+			});
+		}).exceptionally(ex -> {
+			instance.getPluginLogger()
+					.warn("Failed to fetch greet/farewell message for " + ownerUUID + ": " + ex.getMessage(), ex);
+			return false;
+		});
 	}
 
 	@EventHandler
@@ -2117,7 +2162,7 @@ public class ProtectionEvents implements Listener, Reloadable {
 		}
 	}
 
-	private boolean isShopSign(Block block) {
+	private boolean isShopSign(@NotNull Block block) {
 		if (!(block.getState() instanceof Sign sign)) {
 			return false;
 		}
@@ -2246,7 +2291,7 @@ public class ProtectionEvents implements Listener, Reloadable {
 		}
 	}
 
-	public class LegacyMountListener implements Listener {
+	private class LegacyMountListener implements Listener {
 
 		private final Map<UUID, Long> recentMounts = new ConcurrentHashMap<>();
 		private static final long MOUNT_TRACK_DURATION_MS = 10_000; // 10 seconds

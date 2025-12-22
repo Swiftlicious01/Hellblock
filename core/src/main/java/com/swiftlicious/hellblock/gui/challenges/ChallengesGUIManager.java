@@ -372,9 +372,10 @@ public class ChallengesGUIManager implements ChallengesGUIManagerInterface, List
 			if (gui.showBackIcon) {
 				if (element.getSymbol() == backSlot) {
 					event.setCancelled(true);
-					instance.getHellblockGUIManager().openHellblockGUI(gui.context.holder(), gui.islandContext.holder(),
-							gui.isOwner);
-					ActionManager.trigger(gui.context, backActions);
+					boolean opened = instance.getHellblockGUIManager().openHellblockGUI(gui.context.holder(),
+							gui.islandContext.holder(), gui.isOwner);
+					if (opened)
+						ActionManager.trigger(gui.context, backActions);
 					return;
 				}
 			} else {

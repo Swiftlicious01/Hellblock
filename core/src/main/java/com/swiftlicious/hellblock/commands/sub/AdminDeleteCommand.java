@@ -1,7 +1,9 @@
 package com.swiftlicious.hellblock.commands.sub;
 
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -46,14 +48,18 @@ public class AdminDeleteCommand extends BukkitCommandFeature<CommandSender> {
 						return CompletableFuture.completedFuture(Collections.emptyList());
 					}
 
-					final Set<UUID> allKnownUUIDs = plugin.getStorageManager().getDataSource().getUniqueUsers();
+					final String lowerInput = input.input().toLowerCase(Locale.ROOT);
+					final Set<UUID> allKnownUUIDs = new HashSet<>(
+							plugin.getStorageManager().getDataSource().getUniqueUsers());
 
-					final List<String> suggestions = allKnownUUIDs.stream()
+					final List<Suggestion> suggestions = allKnownUUIDs.stream()
 							.map(uuid -> plugin.getStorageManager().getCachedUserData(uuid)).filter(Optional::isPresent)
 							.map(Optional::get).filter(user -> user.getHellblockData().hasHellblock())
-							.map(UserData::getName).filter(Objects::nonNull).toList();
+							.map(UserData::getName).filter(Objects::nonNull)
+							.filter(name -> name.toLowerCase(Locale.ROOT).startsWith(lowerInput))
+							.sorted(String.CASE_INSENSITIVE_ORDER).limit(64).map(Suggestion::suggestion).toList();
 
-					return CompletableFuture.completedFuture(suggestions.stream().map(Suggestion::suggestion).toList());
+					return CompletableFuture.completedFuture(suggestions);
 				})).handler(context -> {
 					final Player executor = context.sender();
 					final String targetName = context.get("player");
@@ -87,19 +93,19 @@ public class AdminDeleteCommand extends BukkitCommandFeature<CommandSender> {
 					}
 
 					// Confirmed → delete
-					plugin.getStorageManager().getCachedUserDataWithFallback(targetId, false).thenAccept(result -> {
-						if (result.isEmpty()) {
+					plugin.getStorageManager().getCachedUserDataWithFallback(targetId, false).thenCompose(targetOpt -> {
+						if (targetOpt.isEmpty()) {
 							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_PLAYER_DATA_FAILURE_LOAD,
 									AdventureHelper.miniMessageToComponent(targetName));
-							return;
+							return CompletableFuture.completedFuture(false);
 						}
 
-						final UserData targetUserData = result.get();
+						final UserData targetUserData = targetOpt.get();
 						final HellblockData targetData = targetUserData.getHellblockData();
 
 						if (!targetData.hasHellblock()) {
 							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_NO_ISLAND_FOUND);
-							return;
+							return CompletableFuture.completedFuture(false);
 						}
 
 						final UUID ownerUUID = targetData.getOwnerUUID();
@@ -107,23 +113,28 @@ public class AdminDeleteCommand extends BukkitCommandFeature<CommandSender> {
 							plugin.getPluginLogger()
 									.severe("Hellblock owner UUID was null for player " + targetUserData.getName()
 											+ " (" + targetUserData.getUUID() + "). This indicates corrupted data.");
-							throw new IllegalStateException(
-									"Owner reference was null. This should never happen — please report to the developer.");
+							return CompletableFuture.failedFuture(new IllegalStateException(
+									"Owner reference was null. This should never happen — please report to the developer."));
 						}
 
-						plugin.getHellblockHandler().resetHellblock(ownerUUID, true, executor.getName()).thenRun(() -> {
-							// Save changes
-							plugin.getStorageManager().saveUserData(targetUserData,
-									plugin.getConfigManager().lockData());
-							plugin.debug("%s's hellblock has been forcefully deleted by %s.".formatted(targetName,
-									executor.getName()));
-							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_ADMIN_ISLAND_DELETED,
-									AdventureHelper.miniMessageToComponent(targetName));
-						}).exceptionally(ex -> {
-							plugin.getPluginLogger().warn(
-									"resetHellblock failed for " + targetUserData.getName() + ": " + ex.getMessage());
-							return null;
-						});
+						return plugin.getHellblockHandler().resetHellblock(ownerUUID, true, executor.getName())
+								.thenRun(() -> {
+									// Save changes
+									plugin.debug("%s's hellblock has been forcefully deleted by %s."
+											.formatted(targetName, executor.getName()));
+									handleFeedback(context, MessageConstants.MSG_HELLBLOCK_ADMIN_ISLAND_DELETED,
+											AdventureHelper.miniMessageToComponent(targetName));
+								}).handle((result, ex) -> {
+									if (ex != null) {
+										plugin.getPluginLogger().warn("resetHellblock failed for "
+												+ targetUserData.getName() + ": " + ex.getMessage());
+									}
+									return false;
+								});
+					}).exceptionally(ex -> {
+						plugin.getPluginLogger().warn("Admin delete command failed (Could not read target " + targetName
+								+ "'s data): " + ex.getMessage());
+						return false;
 					});
 				});
 	}

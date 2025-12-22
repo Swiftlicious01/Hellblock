@@ -108,6 +108,14 @@ public interface StorageManagerInterface extends Reloadable {
 	CompletableFuture<Boolean> saveUserData(UserData userData, boolean unlock);
 
 	/**
+	 * Unlocks the user data.
+	 *
+	 * @param uuid the {@link UUID} to be unlocked
+	 * @return a {@link CompletableFuture} when finished unlocking
+	 */
+	CompletableFuture<Void> unlockUserData(UUID uuid);
+
+	/**
 	 * Retrieves the data storage provider.
 	 *
 	 * @return the {@link DataStorageProvider} instance

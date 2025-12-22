@@ -3,12 +3,12 @@ package com.swiftlicious.hellblock.listeners;
 import static java.util.Map.entry;
 
 import java.lang.reflect.Field;
-import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -18,12 +18,13 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
-import java.util.function.Consumer;
+import java.util.function.Function;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Effect;
@@ -91,6 +92,7 @@ import com.swiftlicious.hellblock.listeners.GlowTreeHandler.CustomTreeGrowContex
 import com.swiftlicious.hellblock.listeners.weather.WeatherType;
 import com.swiftlicious.hellblock.nms.inventory.HandSlot;
 import com.swiftlicious.hellblock.player.HellblockData;
+import com.swiftlicious.hellblock.player.UserData;
 import com.swiftlicious.hellblock.upgrades.IslandUpgradeType;
 import com.swiftlicious.hellblock.upgrades.UpgradeData;
 import com.swiftlicious.hellblock.upgrades.UpgradeTier;
@@ -371,13 +373,12 @@ public class FarmingHandler implements Listener, Reloadable {
 	 * @param world    the Hellblock world instance associated with the island
 	 * @param islandId the ID of the island whose farm cache should be cleared
 	 */
-	public void clearIslandFarmCache(@NotNull HellblockWorld<?> world, int islandId) {
+	@NotNull
+	public CompletableFuture<Void> clearIslandFarmCache(@NotNull HellblockWorld<?> world, int islandId) {
 		// Remove farm crop data cache
 		farmCache.invalidate(islandId);
 
-		// Remove any tracking that this farm is loaded (stored as Pos3)
 		List<Pos3> toRemovePlacedCrops = new ArrayList<>();
-
 		List<CompletableFuture<Void>> placedCropFutures = playerPlacedCrops.stream().map(pos -> {
 			Location location = pos.toLocation(world.bukkitWorld());
 			return instance.getIslandManager().resolveIslandId(location).thenAccept(optId -> {
@@ -389,12 +390,7 @@ public class FarmingHandler implements Listener, Reloadable {
 			});
 		}).toList();
 
-		CompletableFuture.allOf(placedCropFutures.toArray(CompletableFuture[]::new))
-				.thenRun(() -> playerPlacedCrops.removeAll(toRemovePlacedCrops));
-
-		// Remove lava-grown mushrooms (stored as Pos3)
 		List<Pos3> toRemoveMushrooms = new ArrayList<>();
-
 		List<CompletableFuture<Void>> mushroomFutures = lavaGrownMushrooms.stream().map(pos -> {
 			Location loc = pos.toLocation(world.bukkitWorld());
 			return instance.getIslandManager().resolveIslandId(loc).thenAccept(optId -> {
@@ -406,10 +402,17 @@ public class FarmingHandler implements Listener, Reloadable {
 			});
 		}).toList();
 
-		CompletableFuture.allOf(mushroomFutures.toArray(CompletableFuture[]::new))
+		CompletableFuture<Void> cropsFuture = CompletableFuture
+				.allOf(placedCropFutures.toArray(CompletableFuture[]::new))
+				.thenRun(() -> playerPlacedCrops.removeAll(toRemovePlacedCrops));
+
+		CompletableFuture<Void> mushroomsFuture = CompletableFuture
+				.allOf(mushroomFutures.toArray(CompletableFuture[]::new))
 				.thenRun(() -> lavaGrownMushrooms.removeAll(toRemoveMushrooms));
 
-		instance.debug("Cleared farming cache for island ID " + islandId);
+		// Combine both futures and log after all is done
+		return CompletableFuture.allOf(cropsFuture, mushroomsFuture)
+				.thenRun(() -> instance.debug("Cleared farming cache for island ID " + islandId));
 	}
 
 	/**
@@ -432,10 +435,14 @@ public class FarmingHandler implements Listener, Reloadable {
 	 * @param world    the Hellblock world instance the island resides in
 	 * @param islandId the ID of the island to update
 	 */
-	public void updateCrops(@NotNull HellblockWorld<?> world, int islandId) {
-		getFarmBlocksByIslandId(world, islandId).thenAccept(farmBlocks -> {
-			if (farmBlocks == null || farmBlocks.isEmpty())
-				return;
+	@NotNull
+	public CompletableFuture<Boolean> updateCrops(@NotNull HellblockWorld<?> world, int islandId) {
+		return getFarmBlocksByIslandId(world, islandId).thenCompose(farmBlocks -> {
+			if (farmBlocks == null || farmBlocks.isEmpty()) {
+				return CompletableFuture.completedFuture(false);
+			}
+
+			List<CompletableFuture<Boolean>> cropTasks = new ArrayList<>();
 
 			for (PositionedBlock block : farmBlocks) {
 				CustomBlockState state = block.state();
@@ -443,17 +450,22 @@ public class FarmingHandler implements Listener, Reloadable {
 					continue;
 
 				String key = state.type().type().key().asString().toLowerCase();
+
 				if (Set.of("minecraft:farmland", "hellblock:farmland").contains(key)
 						&& state.type() instanceof MoistureHolder) {
-					handleFarmland(block, world);
-					continue;
+					cropTasks.add(handleFarmland(block, world));
+				} else {
+					cropTasks.add(cropResolver.handleIfKnown(block, world));
 				}
-
-				this.cropResolver.handleIfKnown(block, world);
 			}
-		});
 
-		handleGlowstoneTreeGrowth(world, islandId);
+			// Add glowstone tree growth task
+			cropTasks.add(handleGlowstoneTreeGrowth(world, islandId));
+
+			// Combine all tasks and return true if any were successful
+			return CompletableFuture.allOf(cropTasks.toArray(CompletableFuture[]::new))
+					.thenApply(v -> cropTasks.stream().map(CompletableFuture::join).anyMatch(Boolean::booleanValue));
+		});
 	}
 
 	/**
@@ -485,8 +497,8 @@ public class FarmingHandler implements Listener, Reloadable {
 	 * @param data the Hellblock data containing the island owner's upgrade
 	 *             information
 	 */
-	public void updateCropGrowthBonusCache(@NotNull HellblockData data) {
-		cropGrowthBonusCache.put(data.getIslandId(), calculateCropGrowthBonus(data));
+	public double updateCropGrowthBonusCache(@NotNull HellblockData data) {
+		return cropGrowthBonusCache.put(data.getIslandId(), calculateCropGrowthBonus(data));
 	}
 
 	/**
@@ -498,8 +510,8 @@ public class FarmingHandler implements Listener, Reloadable {
 	 *
 	 * @param islandId the id of the island that should be cleared
 	 */
-	public void invalidateCropGrowthBonusCache(int islandId) {
-		cropGrowthBonusCache.remove(islandId);
+	public double invalidateCropGrowthBonusCache(int islandId) {
+		return cropGrowthBonusCache.remove(islandId);
 	}
 
 	/**
@@ -541,36 +553,36 @@ public class FarmingHandler implements Listener, Reloadable {
 	 * provided consumer.
 	 * </p>
 	 *
-	 * @param block         the positioned block to evaluate
-	 * @param world         the Hellblock world context
-	 * @param bonusConsumer a consumer that accepts the valid crop growth bonus
+	 * @param block the positioned block to evaluate
+	 * @param world the Hellblock world context
+	 * @return A {@link CompletableFuture} that contains the crop growth bonus if
+	 *         any
 	 */
-	private void withCropGrowthBonusIfValid(@NotNull PositionedBlock block, @NotNull HellblockWorld<?> world,
-			@NotNull Consumer<Double> bonusConsumer) {
+	@NotNull
+	private CompletableFuture<Optional<Double>> withCropGrowthBonusIfValid(@NotNull PositionedBlock block,
+			@NotNull HellblockWorld<?> world) {
 		if (!isInCorrectWorld(world.bukkitWorld()))
-			return;
+			return CompletableFuture.completedFuture(Optional.empty());
 
 		Pos3 pos = block.pos();
 
-		instance.getCoopManager().getHellblockOwnerOfBlock(pos, world).thenAcceptAsync(ownerUUID -> {
+		return instance.getCoopManager().getHellblockOwnerOfBlock(pos, world).thenComposeAsync(ownerUUID -> {
 			if (ownerUUID == null)
-				return;
+				return CompletableFuture.completedFuture(Optional.empty());
 
-			instance.getStorageManager()
-					.getCachedUserDataWithFallback(ownerUUID, instance.getConfigManager().lockData())
-					.thenAccept(userDataOpt -> {
-						if (userDataOpt.isEmpty())
-							return;
+			return instance.getStorageManager().getCachedUserDataWithFallback(ownerUUID, false).thenApply(optData -> {
+				if (optData.isEmpty())
+					return Optional.empty();
 
-						HellblockData data = userDataOpt.get().getHellblockData();
-						BoundingBox box = data.getBoundingBox();
+				HellblockData data = optData.get().getHellblockData();
+				BoundingBox box = data.getBoundingBox();
 
-						if (box == null || !box.contains(pos.x() + 0.5, pos.y() + 0.5, pos.z() + 0.5))
-							return;
+				if (box == null || !box.contains(pos.x() + 0.5, pos.y() + 0.5, pos.z() + 0.5))
+					return Optional.empty();
 
-						double bonus = getCachedCropGrowthBonus(data);
-						bonusConsumer.accept(bonus);
-					});
+				double bonus = getCachedCropGrowthBonus(data);
+				return Optional.of(bonus);
+			});
 		});
 	}
 
@@ -587,20 +599,22 @@ public class FarmingHandler implements Listener, Reloadable {
 	 * @param block the farmland block to handle
 	 * @param world the Hellblock world the block exists in
 	 */
-	private void handleFarmland(@NotNull PositionedBlock block, @NotNull HellblockWorld<?> world) {
+	@NotNull
+	private CompletableFuture<Boolean> handleFarmland(@NotNull PositionedBlock block,
+			@NotNull HellblockWorld<?> world) {
 		if (!isInCorrectWorld(world.bukkitWorld()))
-			return;
+			return CompletableFuture.completedFuture(false);
 
 		if (!(block.state().type() instanceof MoistureHolder farm))
-			return;
+			return CompletableFuture.completedFuture(false);
 
 		Pos3 pos = block.pos();
 
-		checkForLavaAroundFarm(block, world).thenAccept(lavaNearby -> {
+		return checkForLavaAroundFarm(block, world).thenCompose(lavaNearby -> {
 			if (lavaNearby) {
-				scheduleFarmlandHydration(pos, block, world, farm);
+				return scheduleFarmlandHydration(pos, block, world, farm);
 			} else {
-				scheduleFarmlandDehydration(pos, block, world, farm);
+				return scheduleFarmlandDehydration(pos, block, world, farm);
 			}
 		});
 	}
@@ -619,26 +633,43 @@ public class FarmingHandler implements Listener, Reloadable {
 	 * @param world the Hellblock world context
 	 * @param farm  the moisture holder representing the farmland state
 	 */
-	private void scheduleFarmlandHydration(@NotNull Pos3 pos, @NotNull PositionedBlock block,
+	@NotNull
+	private CompletableFuture<Boolean> scheduleFarmlandHydration(@NotNull Pos3 pos, @NotNull PositionedBlock block,
 			@NotNull HellblockWorld<?> world, @NotNull MoistureHolder farm) {
 		if (!isInCorrectWorld(world.bukkitWorld()))
-			return;
+			return CompletableFuture.completedFuture(false);
 
 		final int randomValue = RandomUtils.generateRandomInt(15, 25);
 		blockCache.putIfAbsent(pos, randomValue);
+		CompletableFuture<Boolean> resultFuture = new CompletableFuture<>();
 
 		world.scheduler().asyncLater(() -> {
 			Integer stored = blockCache.get(pos);
-			if (!Objects.equals(stored, randomValue))
+			if (!Objects.equals(stored, randomValue)) {
+				resultFuture.complete(false);
 				return;
+			}
 
 			int currentMoisture = farm.getMoisture(block.state());
 			if (currentMoisture != farm.getMaxMoisture(block.state()) && !revertCache.containsKey(pos)
 					&& !moistureCache.containsKey(pos)) {
 
 				farm.setMoisture(block.state(), farm.getMaxMoisture(block.state()));
-				world.updateBlockState(pos, block.state());
-				moistureCache.put(pos, farm.getMoisture(block.state()));
+				// Chain block update then complete result later
+				world.updateBlockState(pos, block.state()).thenCompose(v -> {
+					moistureCache.put(pos, farm.getMoisture(block.state()));
+
+					if (Objects.equals(moistureCache.get(pos), farm.getMaxMoisture(block.state()))) {
+						blockCache.remove(pos);
+						moistureCache.remove(pos);
+					}
+
+					return applyBonusCropGrowthIfEligible(pos, world).thenAccept(resultFuture::complete);
+				}).exceptionally(ex -> {
+					instance.getPluginLogger().warn("Failed to hydrate farmland or apply crop growth at " + pos, ex);
+					resultFuture.completeExceptionally(ex);
+					return null;
+				});
 			}
 
 			if (Objects.equals(moistureCache.get(pos), farm.getMaxMoisture(block.state()))) {
@@ -646,9 +677,12 @@ public class FarmingHandler implements Listener, Reloadable {
 				moistureCache.remove(pos);
 			}
 
-			applyBonusCropGrowthIfEligible(pos, world);
+			// Still try to apply crop growth even if moisture wasn't updated
+			applyBonusCropGrowthIfEligible(pos, world).thenAccept(resultFuture::complete);
 
 		}, RandomUtils.generateRandomInt(15, 30), TimeUnit.SECONDS);
+
+		return resultFuture;
 	}
 
 	/**
@@ -665,13 +699,15 @@ public class FarmingHandler implements Listener, Reloadable {
 	 * @param pos   the position of the farmland block (checks the block above)
 	 * @param world the Hellblock world context
 	 */
-	private void applyBonusCropGrowthIfEligible(@NotNull Pos3 pos, @NotNull HellblockWorld<?> world) {
+	@NotNull
+	private CompletableFuture<Boolean> applyBonusCropGrowthIfEligible(@NotNull Pos3 pos,
+			@NotNull HellblockWorld<?> world) {
 		if (!isInCorrectWorld(world.bukkitWorld()))
-			return;
+			return CompletableFuture.completedFuture(false);
 
-		instance.getIslandManager().resolveIslandId(world, pos).thenCompose(optIslandId -> {
+		return instance.getIslandManager().resolveIslandId(world, pos).thenCompose(optIslandId -> {
 			if (optIslandId.isEmpty())
-				return CompletableFuture.completedFuture(null);
+				return CompletableFuture.completedFuture(false);
 
 			int islandId = optIslandId.get();
 			boolean lavaRain = isLavaRainingAt(islandId, pos.toLocation(world.bukkitWorld()));
@@ -679,39 +715,45 @@ public class FarmingHandler implements Listener, Reloadable {
 
 			return checkForLavaAroundFarm(baseBlock, world).thenCompose(lavaNearby -> {
 				Pos3 abovePos = pos.up();
-				return world.getBlockState(abovePos).thenApply(optAboveState -> {
+				return world.getBlockState(abovePos).thenCompose(optAboveState -> {
 					if (optAboveState.isEmpty())
-						return null;
+						return CompletableFuture.completedFuture(false);
 
 					CustomBlockState aboveState = optAboveState.get();
 					if (!(aboveState.type() instanceof Growable growable))
-						return null;
+						return CompletableFuture.completedFuture(false);
 
 					int age = growable.getAge(aboveState);
 					int max = growable.getMaxAge(aboveState);
 					if (age >= max)
-						return null;
+						return CompletableFuture.completedFuture(false);
 
 					String key = aboveState.type().type().key().asString();
 					int baseChance = getBaseChance(key, lavaRain, lavaNearby);
 
-					withCropGrowthBonusIfValid(new PositionedBlock(abovePos, aboveState), world, bonus -> {
-						int finalChance = (int) Math.min(100, baseChance + bonus);
-						if (RandomUtils.roll(finalChance)) {
-							growable.setAge(aboveState, age + 1);
+					return withCropGrowthBonusIfValid(new PositionedBlock(abovePos, aboveState), world)
+							.thenCompose(bonusOpt -> {
+								double bonus = bonusOpt.orElse(0.0);
+								int finalChance = (int) Math.min(100, baseChance + bonus);
+								if (RandomUtils.roll(finalChance)) {
+									growable.setAge(aboveState, age + 1);
 
-							// Special case: stem -> fruit
-							if (growable instanceof CustomMelonStemBlock
-									|| growable instanceof CustomPumpkinStemBlock) {
-								if (age + 1 >= max) {
-									trySpawnFruit(pos, aboveState, world);
+									CompletableFuture<Boolean> fruitSpawnFuture = CompletableFuture
+											.completedFuture(false);
+
+									// Special case: spawn fruit
+									if ((growable instanceof CustomMelonStemBlock
+											|| growable instanceof CustomPumpkinStemBlock) && (age + 1 >= max)) {
+										fruitSpawnFuture = trySpawnFruit(pos, aboveState, world);
+									}
+
+									return fruitSpawnFuture
+											.thenCompose(unused -> world.updateBlockState(abovePos, aboveState))
+											.thenApply(updated -> true);
 								}
-							}
 
-							world.updateBlockState(abovePos, aboveState);
-						}
-					});
-					return null;
+								return CompletableFuture.completedFuture(false);
+							});
 				});
 			});
 		});
@@ -732,12 +774,15 @@ public class FarmingHandler implements Listener, Reloadable {
 	 * @param world the Hellblock world context
 	 * @param farm  the moisture holder representing the farmland state
 	 */
-	private void scheduleFarmlandDehydration(@NotNull Pos3 pos, @NotNull PositionedBlock block,
+	@NotNull
+	private CompletableFuture<Boolean> scheduleFarmlandDehydration(@NotNull Pos3 pos, @NotNull PositionedBlock block,
 			@NotNull HellblockWorld<?> world, @NotNull MoistureHolder farm) {
+
 		if (!isInCorrectWorld(world.bukkitWorld()))
-			return;
+			return CompletableFuture.completedFuture(false);
 
 		final int randomValue = RandomUtils.generateRandomInt(15, 20);
+		CompletableFuture<Boolean> resultFuture = new CompletableFuture<>();
 
 		world.scheduler().asyncLater(() -> {
 			int moisture = farm.getMoisture(block.state());
@@ -747,69 +792,105 @@ public class FarmingHandler implements Listener, Reloadable {
 			world.updateBlockState(pos, block.state()).thenRun(() -> {
 
 				if (newMoisture > 0) {
-					scheduleFarmlandDehydration(pos, block, world, farm);
+					// Re-schedule for next dehydration tick
+					scheduleFarmlandDehydration(pos, block, world, farm).thenAccept(resultFuture::complete);
 					return;
 				}
 
-				if (farm.getMoisture(block.state()) != 0)
+				if (farm.getMoisture(block.state()) != 0) {
+					resultFuture.complete(false);
 					return;
+				}
 
 				revertCache.putIfAbsent(pos, randomValue);
-				if (!Objects.equals(revertCache.get(pos), randomValue))
+				if (!Objects.equals(revertCache.get(pos), randomValue)) {
+					resultFuture.complete(false);
 					return;
+				}
 
 				Pos3 abovePos = pos.up();
 
 				world.getBlockState(abovePos).thenAccept(optAbove -> {
+					CompletableFuture<Void> cleanupFuture;
+
 					if (optAbove.isEmpty()) {
-						world.updateBlockState(pos, CustomBlockTypes.fromMaterial(Material.DIRT).createBlockState())
-								.thenRun(() -> revertCache.remove(pos));
-						return;
-					}
-
-					CustomBlockState above = optAbove.get();
-					CustomBlock cropKey = above.type();
-					String key = cropKey.type().key().asString().toLowerCase();
-
-					boolean isStem = key.contains("stem");
-					boolean isCrop = key.contains("crop") || key.contains("wheat") || key.contains("carrot")
-							|| key.contains("potato") || key.contains("beetroot");
-
-					if (isStem) {
-						Set<String> validFruitKeys = Set.of("minecraft:melon", "hellblock:melon", "minecraft:pumpkin",
-								"hellblock:pumpkin");
-
-						CompletableFuture<Boolean> anyFruitAttached = CompletableFuture
-								.allOf(Arrays.stream(FACES).map(face -> world.getBlockState(abovePos.offset(face))
-										.thenApply(neighbor -> neighbor.map(n -> {
-											String neighborKey = n.type().type().key().asString().toLowerCase();
-											return validFruitKeys.contains(neighborKey);
-										}).orElse(false))).toArray(CompletableFuture[]::new))
-								.thenApply(v -> Arrays.stream(FACES).map(face -> world
-										.getBlockState(abovePos.offset(face)).thenApply(opt -> opt.map(n -> {
-											String neighborKey = n.type().type().key().asString().toLowerCase();
-											return validFruitKeys.contains(neighborKey);
-										}).orElse(false))).map(CompletableFuture::join).anyMatch(b -> b));
-
-						anyFruitAttached.thenAccept(attached -> {
-							if (!attached && isCrop || isStem) {
-								dropAndRemoveCrop(abovePos, cropKey, above, world);
-							}
-
-							world.updateBlockState(pos, CustomBlockTypes.fromMaterial(Material.DIRT).createBlockState())
-									.thenRun(() -> revertCache.remove(pos));
-						});
-					} else if (isCrop) {
-						dropAndRemoveCrop(abovePos, cropKey, above, world);
-						world.updateBlockState(pos, CustomBlockTypes.fromMaterial(Material.DIRT).createBlockState())
+						cleanupFuture = world
+								.updateBlockState(pos, CustomBlockTypes.fromMaterial(Material.DIRT).createBlockState())
 								.thenRun(() -> revertCache.remove(pos));
 					} else {
-						world.updateBlockState(pos, CustomBlockTypes.fromMaterial(Material.DIRT).createBlockState())
-								.thenRun(() -> revertCache.remove(pos));
+						CustomBlockState above = optAbove.get();
+						CustomBlock cropKey = above.type();
+						String key = cropKey.type().key().asString().toLowerCase();
+
+						boolean isStem = key.contains("stem");
+						boolean isCrop = key.contains("crop") || key.contains("wheat") || key.contains("carrot")
+								|| key.contains("potato") || key.contains("beetroot");
+
+						if (isStem) {
+							Set<String> validFruitKeys = Set.of("minecraft:melon", "hellblock:melon",
+									"minecraft:pumpkin", "hellblock:pumpkin");
+
+							List<CompletableFuture<Boolean>> checks = Arrays.stream(FACES)
+									.map(face -> world.getBlockState(abovePos.offset(face))
+											.thenApply(neighbor -> neighbor
+													.map(n -> validFruitKeys
+															.contains(n.type().type().key().asString().toLowerCase()))
+													.orElse(false)))
+									.toList();
+
+							cleanupFuture = CompletableFuture.allOf(checks.toArray(CompletableFuture[]::new))
+									.thenApply(v -> checks.stream().map(CompletableFuture::join).anyMatch(b -> b))
+									.thenCompose(attached -> {
+										if (!attached && (isCrop || isStem)) {
+											return dropAndRemoveCrop(abovePos, cropKey, above, world)
+													.thenCompose(v -> world.updateBlockState(pos,
+															CustomBlockTypes.fromMaterial(Material.DIRT)
+																	.createBlockState()))
+													.thenRun(() -> revertCache.remove(pos));
+										} else {
+											return world
+													.updateBlockState(pos,
+															CustomBlockTypes.fromMaterial(Material.DIRT)
+																	.createBlockState())
+													.thenRun(() -> revertCache.remove(pos));
+										}
+									});
+
+						} else if (isCrop) {
+							cleanupFuture = dropAndRemoveCrop(abovePos, cropKey, above, world)
+									.thenCompose(v -> world.updateBlockState(pos,
+											CustomBlockTypes.fromMaterial(Material.DIRT).createBlockState()))
+									.thenRun(() -> revertCache.remove(pos));
+						} else {
+							cleanupFuture = world
+									.updateBlockState(pos,
+											CustomBlockTypes.fromMaterial(Material.DIRT).createBlockState())
+									.thenRun(() -> revertCache.remove(pos));
+						}
 					}
+
+					// Final future completion
+					cleanupFuture.thenRun(() -> resultFuture.complete(true)).exceptionally(ex -> {
+						instance.getPluginLogger().warn("Cleanup failed during farmland dehydration at " + pos, ex);
+						resultFuture.completeExceptionally(ex);
+						return null;
+					});
+
+				}).exceptionally(ex -> {
+					instance.getPluginLogger().warn("Failed to get block state above farmland at " + pos, ex);
+					resultFuture.completeExceptionally(ex);
+					return null;
 				});
+
+			}).exceptionally(ex -> {
+				instance.getPluginLogger().warn("Failed to update farmland block at " + pos, ex);
+				resultFuture.completeExceptionally(ex);
+				return null;
 			});
+
 		}, RandomUtils.generateRandomInt(10, 15), TimeUnit.SECONDS);
+
+		return resultFuture;
 	}
 
 	/**
@@ -826,25 +907,29 @@ public class FarmingHandler implements Listener, Reloadable {
 	 * @param above    the current block state of the crop
 	 * @param world    the Hellblock world context
 	 */
-	private void dropAndRemoveCrop(@NotNull Pos3 abovePos, @NotNull CustomBlock cropKey,
-			@NotNull CustomBlockState above, @NotNull HellblockWorld<?> world) {
-		List<Item<ItemStack>> drops = inferDropFromKey(cropKey, above);
-
-		instance.getScheduler().executeSync(() -> {
+	@NotNull
+	private CompletableFuture<Optional<CustomBlockState>> dropAndRemoveCrop(@NotNull Pos3 abovePos,
+			@NotNull CustomBlock cropKey, @NotNull CustomBlockState above, @NotNull HellblockWorld<?> world) {
+		return instance.getScheduler().callSync(() -> {
+			List<Item<ItemStack>> drops = inferDropFromKey(cropKey, above);
 			Location dropLoc = abovePos.toLocation(world.bukkitWorld());
 
+			// Play sound
 			AdventureHelper.playPositionalSound(world.bukkitWorld(), dropLoc,
 					Sound.sound(Key.key("minecraft:block.crop.break"), Source.BLOCK, 1.0f, 1.0f));
 
+			// Spawn particle
 			Material mat = CustomBlockRenderer.resolveBlockType(above);
 			world.bukkitWorld().spawnParticle(ParticleUtils.getParticle("BLOCK_DUST"),
 					dropLoc.clone().add(0.5, 0.5, 0.5), 15, 0.25, 0.25, 0.25, mat.createBlockData());
 
-			if (drops != null) {
+			// Drop items
+			if (!drops.isEmpty()) {
 				drops.forEach(drop -> world.bukkitWorld().dropItemNaturally(dropLoc, drop.loadCopy()));
 			}
 
-			world.removeBlockState(abovePos);
+			// Return the async removal future
+			return world.removeBlockState(abovePos);
 		});
 	}
 
@@ -863,78 +948,84 @@ public class FarmingHandler implements Listener, Reloadable {
 	 * @param stemState the current block state of the stem (must be max age)
 	 * @param world     the custom world where blocks are managed
 	 */
-	private void trySpawnFruit(@NotNull Pos3 stemPos, @NotNull CustomBlockState stemState,
+	@NotNull
+	private CompletableFuture<Boolean> trySpawnFruit(@NotNull Pos3 stemPos, @NotNull CustomBlockState stemState,
 			@NotNull HellblockWorld<?> world) {
-		if (!isInCorrectWorld(world.bukkitWorld()))
-			return;
+		if (!isInCorrectWorld(world.bukkitWorld())) {
+			return CompletableFuture.completedFuture(false);
+		}
 
 		List<BlockFace> directions = new ArrayList<>(Arrays.asList(FACES));
 		Collections.shuffle(directions); // Randomize direction order
 
-		// Check all adjacent blocks to see if a fruit already exists
+		Set<String> fruitKeys = Set.of("minecraft:melon", "hellblock:melon", "minecraft:pumpkin", "hellblock:pumpkin");
+
+		// First, check if a fruit already exists around the stem
 		List<CompletableFuture<Optional<CustomBlockState>>> checkFutures = Arrays.stream(FACES)
 				.map(face -> world.getBlockState(stemPos.offset(face))).toList();
 
-		CompletableFuture.allOf(checkFutures.toArray(CompletableFuture[]::new)).thenRun(() -> {
+		return CompletableFuture.allOf(checkFutures.toArray(CompletableFuture[]::new)).thenCompose(v -> {
 			for (int i = 0; i < FACES.length; i++) {
-				Optional<CustomBlockState> neighbor = checkFutures.get(i).join();
+				Optional<CustomBlockState> neighbor = checkFutures.get(i).join(); // safe here after allOf
 				if (neighbor.isPresent()) {
 					String key = neighbor.get().type().type().key().asString().toLowerCase();
-					if (Set.of("minecraft:melon", "hellblock:melon", "minecraft:pumpkin", "hellblock:pumpkin")
-							.contains(key)) {
-						return; // Fruit already present — abort
+					if (fruitKeys.contains(key)) {
+						return CompletableFuture.completedFuture(false); // Already has fruit
 					}
 				}
 			}
 
-			// Try each direction one-by-one to place the fruit
+			// Now try each direction one-by-one until one succeeds
+			CompletableFuture<Boolean> result = CompletableFuture.completedFuture(false);
+
 			for (BlockFace face : directions) {
-				Pos3 targetPos = stemPos.offset(face);
-
-				world.getBlockState(targetPos).thenCompose(targetOpt -> {
-					if (targetOpt.isPresent())
-						return CompletableFuture.completedFuture(false); // Block not empty
-
-					Pos3 soilPos = targetPos.down();
-					return world.getBlockState(soilPos).thenApply(soilOpt -> {
-						if (soilOpt.isEmpty())
-							return false;
-
-						String soilKey = soilOpt.get().type().type().key().asString().toLowerCase();
-						if (!VALID_FRUIT_SOIL_KEYS.contains(soilKey))
-							return false;
-
-						// Choose fruit + attached stem block type
-						CustomBlock fruit = (stemState.type() instanceof CustomMelonStemBlock) ? CustomBlockTypes.MELON
-								: CustomBlockTypes.PUMPKIN;
-
-						CustomBlock attached = (stemState.type() instanceof CustomMelonStemBlock)
-								? CustomBlockTypes.MELON_ATTACHED_STEM
-								: CustomBlockTypes.PUMPKIN_ATTACHED_STEM;
-
-						CustomBlockState fruitState = fruit.createBlockState();
-						CustomBlockState newStemState = attached.createBlockState();
-
-						if (attached instanceof Growable growable)
-							growable.setAge(newStemState, growable.getMaxAge(newStemState));
-
-						if (attached instanceof com.swiftlicious.hellblock.world.block.Directional directional)
-							directional.setFacing(newStemState, face);
-
-						Map<Pos3, CustomBlockState> updates = new HashMap<>();
-						updates.put(targetPos, fruitState);
-						updates.put(stemPos, newStemState);
-
-						world.updateBlockStates(updates);
-						return true; // Success
-					});
-				}).thenAccept(success -> {
+				result = result.thenCompose(success -> {
 					if (success)
-						return; // First valid direction succeeded — stop trying others
-				});
+						return CompletableFuture.completedFuture(true); // already placed
 
-				break; // Don't launch more attempts — wait for async result
+					Pos3 targetPos = stemPos.offset(face);
+
+					return world.getBlockState(targetPos).thenCompose(targetOpt -> {
+						if (targetOpt.isPresent())
+							return CompletableFuture.completedFuture(false);
+
+						Pos3 soilPos = targetPos.down();
+						return world.getBlockState(soilPos).thenCompose(soilOpt -> {
+							if (soilOpt.isEmpty())
+								return CompletableFuture.completedFuture(false);
+
+							String soilKey = soilOpt.get().type().type().key().asString().toLowerCase();
+							if (!VALID_FRUIT_SOIL_KEYS.contains(soilKey)) {
+								return CompletableFuture.completedFuture(false);
+							}
+
+							// Prepare fruit and stem states
+							CustomBlock fruit = (stemState.type() instanceof CustomMelonStemBlock)
+									? CustomBlockTypes.MELON
+									: CustomBlockTypes.PUMPKIN;
+
+							CustomBlock attached = (stemState.type() instanceof CustomMelonStemBlock)
+									? CustomBlockTypes.MELON_ATTACHED_STEM
+									: CustomBlockTypes.PUMPKIN_ATTACHED_STEM;
+
+							CustomBlockState fruitState = fruit.createBlockState();
+							CustomBlockState newStemState = attached.createBlockState();
+
+							if (attached instanceof Growable growable)
+								growable.setAge(newStemState, growable.getMaxAge(newStemState));
+
+							if (attached instanceof com.swiftlicious.hellblock.world.block.Directional directional)
+								directional.setFacing(newStemState, face);
+
+							Map<Pos3, CustomBlockState> updates = Map.of(targetPos, fruitState, stemPos, newStemState);
+
+							return world.updateBlockStates(updates).thenApply(v2 -> true);
+						});
+					});
+				});
 			}
+
+			return result; // Final result after trying all directions
 		});
 	}
 
@@ -944,13 +1035,13 @@ public class FarmingHandler implements Listener, Reloadable {
 	 *
 	 * @param key   the key of the CustomBlock (e.g., CustomBlockTypes.WHEAT)
 	 * @param state the current CustomBlockState containing NBT data like "age"
-	 * @return the wrapped item to drop, or null if the block type doesn't drop
+	 * @return the wrapped item to drop, or empty if the block type doesn't drop
 	 *         anything
 	 */
-	@Nullable
+	@NotNull
 	private List<Item<ItemStack>> inferDropFromKey(@NotNull CustomBlock key, @NotNull CustomBlockState state) {
 		if (!(key instanceof Growable))
-			return null;
+			return List.of();
 
 		int age = 0;
 		BinaryTag tag = state.get("age");
@@ -1039,10 +1130,10 @@ public class FarmingHandler implements Listener, Reloadable {
 		}
 
 		default:
-			return null;
+			return List.of();
 		}
 
-		return drops.isEmpty() ? null : drops;
+		return drops.isEmpty() ? List.of() : drops;
 	}
 
 	/**
@@ -1057,63 +1148,102 @@ public class FarmingHandler implements Listener, Reloadable {
 	 * @param world    the Hellblock world
 	 * @param islandId the island ID owning the sapling
 	 */
-	public void handleGlowstoneTreeGrowth(@NotNull HellblockWorld<?> world, int islandId) {
-		if (!isInCorrectWorld(world.bukkitWorld()))
-			return;
+	@NotNull
+	public CompletableFuture<Boolean> handleGlowstoneTreeGrowth(@NotNull HellblockWorld<?> world, int islandId) {
+		if (!isInCorrectWorld(world.bukkitWorld())) {
+			return CompletableFuture.completedFuture(false);
+		}
 
-		getFarmBlocksByIslandId(world, islandId).thenAccept(farmBlocks -> {
-			if (farmBlocks == null || farmBlocks.isEmpty())
-				return;
+		return getFarmBlocksByIslandId(world, islandId).thenCompose(farmBlocks -> {
+			if (farmBlocks == null || farmBlocks.isEmpty()) {
+				return CompletableFuture.completedFuture(false);
+			}
+
+			List<CompletableFuture<Boolean>> growthFutures = new ArrayList<>();
 
 			for (PositionedBlock block : farmBlocks) {
 				CustomBlockState state = block.state();
 				String key = state.type().type().key().asString().toLowerCase();
 
-				if (!(state.type() instanceof CustomSaplingBlock))
+				if (!(state.type() instanceof CustomSaplingBlock)) {
 					continue;
+				}
 
 				Pos3 below = block.pos().down();
 
-				world.getBlockState(below).thenCompose(belowOpt -> {
+				CompletableFuture<Boolean> future = world.getBlockState(below).thenCompose(belowOpt -> {
 					if (belowOpt.isEmpty()
-							|| !SOUL_SAND_KEY.contains(belowOpt.get().type().type().value().toLowerCase()))
+							|| !SOUL_SAND_KEY.contains(belowOpt.get().type().type().value().toLowerCase())
+							|| !isLavaRainingAt(islandId, block.pos().toLocation(world.bukkitWorld()))) {
 						return CompletableFuture.completedFuture(false);
+					}
 
-					if (!isLavaRainingAt(islandId, block.pos().toLocation(world.bukkitWorld())))
-						return CompletableFuture.completedFuture(false);
-
-					return CompletableFuture.completedFuture(true);
-				}).thenAccept(valid -> {
-					if (!valid)
-						return;
-
-					withCropGrowthBonusIfValid(block, world, bonus -> {
+					return withCropGrowthBonusIfValid(block, world).thenCompose(bonusOpt -> {
+						double bonus = bonusOpt.orElse(0.0);
 						int baseChance = getBaseChance(key, true, false);
 						int finalChance = (int) Math.min(100, baseChance + bonus);
 
-						if (RandomUtils.roll(finalChance)
-								&& instance.getGlowstoneTreeHandler().canGrow(block.pos(), world)) {
-							CustomTreeGrowContext context = new CustomTreeGrowContext(TreeType.TREE, block.pos(),
-									world.worldName());
+						if (!RandomUtils.roll(finalChance)
+								|| !instance.getGlowstoneTreeHandler().canGrow(block.pos(), world)) {
+							return CompletableFuture.completedFuture(false);
+						}
 
-							instance.getIslandGenerator()
-									.generateHellblockGlowstoneTree(world, block.pos().toLocation(world.bukkitWorld()),
-											false)
-									.thenCompose(v -> instance.getStorageManager().getOfflineUserDataByIslandId(
-											islandId, instance.getConfigManager().lockData()))
-									.thenAccept(userOpt -> userOpt.ifPresent(userData -> {
-										UUID ownerUUID = userData.getHellblockData().getOwnerUUID();
-										if (ownerUUID != null && instance.getCooldownManager()
-												.shouldUpdateActivity(userData.getUUID(), 5000)) {
+						// Tree can grow, start generation and handle user data
+						return instance.getIslandGenerator()
+								.generateHellblockGlowstoneTree(world, block.pos().toLocation(world.bukkitWorld()),
+										false)
+								.thenCompose(
+										v -> instance.getStorageManager().getOfflineUserDataByIslandId(islandId, true))
+								.thenCompose(userOpt -> {
+									if (userOpt.isEmpty()) {
+										return CompletableFuture.completedFuture(false);
+									}
+
+									UserData userData = userOpt.get();
+									UUID uuid = userData.getUUID();
+
+									CompletableFuture<Boolean> logicFuture;
+
+									try {
+										if (instance.getCooldownManager().shouldUpdateActivity(uuid, 5000)) {
 											userData.getHellblockData().updateLastIslandActivity();
 										}
+
+										CustomTreeGrowContext context = new CustomTreeGrowContext(TreeType.TREE,
+												block.pos(), world.worldName());
+
 										instance.getChallengeManager().handleChallengeProgression(userData,
 												ActionType.GROW, context);
-									}));
-						}
+
+										logicFuture = CompletableFuture.completedFuture(true); // Growth happened
+									} catch (Exception e) {
+										logicFuture = CompletableFuture.failedFuture(e); // Will still unlock below
+									}
+
+									// Always unlock, whether logicFuture succeeds or fails
+									return logicFuture.handle((result, throwable) -> {
+										// log `throwable` here
+										return instance.getStorageManager().unlockUserData(uuid).thenApply(v -> {
+											if (throwable != null) {
+												throw new CompletionException(throwable); // propagate error
+											}
+											return result;
+										});
+									}).thenCompose(Function.identity()); // flatten nested future
+								});
 					});
+				}).exceptionally(ex -> {
+					instance.getPluginLogger().warn("Failed to process glowstone tree growth for islandId=" + islandId
+							+ " at position " + block.pos(), ex);
+					return false;
 				});
+
+				growthFutures.add(future);
 			}
+
+			// Wait for all growth attempts and return true if at least one tree grew
+			return CompletableFuture.allOf(growthFutures.toArray(CompletableFuture[]::new)).thenApply(
+					v -> growthFutures.stream().map(CompletableFuture::join).anyMatch(Boolean::booleanValue));
 		});
 	}
 
@@ -1129,57 +1259,76 @@ public class FarmingHandler implements Listener, Reloadable {
 	 * @param block the positioned Nether Wart block
 	 * @param world the Hellblock world context
 	 */
-	private void handleNetherWart(@NotNull PositionedBlock block, @NotNull HellblockWorld<?> world) {
+	@NotNull
+	public CompletableFuture<Boolean> handleNetherWart(@NotNull PositionedBlock block,
+			@NotNull HellblockWorld<?> world) {
 		if (!isInCorrectWorld(world.bukkitWorld()))
-			return;
+			return CompletableFuture.completedFuture(false);
 
 		CustomBlockState state = block.state();
 		if (!(state.type() instanceof Growable))
-			return;
+			return CompletableFuture.completedFuture(false);
 
-		instance.getIslandManager().resolveIslandId(world, block.pos()).thenAcceptAsync(optIslandId -> {
+		return instance.getIslandManager().resolveIslandId(world, block.pos()).thenCompose(optIslandId -> {
 			if (optIslandId.isEmpty())
-				return;
+				return CompletableFuture.completedFuture(false);
 
 			int islandId = optIslandId.get();
 			boolean lavaRain = isLavaRainingAt(islandId, block.pos().toLocation(world.bukkitWorld()));
 			Pos3 soilPos = block.pos().down();
 
-			// Compose: get soil state -> then check for lava
-			world.getBlockState(soilPos).thenCompose(soilOpt -> {
+			// Check lava nearby
+			return world.getBlockState(soilPos).thenCompose(soilOpt -> {
 				PositionedBlock soil = new PositionedBlock(soilPos, soilOpt.orElse(null));
-				return checkForLavaAroundFarm(soil, world);
-			}).thenAccept(lavaNearby -> {
-				int delay = RandomUtils.generateRandomInt(15, 30);
+				return checkForLavaAroundFarm(soil, world).thenCompose(lavaNearby -> {
 
-				world.scheduler().asyncLater(() -> {
-					world.getBlockState(block.pos()).thenAccept(currentOpt -> {
-						if (currentOpt.isEmpty())
-							return;
+					// Delay execution
+					CompletableFuture<Boolean> delayedFuture = new CompletableFuture<>();
+					int delay = RandomUtils.generateRandomInt(15, 30);
 
-						CustomBlockState current = currentOpt.get();
-						if (!(current.type() instanceof Growable wart))
-							return;
+					world.scheduler().asyncLater(() -> {
+						world.getBlockState(block.pos()).thenCompose(currentOpt -> {
+							if (currentOpt.isEmpty())
+								return CompletableFuture.completedFuture(false);
 
-						int age = wart.getAge(current);
-						int max = wart.getMaxAge(current);
-						if (age >= max)
-							return;
+							CustomBlockState current = currentOpt.get();
+							if (!(current.type() instanceof Growable wart))
+								return CompletableFuture.completedFuture(false);
 
-						String key = current.type().type().key().asString();
-						int baseChance = getBaseChance(key, lavaRain, lavaNearby);
+							int age = wart.getAge(current);
+							int max = wart.getMaxAge(current);
+							if (age >= max)
+								return CompletableFuture.completedFuture(false);
 
-						withCropGrowthBonusIfValid(block, world, bonus -> {
-							int finalChance = (int) Math.min(100, baseChance + bonus);
-							if (RandomUtils.roll(finalChance)) {
-								wart.setAge(current, age + 1);
-								world.updateBlockState(block.pos(), current);
-							}
+							String key = current.type().type().key().asString();
+							int baseChance = getBaseChance(key, lavaRain, lavaNearby);
+
+							// Async bonus calculation and chance check
+							return withCropGrowthBonusIfValid(block, world).thenCompose(bonusOpt -> {
+								double bonus = bonusOpt.orElse(0.0);
+								int finalChance = (int) Math.min(100, baseChance + bonus);
+
+								if (RandomUtils.roll(finalChance)) {
+									wart.setAge(current, age + 1);
+									return world.updateBlockState(block.pos(), current).thenApply(v -> true);
+								}
+
+								return CompletableFuture.completedFuture(false);
+							});
+						}).thenAccept(delayedFuture::complete).exceptionally(ex -> {
+							instance.getPluginLogger().warn("Failed to apply nether wart growth at " + block.pos(), ex);
+							delayedFuture.completeExceptionally(ex);
+							return null;
 						});
-					});
-				}, delay, TimeUnit.SECONDS);
+					}, delay, TimeUnit.SECONDS);
+
+					return delayedFuture;
+				});
 			});
-		}, instance.getScheduler()::executeSync);
+		}).exceptionally(ex -> {
+			instance.getPluginLogger().warn("Unexpected error during handleNetherWart at " + block.pos(), ex);
+			return false;
+		});
 	}
 
 	/**
@@ -1195,48 +1344,62 @@ public class FarmingHandler implements Listener, Reloadable {
 	 * @param block the positioned cocoa bean block
 	 * @param world the Hellblock world context
 	 */
-	private void handleCocoaBeans(@NotNull PositionedBlock block, @NotNull HellblockWorld<?> world) {
-		if (!isInCorrectWorld(world.bukkitWorld()))
-			return;
+	@NotNull
+	public CompletableFuture<Boolean> handleCocoaBeans(@NotNull PositionedBlock block,
+			@NotNull HellblockWorld<?> world) {
+		if (!isInCorrectWorld(world.bukkitWorld())) {
+			return CompletableFuture.completedFuture(false);
+		}
 
 		CustomBlockState state = block.state();
 
 		if (!(state.type() instanceof Growable growable)
 				|| !(state.type() instanceof com.swiftlicious.hellblock.world.block.Directional directional)) {
-			return;
+			return CompletableFuture.completedFuture(false);
 		}
 
 		BlockFace facing = directional.getFacing(state);
 		Pos3 attachedPos = block.pos().offset(facing.getOppositeFace());
 
-		world.getBlockState(attachedPos).thenCompose(attachedOpt -> {
-			if (attachedOpt.isEmpty())
-				return CompletableFuture.completedFuture(null);
+		// Begin async chain
+		return world.getBlockState(attachedPos).thenCompose(attachedOpt -> {
+			if (attachedOpt.isEmpty()) {
+				return CompletableFuture.completedFuture(false);
+			}
 
 			String attachedKey = attachedOpt.get().type().type().value().toLowerCase();
-			if (!COCOA_STEM_KEYS.contains(attachedKey))
-				return CompletableFuture.completedFuture(null);
+			if (!COCOA_STEM_KEYS.contains(attachedKey)) {
+				return CompletableFuture.completedFuture(false);
+			}
 
-			return instance.getIslandManager().resolveIslandId(world, block.pos());
-		}).thenAcceptAsync(optIslandId -> {
-			if (optIslandId == null || optIslandId.isEmpty())
-				return;
-
-			int islandId = optIslandId.get();
-			boolean lavaRain = isLavaRainingAt(islandId, block.pos().toLocation(world.bukkitWorld()));
-			int baseChance = getBaseChance(state.type().type().key().asString(), lavaRain, false);
-
-			withCropGrowthBonusIfValid(block, world, bonus -> {
-				int finalChance = (int) Math.min(100, baseChance + bonus);
-				int age = growable.getAge(state);
-				int maxAge = growable.getMaxAge(state);
-
-				if (age < maxAge && RandomUtils.roll(finalChance)) {
-					growable.setAge(state, age + 1);
-					world.updateBlockState(block.pos(), state);
+			return instance.getIslandManager().resolveIslandId(world, block.pos()).thenCompose(optIslandId -> {
+				if (optIslandId.isEmpty()) {
+					return CompletableFuture.completedFuture(false);
 				}
+
+				int islandId = optIslandId.get();
+				boolean lavaRain = isLavaRainingAt(islandId, block.pos().toLocation(world.bukkitWorld()));
+				int baseChance = getBaseChance(state.type().type().key().asString(), lavaRain, false);
+
+				// Apply bonus and update growth
+				return withCropGrowthBonusIfValid(block, world).thenCompose(bonusOpt -> {
+					double bonus = bonusOpt.orElse(0.0);
+					int finalChance = (int) Math.min(100, baseChance + bonus);
+					int age = growable.getAge(state);
+					int maxAge = growable.getMaxAge(state);
+
+					if (age >= maxAge || !RandomUtils.roll(finalChance)) {
+						return CompletableFuture.completedFuture(false);
+					}
+
+					growable.setAge(state, age + 1);
+					return world.updateBlockState(block.pos(), state).thenApply(v -> true);
+				});
 			});
-		}, instance.getScheduler()::executeSync);
+		}).exceptionally(ex -> {
+			instance.getPluginLogger().warn("Failed to handle cocoa beans growth at " + block.pos(), ex);
+			return false;
+		});
 	}
 
 	/**
@@ -1252,54 +1415,77 @@ public class FarmingHandler implements Listener, Reloadable {
 	 * @param block the base sugar cane block
 	 * @param world the Hellblock world context
 	 */
-	private void handleSugarCane(@NotNull PositionedBlock block, @NotNull HellblockWorld<?> world) {
-		if (!isInCorrectWorld(world.bukkitWorld()))
-			return;
+	@NotNull
+	public CompletableFuture<Boolean> handleSugarCane(@NotNull PositionedBlock block,
+			@NotNull HellblockWorld<?> world) {
+		if (!isInCorrectWorld(world.bukkitWorld())) {
+			return CompletableFuture.completedFuture(false);
+		}
 
-		getCropHeight(block.pos(), SUGAR_CANE_KEYS, world).thenCompose(height -> {
-			if (height >= 3)
-				return CompletableFuture.completedFuture(null);
+		return getCropHeight(block.pos(), SUGAR_CANE_KEYS, world).thenCompose(height -> {
+			if (height >= 3) {
+				return CompletableFuture.completedFuture(false);
+			}
 
 			return instance.getIslandManager().resolveIslandId(world, block.pos()).thenComposeAsync(optIslandId -> {
-				if (optIslandId.isEmpty())
-					return CompletableFuture.completedFuture(null);
+				if (optIslandId.isEmpty()) {
+					return CompletableFuture.completedFuture(false);
+				}
 
 				int islandId = optIslandId.get();
 				boolean lavaRain = isLavaRainingAt(islandId, block.pos().toLocation(world.bukkitWorld()));
-
 				Pos3 belowPos = block.pos().down();
+
 				return world.getBlockState(belowPos).thenCompose(belowOpt -> {
-					if (belowOpt.isEmpty())
-						return CompletableFuture.completedFuture(null);
+					if (belowOpt.isEmpty()) {
+						return CompletableFuture.completedFuture(false);
+					}
 
 					PositionedBlock below = new PositionedBlock(belowPos, belowOpt.get());
-					return checkForLavaAroundFarm(below, world).thenAccept(lavaNearby -> {
-						if (!lavaNearby)
-							return;
+					return checkForLavaAroundSugarCane(below, world).thenCompose(lavaNearby -> {
+						if (!lavaNearby) {
+							return CompletableFuture.completedFuture(false);
+						}
 
+						CompletableFuture<Boolean> resultFuture = new CompletableFuture<>();
 						int delay = RandomUtils.generateRandomInt(20, 35);
+
 						world.scheduler().asyncLater(() -> {
-							getCropTop(block.pos(), SUGAR_CANE_KEYS, world).thenAccept(top -> {
+							getCropTop(block.pos(), SUGAR_CANE_KEYS, world).thenCompose(top -> {
 								Pos3 growTarget = top.up();
-								world.getBlockState(growTarget).thenAccept(targetStateOpt -> {
-									if (targetStateOpt.isPresent() && !targetStateOpt.get().isAir())
-										return;
+								return world.getBlockState(growTarget).thenCompose(targetStateOpt -> {
+									if (targetStateOpt.isPresent() && !targetStateOpt.get().isAir()) {
+										return CompletableFuture.completedFuture(false);
+									}
 
 									int baseChance = getBaseChance(block.state().type().type().key().asString(),
 											lavaRain, lavaNearby);
 
-									withCropGrowthBonusIfValid(block, world, bonus -> {
+									return withCropGrowthBonusIfValid(block, world).thenCompose(bonusOpt -> {
+										double bonus = bonusOpt.orElse(0.0);
 										int finalChance = (int) Math.min(100, baseChance + bonus);
-										if (RandomUtils.roll(finalChance)) {
-											world.updateBlockState(growTarget, block.state());
+
+										if (!RandomUtils.roll(finalChance)) {
+											return CompletableFuture.completedFuture(false);
 										}
+
+										return world.updateBlockState(growTarget, block.state()).thenApply(v -> true);
 									});
 								});
+							}).thenAccept(resultFuture::complete).exceptionally(ex -> {
+								instance.getPluginLogger().warn("Failed sugar cane growth at " + block.pos(), ex);
+								resultFuture.completeExceptionally(ex);
+								return null;
 							});
 						}, delay, TimeUnit.SECONDS);
+
+						return resultFuture;
 					});
 				});
 			}, instance.getScheduler()::executeSync);
+		}).exceptionally(ex -> {
+			instance.getPluginLogger().warn("Unexpected error during sugar cane growth at " + block.pos(), ex);
+			return false;
 		});
 	}
 
@@ -1310,6 +1496,7 @@ public class FarmingHandler implements Listener, Reloadable {
 	 * @param world the Hellblock world context
 	 * @return true if lava is found adjacent to the soil block; false otherwise
 	 */
+	@NotNull
 	public CompletableFuture<Boolean> checkForLavaAroundSugarCane(@NotNull PositionedBlock soil,
 			@NotNull HellblockWorld<?> world) {
 		if (!isInCorrectWorld(world.bukkitWorld()))
@@ -1320,27 +1507,19 @@ public class FarmingHandler implements Listener, Reloadable {
 			return CompletableFuture.completedFuture(false);
 
 		String typeKey = state.type().type().key().asString().toLowerCase();
-		if (!VALID_SUGAR_CANE_SOIL_KEYS.contains(typeKey)) {
+		if (!VALID_SUGAR_CANE_SOIL_KEYS.contains(typeKey))
 			return CompletableFuture.completedFuture(false);
-		}
 
 		List<CompletableFuture<Boolean>> checks = new ArrayList<>();
 
 		for (BlockFace face : FACES) {
 			Pos3 neighborPos = soil.pos().offset(face);
-			CompletableFuture<Boolean> check = world.getBlockState(neighborPos).thenApply(optState -> {
-				if (optState.isEmpty())
-					return false;
-
-				String key = optState.get().type().type().key().asString().toLowerCase();
-				return LAVA_KEY.contains(key);
-			});
-			checks.add(check);
+			checks.add(world.getBlockState(neighborPos).thenApply(opt -> opt
+					.map(s -> LAVA_KEY.contains(s.type().type().key().asString().toLowerCase())).orElse(false)));
 		}
 
-		// Combine all futures and return true if any result is true
 		return CompletableFuture.allOf(checks.toArray(CompletableFuture[]::new))
-				.thenApply(v -> checks.stream().anyMatch(future -> future.join()));
+				.thenApply(v -> checks.stream().map(CompletableFuture::join).anyMatch(Boolean::booleanValue));
 	}
 
 	/**
@@ -1356,41 +1535,62 @@ public class FarmingHandler implements Listener, Reloadable {
 	 * @param block the positioned mushroom block
 	 * @param world the Hellblock world context
 	 */
-	private void handleMushrooms(@NotNull PositionedBlock block, @NotNull HellblockWorld<?> world) {
-		if (!isInCorrectWorld(world.bukkitWorld()))
-			return;
+	@NotNull
+	public CompletableFuture<Boolean> handleMushrooms(@NotNull PositionedBlock block,
+			@NotNull HellblockWorld<?> world) {
+		if (!isInCorrectWorld(world.bukkitWorld())) {
+			return CompletableFuture.completedFuture(false);
+		}
 
 		CustomBlockState state = block.state();
-		if (state == null)
-			return;
+		if (state == null) {
+			return CompletableFuture.completedFuture(false);
+		}
 
 		String key = state.type().type().key().asString().toLowerCase();
 		if (!Set.of("minecraft:red_mushroom", "hellblock:red_mushroom", "minecraft:brown_mushroom",
 				"hellblock:brown_mushroom").contains(key)) {
-			return;
+			return CompletableFuture.completedFuture(false);
 		}
 
-		instance.getIslandManager().resolveIslandId(world, block.pos()).thenComposeAsync(optIslandId -> {
-			if (optIslandId.isEmpty())
-				return CompletableFuture.completedFuture(null);
+		return instance.getIslandManager().resolveIslandId(world, block.pos()).thenComposeAsync(optIslandId -> {
+			if (optIslandId.isEmpty()) {
+				return CompletableFuture.completedFuture(false);
+			}
 
 			int islandId = optIslandId.get();
 			boolean lavaRain = isLavaRainingAt(islandId, block.pos().toLocation(world.bukkitWorld()));
 
-			return checkForLavaAroundFarm(block, world).thenAccept(lavaNearby -> {
+			return checkForLavaAroundFarm(block, world).thenCompose(lavaNearby -> {
 				int delay = RandomUtils.generateRandomInt(20, 40);
 				int baseChance = getBaseChance(state.type().type().key().asString(), lavaRain, lavaNearby);
 
-				withCropGrowthBonusIfValid(block, world, bonus -> {
+				return withCropGrowthBonusIfValid(block, world).thenCompose(bonusOpt -> {
+					double bonus = bonusOpt.orElse(0.0);
 					int finalChance = (int) Math.min(100, baseChance + bonus);
+
+					CompletableFuture<Boolean> delayedFuture = new CompletableFuture<>();
+
 					world.scheduler().asyncLater(() -> {
-						if (RandomUtils.roll(finalChance)) {
-							trySpreadMushroom(block, world);
+						if (!RandomUtils.roll(finalChance)) {
+							delayedFuture.complete(false);
+							return;
 						}
+
+						trySpreadMushroom(block, world).thenAccept(delayedFuture::complete).exceptionally(ex -> {
+							instance.getPluginLogger().warn("Failed to spread mushroom at " + block.pos(), ex);
+							delayedFuture.completeExceptionally(ex);
+							return null;
+						});
 					}, delay, TimeUnit.SECONDS);
+
+					return delayedFuture;
 				});
 			});
-		}, instance.getScheduler()::executeSync);
+		}, instance.getScheduler()::executeSync).exceptionally(ex -> {
+			instance.getPluginLogger().warn("Unexpected error during handleMushrooms at " + block.pos(), ex);
+			return false;
+		});
 	}
 
 	/**
@@ -1400,43 +1600,68 @@ public class FarmingHandler implements Listener, Reloadable {
 	 * @param source the current mushroom block
 	 * @param world  the world in which the mushroom exists
 	 */
-	private void trySpreadMushroom(@NotNull PositionedBlock source, @NotNull HellblockWorld<?> world) {
+	@NotNull
+	public CompletableFuture<Boolean> trySpreadMushroom(@NotNull PositionedBlock source,
+			@NotNull HellblockWorld<?> world) {
 		if (!isInCorrectWorld(world.bukkitWorld()))
-			return;
+			return CompletableFuture.completedFuture(false);
 
-		List<BlockFace> faces = Arrays.asList(BlockFace.NORTH, BlockFace.SOUTH, BlockFace.EAST, BlockFace.WEST,
-				BlockFace.UP, BlockFace.DOWN);
+		List<BlockFace> faces = new ArrayList<>(List.of(BlockFace.NORTH, BlockFace.SOUTH, BlockFace.EAST,
+				BlockFace.WEST, BlockFace.UP, BlockFace.DOWN));
 		Collections.shuffle(faces);
 
-		// Process faces asynchronously in sequence
-		CompletableFuture.runAsync(() -> {
-			for (BlockFace face : faces) {
-				Pos3 targetPos = source.pos().offset(face);
+		CustomBlockState sourceState = source.state();
+		if (sourceState == null || sourceState.isAir())
+			return CompletableFuture.completedFuture(false);
 
-				CustomBlockState sourceState = source.state();
-				if (sourceState == null || sourceState.isAir())
-					continue;
+		// Start recursive attempt
+		return tryNextFace(faces.iterator(), source, sourceState, world);
+	}
 
-				CompletableFuture<Optional<CustomBlockState>> targetFuture = world.getBlockState(targetPos);
-				CompletableFuture<Optional<CustomBlockState>> belowFuture = world.getBlockState(targetPos.down());
+	/**
+	 * Recursively attempts to spread a mushroom block to one of the valid adjacent
+	 * positions. Iterates through the provided directions and checks if the target
+	 * position is empty and if the block below it is suitable soil for mushrooms.
+	 * Spreads to the first valid location found.
+	 *
+	 * @param iterator    An iterator over the shuffled block faces (directions to
+	 *                    check).
+	 * @param source      The source mushroom block attempting to spread.
+	 * @param sourceState The state of the mushroom block to copy to the target.
+	 * @param world       The Hellblock world instance.
+	 * @return A {@link CompletableFuture} that completes with true if a spread was
+	 *         successful, false otherwise.
+	 */
+	@NotNull
+	private CompletableFuture<Boolean> tryNextFace(@NotNull Iterator<BlockFace> iterator,
+			@NotNull PositionedBlock source, @NotNull CustomBlockState sourceState, @NotNull HellblockWorld<?> world) {
+		if (!iterator.hasNext()) {
+			return CompletableFuture.completedFuture(false); // no valid positions
+		}
 
-				CompletableFuture.allOf(targetFuture, belowFuture).thenAccept(v -> {
-					Optional<CustomBlockState> targetState = targetFuture.join();
-					Optional<CustomBlockState> belowState = belowFuture.join();
+		BlockFace face = iterator.next();
+		Pos3 targetPos = source.pos().offset(face);
+		Pos3 belowPos = targetPos.down();
 
-					if (targetState.isPresent() && !targetState.get().isAir())
-						return;
+		return world.getBlockState(targetPos).thenCombine(world.getBlockState(belowPos), (targetOpt, belowOpt) -> {
+			if (targetOpt.isPresent() && !targetOpt.get().isAir())
+				return null;
+			if (belowOpt.isEmpty())
+				return null;
 
-					if (belowState.isEmpty())
-						return;
+			String soilKey = belowOpt.get().type().type().key().asString().toLowerCase();
+			if (!VALID_MUSHROOM_SOIL_KEYS.contains(soilKey))
+				return null;
 
-					String soilKey = belowState.get().type().type().key().asString().toLowerCase();
-					if (VALID_MUSHROOM_SOIL_KEYS.contains(soilKey)) {
-						world.updateBlockState(targetPos, sourceState).thenRun(() -> lavaGrownMushrooms.add(targetPos));
-					}
-				}).join(); // Wait for both before trying next face
-				break; // Stop after first valid spread
+			return targetPos;
+		}).thenCompose(validTarget -> {
+			if (validTarget == null) {
+				return tryNextFace(iterator, source, sourceState, world); // Try next face
 			}
+			// Update block and add to cache
+			return world.updateBlockState(validTarget, sourceState).thenApply(v -> {
+				return lavaGrownMushrooms.add(validTarget);
+			});
 		});
 	}
 
@@ -1469,42 +1694,65 @@ public class FarmingHandler implements Listener, Reloadable {
 	 * @param base  the base cactus block
 	 * @param world the Hellblock world context
 	 */
-	private void handleCactus(@NotNull PositionedBlock base, @NotNull HellblockWorld<?> world) {
-		if (!isInCorrectWorld(world.bukkitWorld()))
-			return;
+	@NotNull
+	public CompletableFuture<Boolean> handleCactus(@NotNull PositionedBlock base, @NotNull HellblockWorld<?> world) {
+		if (!isInCorrectWorld(world.bukkitWorld())) {
+			return CompletableFuture.completedFuture(false);
+		}
 
-		getCropHeight(base.pos(), CACTUS_KEYS, world).thenCompose(height -> {
+		return getCropHeight(base.pos(), CACTUS_KEYS, world).thenCompose(height -> {
 			if (height >= 3) {
-				return CompletableFuture.completedFuture(null);
+				return CompletableFuture.completedFuture(false);
 			}
 
 			return instance.getIslandManager().resolveIslandId(world, base.pos()).thenComposeAsync(optIslandId -> {
 				if (optIslandId.isEmpty()) {
-					return CompletableFuture.completedFuture(null);
+					return CompletableFuture.completedFuture(false);
 				}
 
 				int islandId = optIslandId.get();
 				boolean lavaRain = isLavaRainingAt(islandId, base.pos().toLocation(world.bukkitWorld()));
 
-				return checkForLavaAroundCactus(base, world).thenAccept(lavaNearby -> {
+				return checkForLavaAroundCactus(base, world).thenCompose(lavaNearby -> {
 					int baseChance = getBaseChance(base.state().type().type().key().asString(), lavaRain, lavaNearby);
 
-					withCropGrowthBonusIfValid(base, world, bonus -> {
-						int finalChance = (int) Math.min(100, baseChance + bonus);
-						if (!RandomUtils.roll(finalChance))
-							return;
+					CompletableFuture<Boolean> resultFuture = new CompletableFuture<>();
 
-						getCropTop(base.pos(), CACTUS_KEYS, world).thenAccept(top -> {
+					withCropGrowthBonusIfValid(base, world).thenAccept(bonusOpt -> {
+						double bonus = bonusOpt.orElse(0.0);
+						int finalChance = (int) Math.min(100, baseChance + bonus);
+
+						if (!RandomUtils.roll(finalChance)) {
+							resultFuture.complete(false);
+							return;
+						}
+
+						getCropTop(base.pos(), CACTUS_KEYS, world).thenCompose(top -> {
 							Pos3 growTarget = top.up();
-							world.getBlockState(growTarget).thenAccept(stateOpt -> {
+							return world.getBlockState(growTarget).thenCompose(stateOpt -> {
 								if (stateOpt.isEmpty() || stateOpt.get().isAir()) {
-									world.updateBlockState(growTarget, base.state());
+									return world.updateBlockState(growTarget, base.state()).thenApply(v -> true);
 								}
+								return CompletableFuture.completedFuture(false);
 							});
+						}).thenAccept(resultFuture::complete).exceptionally(ex -> {
+							instance.getPluginLogger().warn("Failed cactus growth at " + base.pos(), ex);
+							resultFuture.completeExceptionally(ex);
+							return null;
 						});
+
+					}).exceptionally(ex -> {
+						instance.getPluginLogger().warn("Failed to apply cactus bonus at " + base.pos(), ex);
+						resultFuture.completeExceptionally(ex);
+						return null;
 					});
+
+					return resultFuture;
 				});
 			}, instance.getScheduler()::executeSync);
+		}).exceptionally(ex -> {
+			instance.getPluginLogger().warn("Unexpected error during cactus growth at " + base.pos(), ex);
+			return false;
 		});
 	}
 
@@ -1515,31 +1763,23 @@ public class FarmingHandler implements Listener, Reloadable {
 	 * @param world the Hellblock world context
 	 * @return true if lava is detected near the cactus base; false otherwise
 	 */
+	@NotNull
 	public CompletableFuture<Boolean> checkForLavaAroundCactus(@NotNull PositionedBlock base,
 			@NotNull HellblockWorld<?> world) {
 		if (!isInCorrectWorld(world.bukkitWorld()))
 			return CompletableFuture.completedFuture(false);
 
 		Pos3 below = base.pos().down();
-		List<CompletableFuture<Optional<CustomBlockState>>> neighborFutures = new ArrayList<>();
+		List<CompletableFuture<Boolean>> checks = new ArrayList<>();
 
 		for (BlockFace face : FACES) {
 			Pos3 adjacent = below.offset(face);
-			neighborFutures.add(world.getBlockState(adjacent));
+			checks.add(world.getBlockState(adjacent).thenApply(opt -> opt
+					.map(s -> LAVA_KEY.contains(s.type().type().key().asString().toLowerCase())).orElse(false)));
 		}
 
-		return CompletableFuture.allOf(neighborFutures.toArray(CompletableFuture[]::new)).thenApply(v -> {
-			for (CompletableFuture<Optional<CustomBlockState>> future : neighborFutures) {
-				Optional<CustomBlockState> stateOpt = future.join(); // safe after allOf
-				if (stateOpt.isPresent()) {
-					String key = stateOpt.get().type().type().value().toLowerCase();
-					if (LAVA_KEY.contains(key)) {
-						return true;
-					}
-				}
-			}
-			return false;
-		});
+		return CompletableFuture.allOf(checks.toArray(CompletableFuture[]::new))
+				.thenApply(v -> checks.stream().map(CompletableFuture::join).anyMatch(Boolean::booleanValue));
 	}
 
 	/**
@@ -1555,47 +1795,73 @@ public class FarmingHandler implements Listener, Reloadable {
 	 * @param bush  the positioned berry bush block
 	 * @param world the Hellblock world context
 	 */
-	private void handleSweetBerryBush(@NotNull PositionedBlock bush, @NotNull HellblockWorld<?> world) {
-		if (!isInCorrectWorld(world.bukkitWorld()))
-			return;
+	@NotNull
+	public CompletableFuture<Boolean> handleSweetBerryBush(@NotNull PositionedBlock bush,
+			@NotNull HellblockWorld<?> world) {
+		if (!isInCorrectWorld(world.bukkitWorld())) {
+			return CompletableFuture.completedFuture(false);
+		}
 
-		instance.getIslandManager().resolveIslandId(world, bush.pos()).thenComposeAsync(optIslandId -> {
-			if (optIslandId.isEmpty())
-				return CompletableFuture.completedFuture(null);
+		return instance.getIslandManager().resolveIslandId(world, bush.pos()).thenComposeAsync(optIslandId -> {
+			if (optIslandId.isEmpty()) {
+				return CompletableFuture.completedFuture(false);
+			}
 
 			int islandId = optIslandId.get();
 			String key = bush.state().type().type().key().asString();
 			boolean lavaRain = isLavaRainingAt(islandId, bush.pos().toLocation(world.bukkitWorld()));
-			int baseChance = getBaseChance(key, lavaRain, false); // lavaNearby always false for sweet berry
+			int baseChance = getBaseChance(key, lavaRain, false); // lavaNearby is always false for berry bushes
 
-			withCropGrowthBonusIfValid(bush, world, bonus -> {
+			CompletableFuture<Boolean> resultFuture = new CompletableFuture<>();
+
+			withCropGrowthBonusIfValid(bush, world).thenAccept(bonusOpt -> {
+				double bonus = bonusOpt.orElse(0.0);
 				int finalChance = (int) Math.min(100, baseChance + bonus);
 
 				CustomBlock type = bush.state().type();
-				if (!(type instanceof Growable growable))
+				if (!(type instanceof Growable growable)) {
+					resultFuture.complete(false);
 					return;
+				}
 
 				Pos3 belowPos = bush.pos().down();
 				world.getBlockState(belowPos).thenAccept(belowStateOpt -> {
-					if (belowStateOpt.isEmpty())
+					if (belowStateOpt.isEmpty()) {
+						resultFuture.complete(false);
 						return;
+					}
 
 					String soilKey = belowStateOpt.get().type().type().key().asString().toLowerCase();
-					if (!VALID_SWEET_BERRY_SOIL_KEYS.contains(soilKey))
+					if (!VALID_SWEET_BERRY_SOIL_KEYS.contains(soilKey)) {
+						resultFuture.complete(false);
 						return;
+					}
 
 					int age = growable.getAge(bush.state());
 					int maxAge = growable.getMaxAge(bush.state());
 
 					if (age < maxAge && RandomUtils.roll(finalChance)) {
 						growable.setAge(bush.state(), age + 1);
-						world.updateBlockState(bush.pos(), bush.state());
+						world.updateBlockState(bush.pos(), bush.state()).thenRun(() -> resultFuture.complete(true));
+					} else {
+						resultFuture.complete(false);
 					}
+				}).exceptionally(ex -> {
+					instance.getPluginLogger().warn("Failed to get soil for sweet berry bush at " + bush.pos(), ex);
+					resultFuture.completeExceptionally(ex);
+					return null;
 				});
+			}).exceptionally(ex -> {
+				instance.getPluginLogger().warn("Failed to calculate sweet berry bonus at " + bush.pos(), ex);
+				resultFuture.completeExceptionally(ex);
+				return null;
 			});
 
-			return CompletableFuture.completedFuture(null);
-		}, instance.getScheduler()::executeSync);
+			return resultFuture;
+		}, instance.getScheduler()::executeSync).exceptionally(ex -> {
+			instance.getPluginLogger().warn("Unexpected error during sweet berry bush growth at " + bush.pos(), ex);
+			return false;
+		});
 	}
 
 	/**
@@ -1611,6 +1877,7 @@ public class FarmingHandler implements Listener, Reloadable {
 	 * @param world the Hellblock world context
 	 * @return true if lava is nearby; false otherwise
 	 */
+	@NotNull
 	public CompletableFuture<Boolean> checkForLavaAroundBerryBush(@NotNull PositionedBlock bush,
 			@NotNull HellblockWorld<?> world) {
 		if (!isInCorrectWorld(world.bukkitWorld()))
@@ -1639,40 +1906,65 @@ public class FarmingHandler implements Listener, Reloadable {
 	 * @param base  the base bamboo block
 	 * @param world the Hellblock world context
 	 */
-	private void handleBamboo(@NotNull PositionedBlock base, @NotNull HellblockWorld<?> world) {
-		if (!isInCorrectWorld(world.bukkitWorld()))
-			return;
+	@NotNull
+	public CompletableFuture<Boolean> handleBamboo(@NotNull PositionedBlock base, @NotNull HellblockWorld<?> world) {
+		if (!isInCorrectWorld(world.bukkitWorld())) {
+			return CompletableFuture.completedFuture(false);
+		}
 
-		getCropHeight(base.pos(), BAMBOO_KEYS, world).thenCompose(height -> {
-			if (height >= 3)
-				return CompletableFuture.completedFuture(null);
+		return getCropHeight(base.pos(), BAMBOO_KEYS, world).thenCompose(height -> {
+			if (height >= 3) {
+				return CompletableFuture.completedFuture(false);
+			}
 
 			return instance.getIslandManager().resolveIslandId(world, base.pos()).thenComposeAsync(optIslandId -> {
-				if (optIslandId.isEmpty())
-					return CompletableFuture.completedFuture(null);
+				if (optIslandId.isEmpty()) {
+					return CompletableFuture.completedFuture(false);
+				}
 
 				int islandId = optIslandId.get();
 				boolean lavaRain = isLavaRainingAt(islandId, base.pos().toLocation(world.bukkitWorld()));
 
-				return checkForLavaAroundBamboo(base, world).thenAccept(lavaNearby -> {
+				return checkForLavaAroundBamboo(base, world).thenCompose(lavaNearby -> {
 					int baseChance = getBaseChance(base.state().type().type().key().asString(), lavaRain, lavaNearby);
 
-					withCropGrowthBonusIfValid(base, world, bonus -> {
-						int finalChance = (int) Math.min(100, baseChance + bonus);
-						if (!RandomUtils.roll(finalChance))
-							return;
+					CompletableFuture<Boolean> resultFuture = new CompletableFuture<>();
 
-						getCropTop(base.pos(), BAMBOO_KEYS, world).thenAccept(top -> {
+					withCropGrowthBonusIfValid(base, world).thenAccept(bonusOpt -> {
+						double bonus = bonusOpt.orElse(0.0);
+						int finalChance = (int) Math.min(100, baseChance + bonus);
+
+						if (!RandomUtils.roll(finalChance)) {
+							resultFuture.complete(false);
+							return;
+						}
+
+						getCropTop(base.pos(), BAMBOO_KEYS, world).thenCompose(top -> {
 							Pos3 growTarget = top.up();
-							world.getBlockState(growTarget).thenAccept(growTargetState -> {
-								if (growTargetState.isEmpty() || growTargetState.get().isAir()) {
-									world.updateBlockState(growTarget, base.state());
+							return world.getBlockState(growTarget).thenCompose(stateOpt -> {
+								if (stateOpt.isEmpty() || stateOpt.get().isAir()) {
+									return world.updateBlockState(growTarget, base.state()).thenApply(v -> true);
 								}
+								return CompletableFuture.completedFuture(false);
 							});
+						}).thenAccept(resultFuture::complete).exceptionally(ex -> {
+							instance.getPluginLogger().warn("Failed bamboo growth at " + base.pos(), ex);
+							resultFuture.completeExceptionally(ex);
+							return null;
 						});
+
+					}).exceptionally(ex -> {
+						instance.getPluginLogger().warn("Failed to apply bamboo bonus at " + base.pos(), ex);
+						resultFuture.completeExceptionally(ex);
+						return null;
 					});
+
+					return resultFuture;
 				});
 			}, instance.getScheduler()::executeSync);
+		}).exceptionally(ex -> {
+			instance.getPluginLogger().warn("Unexpected error during bamboo growth at " + base.pos(), ex);
+			return false;
 		});
 	}
 
@@ -1683,23 +1975,23 @@ public class FarmingHandler implements Listener, Reloadable {
 	 * @param world the Hellblock world context
 	 * @return true if lava is found nearby; false otherwise
 	 */
+	@NotNull
 	public CompletableFuture<Boolean> checkForLavaAroundBamboo(@NotNull PositionedBlock base,
 			@NotNull HellblockWorld<?> world) {
 		if (!isInCorrectWorld(world.bukkitWorld()))
 			return CompletableFuture.completedFuture(false);
 
 		Pos3 below = base.pos().down();
-		List<CompletableFuture<Optional<CustomBlockState>>> futures = new ArrayList<>();
+		List<CompletableFuture<Boolean>> checks = new ArrayList<>();
 
 		for (BlockFace face : FACES) {
-			Pos3 adjacent = below.offset(face);
-			futures.add(world.getBlockState(adjacent));
+			Pos3 neighborPos = below.offset(face);
+			checks.add(world.getBlockState(neighborPos).thenApply(opt -> opt
+					.map(s -> LAVA_KEY.contains(s.type().type().key().asString().toLowerCase())).orElse(false)));
 		}
 
-		return CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new))
-				.thenApply(v -> futures.stream().map(CompletableFuture::join).filter(Optional::isPresent)
-						.map(Optional::get).map(state -> state.type().type().value().toLowerCase())
-						.anyMatch(LAVA_KEY::contains));
+		return CompletableFuture.allOf(checks.toArray(CompletableFuture[]::new))
+				.thenApply(v -> checks.stream().map(CompletableFuture::join).anyMatch(Boolean::booleanValue));
 	}
 
 	/**
@@ -1931,37 +2223,44 @@ public class FarmingHandler implements Listener, Reloadable {
 	 * @param world the Hellblock world context
 	 * @return true if any lava is detected nearby; false otherwise
 	 */
+	@NotNull
 	public CompletableFuture<Boolean> checkForLavaAroundFarm(@NotNull PositionedBlock block,
 			@NotNull HellblockWorld<?> world) {
-		if (!isInCorrectWorld(world.bukkitWorld()))
+		if (!isInCorrectWorld(world.bukkitWorld())) {
 			return CompletableFuture.completedFuture(false);
+		}
 
-		if (block.state() == null || block.state().isAir())
+		if (block.state() == null || block.state().isAir()) {
 			return CompletableFuture.completedFuture(false);
+		}
 
-		if (!(block.state().type() instanceof MoistureHolder))
+		if (!(block.state().type() instanceof MoistureHolder)) {
 			return CompletableFuture.completedFuture(false);
+		}
 
 		Pos3 origin = block.pos();
 		final int centerX = origin.x();
 		final int centerY = origin.y();
 		final int centerZ = origin.z();
 
-		List<CompletableFuture<Optional<CustomBlockState>>> futures = new ArrayList<>();
+		List<CompletableFuture<Boolean>> checks = new ArrayList<>();
 
 		for (int x = centerX - FARM_BLOCK_CHECK_RADIUS; x <= centerX + FARM_BLOCK_CHECK_RADIUS; x++) {
 			for (int y = centerY - 1; y <= centerY; y++) {
 				for (int z = centerZ - FARM_BLOCK_CHECK_RADIUS; z <= centerZ + FARM_BLOCK_CHECK_RADIUS; z++) {
-					Pos3 nearby = new Pos3(x, y, z);
-					futures.add(world.getBlockState(nearby));
+					Pos3 pos = new Pos3(x, y, z);
+					checks.add(world.getBlockState(pos).thenApply(optState -> {
+						if (optState.isEmpty())
+							return false;
+						String key = optState.get().type().type().value().toLowerCase();
+						return LAVA_KEY.contains(key);
+					}));
 				}
 			}
 		}
 
-		return CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new))
-				.thenApply(v -> futures.stream().map(CompletableFuture::join).filter(Optional::isPresent)
-						.map(Optional::get).map(state -> state.type().type().value().toLowerCase())
-						.anyMatch(LAVA_KEY::contains));
+		return CompletableFuture.allOf(checks.toArray(CompletableFuture[]::new))
+				.thenApply(v -> checks.stream().map(CompletableFuture::join).anyMatch(Boolean::booleanValue));
 	}
 
 	/**
@@ -1980,26 +2279,25 @@ public class FarmingHandler implements Listener, Reloadable {
 	@NotNull
 	private CompletableFuture<Set<PositionedBlock>> getFarmBlocksByIslandId(@NotNull HellblockWorld<?> world,
 			int islandId) {
-		return instance.getStorageManager()
-				.getOfflineUserDataByIslandId(islandId, instance.getConfigManager().lockData()).thenCompose(optUser -> {
-					if (optUser.isEmpty())
-						return CompletableFuture.completedFuture(Collections.emptySet());
+		Set<PositionedBlock> cached = farmCache.getIfPresent(islandId);
+		if (cached != null && !cached.isEmpty())
+			return CompletableFuture.completedFuture(cached);
 
-					HellblockData data = optUser.get().getHellblockData();
-					BoundingBox bounds = data.getBoundingBox();
-					if (bounds == null)
-						return CompletableFuture.completedFuture(Collections.emptySet());
+		return instance.getStorageManager().getOfflineUserDataByIslandId(islandId, false).thenCompose(optData -> {
+			if (optData.isEmpty())
+				return CompletableFuture.completedFuture(Collections.emptySet());
 
-					Set<PositionedBlock> cached = farmCache.getIfPresent(islandId);
-					if (cached != null && !cached.isEmpty())
-						return CompletableFuture.completedFuture(cached);
+			HellblockData data = optData.get().getHellblockData();
+			BoundingBox bounds = data.getBoundingBox();
+			if (bounds == null)
+				return CompletableFuture.completedFuture(Collections.emptySet());
 
-					// Fully async collection now
-					return collectFarmBlocks(world, bounds).thenApply(farmBlocks -> {
-						farmCache.put(islandId, farmBlocks);
-						return farmBlocks;
-					});
-				});
+			// Fully async collection now
+			return collectFarmBlocks(world, bounds).thenApply(farmBlocks -> {
+				farmCache.put(islandId, farmBlocks);
+				return farmBlocks;
+			});
+		});
 	}
 
 	/**
@@ -2929,47 +3227,47 @@ public class FarmingHandler implements Listener, Reloadable {
 		if (event.getHand() != EquipmentSlot.HAND || event.getAction() != Action.RIGHT_CLICK_BLOCK)
 			return;
 
-		final Player player = event.getPlayer();
-		final Block clicked = event.getClickedBlock();
-
+		Player player = event.getPlayer();
+		Block clicked = event.getClickedBlock();
 		if (clicked == null || !isInCorrectWorld(player))
 			return;
 
-		final Location location = clicked.getLocation();
-		final Optional<HellblockWorld<?>> worldOpt = instance.getWorldManager().getWorld(location.getWorld());
+		Location location = clicked.getLocation();
+		Optional<HellblockWorld<?>> worldOpt = instance.getWorldManager().getWorld(location.getWorld());
 		if (worldOpt.isEmpty())
 			return;
 
-		final HellblockWorld<?> world = worldOpt.get();
-		final Pos3 pos = Pos3.from(location);
+		HellblockWorld<?> world = worldOpt.get();
+		Pos3 pos = Pos3.from(location);
 
-		world.getBlockState(pos).thenAccept(optState -> {
+		world.getBlockState(pos).thenCompose(optState -> {
 			if (optState.isEmpty())
-				return;
+				return CompletableFuture.completedFuture(null);
 
 			CustomBlockState state = optState.get();
 			CustomBlock block = state.type();
 
 			if (block instanceof CustomMushroomBlock || block instanceof CustomSaplingBlock
 					|| block instanceof CustomCocoaBlock)
-				return;
+				return CompletableFuture.completedFuture(null);
+
 			if (!(block instanceof Growable growable))
-				return;
+				return CompletableFuture.completedFuture(null);
 
 			int age = growable.getAge(state);
 			int maxAge = growable.getMaxAge(state);
 			if (age >= maxAge)
-				return;
+				return CompletableFuture.completedFuture(null);
 
-			// Check below for dry farmland
+			// Check below block for moisture
 			Pos3 belowPos = pos.down();
-			world.getBlockState(belowPos).thenAccept(optBelow -> {
+			return world.getBlockState(belowPos).thenCompose(optBelow -> {
 				if (optBelow.isPresent()) {
 					CustomBlockState belowState = optBelow.get();
 					if (belowState.type() instanceof MoistureHolder moistureHolder) {
 						if (moistureHolder.getMoisture(belowState) == 0) {
-							// Dry farmland → crop will break → skip hologram
-							return;
+							// Dry farmland — skip hologram
+							return CompletableFuture.completedFuture(null);
 						}
 					}
 				}
@@ -2977,16 +3275,21 @@ public class FarmingHandler implements Listener, Reloadable {
 				int growthRemaining = maxAge - age;
 				int baseSeconds = RandomUtils.generateRandomInt(20, 40) * growthRemaining;
 
-				withCropGrowthBonusIfValid(new PositionedBlock(pos, state), world, bonus -> {
-					int finalEstimate = (int) (baseSeconds * (1.0 - bonus)); // faster with bonus
+				return withCropGrowthBonusIfValid(new PositionedBlock(pos, state), world).thenApply(bonusOpt -> {
+					double bonus = bonusOpt.orElse(0.0);
+					int finalEstimate = (int) (baseSeconds * (1.0 - bonus));
 
 					Component tooltip = generateGrowthBarWithTime(age, maxAge, finalEstimate);
 					String message = AdventureHelper.componentToJson(tooltip);
 
-					Location hologramLoc = pos.up().toLocation(location.getWorld()).clone().add(0.5, 0.5, 0.5);
-					instance.getHologramManager().showHologram(player, hologramLoc, message, 5000); // 5s
+					Location hologramLoc = pos.up().toLocation(location.getWorld()).add(0.5, 0.5, 0.5);
+					instance.getHologramManager().showHologram(player, hologramLoc, message, 5000);
+					return null;
 				});
 			});
+		}).exceptionally(ex -> {
+			instance.getPluginLogger().warn("Failed to display crop tooltip at " + pos, ex);
+			return null;
 		});
 	}
 
@@ -3044,18 +3347,18 @@ public class FarmingHandler implements Listener, Reloadable {
 		if (!isInCorrectWorld(entity.getWorld())) {
 			return;
 		}
-
 		if (entity instanceof Player) {
 			return;
 		}
-
 		if (!(entity instanceof LivingEntity)) {
 			return;
 		}
+
 		final Block block = event.getBlock();
 		if (!(block.getBlockData() instanceof Farmland || block.getBlockData() instanceof Ageable)) {
 			return;
 		}
+
 		instance.getIslandManager().resolveIslandId(block.getLocation())
 				.thenAccept(optIslandId -> optIslandId.ifPresent(id -> instance.getWorldManager()
 						.getWorld(block.getWorld()).ifPresent(world -> updateCrops(world, id))));
@@ -3185,35 +3488,49 @@ public class FarmingHandler implements Listener, Reloadable {
 		if (!isInCorrectWorld(block.getWorld()))
 			return;
 
-		HellblockWorld<?> world = instance.getWorldManager().getWorld(block.getWorld()).orElse(null);
-		if (world == null)
+		Optional<HellblockWorld<?>> worldOpt = instance.getWorldManager().getWorld(block.getWorld());
+		if (worldOpt.isEmpty())
 			return;
 
+		HellblockWorld<?> world = worldOpt.get();
 		Pos3 targetPos = Pos3.from(block.getLocation());
 
 		world.getBlockState(targetPos).thenAcceptAsync(optState -> {
 			if (optState.isPresent() && isSugarCane(new PositionedBlock(targetPos, optState.get()))) {
-				event.setCancelled(true);
-				tryBreakCaneIfNoLava(new PositionedBlock(targetPos, optState.get()), null, world);
+				// Cancel event on main thread
+				instance.getScheduler().executeSync(() -> event.setCancelled(true));
+
+				tryBreakCaneIfNoLava(new PositionedBlock(targetPos, optState.get()), null, world).exceptionally(ex -> {
+					instance.getPluginLogger().warn("Failed to break cane at " + targetPos, ex);
+					return false;
+				});
 				return;
 			}
 
-			// Check neighbors
+			// Check surrounding neighbors for sugar cane
 			List<CompletableFuture<Void>> futures = new ArrayList<>();
 			for (BlockFace face : FACES) {
 				Block neighbor = block.getRelative(face);
 				if (neighbor.getType() == Material.SUGAR_CANE) {
 					Pos3 neighborPos = Pos3.from(neighbor.getLocation());
-					futures.add(world.getBlockState(neighborPos).thenAcceptAsync(neighborOpt -> {
+
+					CompletableFuture<Void> future = world.getBlockState(neighborPos).thenAcceptAsync(neighborOpt -> {
 						if (neighborOpt.isPresent()
 								&& isSugarCane(new PositionedBlock(neighborPos, neighborOpt.get()))) {
-							event.setCancelled(true);
-							tryBreakCaneIfNoLava(new PositionedBlock(neighborPos, neighborOpt.get()), null, world);
+							instance.getScheduler().executeSync(() -> event.setCancelled(true));
+
+							tryBreakCaneIfNoLava(new PositionedBlock(neighborPos, neighborOpt.get()), null, world)
+									.exceptionally(ex -> {
+										instance.getPluginLogger()
+												.warn("Failed to break neighbor cane at " + neighborPos, ex);
+										return false;
+									});
 						}
-					}));
+					});
+					futures.add(future);
 				}
 			}
-		});
+		}, instance.getScheduler()::executeAsync);
 	}
 
 	/**
@@ -3224,10 +3541,12 @@ public class FarmingHandler implements Listener, Reloadable {
 	 * @param player the player (can be null) who triggered the event
 	 * @param world  the Hellblock world
 	 */
-	private void tryBreakCaneIfNoLava(@NotNull PositionedBlock block, @Nullable Player player,
+	@NotNull
+	private CompletableFuture<Boolean> tryBreakCaneIfNoLava(@NotNull PositionedBlock block, @Nullable Player player,
 			@NotNull HellblockWorld<?> world) {
-		if (!isSugarCane(block))
-			return;
+		if (!isSugarCane(block)) {
+			return CompletableFuture.completedFuture(false);
+		}
 
 		// Prepare the two positions we need to check for lava
 		Pos3 belowPos = block.pos().offset(BlockFace.DOWN);
@@ -3237,20 +3556,28 @@ public class FarmingHandler implements Listener, Reloadable {
 		CompletableFuture<Optional<CustomBlockState>> below2StateFuture = world.getBlockState(below2Pos);
 
 		// Once both states are available, check for lava asynchronously
-		belowStateFuture.thenCombineAsync(below2StateFuture, (belowOpt, below2Opt) -> {
+		return belowStateFuture.thenCombineAsync(below2StateFuture, (belowOpt, below2Opt) -> {
 			PositionedBlock below = new PositionedBlock(belowPos, belowOpt.orElse(null));
 			PositionedBlock below2 = new PositionedBlock(below2Pos, below2Opt.orElse(null));
-			return new AbstractMap.SimpleEntry<>(below, below2);
+			return Map.entry(below, below2);
 		}).thenCompose(pair -> {
 			// Run lava checks on both blocks
 			CompletableFuture<Boolean> lava1 = checkForLavaAroundSugarCane(pair.getKey(), world);
 			CompletableFuture<Boolean> lava2 = checkForLavaAroundSugarCane(pair.getValue(), world);
 			return lava1.thenCombine(lava2, (hasLava1, hasLava2) -> hasLava1 || hasLava2);
-		}).thenAccept(hasLavaNearby -> {
-			if (!hasLavaNearby) {
-				handleBlocksAboveCane(block, world);
-				breakSugarCaneChain(block, true, player, world);
+		}).thenCompose(hasLavaNearby -> {
+			if (hasLavaNearby) {
+				return CompletableFuture.completedFuture(false);
 			}
+
+			// Now break the cane chain and handle above blocks
+			CompletableFuture<Boolean> aboveFuture = handleBlocksAboveCane(block, world);
+			CompletableFuture<Boolean> breakFuture = breakSugarCaneChain(block, true, player, world);
+
+			return aboveFuture.thenCombine(breakFuture, (removedAbove, brokeChain) -> true); // true = cane broken
+		}).exceptionally(ex -> {
+			instance.getPluginLogger().warn("Failed during tryBreakCaneIfNoLava at " + block.pos(), ex);
+			return false;
 		});
 	}
 
@@ -3269,53 +3596,50 @@ public class FarmingHandler implements Listener, Reloadable {
 	 * @param player      the player responsible for breaking (may be null)
 	 * @param world       the Hellblock world context
 	 */
-	private void breakSugarCaneChain(@NotNull PositionedBlock start, boolean includeBase, @Nullable Player player,
-			@NotNull HellblockWorld<?> world) {
+	@NotNull
+	private CompletableFuture<Boolean> breakSugarCaneChain(@NotNull PositionedBlock start, boolean includeBase,
+			@Nullable Player player, @NotNull HellblockWorld<?> world) {
 		Pos3 currentPos = includeBase ? start.pos() : start.pos().offset(BlockFace.UP);
 
-		// Recursive async loop using a chain of CompletableFutures
-		CompletableFuture<Void> chain = CompletableFuture.completedFuture(null);
+		CompletableFuture<Boolean> chain = CompletableFuture.completedFuture(false); // default: no blocks broken
 
 		while (true) {
 			Pos3 finalPos = currentPos;
 
-			chain = chain.thenCompose(ignored -> world.getBlockState(finalPos).thenCompose(optState -> {
+			chain = chain.thenCompose(anyBroken -> world.getBlockState(finalPos).thenCompose(optState -> {
 				if (optState.isEmpty())
-					return CompletableFuture.completedFuture(null);
+					return CompletableFuture.completedFuture(anyBroken); // end of chain
 
 				CustomBlockState state = optState.get();
 				PositionedBlock block = new PositionedBlock(finalPos, state);
 				if (!isSugarCane(block))
-					return CompletableFuture.completedFuture(null);
+					return CompletableFuture.completedFuture(anyBroken); // not sugar cane, stop
 
 				Location loc = finalPos.toLocation(world.bukkitWorld());
 
-				// Drop + update async-safe
-				instance.getScheduler().executeSync(() -> world.removeBlockState(finalPos));
+				return world.removeBlockState(finalPos).thenRun(() -> {
+					world.bukkitWorld().dropItemNaturally(loc, new ItemStack(Material.SUGAR_CANE));
+					world.bukkitWorld().spawnParticle(ParticleUtils.getParticle("BLOCK_DUST"), loc, 5,
+							Material.SUGAR_CANE.createBlockData());
 
-				world.bukkitWorld().dropItemNaturally(loc, new ItemStack(Material.SUGAR_CANE));
-				world.bukkitWorld().spawnParticle(ParticleUtils.getParticle("BLOCK_DUST"), loc, 5,
-						Material.SUGAR_CANE.createBlockData());
-
-				if (player != null) {
-					AdventureHelper.playSound(instance.getSenderFactory().getAudience(player), Sound.sound(
-							net.kyori.adventure.key.Key.key("minecraft:block.grass.break"), Sound.Source.PLAYER, 1, 1));
-				} else {
-					AdventureHelper.playPositionalSound(world.bukkitWorld(), loc,
-							Sound.sound(Key.key("minecraft:block.grass.break"), Source.BLOCK, 1.0f, 1.0f));
-				}
-
-				return CompletableFuture.completedFuture(null);
+					if (player != null) {
+						AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
+								Sound.sound(Key.key("minecraft:block.grass.break"), Sound.Source.PLAYER, 1, 1));
+					} else {
+						AdventureHelper.playPositionalSound(world.bukkitWorld(), loc,
+								Sound.sound(Key.key("minecraft:block.grass.break"), Source.BLOCK, 1.0f, 1.0f));
+					}
+				}).thenApply(v -> true); // one block broken
 			}));
 
-			// Prepare for next block up
-			currentPos = currentPos.offset(BlockFace.UP);
+			currentPos = currentPos.offset(BlockFace.UP); // get next block to break
 
-			// We don't prefetch state, so we stop when the current chain is broken
-			// The `thenCompose()` will short-circuit if the block is not sugar cane.
+			// chain is done breaking
 			if (chain.isDone())
 				break;
 		}
+
+		return chain;
 	}
 
 	/**
@@ -3331,42 +3655,63 @@ public class FarmingHandler implements Listener, Reloadable {
 	 * @param world    the Hellblock world where the event occurred
 	 */
 	@SuppressWarnings("deprecation")
-	private void handleBlocksAboveCane(@NotNull PositionedBlock caneBase, @NotNull HellblockWorld<?> world) {
+	@NotNull
+	private CompletableFuture<Boolean> handleBlocksAboveCane(@NotNull PositionedBlock caneBase,
+			@NotNull HellblockWorld<?> world) {
 		Pos3 upPos = caneBase.pos().offset(BlockFace.UP);
 		Pos3 up2Pos = upPos.offset(BlockFace.UP);
 
 		CompletableFuture<Optional<CustomBlockState>> upStateFuture = world.getBlockState(upPos);
 		CompletableFuture<Optional<CustomBlockState>> up2StateFuture = world.getBlockState(up2Pos);
 
-		upStateFuture.thenCombineAsync(up2StateFuture, (upStateOpt, up2StateOpt) -> {
-			List<PositionedBlock> aboveBlocks = List.of(new PositionedBlock(upPos, upStateOpt.orElse(null)),
+		return upStateFuture.thenCombineAsync(up2StateFuture, (upStateOpt, up2StateOpt) -> {
+			return List.of(new PositionedBlock(upPos, upStateOpt.orElse(null)),
 					new PositionedBlock(up2Pos, up2StateOpt.orElse(null)));
+		}).thenCompose(aboveBlocks -> {
+			List<CompletableFuture<Boolean>> removalFutures = new ArrayList<>();
 
-			return aboveBlocks;
-		}).thenAccept(aboveBlocks -> {
 			for (PositionedBlock block : aboveBlocks) {
 				CustomBlockState state = block.state();
-				if (state == null || state.isAir())
+				if (state == null || state.isAir()) {
 					continue;
+				}
 
 				String key = state.type().type().key().asString().toUpperCase(Locale.ROOT);
 				Material mat = Material.matchMaterial(key);
-
-				if (mat != null) {
-					if (mat.hasGravity()) {
-						FallingBlock falling = world.bukkitWorld().spawnFallingBlock(
-								block.pos().toLocation(world.bukkitWorld()).clone().add(0.5, 0, 0.5),
-								mat.createBlockData());
-						falling.setDropItem(false);
-						falling.setHurtEntities(false);
-					} else if (isWoolCarpet(mat)) {
-						world.bukkitWorld().dropItemNaturally(block.pos().toLocation(world.bukkitWorld()),
-								new ItemStack(mat));
-					}
+				if (mat == null) {
+					continue;
 				}
 
-				instance.getScheduler().executeSync(() -> world.removeBlockState(block.pos()));
+				Location loc = block.pos().toLocation(world.bukkitWorld());
+				CompletableFuture<Boolean> future;
+
+				if (mat.hasGravity()) {
+					// Spawn gravity block (e.g. sand) and remove source
+					FallingBlock falling = world.bukkitWorld().spawnFallingBlock(loc.clone().add(0.5, 0, 0.5),
+							mat.createBlockData());
+					falling.setDropItem(false);
+					falling.setHurtEntities(false);
+
+					future = world.removeBlockState(block.pos()).thenApply(v -> true);
+				} else if (isWoolCarpet(mat)) {
+					// Drop wool carpet and remove block
+					world.bukkitWorld().dropItemNaturally(loc, new ItemStack(mat));
+					future = world.removeBlockState(block.pos()).thenApply(v -> true);
+				} else {
+					// Unknown material, still try to remove block
+					future = world.removeBlockState(block.pos()).thenApply(v -> true);
+				}
+
+				removalFutures.add(future);
 			}
+
+			if (removalFutures.isEmpty()) {
+				return CompletableFuture.completedFuture(false);
+			}
+
+			// Wait for all removals and check if at least one succeeded
+			return CompletableFuture.allOf(removalFutures.toArray(CompletableFuture[]::new)).thenApply(
+					v -> removalFutures.stream().map(CompletableFuture::join).anyMatch(Boolean::booleanValue));
 		});
 	}
 
@@ -3552,6 +3897,7 @@ public class FarmingHandler implements Listener, Reloadable {
 			if (!getConcretePowderBlocks().contains(fallingBlock.getBlockData().getMaterial())) {
 				return;
 			}
+
 			final Material powder = fallingBlock.getBlockData().getMaterial();
 			if (fallingBlock.getLocation().getBlock().getRelative(BlockFace.UP).getType() == Material.LAVA) {
 				event.setCancelled(true);
@@ -3817,7 +4163,7 @@ public class FarmingHandler implements Listener, Reloadable {
 	 */
 	public final class CropTypeResolver {
 
-		private final Map<String, BiConsumer<PositionedBlock, HellblockWorld<?>>> handlers = new HashMap<>();
+		private final Map<String, BiFunction<PositionedBlock, HellblockWorld<?>, CompletableFuture<Boolean>>> handlers = new HashMap<>();
 
 		/**
 		 * Initializes the resolver and registers known crop handlers.
@@ -3845,7 +4191,7 @@ public class FarmingHandler implements Listener, Reloadable {
 		 * @param handler the crop handler logic to invoke for matching blocks
 		 */
 		private void register(@NotNull Set<String> keys,
-				@NotNull BiConsumer<PositionedBlock, @NotNull HellblockWorld<?>> handler) {
+				@NotNull BiFunction<PositionedBlock, HellblockWorld<?>, CompletableFuture<Boolean>> handler) {
 			keys.forEach(key -> handlers.put(key.toLowerCase(), handler));
 		}
 
@@ -3855,12 +4201,20 @@ public class FarmingHandler implements Listener, Reloadable {
 		 * @param block the positioned block to evaluate
 		 * @param world the Hellblock world context
 		 */
-		public void handleIfKnown(@NotNull PositionedBlock block, @NotNull HellblockWorld<?> world) {
+		public CompletableFuture<Boolean> handleIfKnown(@NotNull PositionedBlock block,
+				@NotNull HellblockWorld<?> world) {
 			String key = block.state().type().type().key().asString().toLowerCase();
-			BiConsumer<PositionedBlock, HellblockWorld<?>> handler = handlers.get(key);
+			BiFunction<PositionedBlock, HellblockWorld<?>, CompletableFuture<Boolean>> handler = handlers.get(key);
+
 			if (handler != null) {
-				handler.accept(block, world);
+				return handler.apply(block, world).exceptionally(ex -> {
+					instance.getPluginLogger().warn("Error while handling crop: " + key + " at " + block.pos(), ex);
+					return false;
+				});
 			}
+
+			// Unknown crop → nothing handled
+			return CompletableFuture.completedFuture(false);
 		}
 	}
 }

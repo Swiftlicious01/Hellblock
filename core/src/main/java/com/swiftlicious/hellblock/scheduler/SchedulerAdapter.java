@@ -136,6 +136,66 @@ public interface SchedulerAdapter<T, W> {
 	}
 
 	/**
+	 * Executes the given {@link Supplier} synchronously on the main thread and
+	 * returns a {@link CompletableFuture} that completes with its result.
+	 *
+	 * <p>
+	 * This is a convenience method for scheduling lightweight, non-blocking
+	 * computations that do not return a {@code CompletableFuture} themselves. It is
+	 * especially useful for wrapping synchronous logic into a
+	 * {@code CompletableFuture} context.
+	 * </p>
+	 *
+	 * <p>
+	 * If the supplier throws an exception, the returned future will complete
+	 * exceptionally.
+	 * </p>
+	 *
+	 * @param <R>      the type of the result
+	 * @param supplier the task to run synchronously
+	 * @return a {@code CompletableFuture<R>} that completes with the result of the
+	 *         supplier
+	 */
+	default <R> CompletableFuture<R> callSyncImmediate(Supplier<R> supplier) {
+		CompletableFuture<R> future = new CompletableFuture<>();
+		executeSync(() -> {
+			try {
+				future.complete(supplier.get());
+			} catch (Throwable t) {
+				future.completeExceptionally(t);
+			}
+		});
+		return future;
+	}
+
+	/**
+	 * Executes the given {@link Runnable} task synchronously and returns a
+	 * {@link CompletableFuture} that completes when the task finishes execution.
+	 *
+	 * <p>
+	 * If the task runs successfully, the returned future is completed normally. If
+	 * the task throws an exception, the future is completed exceptionally with that
+	 * exception.
+	 * </p>
+	 *
+	 * @param task the {@code Runnable} to be executed synchronously
+	 * @return a {@code CompletableFuture<Void>} representing the result of the
+	 *         execution
+	 */
+	default CompletableFuture<Void> runSync(Runnable task) {
+		CompletableFuture<Void> future = new CompletableFuture<>();
+		executeSync(() -> {
+			try {
+				task.run();
+				future.complete(null);
+			} catch (Throwable t) {
+				future.completeExceptionally(t);
+			}
+		});
+		return future;
+	}
+
+	/**
 	 * Executes the given task with a delay.
 	 *
 	 * @param task  the task

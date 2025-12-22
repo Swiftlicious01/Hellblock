@@ -45,8 +45,8 @@ public class HellblockWarpsCommand extends BukkitCommandFeature<CommandSender> {
 						return CompletableFuture.completedFuture(Collections.emptyList());
 					}
 
-					return CompletableFuture.completedFuture(Arrays.stream(VisitSorter.values()).map(Enum::toString)
-							.map(Suggestion::suggestion).toList());
+					return CompletableFuture.completedFuture(Arrays.stream(VisitSorter.values())
+							.map(value -> value.toString().toLowerCase()).map(Suggestion::suggestion).toList());
 				})).handler(context -> {
 					Player player = context.sender();
 					String sortArg = context.getOrDefault("sort", VisitSorter.FEATURED.toString());

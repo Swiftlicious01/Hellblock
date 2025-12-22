@@ -180,6 +180,11 @@ public class HellblockData implements EmptyCheck {
 	protected List<VisitRecord> recentVisitors;
 
 	@Expose
+	@SerializedName("offlineVisitors")
+	@NotNull
+	protected Set<UUID> offlineVisitors;
+
+	@Expose
 	@SerializedName("islandBiome")
 	@Nullable
 	protected HellBiome biome;
@@ -280,6 +285,7 @@ public class HellblockData implements EmptyCheck {
 	 * @param creationTime       The time the island was created (epoch millis).
 	 * @param visitData          Visit statistics and warp location.
 	 * @param recentVisitors     List of recent visitors to the island.
+	 * @param offlineVisitors    List of offline visitors to the island.
 	 * @param biome              The biome type of the island.
 	 * @param choice             The chosen island template option.
 	 * @param schematic          The name of the schematic used to generate the
@@ -302,10 +308,11 @@ public class HellblockData implements EmptyCheck {
 			@NotNull Set<UUID> banned, @NotNull Map<UUID, Long> invitations,
 			@NotNull EnumMap<FlagType, HellblockFlag> flags, @NotNull EnumMap<IslandUpgradeType, Integer> upgrades,
 			@Nullable Location location, @Nullable Location home, long creationTime, @NotNull VisitData visitData,
-			@NotNull List<VisitRecord> recentVisitors, @Nullable HellBiome biome, @Nullable IslandOptions choice,
-			@Nullable String schematic, boolean locked, boolean abandoned, long resetCooldown, long biomeCooldown,
-			long transferCooldown, long lastIslandActivity, long lastWorldAccess, @NotNull InvasionData invasionData,
-			@NotNull WitherData witherData, @NotNull SkysiegeData skysiegeData) {
+			@NotNull List<VisitRecord> recentVisitors, @NotNull Set<UUID> offlineVisitors, @Nullable HellBiome biome,
+			@Nullable IslandOptions choice, @Nullable String schematic, boolean locked, boolean abandoned,
+			long resetCooldown, long biomeCooldown, long transferCooldown, long lastIslandActivity,
+			long lastWorldAccess, @NotNull InvasionData invasionData, @NotNull WitherData witherData,
+			@NotNull SkysiegeData skysiegeData) {
 		this.id = id;
 		this.level = level;
 		this.hasHellblock = hasHellblock;
@@ -326,6 +333,7 @@ public class HellblockData implements EmptyCheck {
 		this.creationTime = creationTime;
 		this.visitData = visitData.copy();
 		this.recentVisitors = recentVisitors.stream().map(VisitRecord::copy).toList();
+		this.offlineVisitors = new HashSet<>(offlineVisitors);
 		this.biome = biome;
 		this.choice = choice;
 		this.schematic = schematic;
@@ -455,6 +463,19 @@ public class HellblockData implements EmptyCheck {
 	}
 
 	/**
+	 * Gets a read-only set of offline visitors to this island.
+	 *
+	 * @return an unmodifiable {@link Set} of {@link UUID} entries.
+	 */
+	@NotNull
+	public Set<UUID> getOfflineVisitors() {
+		if (this.offlineVisitors == null) {
+			return new HashSet<>();
+		}
+		return Collections.unmodifiableSet(this.offlineVisitors);
+	}
+
+	/**
 	 * Gets the current display settings for this island, including name, bio, and
 	 * display choice (e.g., chat or title).
 	 *
@@ -497,7 +518,8 @@ public class HellblockData implements EmptyCheck {
 						MessageConstants.MSG_HELLBLOCK_BIO_DEFAULT
 								.arguments(AdventureHelper.miniMessageToComponent(getResolvedOwnerName()),
 										AdventureHelper.miniMessageToComponent(String.valueOf(getIslandLevel())),
-										AdventureHelper.miniMessageToComponent(String.valueOf(getPartyMembers().size())),
+										AdventureHelper
+												.miniMessageToComponent(String.valueOf(getPartyMembers().size())),
 										AdventureHelper.miniMessageToComponent(getDisplaySettings().getIslandName()))
 								.build().key());
 
@@ -641,8 +663,8 @@ public class HellblockData implements EmptyCheck {
 
 				if (currentLength + wordLength > maxVisibleLength && !currentChunk.isEmpty()) {
 					// Flush current chunk
-					JoinConfiguration config = JoinConfiguration.builder().separator(AdventureHelper.miniMessageToComponent(" "))
-							.build();
+					JoinConfiguration config = JoinConfiguration.builder()
+							.separator(AdventureHelper.miniMessageToComponent(" ")).build();
 					result.add(Component.join(config, currentChunk));
 					currentChunk.clear();
 					currentLength = 0;
@@ -657,7 +679,8 @@ public class HellblockData implements EmptyCheck {
 		}
 
 		if (!currentChunk.isEmpty()) {
-			JoinConfiguration config = JoinConfiguration.builder().separator(AdventureHelper.miniMessageToComponent(" ")).build();
+			JoinConfiguration config = JoinConfiguration.builder()
+					.separator(AdventureHelper.miniMessageToComponent(" ")).build();
 			result.add(Component.join(config, currentChunk));
 		}
 
@@ -1484,8 +1507,9 @@ public class HellblockData implements EmptyCheck {
 		this.schematic = transferee.getHellblockData().getUsedSchematic();
 		this.locked = transferee.getHellblockData().isLocked();
 		this.visitData = transferee.getHellblockData().getVisitData().copy();
-		this.recentVisitors = transferee.getHellblockData().getRecentVisitors().stream().map(VisitRecord::copy)
+		this.recentVisitors = transferee.getHellblockData().recentVisitors.stream().map(VisitRecord::copy)
 				.collect(Collectors.toCollection(ArrayList::new));
+		this.offlineVisitors = new HashSet<>(transferee.getHellblockData().offlineVisitors);
 		this.invasionData = transferee.getHellblockData().getInvasionData().copy();
 		this.witherData = transferee.getHellblockData().getWitherData().copy();
 		this.skysiegeData = transferee.getHellblockData().getSkysiegeData().copy();
@@ -1530,7 +1554,8 @@ public class HellblockData implements EmptyCheck {
 		setInvasionData(InvasionData.empty());
 		setWitherData(WitherData.empty());
 		setSkysiegeData(SkysiegeData.empty());
-		getRecentVisitors().clear();
+		this.recentVisitors.clear();
+		this.offlineVisitors.clear();
 	}
 
 	/**
@@ -1660,9 +1685,9 @@ public class HellblockData implements EmptyCheck {
 	 */
 	public void addVisitor(@NotNull UUID visitorId) {
 		VisitManager visitManager = HellblockPlugin.getInstance().getVisitManager();
-		getRecentVisitors().add(visitManager.new VisitRecord(visitorId));
-		if (getRecentVisitors().size() > 50) {
-			getRecentVisitors().remove(0); // remove oldest
+		this.recentVisitors.add(visitManager.new VisitRecord(visitorId));
+		if (this.recentVisitors.size() > 50) {
+			this.recentVisitors.remove(0); // remove oldest
 		}
 	}
 
@@ -1671,8 +1696,8 @@ public class HellblockData implements EmptyCheck {
 	 *
 	 * @param cutoff The timestamp (in milliseconds) used to filter old records.
 	 */
-	public void cleanupOldVisitors(long cutoff) {
-		getRecentVisitors().removeIf(record -> record.getTimestamp() < cutoff);
+	public boolean cleanupOldVisitors(long cutoff) {
+		return this.recentVisitors.removeIf(record -> record.getTimestamp() < cutoff);
 	}
 
 	/**
@@ -1682,6 +1707,40 @@ public class HellblockData implements EmptyCheck {
 	 */
 	public void setRecentVisitors(@NotNull List<VisitRecord> recentVisitors) {
 		this.recentVisitors = recentVisitors;
+	}
+
+	/**
+	 * Adds the visitor to the offline visitors set.
+	 *
+	 * @param visitorId The UUID of the visiting player.
+	 */
+	public boolean addOfflineVisitor(@NotNull UUID visitorId) {
+		return this.offlineVisitors.add(visitorId);
+	}
+
+	/**
+	 * Removes the visitor from the offline visitors set.
+	 *
+	 * @param visitorId The UUID of the visiting player.
+	 */
+	public boolean removeOfflineVisitor(@NotNull UUID visitorId) {
+		return this.offlineVisitors.remove(visitorId);
+	}
+
+	/**
+	 * Clears all entries from the offline visitors set.
+	 */
+	public void clearOfflineVisitors() {
+		this.offlineVisitors.clear();
+	}
+
+	/**
+	 * Replaces the current set of offline visitors.
+	 *
+	 * @param offlineVisitors The list of {@link UUID}s to set.
+	 */
+	public void setOfflineVisitors(@NotNull Set<UUID> offlineVisitors) {
+		this.offlineVisitors = offlineVisitors;
 	}
 
 	/**
@@ -1861,10 +1920,8 @@ public class HellblockData implements EmptyCheck {
 	 *
 	 * @param newMember the UUID of the new party member.
 	 */
-	public void addToParty(@NotNull UUID newMember) {
-		if (!getPartyMembers().contains(newMember)) {
-			getPartyMembers().add(newMember);
-		}
+	public boolean addToParty(@NotNull UUID newMember) {
+		return !(getPartyMembers().contains(newMember)) ? getPartyMembers().add(newMember) : false;
 	}
 
 	/**
@@ -1872,10 +1929,8 @@ public class HellblockData implements EmptyCheck {
 	 *
 	 * @param oldMember The UUID of the player to be removed from the party.
 	 */
-	public void kickFromParty(@NotNull UUID oldMember) {
-		if (getPartyMembers().contains(oldMember)) {
-			getPartyMembers().remove(oldMember);
-		}
+	public boolean kickFromParty(@NotNull UUID oldMember) {
+		return getPartyMembers().contains(oldMember) ? getPartyMembers().remove(oldMember) : false;
 	}
 
 	/**
@@ -1892,10 +1947,8 @@ public class HellblockData implements EmptyCheck {
 	 *
 	 * @param newTrustee The UUID of the player to trust.
 	 */
-	public void addTrustPermission(@NotNull UUID newTrustee) {
-		if (!getTrustedMembers().contains(newTrustee)) {
-			getTrustedMembers().add(newTrustee);
-		}
+	public boolean addTrustPermission(@NotNull UUID newTrustee) {
+		return !(getTrustedMembers().contains(newTrustee)) ? getTrustedMembers().add(newTrustee) : false;
 	}
 
 	/**
@@ -1904,10 +1957,8 @@ public class HellblockData implements EmptyCheck {
 	 *
 	 * @param oldTrustee The UUID of the player to remove from trusted members.
 	 */
-	public void removeTrustPermission(@NotNull UUID oldTrustee) {
-		if (getTrustedMembers().contains(oldTrustee)) {
-			getTrustedMembers().remove(oldTrustee);
-		}
+	public boolean removeTrustPermission(@NotNull UUID oldTrustee) {
+		return getTrustedMembers().contains(oldTrustee) ? getTrustedMembers().remove(oldTrustee) : false;
 	}
 
 	/**
@@ -1924,10 +1975,8 @@ public class HellblockData implements EmptyCheck {
 	 *
 	 * @param bannedPlayer The UUID of the player to ban from the island.
 	 */
-	public void banPlayer(@NotNull UUID bannedPlayer) {
-		if (!getBannedMembers().contains(bannedPlayer)) {
-			getBannedMembers().add(bannedPlayer);
-		}
+	public boolean banPlayer(@NotNull UUID bannedPlayer) {
+		return !(getBannedMembers().contains(bannedPlayer)) ? getBannedMembers().add(bannedPlayer) : false;
 	}
 
 	/**
@@ -1935,10 +1984,8 @@ public class HellblockData implements EmptyCheck {
 	 *
 	 * @param unbannedPlayer The UUID of the player to unban.
 	 */
-	public void unbanPlayer(@NotNull UUID unbannedPlayer) {
-		if (getBannedMembers().contains(unbannedPlayer)) {
-			getBannedMembers().remove(unbannedPlayer);
-		}
+	public boolean unbanPlayer(@NotNull UUID unbannedPlayer) {
+		return getBannedMembers().contains(unbannedPlayer) ? getBannedMembers().remove(unbannedPlayer) : false;
 	}
 
 	/**
@@ -1964,21 +2011,19 @@ public class HellblockData implements EmptyCheck {
 	 * Sends an island invitation to the specified player, with a default expiration
 	 * time of 1 day.
 	 *
-	 * @param playerID The UUID of the player to invite.
+	 * @param playerId The UUID of the player to invite.
 	 */
-	public void sendInvitation(@NotNull UUID playerID) {
-		getInvitations().putIfAbsent(playerID, TimeUnit.SECONDS.toDays(86400));
+	public long sendInvitation(@NotNull UUID playerId) {
+		return getInvitations().putIfAbsent(playerId, TimeUnit.SECONDS.toDays(86400));
 	}
 
 	/**
 	 * Removes an existing invitation for the specified player.
 	 *
-	 * @param playerID The UUID of the player whose invitation should be revoked.
+	 * @param playerId The UUID of the player whose invitation should be revoked.
 	 */
-	public void removeInvitation(@NotNull UUID playerID) {
-		if (getInvitations().containsKey(playerID)) {
-			getInvitations().remove(playerID);
-		}
+	public long removeInvitation(@NotNull UUID playerId) {
+		return getInvitations().containsKey(playerId) ? getInvitations().remove(playerId) : 0L;
 	}
 
 	/**
@@ -2087,8 +2132,8 @@ public class HellblockData implements EmptyCheck {
 	 *
 	 * @param upgradeType The {@link IslandUpgradeType} to upgrade.
 	 */
-	public void upgradeTier(@NotNull IslandUpgradeType upgradeType) {
-		getIslandUpgrades().put(upgradeType, getUpgradeLevel(upgradeType) + 1);
+	public int upgradeTier(@NotNull IslandUpgradeType upgradeType) {
+		return getIslandUpgrades().put(upgradeType, getUpgradeLevel(upgradeType) + 1);
 	}
 
 	/**
@@ -2114,9 +2159,9 @@ public class HellblockData implements EmptyCheck {
 	public static HellblockData empty() {
 		return new HellblockData(0, 0.0F, false, null, null, null, DisplaySettings.empty(), CoopChatSetting.GLOBAL,
 				new HashSet<>(), new HashSet<>(), new HashSet<>(), new HashMap<>(), new EnumMap<>(FlagType.class),
-				new EnumMap<>(IslandUpgradeType.class), null, null, 0L, VisitData.empty(), new ArrayList<>(), null,
-				null, null, false, false, 0L, 0L, 0L, 0L, 0L, InvasionData.empty(), WitherData.empty(),
-				SkysiegeData.empty());
+				new EnumMap<>(IslandUpgradeType.class), null, null, 0L, VisitData.empty(), new ArrayList<>(),
+				new HashSet<>(), null, null, null, false, false, 0L, 0L, 0L, 0L, 0L, InvasionData.empty(),
+				WitherData.empty(), SkysiegeData.empty());
 	}
 
 	/**
@@ -2144,10 +2189,10 @@ public class HellblockData implements EmptyCheck {
 				new EnumMap<>(getIslandUpgrades()),
 				getHellblockLocation() != null ? getHellblockLocation().clone() : null,
 				getHomeLocation() != null ? getHomeLocation().clone() : null, getCreationTime(), getVisitData().copy(),
-				getRecentVisitors().stream().map(VisitRecord::copy).collect(Collectors.toList()), getBiome(),
-				getIslandChoice(), getUsedSchematic(), isLocked(), isAbandoned(), getResetCooldown(),
-				getBiomeCooldown(), getTransferCooldown(), getLastIslandActivity(), getLastWorldAccess(),
-				getInvasionData().copy(), getWitherData().copy(), getSkysiegeData().copy());
+				this.recentVisitors.stream().map(VisitRecord::copy).collect(Collectors.toList()),
+				new HashSet<>(this.offlineVisitors), getBiome(), getIslandChoice(), getUsedSchematic(), isLocked(),
+				isAbandoned(), getResetCooldown(), getBiomeCooldown(), getTransferCooldown(), getLastIslandActivity(),
+				getLastWorldAccess(), getInvasionData().copy(), getWitherData().copy(), getSkysiegeData().copy());
 	}
 
 	/**
@@ -2167,7 +2212,7 @@ public class HellblockData implements EmptyCheck {
 				&& getTransferCooldown() == 0L && getLastIslandActivity() == 0L && getLastWorldAccess() == 0L
 				&& getPartyMembers().isEmpty() && getTrustedMembers().isEmpty() && getBannedMembers().isEmpty()
 				&& getInvitations().isEmpty() && getProtectionFlags().isEmpty() && getIslandUpgrades().isEmpty()
-				&& getRecentVisitors().isEmpty();
+				&& this.recentVisitors.isEmpty() && this.offlineVisitors.isEmpty();
 	}
 
 	@Override
@@ -2179,7 +2224,8 @@ public class HellblockData implements EmptyCheck {
 				+ (getUsedSchematic() != null ? "\"" + getUsedSchematic() + "\"" : "null") + ", locked=" + isLocked()
 				+ ", abandoned=" + isAbandoned() + ", creationTime=" + getCreationTime() + ", partySize="
 				+ getPartyMembers().size() + ", trustedSize=" + getTrustedMembers().size() + ", bannedSize="
-				+ getBannedMembers().size() + ", recentVisitors=" + getRecentVisitors().size() + ", upgrades="
-				+ getIslandUpgrades() + ", flags=" + getProtectionFlags().keySet() + '}';
+				+ getBannedMembers().size() + ", recentVisitors=" + this.recentVisitors.size() + ", offlineVisitors="
+				+ this.offlineVisitors.size() + ", upgrades=" + getIslandUpgrades() + ", flags="
+				+ getProtectionFlags().keySet() + '}';
 	}
 }

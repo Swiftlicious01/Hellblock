@@ -92,7 +92,6 @@ dependencies {
     implementation hellblockLibs.rtagcore
     implementation(hellblockLibs.rtagitem) { transitive = false }
     implementation(hellblockLibs.rtagentity) { transitive = false }
-    implementation(hellblockLibs.rtagblock) { transitive = false }
 
     compileOnly(hellblockLibs.adventureapi) {
         exclude module: 'adventure-bom'

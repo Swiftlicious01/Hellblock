@@ -69,148 +69,161 @@ public class HellblockVisitCommand extends BukkitCommandFeature<CommandSender> {
 						return;
 					}
 
-					loadTargetIsland(visitor, visitorOpt.get(), targetId, targetName, context);
+					loadTargetIsland(visitor, visitorOpt.get(), targetId, targetName, context).handle((result, ex) -> {
+						if (ex != null) {
+							plugin.getPluginLogger().warn("Failed to load target island for " + visitor.getName(), ex);
+						}
+						return false;
+					});
 				});
 	}
 
-	private void loadTargetIsland(@NotNull Player visitor, @NotNull UserData visitorData, @NotNull UUID targetUUID,
-			@NotNull String targetName, @NotNull CommandContext<Player> context) {
-		plugin.getStorageManager().getCachedUserDataWithFallback(targetUUID, plugin.getConfigManager().lockData())
-				.thenAccept(targetOpt -> {
-					if (targetOpt.isEmpty()) {
-						handleFeedback(context, MessageConstants.MSG_HELLBLOCK_PLAYER_DATA_FAILURE_LOAD,
-								AdventureHelper.miniMessageToComponent(targetName));
-						return;
-					}
+	private CompletableFuture<Boolean> loadTargetIsland(@NotNull Player visitor, @NotNull UserData visitorData,
+			@NotNull UUID targetUUID, @NotNull String targetName, @NotNull CommandContext<Player> context) {
+		return plugin.getStorageManager().getCachedUserDataWithFallback(targetUUID, false).thenCompose(targetOpt -> {
+			if (targetOpt.isEmpty()) {
+				handleFeedback(context, MessageConstants.MSG_HELLBLOCK_PLAYER_DATA_FAILURE_LOAD,
+						AdventureHelper.miniMessageToComponent(targetName));
+				return CompletableFuture.completedFuture(false);
+			}
 
-					final UserData targetUser = targetOpt.get();
-					final HellblockData targetData = targetUser.getHellblockData();
-					final UUID visitorUUID = visitor.getUniqueId();
+			final UserData targetUserData = targetOpt.get();
+			final HellblockData targetData = targetUserData.getHellblockData();
+			final UUID visitorUUID = visitor.getUniqueId();
 
-					if (!targetData.hasHellblock()) {
-						handleFeedback(context, MessageConstants.MSG_HELLBLOCK_NO_ISLAND_FOUND);
-						return;
-					}
+			if (!targetData.hasHellblock()) {
+				handleFeedback(context, MessageConstants.MSG_HELLBLOCK_NO_ISLAND_FOUND);
+				return CompletableFuture.completedFuture(false);
+			}
 
-					// Step 1: Get actual island owner (always required)
-					final UUID ownerUUID = targetData.getOwnerUUID();
-					if (ownerUUID == null) {
-						plugin.getPluginLogger().severe("Null owner UUID in loadTargetIsland for "
-								+ targetUser.getName() + " (" + targetUser.getUUID() + ")");
-						handleFeedback(context, MessageConstants.MSG_HELLBLOCK_NO_ISLAND_FOUND);
-						return;
-					}
+			// Step 1: Get actual island owner (always required)
+			final UUID ownerUUID = targetData.getOwnerUUID();
+			if (ownerUUID == null) {
+				plugin.getPluginLogger().severe("Null owner UUID in loadTargetIsland for " + targetUserData.getName()
+						+ " (" + targetUserData.getUUID() + ")");
+				handleFeedback(context, MessageConstants.MSG_HELLBLOCK_NO_ISLAND_FOUND);
+				return CompletableFuture
+						.failedFuture(new IllegalStateException("Owner reference was null in loadTargetIsland."));
+			}
 
-					// Step 2: If the visitor is visiting their own island
-					if (ownerUUID.equals(visitorUUID)) {
-						visitOwnOrPartyIsland(visitor, visitorData, context);
-						return;
-					}
+			// Step 2: If the visitor is visiting their own island
+			if (ownerUUID.equals(visitorUUID)) {
+				return visitOwnOrPartyIsland(visitor, visitorData, context);
+			}
 
-					// Step 3: Load the owner's island data
-					plugin.getStorageManager()
-							.getCachedUserDataWithFallback(ownerUUID, plugin.getConfigManager().lockData())
-							.thenAccept(ownerOpt -> {
-								if (ownerOpt.isEmpty()) {
-									final String username = Bukkit.getOfflinePlayer(ownerUUID).getName();
-									handleFeedback(context, MessageConstants.MSG_HELLBLOCK_OWNER_DATA_NOT_LOADED,
-											AdventureHelper.miniMessageToComponent(username != null ? username
-													: plugin.getTranslationManager().miniMessageTranslation(
-															MessageConstants.FORMAT_UNKNOWN.build().key())));
-									return;
-								}
+			// Step 3: Load the owner's island data
+			return plugin.getStorageManager().getCachedUserDataWithFallback(ownerUUID, false)
+					.thenCompose(optOwnerData -> {
+						if (optOwnerData.isEmpty()) {
+							final String username = Bukkit.getOfflinePlayer(ownerUUID).getName();
+							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_OWNER_DATA_NOT_LOADED,
+									AdventureHelper.miniMessageToComponent(username != null ? username
+											: plugin.getTranslationManager().miniMessageTranslation(
+													MessageConstants.FORMAT_UNKNOWN.build().key())));
+							return CompletableFuture.completedFuture(false);
+						}
 
-								final UserData ownerUser = ownerOpt.get();
-								final HellblockData ownerData = ownerUser.getHellblockData();
-								if (!ownerData.hasHellblock()) {
-									handleFeedback(context, MessageConstants.MSG_HELLBLOCK_NO_ISLAND_FOUND);
-									return;
-								}
+						final UserData ownerData = optOwnerData.get();
+						final HellblockData hellblockData = ownerData.getHellblockData();
+						if (!hellblockData.hasHellblock()) {
+							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_NO_ISLAND_FOUND);
+							return CompletableFuture.completedFuture(false);
+						}
 
-								if (ownerData.getPartyMembers().contains(visitor.getUniqueId())) {
-									visitOwnOrPartyIsland(visitor, ownerUser, context);
-									return;
-								}
+						if (hellblockData.getPartyMembers().contains(visitor.getUniqueId())) {
+							return visitOwnOrPartyIsland(visitor, ownerData, context);
+						}
 
-								// Step 4: Check if island is abandoned
-								if (ownerData.isAbandoned()) {
-									handleFeedback(context, MessageConstants.MSG_HELLBLOCK_IS_ABANDONED);
-									return;
-								}
+						// Step 4: Check if island is abandoned
+						if (hellblockData.isAbandoned()) {
+							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_IS_ABANDONED);
+							return CompletableFuture.completedFuture(false);
+						}
 
-								// Step 5: Check ban list from the owner's island data
-								final boolean isBypassing = visitor.isOp() || visitor.hasPermission("hellblock.admin")
-										|| visitor.hasPermission("hellblock.bypass.interact");
+						// Step 5: Check ban list from the owner's island data
+						final boolean isBypassing = visitor.isOp() || visitor.hasPermission("hellblock.admin")
+								|| visitor.hasPermission("hellblock.bypass.interact");
 
-								final Set<UUID> banned = ownerData.getBannedMembers();
+						final Set<UUID> banned = hellblockData.getBannedMembers();
 
-								if (!isBypassing && banned.contains(visitorUUID)) {
-									handleFeedback(context, MessageConstants.MSG_HELLBLOCK_BANNED_ENTRY);
-									return;
-								}
+						if (!isBypassing && banned.contains(visitorUUID)) {
+							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_BANNED_ENTRY);
+							return CompletableFuture.completedFuture(false);
+						}
 
-								// Step 6: Proceed to visit the island
-								visitIsland(visitor, ownerUser, context);
-
-							}).exceptionally(ex -> {
-								plugin.getPluginLogger()
-										.warn("Failed to load island owner data for visit: " + ex.getMessage());
-								return null;
-							});
-
-				}).exceptionally(ex -> {
-					plugin.getPluginLogger().warn("getCachedUserDataWithFallback failed for visiting island of "
-							+ visitor.getName() + ": " + ex.getMessage());
-					return null;
-				});
+						// Step 6: Proceed to visit the island
+						return visitIsland(visitor, ownerData, context);
+					}).exceptionally(ex -> {
+						plugin.getPluginLogger().warn("Failed to load island owner data for visit: " + ex.getMessage());
+						return false;
+					});
+		}).exceptionally(ex -> {
+			plugin.getPluginLogger().warn("getCachedUserDataWithFallback failed for visiting island of "
+					+ visitor.getName() + ": " + ex.getMessage());
+			return false;
+		});
 	}
 
-	private void visitOwnOrPartyIsland(@NotNull Player visitor, @NotNull UserData visitorData,
+	private CompletableFuture<Boolean> visitOwnOrPartyIsland(@NotNull Player visitor, @NotNull UserData visitorData,
 			@NotNull CommandContext<Player> context) {
 		final HellblockData data = visitorData.getHellblockData();
 		if (!data.hasHellblock()) {
 			handleFeedback(context, MessageConstants.MSG_HELLBLOCK_NO_ISLAND_FOUND);
-			return;
+			return CompletableFuture.completedFuture(false);
 		}
 
 		final UUID ownerUUID = data.getOwnerUUID();
 		if (ownerUUID == null) {
 			plugin.getPluginLogger().severe("Null owner UUID in visitOwnOrPartyIsland for " + visitor.getName() + " ("
 					+ visitor.getUniqueId() + ")");
-			throw new IllegalStateException("Owner reference was null in visitOwnOrPartyIsland.");
+			return CompletableFuture
+					.failedFuture(new IllegalStateException("Owner reference was null in visitOwnOrPartyIsland."));
 		}
 
-		plugin.getStorageManager().getCachedUserDataWithFallback(ownerUUID, plugin.getConfigManager().lockData())
-				.thenAccept(ownerOpt -> {
-					if (ownerOpt.isEmpty()) {
-						final String username = Bukkit.getOfflinePlayer(ownerUUID).getName();
-						handleFeedback(context, MessageConstants.MSG_HELLBLOCK_OWNER_DATA_NOT_LOADED,
-								AdventureHelper.miniMessageToComponent(username != null ? username
-										: plugin.getTranslationManager().miniMessageTranslation(
-												MessageConstants.FORMAT_UNKNOWN.build().key())));
-						return;
-					}
-
-					final UserData ownerUser = ownerOpt.get();
-					if (ownerUser.getHellblockData().isAbandoned()) {
-						handleFeedback(context, MessageConstants.MSG_HELLBLOCK_IS_ABANDONED);
-						return;
-					}
-
-					plugin.getVisitManager().handleVisit(visitor, ownerUUID);
-				});
-	}
-
-	private void visitIsland(@NotNull Player visitor, @NotNull UserData targetUser,
-			@NotNull CommandContext<Player> context) {
-		plugin.getCoopManager().checkIfVisitorsAreWelcome(visitor, targetUser.getUUID()).thenAccept(status -> {
-			if (targetUser.isLocked() || !status) {
-				handleFeedback(context, MessageConstants.MSG_HELLBLOCK_LOCKED_FROM_VISITORS,
-						AdventureHelper.miniMessageToComponent(targetUser.getName()));
-				return;
+		return plugin.getStorageManager().getCachedUserDataWithFallback(ownerUUID, false).thenCompose(optOwnerData -> {
+			if (optOwnerData.isEmpty()) {
+				final String username = Bukkit.getOfflinePlayer(ownerUUID).getName();
+				handleFeedback(context, MessageConstants.MSG_HELLBLOCK_OWNER_DATA_NOT_LOADED,
+						AdventureHelper.miniMessageToComponent(username != null ? username
+								: plugin.getTranslationManager()
+										.miniMessageTranslation(MessageConstants.FORMAT_UNKNOWN.build().key())));
+				return CompletableFuture.completedFuture(false);
 			}
 
-			plugin.getVisitManager().handleVisit(visitor, targetUser.getUUID());
+			final UserData ownerData = optOwnerData.get();
+			if (ownerData.getHellblockData().isAbandoned()) {
+				handleFeedback(context, MessageConstants.MSG_HELLBLOCK_IS_ABANDONED);
+				return CompletableFuture.completedFuture(false);
+			}
+
+			return plugin.getVisitManager().handleVisit(visitor, ownerUUID).exceptionally(ex -> {
+				plugin.getPluginLogger().warn("Error handling visit for " + visitor.getName(), ex);
+				return false;
+			});
+		}).exceptionally(ex -> {
+			plugin.getPluginLogger().warn("getCachedUserDataWithFallback failed for visitOwnOrPartyIsland of "
+					+ visitor.getName() + ": " + ex.getMessage());
+			return false;
+		});
+	}
+
+	private CompletableFuture<Boolean> visitIsland(@NotNull Player visitor, @NotNull UserData targetData,
+			@NotNull CommandContext<Player> context) {
+		return plugin.getCoopManager().checkIfVisitorsAreWelcome(visitor, targetData.getUUID()).thenCompose(status -> {
+			if (targetData.isLocked() || !status) {
+				handleFeedback(context, MessageConstants.MSG_HELLBLOCK_LOCKED_FROM_VISITORS,
+						AdventureHelper.miniMessageToComponent(targetData.getName()));
+				return CompletableFuture.completedFuture(false);
+			}
+
+			return plugin.getVisitManager().handleVisit(visitor, targetData.getUUID()).exceptionally(ex -> {
+				plugin.getPluginLogger().warn("Error handling visit for " + visitor.getName(), ex);
+				return false;
+			});
+		}).exceptionally(ex -> {
+			plugin.getPluginLogger().warn("getCachedUserDataWithFallback failed for visitIsland of " + visitor.getName()
+					+ ": " + ex.getMessage());
+			return false;
 		});
 	}
 

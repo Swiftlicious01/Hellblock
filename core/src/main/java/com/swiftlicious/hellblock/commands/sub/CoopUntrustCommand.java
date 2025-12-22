@@ -82,8 +82,8 @@ public class CoopUntrustCommand extends BukkitCommandFeature<CommandSender> {
 						return;
 					}
 
-					final UserData user = onlineUserOpt.get();
-					final HellblockData data = user.getHellblockData();
+					final UserData userData = onlineUserOpt.get();
+					final HellblockData data = userData.getHellblockData();
 
 					if (!data.hasHellblock()) {
 						handleFeedback(context, MessageConstants.MSG_HELLBLOCK_NOT_FOUND);
@@ -145,54 +145,51 @@ public class CoopUntrustCommand extends BukkitCommandFeature<CommandSender> {
 					}
 
 					// Load target user data async
-					plugin.getStorageManager()
-							.getCachedUserDataWithFallback(targetId, plugin.getConfigManager().lockData())
-							.thenAccept(result -> {
-								if (result.isEmpty()) {
-									handleFeedback(context, MessageConstants.MSG_HELLBLOCK_PLAYER_DATA_FAILURE_LOAD,
-											AdventureHelper.miniMessageToComponent(targetName));
-									return;
-								}
+					plugin.getStorageManager().getCachedUserDataWithFallback(targetId, true).thenCompose(targetOpt -> {
+						if (targetOpt.isEmpty()) {
+							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_PLAYER_DATA_FAILURE_LOAD,
+									AdventureHelper.miniMessageToComponent(targetName));
+							return CompletableFuture.completedFuture(null);
+						}
 
-								final UserData targetUser = result.get();
+						final UserData targetUserData = targetOpt.get();
 
-								if (!data.getTrustedMembers().contains(targetUser.getUUID())) {
-									handleFeedback(context, MessageConstants.MSG_HELLBLOCK_COOP_NOT_TRUSTED);
-									return;
-								}
+						if (!data.getTrustedMembers().contains(targetUserData.getUUID())) {
+							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_COOP_NOT_TRUSTED);
+							return CompletableFuture.completedFuture(null);
+						}
 
-								// Remove trust relationship
-								data.removeTrustPermission(targetUser.getUUID());
+						// Remove trust relationship
+						return plugin.getCoopManager().removeTrustAccess(userData, targetName, targetId)
+								.handle((untrusted, ex) -> {
+									if (ex != null) {
+										plugin.getPluginLogger().warn("removeTrustAccess failed for " + targetName, ex);
+										return false;
+									}
 
-								plugin.getCoopManager().removeTrustAccess(user, targetName, targetId)
-										.thenAccept(trust -> {
-											// Feedback for executor
-											handleFeedback(context, MessageConstants.MSG_HELLBLOCK_COOP_TRUST_REVOKED,
-													AdventureHelper.miniMessageToComponent(targetName));
+									if (untrusted) {
+										handleFeedback(context, MessageConstants.MSG_HELLBLOCK_COOP_TRUST_REVOKED,
+												AdventureHelper.miniMessageToComponent(targetName));
 
-											// Feedback for target if online
-											if (targetUser.isOnline()) {
-												handleFeedback(Bukkit.getPlayer(targetUser.getUUID()),
-														MessageConstants.MSG_HELLBLOCK_COOP_TRUST_LOST,
-														AdventureHelper.miniMessageToComponent(player.getName()));
-											} else {
-												// else offline
-												plugin.getMailboxManager().queue(targetUser.getUUID(),
-														new MailboxEntry("message.hellblock.coop.untrusted.offline",
-																List.of(AdventureHelper.miniMessageToComponent(player.getName())),
-																Set.of(MailboxFlag.NOTIFY_TRUSTED)));
-											}
-										}).exceptionally(ex -> {
-											plugin.getPluginLogger().warn("removeTrustAccess failed for " + targetName
-													+ ": " + ex.getMessage());
-											return null;
-										});
-							}).exceptionally(ex -> {
-								plugin.getPluginLogger()
-										.warn("getCachedUserDataWithFallback failed for revoke trust of " + targetName
-												+ ": " + ex.getMessage());
-								return null;
-							});
+										if (targetUserData.isOnline()) {
+											handleFeedback(Bukkit.getPlayer(targetUserData.getUUID()),
+													MessageConstants.MSG_HELLBLOCK_COOP_TRUST_LOST,
+													AdventureHelper.miniMessageToComponent(player.getName()));
+										} else {
+											plugin.getMailboxManager().queue(targetUserData.getUUID(),
+													new MailboxEntry("message.hellblock.coop.untrusted.offline",
+															List.of(AdventureHelper
+																	.miniMessageToComponent(player.getName())),
+															Set.of(MailboxFlag.NOTIFY_TRUSTED)));
+										}
+									}
+									return untrusted;
+								}).thenCompose(__ -> plugin.getStorageManager().unlockUserData(targetId));
+					}).exceptionally(ex -> {
+						plugin.getPluginLogger()
+								.warn("getCachedUserDataWithFallback failed for revoke trust of " + targetName, ex);
+						return null;
+					});
 				});
 	}
 

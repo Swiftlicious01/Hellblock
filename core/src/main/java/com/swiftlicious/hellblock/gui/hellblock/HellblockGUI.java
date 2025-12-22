@@ -3,6 +3,7 @@ package com.swiftlicious.hellblock.gui.hellblock;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
@@ -138,125 +139,119 @@ public class HellblockGUI {
 			return this;
 		}
 
-		manager.instance.getStorageManager()
-				.getCachedUserDataWithFallback(ownerUUID, manager.instance.getConfigManager().lockData())
-				.thenAccept(optional -> {
-					if (optional.isEmpty()) {
-						manager.instance.getScheduler().executeSync(() -> context.holder().closeInventory());
-						return;
+		manager.instance.getStorageManager().getCachedUserDataWithFallback(ownerUUID, false).thenCompose(optData -> {
+			if (optData.isEmpty()) {
+				manager.instance.getScheduler().executeSync(() -> context.holder().closeInventory());
+				return CompletableFuture.completedFuture(null);
+			}
+
+			UserData userData = optData.get();
+			HellblockData ownerData = userData.getHellblockData();
+
+			return manager.instance.getIslandLevelManager().getLevelRank(ownerData.getIslandId()).thenAccept(rank -> {
+				// Inject dynamic context
+				try {
+					islandContext.arg(ContextKeys.ISLAND_LEVEL, ownerData.getIslandLevel())
+							.arg(ContextKeys.ISLAND_RANK,
+									rank.intValue() > 0 ? String.valueOf(rank)
+											: manager.instance.getTranslationManager().miniMessageTranslation(
+													MessageConstants.FORMAT_UNRANKED.build().key()))
+							.arg(ContextKeys.ISLAND_NAME, ownerData.getDisplaySettings().getIslandName())
+							.arg(ContextKeys.ISLAND_BIO, ownerData.getDisplaySettings().getIslandBio())
+							.arg(ContextKeys.ISLAND_DISPLAY_CHOICE, ownerData.getDisplaySettings().getDisplayChoice())
+							.arg(ContextKeys.ISLAND_HOPPER_TIER,
+									ownerData.getUpgradeLevel(IslandUpgradeType.HOPPER_LIMIT))
+							.arg(ContextKeys.ISLAND_RANGE_TIER,
+									ownerData.getUpgradeLevel(IslandUpgradeType.PROTECTION_RANGE))
+							.arg(ContextKeys.ISLAND_GENERATOR_TIER,
+									ownerData.getUpgradeLevel(IslandUpgradeType.GENERATOR_CHANCE))
+							.arg(ContextKeys.ISLAND_PARTY_TIER, ownerData.getUpgradeLevel(IslandUpgradeType.PARTY_SIZE))
+							.arg(ContextKeys.ISLAND_BARTERING_TIER,
+									ownerData.getUpgradeLevel(IslandUpgradeType.PIGLIN_BARTERING))
+							.arg(ContextKeys.ISLAND_CROP_TIER, ownerData.getUpgradeLevel(IslandUpgradeType.CROP_GROWTH))
+							.arg(ContextKeys.ISLAND_MOB_TIER,
+									ownerData.getUpgradeLevel(IslandUpgradeType.MOB_SPAWN_RATE))
+							.arg(ContextKeys.FEATURED_TIME, ownerData.getVisitData().getFeaturedUntil())
+							.arg(ContextKeys.FEATURED_TIME_FORMATTED,
+									manager.instance.getCooldownManager()
+											.getFormattedCooldown(ownerData.getVisitData().getFeaturedUntil()))
+							.arg(ContextKeys.RESET_COOLDOWN, ownerData.getResetCooldown())
+							.arg(ContextKeys.BIOME_COOLDOWN, ownerData.getBiomeCooldown())
+							.arg(ContextKeys.TRANSFER_COOLDOWN, ownerData.getTransferCooldown())
+							.arg(ContextKeys.RESET_COOLDOWN_FORMATTED,
+									manager.instance.getCooldownManager()
+											.getFormattedCooldown(ownerData.getResetCooldown()))
+							.arg(ContextKeys.BIOME_COOLDOWN_FORMATTED,
+									manager.instance.getCooldownManager()
+											.getFormattedCooldown(ownerData.getBiomeCooldown()))
+							.arg(ContextKeys.TRANSFER_COOLDOWN_FORMATTED,
+									manager.instance.getCooldownManager()
+											.getFormattedCooldown(ownerData.getTransferCooldown()))
+							.arg(ContextKeys.ISLAND_BIOME, ownerData.getBiome())
+							.arg(ContextKeys.ISLAND_PARTY_COUNT, ownerData.getPartyMembers().size())
+							.arg(ContextKeys.CREATION_TIME, ownerData.getCreationTime())
+							.arg(ContextKeys.CREATION_TIME_FORMATTED, ownerData.getCreationTimeFormatted())
+							.arg(ContextKeys.ISLAND_CHOICE, ownerData.getIslandChoice())
+							.arg(ContextKeys.ISLAND_HOME_LOCATION, ownerData.getHomeLocation())
+							.arg(ContextKeys.ISLAND_LOCATION, ownerData.getHellblockLocation())
+							.arg(ContextKeys.ISLAND_OVERALL_VISITORS, ownerData.getVisitData().getTotalVisits())
+							.arg(ContextKeys.ISLAND_DAILY_VISITORS, ownerData.getVisitData().getDailyVisits())
+							.arg(ContextKeys.ISLAND_WEEKLY_VISITORS, ownerData.getVisitData().getWeeklyVisits())
+							.arg(ContextKeys.ISLAND_MONTHLY_VISITORS, ownerData.getVisitData().getMonthlyVisits());
+
+					// Dynamic elements
+					setIfAvailable(manager.levelSlot, manager.levelIcon);
+
+					if (isOwner) {
+						setIfAvailable(manager.flagSlot, manager.flagIcon);
+						setIfAvailable(manager.upgradeSlot, manager.upgradeIcon);
+						setIfAvailable(manager.displaySlot, manager.displayIcon);
+
+						if (ownerData.getBiomeCooldown() <= 0) {
+							setIfAvailable(manager.biomeSlot, manager.biomeIcon);
+						} else {
+							setIfAvailable(manager.biomeCooldownSlot, manager.biomeCooldownIcon);
+						}
+
+						if (ownerData.isLocked()) {
+							setIfAvailable(manager.unlockSlot, manager.unlockIcon);
+						} else {
+							setIfAvailable(manager.lockSlot, manager.lockIcon);
+						}
+
+						if (ownerData.getResetCooldown() <= 0) {
+							setIfAvailable(manager.resetSlot, manager.resetIcon);
+						} else {
+							setIfAvailable(manager.resetCooldownSlot, manager.resetCooldownIcon);
+						}
 					}
 
-					UserData ownerData = optional.get();
-					HellblockData owner = ownerData.getHellblockData();
-
-					manager.instance.getIslandLevelManager().getLevelRank(owner.getIslandId()).thenAccept(rank -> {
-						// Inject dynamic context
-						try {
-							islandContext.arg(ContextKeys.ISLAND_LEVEL, owner.getIslandLevel())
-									.arg(ContextKeys.ISLAND_RANK,
-											rank.intValue() > 0 ? String.valueOf(rank)
-													: manager.instance.getTranslationManager().miniMessageTranslation(
-															MessageConstants.FORMAT_UNRANKED.build().key()))
-									.arg(ContextKeys.ISLAND_NAME, owner.getDisplaySettings().getIslandName())
-									.arg(ContextKeys.ISLAND_BIO, owner.getDisplaySettings().getIslandBio())
-									.arg(ContextKeys.ISLAND_DISPLAY_CHOICE,
-											owner.getDisplaySettings().getDisplayChoice())
-									.arg(ContextKeys.ISLAND_HOPPER_TIER,
-											owner.getUpgradeLevel(IslandUpgradeType.HOPPER_LIMIT))
-									.arg(ContextKeys.ISLAND_RANGE_TIER,
-											owner.getUpgradeLevel(IslandUpgradeType.PROTECTION_RANGE))
-									.arg(ContextKeys.ISLAND_GENERATOR_TIER,
-											owner.getUpgradeLevel(IslandUpgradeType.GENERATOR_CHANCE))
-									.arg(ContextKeys.ISLAND_PARTY_TIER,
-											owner.getUpgradeLevel(IslandUpgradeType.PARTY_SIZE))
-									.arg(ContextKeys.ISLAND_BARTERING_TIER,
-											owner.getUpgradeLevel(IslandUpgradeType.PIGLIN_BARTERING))
-									.arg(ContextKeys.ISLAND_CROP_TIER,
-											owner.getUpgradeLevel(IslandUpgradeType.CROP_GROWTH))
-									.arg(ContextKeys.ISLAND_MOB_TIER,
-											owner.getUpgradeLevel(IslandUpgradeType.MOB_SPAWN_RATE))
-									.arg(ContextKeys.FEATURED_TIME, owner.getVisitData().getFeaturedUntil())
-									.arg(ContextKeys.FEATURED_TIME_FORMATTED,
-											manager.instance.getCooldownManager()
-													.getFormattedCooldown(owner.getVisitData().getFeaturedUntil()))
-									.arg(ContextKeys.RESET_COOLDOWN, owner.getResetCooldown())
-									.arg(ContextKeys.BIOME_COOLDOWN, owner.getBiomeCooldown())
-									.arg(ContextKeys.TRANSFER_COOLDOWN, owner.getTransferCooldown())
-									.arg(ContextKeys.RESET_COOLDOWN_FORMATTED,
-											manager.instance.getCooldownManager()
-													.getFormattedCooldown(owner.getResetCooldown()))
-									.arg(ContextKeys.BIOME_COOLDOWN_FORMATTED,
-											manager.instance.getCooldownManager()
-													.getFormattedCooldown(owner.getBiomeCooldown()))
-									.arg(ContextKeys.TRANSFER_COOLDOWN_FORMATTED,
-											manager.instance.getCooldownManager()
-													.getFormattedCooldown(owner.getTransferCooldown()))
-									.arg(ContextKeys.ISLAND_BIOME, owner.getBiome())
-									.arg(ContextKeys.ISLAND_PARTY_COUNT, owner.getPartyMembers().size())
-									.arg(ContextKeys.CREATION_TIME, owner.getCreationTime())
-									.arg(ContextKeys.CREATION_TIME_FORMATTED, owner.getCreationTimeFormatted())
-									.arg(ContextKeys.ISLAND_CHOICE, owner.getIslandChoice())
-									.arg(ContextKeys.ISLAND_HOME_LOCATION, owner.getHomeLocation())
-									.arg(ContextKeys.ISLAND_LOCATION, owner.getHellblockLocation())
-									.arg(ContextKeys.ISLAND_OVERALL_VISITORS, owner.getVisitData().getTotalVisits())
-									.arg(ContextKeys.ISLAND_DAILY_VISITORS, owner.getVisitData().getDailyVisits())
-									.arg(ContextKeys.ISLAND_WEEKLY_VISITORS, owner.getVisitData().getWeeklyVisits())
-									.arg(ContextKeys.ISLAND_MONTHLY_VISITORS, owner.getVisitData().getMonthlyVisits());
-
-							// Dynamic elements
-							setIfAvailable(manager.levelSlot, manager.levelIcon);
-
-							if (isOwner) {
-								setIfAvailable(manager.flagSlot, manager.flagIcon);
-								setIfAvailable(manager.upgradeSlot, manager.upgradeIcon);
-								setIfAvailable(manager.displaySlot, manager.displayIcon);
-
-								if (owner.getBiomeCooldown() <= 0) {
-									setIfAvailable(manager.biomeSlot, manager.biomeIcon);
-								} else {
-									setIfAvailable(manager.biomeCooldownSlot, manager.biomeCooldownIcon);
-								}
-
-								if (owner.isLocked()) {
-									setIfAvailable(manager.unlockSlot, manager.unlockIcon);
-								} else {
-									setIfAvailable(manager.lockSlot, manager.lockIcon);
-								}
-
-								if (owner.getResetCooldown() <= 0) {
-									setIfAvailable(manager.resetSlot, manager.resetIcon);
-								} else {
-									setIfAvailable(manager.resetCooldownSlot, manager.resetCooldownIcon);
-								}
-							}
-
-							// Apply updated items to GUI
-							itemsSlotMap.entrySet().forEach(entry -> {
-								if (entry.getValue() instanceof HellblockDynamicGUIElement dynamicElement) {
-									inventory.setItem(entry.getKey(), dynamicElement.getItemStack().clone());
-								}
-							});
-						} finally {
-							refreshInProgress = false;
-
-							if (refreshQueued) {
-								refreshQueued = false;
-								manager.instance.getScheduler().sync().run(this::refresh,
-										context.holder().getLocation());
-							}
+					// Apply updated items to GUI
+					itemsSlotMap.entrySet().forEach(entry -> {
+						if (entry.getValue() instanceof HellblockDynamicGUIElement dynamicElement) {
+							inventory.setItem(entry.getKey(), dynamicElement.getItemStack().clone());
 						}
-					}).exceptionally(ex -> {
-						manager.instance.getPluginLogger().severe("Failed to refresh HellblockGUI for "
-								+ context.holder().getName() + ": " + ex.getMessage());
-						refreshInProgress = false;
-						return null;
 					});
-				}).exceptionally(ex -> {
-					manager.instance.getPluginLogger().severe("Failed to refresh HellblockGUI for "
-							+ context.holder().getName() + ": " + ex.getMessage());
+				} finally {
 					refreshInProgress = false;
-					return null;
-				});
+
+					if (refreshQueued) {
+						refreshQueued = false;
+						manager.instance.getScheduler().sync().run(this::refresh, context.holder().getLocation());
+					}
+				}
+			}).exceptionally(ex -> {
+				manager.instance.getPluginLogger().severe("Failed to retrieve island level rank for "
+						+ context.holder().getName() + ": " + ex.getMessage());
+				refreshInProgress = false;
+				return null;
+			});
+		}).exceptionally(ex -> {
+			manager.instance.getPluginLogger().severe(
+					"Failed to refresh HellblockGUI for " + context.holder().getName() + ": " + ex.getMessage());
+			refreshInProgress = false;
+			return null;
+		});
 
 		return this;
 	}

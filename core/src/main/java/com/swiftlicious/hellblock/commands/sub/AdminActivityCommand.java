@@ -1,7 +1,9 @@
 package com.swiftlicious.hellblock.commands.sub;
 
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -39,13 +41,20 @@ public class AdminActivityCommand extends BukkitCommandFeature<CommandSender> {
 						return CompletableFuture.completedFuture(Collections.emptyList());
 					}
 
-					final Set<UUID> allKnownUUIDs = plugin.getStorageManager().getDataSource().getUniqueUsers();
+					// Get all known user UUIDs (cached, not full database)
+					final Set<UUID> allKnownUUIDs = new HashSet<>(
+							plugin.getStorageManager().getDataSource().getUniqueUsers());
+					final String lowerInput = input.input().toLowerCase(Locale.ROOT);
 
-					final List<String> suggestions = allKnownUUIDs.stream()
+					// Generate filtered suggestions
+					final List<Suggestion> suggestions = allKnownUUIDs.stream()
 							.map(uuid -> plugin.getStorageManager().getCachedUserData(uuid)).filter(Optional::isPresent)
-							.map(Optional::get).map(UserData::getName).filter(Objects::nonNull).toList();
+							.map(Optional::get).map(UserData::getName).filter(Objects::nonNull)
+							.filter(name -> name.toLowerCase(Locale.ROOT).startsWith(lowerInput))
+							.sorted(String.CASE_INSENSITIVE_ORDER).limit(64) // safety limit
+							.map(Suggestion::suggestion).toList();
 
-					return CompletableFuture.completedFuture(suggestions.stream().map(Suggestion::suggestion).toList());
+					return CompletableFuture.completedFuture(suggestions);
 				})).handler(context -> {
 					final String targetName = context.get("player");
 
@@ -68,14 +77,14 @@ public class AdminActivityCommand extends BukkitCommandFeature<CommandSender> {
 						return;
 					}
 
-					plugin.getStorageManager().getCachedUserDataWithFallback(targetId, false).thenAccept(result -> {
-						if (result.isEmpty()) {
+					plugin.getStorageManager().getCachedUserDataWithFallback(targetId, false).thenAccept(targetOpt -> {
+						if (targetOpt.isEmpty()) {
 							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_PLAYER_DATA_FAILURE_LOAD,
 									AdventureHelper.miniMessageToComponent(targetName));
 							return;
 						}
 
-						final UserData targetUser = result.get();
+						final UserData targetUser = targetOpt.get();
 						final OfflinePlayer offlineTarget = Bukkit.getOfflinePlayer(targetId);
 						final long now = System.currentTimeMillis();
 
@@ -85,6 +94,9 @@ public class AdminActivityCommand extends BukkitCommandFeature<CommandSender> {
 								: plugin.getTranslationManager()
 										.miniMessageTranslation(MessageConstants.FORMAT_NEVER.build().key());
 
+						plugin.debug("Activity check by " + context.sender().getName() + " → " + targetUser.getName()
+								+ " (last active " + duration + ")");
+
 						if (offlineTarget.isOnline()) {
 							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_ADMIN_ACTIVITY_ONLINE,
 									AdventureHelper.miniMessageToComponent(targetUser.getName()));
@@ -93,6 +105,10 @@ public class AdminActivityCommand extends BukkitCommandFeature<CommandSender> {
 									AdventureHelper.miniMessageToComponent(targetUser.getName()),
 									AdventureHelper.miniMessageToComponent(duration));
 						}
+					}).exceptionally(ex -> {
+						plugin.getPluginLogger().warn("Admin activity command failed (Could not read target "
+								+ targetName + "'s data): " + ex.getMessage());
+						return null;
 					});
 				});
 	}

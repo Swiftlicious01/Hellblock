@@ -315,8 +315,10 @@ public class UpgradeGUIManager implements UpgradeGUIManagerInterface, Listener {
 
 			if (element.getSymbol() == backSlot) {
 				event.setCancelled(true);
-				instance.getHellblockGUIManager().openHellblockGUI(player, gui.islandContext.holder(), gui.isOwner);
-				ActionManager.trigger(gui.context, backActions);
+				boolean opened = instance.getHellblockGUIManager().openHellblockGUI(player, gui.islandContext.holder(),
+						gui.isOwner);
+				if (opened)
+					ActionManager.trigger(gui.context, backActions);
 				return;
 			}
 

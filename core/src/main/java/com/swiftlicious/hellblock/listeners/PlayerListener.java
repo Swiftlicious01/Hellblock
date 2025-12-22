@@ -15,6 +15,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -127,105 +128,161 @@ public class PlayerListener implements Listener, Reloadable {
 	 * Shared logic when a player tries to leave visiting island bounds: ensure safe
 	 * teleports, send messages, run makeHomeLocationSafe if necessary.
 	 */
-	private void handleOutOfBoundsForPlayer(Player player, UUID visitorId, UserData islandOwner) {
-		final BoundingBox bounds = islandOwner.getHellblockData().getBoundingBox();
+	@NotNull
+	private CompletableFuture<Boolean> handleOutOfBoundsForPlayer(@NotNull Player visitor,
+			@NotNull UserData ownerData) {
+		final BoundingBox bounds = ownerData.getHellblockData().getBoundingBox();
 		if (bounds == null)
-			return;
+			return CompletableFuture.completedFuture(false);
 
 		// Ignore Y in boundary check
 		final BoundingBox ignoreYBounds = new BoundingBox(bounds.getMinX(), Double.MIN_VALUE, bounds.getMinZ(),
 				bounds.getMaxX(), Double.MAX_VALUE, bounds.getMaxZ());
 
 		// If still inside bounds, no action needed
-		if (ignoreYBounds.contains(player.getBoundingBox()))
-			return;
+		if (ignoreYBounds.contains(visitor.getBoundingBox()))
+			return CompletableFuture.completedFuture(false);
 
+		final UUID visitorId = visitor.getUniqueId();
 		// Prevent repeated handling — apply cooldown
 		final long now = System.currentTimeMillis();
 		final long lastHandled = outOfBoundsHandledTimestamps.getOrDefault(visitorId, 0L);
 		if (now - lastHandled < OUT_OF_BOUNDS_COOLDOWN_MS) {
-			return; // Still on cooldown, skip
+			// Still on cooldown - skip
+			return CompletableFuture.completedFuture(false);
 		}
 		outOfBoundsHandledTimestamps.put(visitorId, now);
 
 		final Optional<UserData> visitorOpt = instance.getStorageManager().getOnlineUser(visitorId);
 		if (visitorOpt.isEmpty())
-			return;
+			return instance.getScheduler().callSync(() -> CompletableFuture
+					.completedFuture(instance.getHellblockHandler().teleportToSpawn(visitor, true)));
 
-		final UserData visitor = visitorOpt.get();
-		final Sender audience = instance.getSenderFactory().wrap(player);
-		final Location home = islandOwner.getHellblockData().getHomeLocation();
+		final UserData visitorData = visitorOpt.get();
+		final Sender audience = instance.getSenderFactory().wrap(visitor);
+		final Location home = ownerData.getHellblockData().getHomeLocation();
 
 		if (home == null) {
 			// Fallback: teleport visitor to their own island or spawn
-			teleportVisitorToOwnIslandOrSpawn(player, visitor);
-			return;
+			return teleportVisitorToOwnIslandOrSpawn(visitorData);
 		}
 
 		// Check if owner's home is safe
-		LocationUtils.isSafeLocationAsync(home).thenAccept(isSafe -> {
+		return LocationUtils.isSafeLocationAsync(home).thenCompose(isSafe -> {
 			if (isSafe) {
 				// Safe: teleport back to the island home location
-				instance.getScheduler().executeSync(() -> {
-					ChunkUtils.teleportAsync(player, home, TeleportCause.PLUGIN);
-					audience.sendMessage(instance.getTranslationManager()
-							.render(MessageConstants.MSG_HELLBLOCK_NO_LEAVING_BORDER.build()));
-					instance.getWorldManager().markWorldAccess(home.getWorld().getName());
+				return instance.getScheduler().callSync(() -> {
+					return ChunkUtils.teleportAsync(visitor, home, TeleportCause.PLUGIN).thenApply(result -> {
+						audience.sendMessage(instance.getTranslationManager()
+								.render(MessageConstants.MSG_HELLBLOCK_NO_LEAVING_BORDER.build()));
+						instance.getWorldManager().markWorldAccess(home.getWorld().getName());
+						return result != null && result;
+					});
 				});
-				return;
 			}
 
-			// Not safe: try to fix the owner's island home
-			UUID ownerUUID = visitor.getHellblockData().getOwnerUUID();
+			// Not safe: try to fix the visitor's own island home
+			UUID ownerUUID = visitorData.getHellblockData().getOwnerUUID();
 			if (ownerUUID == null) {
 				instance.getPluginLogger().severe("Owner UUID was null while handling out-of-bounds for " + visitorId);
-				teleportVisitorToOwnIslandOrSpawn(player, visitor); // fallback
-				return;
+				return teleportVisitorToOwnIslandOrSpawn(visitorData); // fallback
 			}
 
-			instance.getStorageManager()
-					.getCachedUserDataWithFallback(ownerUUID, instance.getConfigManager().lockData())
-					.thenCompose(ownerOpt -> {
-						if (ownerOpt.isEmpty()) {
-							return CompletableFuture.completedFuture(false);
-						}
-						return instance.getCoopManager().makeHomeLocationSafe(ownerOpt.get(), visitor)
-								.thenApply(__ -> true);
-					}).thenAccept(success -> {
-						if (success) {
-							audience.sendMessage(instance.getTranslationManager()
-									.render(MessageConstants.MSG_HELLBLOCK_NO_LEAVING_BORDER.build()));
+			return instance.getStorageManager().getCachedUserDataWithFallback(ownerUUID, true).thenCompose(optData -> {
+				if (optData.isEmpty()) {
+					return teleportVisitorToOwnIslandOrSpawn(visitorData); // fallback
+				}
 
-							// After attempting to fix, teleport again to home (now assumed safe)
-							instance.getScheduler().executeSync(() -> {
-								ChunkUtils.teleportAsync(player, home, TeleportCause.PLUGIN);
-								instance.getWorldManager().markWorldAccess(home.getWorld().getName());
-							});
-						} else {
-							teleportVisitorToOwnIslandOrSpawn(player, visitor); // fallback if all else fails
-						}
-					});
+				final UserData visitorOwnerData = optData.get();
+				return instance.getCoopManager().makeHomeLocationSafe(visitorOwnerData, visitorData)
+						.thenCompose(safetyResult -> {
+							return switch (safetyResult) {
+							case ALREADY_SAFE:
+								instance.debug("Home is already safe, teleporting complete for " + visitor.getName());
+								yield instance.getHellblockHandler().teleportPlayerToHome(visitorData,
+										visitorOwnerData.getHellblockData().getHomeLocation());
+							case FIXED_AND_TELEPORTED:
+								instance.debug("Home fixed and teleport complete for " + visitor.getName());
+								yield CompletableFuture.completedFuture(true);
+							case FAILED_TO_FIX:
+								instance.getPluginLogger().warn(
+										"Failed to fix home for " + visitor.getName() + ", teleporting to spawn.");
+								yield instance.getScheduler().callSync(() -> {
+									return CompletableFuture.completedFuture(
+											instance.getHellblockHandler().teleportToSpawn(visitor, true));
+								});
+							};
+						}).thenCompose(success -> {
+							if (success) {
+								audience.sendMessage(instance.getTranslationManager()
+										.render(MessageConstants.MSG_HELLBLOCK_NO_LEAVING_BORDER.build()));
+
+								// After attempting to fix, teleport again to home (now assumed safe)
+								return instance.getScheduler().callSync(() -> {
+									return ChunkUtils.teleportAsync(visitor, home, TeleportCause.PLUGIN)
+											.thenApply(result -> {
+												instance.getWorldManager().markWorldAccess(home.getWorld().getName());
+												return result != null && result;
+											});
+								});
+							} else {
+								// fallback if all else fails
+								return teleportVisitorToOwnIslandOrSpawn(visitorData);
+							}
+						});
+			}).handle((res, ex) -> {
+				return instance.getStorageManager().unlockUserData(ownerUUID).thenApply(unused -> {
+					if (ex != null) {
+						instance.getPluginLogger().severe(
+								"Exception when teleporting player " + visitor.getName() + " for leaving island bounds",
+								ex);
+					}
+
+					return res != null && res;
+				});
+			}).thenCompose(Function.identity()); // Flatten nested CompletableFuture
 		});
 	}
 
-	private void teleportVisitorToOwnIslandOrSpawn(Player player, UserData visitor) {
-		HellblockData data = visitor.getHellblockData();
+	@NotNull
+	private CompletableFuture<Boolean> teleportVisitorToOwnIslandOrSpawn(@NotNull UserData visitorData) {
+		final Player visitor = visitorData.getPlayer();
+		final Sender audience = instance.getSenderFactory().wrap(visitor);
+		final HellblockData data = visitorData.getHellblockData();
 		if (data.hasHellblock()) {
-			Location ownHome = data.getHomeLocation();
-			final Sender audience = instance.getSenderFactory().wrap(player);
-			if (ownHome != null) {
-				instance.getScheduler().executeSync(() -> {
+			final UUID ownerId = data.getOwnerUUID();
+			if (ownerId == null) {
+				return instance.getScheduler().callSync(() -> CompletableFuture
+						.completedFuture(instance.getHellblockHandler().teleportToSpawn(visitor, true)));
+			}
+
+			return instance.getStorageManager().getCachedUserDataWithFallback(ownerId, false).thenCompose(optData -> {
+				if (optData.isEmpty()) {
+					return instance.getScheduler().callSync(() -> CompletableFuture
+							.completedFuture(instance.getHellblockHandler().teleportToSpawn(visitor, true)));
+				}
+
+				final UserData ownerData = optData.get();
+				final Location homeLocation = ownerData.getHellblockData().getHomeLocation();
+				if (homeLocation == null || homeLocation.getWorld() == null) {
+					return instance.getScheduler().callSync(() -> CompletableFuture
+							.completedFuture(instance.getHellblockHandler().teleportToSpawn(visitor, true)));
+				}
+
+				return instance.getScheduler().callSync(() -> {
 					audience.sendMessage(instance.getTranslationManager()
 							.render(MessageConstants.MSG_HELLBLOCK_NO_LEAVING_BORDER.build()));
-					ChunkUtils.teleportAsync(player, ownHome, TeleportCause.PLUGIN);
-					instance.getWorldManager().markWorldAccess(ownHome.getWorld().getName());
+					return ChunkUtils.teleportAsync(visitor, homeLocation, TeleportCause.PLUGIN).thenApply(result -> {
+						instance.getWorldManager().markWorldAccess(homeLocation.getWorld().getName());
+						return result != null && result;
+					});
 				});
-				return;
-			}
+			});
 		}
 
 		// Fallback: spawn
-		instance.getScheduler().executeSync(() -> instance.getHellblockHandler().teleportToSpawn(player, true));
+		return instance.getScheduler().callSync(
+				() -> CompletableFuture.completedFuture(instance.getHellblockHandler().teleportToSpawn(visitor, true)));
 	}
 
 	@EventHandler
@@ -299,7 +356,7 @@ public class PlayerListener implements Listener, Reloadable {
 
 		event.setCancelled(true);
 
-		instance.getScheduler().sync().run(() -> {
+		instance.getScheduler().executeSync(() -> {
 			above.setType(fallingBlock.getBlockData().getMaterial());
 			fallingBlock.setDropItem(false);
 		});
@@ -317,26 +374,31 @@ public class PlayerListener implements Listener, Reloadable {
 		final Location location = player.getLocation();
 
 		// Get the island owner at the current location
-		instance.getCoopManager().getHellblockOwnerOfLocation(location).thenAccept(currentOwnerId -> {
-			if (currentOwnerId == null)
-				return;
+		instance.getCoopManager().getHellblockOwnerOfLocation(location).thenCompose(ownerId -> {
+			if (ownerId == null)
+				return CompletableFuture.completedFuture(null);
 
 			// If it's not their own island, skip enforcement
-			if (!currentOwnerId.equals(playerId)
-					&& !instance.getCoopManager().isIslandMember(currentOwnerId, playerId)) {
-				return;
+			if (!ownerId.equals(playerId) && !instance.getCoopManager().isIslandMember(ownerId, playerId)) {
+				return CompletableFuture.completedFuture(null);
 			}
 
 			// Check if player is still within the island bounds
-			instance.getProtectionManager().isInsideIsland2D(currentOwnerId, location).thenAccept(isInside -> {
+			return instance.getProtectionManager().isInsideIsland2D(ownerId, location).thenCompose(isInside -> {
+				// Still inside - no action required
 				if (isInside)
-					return; // Still inside — no action needed
+					return CompletableFuture.completedFuture(null);
 
 				// Run boundary enforcement
-				instance.getStorageManager()
-						.getCachedUserDataWithFallback(currentOwnerId, instance.getConfigManager().lockData())
-						.thenAccept(result -> result
-								.ifPresent(ownerUser -> handleOutOfBoundsForPlayer(player, playerId, ownerUser)));
+				return instance.getStorageManager().getCachedUserDataWithFallback(ownerId, false)
+						.thenCompose(optData -> {
+							if (optData.isEmpty()) {
+								return CompletableFuture.completedFuture(null);
+							}
+
+							final UserData ownerData = optData.get();
+							return handleOutOfBoundsForPlayer(player, ownerData);
+						});
 			});
 		});
 	}
@@ -353,26 +415,31 @@ public class PlayerListener implements Listener, Reloadable {
 		final UUID playerId = player.getUniqueId();
 		final Location origin = event.getFrom();
 
-		instance.getCoopManager().getHellblockOwnerOfLocation(origin).thenAccept(currentOwnerId -> {
-			if (currentOwnerId == null)
-				return;
+		instance.getCoopManager().getHellblockOwnerOfLocation(origin).thenCompose(ownerId -> {
+			if (ownerId == null)
+				return CompletableFuture.completedFuture(null);
 
 			// If it's not their own island, allow teleport
-			if (!currentOwnerId.equals(playerId)
-					&& !instance.getCoopManager().isIslandMember(currentOwnerId, playerId)) {
-				return;
+			if (!ownerId.equals(playerId) && !instance.getCoopManager().isIslandMember(ownerId, playerId)) {
+				return CompletableFuture.completedFuture(null);
 			}
 
 			// Check if teleport target is still inside the island
-			instance.getProtectionManager().isInsideIsland2D(currentOwnerId, event.getTo()).thenAccept(isInside -> {
+			return instance.getProtectionManager().isInsideIsland2D(ownerId, event.getTo()).thenCompose(isInside -> {
+				// Allowed teleport
 				if (isInside)
-					return; // Allowed teleport
+					return CompletableFuture.completedFuture(null);
 
 				// Enforce teleport boundary
-				instance.getStorageManager()
-						.getCachedUserDataWithFallback(currentOwnerId, instance.getConfigManager().lockData())
-						.thenAccept(result -> result
-								.ifPresent(ownerUser -> handleOutOfBoundsForPlayer(player, playerId, ownerUser)));
+				return instance.getStorageManager().getCachedUserDataWithFallback(ownerId, false)
+						.thenCompose(optData -> {
+							if (optData.isEmpty()) {
+								return CompletableFuture.completedFuture(null);
+							}
+
+							final UserData ownerData = optData.get();
+							return handleOutOfBoundsForPlayer(player, ownerData);
+						});
 			});
 		});
 	}
@@ -402,40 +469,39 @@ public class PlayerListener implements Listener, Reloadable {
 		final Location location = event.getTo();
 
 		// First, determine whose island the player is currently in
-		instance.getCoopManager().getHellblockOwnerOfLocation(location).thenAccept(currentOwnerId -> {
-			if (currentOwnerId == null)
-				return;
+		instance.getCoopManager().getHellblockOwnerOfLocation(location).thenCompose(ownerId -> {
+			if (ownerId == null)
+				return CompletableFuture.completedFuture(null);
 
 			// Only enforce if this is the player's own island
-			if (!currentOwnerId.equals(playerId)
-					&& !instance.getCoopManager().isIslandMember(currentOwnerId, playerId)) {
-				return;
+			if (!ownerId.equals(playerId) && !instance.getCoopManager().isIslandMember(ownerId, playerId)) {
+				return CompletableFuture.completedFuture(null);
 			}
 
 			// Check if they are leaving their own island's bounds
-			instance.getProtectionManager().isInsideIsland2D(currentOwnerId, location).thenAccept(isInside -> {
+			return instance.getProtectionManager().isInsideIsland2D(ownerId, location).thenCompose(isInside -> {
 				if (isInside)
-					return;
+					return CompletableFuture.completedFuture(null);
 
 				// Confirm: this is their own island
-				instance.getStorageManager()
-						.getCachedUserDataWithFallback(playerId, instance.getConfigManager().lockData())
-						.thenAccept(optUser -> {
-							if (optUser.isEmpty())
-								return;
+				return instance.getStorageManager().getCachedUserDataWithFallback(playerId, false)
+						.thenCompose(optData -> {
+							if (optData.isEmpty())
+								return CompletableFuture.completedFuture(null);
 
-							UserData userData = optUser.get();
+							final UserData userData = optData.get();
 
 							// Enforce only if the player is the island *owner* or coop member of current
 							// island
-							if (!currentOwnerId.equals(playerId)
-									&& !instance.getCoopManager().isIslandMember(currentOwnerId, playerId)) {
-								return; // Not their island — ignore
+							if (!ownerId.equals(playerId)
+									&& !instance.getCoopManager().isIslandMember(ownerId, playerId)) {
+								// not their island - ignore
+								return CompletableFuture.completedFuture(null);
 							}
 
-							instance.getScheduler().sync().run(() -> {
+							return instance.getScheduler().callSync(() -> {
 								if (!player.isOnline())
-									return;
+									return CompletableFuture.completedFuture(null);
 
 								player.setGliding(false);
 
@@ -443,11 +509,15 @@ public class PlayerListener implements Listener, Reloadable {
 								if (fallback == null) {
 									instance.getPluginLogger().warn("Could not find a valid spawn location for player "
 											+ player.getName() + " — teleport cancelled.");
-									return;
+									return CompletableFuture.completedFuture(null);
 								}
 
-								player.teleport(fallback);
-								instance.debug("Teleported " + player.getName() + " to their Hellblock home.");
+								return ChunkUtils.teleportAsync(player, fallback, TeleportCause.PLUGIN)
+										.thenCompose(v -> {
+											instance.debug(
+													"Teleported " + player.getName() + " to their Hellblock home.");
+											return CompletableFuture.completedFuture(null);
+										});
 							});
 						});
 			});
@@ -471,26 +541,30 @@ public class PlayerListener implements Listener, Reloadable {
 			final Location location = event.getTo();
 
 			// Check whose island the player is currently in
-			instance.getCoopManager().getHellblockOwnerOfLocation(location).thenAccept(currentOwnerId -> {
-				if (currentOwnerId == null)
-					return;
+			instance.getCoopManager().getHellblockOwnerOfLocation(location).thenCompose(ownerId -> {
+				if (ownerId == null)
+					return CompletableFuture.completedFuture(null);
 
 				// Only enforce border for owners or coop members
-				if (!currentOwnerId.equals(playerId)
-						&& !instance.getCoopManager().isIslandMember(currentOwnerId, playerId)) {
-					return;
+				if (!ownerId.equals(playerId) && !instance.getCoopManager().isIslandMember(ownerId, playerId)) {
+					return CompletableFuture.completedFuture(null);
 				}
 
 				// Check if they're still inside their own island
-				instance.getProtectionManager().isInsideIsland2D(currentOwnerId, location).thenAccept(isInside -> {
+				return instance.getProtectionManager().isInsideIsland2D(ownerId, location).thenCompose(isInside -> {
 					if (isInside)
-						return;
+						return CompletableFuture.completedFuture(null);
 
 					// Player left their island via vehicle
-					instance.getStorageManager()
-							.getCachedUserDataWithFallback(currentOwnerId, instance.getConfigManager().lockData())
-							.thenAccept(result -> result
-									.ifPresent(ownerUser -> handleOutOfBoundsForPlayer(player, playerId, ownerUser)));
+					return instance.getStorageManager().getCachedUserDataWithFallback(ownerId, false)
+							.thenCompose(optData -> {
+								if (optData.isEmpty()) {
+									return CompletableFuture.completedFuture(null);
+								}
+
+								final UserData ownerData = optData.get();
+								return handleOutOfBoundsForPlayer(player, ownerData);
+							});
 				});
 			});
 		}
@@ -506,41 +580,40 @@ public class PlayerListener implements Listener, Reloadable {
 			return;
 
 		// Find which island the respawn location is in
-		instance.getCoopManager().getHellblockOwnerOfLocation(respawnLoc).thenAccept(currentOwnerId -> {
-			if (currentOwnerId == null)
-				return;
+		instance.getCoopManager().getHellblockOwnerOfLocation(respawnLoc).thenCompose(ownerId -> {
+			if (ownerId == null)
+				return CompletableFuture.completedFuture(null);
 
 			// Only care if it's their own island (owner or member)
-			if (!currentOwnerId.equals(playerId)
-					&& !instance.getCoopManager().isIslandMember(currentOwnerId, playerId)) {
-				return;
+			if (!ownerId.equals(playerId) && !instance.getCoopManager().isIslandMember(ownerId, playerId)) {
+				return CompletableFuture.completedFuture(null);
 			}
 
 			// If their respawn location is outside bounds, redirect
-			instance.getProtectionManager().isInsideIsland2D(currentOwnerId, respawnLoc).thenAccept(isInside -> {
+			return instance.getProtectionManager().isInsideIsland2D(ownerId, respawnLoc).thenCompose(isInside -> {
 				if (isInside)
-					return;
+					return CompletableFuture.completedFuture(null);
 
 				// Teleport to spawn or fallback location
-				instance.getStorageManager()
-						.getCachedUserDataWithFallback(currentOwnerId, instance.getConfigManager().lockData())
-						.thenAccept(optUser -> {
-							if (optUser.isEmpty())
-								return;
-							UserData userData = optUser.get();
+				return instance.getStorageManager().getCachedUserDataWithFallback(ownerId, false)
+						.thenCompose(optData -> {
+							if (optData.isEmpty())
+								return CompletableFuture.completedFuture(null);
 
-							instance.getScheduler().sync().run(() -> {
+							final UserData userData = optData.get();
+							return instance.getScheduler().callSync(() -> {
 								Location fallback = instance.getHellblockHandler().getSafeSpawnLocation(userData);
 
 								if (fallback == null) {
 									instance.getPluginLogger().warn("Could not determine a safe respawn location for "
 											+ player.getName() + " (home or world may be null)");
-									return;
+									return CompletableFuture.completedFuture(null);
 								}
 
 								event.setRespawnLocation(fallback);
 								instance.debug("Redirected respawn for " + player.getName()
 										+ " to their Hellblock home (was outside their island bounds).");
+								return CompletableFuture.completedFuture(null);
 							});
 						});
 			});
@@ -555,7 +628,7 @@ public class PlayerListener implements Listener, Reloadable {
 			return;
 		}
 
-		final UserData user = onlineUser.get();
+		final UserData userData = onlineUser.get();
 
 		// --- LEFT the Hellblock world: remove NV and clear flags if they had the
 		// effect ---
@@ -567,25 +640,26 @@ public class PlayerListener implements Listener, Reloadable {
 				instance.debug("Player " + player.getName() + " changed world during border animation; finalizing.");
 				instance.getBorderHandler().setBorderExpanding(player.getUniqueId(), false);
 
-				// You can also show the final border if applicable:
-				if (user.getHellblockData().getBoundingBox() != null
-						&& user.getHellblockData().getHellblockLocation() != null) {
-					BoundingBox bounds = user.getHellblockData().getBoundingBox();
-					if (player.getWorld().getName()
-							.equalsIgnoreCase(user.getHellblockData().getHellblockLocation().getWorld().getName())
-							&& bounds.contains(player.getLocation().toVector())) {
-						instance.getBorderHandler().setWorldBorder(player, bounds, BorderColor.RED);
-					}
+				final BoundingBox bounds = userData.getHellblockData().getBoundingBox();
+				final Location hellblockLocation = userData.getHellblockData().getHellblockLocation();
+				if (bounds == null || hellblockLocation == null || hellblockLocation.getWorld() == null) {
+					return;
+				}
+
+				// Show the final border if applicable:
+				if (player.getWorld().getUID().equals(hellblockLocation.getWorld().getUID())
+						&& bounds.contains(player.getLocation().toVector())) {
+					instance.getBorderHandler().setWorldBorder(player, bounds, BorderColor.RED);
 				}
 			}
 
 			instance.getBorderHandler().stopBorderTask(player.getUniqueId());
 
-			if ((user.hasGlowstoneToolEffect() || user.hasGlowstoneArmorEffect())
+			if ((userData.hasGlowstoneToolEffect() || userData.hasGlowstoneArmorEffect())
 					&& player.hasPotionEffect(PotionEffectType.NIGHT_VISION)) {
 				player.removePotionEffect(PotionEffectType.NIGHT_VISION);
-				user.isHoldingGlowstoneTool(false);
-				user.isWearingGlowstoneArmor(false);
+				userData.isHoldingGlowstoneTool(false);
+				userData.isWearingGlowstoneArmor(false);
 			}
 		}
 
@@ -598,7 +672,7 @@ public class PlayerListener implements Listener, Reloadable {
 		instance.getScheduler().sync().runLater(() -> {
 			instance.debug("Player " + player.getName() + " entered Hellblock world; restarting border + NV check.");
 			instance.getBorderHandler().startBorderTask(player.getUniqueId());
-			applyNightVisionIfEligible(player, user);
+			applyNightVisionIfEligible(player, userData);
 		}, 2L, player.getLocation()); // Delay by 2 ticks (~100ms)
 	}
 
@@ -614,10 +688,10 @@ public class PlayerListener implements Listener, Reloadable {
 			return;
 		}
 
-		final UserData user = onlineUser.get();
+		final UserData userData = onlineUser.get();
 
 		if (instance.getHellblockHandler().isInCorrectWorld(player.getWorld())) {
-			instance.getScheduler().sync().runLater(() -> applyNightVisionIfEligible(player, user), 2L,
+			instance.getScheduler().sync().runLater(() -> applyNightVisionIfEligible(player, userData), 2L,
 					player.getLocation()); // Delay by 2 ticks (~100ms)
 		}
 	}
@@ -641,29 +715,31 @@ public class PlayerListener implements Listener, Reloadable {
 			return;
 		}
 
-		final UserData user = onlineUser.get();
+		final UserData userData = onlineUser.get();
 
 		// Only restore inside Hellblock world
 		if (instance.getHellblockHandler().isInCorrectWorld(player.getWorld())) {
-			instance.getScheduler().sync().runLater(() -> applyNightVisionIfEligible(player, user), 2L,
+			instance.getScheduler().sync().runLater(() -> applyNightVisionIfEligible(player, userData), 2L,
 					player.getLocation()); // Delay by 2 ticks (~100ms)
 		}
 	}
 
-	private void applyNightVisionIfEligible(Player player, UserData user) {
+	private void applyNightVisionIfEligible(@NotNull Player player, @NotNull UserData userData) {
 		boolean shouldRestore = false;
 
 		// Check main hand and offhand tools
 		final ItemStack mainHand = player.getInventory().getItemInMainHand();
 		final ItemStack offHand = player.getInventory().getItemInOffHand();
+
 		// check main hand for tool if so restore
 		if (mainHand.getType() != Material.AIR && instance.getNetherToolsHandler().isNetherToolEnabled(mainHand)
 				&& instance.getNetherToolsHandler().isNetherToolNightVisionAllowed(mainHand)
 				&& instance.getNetherToolsHandler().checkNightVisionToolStatus(mainHand)
 				&& instance.getNetherToolsHandler().getNightVisionToolStatus(mainHand)) {
 			shouldRestore = true;
-			user.isHoldingGlowstoneTool(true);
+			userData.isHoldingGlowstoneTool(true);
 		}
+
 		// check off hand if main hand is invalid tool
 		if (!shouldRestore && offHand.getType() != Material.AIR
 				&& instance.getNetherToolsHandler().isNetherToolEnabled(offHand)
@@ -671,7 +747,7 @@ public class PlayerListener implements Listener, Reloadable {
 				&& instance.getNetherToolsHandler().checkNightVisionToolStatus(offHand)
 				&& instance.getNetherToolsHandler().getNightVisionToolStatus(offHand)) {
 			shouldRestore = true;
-			user.isHoldingGlowstoneTool(true);
+			userData.isHoldingGlowstoneTool(true);
 		}
 
 		// Check armor contents regardless of if both above is true
@@ -684,10 +760,11 @@ public class PlayerListener implements Listener, Reloadable {
 					&& instance.getNetherArmorHandler().checkNightVisionArmorStatus(armor)
 					&& instance.getNetherArmorHandler().getNightVisionArmorStatus(armor)) {
 				shouldRestore = true;
-				user.isWearingGlowstoneArmor(true);
+				userData.isWearingGlowstoneArmor(true);
 				break;
 			}
 		}
+
 		if (shouldRestore) {
 			player.addPotionEffect(new PotionEffect(PotionEffectType.NIGHT_VISION, Integer.MAX_VALUE, 0, true, false));
 		}
@@ -710,6 +787,7 @@ public class PlayerListener implements Listener, Reloadable {
 			if (instance.getCooldownManager().shouldUpdateActivity(player.getUniqueId(), 5000)) {
 				userData.getHellblockData().updateLastIslandActivity();
 			}
+
 			instance.getChallengeManager().handleChallengeProgression(userData, ActionType.BREED, bred);
 		});
 	}
@@ -730,6 +808,7 @@ public class PlayerListener implements Listener, Reloadable {
 			if (instance.getCooldownManager().shouldUpdateActivity(killer.getUniqueId(), 5000)) {
 				userData.getHellblockData().updateLastIslandActivity();
 			}
+
 			instance.getChallengeManager().handleChallengeProgression(userData, ActionType.SLAY, entity);
 		});
 	}
@@ -737,6 +816,9 @@ public class PlayerListener implements Listener, Reloadable {
 	@EventHandler(priority = EventPriority.HIGHEST)
 	public void onRespawn(PlayerRespawnEvent event) {
 		final Player player = event.getPlayer();
+		if (!instance.getHellblockHandler().isInCorrectWorld(player)) {
+			return;
+		}
 		if (RespawnUtil.isRespawnAnchorWorks(player.getWorld()) && RespawnUtil.getRespawnLocation(player) == null) {
 			return;
 		}
@@ -753,22 +835,59 @@ public class PlayerListener implements Listener, Reloadable {
 		if (!userData.getHellblockData().hasHellblock()) {
 			return;
 		}
-		final UUID ownerUUID = userData.getHellblockData().getOwnerUUID();
-		if (ownerUUID == null) {
+
+		final UUID ownerId = userData.getHellblockData().getOwnerUUID();
+		if (ownerId == null) {
 			instance.getPluginLogger()
 					.severe("Owner reference returned null in respawn event for " + player.getUniqueId());
 			return;
 		}
 
-		instance.getStorageManager().getCachedUserDataWithFallback(ownerUUID, instance.getConfigManager().lockData())
-				.thenAccept(ownerOpt -> ownerOpt.ifPresent(
-						ownerUser -> instance.getCoopManager().makeHomeLocationSafe(ownerUser, userData).thenRun(() -> {
-							event.setRespawnLocation(userData.getHellblockData().getHomeLocation());
-							if (instance.getHellblockHandler().isInCorrectWorld(player.getWorld())) {
-								instance.getScheduler().sync().runLater(
-										() -> applyNightVisionIfEligible(player, userData), 2L, player.getLocation());
-							}
-						})));
+		instance.getStorageManager().getCachedUserDataWithFallback(ownerId, true).thenCompose(optData -> {
+			if (optData.isEmpty()) {
+				return CompletableFuture.completedFuture(null);
+			}
+
+			final UserData ownerData = optData.get();
+			return instance.getCoopManager().makeHomeLocationSafe(ownerData, userData).thenCompose(safetyResult -> {
+				return switch (safetyResult) {
+				case ALREADY_SAFE:
+					instance.debug("Home is already safe, teleporting complete for " + player.getName());
+					yield instance.getHellblockHandler().teleportPlayerToHome(userData,
+							ownerData.getHellblockData().getHomeLocation());
+				case FIXED_AND_TELEPORTED:
+					instance.debug("Home fixed and teleport complete for " + player.getName());
+					yield CompletableFuture.completedFuture(true);
+				case FAILED_TO_FIX:
+					instance.getPluginLogger()
+							.warn("Failed to fix home for " + player.getName() + ", teleporting to spawn.");
+					yield instance.getScheduler().callSync(() -> {
+						return CompletableFuture
+								.completedFuture(instance.getHellblockHandler().teleportToSpawn(player, true));
+					});
+				};
+			}).thenCompose(success -> {
+				if (success) {
+					World world = player.getWorld();
+					instance.getWorldManager().markWorldAccess(world.getName());
+					instance.debug("Teleported " + player.getName() + " to safe location on their island.");
+				}
+				return instance.getScheduler().callSync(() -> {
+					event.setRespawnLocation(ownerData.getHellblockData().getHomeLocation());
+					instance.getScheduler().sync().runLater(() -> applyNightVisionIfEligible(player, userData), 2L,
+							player.getLocation());
+					return CompletableFuture.completedFuture(success);
+				});
+			});
+		}).handle((res, ex) -> {
+			// Always unlock and end reset process
+			return instance.getStorageManager().unlockUserData(ownerId).thenRun(() -> {
+				if (ex != null) {
+					instance.getPluginLogger()
+							.severe("Exception when respawning player " + player.getName() + " on their island", ex);
+				}
+			});
+		}).thenCompose(Function.identity()); // Flatten nested CompletableFuture
 	}
 
 	@EventHandler
@@ -793,23 +912,58 @@ public class PlayerListener implements Listener, Reloadable {
 			return;
 		}
 
-		if (onlineUser.get().getHellblockData().hasHellblock()) {
-			final UUID ownerId = onlineUser.get().getHellblockData().getOwnerUUID();
+		final UserData userData = onlineUser.get();
+		if (userData.getHellblockData().hasHellblock()) {
+			final UUID ownerId = userData.getHellblockData().getOwnerUUID();
 			if (ownerId == null) {
 				return;
 			}
 
-			instance.getStorageManager().getCachedUserDataWithFallback(ownerId, instance.getConfigManager().lockData())
-					.thenAccept(owner -> {
-						if (owner.isPresent()) {
-							instance.getCoopManager().makeHomeLocationSafe(owner.get(), onlineUser.get())
-									.thenRun(() -> instance.getScheduler().sync().run(() -> {
-										if (player.isOnline()) {
-											player.setFallDistance(0.0F);
-										}
-									}));
+			instance.getStorageManager().getCachedUserDataWithFallback(ownerId, true).thenCompose(optData -> {
+				if (optData.isEmpty()) {
+					return CompletableFuture.completedFuture(null);
+				}
+
+				final UserData ownerData = optData.get();
+				return instance.getCoopManager().makeHomeLocationSafe(ownerData, userData).thenCompose(safetyResult -> {
+					return switch (safetyResult) {
+					case ALREADY_SAFE:
+						instance.debug("Home is already safe, teleporting complete for " + player.getName());
+						yield instance.getHellblockHandler().teleportPlayerToHome(userData,
+								ownerData.getHellblockData().getHomeLocation());
+					case FIXED_AND_TELEPORTED:
+						instance.debug("Home fixed and teleport complete for " + player.getName());
+						yield CompletableFuture.completedFuture(true);
+					case FAILED_TO_FIX:
+						instance.getPluginLogger()
+								.warn("Failed to fix home for " + player.getName() + ", teleporting to spawn.");
+						yield instance.getScheduler().callSync(() -> {
+							return CompletableFuture
+									.completedFuture(instance.getHellblockHandler().teleportToSpawn(player, true));
+						});
+					};
+				}).thenCompose(success -> {
+					if (success) {
+						World world = player.getWorld();
+						instance.getWorldManager().markWorldAccess(world.getName());
+						instance.debug("Teleported " + player.getName() + " to safe location on their island.");
+					}
+					return instance.getScheduler().callSync(() -> {
+						if (player.isOnline()) {
+							player.setFallDistance(0.0F);
 						}
+						return CompletableFuture.completedFuture(success);
 					});
+				});
+			}).handle((res, ex) -> {
+				// Always unlock and end reset process
+				return instance.getStorageManager().unlockUserData(ownerId).thenRun(() -> {
+					if (ex != null) {
+						instance.getPluginLogger().severe(
+								"Exception when teleporting player " + player.getName() + " when falling in void", ex);
+					}
+				});
+			}).thenCompose(Function.identity()); // Flatten nested CompletableFuture
 		} else {
 			instance.getHellblockHandler().teleportToSpawn(player, true);
 		}
@@ -835,17 +989,19 @@ public class PlayerListener implements Listener, Reloadable {
 			return;
 		}
 
-		if (!(onlineUser.get().hasGlowstoneToolEffect() || onlineUser.get().hasGlowstoneArmorEffect())
+		final UserData userData = onlineUser.get();
+		if (!(userData.hasGlowstoneToolEffect() || userData.hasGlowstoneArmorEffect())
 				&& player.hasPotionEffect(PotionEffectType.NIGHT_VISION)) {
 			player.removePotionEffect(PotionEffectType.NIGHT_VISION);
-			onlineUser.get().isHoldingGlowstoneTool(false);
-			onlineUser.get().isWearingGlowstoneArmor(false);
+			userData.isHoldingGlowstoneTool(false);
+			userData.isWearingGlowstoneArmor(false);
 		}
 	}
 
-	private boolean movedWithinBlock(PlayerMoveEvent e) {
-		return e.getTo().getBlockX() == e.getFrom().getBlockX() && e.getTo().getBlockY() == e.getFrom().getBlockY()
-				&& e.getTo().getBlockZ() == e.getFrom().getBlockZ();
+	private boolean movedWithinBlock(PlayerMoveEvent event) {
+		return event.getTo().getBlockX() == event.getFrom().getBlockX()
+				&& event.getTo().getBlockY() == event.getFrom().getBlockY()
+				&& event.getTo().getBlockZ() == event.getFrom().getBlockZ();
 	}
 
 	public int onlinePlayerCountProvider() {
@@ -866,8 +1022,8 @@ public class PlayerListener implements Listener, Reloadable {
 		return count;
 	}
 
-	public void updatePlayerCount(UUID uuid, int count) {
-		playerCountMap.put(uuid, new PlayerCount(count, System.currentTimeMillis()));
+	public PlayerCount updatePlayerCount(@NotNull UUID uuid, int count) {
+		return playerCountMap.put(uuid, new PlayerCount(count, System.currentTimeMillis()));
 	}
 
 	private final class RedisPlayerCount implements Runnable {

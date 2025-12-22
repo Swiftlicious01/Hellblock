@@ -123,6 +123,10 @@ public class ItemStackUtils {
 			}
 			if (VersionHelper.isVersionNewerThan1_21_5() && "minecraft:hide_additional_tooltip".equals(component)) {
 				itemEditors.add((item, context) -> {
+					// never hide the following: minecraft:item_name, minecraft:lore,
+					// minecraft:item_model, minecraft:custom_data, minecraft:custom_name,
+					// minecraft:custom_model_data, minecraft:tooltip_style,
+					// minecraft:tooltip_display, minecraft:profile, minecraft:potion_contents
 					List<String> hiddenComponents = new ArrayList<>(List.of("minecraft:attribute_modifiers",
 							"minecraft:banner_patterns", "minecraft:base_color", "minecraft:bees",
 							"minecraft:block_entity_data", "minecraft:block_state", "minecraft:blocks_attacks",
@@ -138,17 +142,18 @@ public class ItemStackUtils {
 							"minecraft:lodestone_tracker", "minecraft:map_color", "minecraft:map_decorations",
 							"minecraft:map_id", "minecraft:max_damage", "minecraft:max_stack_size",
 							"minecraft:note_block_sound", "minecraft:ominous_bottle_amplifier",
-							"minecraft:pot_decorations", "minecraft:provides_banner_patterns",
-							"minecraft:provides_trim_material", "minecraft:rarity", "minecraft:recipes",
-							"minecraft:repair_cost", "minecraft:repairable", "minecraft:stored_enchantments",
-							"minecraft:suspicious_stew_effects", "minecraft:tool", "minecraft:trim",
-							"minecraft:unbreakable", "minecraft:use_cooldown", "minecraft:use_remainder",
-							"minecraft:weapon", "minecraft:writable_book_content", "minecraft:written_book_content"));
+							"minecraft:potion_duration_scale", "minecraft:pot_decorations",
+							"minecraft:provides_banner_patterns", "minecraft:provides_trim_material",
+							"minecraft:rarity", "minecraft:recipes", "minecraft:repair_cost", "minecraft:repairable",
+							"minecraft:stored_enchantments", "minecraft:suspicious_stew_effects", "minecraft:tool",
+							"minecraft:trim", "minecraft:unbreakable", "minecraft:use_cooldown",
+							"minecraft:use_remainder", "minecraft:weapon", "minecraft:writable_book_content",
+							"minecraft:written_book_content"));
 					// 1.21.11+ components
 					if (VersionHelper.isVersionNewerThan1_21_11()) {
-						hiddenComponents.addAll(List.of("minecraft:damage_type", "minecraft:kinetic_weapon",
-								"minecraft:minimum_attack_charge", "minecraft:use_effects", "minecraft:piercing_weapon",
-								"minecraft:swing_animation"));
+						hiddenComponents.addAll(List.of("minecraft:attack_range", "minecraft:damage_type",
+								"minecraft:kinetic_weapon", "minecraft:minimum_attack_charge", "minecraft:use_effects",
+								"minecraft:piercing_weapon", "minecraft:swing_animation", "minecraft:use_effects"));
 					}
 					item.setComponent("minecraft:tooltip_display", Map.of("hidden_components", hiddenComponents));
 				});

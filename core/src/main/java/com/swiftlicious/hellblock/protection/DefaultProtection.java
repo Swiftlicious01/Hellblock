@@ -3,6 +3,8 @@ package com.swiftlicious.hellblock.protection;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.function.Function;
 
 import org.bukkit.Location;
 import org.bukkit.util.BoundingBox;
@@ -38,8 +40,8 @@ public class DefaultProtection implements IslandProtection<Vector> {
 
 	@Override
 	public CompletableFuture<Void> protectHellblock(@NotNull HellblockWorld<?> world, @NotNull UserData ownerData) {
-		String playerName = ownerData.getName();
-		UUID ownerUUID = ownerData.getUUID();
+		final String playerName = ownerData.getName();
+		final UUID ownerUUID = ownerData.getUUID();
 
 		try {
 			instance.debug("protectHellblock: Starting protection setup for " + playerName + " in world '"
@@ -48,7 +50,8 @@ public class DefaultProtection implements IslandProtection<Vector> {
 			final HellblockData hellblockData = ownerData.getHellblockData();
 			int islandId = hellblockData.getIslandId();
 			if (islandId <= 0) {
-				throw new IllegalStateException("protectHellblock: Invalid island ID for player: " + playerName);
+				return CompletableFuture.failedFuture(
+						new IllegalStateException("protectHellblock: Invalid island ID for player: " + playerName));
 			}
 
 			BoundingBox boundingBox;
@@ -70,10 +73,9 @@ public class DefaultProtection implements IslandProtection<Vector> {
 			} else if (hellblockData.getPreservedBoundingBox() != null) {
 				boundingBox = hellblockData.getPreservedBoundingBox();
 				instance.debug("protectHellblock: Using preserved bounding box from previous island reset.");
-			}
 
-			// Option 3: Shared world → derive bounding box from spiral logic
-			else {
+				// Option 3: Shared world → derive bounding box from spiral logic
+			} else {
 				boundingBox = instance.getPlacementDetector().computeSpiralBoundingBoxForIsland(islandId, world);
 				instance.debug("protectHellblock: Computed bounding box from spiral placement.");
 			}
@@ -85,12 +87,17 @@ public class DefaultProtection implements IslandProtection<Vector> {
 					+ ", " + boundingBox.getMinY() + ", " + boundingBox.getMinZ() + "], Max[" + boundingBox.getMaxX()
 					+ ", " + boundingBox.getMaxY() + ", " + boundingBox.getMaxZ() + "]");
 
-			updateHellblockMessages(world, ownerUUID);
-			instance.debug("protectHellblock: Updated protection messages for " + playerName);
+			// Wait for both protection messages and lock status to complete
+			return updateHellblockMessages(world, ownerUUID).thenCompose(v -> {
+				instance.debug("protectHellblock: Updated protection messages for " + playerName);
+				return instance.getProtectionManager().changeLockStatus(world, ownerUUID);
+			}).thenRun(() -> instance.debug("protectHellblock: Lock status updated for " + playerName))
+					.exceptionally(ex -> {
+						instance.getPluginLogger().severe("protectHellblock: Failed during async protection steps for "
+								+ playerName + "'s island!", ex);
+						throw new CompletionException(ex);
+					});
 
-			// Wait for lock status to complete before returning
-			return instance.getProtectionManager().changeLockStatus(world, ownerUUID)
-					.thenRun(() -> instance.debug("protectHellblock: Lock status updated for " + playerName));
 		} catch (Exception ex) {
 			instance.getPluginLogger().severe("protectHellblock: Failed to protect " + playerName + "'s island!", ex);
 			return CompletableFuture.failedFuture(ex);
@@ -99,118 +106,111 @@ public class DefaultProtection implements IslandProtection<Vector> {
 
 	@Override
 	public CompletableFuture<Void> unprotectHellblock(@NotNull HellblockWorld<?> world, @NotNull UUID ownerId) {
-		final CompletableFuture<Void> unprotection = new CompletableFuture<>();
+		instance.debug("unprotectHellblock: Starting unprotection for island UUID=" + ownerId + " in world '"
+				+ world.worldName() + "'");
 
-		try {
-			instance.debug("unprotectHellblock: Starting unprotection for island UUID=" + ownerId + " in world '"
-					+ world.worldName() + "'");
+		return instance.getStorageManager().getCachedUserDataWithFallback(ownerId, false).thenAccept(optData -> {
+			if (optData.isEmpty()) {
+				instance.getPluginLogger().warn(
+						"unprotectHellblock: No UserData found for UUID: " + ownerId + ". Skipping unprotection.");
+				return;
+			}
 
-			instance.getStorageManager().getCachedUserDataWithFallback(ownerId, instance.getConfigManager().lockData())
-					.thenAccept(result -> {
-						try {
-							if (result.isEmpty()) {
-								instance.getPluginLogger().warn("unprotectHellblock: No UserData found for UUID: "
-										+ ownerId + ". Skipping unprotection.");
-								unprotection.complete(null);
-								return;
-							}
+			final UserData ownerData = optData.get();
+			final HellblockData data = ownerData.getHellblockData();
+			final BoundingBox boundingBox = data.getBoundingBox();
 
-							final UserData offlineUser = result.get();
-							final HellblockData data = offlineUser.getHellblockData();
+			if (boundingBox == null) {
+				instance.getPluginLogger().warn(
+						"unprotectHellblock: No bounding box set for UUID: " + ownerId + ". Skipping entity cleanup.");
+				return;
+			}
 
-							BoundingBox boundingBox = data.getBoundingBox();
-							if (boundingBox == null) {
-								instance.getPluginLogger().warn("unprotectHellblock: No bounding box set for UUID: "
-										+ ownerId + ". Skipping entity cleanup.");
-								unprotection.complete(null);
-								return;
-							}
+			instance.debug("unprotectHellblock: Clearing entities in bounding box for UUID=" + ownerId + " → [MinX="
+					+ boundingBox.getMinX() + ", MinY=" + boundingBox.getMinY() + ", MinZ=" + boundingBox.getMinZ()
+					+ ", MaxX=" + boundingBox.getMaxX() + ", MaxY=" + boundingBox.getMaxY() + ", MaxZ="
+					+ boundingBox.getMaxZ() + "]");
 
-							instance.debug("unprotectHellblock: Clearing entities in bounding box for UUID=" + ownerId
-									+ " → [MinX=" + boundingBox.getMinX() + ", MinY=" + boundingBox.getMinY()
-									+ ", MinZ=" + boundingBox.getMinZ() + ", MaxX=" + boundingBox.getMaxX() + ", MaxY="
-									+ boundingBox.getMaxY() + ", MaxZ=" + boundingBox.getMaxZ() + "]");
-
-							instance.getProtectionManager().clearHellblockEntities(world.bukkitWorld(), boundingBox);
-
-							instance.debug("unprotectHellblock: Entity cleanup complete for UUID=" + ownerId);
-							unprotection.complete(null);
-
-						} catch (Exception ex) {
-							instance.getPluginLogger().severe(
-									"unprotectHellblock: Error while unprotecting hellblock for UUID: " + ownerId, ex);
-							unprotection.completeExceptionally(ex);
-						}
-					});
-		} catch (Exception ex) {
-			instance.getPluginLogger().severe("unprotectHellblock: Failed to start unprotection for UUID: " + ownerId,
-					ex);
-			unprotection.completeExceptionally(ex);
-		}
-
-		return unprotection;
+			instance.getProtectionManager().clearHellblockEntities(world.bukkitWorld(), boundingBox);
+			instance.debug("unprotectHellblock: Entity cleanup complete for UUID=" + ownerId);
+		}).exceptionally(ex -> {
+			instance.getPluginLogger().severe("unprotectHellblock: Error during unprotection for UUID: " + ownerId, ex);
+			return null; // Void-returning exceptionally block
+		});
 	}
 
 	@Override
 	public CompletableFuture<Void> reprotectHellblock(@NotNull HellblockWorld<?> world, @NotNull UserData ownerData,
 			@NotNull UserData transfereeData) {
-		final CompletableFuture<Void> reprotection = new CompletableFuture<>();
-		String ownerName = ownerData.getName();
-		String transfereeName = transfereeData.getName();
-		UUID transfereeUUID = transfereeData.getUUID();
+		final String ownerName = ownerData.getName();
+		final String transfereeName = transfereeData.getName();
+		final UUID transfereeUUID = transfereeData.getUUID();
 
 		try {
 			instance.debug("reprotectHellblock: Starting reprotection from owner " + ownerName + " to transferee "
 					+ transfereeName + " in world '" + world.worldName() + "'");
 
-			Location l1 = getProtectionVectorUpperCorner(ownerData).toLocation(world.bukkitWorld());
-			Location l2 = getProtectionVectorLowerCorner(ownerData).toLocation(world.bukkitWorld());
+			Location minLoc = getProtectionVectorUpperCorner(ownerData).toLocation(world.bukkitWorld());
+			Location maxLoc = getProtectionVectorLowerCorner(ownerData).toLocation(world.bukkitWorld());
 
-			double minX = Math.min(l1.getX(), l2.getX());
-			double minY = Math.min(l1.getY(), l2.getY());
-			double minZ = Math.min(l1.getZ(), l2.getZ());
-			double maxX = Math.max(l1.getX(), l2.getX());
-			double maxY = Math.max(l1.getY(), l2.getY());
-			double maxZ = Math.max(l1.getZ(), l2.getZ());
+			double minX = Math.min(minLoc.getX(), maxLoc.getX());
+			double minY = Math.min(minLoc.getY(), maxLoc.getY());
+			double minZ = Math.min(minLoc.getZ(), maxLoc.getZ());
+			double maxX = Math.max(minLoc.getX(), maxLoc.getX());
+			double maxY = Math.max(minLoc.getY(), maxLoc.getY());
+			double maxZ = Math.max(minLoc.getZ(), maxLoc.getZ());
 
 			BoundingBox boundingBox = new BoundingBox(minX, minY, minZ, maxX, maxY, maxZ);
 			transfereeData.getHellblockData().setBoundingBox(boundingBox);
+
 			instance.getPlacementDetector().cacheIslandBoundingBox(transfereeData.getHellblockData().getIslandId(),
-					transfereeData.getHellblockData().getBoundingBox());
+					boundingBox);
 
 			instance.debug("reprotectHellblock: Calculated bounding box for " + transfereeName + " → Min[" + minX + ", "
 					+ minY + ", " + minZ + "], Max[" + maxX + ", " + maxY + ", " + maxZ + "]");
 
-			updateHellblockMessages(world, transfereeUUID);
-			instance.debug("reprotectHellblock: Updated protection messages for transferee " + transfereeName);
+			// Compose futures properly
+			return updateHellblockMessages(world, transfereeUUID).thenCompose(v -> {
+				instance.debug("reprotectHellblock: Updated protection messages for transferee " + transfereeName);
+				return instance.getProtectionManager().changeLockStatus(world, transfereeUUID);
+			}).thenAccept(v -> {
+				instance.debug("reprotectHellblock: Lock status updated for transferee " + transfereeName);
+			}).exceptionally(ex -> {
+				instance.getPluginLogger()
+						.severe("reprotectHellblock: Failed to reprotect island for transferee " + transfereeName, ex);
+				throw new CompletionException(ex); // propagate
+			});
 
-			instance.getProtectionManager().changeLockStatus(world, transfereeUUID);
-			instance.debug("reprotectHellblock: Lock status updated for transferee " + transfereeName);
-
-			reprotection.complete(null);
 		} catch (Exception ex) {
-			instance.getPluginLogger()
-					.severe("reprotectHellblock: Failed to reprotect island for transferee " + transfereeName, ex);
-			reprotection.completeExceptionally(ex);
+			instance.getPluginLogger().severe(
+					"reprotectHellblock: Unexpected failure before async steps for transferee " + transfereeName, ex);
+			return CompletableFuture.failedFuture(ex);
 		}
-		return reprotection;
 	}
 
 	@Override
-	public void updateHellblockMessages(@NotNull HellblockWorld<?> world, @NotNull UUID ownerId) {
-		instance.debug("Updating hellblock messages for UUID: " + ownerId);
+	public CompletableFuture<Boolean> updateHellblockMessages(@NotNull HellblockWorld<?> world, @NotNull UUID ownerId) {
+		instance.debug("updateHellblockMessages: Updating hellblock messages for UUID: " + ownerId);
 
-		instance.getStorageManager().getCachedUserDataWithFallback(ownerId, instance.getConfigManager().lockData())
-				.thenAccept(result -> result.ifPresent(ownerData -> {
-					if (ownerData == null) {
-						instance.getPluginLogger().warn(
-								"Failed to retrieve player's username to update hellblock entry/farewell messages.");
-						return;
-					}
+		return instance.getStorageManager().getCachedUserDataWithFallback(ownerId, true).thenCompose(optData -> {
+			if (optData.isEmpty()) {
+				instance.debug("updateHellblockMessages: No UserData found for UUID: " + ownerId);
+				return CompletableFuture.completedFuture(false);
+			}
 
-					instance.debug("Retrieved user data for message update: " + ownerData.getName());
-					updateMessagesForUser(ownerData, ownerData.getName());
-				}));
+			final UserData ownerData = optData.get();
+
+			instance.debug("updateHellblockMessages: Retrieved user data for message update: " + ownerData.getName());
+			updateMessagesForUser(ownerData, ownerData.getName());
+			return instance.getStorageManager().saveUserData(ownerData, true);
+		}).handle((result, ex) -> {
+			if (ex != null) {
+				instance.getPluginLogger()
+						.warn("updateHellblockMessages: Failed to update entry/farwell messages for UUID " + ownerId
+								+ ": " + ex.getMessage());
+			}
+			return instance.getStorageManager().unlockUserData(ownerId).thenApply(x -> true);
+		}).thenCompose(Function.identity());
 	}
 
 	/**
@@ -220,7 +220,7 @@ public class DefaultProtection implements IslandProtection<Vector> {
 	 * @param ownerData   The {@link UserData} of the island owner.
 	 * @param updatedName The most up-to-date player name.
 	 */
-	private void updateMessagesForUser(UserData ownerData, String updatedName) {
+	private void updateMessagesForUser(@NotNull UserData ownerData, @NotNull String updatedName) {
 		final boolean abandoned = ownerData.getHellblockData().isAbandoned();
 
 		// Greeting flag
@@ -248,10 +248,10 @@ public class DefaultProtection implements IslandProtection<Vector> {
 	 * @param enabled    Whether the flag should be enabled or disabled.
 	 * @param messageKey The translated message key or raw message to apply.
 	 */
-	private void createAndSetMessageFlag(UserData ownerData, HellblockFlag.FlagType type, boolean enabled,
-			String messageKey) {
-		instance.debug(
-				"Creating message flag for type: " + type + ", enabled: " + enabled + ", messageKey: " + messageKey);
+	private void createAndSetMessageFlag(@NotNull UserData ownerData, @NotNull HellblockFlag.FlagType type,
+			boolean enabled, @NotNull String messageKey) {
+		instance.debug("createAndSetMessageFlag: Creating message flag for type: " + type + ", enabled: " + enabled
+				+ ", messageKey: " + messageKey);
 
 		final HellblockFlag flag = new HellblockFlag(type,
 				enabled ? HellblockFlag.AccessType.ALLOW : HellblockFlag.AccessType.DENY);
@@ -269,84 +269,98 @@ public class DefaultProtection implements IslandProtection<Vector> {
 	}
 
 	@Override
-	public void abandonIsland(@NotNull HellblockWorld<?> world, @NotNull UUID ownerId) {
-		instance.debug("Attempting to abandon island for UUID: " + ownerId);
+	public CompletableFuture<Boolean> abandonIsland(@NotNull HellblockWorld<?> world, @NotNull UUID ownerId) {
+		instance.debug("abandonIsland: Attempting to abandon island for UUID: " + ownerId);
 
-		instance.getStorageManager().getCachedUserDataWithFallback(ownerId, instance.getConfigManager().lockData())
-				.thenAccept(result -> {
-					if (result.isEmpty()) {
-						instance.debug("No UserData found for UUID: " + ownerId + " (abandonIsland)");
-						return;
-					}
+		return instance.getStorageManager().getCachedUserDataWithFallback(ownerId, true).thenCompose(optData -> {
+			if (optData.isEmpty()) {
+				instance.debug("abandonIsland: No UserData found for UUID: " + ownerId);
+				return CompletableFuture.completedFuture(false);
+			}
 
-					final UserData offlineUser = result.get();
-					final HellblockData data = offlineUser.getHellblockData();
+			final UserData ownerData = optData.get();
+			final HellblockData data = ownerData.getHellblockData();
 
-					if (data.isAbandoned()) {
-						instance.debug(
-								"Island already marked as abandoned. Updating protection flags for UUID: " + ownerId);
-						data.setProtectionValue(
-								new HellblockFlag(HellblockFlag.FlagType.PVP, HellblockFlag.AccessType.ALLOW));
-						data.setProtectionValue(
-								new HellblockFlag(HellblockFlag.FlagType.BUILD, HellblockFlag.AccessType.ALLOW));
-						data.setProtectionValue(
-								new HellblockFlag(HellblockFlag.FlagType.ENTRY, HellblockFlag.AccessType.ALLOW));
-						data.setProtectionValue(
-								new HellblockFlag(HellblockFlag.FlagType.MOB_SPAWNING, HellblockFlag.AccessType.DENY));
-					}
-				});
+			if (!data.isAbandoned()) {
+				instance.debug("abandonIsland: Island was not marked for abandonment for UUID: " + ownerId);
+				return CompletableFuture.completedFuture(false);
+			}
+
+			data.setProtectionValue(new HellblockFlag(HellblockFlag.FlagType.PVP, HellblockFlag.AccessType.ALLOW));
+			data.setProtectionValue(new HellblockFlag(HellblockFlag.FlagType.BUILD, HellblockFlag.AccessType.ALLOW));
+			if (data.isLocked())
+				data.setProtectionValue(
+						new HellblockFlag(HellblockFlag.FlagType.ENTRY, HellblockFlag.AccessType.ALLOW));
+			data.setProtectionValue(
+					new HellblockFlag(HellblockFlag.FlagType.MOB_SPAWNING, HellblockFlag.AccessType.DENY));
+
+			instance.debug("abandonIsland: Island marked as abandoned. Updating protection flags for UUID: " + ownerId);
+
+			return instance.getStorageManager().saveUserData(ownerData, true);
+		}).handle((result, ex) -> {
+			if (ex != null) {
+				instance.getPluginLogger()
+						.warn("abandonIsland: Failed to abandon island for UUID " + ownerId + ": " + ex.getMessage());
+			}
+			return instance.getStorageManager().unlockUserData(ownerId).thenApply(x -> true);
+		}).thenCompose(Function.identity());
 	}
 
 	@Override
-	public void restoreFlags(@NotNull HellblockWorld<?> world, @NotNull UUID ownerId) {
-		instance.debug("Restoring protection flags for UUID: " + ownerId);
+	public CompletableFuture<Boolean> restoreFlags(@NotNull HellblockWorld<?> world, @NotNull UUID ownerId) {
+		instance.debug("restoreFlags: Restoring protection flags for UUID: " + ownerId);
 
-		instance.getStorageManager().getCachedUserDataWithFallback(ownerId, instance.getConfigManager().lockData())
-				.thenAccept(result -> {
-					if (result.isEmpty()) {
-						instance.debug("No UserData found for UUID: " + ownerId + " (restoreFlags)");
-						return;
-					}
+		return instance.getStorageManager().getCachedUserDataWithFallback(ownerId, true).thenCompose(optData -> {
+			if (optData.isEmpty()) {
+				instance.debug("restoreFlags: No UserData found for UUID: " + ownerId);
+				return CompletableFuture.completedFuture(false);
+			}
 
-					final UserData offlineUser = result.get();
-					final HellblockData data = offlineUser.getHellblockData();
+			final UserData ownerData = optData.get();
+			final HellblockData data = ownerData.getHellblockData();
 
-					if (!data.isAbandoned()) {
-						instance.debug("Island is not abandoned. Restoring default flags for UUID: " + ownerId);
-						data.setProtectionValue(
-								new HellblockFlag(HellblockFlag.FlagType.PVP, HellblockFlag.AccessType.DENY));
-						data.setProtectionValue(
-								new HellblockFlag(HellblockFlag.FlagType.BUILD, HellblockFlag.AccessType.DENY));
-						data.setProtectionValue(
-								new HellblockFlag(HellblockFlag.FlagType.ENTRY, HellblockFlag.AccessType.ALLOW));
-						data.setProtectionValue(
-								new HellblockFlag(HellblockFlag.FlagType.MOB_SPAWNING, HellblockFlag.AccessType.ALLOW));
-					}
-				});
+			if (data.isAbandoned()) {
+				instance.debug("restoreFlags: Island was found marked as abandoned for UUID: " + ownerId);
+				return CompletableFuture.completedFuture(false);
+			}
+
+			data.setProtectionValue(new HellblockFlag(HellblockFlag.FlagType.PVP, HellblockFlag.AccessType.DENY));
+			data.setProtectionValue(new HellblockFlag(HellblockFlag.FlagType.BUILD, HellblockFlag.AccessType.DENY));
+			if (data.isLocked())
+				data.setProtectionValue(new HellblockFlag(HellblockFlag.FlagType.ENTRY, HellblockFlag.AccessType.DENY));
+			data.setProtectionValue(
+					new HellblockFlag(HellblockFlag.FlagType.MOB_SPAWNING, HellblockFlag.AccessType.ALLOW));
+
+			instance.debug("restoreFlags: Island is abandoned, marking as restored. Restoring default flags for UUID: "
+					+ ownerId);
+
+			// Save changes
+			return instance.getStorageManager().saveUserData(ownerData, true);
+		}).handle((result, ex) -> {
+			if (ex != null) {
+				instance.getPluginLogger()
+						.warn("restoreFlags: Failed to restore flags for UUID " + ownerId + ": " + ex.getMessage());
+			}
+			return instance.getStorageManager().unlockUserData(ownerId).thenApply(x -> true);
+		}).thenCompose(Function.identity());
 	}
 
 	@Override
 	public CompletableFuture<Set<UUID>> getMembersOfHellblockBounds(@NotNull HellblockWorld<?> world,
 			@NotNull UUID ownerId) {
-		instance.debug("Fetching island members for UUID: " + ownerId);
+		instance.debug("getMembersOfHellblockBounds: Fetching island members for UUID: " + ownerId);
 
-		final CompletableFuture<Set<UUID>> members = new CompletableFuture<>();
+		return instance.getStorageManager().getCachedUserDataWithFallback(ownerId, false).thenApply(optData -> {
+			if (optData.isEmpty()) {
+				instance.debug("getMembersOfHellblockBounds: No UserData found for UUID: " + ownerId);
+				return Set.of();
+			}
 
-		instance.getStorageManager().getCachedUserDataWithFallback(ownerId, instance.getConfigManager().lockData())
-				.thenAccept(result -> {
-					if (result.isEmpty()) {
-						instance.debug("No UserData found for UUID: " + ownerId + " (getMembersOfHellblockBounds)");
-						members.complete(Set.of());
-						return;
-					}
-
-					Set<UUID> islandMembers = result.get().getHellblockData().getIslandMembers();
-					instance.debug("Found " + islandMembers.size() + " member" + (islandMembers.size() == 1 ? "" : "s")
-							+ " for island UUID: " + ownerId);
-					members.complete(islandMembers);
-				});
-
-		return members;
+			Set<UUID> islandMembers = optData.get().getHellblockData().getIslandMembers();
+			instance.debug("Found " + islandMembers.size() + " member" + (islandMembers.size() == 1 ? "" : "s")
+					+ " for island UUID: " + ownerId);
+			return islandMembers;
+		});
 	}
 
 	@Override

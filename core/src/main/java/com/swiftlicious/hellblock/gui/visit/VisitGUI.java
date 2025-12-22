@@ -10,6 +10,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -231,11 +232,12 @@ public class VisitGUI extends PaginatedGUI<VisitGUIElement> {
 		this.refreshReason = refreshReason;
 	}
 
-	public void populateVisitEntries(@NotNull List<VisitEntry> entries, @NotNull VisitSorter sorter, int pageIndex) {
+	public CompletableFuture<Void> populateVisitEntries(@NotNull List<VisitEntry> entries, @NotNull VisitSorter sorter,
+			int pageIndex) {
 		// Prevent redundant sort triggers
 		setCurrentSorter(sorter);
 
-		manager.instance.getCoopManager().getCachedIslandOwnerData().thenAccept(ownerSet -> {
+		return manager.instance.getCoopManager().getCachedIslandOwnerData().thenCompose(ownerSet -> {
 			Map<UUID, UserData> ownerMap = ownerSet.stream()
 					.collect(Collectors.toMap(UserData::getUUID, Function.identity()));
 
@@ -270,10 +272,34 @@ public class VisitGUI extends PaginatedGUI<VisitGUIElement> {
 
 						boolean isFeatured = sorter == VisitSorter.FEATURED;
 
-						// Only retain lore if FEATURED view and player is island owner
-						if (!(isFeatured && isOwner)) {
-							baseEmptyItem.lore(Collections.emptyList());
+						List<String> compiledLore = new ArrayList<>();
+
+						if (isFeatured) {
+							// Conditionally add featured lore (only if in FEATURED view as is owner)
+							List<String> featuredLore = manager.emptySection.getStringList("display.featured-lore",
+									new ArrayList<>()); // featured-only lore
+							if (isOwner && featuredLore != null && !featuredLore.isEmpty()) {
+								featuredLore.forEach(line -> compiledLore.add(AdventureHelper.miniMessageToJson(line)));
+							} else {
+								// else add the non owner lore
+								List<String> nonOwnerLore = manager.emptySection
+										.getStringList("display.featured-member-lore", new ArrayList<>());
+								if (nonOwnerLore != null && !nonOwnerLore.isEmpty()) {
+									nonOwnerLore
+											.forEach(line -> compiledLore.add(AdventureHelper.miniMessageToJson(line)));
+								}
+							}
+						} else {
+							List<String> baseLore = manager.emptySection.getStringList("display.lore",
+									new ArrayList<>());
+							// Always add general lore if defined
+							if (baseLore != null && !baseLore.isEmpty()) {
+								baseLore.forEach(line -> compiledLore.add(AdventureHelper.miniMessageToJson(line)));
+							}
 						}
+
+						// Apply the composed lore (or clear if empty)
+						baseEmptyItem.lore(compiledLore.isEmpty() ? Collections.emptyList() : compiledLore);
 
 						final VisitDynamicGUIElement element = new VisitDynamicGUIElement(symbol,
 								baseEmptyItem.loadCopy());
@@ -296,15 +322,15 @@ public class VisitGUI extends PaginatedGUI<VisitGUIElement> {
 
 						int rank = currentIndex + 1;
 
-						UserData user = ownerMap.get(uuid);
-						if (user == null || !user.getHellblockData().hasHellblock()
-								|| user.getHellblockData().getOwnerUUID() == null) {
+						UserData userData = ownerMap.get(uuid);
+						if (userData == null || !userData.getHellblockData().hasHellblock()
+								|| userData.getHellblockData().getOwnerUUID() == null) {
 							futures.add(CompletableFuture.completedFuture(element));
 							layoutSlotIndex++;
 							continue;
 						}
 
-						HellblockData data = user.getHellblockData();
+						HellblockData data = userData.getHellblockData();
 
 						if (data.isLocked()) {
 							futures.add(CompletableFuture.completedFuture(element));
@@ -436,7 +462,7 @@ public class VisitGUI extends PaginatedGUI<VisitGUIElement> {
 			}
 
 			// When all skull elements are loaded, update the GUI once
-			CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new)).thenRun(() -> {
+			return CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new)).thenRun(() -> {
 				List<VisitDynamicGUIElement> elements = futures.stream().map(CompletableFuture::join).toList();
 
 				manager.instance.getScheduler().executeSync(() -> {
@@ -449,12 +475,15 @@ public class VisitGUI extends PaginatedGUI<VisitGUIElement> {
 		});
 	}
 
-	public void updateFeaturedCountdownLore() {
+	@NotNull
+	public CompletableFuture<Boolean> updateFeaturedCountdownLore() {
 		if (getCurrentSorter() != VisitSorter.FEATURED)
-			return;
+			return CompletableFuture.completedFuture(false);
 
-		boolean expiredFound = false;
 		setRefreshReason(RefreshReason.PERIODIC_UPDATE);
+
+		AtomicBoolean expiredFound = new AtomicBoolean(false);
+		List<CompletableFuture<Void>> futures = new ArrayList<>();
 
 		for (Map.Entry<Integer, VisitGUIElement> entry : itemsSlotMap.entrySet()) {
 			VisitGUIElement element = entry.getValue();
@@ -467,18 +496,18 @@ public class VisitGUI extends PaginatedGUI<VisitGUIElement> {
 
 			long until = dynElem.getFeaturedUntil();
 			if (until > 0 && until <= System.currentTimeMillis()) {
-				expiredFound = true;
-				break;
+				expiredFound.set(true);
+				continue; // still allow other entries to update
 			}
 
-			manager.instance.getStorageManager()
-					.getCachedUserDataWithFallback(uuid, manager.instance.getConfigManager().lockData())
-					.thenAccept(opt -> {
-						if (opt.isEmpty())
+			// Add fetch task to futures list
+			CompletableFuture<Void> future = manager.instance.getStorageManager()
+					.getCachedUserDataWithFallback(uuid, false).thenAccept(optData -> {
+						if (optData.isEmpty())
 							return;
 
-						UserData user = opt.get();
-						VisitData visitData = user.getHellblockData().getVisitData();
+						UserData userData = optData.get();
+						VisitData visitData = userData.getHellblockData().getVisitData();
 
 						long remainingMillis = visitData.getFeaturedUntil() - System.currentTimeMillis();
 						if (remainingMillis <= 0)
@@ -488,7 +517,7 @@ public class VisitGUI extends PaginatedGUI<VisitGUIElement> {
 						String countdown = manager.instance.getCooldownManager().getFormattedCooldown(remainingSeconds);
 
 						// Build a fresh featured context for this island
-						Context<Integer> featuredCtx = Context.island(user.getHellblockData().getIslandId())
+						Context<Integer> featuredCtx = Context.island(userData.getHellblockData().getIslandId())
 								.arg(ContextKeys.FEATURED_TIME, remainingSeconds)
 								.arg(ContextKeys.FEATURED_TIME_FORMATTED, countdown);
 
@@ -525,19 +554,29 @@ public class VisitGUI extends PaginatedGUI<VisitGUIElement> {
 
 						manager.instance.getScheduler()
 								.executeSync(() -> inventory.setItem(entry.getKey(), dynElem.getItemStack().clone()));
+					}).exceptionally(ex -> {
+						manager.instance.getPluginLogger().severe("Failed to update featured countdown lore for "
+								+ context.holder().getName() + ": " + ex.getMessage());
+						return null;
 					});
+
+			futures.add(future);
 		}
 
-		if (expiredFound) {
-			manager.instance.getScheduler().executeSync(() -> {
-				this.refreshAndRepopulate();
+		// Wait for all updates, then apply result
+		return CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new)).thenApply(v -> {
+			if (expiredFound.get()) {
+				manager.instance.getScheduler().executeSync(() -> {
+					this.refreshAndRepopulate();
 
-				Player viewer = context.holder();
-				AdventureHelper.playSound(manager.instance.getSenderFactory().getAudience(viewer),
-						Sound.sound(net.kyori.adventure.key.Key.key("minecraft:block.note_block.bell"),
-								Sound.Source.MASTER, 1.0f, 1.0f));
-			});
-		}
+					Player viewer = context.holder();
+					AdventureHelper.playSound(manager.instance.getSenderFactory().getAudience(viewer),
+							Sound.sound(net.kyori.adventure.key.Key.key("minecraft:block.note_block.bell"),
+									Sound.Source.MASTER, 1.0f, 1.0f));
+				});
+			}
+			return expiredFound.get();
+		});
 	}
 
 	/**
@@ -612,8 +651,7 @@ public class VisitGUI extends PaginatedGUI<VisitGUIElement> {
 	public void refreshAndRepopulate() {
 		Consumer<List<VisitEntry>> callback = entries -> manager.instance.getScheduler().executeSync(() -> {
 			setRefreshReason(RefreshReason.REPOPULATE);
-			populateVisitEntries(entries, currentSorter, getCurrentPage());
-			refresh();
+			populateVisitEntries(entries, currentSorter, getCurrentPage()).thenRun(() -> refresh());
 		});
 
 		if (getCurrentSorter() == VisitSorter.FEATURED) {

@@ -61,10 +61,12 @@ public class CoopLeaveCommand extends BukkitCommandFeature<CommandSender> {
 			}
 
 			// Perform leave
-			plugin.getCoopManager().leaveHellblockParty(leavingPlayer);
-
-			// Feedback
-			handleFeedback(context, MessageConstants.MSG_HELLBLOCK_COOP_LEFT_PARTY);
+			plugin.getCoopManager().leaveHellblockParty(leavingPlayer).thenAccept(result -> {
+				// Feedback
+				if (result) {
+					handleFeedback(context, MessageConstants.MSG_HELLBLOCK_COOP_LEFT_PARTY);
+				}
+			});
 		});
 	}
 

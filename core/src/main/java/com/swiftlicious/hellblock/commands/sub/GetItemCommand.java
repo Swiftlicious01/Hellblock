@@ -18,7 +18,10 @@ import com.swiftlicious.hellblock.config.locale.MessageConstants;
 import com.swiftlicious.hellblock.context.Context;
 import com.swiftlicious.hellblock.context.ContextKeys;
 import com.swiftlicious.hellblock.handlers.AdventureHelper;
+import com.swiftlicious.hellblock.handlers.VersionHelper;
 import com.swiftlicious.hellblock.utils.PlayerUtils;
+
+import net.kyori.adventure.text.Component;
 
 public class GetItemCommand extends BukkitCommandFeature<CommandSender> {
 
@@ -30,9 +33,11 @@ public class GetItemCommand extends BukkitCommandFeature<CommandSender> {
 	public Command.Builder<? extends CommandSender> assembleCommand(CommandManager<CommandSender> manager,
 			Command.Builder<CommandSender> builder) {
 		return builder.senderType(Player.class)
-				.required("id", StringParser.stringComponent()
-						.suggestionProvider((context, input) -> CompletableFuture.completedFuture(
-								plugin.getItemManager().getItemIDs().stream().map(Suggestion::suggestion).toList())))
+				.required("id",
+						StringParser.stringComponent(StringParser.StringMode.QUOTED)
+								.suggestionProvider((context,
+										input) -> CompletableFuture.completedFuture(plugin.getItemManager().getItemIDs()
+												.stream().map(it -> Suggestion.suggestion("\"" + it + "\"")).toList())))
 				.optional("amount", IntegerParser.integerParser(1, 6400))
 				.flag(manager.flagBuilder("silent").withAliases("s").build())
 				.flag(manager.flagBuilder("to-inventory").withAliases("t").build()).handler(context -> {
@@ -44,7 +49,9 @@ public class GetItemCommand extends BukkitCommandFeature<CommandSender> {
 						ItemStack itemStack = plugin.getItemManager()
 								.buildInternal(Context.player(player).arg(ContextKeys.ID, id), id);
 						if (itemStack == null) {
-							throw new RuntimeException("Unrecognized item id: " + id);
+							handleFeedback(context, MessageConstants.COMMAND_ITEM_FAILURE_NOT_EXIST,
+									Component.text(id));
+							return;
 						}
 						int amountToGive = amount;
 						int maxStack = itemStack.getMaxStackSize();
@@ -53,14 +60,25 @@ public class GetItemCommand extends BukkitCommandFeature<CommandSender> {
 							amountToGive -= perStackSize;
 							ItemStack more = itemStack.clone();
 							more.setAmount(perStackSize);
-							if (toInv || player.getGameMode() == GameMode.SPECTATOR) {
-								PlayerUtils.putItemsToInventory(player.getInventory(), more, more.getAmount());
+							if (VersionHelper.isFolia()) {
+								plugin.runFoliaPlayerTask(player, plugin, p -> {
+									if (toInv || p.getGameMode() == GameMode.SPECTATOR) {
+										PlayerUtils.putItemsToInventory(p.getInventory(), more, more.getAmount());
+									} else {
+										PlayerUtils.dropItem(p, more, false, true, false);
+									}
+								});
 							} else {
-								PlayerUtils.dropItem(player, more, false, true, false);
+								if (toInv || player.getGameMode() == GameMode.SPECTATOR) {
+									PlayerUtils.putItemsToInventory(player.getInventory(), more, more.getAmount());
+								} else {
+									PlayerUtils.dropItem(player, more, false, true, false);
+								}
 							}
 						}
 						handleFeedback(context, MessageConstants.COMMAND_ITEM_GET_SUCCESS,
-								AdventureHelper.miniMessageToComponent(String.valueOf(amount)), AdventureHelper.miniMessageToComponent(id));
+								AdventureHelper.miniMessageToComponent(String.valueOf(amount)),
+								AdventureHelper.miniMessageToComponent(id));
 					} catch (Exception e) {
 						handleFeedback(context, MessageConstants.COMMAND_ITEM_FAILURE_NOT_EXIST,
 								AdventureHelper.miniMessageToComponent(id));

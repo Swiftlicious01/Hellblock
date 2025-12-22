@@ -36,8 +36,8 @@ public class HellblockCreateCommand extends BukkitCommandFeature<CommandSender> 
 				return;
 			}
 
-			final UserData user = onlineUserOpt.get();
-			final HellblockData data = user.getHellblockData();
+			final UserData userData = onlineUserOpt.get();
+			final HellblockData data = userData.getHellblockData();
 
 			// Player does not have a hellblock yet → create flow
 			if (!data.hasHellblock()) {
@@ -61,33 +61,39 @@ public class HellblockCreateCommand extends BukkitCommandFeature<CommandSender> 
 						"Owner reference was null. This should never happen — please report to the developer.");
 			}
 
-			plugin.getStorageManager().getCachedUserDataWithFallback(ownerUUID, plugin.getConfigManager().lockData())
-					.thenAccept(result -> {
-						if (result.isEmpty()) {
-							final String username = Bukkit.getOfflinePlayer(ownerUUID).getName();
-							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_OWNER_DATA_NOT_LOADED,
-									AdventureHelper.miniMessageToComponent(username != null ? username
-											: plugin.getTranslationManager().miniMessageTranslation(
-													MessageConstants.FORMAT_UNKNOWN.build().key())));
-							return;
-						}
+			plugin.getStorageManager().getCachedUserDataWithFallback(ownerUUID, false).thenAccept(optOwnerData -> {
+				if (optOwnerData.isEmpty()) {
+					final String username = Bukkit.getOfflinePlayer(ownerUUID).getName();
+					handleFeedback(context, MessageConstants.MSG_HELLBLOCK_OWNER_DATA_NOT_LOADED,
+							AdventureHelper.miniMessageToComponent(username != null ? username
+									: plugin.getTranslationManager()
+											.miniMessageTranslation(MessageConstants.FORMAT_UNKNOWN.build().key())));
+					return;
+				}
 
-						final UserData offlineUser = result.get();
-						if (offlineUser.getHellblockData().isAbandoned()) {
-							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_IS_ABANDONED);
-							return;
-						}
+				final UserData ownerData = optOwnerData.get();
+				if (ownerData.getHellblockData().isAbandoned()) {
+					handleFeedback(context, MessageConstants.MSG_HELLBLOCK_IS_ABANDONED);
+					return;
+				}
 
-						// Already has a Hellblock → failure message
-						final Location loc = offlineUser.getHellblockData().getHellblockLocation();
-						handleFeedback(context, MessageConstants.MSG_HELLBLOCK_CREATION_FAILURE_ALREADY_EXISTS,
-								AdventureHelper.miniMessageToComponent(String.valueOf(loc.getBlockX())),
-								AdventureHelper.miniMessageToComponent(String.valueOf(loc.getBlockZ())));
-					}).exceptionally(ex -> {
-						plugin.getPluginLogger().warn("getCachedUserDataWithFallback failed for hellblock creation of "
-								+ player.getName() + ": " + ex.getMessage());
-						return null;
-					});
+				// Already has a Hellblock → failure message
+				final Location hellblockLoc = ownerData.getHellblockData().getHellblockLocation();
+				if (hellblockLoc == null) {
+					plugin.getPluginLogger().severe("Hellblock location returned null for owner " + ownerData.getName()
+							+ " (" + ownerData.getUUID() + "). This indicates corrupted data or a serious bug.");
+					throw new IllegalStateException(
+							"Hellblock location reference was null. This should never happen — please report to the developer.");
+				}
+
+				handleFeedback(context, MessageConstants.MSG_HELLBLOCK_CREATION_FAILURE_ALREADY_EXISTS,
+						AdventureHelper.miniMessageToComponent(String.valueOf(hellblockLoc.getBlockX())),
+						AdventureHelper.miniMessageToComponent(String.valueOf(hellblockLoc.getBlockZ())));
+			}).exceptionally(ex -> {
+				plugin.getPluginLogger().warn("getCachedUserDataWithFallback failed for hellblock creation of "
+						+ player.getName() + ": " + ex.getMessage());
+				return null;
+			});
 		});
 	}
 

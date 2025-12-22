@@ -120,6 +120,7 @@ public record IslandSnapshotBlock(@JsonProperty("x") int x, @JsonProperty("y") i
 	 *                       entities within 5 blocks should be provided)
 	 * @return The captured IslandSnapshotBlock
 	 */
+	@SuppressWarnings("deprecation")
 	public static IslandSnapshotBlock fromBlockState(BlockState state, List<EntitySnapshot> nearbyEntities) {
 		final Map<Integer, ItemStack> inv = new HashMap<>();
 		final CompoundBinaryTag.Builder tileBuilder = CompoundBinaryTag.builder();
@@ -342,6 +343,7 @@ public record IslandSnapshotBlock(@JsonProperty("x") int x, @JsonProperty("y") i
 	 * @param world The world to restore the block in
 	 * @return The restored BlockState
 	 */
+	@SuppressWarnings("deprecation")
 	public BlockState restore(World world) {
 		final Block block = world.getBlockAt(x, y, z);
 		block.setType(type, false);
@@ -631,6 +633,7 @@ public record IslandSnapshotBlock(@JsonProperty("x") int x, @JsonProperty("y") i
 	 * @param item The ItemStack to clone
 	 * @return A deep clone of the ItemStack
 	 */
+	@SuppressWarnings("deprecation")
 	private static ItemStack deepCloneItem(ItemStack item) {
 		if (item == null || item.getType().isAir()) {
 			return null;

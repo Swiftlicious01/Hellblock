@@ -89,7 +89,6 @@ public abstract class ConfigHandler implements ConfigLoader, Reloadable {
 	protected String[] blockDetectOrder = new String[0];
 	protected int dataSaveInterval;
 	protected boolean logDataSaving;
-	protected boolean lockData;
 	protected boolean metrics;
 	protected boolean checkUpdate;
 	protected boolean debug;
@@ -462,10 +461,6 @@ public abstract class ConfigHandler implements ConfigLoader, Reloadable {
 
 	public boolean logDataSaving() {
 		return logDataSaving;
-	}
-
-	public boolean lockData() {
-		return lockData;
 	}
 
 	public boolean metrics() {

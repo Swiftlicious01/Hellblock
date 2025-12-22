@@ -147,8 +147,8 @@ public class ResetConfirmGUIManager implements ResetConfirmGUIManagerInterface, 
 		HellblockData hellblockData = optionalUserData.get().getHellblockData();
 		if (hellblockData.getResetCooldown() > 0) {
 			Sender audience = instance.getSenderFactory().wrap(player);
-			audience.sendMessage(instance.getTranslationManager()
-					.render(MessageConstants.MSG_HELLBLOCK_RESET_ON_COOLDOWN.arguments(AdventureHelper.miniMessageToComponent(
+			audience.sendMessage(instance.getTranslationManager().render(
+					MessageConstants.MSG_HELLBLOCK_RESET_ON_COOLDOWN.arguments(AdventureHelper.miniMessageToComponent(
 							instance.getCooldownManager().getFormattedCooldown(hellblockData.getResetCooldown())))
 							.build()));
 			return false;
@@ -273,9 +273,10 @@ public class ResetConfirmGUIManager implements ResetConfirmGUIManagerInterface, 
 
 			if (element.getSymbol() == denySlot) {
 				event.setCancelled(true);
-				instance.getHellblockGUIManager().openHellblockGUI(gui.context.holder(), gui.islandContext.holder(),
-						gui.isOwner);
-				ActionManager.trigger(gui.context, denyActions);
+				boolean opened = instance.getHellblockGUIManager().openHellblockGUI(gui.context.holder(),
+						gui.islandContext.holder(), gui.isOwner);
+				if (opened)
+					ActionManager.trigger(gui.context, denyActions);
 				return;
 			}
 

@@ -9,6 +9,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.bukkit.Location;
 import org.bukkit.NamespacedKey;
@@ -40,6 +41,8 @@ public final class AnimalHandler implements Runnable {
 
 	private final HellblockPlugin plugin;
 
+	private final AtomicBoolean isRunning = new AtomicBoolean(false);
+
 	private final Set<Pos3> spawnCache = ConcurrentHashMap.newKeySet();
 
 	private static final NamespacedKey OWNER_KEY = new NamespacedKey(HellblockPlugin.getInstance(), "hellblock_owner");
@@ -58,50 +61,56 @@ public final class AnimalHandler implements Runnable {
 
 	@Override
 	public void run() {
+		if (!isRunning.compareAndSet(false, true)) {
+			// Already running, skip this execution
+			return;
+		}
+
 		Set<UUID> players = plugin.getIslandManager().getPlayersOnIsland(islandId);
 		if (players.isEmpty()) {
 			return;
 		}
 
-		plugin.getStorageManager().getOfflineUserDataByIslandId(islandId, plugin.getConfigManager().lockData())
-				.thenAccept(result -> {
-					if (result.isEmpty()) {
-						return;
-					}
+		plugin.getStorageManager().getOfflineUserDataByIslandId(islandId, false).thenCompose(optData -> {
+			if (optData.isEmpty()) {
+				return CompletableFuture.completedStage(null);
+			}
 
-					final UserData ownerData = result.get();
-					final HellblockData hellblockData = ownerData.getHellblockData();
+			final UserData ownerData = optData.get();
+			final HellblockData hellblockData = ownerData.getHellblockData();
 
-					if (hellblockData.isAbandoned()) {
-						return;
-					}
-					if (hellblockData.getProtectionValue(HellblockFlag.FlagType.MOB_SPAWNING) != AccessType.ALLOW) {
-						return;
-					}
+			if (hellblockData.isAbandoned()) {
+				return CompletableFuture.completedStage(null);
+			}
 
-					final Optional<HellblockWorld<?>> worldOpt = plugin.getWorldManager()
-							.getWorld(plugin.getWorldManager().getHellblockWorldFormat(islandId));
+			if (hellblockData.getProtectionValue(HellblockFlag.FlagType.MOB_SPAWNING) != AccessType.ALLOW) {
+				return CompletableFuture.completedStage(null);
+			}
 
-					if (worldOpt.isEmpty() || worldOpt.get().bukkitWorld() == null) {
-						throw new NullPointerException(
-								"World returned null, please try to regenerate the world before reporting this issue.");
-					}
+			final Optional<HellblockWorld<?>> worldOpt = plugin.getWorldManager()
+					.getWorld(plugin.getWorldManager().getHellblockWorldFormat(islandId));
 
-					if (plugin.getNetherWeatherManager().isWeatherActive(islandId)) {
-						return;
-					}
+			if (worldOpt.isEmpty() || worldOpt.get().bukkitWorld() == null) {
+				return CompletableFuture.failedFuture(new NullPointerException(
+						"World returned null, please try to regenerate the world before reporting this issue."));
+			}
 
-					final HellblockWorld<?> hellWorld = worldOpt.get();
-					plugin.getProtectionManager().getHellblockChunks(hellWorld, islandId)
-							.thenAccept(chunkPositions -> plugin.getScheduler().executeSync(() -> {
-								final int maxAnimalCount = getMaxAnimalCount(hellblockData);
-								handleAnimals(hellWorld, chunkPositions, hellblockData, maxAnimalCount);
-							}));
+			if (plugin.getNetherWeatherManager().isWeatherActive(islandId)) {
+				return CompletableFuture.completedStage(null);
+			}
 
-				}).exceptionally(ex -> {
-					plugin.getPluginLogger().severe("Error fetching offline user data from islandId=" + islandId, ex);
-					return null;
-				});
+			final HellblockWorld<?> hellWorld = worldOpt.get();
+			return plugin.getProtectionManager().getHellblockChunks(hellWorld, islandId).thenCompose(chunkPositions -> {
+				final int maxAnimalCount = getMaxAnimalCount(hellblockData);
+				return plugin.getScheduler()
+						.callSync(() -> handleAnimals(hellWorld, chunkPositions, hellblockData, maxAnimalCount));
+			});
+		}).whenComplete((res, ex) -> {
+			if (ex != null) {
+				plugin.getPluginLogger().warn("AnimalHandler: Error processing run() for islandId=" + islandId, ex);
+			}
+			isRunning.set(false); // Always reset at the end
+		});
 	}
 
 	private CompletableFuture<Void> handleAnimals(@NotNull HellblockWorld<?> world,

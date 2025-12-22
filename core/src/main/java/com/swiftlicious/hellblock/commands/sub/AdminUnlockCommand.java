@@ -1,7 +1,9 @@
 package com.swiftlicious.hellblock.commands.sub;
 
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -42,14 +44,20 @@ public class AdminUnlockCommand extends BukkitCommandFeature<CommandSender> {
 						return CompletableFuture.completedFuture(Collections.emptyList());
 					}
 
-					final Set<UUID> allKnownUUIDs = plugin.getStorageManager().getDataSource().getUniqueUsers();
+					final String lowerInput = input.input().toLowerCase(Locale.ROOT);
+					final Set<UUID> allKnownUUIDs = new HashSet<>(
+							plugin.getStorageManager().getDataSource().getUniqueUsers());
 
-					final List<String> suggestions = allKnownUUIDs.stream()
+					final List<Suggestion> suggestions = allKnownUUIDs.stream()
 							.map(uuid -> plugin.getStorageManager().getCachedUserData(uuid)).filter(Optional::isPresent)
-							.map(Optional::get).filter(user -> user.getHellblockData().hasHellblock())
-							.map(UserData::getName).filter(Objects::nonNull).toList();
+							.map(Optional::get)
+							.filter(user -> user.getHellblockData().hasHellblock()
+									&& !user.getHellblockData().isAbandoned())
+							.map(UserData::getName).filter(Objects::nonNull)
+							.filter(name -> name.toLowerCase(Locale.ROOT).startsWith(lowerInput))
+							.sorted(String.CASE_INSENSITIVE_ORDER).limit(64).map(Suggestion::suggestion).toList();
 
-					return CompletableFuture.completedFuture(suggestions.stream().map(Suggestion::suggestion).toList());
+					return CompletableFuture.completedFuture(suggestions);
 				})).handler(context -> {
 					final String targetName = context.get("player");
 
@@ -72,61 +80,63 @@ public class AdminUnlockCommand extends BukkitCommandFeature<CommandSender> {
 						return;
 					}
 
-					plugin.getStorageManager().getCachedUserDataWithFallback(targetId, false).thenAccept(result -> {
-						if (result.isEmpty()) {
+					plugin.getStorageManager().getCachedUserDataWithFallback(targetId, false).thenCompose(targetOpt -> {
+						if (targetOpt.isEmpty()) {
 							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_PLAYER_DATA_FAILURE_LOAD,
 									AdventureHelper.miniMessageToComponent(targetName));
-							return;
+							return CompletableFuture.completedFuture(false);
 						}
 
-						final UserData targetUser = result.get();
-						final HellblockData data = targetUser.getHellblockData();
+						final UserData targetUserData = targetOpt.get();
+						final HellblockData data = targetUserData.getHellblockData();
 
 						if (!data.hasHellblock()) {
 							handleFeedback(context, MessageConstants.MSG_HELLBLOCK_NOT_FOUND);
-							return;
+							return CompletableFuture.completedFuture(false);
 						}
 
 						final UUID ownerUUID = data.getOwnerUUID();
 						if (ownerUUID == null) {
 							plugin.getPluginLogger()
-									.severe("Hellblock owner UUID was null for player " + targetUser.getName() + " ("
-											+ targetUser.getUUID() + "). This indicates corrupted data.");
-							throw new IllegalStateException(
-									"Owner reference was null. This should never happen — please report to the developer.");
+									.severe("Hellblock owner UUID was null for player " + targetUserData.getName()
+											+ " (" + targetUserData.getUUID() + "). This indicates corrupted data.");
+							return CompletableFuture.failedFuture(new IllegalStateException(
+									"Owner reference was null. This should never happen — please report to the developer."));
 						}
 
-						plugin.getStorageManager().getCachedUserDataWithFallback(ownerUUID, false)
-								.thenAccept(ownerOpt -> {
+						return plugin.getStorageManager().getCachedUserDataWithFallback(ownerUUID, true)
+								.thenCompose(ownerOpt -> {
 									if (ownerOpt.isEmpty()) {
 										final String username = Bukkit.getOfflinePlayer(ownerUUID).getName();
 										handleFeedback(context, MessageConstants.MSG_HELLBLOCK_PLAYER_DATA_FAILURE_LOAD,
 												AdventureHelper.miniMessageToComponent(username != null ? username
 														: plugin.getTranslationManager().miniMessageTranslation(
 																MessageConstants.FORMAT_UNKNOWN.build().key())));
-										return;
+										return CompletableFuture.completedFuture(false);
 									}
 
 									final UserData ownerData = ownerOpt.get();
 
 									if (ownerData.getHellblockData().isAbandoned()) {
 										handleFeedback(context, MessageConstants.MSG_HELLBLOCK_IS_ABANDONED);
-										return;
+										return CompletableFuture.completedFuture(false);
 									}
 
 									final WorldManager worldManager = plugin.getWorldManager();
 									final ProtectionManager protectionManager = plugin.getProtectionManager();
 
-									final HellblockData ownerHellblockData = ownerData.getHellblockData();
-									final int islandId = ownerHellblockData.getIslandId();
+									final HellblockData hellblockData = ownerData.getHellblockData();
+									final int islandId = hellblockData.getIslandId();
 									final String worldName = worldManager.getHellblockWorldFormat(islandId);
 
 									final Optional<HellblockWorld<?>> worldOpt = worldManager.getWorld(worldName);
 									if (worldOpt.isEmpty()) {
 										handleFeedback(context, MessageConstants.MSG_HELLBLOCK_WORLD_ERROR);
-										plugin.getPluginLogger().warn("World not found for force flag: " + worldName
-												+ " (Island ID: " + islandId + ", Owner UUID: " + ownerUUID + ")");
-										return;
+										plugin.getPluginLogger()
+												.warn("World not found for force unlock/lock command: " + worldName
+														+ " (Island ID: " + islandId + ", Owner UUID: " + ownerUUID
+														+ ")");
+										return CompletableFuture.completedFuture(false);
 									}
 
 									final HellblockWorld<?> world = worldOpt.get();
@@ -134,12 +144,12 @@ public class AdminUnlockCommand extends BukkitCommandFeature<CommandSender> {
 										handleFeedback(context, MessageConstants.MSG_HELLBLOCK_WORLD_ERROR);
 										plugin.getPluginLogger().warn("Bukkit world is null for: " + worldName
 												+ " (Island ID: " + islandId + ", Owner UUID: " + ownerUUID + ")");
-										return;
+										return CompletableFuture.completedFuture(false);
 									}
 
 									// Toggle lock
-									ownerHellblockData.setLockedStatus(!ownerHellblockData.isLocked());
-									if (ownerHellblockData.isLocked()) {
+									hellblockData.setLockedStatus(!hellblockData.isLocked());
+									if (hellblockData.isLocked()) {
 										handleFeedback(context, MessageConstants.MSG_HELLBLOCK_ADMIN_LOCKED,
 												AdventureHelper.miniMessageToComponent(targetName));
 									} else {
@@ -148,16 +158,41 @@ public class AdminUnlockCommand extends BukkitCommandFeature<CommandSender> {
 									}
 
 									// Update protections
-									protectionManager.changeLockStatus(world, ownerUUID);
+									return protectionManager.changeLockStatus(world, ownerUUID)
+											.thenCompose(lockStatus -> {
 
-									plugin.getStorageManager().saveUserData(ownerData,
-											plugin.getConfigManager().lockData());
+												// Kick out visitors if locked
+												if (hellblockData.isLocked()) {
+													// fire and forget, explicitly
+													plugin.getCoopManager().kickVisitorsIfLocked(ownerUUID)
+															.exceptionally(ex -> {
+																plugin.getPluginLogger().warn(
+																		"Failed to kick visitors for locked island "
+																				+ ownerUUID + ": " + ex.getMessage());
+																return null;
+															});
+												}
 
-									// Kick out visitors if locked
-									if (ownerHellblockData.isLocked()) {
-										plugin.getCoopManager().kickVisitorsIfLocked(ownerUUID);
+												// continue immediately with save
+												return plugin.getStorageManager().saveUserData(ownerData, true);
+											}).exceptionally(ex -> {
+												plugin.getPluginLogger().warn("Failed to change island lock status for "
+														+ targetName + ": " + ex.getMessage());
+												return false;
+											});
+								}).handle((result, ex) -> {
+									if (ex != null) {
+										plugin.getPluginLogger()
+												.warn("Admin unlock command failed (Could not read owner " + ownerUUID
+														+ "'s data): " + ex.getMessage());
 									}
-								});
+									return false;
+								}).thenCompose(
+										v -> plugin.getStorageManager().unlockUserData(ownerUUID).thenApply(x -> true));
+					}).exceptionally(ex -> {
+						plugin.getPluginLogger().warn("Admin unlock command failed (Could not read target " + targetName
+								+ "'s data): " + ex.getMessage());
+						return false;
 					});
 				});
 	}

@@ -23,9 +23,12 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.bukkit.Bukkit;
+import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -36,6 +39,7 @@ import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
+import org.bukkit.util.BoundingBox;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -281,17 +285,15 @@ public class StorageManager implements StorageManagerInterface, Listener {
 				}).toList();
 
 				if (!dirtyOnlineUsers.isEmpty()) {
-					this.dataSource.updateManyPlayersData(dirtyOnlineUsers, !instance.getConfigManager().lockData())
-							.thenRun(() -> {
-								// Update snapshots after successful save
-								dirtyOnlineUsers
-										.forEach(user -> lastSavedSnapshots.put(user.getUUID(), user.toPlayerData()));
-								instance.debug("Online batch update successful for " + dirtyOnlineUsers.size() + " user"
-										+ (dirtyOnlineUsers.size() == 1 ? "" : "s") + "!");
-							}).exceptionally(ex -> {
-								instance.getPluginLogger().severe("Online batch update failed", ex);
-								return null;
-							});
+					this.dataSource.updateManyPlayersData(dirtyOnlineUsers, true).thenRun(() -> {
+						// Update snapshots after successful save
+						dirtyOnlineUsers.forEach(user -> lastSavedSnapshots.put(user.getUUID(), user.toPlayerData()));
+						instance.debug("Online batch update successful for " + dirtyOnlineUsers.size() + " user"
+								+ (dirtyOnlineUsers.size() == 1 ? "" : "s") + "!");
+					}).exceptionally(ex -> {
+						instance.getPluginLogger().severe("Online batch update failed", ex);
+						return null;
+					});
 				}
 
 				// Handle offline users, but skip ones already updated
@@ -306,16 +308,15 @@ public class StorageManager implements StorageManagerInterface, Listener {
 						}).toList();
 
 				if (!filteredOfflineUsers.isEmpty()) {
-					this.dataSource.updateManyPlayersData(filteredOfflineUsers, !instance.getConfigManager().lockData())
-							.thenRun(() -> {
-								filteredOfflineUsers
-										.forEach(user -> lastSavedSnapshots.put(user.getUUID(), user.toPlayerData()));
-								instance.debug("Offline batch update successful for " + filteredOfflineUsers.size()
-										+ " user" + (filteredOfflineUsers.size() == 1 ? "" : "s") + "!");
-							}).exceptionally(ex -> {
-								instance.getPluginLogger().severe("Offline batch update failed", ex);
-								return null;
-							});
+					this.dataSource.updateManyPlayersData(filteredOfflineUsers, true).thenRun(() -> {
+						filteredOfflineUsers
+								.forEach(user -> lastSavedSnapshots.put(user.getUUID(), user.toPlayerData()));
+						instance.debug("Offline batch update successful for " + filteredOfflineUsers.size() + " user"
+								+ (filteredOfflineUsers.size() == 1 ? "" : "s") + "!");
+					}).exceptionally(ex -> {
+						instance.getPluginLogger().severe("Offline batch update failed", ex);
+						return null;
+					});
 				}
 
 				// Logging
@@ -395,16 +396,12 @@ public class StorageManager implements StorageManagerInterface, Listener {
 				return CompletableFuture.completedFuture(null);
 			}
 
-			// Preload tasks
-			List<CompletableFuture<Void>> preloadTasks = owners.parallelStream()
-					.map(ownerId -> CompletableFuture
-							.supplyAsync(() -> getCachedUserDataWithFallback(ownerId, false).join(), preloadExecutor)
-							.thenAccept(data -> {
-								if (data.isPresent()) {
-									instance.debug("Preloaded user data for island owner: " + ownerId);
-								}
-							}))
-					.toList();
+			List<CompletableFuture<Void>> preloadTasks = owners.stream()
+					.map(ownerId -> getCachedUserDataWithFallback(ownerId, false).thenAcceptAsync(optData -> {
+						if (optData.isPresent()) {
+							instance.debug("Preloaded user data for island ownerId: " + ownerId);
+						}
+					}, preloadExecutor)).toList();
 
 			return CompletableFuture.allOf(preloadTasks.toArray(CompletableFuture[]::new))
 					.thenRun(() -> instance.debug("Finished preloading island owner data for " + owners.size()
@@ -472,12 +469,12 @@ public class StorageManager implements StorageManagerInterface, Listener {
 	public CompletableFuture<Optional<UserData>> getOfflineUserData(UUID uuid, boolean lock) {
 		final CompletableFuture<Optional<PlayerData>> optionalDataFuture = dataSource.getPlayerData(uuid, lock, null);
 
-		return optionalDataFuture.thenCompose(optionalUser -> {
-			if (optionalUser.isEmpty()) {
+		return optionalDataFuture.thenCompose(optData -> {
+			if (optData.isEmpty()) {
 				return CompletableFuture.completedFuture(Optional.empty());
 			}
 
-			final PlayerData data = optionalUser.get();
+			final PlayerData data = optData.get();
 			UserData userData = UserDataInterface.builder().setData(data).build();
 
 			offlineUserCache.put(uuid, userData);
@@ -491,12 +488,12 @@ public class StorageManager implements StorageManagerInterface, Listener {
 		CompletableFuture<Optional<PlayerData>> optionalDataFuture = dataSource.getPlayerDataByIslandId(islandId, lock,
 				null);
 
-		return optionalDataFuture.thenCompose(optionalPlayerData -> {
-			if (optionalPlayerData.isEmpty()) {
+		return optionalDataFuture.thenCompose(optData -> {
+			if (optData.isEmpty()) {
 				return CompletableFuture.completedFuture(Optional.empty());
 			}
 
-			PlayerData data = optionalPlayerData.get();
+			PlayerData data = optData.get();
 			UserData userData = UserDataInterface.builder().setData(data).build();
 
 			UUID ownerUUID = userData.getHellblockData().getOwnerUUID();
@@ -511,6 +508,13 @@ public class StorageManager implements StorageManagerInterface, Listener {
 	@Override
 	public CompletableFuture<Boolean> saveUserData(UserData userData, boolean unlock) {
 		return dataSource.updatePlayerData(userData.getUUID(), userData.toPlayerData(), unlock);
+	}
+
+	@Override
+	public CompletableFuture<Void> unlockUserData(UUID uuid) {
+		return CompletableFuture.runAsync(() -> {
+			dataSource.lockOrUnlockPlayerData(uuid, false);
+		}, instance.getScheduler().async());
 	}
 
 	@NotNull
@@ -577,70 +581,131 @@ public class StorageManager implements StorageManagerInterface, Listener {
 
 		instance.getProtectionManager().cancelBlockScan(uuid);
 
-		instance.getCoopManager().invalidateVisitingIsland(uuid);
-
 		instance.getSchematicManager().schematicPaster.cancelPaste(uuid);
 
-		final UserData userData = onlineUserMap.remove(uuid);
-
-		if (userData.getHellblockData().hasHellblock())
-			userData.getHellblockData().updateLastIslandActivity();
-
-		instance.getBorderHandler().setBorderExpanding(uuid, false);
-		instance.getBorderHandler().stopBorderTask(uuid);
-
-		if (userData.getHellblockData().getOwnerUUID() != null
-				&& userData.getHellblockData().getOwnerUUID().equals(uuid)) {
-			instance.getIslandLevelManager().serializePlacedBlocks(userData.getHellblockData().getIslandId());
-			String worldName = instance.getWorldManager()
-					.getHellblockWorldFormat(userData.getHellblockData().getIslandId());
-			Optional<HellblockWorld<?>> hellWorld = instance.getWorldManager().getWorld(worldName);
-			hellWorld.ifPresent(world -> instance.getNetherrackGeneratorHandler()
-					.savePistonsByIsland(userData.getHellblockData().getIslandId(), world));
-		}
-
-		instance.getIslandManager().resolveIslandId(player.getLocation()).thenAccept(optIslandId -> optIslandId
-				.ifPresent(islandId -> instance.getIslandManager().handlePlayerLeaveIsland(player, islandId)));
-
-		getDataSource().invalidateCache(uuid);
-
-		// Check if this player is an island owner
-		instance.getCoopManager().getIslandOwner(uuid).thenAccept(optionalOwner -> {
-			if (optionalOwner.isPresent()) {
-				final UUID ownerId = optionalOwner.get();
-
-				// Only snapshot for the owner (even if a coop member logs out)
-				// small delay to let logout finish
-				instance.getScheduler().asyncLater(() -> instance.getIslandBackupManager().maybeSnapshot(ownerId), 2,
-						TimeUnit.SECONDS);
+		trackOfflineVisitor(player).whenComplete((success, ex) -> {
+			if (ex != null) {
+				instance.getPluginLogger().warn("Failed to track offline visitor state for " + player.getName(), ex);
 			}
-		});
 
-		if ((userData.hasGlowstoneToolEffect() || userData.hasGlowstoneArmorEffect())
-				&& player.hasPotionEffect(PotionEffectType.NIGHT_VISION)) {
-			player.removePotionEffect(PotionEffectType.NIGHT_VISION);
-			userData.isHoldingGlowstoneTool(false);
-			userData.isWearingGlowstoneArmor(false);
-		}
-		// Cleanup
-		instance.getNetherrackGeneratorHandler().getGeneratorManager().cleanupExpiredPositions();
+			instance.getCoopManager().invalidateVisitingIsland(uuid);
 
-		final PlayerData data = userData.toPlayerData();
+			final UserData userData = onlineUserMap.remove(uuid);
+			if (userData == null) {
+				instance.debug("No UserData found for " + player.getName() + ". Possibly already unloaded.");
+				return;
+			}
 
-		if (hasRedis) {
-			redisManager.setChangeServer(uuid).thenRun(() -> redisManager.updatePlayerData(uuid, data, true)
-					.thenRun(() -> dataSource.updatePlayerData(uuid, data, true).thenAccept(result -> {
+			if (userData.getHellblockData().hasHellblock())
+				userData.getHellblockData().updateLastIslandActivity();
+
+			instance.getBorderHandler().setBorderExpanding(uuid, false);
+			instance.getBorderHandler().stopBorderTask(uuid);
+
+			if (userData.getHellblockData().getOwnerUUID() != null
+					&& userData.getHellblockData().getOwnerUUID().equals(uuid)) {
+				instance.getIslandLevelManager().serializePlacedBlocks(userData.getHellblockData().getIslandId());
+				String worldName = instance.getWorldManager()
+						.getHellblockWorldFormat(userData.getHellblockData().getIslandId());
+				Optional<HellblockWorld<?>> hellWorld = instance.getWorldManager().getWorld(worldName);
+				hellWorld.ifPresent(world -> instance.getNetherrackGeneratorHandler()
+						.savePistonsByIsland(userData.getHellblockData().getIslandId(), world));
+			}
+
+			instance.getIslandManager().resolveIslandId(player.getLocation()).thenAccept(optIslandId -> optIslandId
+					.ifPresent(islandId -> instance.getIslandManager().handlePlayerLeaveIsland(player, islandId)));
+
+			getDataSource().invalidateCache(uuid);
+
+			if ((userData.hasGlowstoneToolEffect() || userData.hasGlowstoneArmorEffect())
+					&& player.hasPotionEffect(PotionEffectType.NIGHT_VISION)) {
+				player.removePotionEffect(PotionEffectType.NIGHT_VISION);
+				userData.isHoldingGlowstoneTool(false);
+				userData.isWearingGlowstoneArmor(false);
+			}
+
+			// Cleanup
+			instance.getNetherrackGeneratorHandler().getGeneratorManager().cleanupExpiredPositions();
+
+			// Check if this player is an island owner
+			instance.getCoopManager().getIslandOwner(uuid).thenAccept(optData -> {
+				if (optData.isPresent()) {
+					final UUID ownerId = optData.get();
+
+					// Only snapshot for the owner (even if a coop member logs out)
+					// small delay to let logout finish
+					instance.getScheduler().asyncLater(() -> instance.getIslandBackupManager().maybeSnapshot(ownerId),
+							2, TimeUnit.SECONDS);
+				}
+
+				final PlayerData data = userData.toPlayerData();
+
+				if (hasRedis) {
+					redisManager.setChangeServer(uuid).thenCompose(v -> redisManager.updatePlayerData(uuid, data, true))
+							.thenCompose(v -> dataSource.updatePlayerData(uuid, data, true)).thenAccept(result -> {
+								if (result)
+									locked.remove(uuid);
+							});
+				} else {
+					dataSource.updatePlayerData(uuid, data, true).thenAccept(result -> {
 						if (result) {
 							locked.remove(uuid);
 						}
-					})));
-		} else {
-			dataSource.updatePlayerData(uuid, data, true).thenAccept(result -> {
-				if (result) {
-					locked.remove(uuid);
+					});
 				}
 			});
-		}
+		});
+	}
+
+	private CompletableFuture<Boolean> trackOfflineVisitor(@NotNull Player player) {
+		final UUID uuid = player.getUniqueId();
+
+		return instance.getCoopManager().getHellblockOwnerOfVisitingIsland(player).thenCompose(ownerUUID -> {
+			if (ownerUUID == null) {
+				return CompletableFuture.completedFuture(false);
+			}
+
+			return getCachedUserDataWithFallback(ownerUUID, true).thenCompose(optData -> {
+				if (optData.isEmpty()) {
+					return CompletableFuture.completedFuture(false);
+				}
+
+				final UserData ownerData = optData.get();
+				final HellblockData hellblockData = ownerData.getHellblockData();
+				final BoundingBox bounds = hellblockData.getBoundingBox();
+				final Location hellblockLocation = hellblockData.getHellblockLocation();
+
+				if (bounds == null || hellblockLocation == null || hellblockLocation.getWorld() == null) {
+					return CompletableFuture.completedFuture(false);
+				}
+
+				if (hellblockData.getPartyPlusOwner().contains(uuid)) {
+					return CompletableFuture.completedFuture(false);
+				}
+
+				if (player.getWorld().getUID().equals(hellblockLocation.getWorld().getUID())
+						&& bounds.contains(player.getLocation().toVector())) {
+
+					if (hellblockData.getOfflineVisitors().contains(uuid)) {
+						return CompletableFuture.completedFuture(false);
+					}
+
+					hellblockData.addOfflineVisitor(uuid);
+					return saveUserData(ownerData, true);
+				}
+
+				return CompletableFuture.completedFuture(false);
+			}).handle((result, ex) -> {
+				return unlockUserData(ownerUUID).thenApply(unused -> {
+					if (ex != null) {
+						instance.getPluginLogger().warn("Failed to add player " + player.getName()
+								+ " to offline visitor list: " + ex.getMessage(), ex);
+						return false;
+					}
+					return result != null && result;
+				});
+			}).thenCompose(Function.identity());
+		});
 	}
 
 	/**
@@ -879,104 +944,197 @@ public class StorageManager implements StorageManagerInterface, Listener {
 			// Store user data in cache
 			onlineUserMap.put(uuid, userData);
 
-			// Trigger various login behaviors and notifications
-			sendAbandonedWarningIfNeeded(userData);
-			updateIslandDisplayInfoIfNameChanged(userData, storedName);
-			notifyPendingInvitations(userData);
-			notifyCoopMembersOnJoin(userData);
+			clearOfflineVisitorOnJoin(player).thenCompose(success -> {
+				// Run startWorldHandlers
+				return startWorldHandlers(userData);
+			}).thenCompose(v -> {
+				// Collect post-login futures
+				CompletableFuture<Boolean> abandonedFuture = sendAbandonedWarningIfNeeded(userData);
+				CompletableFuture<Boolean> displayUpdateFuture = updateIslandDisplayInfoIfNameChanged(userData,
+						storedName);
+				CompletableFuture<Boolean> inviteFuture = notifyPendingInvitations(userData);
+				CompletableFuture<Boolean> coopNotifyFuture = notifyCoopMembersOnJoin(userData);
+				CompletableFuture<Boolean> levelUpFuture = updateLevelUpChallenge(userData);
 
-			// Run login-related systems
-			instance.getMailboxManager().handleLogin(userData);
-			startWorldHandlers(userData);
-			handleNightVisionFromGear(userData);
-			updateLevelUpChallenge(userData);
+				return CompletableFuture
+						.allOf(abandonedFuture, displayUpdateFuture, inviteFuture, coopNotifyFuture, levelUpFuture)
+						.thenApply(ignored -> true);
+			}).handle((ignored, ex) -> {
+				if (ex != null) {
+					instance.getPluginLogger().warn("Login initialization failed for " + player.getName(), ex);
+				}
 
-			instance.debug("Finished caching logic for " + player.getName());
+				// Run login-related systems that are not async
+				instance.getMailboxManager().handleLogin(userData);
+				handleNightVisionFromGear(userData);
+
+				instance.debug("Finished caching logic for " + player.getName());
+				return null;
+			});
 		}
 	}
 
-	private void sendAbandonedWarningIfNeeded(@NotNull UserData userData) {
+	private CompletableFuture<Boolean> clearOfflineVisitorOnJoin(@NotNull Player player) {
+		final UUID uuid = player.getUniqueId();
+
+		return instance.getCoopManager().getHellblockOwnerOfVisitingIsland(player).thenCompose(ownerUUID -> {
+			if (ownerUUID == null) {
+				return CompletableFuture.completedFuture(false);
+			}
+
+			return getCachedUserDataWithFallback(ownerUUID, true).thenCompose(optData -> {
+				if (optData.isEmpty()) {
+					return CompletableFuture.completedFuture(false);
+				}
+
+				final UserData ownerData = optData.get();
+				final HellblockData hellblockData = ownerData.getHellblockData();
+
+				if (hellblockData.getPartyPlusOwner().contains(uuid)) {
+					return CompletableFuture.completedFuture(false);
+				}
+
+				// If visitor isn't in the list, skip save
+				if (!hellblockData.getOfflineVisitors().contains(uuid)) {
+					return CompletableFuture.completedFuture(false);
+				}
+
+				hellblockData.removeOfflineVisitor(uuid);
+				return saveUserData(ownerData, true);
+			}).handle((result, ex) -> {
+				return unlockUserData(ownerUUID).thenApply(unused -> {
+					if (ex != null) {
+						instance.getPluginLogger().warn("Failed to remove player " + player.getName()
+								+ " from offline visitor list: " + ex.getMessage(), ex);
+						return false;
+					}
+					return result != null && result;
+				});
+			}).thenCompose(Function.identity());
+		});
+	}
+
+	private CompletableFuture<Boolean> sendAbandonedWarningIfNeeded(@NotNull UserData userData) {
 		if (!userData.getHellblockData().hasHellblock())
-			return;
-		HellblockData data = userData.getHellblockData();
-		UUID userUUID = userData.getUUID();
-		UUID ownerUUID = data.getOwnerUUID();
+			return CompletableFuture.completedFuture(false);
+
+		final HellblockData data = userData.getHellblockData();
+		final UUID uuid = userData.getUUID();
+		final UUID ownerUUID = data.getOwnerUUID();
 
 		// Skip if island is not owned
 		if (ownerUUID == null)
-			return;
+			return CompletableFuture.completedFuture(false);
 
 		// Asynchronously get the owner's UserData
-		getCachedUserDataWithFallback(ownerUUID, instance.getConfigManager().lockData())
-				.thenAccept(optionalOwnerData -> {
-					// If owner data is not present, do nothing
-					if (optionalOwnerData.isEmpty())
-						return;
+		return getCachedUserDataWithFallback(ownerUUID, false).thenCompose(optData -> {
+			// If owner data is not present, do nothing
+			if (optData.isEmpty())
+				return CompletableFuture.completedFuture(false);
 
-					UserData ownerData = optionalOwnerData.get();
-					HellblockData ownerHellblockData = ownerData.getHellblockData();
+			UserData ownerData = optData.get();
+			HellblockData hellblockData = ownerData.getHellblockData();
 
-					// Get party (including owner)
-					Set<UUID> partyPlusOwner = ownerHellblockData.getPartyPlusOwner();
+			// Get party (including owner)
+			Set<UUID> party = hellblockData.getPartyPlusOwner();
 
-					// If user is not in the party, skip
-					if (!partyPlusOwner.contains(userUUID))
-						return;
+			// If user is not in the party, skip
+			if (!party.contains(uuid))
+				return CompletableFuture.completedFuture(false);
 
-					// If the island is abandoned, send message
-					if (ownerHellblockData.isAbandoned()) {
-						final Sender audience = instance.getSenderFactory().wrap(userData.getPlayer());
-						audience.sendMessage(instance.getTranslationManager()
-								.render(MessageConstants.MSG_HELLBLOCK_LOGIN_ABANDONED
-										.arguments(AdventureHelper.miniMessageToComponent(
-												String.valueOf(instance.getConfigManager().abandonAfterDays())))
-										.build()));
-						AdventureHelper.playSound(instance.getSenderFactory().getAudience(userData.getPlayer()),
-								Sound.sound(Key.key("minecraft:entity.villager.no"), Sound.Source.PLAYER, 1, 1));
-					}
-				});
+			if (!hellblockData.isAbandoned())
+				return CompletableFuture.completedFuture(false);
+
+			// If the island is abandoned, send message
+			return instance.getScheduler().callSync(() -> {
+				final Sender audience = instance.getSenderFactory().wrap(userData.getPlayer());
+				audience.sendMessage(instance.getTranslationManager()
+						.render(MessageConstants.MSG_HELLBLOCK_LOGIN_ABANDONED.arguments(AdventureHelper
+								.miniMessageToComponent(String.valueOf(instance.getConfigManager().abandonAfterDays())))
+								.build()));
+				AdventureHelper.playSound(instance.getSenderFactory().getAudience(userData.getPlayer()),
+						Sound.sound(Key.key("minecraft:entity.villager.no"), Sound.Source.PLAYER, 1, 1));
+				return CompletableFuture.completedFuture(true);
+			});
+		}).exceptionally(ex -> {
+			instance.getPluginLogger().warn("Error sending abandoned warning to player " + userData.getName(), ex);
+			return false;
+		});
 	}
 
-	private void updateIslandDisplayInfoIfNameChanged(@NotNull UserData userData, @NotNull String storedName) {
+	/**
+	 * Updates the island display name, bio, and entry messages if the player's name
+	 * has changed.
+	 *
+	 * @param userData   The user data associated with the island.
+	 * @param storedName The stored name previously associated with the island.
+	 */
+	private CompletableFuture<Boolean> updateIslandDisplayInfoIfNameChanged(@NotNull UserData userData,
+			@NotNull String storedName) {
+		if (!userData.getHellblockData().hasHellblock())
+			return CompletableFuture.completedFuture(false);
 		HellblockData data = userData.getHellblockData();
 
-		if (data.getOwnerUUID() == null || !Objects.equals(data.getOwnerUUID(), userData.getUUID()))
-			return;
+		// Only update if user is the actual owner
+		if (data.getOwnerUUID() == null || !Objects.equals(data.getOwnerUUID(), userData.getUUID())) {
+			return CompletableFuture.completedFuture(false);
+		}
 
 		DisplaySettings display = data.getDisplaySettings();
+		AtomicBoolean changed = new AtomicBoolean(false);
 
+		// Update bio if using default and name has changed
 		if (display.isDefaultIslandBio() && !display.getIslandBio().contains(userData.getName())) {
 			display.setIslandBio(data.getDefaultIslandBio());
 			display.setAsDefaultIslandBio();
 			instance.debug("Updated island bio for " + userData.getName() + " due to name change.");
+			changed.set(true);
 		}
 
+		// Update name if using default and name has changed
 		if (display.isDefaultIslandName() && !display.getIslandName().contains(userData.getName())) {
 			display.setIslandName(data.getDefaultIslandName());
 			display.setAsDefaultIslandName();
 			instance.debug("Updated island name for " + userData.getName() + " due to name change.");
+			changed.set(true);
 		}
 
+		// Update entry/farewell messages if the island is not abandoned and name
+		// changed
 		if (!data.isAbandoned() && !storedName.equalsIgnoreCase(userData.getName())) {
-			instance.getWorldManager().getWorld(instance.getWorldManager().getHellblockWorldFormat(data.getIslandId()))
-					.ifPresent(world -> {
-						instance.getProtectionManager().getIslandProtection().updateHellblockMessages(world,
-								userData.getUUID());
-						instance.debug(
-								"Updated island entry messages for " + userData.getName() + " due to name change.");
-					});
+			Optional<HellblockWorld<?>> worldOpt = instance.getWorldManager()
+					.getWorld(instance.getWorldManager().getHellblockWorldFormat(data.getIslandId()));
+
+			if (worldOpt.isPresent()) {
+				HellblockWorld<?> world = worldOpt.get();
+
+				return instance.getProtectionManager().getIslandProtection()
+						.updateHellblockMessages(world, userData.getUUID()).thenApply(v -> {
+							instance.debug(
+									"Updated island entry messages for " + userData.getName() + " due to name change.");
+							return true;
+						}).exceptionally(ex -> {
+							instance.getPluginLogger().warn("Failed to update entry messages for " + userData.getName(),
+									ex);
+							return changed.get(); // fallback to whether name/bio changed
+						});
+			}
 		}
+
+		// If no async message update was needed, just return what we changed
+		// synchronously
+		return CompletableFuture.completedFuture(changed.get());
 	}
 
-	private void notifyPendingInvitations(@NotNull UserData userData) {
+	private CompletableFuture<Boolean> notifyPendingInvitations(@NotNull UserData userData) {
 		if (!userData.getNotificationSettings().hasInviteNotifications())
-			return;
+			return CompletableFuture.completedFuture(false);
 		if (userData.getHellblockData().getInvitations().isEmpty())
-			return;
+			return CompletableFuture.completedFuture(false);
 
 		Player player = userData.getPlayer();
 		if (player == null || !player.isOnline())
-			return;
+			return CompletableFuture.completedFuture(false);
 		final Sender audience = instance.getSenderFactory().wrap(player);
 		final int invitationCount = userData.getHellblockData().getInvitations().size();
 
@@ -986,7 +1144,8 @@ public class StorageManager implements StorageManagerInterface, Listener {
 		List<String> usages = config.getUsages();
 
 		if (usages.isEmpty()) {
-			throw new IllegalStateException("No usages defined for 'coop_invites' command in commands.yml");
+			return CompletableFuture.failedFuture(
+					new IllegalStateException("No usages defined for 'coop_invites' command in commands.yml"));
 		}
 
 		String command = usages.get(0);
@@ -1000,59 +1159,94 @@ public class StorageManager implements StorageManagerInterface, Listener {
 		Component reminder = MessageConstants.MSG_HELLBLOCK_INVITE_REMINDER
 				.arguments(AdventureHelper.miniMessageToComponent(String.valueOf(invitationCount)), button).build();
 
-		// Send the message
-		audience.sendMessage(instance.getTranslationManager().render(reminder));
+		return instance.getScheduler().callSync(() -> {
+			// Send the message
+			audience.sendMessage(instance.getTranslationManager().render(reminder));
 
-		// Play notification sound
-		AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
-				Sound.sound(Key.key("minecraft:block.note_block.pling"), Sound.Source.PLAYER, 1, 1.2f));
+			// Play notification sound
+			AdventureHelper.playSound(instance.getSenderFactory().getAudience(player),
+					Sound.sound(Key.key("minecraft:block.note_block.pling"), Sound.Source.PLAYER, 1, 1.2f));
+			return CompletableFuture.completedFuture(true);
+		});
 	}
 
-	private void notifyCoopMembersOnJoin(@NotNull UserData userData) {
+	private CompletableFuture<Boolean> notifyCoopMembersOnJoin(@NotNull UserData userData) {
 		if (!userData.getNotificationSettings().hasJoinNotifications())
-			return;
+			return CompletableFuture.completedFuture(false);
 		if (!userData.getHellblockData().hasHellblock())
-			return;
+			return CompletableFuture.completedFuture(false);
 
 		UUID ownerUUID = userData.getHellblockData().getOwnerUUID();
 		if (ownerUUID == null)
-			return;
+			return CompletableFuture.completedFuture(false);
 
-		getCachedUserDataWithFallback(ownerUUID, instance.getConfigManager().lockData())
-				.thenAccept(optOwner -> optOwner.ifPresent(ownerData -> {
-					Set<UUID> party = ownerData.getHellblockData().getPartyPlusOwner();
-					party.stream().filter(id -> !id.equals(userData.getUUID())).map(Bukkit::getPlayer)
-							.filter(Objects::nonNull).filter(Player::isOnline).forEach(member -> {
-								Sender sender = instance.getSenderFactory().wrap(member);
-								sender.sendMessage(instance.getTranslationManager()
-										.render(MessageConstants.MSG_HELLBLOCK_COOP_JOINED_SERVER
-												.arguments(AdventureHelper.miniMessageToComponent(userData.getName()))
-												.build()));
-								AdventureHelper.playSound(instance.getSenderFactory().getAudience(member), Sound.sound(
-										Key.key("minecraft:entity.experience_orb.pickup"), Sound.Source.PLAYER, 1, 1));
-							});
-				}));
+		return getCachedUserDataWithFallback(ownerUUID, false).thenCompose(optData -> {
+			if (optData.isEmpty()) {
+				return CompletableFuture.completedFuture(false);
+			}
+
+			final UserData ownerData = optData.get();
+			final Set<UUID> party = ownerData.getHellblockData().getPartyPlusOwner();
+
+			return instance.getScheduler().callSync(() -> {
+				boolean notified = false;
+
+				for (UUID id : party) {
+					if (id.equals(userData.getUUID()))
+						continue;
+
+					Player member = Bukkit.getPlayer(id);
+					if (member == null || !member.isOnline())
+						continue;
+
+					Sender sender = instance.getSenderFactory().wrap(member);
+					sender.sendMessage(
+							instance.getTranslationManager().render(MessageConstants.MSG_HELLBLOCK_COOP_JOINED_SERVER
+									.arguments(AdventureHelper.miniMessageToComponent(userData.getName())).build()));
+					AdventureHelper.playSound(instance.getSenderFactory().getAudience(member),
+							Sound.sound(Key.key("minecraft:entity.experience_orb.pickup"), Sound.Source.PLAYER, 1, 1));
+					notified = true;
+				}
+
+				return CompletableFuture.completedFuture(notified);
+			});
+		}).exceptionally(ex -> {
+			instance.getPluginLogger()
+					.warn("Error sending coop join notification for player " + userData.getName() + "'s login", ex);
+			return false;
+		});
 	}
 
-	private void startWorldHandlers(@NotNull UserData userData) {
+	public CompletableFuture<Boolean> startWorldHandlers(@NotNull UserData userData) {
 		Player player = userData.getPlayer();
-		if (player == null || !player.isOnline())
-			return;
+		if (player == null || !player.isOnline()) {
+			return CompletableFuture.completedFuture(false);
+		}
+
+		// Start border task immediately if in correct world
 		if (instance.getHellblockHandler().isInCorrectWorld(player)) {
 			instance.getBorderHandler().startBorderTask(userData.getUUID());
 		}
 
-		instance.getIslandManager().resolveIslandId(player.getLocation()).thenAccept(optIslandId -> optIslandId
-				.ifPresent(islandId -> instance.getIslandManager().handlePlayerEnterIsland(player, islandId)));
+		// Collect futures
+		CompletableFuture<Void> resolveFuture = instance.getIslandManager().resolveIslandId(player.getLocation())
+				.thenAccept(optIslandId -> optIslandId
+						.ifPresent(islandId -> instance.getIslandManager().handlePlayerEnterIsland(player, islandId)));
 
-		instance.getHellblockHandler().ensureSafety(userData);
-		instance.getHellblockHandler().handleVisitingIsland(player, userData);
+		CompletableFuture<Boolean> safetyFuture = instance.getHellblockHandler().ensureSafety(userData);
+		CompletableFuture<Boolean> visitFuture = instance.getHellblockHandler().handleVisitingIsland(player, userData);
+
+		// Combine all futures and return a void future
+		return CompletableFuture.allOf(resolveFuture, safetyFuture, visitFuture).thenApply(v -> true);
 	}
 
-	private void handleNightVisionFromGear(@NotNull UserData userData) {
+	private boolean handleNightVisionFromGear(@NotNull UserData userData) {
 		Player player = userData.getPlayer();
 		if (player == null || !player.isOnline())
-			return;
+			return false;
+		if (!instance.getHellblockHandler().isInCorrectWorld(player))
+			return false;
+
 		boolean hasGlowstoneArmor = Arrays.stream(player.getInventory().getArmorContents()).filter(Objects::nonNull)
 				.anyMatch(item -> item.getType() != Material.AIR
 						&& instance.getNetherArmorHandler().isNetherArmorEnabled(item)
@@ -1078,33 +1272,47 @@ public class StorageManager implements StorageManagerInterface, Listener {
 			player.addPotionEffect(new PotionEffect(PotionEffectType.NIGHT_VISION, Integer.MAX_VALUE, 1));
 			userData.isHoldingGlowstoneTool(true);
 		}
+
+		return userData.hasGlowstoneArmorEffect() || userData.hasGlowstoneToolEffect();
 	}
 
-	private void updateLevelUpChallenge(@NotNull UserData userData) {
+	private CompletableFuture<Boolean> updateLevelUpChallenge(@NotNull UserData userData) {
 		if (!userData.getHellblockData().hasHellblock())
-			return;
+			return CompletableFuture.completedFuture(false);
 
 		UUID ownerUUID = userData.getHellblockData().getOwnerUUID();
 		if (ownerUUID == null)
-			return;
+			return CompletableFuture.completedFuture(false);
 
-		getCachedUserDataWithFallback(ownerUUID, instance.getConfigManager().lockData())
-				.thenAccept(optOwner -> optOwner.ifPresent(ownerData -> {
-					float currentLevel = ownerData.getHellblockData().getIslandLevel();
-					for (ChallengeType challenge : instance.getChallengeManager().getByActionType(ActionType.LEVELUP)) {
-						if (userData.getChallengeData().isChallengeActive(challenge)
-								&& challenge.getRequiredData() instanceof LevelUpRequirement req && req.isRelative()
-								&& userData.getChallengeData().getChallengeMeta(challenge, "startLevel", Double.class)
-										.isEmpty()) {
+		return getCachedUserDataWithFallback(ownerUUID, false).thenCompose(optData -> {
+			if (optData.isEmpty()) {
+				return CompletableFuture.completedFuture(false);
+			}
 
-							// Record baseline if missing
-							userData.getChallengeData().setChallengeMeta(challenge, "startLevel", currentLevel);
+			final UserData ownerData = optData.get();
+			float currentLevel = ownerData.getHellblockData().getIslandLevel();
 
-							instance.getChallengeManager().handleChallengeProgression(userData, ActionType.LEVELUP,
-									currentLevel);
-						}
-					}
-				}));
+			boolean progressed = false;
+
+			for (ChallengeType challenge : instance.getChallengeManager().getByActionType(ActionType.LEVELUP)) {
+				if (userData.getChallengeData().isChallengeActive(challenge)
+						&& challenge.getRequiredData() instanceof LevelUpRequirement req && req.isRelative() && userData
+								.getChallengeData().getChallengeMeta(challenge, "startLevel", Double.class).isEmpty()) {
+
+					// Record baseline if missing
+					userData.getChallengeData().setChallengeMeta(challenge, "startLevel", currentLevel);
+
+					instance.getChallengeManager().handleChallengeProgression(userData, ActionType.LEVELUP,
+							currentLevel);
+					progressed = true;
+				}
+			}
+
+			return CompletableFuture.completedFuture(progressed);
+		}).exceptionally(ex -> {
+			instance.getPluginLogger().warn("Error updating level up challenge for player " + userData.getName(), ex);
+			return false;
+		});
 	}
 
 	/**

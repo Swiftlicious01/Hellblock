@@ -187,14 +187,13 @@ public class ChallengeData implements EmptyCheck {
 						"Owner reference was null. This should never happen — please report to the developer.");
 			}
 
-			HellblockPlugin.getInstance().getStorageManager()
-					.getCachedUserDataWithFallback(ownerId, HellblockPlugin.getInstance().getConfigManager().lockData())
-					.thenAccept(ownerOptData -> {
-						if (ownerOptData.isEmpty()) {
+			HellblockPlugin.getInstance().getStorageManager().getCachedUserDataWithFallback(ownerId, false)
+					.thenAccept(optData -> {
+						if (optData.isEmpty()) {
 							return;
 						}
 
-						UserData ownerData = ownerOptData.get();
+						UserData ownerData = optData.get();
 						double startLevel = ownerData.getHellblockData().getIslandLevel();
 						setChallengeMeta(challengeType, "startLevel", startLevel);
 					});
@@ -331,6 +330,13 @@ public class ChallengeData implements EmptyCheck {
 	 */
 	public void clearChallengeMeta(@NotNull ChallengeType challengeType) {
 		challengeMeta.remove(challengeType);
+	}
+
+	/**
+	 * Removes all metadata for all challenges.
+	 */
+	public void clearChallengeMeta() {
+		challengeMeta.clear();
 	}
 
 	/**

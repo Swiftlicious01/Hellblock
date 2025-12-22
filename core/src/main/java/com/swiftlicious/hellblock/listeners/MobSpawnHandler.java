@@ -85,11 +85,11 @@ public class MobSpawnHandler implements Listener, Reloadable {
 		return total;
 	}
 
-	public void updateMobSpawnBonusCache(@NotNull HellblockData data) {
-		mobSpawnBonusCache.put(data.getIslandId(), calculateMobSpawnBonus(data));
+	public double updateMobSpawnBonusCache(@NotNull HellblockData data) {
+		return mobSpawnBonusCache.put(data.getIslandId(), calculateMobSpawnBonus(data));
 	}
 
-	public void invalidateMobSpawnBonusCache(int islandId) {
-		mobSpawnBonusCache.remove(islandId);
+	public double invalidateMobSpawnBonusCache(int islandId) {
+		return mobSpawnBonusCache.remove(islandId);
 	}
 }

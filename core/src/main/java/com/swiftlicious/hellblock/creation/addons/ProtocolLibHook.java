@@ -53,7 +53,8 @@ public class ProtocolLibHook {
 				@Override
 				public void onPacketReceiving(PacketEvent event) {
 					Player player = event.getPlayer();
-					if (instance.getIslandGenerator().isAnimating(player.getUniqueId())) {
+					if (instance.getIslandGenerator().isAnimating(player.getUniqueId())
+							|| instance.getIslandGenerator().isGenerating(player.getUniqueId())) {
 						// Cancel movement packet while in cinematic mode
 						event.setCancelled(true);
 						instance.debug("ProtocolLibHook: Cancelled movement packet for " + player.getName());

@@ -2,6 +2,7 @@ package com.swiftlicious.hellblock.commands.sub;
 
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
@@ -68,7 +69,7 @@ public class HellblockLockCommand extends BukkitCommandFeature<CommandSender> {
 			final Optional<HellblockWorld<?>> worldOpt = plugin.getWorldManager().getWorld(worldName);
 			if (worldOpt.isEmpty()) {
 				handleFeedback(context, MessageConstants.MSG_HELLBLOCK_WORLD_ERROR);
-				plugin.getPluginLogger().warn("World not found for force flag: " + worldName + " (Island ID: "
+				plugin.getPluginLogger().warn("World not found for unlock/lock command: " + worldName + " (Island ID: "
 						+ islandId + ", Owner UUID: " + ownerUUID + ")");
 				return;
 			}
@@ -88,8 +89,24 @@ public class HellblockLockCommand extends BukkitCommandFeature<CommandSender> {
 					: MessageConstants.MSG_HELLBLOCK_UNLOCK_SUCCESS);
 
 			// Side effects
-			plugin.getCoopManager().kickVisitorsIfLocked(ownerUUID);
-			plugin.getProtectionManager().changeLockStatus(world, ownerUUID);
+			plugin.getProtectionManager().changeLockStatus(world, ownerUUID).thenCompose(lockStatus -> {
+
+				// Kick out visitors if locked
+				if (data.isLocked()) {
+					// fire and forget, explicitly
+					return plugin.getCoopManager().kickVisitorsIfLocked(ownerUUID).exceptionally(ex -> {
+						plugin.getPluginLogger().warn(
+								"Failed to kick visitors for locked island " + ownerUUID + ": " + ex.getMessage(), ex);
+						return null;
+					});
+				}
+
+				return CompletableFuture.completedFuture(null);
+			}).exceptionally(ex -> {
+				plugin.getPluginLogger().warn(
+						"Failed to change island lock status for " + player.getName() + ": " + ex.getMessage(), ex);
+				return null;
+			});
 		});
 	}
 

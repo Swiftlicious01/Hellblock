@@ -9,7 +9,6 @@ import java.util.regex.Pattern;
 
 import org.bukkit.Location;
 import org.bukkit.World;
-import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 
 import com.github.benmanes.caffeine.cache.Cache;
@@ -17,6 +16,7 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import com.swiftlicious.hellblock.HellblockPlugin;
 import com.swiftlicious.hellblock.api.DefaultFontInfo;
 import com.swiftlicious.hellblock.sender.Sender;
+import com.swiftlicious.hellblock.utils.LocationUtils;
 
 import net.kyori.adventure.key.Key;
 import net.kyori.adventure.text.Component;
@@ -247,10 +247,13 @@ public class AdventureHelper {
 	 */
 	public static void playPositionalSound(@NotNull World world, @NotNull Location loc,
 			@NotNull net.kyori.adventure.sound.Sound sound) {
-		double half = HellblockPlugin.getInstance().getConfigManager().searchRadius() / 2.0;
-		world.getNearbyEntities(loc, half, half, half).stream().filter(Player.class::isInstance).map(Player.class::cast)
-				.map(HellblockPlugin.getInstance().getSenderFactory()::getAudience)
-				.forEach(audience -> playSound(audience, sound, loc.getX(), loc.getY(), loc.getZ()));
+		HellblockPlugin plugin = HellblockPlugin.getInstance();
+		double half = plugin.getConfigManager().searchRadius() / 2.0;
+
+		world.getPlayers().stream().filter(p -> p.getWorld().getUID().equals(world.getUID()))
+				// include anyone nearby OR who can actually see the location
+				.filter(p -> LocationUtils.canSeeLocation(p, loc, half)).map(plugin.getSenderFactory()::getAudience)
+				.forEach(audience -> playSound(audience, sound));
 	}
 
 	/**
@@ -366,9 +369,9 @@ public class AdventureHelper {
 	}
 
 	/**
-	 * Parses a multiline MiniMessage string (with optional &lt;center&gt; tags) into a
-	 * visually centered Adventure Component suitable for GUI titles or inventory
-	 * menus.
+	 * Parses a multiline MiniMessage string (with optional &lt;center&gt; tags)
+	 * into a visually centered Adventure Component suitable for GUI titles or
+	 * inventory menus.
 	 *
 	 * <p>
 	 * This implementation estimates text centering using character-domain
